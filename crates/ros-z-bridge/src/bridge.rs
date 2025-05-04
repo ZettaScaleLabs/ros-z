@@ -261,7 +261,7 @@ impl Bridge {
         let key = BridgeKey {
             topic: ep.topic.clone(),
             type_name: type_info.name.clone(),
-            kind: CanonicalKind::from(ep.kind),
+            kind: ep.kind.into(),
         };
 
         if event.appeared {

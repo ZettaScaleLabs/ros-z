@@ -56,92 +56,27 @@ impl MessageGenerator {
         Self { config }
     }
 
-    /// Primary generation method - uses pure Rust codegen pipeline.
-    ///
-    /// This is a thin wrapper around [`generate_from_msg_files_with_deps`] with no
-    /// dependency-only packages.
-    ///
-    /// [`generate_from_msg_files_with_deps`]: Self::generate_from_msg_files_with_deps
+    /// Primary generation method - uses pure Rust codegen pipeline
     pub fn generate_from_msg_files(&self, packages: &[&Path]) -> Result<()> {
-        self.generate_from_msg_files_with_deps(packages, &[])
-    }
-
-    /// Generation method that takes additional dependency-only packages.
-    ///
-    /// `packages` are parsed, resolved AND emitted as Rust code. `dep_packages` are
-    /// parsed and resolved (so their type descriptions are available for hash
-    /// computation of types in `packages` that reference them) but no Rust code is
-    /// emitted for them — these typically come from another crate (e.g. `ros_z_msgs`).
-    ///
-    /// This is the mechanism that lets [`generate_user_messages`] compute correct
-    /// RIHS01 hashes for user messages that reference bundled types like
-    /// `std_msgs/Header` without the user having to manually add bundled paths to
-    /// `ROS_Z_MSG_PATH`.
-    pub fn generate_from_msg_files_with_deps(
-        &self,
-        packages: &[&Path],
-        dep_packages: &[&Path],
-    ) -> Result<()> {
-        // Discover and parse all messages, services, and actions for the user
-        // packages.
-        let (user_messages, user_services, user_actions) = discovery::discover_all(packages)
+        // Discover and parse all messages, services, and actions
+        let (messages, services, actions) = discovery::discover_all(packages)
             .context("Failed to discover messages, services, and actions")?;
 
-        let user_messages = Self::filter_messages(user_messages);
-        let user_services = Self::filter_services(user_services);
-
-        // Track which packages belong to the "user" (emit-code) set so we can
-        // filter the resolver's combined output later.
-        let user_package_names: std::collections::HashSet<String> = user_messages
-            .iter()
-            .map(|m| m.package.clone())
-            .chain(user_services.iter().map(|s| s.package.clone()))
-            .chain(user_actions.iter().map(|a| a.package.clone()))
-            .collect();
+        // Filter out problematic messages
+        let messages = Self::filter_messages(messages);
+        let services = Self::filter_services(services);
 
         println!(
-            "cargo:info=Discovered {} user messages, {} user services, and {} user actions",
-            user_messages.len(),
-            user_services.len(),
-            user_actions.len()
+            "cargo:info=Discovered {} messages, {} services, and {} actions",
+            messages.len(),
+            services.len(),
+            actions.len()
         );
 
-        // Discover dependency-only packages (parsed for hash resolution but not emitted).
-        let (dep_messages, dep_services, dep_actions) = discovery::discover_all(dep_packages)
-            .context("Failed to discover dependency messages, services, and actions")?;
-        let dep_messages = Self::filter_messages(dep_messages);
-        let dep_services = Self::filter_services(dep_services);
-
-        if !dep_packages.is_empty() {
-            println!(
-                "cargo:info=Discovered {} dependency messages, {} dependency services, and {} dependency actions",
-                dep_messages.len(),
-                dep_services.len(),
-                dep_actions.len()
-            );
-        }
-
-        // Track which packages have been loaded as actual TypeDescriptions — these
-        // do NOT need the resolver's "external_packages" shortcut.
-        let mut loaded_packages: std::collections::HashSet<String> =
-            self.config.local_packages.clone();
-        for m in &dep_messages {
-            loaded_packages.insert(m.package.clone());
-        }
-        for s in &dep_services {
-            loaded_packages.insert(s.package.clone());
-        }
-        for a in &dep_actions {
-            loaded_packages.insert(a.package.clone());
-        }
-
-        // Resolve dependencies and calculate type hashes.
-        // The resolver's "external_packages" set is a fallback that lets references
-        // to types we don't actually have descriptions for be treated as resolved
-        // (with a wrong hash). With this set populated we never trigger that path
-        // for any package whose definitions we've actually loaded.
+        // Resolve dependencies and calculate type hashes
+        // If external_crate is set, determine which packages are external (not local)
         let external_packages = if self.config.external_crate.is_some() {
-            // Standard ROS 2 packages that are provided by `ros_z_msgs`.
+            // Standard ROS2 packages that are provided by ros_z_msgs
             let standard_packages: std::collections::HashSet<String> = [
                 "builtin_interfaces",
                 "std_msgs",
@@ -159,8 +94,9 @@ impl MessageGenerator {
             .map(|s| s.to_string())
             .collect();
 
+            // External packages = standard packages - local packages
             standard_packages
-                .difference(&loaded_packages)
+                .difference(&self.config.local_packages)
                 .cloned()
                 .collect()
         } else {
@@ -169,48 +105,18 @@ impl MessageGenerator {
 
         let mut resolver =
             resolver::Resolver::with_external_packages(self.config.is_humble, external_packages);
-
-        // Resolve dependency messages first so their type descriptions are
-        // registered before any user message that references them.
-        if !dep_messages.is_empty() {
-            resolver
-                .resolve_messages(dep_messages)
-                .context("Failed to resolve dependency message hashes")?;
-        }
-        if !dep_services.is_empty() {
-            resolver
-                .resolve_services(dep_services)
-                .context("Failed to resolve dependency service hashes")?;
-        }
-        if !dep_actions.is_empty() {
-            resolver
-                .resolve_actions(dep_actions)
-                .context("Failed to resolve dependency action hashes")?;
-        }
-
-        // Now resolve the user messages — their hashes will be computed using the
-        // dependency type descriptions registered above.
-        //
-        // `Resolver::resolve_messages` returns *all* messages currently registered
-        // in the resolver (including the dependency messages resolved above), so we
-        // filter the returned vector to keep only types in the user package set —
-        // those are the ones we want to emit Rust code for.
-        let all_resolved = resolver
-            .resolve_messages(user_messages)
+        let resolved_messages = resolver
+            .resolve_messages(messages)
             .context("Failed to resolve message dependencies")?;
-        let resolved_messages: Vec<_> = all_resolved
-            .into_iter()
-            .filter(|m| user_package_names.contains(&m.parsed.package))
-            .collect();
         let resolved_services = resolver
-            .resolve_services(user_services)
+            .resolve_services(services)
             .context("Failed to resolve service dependencies")?;
         let resolved_actions = resolver
-            .resolve_actions(user_actions)
+            .resolve_actions(actions)
             .context("Failed to resolve action dependencies")?;
 
         println!(
-            "cargo:info=Resolved {} user messages, {} user services, and {} user actions for codegen",
+            "cargo:info=Resolved {} messages, {} services, and {} actions",
             resolved_messages.len(),
             resolved_services.len(),
             resolved_actions.len()
@@ -227,9 +133,7 @@ impl MessageGenerator {
             println!("cargo:info=Exported JSON manifest to {:?}", json_path);
         }
 
-        // Generate CDR-compatible types (using pure Rust codegen with ZBuf support).
-        // Only user messages are emitted — dependency packages are assumed to be
-        // generated by another crate (e.g. `ros_z_msgs`).
+        // Generate CDR-compatible types (using pure Rust codegen with ZBuf support)
         if self.config.generate_cdr {
             self.generate_cdr_types(&resolved_messages, &resolved_services, &resolved_actions)?;
         }
@@ -528,56 +432,6 @@ impl MessageGenerator {
     }
 }
 
-/// Return the path to the bundled message assets directory for the given distro.
-///
-/// `ros-z-codegen` ships its own copies of the standard ROS 2 interface packages
-/// (`std_msgs`, `geometry_msgs`, `builtin_interfaces`, ...) under `assets/{distro}`.
-/// These are included in the published crate (see the `include` field in
-/// `Cargo.toml`), so this path resolves correctly whether `ros-z-codegen` is
-/// consumed via a path/git dependency or from `crates.io`.
-pub fn bundled_assets_dir(is_humble: bool) -> PathBuf {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let distro = if is_humble { "humble" } else { "jazzy" };
-    manifest_dir.join("assets").join(distro)
-}
-
-/// Discover all bundled standard-package message paths shipped with `ros-z-codegen`.
-///
-/// Returns one path per package directory (e.g. `.../assets/jazzy/std_msgs`) for
-/// every subdirectory of the bundled assets that contains `msg/`, `srv/`, or
-/// `action/`. Returns an empty vector if the bundled assets directory does not
-/// exist for some reason.
-pub fn discover_bundled_packages(is_humble: bool) -> Result<Vec<PathBuf>> {
-    let assets_dir = bundled_assets_dir(is_humble);
-    if !assets_dir.exists() {
-        println!(
-            "cargo:warning=Bundled assets directory does not exist: {:?}",
-            assets_dir
-        );
-        return Ok(Vec::new());
-    }
-
-    let mut packages = Vec::new();
-    for entry in std::fs::read_dir(&assets_dir)
-        .with_context(|| format!("Failed to read bundled assets dir {:?}", assets_dir))?
-    {
-        let entry = entry?;
-        let path = entry.path();
-        if !path.is_dir() {
-            continue;
-        }
-
-        let has_messages =
-            path.join("msg").exists() || path.join("srv").exists() || path.join("action").exists();
-
-        if has_messages {
-            packages.push(path);
-        }
-    }
-
-    Ok(packages)
-}
-
 /// Discover user message packages from the ROS_Z_MSG_PATH environment variable.
 ///
 /// The environment variable should contain a colon-separated list of paths,
@@ -629,20 +483,15 @@ pub fn discover_user_packages() -> Result<Vec<PathBuf>> {
     Ok(packages)
 }
 
-/// High-level API for user crates to generate messages from `ROS_Z_MSG_PATH`.
+/// High-level API for user crates to generate messages from ROS_Z_MSG_PATH.
 ///
 /// This function:
-/// 1. Discovers user packages from the `ROS_Z_MSG_PATH` environment variable.
-/// 2. Loads the bundled standard ROS 2 packages shipped with `ros-z-codegen`
-///    (`std_msgs`, `geometry_msgs`, `builtin_interfaces`, ...) so that user
-///    messages referencing them get correct RIHS01 type hashes — without users
-///    having to manually add bundled paths to `ROS_Z_MSG_PATH`.
-/// 3. Generates Rust code only for the user packages, with references to standard
-///    types resolved as `::ros_z_msgs::ros::{package}::{Type}`.
+/// 1. Discovers packages from ROS_Z_MSG_PATH environment variable
+/// 2. Generates Rust code with external references to ros_z_msgs for standard types
 ///
 /// # Arguments
-/// * `output_dir` - Directory where `generated.rs` will be written
-/// * `is_humble` - Set to true for ROS 2 Humble compatibility mode
+/// * `output_dir` - Directory where generated.rs will be written
+/// * `is_humble` - Set to true for ROS2 Humble compatibility mode
 ///
 /// # Example
 /// ```rust,ignore
@@ -657,8 +506,7 @@ pub fn discover_user_packages() -> Result<Vec<PathBuf>> {
 pub fn generate_user_messages(output_dir: &Path, is_humble: bool) -> Result<()> {
     let packages = discover_user_packages()?;
 
-    // Collect local package names (used to determine which generated code paths
-    // refer to local types vs. types from `ros_z_msgs`).
+    // Collect local package names
     let local_packages: std::collections::HashSet<String> = packages
         .iter()
         .filter_map(|p| discovery::discover_package_name(p).ok())
@@ -668,32 +516,6 @@ pub fn generate_user_messages(output_dir: &Path, is_humble: bool) -> Result<()> 
         "cargo:info=Generating user messages for packages: {:?}",
         local_packages
     );
-
-    // Discover bundled standard packages — passed to the resolver as
-    // dependency-only inputs so user messages referencing `std_msgs/Header`,
-    // `builtin_interfaces/Time`, etc. get correct RIHS01 hashes. We do NOT add
-    // them to `local_packages` because we don't want to emit Rust code for them
-    // (the user's crate depends on `ros_z_msgs` for that).
-    let dep_packages = discover_bundled_packages(is_humble)?;
-
-    // Filter out any bundled package whose name collides with a user package —
-    // user definitions take precedence.
-    let dep_packages: Vec<PathBuf> = dep_packages
-        .into_iter()
-        .filter(|p| {
-            discovery::discover_package_name(p)
-                .ok()
-                .is_none_or(|name| !local_packages.contains(&name))
-        })
-        .collect();
-
-    if !dep_packages.is_empty() {
-        println!(
-            "cargo:info=Loading {} bundled standard packages from {:?} for hash resolution",
-            dep_packages.len(),
-            bundled_assets_dir(is_humble)
-        );
-    }
 
     let config = GeneratorConfig {
         generate_cdr: true,
@@ -708,8 +530,7 @@ pub fn generate_user_messages(output_dir: &Path, is_humble: bool) -> Result<()> 
 
     let generator = MessageGenerator::new(config);
     let package_refs: Vec<&Path> = packages.iter().map(|p| p.as_path()).collect();
-    let dep_refs: Vec<&Path> = dep_packages.iter().map(|p| p.as_path()).collect();
-    generator.generate_from_msg_files_with_deps(&package_refs, &dep_refs)
+    generator.generate_from_msg_files(&package_refs)
 }
 
 #[cfg(test)]

@@ -120,7 +120,7 @@ pub fn start_service_forwarder(
                 let target_ke = target_ke_arc.clone();
                 let proxy_ke_log = proxy_ke_log.clone();
                 // Extract payload and attachment from the query.
-                // The attachment carries the QueryKey (sequence number, writer GUID)
+                // The attachment carries the request identity (sequence number, writer GUID)
                 // required by ros-z service.rs — it must be forwarded verbatim.
                 let payload: Option<ZBytes> = query.payload().cloned();
                 let attachment: Option<ZBytes> = query.attachment().cloned();

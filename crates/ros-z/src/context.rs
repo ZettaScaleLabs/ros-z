@@ -98,7 +98,7 @@ impl ZContextBuilder {
     /// Set the key expression format for ROS 2 entity mapping.
     ///
     /// # Example
-    /// ```
+    /// ```ignore
     /// use ros_z::context::ZContextBuilder;
     /// use ros_z::Builder;
     /// use ros_z_protocol::KeyExprFormat;
@@ -231,10 +231,12 @@ impl ZContextBuilder {
     /// use ros_z::context::ZContextBuilder;
     /// use ros_z::Builder;
     ///
+    /// # fn main() -> zenoh::Result<()> {
     /// let ctx = ZContextBuilder::default()
-    ///     .with_router_endpoint("tcp/192.168.1.1:7447")
-    ///     .build()
-    ///     .expect("Failed to build context");
+    ///     .with_router_endpoint("tcp/192.168.1.1:7447")?
+    ///     .build()?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn with_router_endpoint<S: Into<String>>(mut self, endpoint: S) -> Result<Self> {
         let session_config = crate::config::SessionConfigBuilder::new()

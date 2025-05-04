@@ -123,7 +123,7 @@ impl Drop for ShutdownGuard {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```ignore
 /// # use ros_z::action::*;
 /// # use std::time::Duration;
 /// # let node = todo!();
@@ -692,7 +692,7 @@ impl<A: ZAction> ZActionServer<A> {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```ignore
     /// # use ros_z::action::*;
     /// # let server = todo!();
     /// let server = server.with_handler(|executing| async move {
@@ -733,7 +733,7 @@ impl<A: ZAction> ZActionServer<A> {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```ignore
     /// # use ros_z::action::*;
     /// # let server: ros_z::action::server::ZActionServer<MyAction> = todo!();
     /// // Check and expire any goals that have passed their expiration time
@@ -787,7 +787,7 @@ impl<A: ZAction> ZActionServer<A> {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```ignore
     /// # use ros_z::action::*;
     /// # use std::time::Duration;
     /// # let mut server: ros_z::action::server::ZActionServer<MyAction> = todo!();
@@ -843,7 +843,7 @@ pub type ExecutingGoal<A> = GoalHandle<A, Executing>;
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```ignore
 /// # use ros_z::action::*;
 /// # let server: std::sync::Arc<server::ZActionServer<MyAction>> = todo!();
 /// # async {

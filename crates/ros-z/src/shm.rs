@@ -49,7 +49,7 @@
 //! let provider = Arc::new(ShmProviderBuilder::new(20_000_000).build()?);
 //! let config = ShmConfig::new(provider).with_threshold(10_000);
 //!
-//! let pub = node.create_pub::<ros_z_msgs::std_msgs::ByteMultiArray>("topic")
+//! let publisher = node.create_pub::<ros_z_msgs::std_msgs::ByteMultiArray>("topic")
 //!     .with_shm_config(config)
 //!     .build()?;
 //! # Ok(())
@@ -128,6 +128,7 @@ impl ShmConfig {
     ///
     /// ```rust,no_run
     /// use ros_z::shm::{ShmConfig, ShmProviderBuilder};
+    /// use ros_z::Builder;
     /// use std::sync::Arc;
     ///
     /// # fn main() -> ros_z::Result<()> {
