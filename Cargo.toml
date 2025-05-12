@@ -1,0 +1,11 @@
+[package]
+name = "ros-z"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+cdr = "0.2.4"
+flume = "0.11.1"
+serde = { version = "1.0.219", features = ["serde_derive"] }
+tracing = "0.1.41"
+zenoh = { version = "1.3.4", default-features = false, features = ["transport_tcp"]}
