@@ -1,9 +1,8 @@
 use std::sync::Arc;
-use zenoh::{Result, Session};
-use serde::Deserialize;
+use zenoh::Session;
 
-use crate::msg::{ZMessage as Message, CdrSerder};
-use crate::pubsub::{ZPub, ZSub, ZSubPreDes};
+use crate::msg::ZMessage;
+use crate::pubsub::{ZPubBuilder, ZSubBuilder};
 
 pub struct ZNode {
     pub session: Arc<Session>,
@@ -14,24 +13,23 @@ impl ZNode {
         Self { session }
     }
 
-    pub fn create_pub<'a, T>(&'a self, keyexpr: &'a str) -> Result<ZPub<'a, T>>
+    pub fn create_pub<T>(&self, key_expr: &'static str) -> ZPubBuilder<T>
     where
-        T: Message,
+        T: ZMessage,
     {
-        ZPub::new(&self.session, keyexpr)
+        ZPubBuilder {
+            session: self.session.clone(),
+            key_expr: key_expr.try_into().unwrap(),
+            _phantom_data: Default::default(),
+        }
     }
 
-    pub fn create_sub_predes<T>(&self, keyexpr: &str) -> Result<ZSubPreDes<T>>
-    where
-        for<'a> T: Message<Serder = CdrSerder<T>> + Deserialize<'a> + Send + Sync + 'static,
+    pub fn create_sub<T>(&self, key_expr: &'static str) -> ZSubBuilder<T>
     {
-        ZSubPreDes::new(&self.session, keyexpr)
-    }
-
-    pub fn create_sub<T>(&self, keyexpr: &str) -> Result<ZSub<T>>
-    where
-        T: Message + Sync + Send + 'static,
-    {
-        ZSub::new(&self.session, keyexpr)
+        ZSubBuilder {
+            session: self.session.clone(),
+            key_expr: key_expr.try_into().unwrap(),
+            _phantom_data: Default::default(),
+        }
     }
 }
