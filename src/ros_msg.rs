@@ -1,5 +1,4 @@
-use serde::{Serialize, Deserialize};
-
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone, Copy)]
 pub struct Vector3D {
@@ -29,14 +28,13 @@ pub struct MultiArrayDimension {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use cdr::{CdrLe, Infinite};
+
+    use super::*;
 
     #[test]
     fn test_bytes() {
         let msg = ByteMultiArray::default();
-        cdr::serialize::<_, _, CdrLe>(&msg, Infinite)
-            .unwrap();
+        cdr::serialize::<_, _, CdrLe>(&msg, Infinite).unwrap();
     }
-
 }

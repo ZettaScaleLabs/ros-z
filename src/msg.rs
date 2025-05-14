@@ -1,6 +1,7 @@
+use std::marker::PhantomData;
+
 use cdr::{CdrLe, Infinite};
 use serde::{Deserialize, Serialize};
-use std::marker::PhantomData;
 
 pub trait ZDeserializer {
     type Input<'a>;
@@ -45,8 +46,7 @@ where
 {
     type Input<'a> = &'a T;
     fn serialize(input: &T) -> Vec<u8> {
-        cdr::serialize::<_, _, CdrLe>(input, Infinite)
-            .unwrap()
+        cdr::serialize::<_, _, CdrLe>(input, Infinite).unwrap()
     }
 }
 

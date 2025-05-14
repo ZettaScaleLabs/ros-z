@@ -1,7 +1,9 @@
-use crate::msg::{CdrSerdes, ZMessage};
-use serde::Deserialize;
 use std::{marker::PhantomData, sync::Arc};
+
+use serde::Deserialize;
 use zenoh::{Result, Session, Wait, key_expr::KeyExpr, sample::Sample};
+
+use crate::msg::{CdrSerdes, ZMessage};
 
 pub trait Builder {
     type Output;
@@ -53,7 +55,6 @@ where
     pub fn publish_sample(&self, msg: &Sample) -> Result<()> {
         self.inner.put(msg.payload().to_bytes()).wait()
     }
-
 }
 
 pub struct ZSubBuilder<'ke, T, const POST_DESERIALIZATION: bool = false> {
@@ -64,7 +65,7 @@ pub struct ZSubBuilder<'ke, T, const POST_DESERIALIZATION: bool = false> {
 
 impl<'b, T> ZSubBuilder<'b, T, false>
 where
-    T: ZMessage
+    T: ZMessage,
 {
     pub fn post_deserialization(self) -> ZSubBuilder<'b, T, true> {
         ZSubBuilder {
@@ -97,15 +98,15 @@ where
             _phantom_data: Default::default(),
         })
     }
-
 }
 
 impl<T> ZSubBuilder<'_, T, true>
 where
-    T: ZMessage
+    T: ZMessage,
 {
     pub fn build_with_notifier<F>(self, notify: F) -> Result<ZSub<T, Sample>>
-    where F: Fn() + Send + Sync + 'static
+    where
+        F: Fn() + Send + Sync + 'static,
     {
         let (tx, rx) = flume::bounded(10);
         let inner = self

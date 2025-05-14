@@ -1,7 +1,12 @@
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering::SeqCst},
+    },
+    time::{Duration, Instant},
+};
+
 use ros_z::{Result, context::ZContext, pubsub::Builder, ros_msg::ByteMultiArray};
-use std::sync::atomic::Ordering::SeqCst;
-use std::sync::{Arc, atomic::AtomicBool};
-use std::time::{Duration, Instant};
 
 fn get_percentile(data: &[u64], percentile: f64) -> u64 {
     if data.is_empty() {
@@ -37,9 +42,7 @@ fn main() -> Result<()> {
     let ctx = ZContext::new()?;
     let node = ctx.create_node();
     let zpub = node.create_pub::<ByteMultiArray>("ping").build()?;
-    let zsub = node
-        .create_sub::<ByteMultiArray>("pong")
-        .build()?;
+    let zsub = node.create_sub::<ByteMultiArray>("pong").build()?;
     let period = Duration::from_secs_f64(1.0 / args.frequency as f64);
     let finished = Arc::new(AtomicBool::new(false));
     let c_finished = finished.clone();
@@ -63,7 +66,10 @@ fn main() -> Result<()> {
     });
 
     while !finished.load(SeqCst) {
-        let mut msg = ByteMultiArray { data: vec![0xAA; args.payload], ..Default::default() };
+        let mut msg = ByteMultiArray {
+            data: vec![0xAA; args.payload],
+            ..Default::default()
+        };
         let now = start.elapsed().as_nanos() as u64;
         msg.data[0..8].copy_from_slice(&now.to_le_bytes());
         zpub.publish(&msg)?;

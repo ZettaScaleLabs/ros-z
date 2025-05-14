@@ -1,6 +1,8 @@
-use crate::node::ZNode;
 use std::sync::Arc;
+
 use zenoh::{Result, Session, Wait};
+
+use crate::node::ZNode;
 
 pub struct ZContext {
     session: Arc<Session>,
