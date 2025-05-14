@@ -1,0 +1,12 @@
+[package]
+name = "ros-z"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+cdr = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+flume = { workspace = true }
+serde = { workspace = true, features = ["serde_derive"] }
+tracing = { workspace = true }
+zenoh = { workspace = true, default-features = false, features = ["transport_tcp"]}

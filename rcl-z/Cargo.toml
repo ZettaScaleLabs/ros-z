@@ -1,0 +1,22 @@
+[package]
+name = "rcl-z"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tracing = { workspace = true }
+zenoh = { workspace = true, default-features = false, features = ["transport_tcp"] }
+flume = { workspace = true }
+parking_lot = { workspace = true }
+cxx = { workspace = true }
+cdr = { workspace = true }
+serde = { workspace = true, features = ["serde_derive"] }
+ros-z = { workspace = true }
+
+[lib]
+name = "rcl_z"
+crate-type = ["cdylib"]
+
+[build-dependencies]
+bindgen = "0.71.1"
+cxx-build = "1.0.158"
