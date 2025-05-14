@@ -5,6 +5,7 @@ edition = "2024"
 [workspace]
 resolver = "2"
 members = ["ros-z", "rcl-z"]
+default-members = ["ros-z"]
 
 [workspace.dependencies]
 cdr = "0.2.4"
@@ -16,6 +17,7 @@ zenoh = { version = "1.3.4", default-features = false }
 parking_lot = "0.12.3"
 cxx = "1.0.158"
 ros-z = { version = "*", path = "ros-z" }
+rcl-z = { version = "*", path = "rcl-z" }
 
 [profile.opt]
 inherits = "release"
