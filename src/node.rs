@@ -1,8 +1,11 @@
 use std::sync::Arc;
+
 use zenoh::Session;
 
-use crate::msg::ZMessage;
-use crate::pubsub::{ZPubBuilder, ZSubBuilder};
+use crate::{
+    msg::ZMessage,
+    pubsub::{ZPubBuilder, ZSubBuilder},
+};
 
 pub struct ZNode {
     pub session: Arc<Session>,
@@ -24,8 +27,7 @@ impl ZNode {
         }
     }
 
-    pub fn create_sub<T>(&self, key_expr: &'static str) -> ZSubBuilder<T>
-    {
+    pub fn create_sub<T>(&self, key_expr: &'static str) -> ZSubBuilder<T> {
         ZSubBuilder {
             session: self.session.clone(),
             key_expr: key_expr.try_into().unwrap(),

@@ -1,6 +1,5 @@
 use ros_z::{Result, context::ZContext, pubsub::Builder, ros_msg::ByteMultiArray};
 
-
 fn main() -> Result<()> {
     let ctx = ZContext::new()?;
     let node = ctx.create_node();

@@ -1,5 +1,6 @@
-use ros_z::{Result, context::ZContext, pubsub::Builder, ros_msg::Vector3D};
 use std::time::Duration;
+
+use ros_z::{Result, context::ZContext, pubsub::Builder, ros_msg::Vector3D};
 
 fn main() -> Result<()> {
     let ctx = ZContext::new()?;
