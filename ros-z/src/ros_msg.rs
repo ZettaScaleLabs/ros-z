@@ -2,9 +2,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone, Copy)]
 pub struct Vector3D {
-    pub x: i32,
-    pub y: i32,
-    pub z: i32,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
