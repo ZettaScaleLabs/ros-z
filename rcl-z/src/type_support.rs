@@ -61,6 +61,15 @@ impl TypeSupport {
         Self { type_support }
     }
 
+    pub fn get_type_hash(&self) -> String {
+        const HASH_PREFIX: &'static str = "RIHS01_";
+        unsafe {
+            let type_hash = (*self.type_support).get_type_hash_func.unwrap()(self.type_support);
+            let hex_str: String = (*type_hash).value.iter().map(|b| format!("{:02x}", b)).collect();
+            format!("{HASH_PREFIX}{hex_str}")
+        }
+    }
+
     pub fn serialize_message(&self, ros_message: *const c_void, out: &mut Vec<u8>) {
         let res = unsafe { serialize_message(self.type_support, ros_message, out) };
         if !res {
