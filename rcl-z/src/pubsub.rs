@@ -3,7 +3,7 @@ use crate::node::NodeImpl;
 use crate::ros::*;
 use crate::type_support::TypeSupport;
 use crate::utils::str_from_ptr;
-use ros_z::pubsub::{Builder, ZPub, ZSub};
+use ros_z::{pubsub::{ZPub, ZSub}, Builder};
 use std::sync::Arc;
 use zenoh::{Result, sample::Sample};
 
@@ -54,6 +54,7 @@ pub extern "C" fn rcl_publisher_init(
     let node_impl = unsafe { &*((*node).impl_ as *const NodeImpl) };
     let ts = TypeSupport::new(type_support);
     let keyexpr = str_from_ptr(topic_name).expect("Error found in topic name");
+    tracing::error!("{}", ts.get_type_hash());
     let zpub = node_impl.create_pub(keyexpr).build().unwrap();
 
     let pub_impl = PublisherImpl { zpub, ts };

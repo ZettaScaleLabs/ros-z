@@ -38,6 +38,7 @@ fn main() {
         .generate_comments(false)
         .clang_args(include_args)
         .allowlist_function("rcl_.*")
+        .allowlist_function("rmw_get_gid_for_publisher")
         .allowlist_type("rcl_.*")
         .allowlist_var("RCL_.*")
         .derive_default(true);
@@ -63,6 +64,7 @@ fn main() {
         "rcl_get_zero_initialized_context",
         "rcl_subscription_fini",
         "rcl_node_fini",
+        "rcl_init_options_get_allocator",
     ];
 
     for func in blocked_functions {
@@ -105,6 +107,7 @@ fn main() {
         .std("c++17")
         .compile("serde_bridge");
 
+    println!("cargo:rerun-if-changed=wrapper.hpp");
     println!("cargo:rerun-if-changed=src/lib.rs");
     println!("cargo:rerun-if-changed=src/type_support.rs");
     println!("cargo:rerun-if-changed=src/serde_bridge.cc");
