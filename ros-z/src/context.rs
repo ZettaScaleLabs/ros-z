@@ -2,7 +2,6 @@ use std::sync::{Arc, atomic::AtomicUsize};
 
 use zenoh::{Result, Session, Wait};
 
-use crate::entity::Entity;
 use crate::node::ZNodeBuilder;
 
 #[derive(Debug, Default)]

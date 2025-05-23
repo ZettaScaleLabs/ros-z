@@ -1,6 +1,9 @@
 mod ros;
 mod utils;
+mod traits;
+mod qos;
 
+pub mod service;
 pub mod msg;
 pub mod context;
 pub mod node;

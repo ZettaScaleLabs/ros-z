@@ -1,7 +1,4 @@
-use std::sync::atomic::Ordering::AcqRel;
-use std::sync::{Arc, atomic::AtomicUsize};
-
-use crate::entity::{self, Entity};
+use std::sync::Arc;
 use zenoh::{Result, Session};
 
 use crate::{

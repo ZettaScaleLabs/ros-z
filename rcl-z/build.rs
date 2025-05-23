@@ -40,7 +40,17 @@ fn main() {
         .allowlist_function("rcl_.*")
         .allowlist_function("rmw_get_gid_for_publisher")
         .allowlist_type("rcl_.*")
+        .blocklist_type("rmw_qos_profile_s")
+        .blocklist_type("rmw_qos_.*_policy_e")
         .allowlist_var("RCL_.*")
+        // .no_default("rmw_qos_profile_s")
+        .default_enum_style(bindgen::EnumVariation::Rust {
+            non_exhaustive: false,
+        })
+        .prepend_enum_name(false)
+        .derive_debug(true)
+        .derive_partialeq(true)
+        .derive_eq(true)
         .derive_default(true);
 
     let blocked_functions = [

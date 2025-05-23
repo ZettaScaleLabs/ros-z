@@ -19,4 +19,8 @@ get_message_typesupport(const rosidl_message_type_support_t *ts);
 size_t get_serialized_size(const rosidl_message_type_support_t *ts,
                            const void *ros_message);
 
+rust::String get_message_name(const rosidl_message_type_support_t *ts);
+
+rust::String get_message_namespace(const rosidl_message_type_support_t *ts);
+
 }; // namespace serde_bridge

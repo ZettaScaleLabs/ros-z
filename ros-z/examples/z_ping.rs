@@ -6,7 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use ros_z::{Result, context::ZContext, pubsub::Builder, ros_msg::ByteMultiArray};
+use ros_z::{Result, context::ZContext, Builder, ros_msg::ByteMultiArray};
 
 fn get_percentile(data: &[u64], percentile: f64) -> u64 {
     if data.is_empty() {
@@ -40,7 +40,7 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
     let ctx = ZContext::new()?;
-    let node = ctx.create_node();
+    let node = ctx.create_node("MyNode").build()?;
     let zpub = node.create_pub::<ByteMultiArray>("ping").build()?;
     let zsub = node.create_sub::<ByteMultiArray>("pong").build()?;
     let period = Duration::from_secs_f64(1.0 / args.frequency as f64);

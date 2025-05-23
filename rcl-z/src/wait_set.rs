@@ -51,31 +51,6 @@ pub extern "C" fn rcl_wait_set_clear(_wait_set: *mut rcl_wait_set_t) -> rcl_ret_
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_wait_set_add_subscription(
-    wait_set: *mut rcl_wait_set_t,
-    subscription: *const rcl_subscription_t,
-    index: *mut usize,
-) -> rcl_ret_t {
-    tracing::trace!("rcl_wait_set_add_subscription");
-    unsafe {
-        let slice = std::slice::from_raw_parts_mut(
-            (*wait_set).subscriptions,
-            (*wait_set).size_of_subscriptions,
-        );
-        for (i, slot) in slice.iter_mut().enumerate() {
-            if slot.is_null() {
-                *slot = subscription;
-                if !index.is_null() {
-                    *index = i;
-                }
-                return RCL_RET_OK as _;
-            }
-        }
-    }
-    RCL_RET_ERROR as _
-}
-
-#[unsafe(no_mangle)]
 pub extern "C" fn rcl_wait(wait_set: *mut rcl_wait_set_t, timeout: i64) -> rcl_ret_t {
     tracing::trace!("rcl_wait");
     if wait_set.is_null() {
@@ -123,47 +98,101 @@ pub extern "C" fn rcl_wait_set_resize(
     services_size: usize,
     events_size: usize,
 ) -> rcl_ret_t {
-    unsafe {
-        (*wait_set).size_of_subscriptions = subscriptions_size;
-        (*wait_set).size_of_guard_conditions = guard_conditions_size;
-        (*wait_set).size_of_timers = timers_size;
-        (*wait_set).size_of_clients = clients_size;
-        (*wait_set).size_of_services = services_size;
-        (*wait_set).size_of_events = events_size;
+    tracing::error!(
+        subscriptions_size,
+        guard_conditions_size,
+        timers_size,
+        clients_size,
+        services_size,
+        events_size,
+        "rcl_wait_set_resize called with sizes"
+    );
+
+    macro_rules! init_wait_set_fields {
+        ($wait_set:expr; $(($field:ident, $size_field:ident, $ty:ty, $len:expr)),+ $(,)?) => {{
+            $(
+                let len = $len;
+                (*$wait_set).$field = Box::into_raw(
+                    vec![std::ptr::null::<$ty>(); len].into_boxed_slice()
+                ) as *mut *const _;
+                (*$wait_set).$size_field = len;
+            )+
+        }};
     }
 
     // TODO: fix this
-    let subs = vec![std::ptr::null::<rcl_subscription_t>(); subscriptions_size].into_boxed_slice();
     unsafe {
-        (*wait_set).subscriptions = Box::into_raw(subs) as *mut *const rcl_subscription_t;
-        (*wait_set).size_of_subscriptions = subscriptions_size;
+        init_wait_set_fields!(wait_set;
+            (subscriptions, size_of_subscriptions, rcl_subscription_t, subscriptions_size),
+            (guard_conditions, size_of_guard_conditions, rcl_guard_condition_t, guard_conditions_size),
+            (timers, size_of_timers, rcl_timer_t, timers_size),
+            (clients, size_of_clients, rcl_client_t, clients_size),
+            (services, size_of_services, rcl_service_t, services_size),
+            (events, size_of_events, rcl_event_t, events_size),
+        );
     }
+
     RCL_RET_OK as _
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_wait_set_add_service(
-    wait_set: *mut rcl_wait_set_t,
-    service: *const rcl_service_t,
-    index: *mut usize,
-) -> rcl_ret_t {
-    RCL_RET_OK as _
+
+macro_rules! impl_wait_set_add_fn {
+    ($fn_name:ident, $field:ident, $size_field:ident, $ty:ty) => {
+        #[unsafe(no_mangle)]
+        pub extern "C" fn $fn_name(
+            wait_set: *mut rcl_wait_set_t,
+            item: *const $ty,
+            index: *mut usize,
+        ) -> rcl_ret_t {
+            tracing::trace!(stringify!($fn_name));
+            unsafe {
+                let slice = std::slice::from_raw_parts_mut(
+                    (*wait_set).$field,
+                    (*wait_set).$size_field,
+                );
+                for (i, slot) in slice.iter_mut().enumerate() {
+                    if slot.is_null() {
+                        *slot = item;
+                        if !index.is_null() {
+                            *index = i;
+                        }
+                        return RCL_RET_OK as _;
+                    }
+                }
+            }
+            RCL_RET_ERROR as _
+        }
+    };
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_wait_set_add_event(
-    wait_set: *mut rcl_wait_set_t,
-    event: *const rcl_event_t,
-    index: *mut usize,
-) -> rcl_ret_t {
-    RCL_RET_OK as _
-}
+impl_wait_set_add_fn!(rcl_wait_set_add_subscription, subscriptions, size_of_subscriptions, rcl_subscription_t);
+impl_wait_set_add_fn!(rcl_wait_set_add_service, services, size_of_services, rcl_service_t);
+impl_wait_set_add_fn!(rcl_wait_set_add_event, events, size_of_events, rcl_event_t);
+impl_wait_set_add_fn!(rcl_wait_set_add_guard_condition, guard_conditions, size_of_guard_conditions, rcl_guard_condition_t);
+impl_wait_set_add_fn!(rcl_wait_set_add_client, clients, size_of_clients, rcl_client_t);
+impl_wait_set_add_fn!(rcl_wait_set_add_timer, timers, size_of_timers, rcl_timer_t);
 
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_wait_set_add_guard_condition(
-    wait_set: *mut rcl_wait_set_t,
-    guard_condition: *const rcl_guard_condition_t,
-    index: *mut usize,
-) -> rcl_ret_t {
-    RCL_RET_OK as _
-}
+// #[unsafe(no_mangle)]
+// pub extern "C" fn rcl_wait_set_add_subscription(
+//     wait_set: *mut rcl_wait_set_t,
+//     subscription: *const rcl_subscription_t,
+//     index: *mut usize,
+// ) -> rcl_ret_t {
+//     tracing::trace!("rcl_wait_set_add_subscription");
+//     unsafe {
+//         let slice = std::slice::from_raw_parts_mut(
+//             (*wait_set).subscriptions,
+//             (*wait_set).size_of_subscriptions,
+//         );
+//         for (i, slot) in slice.iter_mut().enumerate() {
+//             if slot.is_null() {
+//                 *slot = subscription;
+//                 if !index.is_null() {
+//                     *index = i;
+//                 }
+//                 return RCL_RET_OK as _;
+//             }
+//         }
+//     }
+//     RCL_RET_ERROR as _
+// }
