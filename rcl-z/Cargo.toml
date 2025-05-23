@@ -12,6 +12,7 @@ cxx = { workspace = true }
 cdr = { workspace = true }
 serde = { workspace = true, features = ["serde_derive"] }
 ros-z = { workspace = true }
+strum = { workspace = true, features = ["derive"]}
 
 [lib]
 name = "rcl_z"

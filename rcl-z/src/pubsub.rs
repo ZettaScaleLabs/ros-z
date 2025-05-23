@@ -1,9 +1,19 @@
+#![allow(unused)]
+
+use crate::impl_has_impl_ptr;
 use crate::msg::RosMessage;
 use crate::node::NodeImpl;
+use crate::rclz_try;
 use crate::ros::*;
+use crate::traits::{BorrowImpl, OwnImpl};
 use crate::type_support::TypeSupport;
 use crate::utils::str_from_ptr;
-use ros_z::{pubsub::{ZPub, ZSub}, Builder};
+use ros_z::{
+    Builder,
+    entity::TypeInfo,
+    pubsub::{ZPub, ZSub},
+};
+use std::ffi::CString;
 use std::sync::Arc;
 use zenoh::{Result, sample::Sample};
 
@@ -13,13 +23,12 @@ pub struct PublisherImpl {
 }
 
 impl PublisherImpl {
-    pub fn from_ptr<'b>(ptr: *const rcl_publisher_t) -> &'b Self {
-        unsafe { &*((*ptr).impl_ as *const PublisherImpl) }
+    pub fn publish(&self, msg: *const crate::c_void) -> Result<()> {
+        self.zpub.publish(&RosMessage::new(msg, self.ts))
     }
-
-    pub fn publish(&self, msg: &RosMessage) -> Result<()> {
-        self.zpub.publish(msg)
-    }
+    // pub fn publish(&self, msg: &RosMessage) -> Result<()> {
+    //     self.zpub.publish(msg)
+    // }
 
     pub fn publish_serialized_message(&self, msg: &[u8]) -> Result<()> {
         self.zpub.publish_serialized_message(msg)
@@ -32,14 +41,16 @@ pub struct SubscriptionImpl {
     // pub rx: flume::Receiver<Sample>,
     pub zsub: ZSub<RosMessage, Sample>,
     pub cv: Arc<(parking_lot::Mutex<bool>, parking_lot::Condvar)>,
+    topic: CString,
     ts: TypeSupport,
 }
 
-impl From<*const rcl_subscription_t> for &SubscriptionImpl {
-    fn from(value: *const rcl_subscription_t) -> Self {
-        unsafe { &*((*value).impl_ as *const SubscriptionImpl) }
-    }
-}
+impl_has_impl_ptr!(rcl_publisher_t, rcl_publisher_impl_t, PublisherImpl);
+impl_has_impl_ptr!(
+    rcl_subscription_t,
+    rcl_subscription_impl_t,
+    SubscriptionImpl
+);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_publisher_init(
@@ -51,17 +62,19 @@ pub extern "C" fn rcl_publisher_init(
 ) -> rcl_ret_t {
     tracing::trace!("rcl_publisher_init");
 
-    let node_impl = unsafe { &*((*node).impl_ as *const NodeImpl) };
     let ts = TypeSupport::new(type_support);
-    let keyexpr = str_from_ptr(topic_name).expect("Error found in topic name");
-    tracing::error!("{}", ts.get_type_hash());
-    let zpub = node_impl.create_pub(keyexpr).build().unwrap();
+    let type_info = TypeInfo::new(&ts.get_type_prefix(), &ts.get_type_hash());
 
-    let pub_impl = PublisherImpl { zpub, ts };
-    unsafe {
-        (*publisher).impl_ = Box::into_raw(Box::new(pub_impl)) as _;
+    rclz_try! {
+        let topic = str_from_ptr(topic_name)?;
+        let zpub = node
+            .borrow_impl()?
+            .create_pub(topic)
+            .with_type_info(type_info)
+            .build()?;
+        publisher
+            .assign_impl(PublisherImpl { zpub, ts })?;
     }
-    RCL_RET_OK as _
 }
 
 #[unsafe(no_mangle)]
@@ -71,11 +84,9 @@ pub extern "C" fn rcl_publish(
     _allocation: *mut rmw_publisher_allocation_t,
 ) -> rcl_ret_t {
     tracing::trace!("rcl_publish");
-    let pub_impl = PublisherImpl::from_ptr(publisher);
-    pub_impl
-        .publish(&RosMessage::new(ros_message, pub_impl.ts))
-        .unwrap();
-    RCL_RET_OK as _
+    rclz_try! {
+        publisher.borrow_impl()?.publish(ros_message)?;
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -85,15 +96,17 @@ pub extern "C" fn rcl_publish_serialized_message(
     _allocation: *mut rmw_publisher_allocation_t,
 ) -> rcl_ret_t {
     tracing::trace!("rcl_publish_serialized_message");
-    let pub_impl = PublisherImpl::from_ptr(publisher);
     let msg = unsafe {
         std::slice::from_raw_parts(
             (*serialized_message).buffer,
             (*serialized_message).buffer_length,
         )
     };
-    pub_impl.publish_serialized_message(&msg).unwrap();
-    RCL_RET_OK as _
+    rclz_try! {
+        publisher
+            .borrow_impl()?
+            .publish_serialized_message(&msg)?;
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -112,9 +125,11 @@ pub extern "C" fn rcl_subscription_init(
     let pair2 = pair.clone();
 
     let node_impl = unsafe { &*((*node).impl_ as *const NodeImpl) };
-    let key_expr = str_from_ptr(topic_name).expect("Error found in topic_name");
+    let topic = str_from_ptr(topic_name).expect("Error found in topic_name");
+    let ts = TypeSupport::new(type_support);
     let zsub = node_impl
-        .create_sub::<RosMessage>(key_expr)
+        .create_sub::<RosMessage>(topic)
+        .with_type_info(TypeInfo::new(&ts.get_type_prefix(), &ts.get_type_hash()))
         .post_deserialization()
         .build_with_notifier(move || {
             let &(ref lock, ref cvar) = &*pair2;
@@ -124,15 +139,15 @@ pub extern "C" fn rcl_subscription_init(
         })
         .expect("Failed to declare_subscriber");
 
-    let sub_impl = SubscriptionImpl {
+    // TODO: get the qualified topic
+    let topic_cstr = CString::new(zsub.entity.topic.clone()).unwrap();
+    subscription.assign_impl(SubscriptionImpl {
         zsub,
         // rx,
         cv: pair,
-        ts: TypeSupport::new(type_support),
-    };
-    unsafe {
-        (*subscription).impl_ = Box::into_raw(Box::new(sub_impl)) as _;
-    }
+        ts,
+        topic: topic_cstr,
+    }).unwrap();
     RCL_RET_OK as _
 }
 
@@ -142,10 +157,9 @@ pub extern "C" fn rcl_publisher_fini(
     _node: *mut rcl_node_t,
 ) -> rcl_ret_t {
     tracing::trace!("rcl_publisher_fini");
-    unsafe {
-        std::mem::drop(Box::from_raw((*publisher).impl_ as *mut PublisherImpl));
+    rclz_try! {
+        std::mem::drop(publisher.own_impl()?);
     }
-    RCL_RET_OK as _
 }
 
 #[unsafe(no_mangle)]
@@ -154,12 +168,9 @@ pub extern "C" fn rcl_subscription_fini(
     _node: *mut rcl_node_t,
 ) -> rcl_ret_t {
     tracing::trace!("rcl_subscription_fini");
-    unsafe {
-        std::mem::drop(Box::from_raw(
-            (*subscription).impl_ as *mut SubscriptionImpl,
-        ));
+    rclz_try! {
+        std::mem::drop(subscription.own_impl()?);
     }
-    RCL_RET_OK as _
 }
 
 #[unsafe(no_mangle)]
@@ -177,7 +188,7 @@ pub extern "C" fn rcl_take(
 
     unsafe {
         // let sub_impl = &mut *((*subscription).impl_ as *mut SubscriptionImpl);
-        let sub_impl: &SubscriptionImpl = From::from(subscription);
+        let sub_impl = subscription.borrow_impl().unwrap();
         let Ok(sample) = sub_impl.zsub.recv() else {
             return RCL_RET_ERROR as _;
         };
@@ -207,4 +218,23 @@ pub extern "C" fn rcl_take(
 
         RCL_RET_OK as _
     }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_subscription_is_valid(subscription: *const rcl_subscription_t) -> bool {
+    subscription.borrow_impl().is_ok()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_subscription_can_loan_messages(
+    subscription: *const rcl_subscription_t,
+) -> bool {
+    false
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_subscription_get_topic_name(
+    subscription: *const rcl_subscription_t,
+) -> *const ::std::os::raw::c_char {
+    subscription.borrow_impl().unwrap().topic.as_ptr()
 }

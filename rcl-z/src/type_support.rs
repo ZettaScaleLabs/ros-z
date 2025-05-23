@@ -39,6 +39,12 @@ mod ffi {
             ts: *const rosidl_message_type_support_t,
             ros_message: *const c_void,
         ) -> usize;
+
+        #[namespace = "serde_bridge"]
+        unsafe fn get_message_name(ts: *const rosidl_message_type_support_t) -> String;
+
+        #[namespace = "serde_bridge"]
+        unsafe fn get_message_namespace(ts: *const rosidl_message_type_support_t) -> String;
     }
 }
 
@@ -65,7 +71,11 @@ impl TypeSupport {
         const HASH_PREFIX: &'static str = "RIHS01_";
         unsafe {
             let type_hash = (*self.type_support).get_type_hash_func.unwrap()(self.type_support);
-            let hex_str: String = (*type_hash).value.iter().map(|b| format!("{:02x}", b)).collect();
+            let hex_str: String = (*type_hash)
+                .value
+                .iter()
+                .map(|b| format!("{:02x}", b))
+                .collect();
             format!("{HASH_PREFIX}{hex_str}")
         }
     }
@@ -86,5 +96,19 @@ impl TypeSupport {
         if !res {
             tracing::error!("Failed to run serialize_message");
         }
+    }
+
+    pub fn get_type_prefix(&self) -> String {
+        let (name, namespace) = unsafe {
+            let ts = (*self).type_support;
+            ( get_message_name(ts), get_message_namespace(ts) )
+        };
+
+        let ns = if namespace.is_empty() {
+            ""
+        } else {
+            &(namespace + "::")
+        };
+        format!("{ns}dds_::{name}_")
     }
 }

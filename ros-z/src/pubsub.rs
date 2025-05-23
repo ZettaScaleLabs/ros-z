@@ -132,6 +132,7 @@ where
             })
             .wait()?;
         Ok(ZSub {
+            entity: self.entity,
             _inner: inner,
             queue: rx,
             _phantom_data: Default::default(),
@@ -157,6 +158,7 @@ where
             })
             .wait()?;
         Ok(ZSub {
+            entity: self.entity,
             _inner: inner,
             queue: rx,
             _phantom_data: Default::default(),
@@ -180,6 +182,7 @@ where
             })
             .wait()?;
         Ok(Self::Output {
+            entity: self.entity,
             _inner: inner,
             queue: rx,
             _phantom_data: Default::default(),
@@ -188,6 +191,7 @@ where
 }
 
 pub struct ZSub<T: ZMessage, Q> {
+    pub entity: EndpointEntity,
     _inner: zenoh::pubsub::Subscriber<()>,
     pub queue: flume::Receiver<Q>,
     _phantom_data: PhantomData<T>,

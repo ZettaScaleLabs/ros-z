@@ -2032,6 +2032,7 @@ dependencies = [
  "parking_lot",
  "ros-z",
  "serde",
+ "strum",
  "tracing",
  "zenoh",
 ]

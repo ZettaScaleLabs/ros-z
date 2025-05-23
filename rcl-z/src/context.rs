@@ -1,4 +1,8 @@
+#![allow(unused)]
+
 use crate::ros::*;
+use crate::traits::OwnImpl;
+use crate::{impl_has_impl_ptr, rclz_try};
 use ros_z::context::ZContext;
 use std::{
     ffi::{CString, c_char, c_int},
@@ -13,6 +17,8 @@ impl Deref for ContextImpl {
         &self.0
     }
 }
+
+impl_has_impl_ptr!(rcl_context_t, rcl_context_impl_t, ContextImpl);
 
 struct RclInitOptionsImpl {
     allocator: rcl_allocator_t,
@@ -35,10 +41,10 @@ pub extern "C" fn rcl_init_options_init(
 pub extern "C" fn rcl_init_options_get_allocator(
     init_options: *const rcl_init_options_t,
 ) -> *const rcl_allocator_t {
-    tracing::error!("rcl_init_options_get_allocator");
+    tracing::trace!("rcl_init_options_get_allocator");
     unsafe {
         let opts_impl = (*init_options).impl_ as *mut RclInitOptionsImpl;
-        tracing::error!("{:?}", (*opts_impl).allocator);
+        tracing::trace!("{:?}", (*opts_impl).allocator);
         &(*opts_impl).allocator as _
     }
 }
@@ -49,13 +55,13 @@ pub extern "C" fn rcl_logging_configure_with_output_handler(
     _allocator: *const rcl_allocator_t,
     _output_handler: rcl_logging_output_handler_t,
 ) -> rcl_ret_t {
-    tracing::error!("rcl_logging_configure_with_output_handler");
+    tracing::trace!("rcl_logging_configure_with_output_handler");
     RCL_RET_OK as _
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_init_options_fini(init_options: *mut rcl_init_options_t) -> rcl_ret_t {
-    // tracing::error!("rcl_init_options_fini");
+    tracing::trace!("rcl_init_options_fini");
     RCL_RET_OK as _
 }
 
@@ -77,20 +83,13 @@ pub extern "C" fn rcl_guard_condition_init(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_node_get_logger_name(
-    _node: *const rcl_node_t,
-) -> *const ::std::os::raw::c_char {
-    Box::into_raw(Box::new(CString::new("no rcl-z logger").unwrap())) as _
-}
-
-#[unsafe(no_mangle)]
 pub extern "C" fn rcl_parse_arguments(
     argc: ::std::os::raw::c_int,
     argv: *const *const ::std::os::raw::c_char,
     allocator: rcl_allocator_t,
     args_output: *mut rcl_arguments_t,
 ) -> rcl_ret_t {
-    tracing::error!("rcl_parse_arguments");
+    tracing::trace!("rcl_parse_arguments");
     RCL_RET_OK as _
 }
 
@@ -98,25 +97,9 @@ pub extern "C" fn rcl_parse_arguments(
 pub extern "C" fn rcl_arguments_get_count_unparsed_ros(
     args: *const rcl_arguments_t,
 ) -> ::std::os::raw::c_int {
-    tracing::error!("rcl_arguments_get_count_unparsed_ros");
+    tracing::trace!("rcl_arguments_get_count_unparsed_ros");
     0
 }
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_node_get_fully_qualified_name(
-    node: *const rcl_node_t,
-) -> *const ::std::os::raw::c_char {
-    Box::into_raw(Box::new(CString::new("no rcl-z node name").unwrap())) as _
-}
-
-// #[unsafe(no_mangle)]
-// pub extern "C"  fn rcl_node_get_default_options() -> rcl_node_options_t {
-//     let mut args = rcl_arguments_s::default();
-//     args.impl_ = Box::into_raw(Box::new(())) as _;
-//     let mut opts = rcl_node_options_t::default();
-//     opts.arguments = args;
-//     opts
-// }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_arguments_get_param_overrides(
@@ -124,94 +107,6 @@ pub extern "C" fn rcl_arguments_get_param_overrides(
     parameter_overrides: *mut *mut rcl_params_t,
 ) -> rcl_ret_t {
     RCL_RET_OK as _
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_node_get_namespace(node: *const rcl_node_t) -> *const ::std::os::raw::c_char {
-    Box::into_raw(Box::new(CString::new("no rcl-z node namespace").unwrap())) as _
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_node_get_name(node: *const rcl_node_t) -> *const ::std::os::raw::c_char {
-    Box::into_raw(Box::new(CString::new("no rcl-z node namespace").unwrap())) as _
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_expand_topic_name(
-    input_topic_name: *const ::std::os::raw::c_char,
-    node_name: *const ::std::os::raw::c_char,
-    node_namespace: *const ::std::os::raw::c_char,
-    substitutions: *const rcutils_string_map_t,
-    allocator: rcl_allocator_t,
-    output_topic_name: *mut *mut ::std::os::raw::c_char,
-) -> rcl_ret_t {
-    RCL_RET_OK as _
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_remap_topic_name(
-    local_arguments: *const rcl_arguments_t,
-    global_arguments: *const rcl_arguments_t,
-    topic_name: *const ::std::os::raw::c_char,
-    node_name: *const ::std::os::raw::c_char,
-    node_namespace: *const ::std::os::raw::c_char,
-    allocator: rcl_allocator_t,
-    output_name: *mut *mut ::std::os::raw::c_char,
-) -> rcl_ret_t {
-    RCL_RET_OK as _
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_remap_service_name(
-    local_arguments: *const rcl_arguments_t,
-    global_arguments: *const rcl_arguments_t,
-    service_name: *const ::std::os::raw::c_char,
-    node_name: *const ::std::os::raw::c_char,
-    node_namespace: *const ::std::os::raw::c_char,
-    allocator: rcl_allocator_t,
-    output_name: *mut *mut ::std::os::raw::c_char,
-) -> rcl_ret_t {
-    RCL_RET_OK as _
-}
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_remap_node_name(
-    local_arguments: *const rcl_arguments_t,
-    global_arguments: *const rcl_arguments_t,
-    node_name: *const ::std::os::raw::c_char,
-    allocator: rcl_allocator_t,
-    output_name: *mut *mut ::std::os::raw::c_char,
-) -> rcl_ret_t {
-    RCL_RET_OK as _
-}
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_remap_node_namespace(
-    local_arguments: *const rcl_arguments_t,
-    global_arguments: *const rcl_arguments_t,
-    node_name: *const ::std::os::raw::c_char,
-    allocator: rcl_allocator_t,
-    output_namespace: *mut *mut ::std::os::raw::c_char,
-) -> rcl_ret_t {
-    RCL_RET_OK as _
-}
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_node_resolve_name(
-    node: *const rcl_node_t,
-    input_name: *const ::std::os::raw::c_char,
-    allocator: rcl_allocator_t,
-    is_service: bool,
-    only_expand: bool,
-    output_name: *mut *mut ::std::os::raw::c_char,
-) -> rcl_ret_t {
-    let cstr = CString::new("skip_rcl_node_resolve_name").unwrap();
-    unsafe {
-        *output_name = cstr.into_raw();
-    }
-    RCL_RET_OK as _
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_node_is_valid(node: *const rcl_node_t) -> bool {
-    true
 }
 
 #[unsafe(no_mangle)]
@@ -240,7 +135,9 @@ pub extern "C" fn rcl_trigger_guard_condition(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_publisher_get_rmw_handle(publisher: *const rcl_publisher_t) -> *mut rmw_publisher_t {
+pub extern "C" fn rcl_publisher_get_rmw_handle(
+    publisher: *const rcl_publisher_t,
+) -> *mut rmw_publisher_t {
     Box::into_raw(Box::new(())) as _
     // // TODO: Recycle this
     // let mut rmw_pub = rmw_publisher_t::default();
@@ -289,9 +186,7 @@ pub extern "C" fn rcl_subscription_event_init(
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_context_is_valid(context: *const rcl_context_t) -> bool {
-    unsafe {
-        !(*context).impl_.is_null()
-    }
+    unsafe { !(*context).impl_.is_null() }
 }
 
 #[unsafe(no_mangle)]
@@ -303,41 +198,17 @@ pub extern "C" fn rcl_init(
 ) -> rcl_ret_t {
     zenoh::init_log_from_env_or("error");
     tracing::trace!("rcl_init");
-
-    unsafe {
-        if !(*context).impl_.is_null() {
-            tracing::error!("(*context).impl_ has already initiated.");
-            return RCL_RET_ALREADY_INIT as _;
-        }
+    rclz_try! {
+        context.assign_impl(ContextImpl(ZContext::new()?))?;
     }
-
-    let context_impl = ContextImpl(ZContext::new().unwrap());
-
-    unsafe {
-        (*context).impl_ = Box::into_raw(Box::new(context_impl)) as _;
-    }
-
-    RCL_RET_OK as _
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_shutdown(context: *mut rcl_context_t) -> rcl_ret_t {
     tracing::trace!("rcl_shutdown");
-
-    unsafe {
-        if context.is_null() || (*context).impl_.is_null() {
-            return RCL_RET_INVALID_ARGUMENT as _;
-        }
-
-        // Recreate the Box to take ownership back
-        let boxed: Box<ContextImpl> = Box::from_raw((*context).impl_ as *mut ContextImpl);
-        (*boxed).0.shutdown().unwrap();
-
-        // Box drops here automatically
-        (*context).impl_ = std::ptr::null_mut();
+    rclz_try! {
+        context.own_impl()?.shutdown()?;
     }
-
-    RCL_RET_OK as _
 }
 
 #[unsafe(no_mangle)]

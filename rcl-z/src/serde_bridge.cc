@@ -72,3 +72,15 @@ bool serde_bridge::deserialize_message(const rosidl_message_type_support_t *ts,
 
   return callbacks->cdr_deserialize(cdr, ros_message);
 }
+
+rust::String serde_bridge::get_message_name(const rosidl_message_type_support_t *ts) {
+  auto callbacks =
+      static_cast<const message_type_support_callbacks_t *>(ts->data);
+  return rust::String(callbacks->message_name_);
+}
+
+rust::String serde_bridge::get_message_namespace(const rosidl_message_type_support_t *ts) {
+  auto callbacks =
+      static_cast<const message_type_support_callbacks_t *>(ts->data);
+  return rust::String(callbacks->message_namespace_);
+}
