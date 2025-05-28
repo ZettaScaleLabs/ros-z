@@ -11,7 +11,7 @@ parking_lot = { workspace = true }
 cxx = { workspace = true }
 cdr = { workspace = true }
 serde = { workspace = true, features = ["serde_derive"] }
-ros-z = { workspace = true }
+ros-z = { workspace = true, features = ["rcl-z"]}
 strum = { workspace = true, features = ["derive"]}
 
 [lib]

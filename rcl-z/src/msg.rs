@@ -1,13 +1,13 @@
-use crate::type_support::TypeSupport;
-use ros_z::msg::{ZDeserializer, ZMessage, ZSerializer};
+use crate::type_support::MessageTypeSupport;
+use ros_z::msg::{ZDeserializer, ZMessage, ZSerializer, ZService};
 
 pub struct RosMessage {
     msg: *const crate::c_void,
-    ts: TypeSupport,
+    ts: MessageTypeSupport,
 }
 
 impl RosMessage {
-    pub fn new(msg: *const crate::c_void, ts: TypeSupport) -> Self {
+    pub fn new(msg: *const crate::c_void, ts: MessageTypeSupport) -> Self {
         RosMessage { msg, ts }
     }
 }
@@ -40,3 +40,10 @@ impl ZMessage for RosMessage {
 
 unsafe impl Sync for RosMessage {}
 unsafe impl Send for RosMessage {}
+
+pub struct RosService;
+
+impl ZService for RosService {
+    type Response = RosMessage;
+    type Request = RosMessage;
+}

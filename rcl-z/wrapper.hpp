@@ -1,4 +1,5 @@
 #include <rcl/rcl.h>
+#include <rcl/graph.h>
 #include <rcl/expand_topic_name.h>
 #include <rcl/remap.h>
 #include <rcl/logging.h>

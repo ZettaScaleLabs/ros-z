@@ -1,14 +1,27 @@
 use zenoh::bytes::ZBytes;
-use zenoh_ext::{ZSerializer, ZDeserializer};
+use zenoh_ext::{ZDeserializer, ZSerializer};
 
 const RMW_GID_STORAGE_SIZE: usize = 16;
 
 pub type GidArray = [u8; RMW_GID_STORAGE_SIZE];
 
+#[derive(Hash)]
 pub struct Attachment {
     pub sequence_number: i64,
     pub source_timestamp: i64,
     pub source_gid: GidArray,
+}
+
+impl Attachment {
+    pub fn new(sn: i64, gid: GidArray) -> Self {
+        Self {
+            sequence_number: sn,
+            source_timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |v| v.as_nanos() as _),
+            source_gid: gid,
+        }
+    }
 }
 
 impl TryFrom<&ZBytes> for Attachment {

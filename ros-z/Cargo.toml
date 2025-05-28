@@ -13,3 +13,8 @@ zenoh = { workspace = true, default-features = false, features = ["transport_tcp
 zenoh-ext = { workspace = true}
 strum = { workspace = true, features = ["derive"]}
 sha2 = { workspace = true}
+
+
+[features]
+default = []
+rcl-z = []

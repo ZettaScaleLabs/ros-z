@@ -11,6 +11,7 @@ pub trait HasImplPtr {
 pub enum ImplAccessError {
     NullSelfPtr,
     NullImplPtr,
+    NonNullImplPtr,
 }
 
 impl Display for ImplAccessError {
@@ -18,6 +19,7 @@ impl Display for ImplAccessError {
         let ctx = match self {
             ImplAccessError::NullSelfPtr => "Null self pointer",
             ImplAccessError::NullImplPtr => "Null impl pointer",
+            ImplAccessError::NonNullImplPtr => "Non-null impl pointer",
         };
         write!(f, "{ctx} detected")
     }
@@ -32,6 +34,7 @@ pub trait BorrowImpl<T: HasImplPtr> {
 pub trait OwnImpl<T: HasImplPtr> {
     fn own_impl(self) -> Result<Box<T::ImplType>, ImplAccessError>;
     fn assign_impl(self, val: T::ImplType) -> Result<(), ImplAccessError>;
+    fn borrow_mut_impl<'a>(self) -> Result<&'a mut T::ImplType, ImplAccessError>;
 }
 
 impl<T> BorrowImpl<T> for *const T
@@ -56,6 +59,19 @@ impl<T> OwnImpl<T> for *mut T
 where
     T: HasImplPtr,
 {
+    fn borrow_mut_impl<'a>(self) -> Result<&'a mut T::ImplType, ImplAccessError> {
+        if self.is_null() {
+            return Err(ImplAccessError::NullSelfPtr);
+        }
+        unsafe {
+            let impl_ptr = (*self).get_impl();
+            if impl_ptr.is_null() {
+                return Err(ImplAccessError::NullImplPtr);
+            }
+            Ok(&mut *(impl_ptr as *mut _))
+        }
+    }
+
     fn own_impl(self) -> Result<Box<T::ImplType>, ImplAccessError> {
         if self.is_null() {
             return Err(ImplAccessError::NullSelfPtr);
@@ -77,8 +93,8 @@ where
         }
         unsafe {
             let mut_impl_ptr = (*self).get_mut_impl();
-            if mut_impl_ptr.is_null() {
-                return Err(ImplAccessError::NullImplPtr);
+            if !mut_impl_ptr.is_null() {
+                return Err(ImplAccessError::NonNullImplPtr);
             }
             *mut_impl_ptr = Box::into_raw(Box::new(val)) as _;
             Ok(())
