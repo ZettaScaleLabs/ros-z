@@ -6,6 +6,7 @@ use crate::{
     context::GlobalCounter,
     msg::ZMessage,
     pubsub::{ZPubBuilder, ZSubBuilder},
+    service::{ZServerBuilder, ZClientBuilder},
     entity::*,
 };
 
@@ -62,6 +63,36 @@ impl ZNode {
             type_info: None
         };
         ZSubBuilder {
+            entity,
+            session: self.session.clone(),
+            _phantom_data: Default::default(),
+        }
+    }
+
+    pub fn create_service<T>(&self, topic: &str) -> ZServerBuilder<T> {
+        let entity = EndpointEntity {
+            id: self.counter.increment(),
+            node: self.entity.clone(),
+            topic: topic.to_string(),
+            kind: crate::entity::EndpointKind::Service,
+            type_info: None
+        };
+        ZServerBuilder {
+            entity,
+            session: self.session.clone(),
+            _phantom_data: Default::default(),
+        }
+    }
+
+    pub fn create_client<T>(&self, topic: &str) -> ZClientBuilder<T> {
+        let entity = EndpointEntity {
+            id: self.counter.increment(),
+            node: self.entity.clone(),
+            topic: topic.to_string(),
+            kind: crate::entity::EndpointKind::Client,
+            type_info: None
+        };
+        ZClientBuilder {
             entity,
             session: self.session.clone(),
             _phantom_data: Default::default(),

@@ -92,6 +92,7 @@ fn main() {
 
     // CXX
     let include_pkgs = [
+        "rmw",
         "fastcdr",
         "rcutils",
         "rosidl_runtime_c",

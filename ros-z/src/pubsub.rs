@@ -1,6 +1,5 @@
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering::AcqRel;
-use std::time::{SystemTime, UNIX_EPOCH};
 use std::{marker::PhantomData, sync::Arc};
 
 use serde::Deserialize;
@@ -8,8 +7,9 @@ use zenoh::{Result, Session, Wait, sample::Sample};
 
 use crate::Builder;
 use crate::attachment::{Attachment, GidArray};
-use crate::entity::{EndpointEntity, TypeInfo};
+use crate::entity::EndpointEntity;
 use crate::msg::{CdrSerdes, ZMessage};
+use crate::impl_with_type_info;
 
 pub struct ZPub<T: ZMessage> {
     // TODO: replace this with the sample sn
@@ -27,17 +27,6 @@ pub struct ZPubBuilder<T> {
     pub _phantom_data: PhantomData<T>,
 }
 
-macro_rules! impl_with_type_info {
-    ($type:ident<$t:ident>) => {
-        impl<$t> $type<$t> {
-            pub fn with_type_info(mut self, type_info: TypeInfo) -> Self {
-                self.entity.type_info = Some(type_info);
-                self
-            }
-        }
-    };
-}
-
 impl_with_type_info!(ZPubBuilder<T>);
 impl_with_type_info!(ZSubBuilder<T>);
 // impl_with_type_info!(ZSubBuilder<T, true>);
@@ -51,12 +40,10 @@ where
     fn build(self) -> Result<Self::Output> {
         let key_expr = self.entity.topic_key_expr()?;
         tracing::error!("[PUB] KE: {key_expr}");
-        let zpub = self.session.declare_publisher(key_expr).wait()?;
-        let gid = self.entity.gid();
         Ok(ZPub {
             sn: AtomicUsize::new(0),
-            inner: zpub,
-            gid,
+            inner: self.session.declare_publisher(key_expr).wait()?,
+            gid: self.entity.gid(),
             _phantom_data: Default::default(),
         })
     }
@@ -66,14 +53,8 @@ impl<T> ZPub<T>
 where
     T: ZMessage,
 {
-    pub fn new_attchment(&self) -> Attachment {
-        Attachment {
-            sequence_number: self.sn.fetch_add(1, AcqRel) as _,
-            source_timestamp: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map_or(0, |v| v.as_nanos() as _),
-            source_gid: self.gid,
-        }
+    fn new_attchment(&self) -> Attachment {
+        Attachment::new(self.sn.fetch_add(1, AcqRel) as _, self.gid)
     }
 
     pub fn publish(&self, msg: &T) -> Result<()> {
@@ -144,6 +125,7 @@ impl<T> ZSubBuilder<T, true>
 where
     T: ZMessage,
 {
+    #[cfg(feature = "rcl-z")]
     pub fn build_with_notifier<F>(self, notify: F) -> Result<ZSub<T, Sample>>
     where
         F: Fn() + Send + Sync + 'static,

@@ -6,7 +6,7 @@ use crate::node::NodeImpl;
 use crate::rclz_try;
 use crate::ros::*;
 use crate::traits::{BorrowImpl, OwnImpl};
-use crate::type_support::TypeSupport;
+use crate::type_support::MessageTypeSupport;
 use crate::utils::str_from_ptr;
 use ros_z::{
     Builder,
@@ -15,11 +15,12 @@ use ros_z::{
 };
 use std::ffi::CString;
 use std::sync::Arc;
+use std::time::Duration;
 use zenoh::{Result, sample::Sample};
 
 pub struct PublisherImpl {
     zpub: ZPub<RosMessage>,
-    ts: TypeSupport,
+    ts: MessageTypeSupport,
 }
 
 impl PublisherImpl {
@@ -36,13 +37,26 @@ impl PublisherImpl {
 }
 
 pub struct SubscriptionImpl {
-    // zsub: zenoh::pubsub::Subscriber<()>,
-    // zsub: zenoh::pubsub::Subscriber<()>,
-    // pub rx: flume::Receiver<Sample>,
     pub zsub: ZSub<RosMessage, Sample>,
     pub cv: Arc<(parking_lot::Mutex<bool>, parking_lot::Condvar)>,
     topic: CString,
-    ts: TypeSupport,
+    ts: MessageTypeSupport,
+}
+
+impl SubscriptionImpl {
+    pub fn wait(&self, timeout: Duration) -> bool {
+        if self.zsub.queue.len() > 0 {
+            return true;
+        }
+
+        let (lock, cv) = &*self.cv;
+        let mut started = lock.lock();
+        if self.zsub.queue.len() == 0 && !*started {
+            !cv.wait_for(&mut started, timeout).timed_out()
+        } else {
+            true
+        }
+    }
 }
 
 impl_has_impl_ptr!(rcl_publisher_t, rcl_publisher_impl_t, PublisherImpl);
@@ -62,7 +76,7 @@ pub extern "C" fn rcl_publisher_init(
 ) -> rcl_ret_t {
     tracing::trace!("rcl_publisher_init");
 
-    let ts = TypeSupport::new(type_support);
+    let ts = MessageTypeSupport::new(type_support);
     let type_info = TypeInfo::new(&ts.get_type_prefix(), &ts.get_type_hash());
 
     rclz_try! {
@@ -126,7 +140,7 @@ pub extern "C" fn rcl_subscription_init(
 
     let node_impl = unsafe { &*((*node).impl_ as *const NodeImpl) };
     let topic = str_from_ptr(topic_name).expect("Error found in topic_name");
-    let ts = TypeSupport::new(type_support);
+    let ts = MessageTypeSupport::new(type_support);
     let zsub = node_impl
         .create_sub::<RosMessage>(topic)
         .with_type_info(TypeInfo::new(&ts.get_type_prefix(), &ts.get_type_hash()))

@@ -34,6 +34,7 @@ where
     for<'a> T: Deserialize<'a>,
 {
     type Input<'a> = &'a [u8];
+    // FIXME: Use a result type
     type Output = T;
     fn deserialize(input: Self::Input<'_>) -> Self::Output {
         cdr::deserialize::<T>(input).unwrap()
@@ -55,4 +56,9 @@ where
     for<'a> T: Serialize + Deserialize<'a> + 'a,
 {
     type Serdes = CdrSerdes<T>;
+}
+
+pub trait ZService {
+    type Request: ZMessage;
+    type Response: ZMessage;
 }

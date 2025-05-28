@@ -36,6 +36,11 @@ macro_rules! rclz_try {
     }};
 }
 
+#[derive(Debug, Default)]
+pub struct Notifier {
+    pub mutex: parking_lot::Mutex<bool>,
+    pub cv: parking_lot::Condvar,
+}
 
 // pub struct DebugCStr(pub *const c_char);
 //

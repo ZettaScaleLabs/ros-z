@@ -110,17 +110,6 @@ pub extern "C" fn rcl_arguments_get_param_overrides(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_service_init(
-    service: *mut rcl_service_t,
-    node: *const rcl_node_t,
-    type_support: *const rosidl_service_type_support_t,
-    service_name: *const ::std::os::raw::c_char,
-    options: *const rcl_service_options_t,
-) -> rcl_ret_t {
-    RCL_RET_OK as _
-}
-
-#[unsafe(no_mangle)]
 pub extern "C" fn rcl_guard_condition_get_options(
     guard_condition: *const rcl_guard_condition_t,
 ) -> *const rcl_guard_condition_options_t {
