@@ -13,6 +13,7 @@ const INCLUDE_PACKAGES: &[&str] = &[
     "rosidl_typesupport_interface",
     "rosidl_dynamic_typesupport",
     "fastcdr",
+    "type_description_interfaces"
 ];
 
 fn main() {
@@ -39,6 +40,7 @@ fn main() {
         .clang_args(include_args)
         .allowlist_function("rcl_.*")
         .allowlist_function("rmw_get_gid_for_publisher")
+        .allowlist_function("rosidl_typesupport_c__get_service_type_support_handle__type_description_interfaces__srv__GetTypeDescription")
         .allowlist_type("rcl_.*")
         .blocklist_type("rmw_qos_profile_s")
         .blocklist_type("rmw_qos_.*_policy_e")
@@ -132,4 +134,5 @@ fn main() {
     println!("cargo:rustc-link-lib=dylib=rosidl_runtime_c");
     println!("cargo:rustc-link-lib=dylib=rosidl_typesupport_fastrtps_c");
     println!("cargo:rustc-link-lib=dylib=rosidl_typesupport_fastrtps_cpp");
+    println!("cargo:rustc-link-lib=dylib=type_description_interfaces__rosidl_typesupport_c");
 }

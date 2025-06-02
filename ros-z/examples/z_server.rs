@@ -1,9 +1,4 @@
-use ros_z::{
-    Builder, Result,
-    context::ZContext,
-    entity::TypeInfo,
-    ros_msg::{Vector3D, srv::AddTwoInts},
-};
+use ros_z::{Builder, Result, context::ZContext, entity::TypeInfo, ros_msg::srv::AddTwoInts};
 
 fn main() -> Result<()> {
     let ctx = ZContext::new()?;

@@ -56,7 +56,7 @@ where
 
     fn build(self) -> Result<Self::Output> {
         let key_expr = self.entity.topic_key_expr()?;
-        tracing::error!("[CLN] KE: {key_expr}");
+        tracing::debug!("[CLN] KE: {key_expr}");
 
         let (tx, rx) = flume::unbounded();
         Ok(ZClient {
@@ -82,6 +82,7 @@ where
         Ok(self.rx.recv()?)
     }
 
+    // For ROS-Z
     pub fn take_response(&self) -> Result<T::Response>
     where
         for<'c> T::Response: ZMessage<Serdes = CdrSerdes<T::Response>> + Deserialize<'c>,
@@ -163,7 +164,7 @@ where
 
     fn build(self) -> Result<Self::Output> {
         let key_expr = self.entity.topic_key_expr()?;
-        tracing::error!("[SRV] KE: {key_expr}");
+        tracing::debug!("[SRV] KE: {key_expr}");
 
         let (tx, rx) = flume::unbounded();
         let qable = self
@@ -194,7 +195,7 @@ impl<T> ZServerBuilder<T>
         F: Fn() + Send + Sync + 'static,
     {
         let key_expr = self.entity.topic_key_expr()?;
-        tracing::error!("[SRV] KE: {key_expr}");
+        tracing::debug!("[SRV] KE: {key_expr}");
 
         let (tx, rx) = flume::unbounded();
         let qable = self

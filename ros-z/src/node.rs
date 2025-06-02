@@ -4,29 +4,43 @@ use zenoh::{Result, Session};
 use crate::{
     Builder,
     context::GlobalCounter,
+    entity::*,
     msg::ZMessage,
     pubsub::{ZPubBuilder, ZSubBuilder},
-    service::{ZServerBuilder, ZClientBuilder},
-    entity::*,
+    service::{ZClientBuilder, ZServerBuilder},
 };
 
 pub struct ZNode {
-    entity: NodeEntity,
+    pub entity: NodeEntity,
     session: Arc<Session>,
     counter: Arc<GlobalCounter>,
 }
 
-pub struct ZNodeBuilder<'a> {
-    pub name: &'a str,
+pub struct ZNodeBuilder {
+    pub name: String,
+    pub namespace: Option<String>,
     pub session: Arc<Session>,
     pub counter: Arc<GlobalCounter>,
 }
 
-impl Builder for ZNodeBuilder<'_> {
+impl ZNodeBuilder {
+    pub fn with_namespace<S: AsRef<str>>(mut self, namespace: S) -> Self {
+        self.namespace = Some(namespace.as_ref().to_owned());
+        self
+    }
+}
+
+impl Builder for ZNodeBuilder {
     type Output = ZNode;
     fn build(self) -> Result<ZNode> {
         let id = self.counter.increment();
-        let node = NodeEntity::new(0, self.session.zid(), id, self.name.to_owned(), "%".to_string());
+        let node = NodeEntity::new(
+            0,
+            self.session.zid(),
+            id,
+            self.name,
+            self.namespace.to_owned(),
+        );
         Ok(ZNode {
             entity: node,
             session: self.session,
@@ -45,7 +59,7 @@ impl ZNode {
             node: self.entity.clone(),
             topic: topic.to_string(),
             kind: crate::entity::EndpointKind::Publisher,
-            type_info: None
+            type_info: None,
         };
         ZPubBuilder {
             entity,
@@ -60,7 +74,7 @@ impl ZNode {
             node: self.entity.clone(),
             topic: topic.to_string(),
             kind: crate::entity::EndpointKind::Subscription,
-            type_info: None
+            type_info: None,
         };
         ZSubBuilder {
             entity,
@@ -75,7 +89,7 @@ impl ZNode {
             node: self.entity.clone(),
             topic: topic.to_string(),
             kind: crate::entity::EndpointKind::Service,
-            type_info: None
+            type_info: None,
         };
         ZServerBuilder {
             entity,
@@ -90,7 +104,7 @@ impl ZNode {
             node: self.entity.clone(),
             topic: topic.to_string(),
             kind: crate::entity::EndpointKind::Client,
-            type_info: None
+            type_info: None,
         };
         ZClientBuilder {
             entity,

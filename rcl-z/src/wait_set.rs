@@ -1,22 +1,417 @@
 #![allow(unused)]
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
+use std::ptr::null;
+use std::sync::Arc;
 
 use crate::pubsub::SubscriptionImpl;
+use crate::service::{ClientImpl, ServiceImpl};
+use crate::traits::HasImplPtr;
+use crate::traits::Waitable;
+use crate::utils::Notifier;
 use crate::{
     c_void, impl_has_impl_ptr,
     ros::*,
     traits::{BorrowImpl, OwnImpl},
 };
+use parking_lot::lock_api::MutexGuard;
+use std::time::Duration;
+use strum::{EnumIter, IntoEnumIterator};
+use zenoh::Result;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, EnumIter)]
+pub enum WaitSetKind {
+    Subscription,
+    Client,
+    Service,
+    GuradCondition,
+    Event,
+    Timer,
+}
+
+type WaitSetQueue = Vec<*const c_void>;
+
+#[derive(Debug)]
 pub struct WaitSetImpl {
-    subscriptions: VecDeque<*const c_void>,
-    clients: VecDeque<*const c_void>,
-    services: VecDeque<*const c_void>,
+    hmap: HashMap<WaitSetKind, WaitSetQueue>,
+    mirror: Option<HashMap<WaitSetKind, Box<[*const c_void]>>>,
+    notifier: Option<Arc<Notifier>>,
+}
+
+impl WaitSetImpl {
+    fn new() -> Self {
+        Self {
+            hmap: WaitSetKind::iter()
+                .map(|x| (x, WaitSetQueue::new()))
+                .collect(),
+            mirror: None,
+            notifier: None,
+        }
+    }
+
+    // fn resize(&mut self, key: &WaitSetKind, len: usize) {
+    //     match self.hmap.get_mut(key) {
+    //         Some(queue) => {
+    //             queue.resize(len, std::ptr::null());
+    //         }
+    //         None => {
+    //             let mut x = WaitSetQueue::new();
+    //             x.resize(len, std::ptr::null());
+    //             self.hmap.insert(*key, x);
+    //         }
+    //     }
+    // }
+
+    fn insert(&mut self, key: &WaitSetKind, val: *const c_void) {
+        match self.hmap.get_mut(key) {
+            Some(queue) => {
+                queue.push(val);
+            }
+            None => {
+                self.hmap.insert(*key, WaitSetQueue::from([val]));
+            }
+        }
+    }
+
+    fn queue_len(&self, key: &WaitSetKind) -> usize {
+        match self.hmap.get(key) {
+            Some(queue) => queue.len(),
+            None => 0,
+        }
+    }
+
+    fn reset_all(&mut self) {
+        self.hmap.iter_mut().for_each(|(k, v)| {
+            *v = WaitSetQueue::default();
+        });
+    }
+
+    fn is_ready<T>(&self, kind: WaitSetKind) -> bool
+    where
+        T: HasImplPtr<ImplType: Waitable>,
+    {
+        match self.hmap.get(&kind) {
+            Some(queue) => queue
+                .iter()
+                .any(|&ptr| match (ptr as *const T).borrow_impl() {
+                    Ok(x) => x.is_ready(),
+                    Err(_) => false,
+                }),
+            None => false,
+        }
+    }
+
+    fn wait(&self, notifier: &Arc<Notifier>, timeout: Duration) {
+        let is_ready = || {
+            self.is_ready::<rcl_subscription_t>(WaitSetKind::Subscription)
+                || self.is_ready::<rcl_client_t>(WaitSetKind::Client)
+                || self.is_ready::<rcl_service_t>(WaitSetKind::Service)
+                || self.is_ready::<rcl_guard_condition_t>(WaitSetKind::GuradCondition)
+        };
+
+        let (mutex, cv) = {
+            let x = notifier.as_ref();
+            (&x.mutex, &x.cv)
+        };
+
+        let mut lock = mutex.lock();
+        cv.wait_while_for(&mut lock, |_| !is_ready(), timeout);
+    }
+
+    fn check_ready(&mut self) -> Result<bool> {
+        fn check<T>(queue: &mut WaitSetQueue) -> Result<bool>
+        where
+            T: HasImplPtr<ImplType: Waitable>,
+        {
+            let mut ready = false;
+            for mut ptr in queue {
+                if (*ptr as *const T).borrow_impl()?.is_ready() {
+                    ready = true;
+                } else {
+                    *ptr = std::ptr::null();
+                }
+            }
+            Ok(ready)
+        }
+
+        let mut ready = false;
+        // FIXME: Can we remove the order here?
+        for (k, f) in WaitSetKind::iter().zip([
+            check::<rcl_subscription_t>,
+            check::<rcl_client_t>,
+            check::<rcl_service_t>,
+            check::<rcl_guard_condition_t>,
+        ]) {
+            if let Some(queue) = self.hmap.get_mut(&k) {
+                if f(queue)? {
+                    ready = true;
+                }
+            }
+        }
+        Ok(ready)
+    }
+
+    fn mirror(&mut self) {
+        self.mirror = Some(
+            self.hmap
+                .iter()
+                .map(|(&k, v)| (k, v.clone().into_boxed_slice()))
+                .collect(),
+        );
+    }
+
+    fn reset_guard_conditions(&mut self) {
+        if let Some(queue) = self.hmap.get_mut(&WaitSetKind::GuradCondition) {
+            queue.iter().for_each(|&gc| {
+                if let Ok(gc_impl) = (gc as *mut rcl_guard_condition_t).borrow_mut_impl() {
+                    gc_impl.reset();
+                }
+            });
+        }
+    }
 }
 
 impl_has_impl_ptr!(rcl_wait_set_t, rcl_wait_set_impl_t, WaitSetImpl);
+
+impl rcl_wait_set_t {
+    fn new() -> Self {
+        let ws_impl = WaitSetImpl::new();
+        let mut ws = Self::default();
+        unsafe {
+            ws.impl_ = Box::into_raw(Box::new(ws_impl)) as _;
+        }
+        ws.reset_pointers();
+        ws
+    }
+
+    fn borrow_mut_impl(&mut self) -> &mut WaitSetImpl {
+        unsafe { &mut *(self.impl_ as *mut WaitSetImpl) }
+    }
+
+    fn borrow_impl(&self) -> &WaitSetImpl {
+        unsafe { &*(self.impl_ as *const WaitSetImpl) }
+    }
+
+    // fn resize(&mut self, kind: &WaitSetKind, len: usize) {
+    //     // FIXME: we lost the length information in WaitSetImpl
+    //     // self.borrow_mut_impl().resize(kind, len);
+    //
+    //     use WaitSetKind::*;
+    //     match kind {
+    //         Subscription => {
+    //             self.size_of_clients = len;
+    //         }
+    //         Client => {
+    //             self.size_of_clients = len;
+    //         }
+    //         Service => {
+    //             self.size_of_services = len;
+    //         }
+    //     }
+    // }
+
+    fn reset(&mut self) {
+        self.borrow_mut_impl().reset_all();
+        self.reset_pointers();
+    }
+
+    fn reset_pointers(&mut self) {
+        self.subscriptions = std::ptr::null_mut();
+        self.clients = std::ptr::null_mut();
+        self.services = std::ptr::null_mut();
+        self.guard_conditions = std::ptr::null_mut();
+        self.timers = std::ptr::null_mut();
+        self.events = std::ptr::null_mut();
+    }
+
+    // fn write_ptr(&mut self, kind: &WaitSetKind, box_ptr: &Box<[*const c_void]>) {
+    //     match kind {
+    //         WaitSetKind::Subscription => {
+    //             self.subscriptions = box_ptr.as_ptr() as _;
+    //             self.size_of_subscriptions = box_ptr.len();
+    //         }
+    //         WaitSetKind::Client => {
+    //             self.clients = box_ptr.as_ptr() as _;
+    //             self.size_of_clients = box_ptr.len();
+    //         }
+    //         WaitSetKind::Service => {
+    //             self.services = box_ptr.as_ptr() as _;
+    //             self.size_of_services = box_ptr.len();
+    //
+    //             dbg!(self.services);
+    //             unsafe {
+    //                 let x = std::slice::from_raw_parts_mut(self.services, self.size_of_services);
+    //                 dbg!(x);
+    //             }
+    //         }
+    //         WaitSetKind::GuradCondition => {
+    //             self.guard_conditions = box_ptr.as_ptr() as _;
+    //             self.size_of_guard_conditions = box_ptr.len();
+    //         }
+    //     }
+    // }
+
+    fn write(&mut self, kind: WaitSetKind, ptr: *mut *const c_void, len: usize) {
+        match kind {
+            WaitSetKind::Subscription => {
+                self.subscriptions = ptr as _;
+                self.size_of_subscriptions = len;
+            }
+            WaitSetKind::Client => {
+                self.clients = ptr as _;
+                self.size_of_clients = len;
+            }
+            WaitSetKind::Service => {
+                self.services = ptr as _;
+                self.size_of_services = len;
+            }
+            WaitSetKind::GuradCondition => {
+                self.guard_conditions = ptr as _;
+                self.size_of_guard_conditions = len;
+            }
+            WaitSetKind::Timer => {
+                self.timers = ptr as _;
+                self.size_of_timers = len;
+            }
+            WaitSetKind::Event => {
+                self.events = ptr as _;
+                self.size_of_events = len;
+            }
+        }
+    }
+
+    fn output(&mut self) {
+        let mut x: HashMap<_, _> = self
+            .borrow_mut_impl()
+            .hmap
+            .drain()
+            .map(|(kind, queue)| {
+                let len = queue.len();
+                let ptr = Box::into_raw(queue.into_boxed_slice()) as *mut *const c_void;
+                (kind, (ptr, len))
+            })
+            .collect();
+        x.drain().for_each(|(kind, (ptr, len))| {
+            self.write(kind, ptr, len);
+        });
+    }
+
+    fn drop_pointer(&mut self, kind: WaitSetKind) {
+        match kind {
+            WaitSetKind::Subscription => {
+                std::mem::drop(unsafe {
+                    Box::from_raw(std::slice::from_raw_parts_mut(
+                        self.subscriptions,
+                        self.size_of_subscriptions,
+                    ))
+                });
+            }
+            WaitSetKind::Client => {
+                std::mem::drop(unsafe {
+                    Box::from_raw(std::slice::from_raw_parts_mut(
+                        self.clients,
+                        self.size_of_clients,
+                    ))
+                });
+            }
+            WaitSetKind::Service => {
+                std::mem::drop(unsafe {
+                    Box::from_raw(std::slice::from_raw_parts_mut(
+                        self.services,
+                        self.size_of_services,
+                    ))
+                });
+            }
+            WaitSetKind::GuradCondition => {
+                std::mem::drop(unsafe {
+                    Box::from_raw(std::slice::from_raw_parts_mut(
+                        self.guard_conditions,
+                        self.size_of_guard_conditions,
+                    ))
+                });
+            }
+            WaitSetKind::Timer => {
+                std::mem::drop(unsafe {
+                    Box::from_raw(std::slice::from_raw_parts_mut(
+                        self.timers,
+                        self.size_of_events,
+                    ))
+                });
+            }
+            WaitSetKind::Event => {
+                std::mem::drop(unsafe {
+                    Box::from_raw(std::slice::from_raw_parts_mut(
+                        self.events,
+                        self.size_of_events,
+                    ))
+                });
+            }
+        }
+    }
+
+    fn reset2(&mut self) {
+        WaitSetKind::iter().for_each(|x| {
+            self.drop_pointer(x);
+        });
+    }
+
+    // fn assign_pointers(&mut self) {
+    //     dbg!(
+    //         self.borrow_impl()
+    //             .mirror
+    //             .clone()
+    //             .as_ref()
+    //             .unwrap()
+    //             .get(&WaitSetKind::Service)
+    //             .unwrap()
+    //             .as_ptr()
+    //     );
+    //     if let Some(mirror) = self.borrow_impl().mirror.clone() {
+    //         mirror.iter().for_each(|(kind, box_ptr)| {
+    //             tracing::error!("Assign {kind:?}: {box_ptr:?}");
+    //             self.write_ptr(kind, box_ptr);
+    //         });
+    //     }
+    //     unsafe {
+    //         let x = std::slice::from_raw_parts_mut(self.services, self.size_of_services);
+    //         dbg!("finished", x);
+    //         dbg!(
+    //             self.borrow_impl()
+    //                 .mirror
+    //                 .as_ref()
+    //                 .unwrap()
+    //                 .get(&WaitSetKind::Service)
+    //                 .unwrap()
+    //                 .as_ptr()
+    //         );
+    //     }
+    // }
+
+    // fn debug(&self) {
+    //     WaitSetKind::iter().for_each(|kind| match kind {
+    //         WaitSetKind::Subscription => unsafe {
+    //             let x =
+    //                 std::slice::from_raw_parts_mut(self.subscriptions, self.size_of_subscriptions);
+    //             dbg!(kind, x);
+    //         },
+    //         WaitSetKind::Client => unsafe {
+    //             let x = std::slice::from_raw_parts_mut(self.clients, self.size_of_clients);
+    //             dbg!(kind, x);
+    //         },
+    //         WaitSetKind::Service => unsafe {
+    //             let x = std::slice::from_raw_parts_mut(self.services, self.size_of_services);
+    //             dbg!(kind, x);
+    //         },
+    //         WaitSetKind::GuradCondition => unsafe {
+    //             let x = std::slice::from_raw_parts_mut(
+    //                 self.guard_conditions,
+    //                 self.size_of_guard_conditions,
+    //             );
+    //             dbg!(kind, x);
+    //         },
+    //     });
+    // }
+}
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_wait_set_init(
@@ -27,21 +422,32 @@ pub extern "C" fn rcl_wait_set_init(
     number_of_clients: usize,
     number_of_services: usize,
     number_of_events: usize,
-    _context: *mut rcl_context_t,
+    context: *mut rcl_context_t,
     _allocator: rcl_allocator_t,
 ) -> rcl_ret_t {
     tracing::trace!("rcl_wait_set_init");
 
-    // FIXME: we should initiate it properly.
-    rcl_wait_set_resize(
-        wait_set,
-        number_of_subscriptions,
-        number_of_guard_conditions,
-        number_of_timers,
-        number_of_clients,
-        number_of_services,
-        number_of_events,
-    );
+    wait_set.borrow_mut_impl().unwrap().notifier =
+        Some(context.borrow_impl().unwrap().share_notifier());
+
+    // FIXME: we lost the length information in WaitSetImpl
+    // let x = wait_set.borrow_mut_impl().unwrap();
+    // for (kind, len) in [
+    //     (WaitSetKind::Subscription, number_of_subscriptions),
+    //     (WaitSetKind::Client, number_of_clients),
+    //     (WaitSetKind::Service, number_of_services),
+    // ] {
+    //     x.resize(&kind, len);
+    // }
+
+    unsafe {
+        (*wait_set).size_of_subscriptions = number_of_subscriptions;
+        (*wait_set).size_of_guard_conditions = number_of_guard_conditions;
+        (*wait_set).size_of_timers = number_of_timers;
+        (*wait_set).size_of_clients = number_of_clients;
+        (*wait_set).size_of_services = number_of_services;
+        (*wait_set).size_of_events = number_of_events;
+    }
 
     RCL_RET_OK as _
 }
@@ -49,71 +455,14 @@ pub extern "C" fn rcl_wait_set_init(
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_wait_set_fini(wait_set: *mut rcl_wait_set_t) -> rcl_ret_t {
     tracing::trace!("rcl_wait_set_fini");
-
-    let x = wait_set.borrow_mut_impl().unwrap();
-    x.services = VecDeque::new();
-    x.subscriptions = VecDeque::new();
-    x.clients = VecDeque::new();
-    // unsafe {
-    //     let x = Box::from_raw((*wait_set).impl_ as *mut WaitSetImpl);
-    //     std::mem::drop(x);
-    // }
-
-    macro_rules! drop_each {
-        ($(($field:ident, $len:ident)),+ $(,)?) => {
-            unsafe {
-                $(
-                    let slice = std::slice::from_raw_parts_mut(
-                        (*wait_set).$field,
-                        (*wait_set).$len,
-                    );
-                    std::mem::drop(Box::from_raw(slice));
-                )+
-            }
-        };
-    }
-
-    drop_each!(
-        (subscriptions, size_of_subscriptions),
-        (guard_conditions, size_of_guard_conditions),
-        (timers, size_of_timers),
-        (clients, size_of_clients),
-        (services, size_of_services),
-        (events, size_of_events),
-    );
+    wait_set.borrow_mut_impl().unwrap().reset_all();
     RCL_RET_OK as _
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_wait_set_clear(wait_set: *mut rcl_wait_set_t) -> rcl_ret_t {
     tracing::trace!("rcl_wait_set_clear");
-
-    macro_rules! nullify_each {
-        ($(($field:ident, $len:ident)),+ $(,)?) => {
-            unsafe {
-                $(
-                    let skip = (*wait_set).$field.is_null() || (*wait_set).$len == 0;
-                    if (!skip) {
-                        let slice = std::slice::from_raw_parts_mut(
-                            (*wait_set).$field,
-                            (*wait_set).$len,
-                        );
-                        slice.iter_mut().for_each(|x| *x = std::ptr::null());
-                    }
-                )+
-            }
-        };
-    }
-
-    nullify_each!(
-        (subscriptions, size_of_subscriptions),
-        (guard_conditions, size_of_guard_conditions),
-        (timers, size_of_timers),
-        (clients, size_of_clients),
-        (services, size_of_services),
-        (events, size_of_events),
-    );
-
+    wait_set.borrow_mut_impl().unwrap().reset_all();
     RCL_RET_OK as _
 }
 
@@ -124,53 +473,37 @@ pub extern "C" fn rcl_wait(wait_set: *mut rcl_wait_set_t, timeout: i64) -> rcl_r
         return RCL_RET_INVALID_ARGUMENT as _;
     }
 
+    // -1 => u64::Max
+    // =0 => 0 in u64
+    // >0 => >0 in u64
     let timeout = std::time::Duration::from_nanos(timeout as u64);
-    let ws = wait_set.borrow_mut_impl().unwrap();
 
-    macro_rules! wait_for_each {
-        ($(($field:ident, $ty:ty)),+ $(,)?) => {
-            $(
-                for (idx, ptr ) in ws.$field.drain(..).enumerate() {
-                    let ptr = ptr as *const $ty;
-                    if ptr.borrow_impl().unwrap().wait(timeout) {
-                        unsafe {
-                            *(*wait_set).$field.add(idx) = ptr;
-                        }
-                    }
-                }
-            )+
-        };
+    let ws_impl = wait_set.borrow_mut_impl().unwrap();
+    ws_impl.wait(ws_impl.notifier.as_ref().unwrap(), timeout);
+
+    let ret = match ws_impl.check_ready() {
+        Ok(ready) => {
+            if ready {
+                RCL_RET_OK
+            } else {
+                RCL_RET_TIMEOUT
+            }
+        }
+        Err(err) => {
+            tracing::error!(err);
+            RCL_RET_ERROR
+        }
+    };
+    ws_impl.reset_guard_conditions();
+    unsafe {
+        (*wait_set).output();
     }
-
-    wait_for_each! {
-        (subscriptions, rcl_subscription_t),
-        (clients, rcl_client_t),
-        (services, rcl_service_t),
-    }
-
-    // for (idx, ptr ) in ws.subscriptions.drain(..).enumerate() {
-    //     let ptr = ptr as *const rcl_subscription_t;
-    //     if ptr.borrow_impl().unwrap().wait(timeout) {
-    //         unsafe {
-    //             *(*wait_set).subscriptions.add(idx) = ptr;
-    //         }
-    //     }
-    // }
-
-    RCL_RET_OK as _
+    ret as _
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_get_zero_initialized_wait_set() -> rcl_wait_set_t {
-    let mut wait_set = rcl_wait_set_t::default();
-
-    let x = WaitSetImpl::default();
-    unsafe {
-        wait_set.impl_ = Box::into_raw(Box::new(x)) as _;
-    }
-
-    rcl_wait_set_resize(&mut wait_set, 0, 0, 0, 0, 0, 0);
-    wait_set
+    rcl_wait_set_t::new()
 }
 
 #[unsafe(no_mangle)]
@@ -193,51 +526,22 @@ pub extern "C" fn rcl_wait_set_resize(
         "rcl_wait_set_resize called with sizes"
     );
 
-    macro_rules! init_wait_set_fields {
-        ($(($field:ident, $size_field:ident, $ty:ty, $len:expr)),+ $(,)?) => {
-            unsafe {
-                $(
-                    (*wait_set).$field = Box::into_raw(
-                        vec![std::ptr::null::<$ty>(); $len].into_boxed_slice()
-                    ) as *mut *const _;
-                    (*wait_set).$size_field = $len;
-                )+
-            }
-        };
+    let ws = wait_set.borrow_mut_impl().unwrap();
+
+    unsafe {
+        (*wait_set).size_of_subscriptions = subscriptions_size;
+        (*wait_set).size_of_guard_conditions = guard_conditions_size;
+        (*wait_set).size_of_timers = timers_size;
+        (*wait_set).size_of_clients = clients_size;
+        (*wait_set).size_of_services = services_size;
+        (*wait_set).size_of_events = events_size;
     }
-
-    // unsafe {
-    //     let x = &mut *((*wait_set).impl_ as *mut WaitSetImpl);
-    //     x.subscriptions.resize(subscriptions_size, std::ptr::null());
-    //     x.clients.resize(clients_size, std::ptr::null());
-    //     x.services.resize(services_size, std::ptr::null());
-    // }
-
-    // FIXME: memory leak
-    init_wait_set_fields!(
-        (
-            subscriptions,
-            size_of_subscriptions,
-            rcl_subscription_t,
-            subscriptions_size
-        ),
-        (
-            guard_conditions,
-            size_of_guard_conditions,
-            rcl_guard_condition_t,
-            guard_conditions_size
-        ),
-        (timers, size_of_timers, rcl_timer_t, timers_size),
-        (clients, size_of_clients, rcl_client_t, clients_size),
-        (services, size_of_services, rcl_service_t, services_size),
-        (events, size_of_events, rcl_event_t, events_size),
-    );
 
     RCL_RET_OK as _
 }
 
-macro_rules! impl_wait_set_add_fn {
-    ($fn_name:ident, $field:ident, $size_field:ident, $ty:ty) => {
+macro_rules! impl_wait_set_add {
+    ($fn_name:ident, $ty:ty, $kind:path) => {
         #[unsafe(no_mangle)]
         pub extern "C" fn $fn_name(
             wait_set: *mut rcl_wait_set_t,
@@ -245,96 +549,66 @@ macro_rules! impl_wait_set_add_fn {
             index: *mut usize,
         ) -> rcl_ret_t {
             tracing::trace!(stringify!($fn_name));
-            unsafe {
-                let slice =
-                    std::slice::from_raw_parts_mut((*wait_set).$field, (*wait_set).$size_field);
-                for (i, slot) in slice.iter_mut().enumerate() {
-                    if slot.is_null() {
-                        *slot = item;
-                        if !index.is_null() {
-                            *index = i;
-                        }
-                        return RCL_RET_OK as _;
-                    }
+            assert!(!item.is_null());
+
+            let x = wait_set.borrow_mut_impl().unwrap();
+            x.insert(&$kind, item as _);
+            if !index.is_null() {
+                unsafe {
+                    *index = x.queue_len(&$kind) - 1;
                 }
             }
-            RCL_RET_ERROR as _
+            RCL_RET_OK as _
+        }
+    };
+
+    ($fn_name:ident, $ty:ty, $kind:path, null) => {
+        #[unsafe(no_mangle)]
+        pub extern "C" fn $fn_name(
+            wait_set: *mut rcl_wait_set_t,
+            item: *const $ty,
+            index: *mut usize,
+        ) -> rcl_ret_t {
+            tracing::trace!(stringify!($fn_name));
+            assert!(!item.is_null());
+
+            let x = wait_set.borrow_mut_impl().unwrap();
+            x.insert(&$kind, std::ptr::null());
+            if !index.is_null() {
+                unsafe {
+                    *index = x.queue_len(&$kind) - 1;
+                }
+            }
+            RCL_RET_OK as _
         }
     };
 }
 
-// impl_wait_set_add_fn!(rcl_wait_set_add_subscription, subscriptions, size_of_subscriptions, rcl_subscription_t);
-// impl_wait_set_add_fn!(rcl_wait_set_add_client, clients, size_of_clients, rcl_client_t);
-// impl_wait_set_add_fn!(rcl_wait_set_add_service, services, size_of_services, rcl_service_t);
-impl_wait_set_add_fn!(rcl_wait_set_add_event, events, size_of_events, rcl_event_t);
-impl_wait_set_add_fn!(
-    rcl_wait_set_add_guard_condition,
-    guard_conditions,
-    size_of_guard_conditions,
-    rcl_guard_condition_t
+impl_wait_set_add!(
+    rcl_wait_set_add_subscription,
+    rcl_subscription_t,
+    WaitSetKind::Subscription
 );
-impl_wait_set_add_fn!(rcl_wait_set_add_timer, timers, size_of_timers, rcl_timer_t);
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_wait_set_add_subscription(
-    wait_set: *mut rcl_wait_set_t,
-    item: *const rcl_subscription_t,
-    index: *mut usize,
-) -> rcl_ret_t {
-    tracing::trace!("rcl_wait_set_add_subscription");
-
-    assert!(!item.is_null());
-
-    let x = wait_set.borrow_mut_impl().unwrap();
-    x.subscriptions.push_back(item as _);
-
-    // NOTE: index could be a nullptr when the user doesn't care the index ¯\_(ツ)_/¯
-    if !index.is_null() {
-        unsafe {
-            *index = x.subscriptions.len();
-        }
-    }
-    RCL_RET_OK as _
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_wait_set_add_client(
-    wait_set: *mut rcl_wait_set_t,
-    item: *const rcl_client_t,
-    index: *mut usize,
-) -> rcl_ret_t {
-    tracing::trace!("rcl_wait_set_add_client");
-
-    assert!(!item.is_null());
-
-    let x = wait_set.borrow_mut_impl().unwrap();
-    x.clients.push_back(item as _);
-
-    if !index.is_null() {
-        unsafe {
-            *index = x.clients.len();
-        }
-    }
-    RCL_RET_OK as _
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_wait_set_add_service(
-    wait_set: *mut rcl_wait_set_t,
-    item: *const rcl_service_t,
-    index: *mut usize,
-) -> rcl_ret_t {
-    tracing::trace!("rcl_wait_set_add_service");
-
-    assert!(!item.is_null());
-
-    let x = wait_set.borrow_mut_impl().unwrap();
-    x.services.push_back(item as _);
-
-    if !index.is_null() {
-        unsafe {
-            *index = x.services.len();
-        }
-    }
-    RCL_RET_OK as _
-}
+impl_wait_set_add!(rcl_wait_set_add_client, rcl_client_t, WaitSetKind::Client);
+impl_wait_set_add!(
+    rcl_wait_set_add_service,
+    rcl_service_t,
+    WaitSetKind::Service
+);
+impl_wait_set_add!(
+    rcl_wait_set_add_guard_condition,
+    rcl_guard_condition_t,
+    WaitSetKind::GuradCondition
+);
+impl_wait_set_add!(
+    rcl_wait_set_add_timer,
+    rcl_timer_t,
+    WaitSetKind::Timer,
+    null
+);
+impl_wait_set_add!(
+    rcl_wait_set_add_event,
+    rcl_event_t,
+    WaitSetKind::Event,
+    null
+);

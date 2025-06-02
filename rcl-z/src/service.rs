@@ -1,14 +1,14 @@
-#![allow(unused)]
+use std::{sync::Arc};
 
-use std::{sync::Arc, time::Duration};
-
-use crate::{c_void, ros::*, utils::Notifier};
+use crate::{
+    c_void,
+    ros::*,
+    utils::{Notifier },
+    traits::Waitable,
+};
 
 use ros_z::{
-    Builder,
     attachment::{Attachment, GidArray},
-    entity::TypeInfo,
-    msg::ZService,
     service::{QueryKey, ZClient, ZServer},
 };
 use zenoh::Result;
@@ -19,35 +19,29 @@ use crate::{
     rclz_try,
     ros::*,
     traits::{BorrowImpl, OwnImpl},
-    type_support::{MessageTypeSupport, ServiceTypeSupport},
-    utils::str_from_ptr,
+    type_support::{ServiceTypeSupport},
 };
 
 pub struct ClientImpl {
-    zcli: ZClient<RosService>,
-    ts: ServiceTypeSupport,
-    notifier: Arc<Notifier>,
+    pub(crate) inner: ZClient<RosService>,
+    pub(crate) ts: ServiceTypeSupport,
+    pub(crate) notifier: Arc<Notifier>,
 }
 
 pub struct ServiceImpl {
-    zsrv: ZServer<RosService>,
-    ts: ServiceTypeSupport,
-    notifier: Arc<Notifier>,
+    pub(crate) inner: ZServer<RosService>,
+    pub(crate) ts: ServiceTypeSupport,
 }
 
 impl ServiceImpl {
-    pub fn new(zsrv: ZServer<RosService>, ts: ServiceTypeSupport, notifier: Arc<Notifier>) -> Self {
-        Self { zsrv, ts, notifier }
-    }
-
     pub fn take_request(&mut self, ros_request: *mut c_void) -> Result<RequestId> {
-        let query = self.zsrv.take_query().unwrap();
+        let query = self.inner.take_query().unwrap();
 
         let attachment: Attachment = query.attachment().unwrap().try_into().unwrap();
         let gid = attachment.source_gid.clone();
         let sn = attachment.sequence_number.clone();
         let key: QueryKey = attachment.into();
-        if self.zsrv.map.contains_key(&key) {
+        if self.inner.map.contains_key(&key) {
             tracing::error!("Existing query detected");
             return Err("Existing query detected".into());
         }
@@ -56,31 +50,31 @@ impl ServiceImpl {
         self.ts
             .request
             .deserialize_message(&bytes.to_vec(), ros_request);
-        self.zsrv.map.insert(key.clone(), query);
+        self.inner.map.insert(key.clone(), query);
 
         Ok(RequestId { sn, gid })
     }
 
-    pub fn send_response(&mut self, ros_response: *mut c_void, request_id: *mut rmw_request_id_t,) -> Result<()> {
+    pub fn send_response(
+        &mut self,
+        ros_response: *mut c_void,
+        request_id: *mut rmw_request_id_t,
+    ) -> Result<()> {
         let key = unsafe {
-            QueryKey { sn: (*request_id).sequence_number, gid: (*request_id).writer_guid }
+            QueryKey {
+                sn: (*request_id).sequence_number,
+                gid: (*request_id).writer_guid,
+            }
         };
 
         let resp = RosMessage::new(ros_response, self.ts.response);
-        self.zsrv.send_response(&resp, &key)
+        self.inner.send_response(&resp, &key)
     }
+}
 
-    pub fn wait(&self, timeout: Duration) -> bool {
-        if self.zsrv.rx.len() > 0 {
-            return true;
-        }
-
-        let mut started = self.notifier.mutex.lock();
-        if self.zsrv.rx.len() == 0 && !*started {
-            !self.notifier.cv.wait_for(&mut started, timeout).timed_out()
-        } else {
-            true
-        }
+impl Waitable for ServiceImpl {
+    fn is_ready(&self) -> bool {
+        self.inner.rx.len() > 0
     }
 }
 
@@ -90,27 +84,17 @@ pub struct RequestId {
 }
 
 impl ClientImpl {
-    pub fn new(zcli: ZClient<RosService>, ts: ServiceTypeSupport) -> Self {
-        Self {
-            zcli,
-            ts,
-            notifier: Arc::new(Notifier::default()),
-        }
-    }
-
     pub fn send_request(&self, ros_request: *const c_void) -> Result<i64> {
         let req = RosMessage::new(ros_request, self.ts.request);
-        let notifier = self.notifier.clone();
+        let c_notifier = self.notifier.clone();
         let notify = move || {
-            let mut started = notifier.mutex.lock();
-            *started = true;
-            notifier.cv.notify_one();
+            c_notifier.notify_all();
         };
-        self.zcli.rcl_send_request(&req, notify)
+        self.inner.rcl_send_request(&req, notify)
     }
 
     pub fn take_response(&self, ros_response: *mut c_void) -> Result<RequestId> {
-        let sample = self.zcli.take_sample()?;
+        let sample = self.inner.take_sample()?;
         let attachment: Attachment = sample.attachment().unwrap().try_into()?;
         let bytes = sample.payload().to_bytes();
         self.ts
@@ -121,18 +105,11 @@ impl ClientImpl {
             gid: attachment.source_gid,
         })
     }
+}
 
-    pub fn wait(&self, timeout: Duration) -> bool {
-        if self.zcli.rx.len() > 0 {
-            return true;
-        }
-
-        let mut started = self.notifier.mutex.lock();
-        if self.zcli.rx.len() == 0 && !*started {
-            !self.notifier.cv.wait_for(&mut started, timeout).timed_out()
-        } else {
-            true
-        }
+impl Waitable for ClientImpl {
+    fn is_ready(&self) -> bool {
+        self.inner.rx.len() > 0
     }
 }
 
@@ -149,17 +126,14 @@ pub extern "C" fn rcl_client_init(
 ) -> rcl_ret_t {
     tracing::trace!("rcl_client_init");
 
-    let ts = ServiceTypeSupport::new(type_support);
-
-    rclz_try! {
-        let topic = str_from_ptr(service_name)?;
-        let zcli = node.borrow_impl()?
-            .create_client(topic)
-            .with_type_info(ts.get_type_info())
-            .build()?;
-        client
-            .assign_impl(ClientImpl::new(zcli, ts))?;
-    }
+    let x = move || {
+        let cli_impl = node
+            .borrow_impl()?
+            .new_client(type_support, service_name, _options)?;
+        client.assign_impl(cli_impl)?;
+        Result::Ok(())
+    };
+    rclz_try! { x()?; }
 }
 
 #[unsafe(no_mangle)]
@@ -213,20 +187,23 @@ macro_rules! impl_trivial_ok_fn {
     };
 }
 
-impl_trivial_ok_fn! {
-    pub fn rcl_take_request_with_info(
-        service: *const rcl_service_t,
-        request_header: *mut rmw_service_info_t,
-        ros_request: *mut ::std::os::raw::c_void,
-    ) -> rcl_ret_t;
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_take_request_with_info(
+    _service: *const rcl_service_t,
+    _request_header: *mut rmw_service_info_t,
+    _ros_request: *mut ::std::os::raw::c_void,
+) -> rcl_ret_t {
+    tracing::trace!("rcl_take_request_with_info");
+    todo!()
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_service_server_is_available(
-    node: *const rcl_node_t,
-    client: *const rcl_client_t,
+    _node: *const rcl_node_t,
+    _client: *const rcl_client_t,
     is_available: *mut bool,
 ) -> rcl_ret_t {
+    tracing::trace!("rcl_service_server_is_available");
     unsafe {
         *is_available = true;
     }
@@ -235,11 +212,12 @@ pub extern "C" fn rcl_service_server_is_available(
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_node_type_description_service_handle_request(
-    node: *mut rcl_node_t,
-    request_header: *const rmw_request_id_t,
-    request: *const type_description_interfaces__srv__GetTypeDescription_Request,
-    response: *mut type_description_interfaces__srv__GetTypeDescription_Response,
+    _node: *mut rcl_node_t,
+    _request_header: *const rmw_request_id_t,
+    _request: *const type_description_interfaces__srv__GetTypeDescription_Request,
+    _response: *mut type_description_interfaces__srv__GetTypeDescription_Response,
 ) {
+    tracing::trace!("rcl_node_type_description_service_handle_request");
     todo!()
 }
 
@@ -249,28 +227,25 @@ pub extern "C" fn rcl_service_init(
     node: *const rcl_node_t,
     type_support: *const rosidl_service_type_support_t,
     service_name: *const ::std::os::raw::c_char,
-    options: *const rcl_service_options_t,
+    _options: *const rcl_service_options_t,
 ) -> rcl_ret_t {
-    tracing::trace!("rcl_service_init");
-
-    let ts = ServiceTypeSupport::new(type_support);
-
-    let notifier = Arc::new(Notifier::default());
-    let c_notifier = notifier.clone();
-    let notify = move || {
-        let mut started = c_notifier.mutex.lock();
-        *started = true;
-        c_notifier.cv.notify_one();
+    tracing::trace!("rcl_service_init: {service:?}");
+    let x = move || {
+        let srv_impl = node
+            .borrow_impl()?
+            .new_service(type_support, service_name, _options)?;
+        service.assign_impl(srv_impl)?;
+        Result::Ok(())
     };
-    rclz_try! {
-        let topic = str_from_ptr(service_name)?;
-        let zsrv = node.borrow_impl()?
-            .create_service(topic)
-            .with_type_info(ts.get_type_info())
-            .build_with_notifier(notify)?;
-        service
-            .assign_impl(ServiceImpl::new(zsrv, ts, notifier))?;
+    rclz_try! { x()?; }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_service_fini(service: *mut rcl_service_t, _node: *mut rcl_node_t) -> rcl_ret_t {
+    if let Ok(x)  = service.own_impl() {
+        std::mem::drop(x);
     }
+    RCL_RET_OK as _
 }
 
 #[unsafe(no_mangle)]
@@ -279,7 +254,9 @@ pub extern "C" fn rcl_take_request(
     request_header: *mut rmw_request_id_t,
     ros_request: *mut c_void,
 ) -> rcl_ret_t {
-    // NOTE: service actually requires the mutability! ¯\_(ツ)_/¯
+    tracing::trace!("rcl_take_request: {service:?}");
+
+    // Interior mutability is not allowed in Rust
     let x = (service as *mut rcl_service_t).borrow_mut_impl().unwrap();
     let request_id = x.take_request(ros_request).unwrap();
     unsafe {
@@ -295,8 +272,20 @@ pub fn rcl_send_response(
     response_header: *mut rmw_request_id_t,
     ros_response: *mut c_void,
 ) -> rcl_ret_t {
-    // NOTE: service actually requires the mutability! ¯\_(ツ)_/¯
+    // Interior mutability is not allowed in Rust
     let x = (service as *mut rcl_service_t).borrow_mut_impl().unwrap();
     x.send_response(ros_response, response_header).unwrap();
     RCL_RET_OK as _
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_service_is_valid(service: *const rcl_service_t) -> bool {
+    service.borrow_impl().is_ok()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_service_get_service_name(
+    service: *const rcl_service_t,
+) -> *const ::std::os::raw::c_char {
+    c"rcl_service_get_service_name not yet implemented".as_ptr()
 }

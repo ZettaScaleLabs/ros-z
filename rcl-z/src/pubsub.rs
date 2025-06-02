@@ -7,7 +7,9 @@ use crate::rclz_try;
 use crate::ros::*;
 use crate::traits::{BorrowImpl, OwnImpl};
 use crate::type_support::MessageTypeSupport;
+use crate::utils::Notifier;
 use crate::utils::str_from_ptr;
+use crate::traits::Waitable;
 use ros_z::{
     Builder,
     entity::TypeInfo,
@@ -19,43 +21,32 @@ use std::time::Duration;
 use zenoh::{Result, sample::Sample};
 
 pub struct PublisherImpl {
-    zpub: ZPub<RosMessage>,
-    ts: MessageTypeSupport,
+    pub(crate) inner: ZPub<RosMessage>,
+    pub(crate) ts: MessageTypeSupport,
 }
 
 impl PublisherImpl {
     pub fn publish(&self, msg: *const crate::c_void) -> Result<()> {
-        self.zpub.publish(&RosMessage::new(msg, self.ts))
+        self.inner.publish(&RosMessage::new(msg, self.ts))
     }
     // pub fn publish(&self, msg: &RosMessage) -> Result<()> {
     //     self.zpub.publish(msg)
     // }
 
     pub fn publish_serialized_message(&self, msg: &[u8]) -> Result<()> {
-        self.zpub.publish_serialized_message(msg)
+        self.inner.publish_serialized_message(msg)
     }
 }
 
 pub struct SubscriptionImpl {
-    pub zsub: ZSub<RosMessage, Sample>,
-    pub cv: Arc<(parking_lot::Mutex<bool>, parking_lot::Condvar)>,
-    topic: CString,
-    ts: MessageTypeSupport,
+    pub(crate) inner: ZSub<RosMessage, Sample>,
+    pub(crate) topic: CString,
+    pub(crate) ts: MessageTypeSupport,
 }
 
-impl SubscriptionImpl {
-    pub fn wait(&self, timeout: Duration) -> bool {
-        if self.zsub.queue.len() > 0 {
-            return true;
-        }
-
-        let (lock, cv) = &*self.cv;
-        let mut started = lock.lock();
-        if self.zsub.queue.len() == 0 && !*started {
-            !cv.wait_for(&mut started, timeout).timed_out()
-        } else {
-            true
-        }
+impl Waitable for SubscriptionImpl {
+    fn is_ready(&self) -> bool {
+        self.inner.queue.len() > 0
     }
 }
 
@@ -76,19 +67,14 @@ pub extern "C" fn rcl_publisher_init(
 ) -> rcl_ret_t {
     tracing::trace!("rcl_publisher_init");
 
-    let ts = MessageTypeSupport::new(type_support);
-    let type_info = TypeInfo::new(&ts.get_type_prefix(), &ts.get_type_hash());
-
-    rclz_try! {
-        let topic = str_from_ptr(topic_name)?;
-        let zpub = node
+    let x = move || {
+        let pub_impl = node
             .borrow_impl()?
-            .create_pub(topic)
-            .with_type_info(type_info)
-            .build()?;
-        publisher
-            .assign_impl(PublisherImpl { zpub, ts })?;
-    }
+            .new_pub(type_support, topic_name, _options)?;
+        publisher.assign_impl(pub_impl)?;
+        Result::Ok(())
+    };
+    rclz_try! { x()?; }
 }
 
 #[unsafe(no_mangle)]
@@ -132,37 +118,14 @@ pub extern "C" fn rcl_subscription_init(
     _options: *const rcl_subscription_options_t,
 ) -> rcl_ret_t {
     tracing::trace!("rcl_subscription_init");
-
-    // let (tx, rx) = flume::bounded(10);
-
-    let pair = Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new()));
-    let pair2 = pair.clone();
-
-    let node_impl = unsafe { &*((*node).impl_ as *const NodeImpl) };
-    let topic = str_from_ptr(topic_name).expect("Error found in topic_name");
-    let ts = MessageTypeSupport::new(type_support);
-    let zsub = node_impl
-        .create_sub::<RosMessage>(topic)
-        .with_type_info(TypeInfo::new(&ts.get_type_prefix(), &ts.get_type_hash()))
-        .post_deserialization()
-        .build_with_notifier(move || {
-            let &(ref lock, ref cvar) = &*pair2;
-            let mut started = lock.lock();
-            *started = true;
-            cvar.notify_one();
-        })
-        .expect("Failed to declare_subscriber");
-
-    // TODO: get the qualified topic
-    let topic_cstr = CString::new(zsub.entity.topic.clone()).unwrap();
-    subscription.assign_impl(SubscriptionImpl {
-        zsub,
-        // rx,
-        cv: pair,
-        ts,
-        topic: topic_cstr,
-    }).unwrap();
-    RCL_RET_OK as _
+    let x = move || {
+        let sub_impl = node
+            .borrow_impl()?
+            .new_sub(type_support, topic_name, _options)?;
+        subscription.assign_impl(sub_impl)?;
+        Result::Ok(())
+    };
+    rclz_try! { x()?; }
 }
 
 #[unsafe(no_mangle)]
@@ -203,7 +166,7 @@ pub extern "C" fn rcl_take(
     unsafe {
         // let sub_impl = &mut *((*subscription).impl_ as *mut SubscriptionImpl);
         let sub_impl = subscription.borrow_impl().unwrap();
-        let Ok(sample) = sub_impl.zsub.recv() else {
+        let Ok(sample) = sub_impl.inner.recv() else {
             return RCL_RET_ERROR as _;
         };
 

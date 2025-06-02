@@ -12,8 +12,11 @@ pub struct NodeEntity {
     pub z_id: ZenohId,
     pub id: usize,
     pub name: String,
-    pub namespace: String,
+    pub namespace: Option<String>,
 }
+
+
+const EMPTY_NAMESPACE: &'static str = "%";
 
 impl NodeEntity {
     pub fn new(
@@ -21,7 +24,7 @@ impl NodeEntity {
         z_id: ZenohId,
         id: usize,
         name: String,
-        namespace: String,
+        namespace: Option<String>,
     ) -> Self {
         Self {
             domain_id,
@@ -43,6 +46,9 @@ impl Display for NodeEntity {
             name,
             namespace,
         } = self;
+        // TODO: polish this
+        let x = EMPTY_NAMESPACE.to_string();
+        let namespace = namespace.as_ref().unwrap_or(&x);
         write!(f, "{domain_id}/{z_id}/{id}/{id}/NN/{namespace}/{name}")
     }
 }
@@ -107,6 +113,8 @@ impl Display for EndpointEntity {
             name: node_name,
             namespace: node_namespace,
         } = &node;
+        let x = EMPTY_NAMESPACE.to_string();
+        let node_namespace = node_namespace.as_ref().unwrap_or(&x);
         write!(
             f,
             "{domain_id}/{z_id}/{node_id}/{id}/{kind}/{node_namespace}/{node_name}/{topic}{}",

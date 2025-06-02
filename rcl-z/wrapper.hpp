@@ -6,3 +6,4 @@
 #include <rcl/init_options.h>
 #include <rcl/context.h>
 #include <rmw/rmw.h>
+#include <type_description_interfaces/type_description_interfaces/srv/get_type_description.h>
