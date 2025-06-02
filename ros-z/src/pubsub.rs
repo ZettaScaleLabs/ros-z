@@ -39,7 +39,7 @@ where
 
     fn build(self) -> Result<Self::Output> {
         let key_expr = self.entity.topic_key_expr()?;
-        tracing::error!("[PUB] KE: {key_expr}");
+        tracing::debug!("[PUB] KE: {key_expr}");
         Ok(ZPub {
             sn: AtomicUsize::new(0),
             inner: self.session.declare_publisher(key_expr).wait()?,

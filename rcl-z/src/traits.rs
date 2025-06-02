@@ -102,18 +102,6 @@ where
     }
 }
 
-#[macro_export]
-macro_rules! impl_has_impl_ptr {
-    ($ctype:ty, $cimpl_type:ty, $impl_type:ty) => {
-        impl crate::traits::HasImplPtr for $ctype {
-            type ImplType = $impl_type;
-            type CImplType = $cimpl_type;
-            fn get_impl(&self) -> *mut Self::CImplType {
-                self.impl_
-            }
-            fn get_mut_impl(&mut self) -> &mut *mut Self::CImplType {
-                &mut self.impl_
-            }
-        }
-    };
+pub trait Waitable {
+    fn is_ready(&self) -> bool;
 }

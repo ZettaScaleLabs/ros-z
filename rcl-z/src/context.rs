@@ -1,20 +1,61 @@
 #![allow(unused)]
 
+use crate::node::NodeImpl;
 use crate::ros::*;
-use crate::traits::OwnImpl;
+use crate::traits::{BorrowImpl, OwnImpl};
+use crate::utils::{Notifier, str_from_ptr};
 use crate::{impl_has_impl_ptr, rclz_try};
+use ros_z::Builder;
 use ros_z::context::ZContext;
+use std::str::FromStr;
+use std::sync::Arc;
 use std::{
     ffi::{CString, c_char, c_int},
     ops::Deref,
 };
+use zenoh::Result;
 
-pub struct ContextImpl(ZContext);
+pub struct ContextImpl {
+    inner: ZContext,
+    notifier: Arc<Notifier>,
+}
 
-impl Deref for ContextImpl {
-    type Target = ZContext;
-    fn deref(&self) -> &Self::Target {
-        &self.0
+impl ContextImpl {
+    fn new(zcontext: ZContext) -> Self {
+        Self {
+            inner: zcontext,
+            notifier: Arc::new(Notifier::default()),
+        }
+    }
+
+    pub(crate) fn new_node(
+        &self,
+        name: *const ::std::os::raw::c_char,
+        namespace_: *const ::std::os::raw::c_char,
+        context: *mut rcl_context_t,
+        _options: *const rcl_node_options_t,
+    ) -> Result<NodeImpl> {
+        let znode = self
+            .inner
+            .create_node(str_from_ptr(name)?)
+            .with_namespace(str_from_ptr(namespace_)?)
+            .build()?;
+
+        let namespace = match &znode.entity.namespace {
+            Some(ns) => CString::from_str(&ns)?,
+            None => CString::new("")?,
+        };
+        let name = CString::from_str(&znode.entity.name)?;
+        Ok(NodeImpl {
+            inner: znode,
+            name,
+            namespace,
+            notifier: self.notifier.clone(),
+        })
+    }
+
+    pub(crate) fn share_notifier(&self) -> Arc<Notifier> {
+        self.notifier.clone()
     }
 }
 
@@ -61,7 +102,8 @@ pub extern "C" fn rcl_logging_configure_with_output_handler(
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_init_options_fini(init_options: *mut rcl_init_options_t) -> rcl_ret_t {
-    tracing::trace!("rcl_init_options_fini");
+    // FIXME: tracing is not usable at the exit stage
+    // tracing::trace!("rcl_init_options_fini");
     RCL_RET_OK as _
 }
 
@@ -69,15 +111,6 @@ pub extern "C" fn rcl_init_options_fini(init_options: *mut rcl_init_options_t) -
 pub extern "C" fn rcl_init_options_copy(
     src: *const rcl_init_options_t,
     dst: *mut rcl_init_options_t,
-) -> rcl_ret_t {
-    RCL_RET_OK as _
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_guard_condition_init(
-    guard_condition: *mut rcl_guard_condition_t,
-    context: *mut rcl_context_t,
-    options: rcl_guard_condition_options_t,
 ) -> rcl_ret_t {
     RCL_RET_OK as _
 }
@@ -105,20 +138,6 @@ pub extern "C" fn rcl_arguments_get_count_unparsed_ros(
 pub extern "C" fn rcl_arguments_get_param_overrides(
     arguments: *const rcl_arguments_t,
     parameter_overrides: *mut *mut rcl_params_t,
-) -> rcl_ret_t {
-    RCL_RET_OK as _
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_guard_condition_get_options(
-    guard_condition: *const rcl_guard_condition_t,
-) -> *const rcl_guard_condition_options_t {
-    std::ptr::null()
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_trigger_guard_condition(
-    guard_condition: *mut rcl_guard_condition_t,
 ) -> rcl_ret_t {
     RCL_RET_OK as _
 }
@@ -152,19 +171,6 @@ pub extern "C" fn rcl_publisher_event_init(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_node_type_description_service_init(
-    service: *mut rcl_service_t,
-    node: *const rcl_node_t,
-) -> rcl_ret_t {
-    RCL_RET_OK as _
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_service_is_valid(service: *const rcl_service_t) -> bool {
-    true
-}
-
-#[unsafe(no_mangle)]
 pub extern "C" fn rcl_subscription_event_init(
     event: *mut rcl_event_t,
     subscription: *const rcl_subscription_t,
@@ -188,7 +194,7 @@ pub extern "C" fn rcl_init(
     zenoh::init_log_from_env_or("error");
     tracing::trace!("rcl_init");
     rclz_try! {
-        context.assign_impl(ContextImpl(ZContext::new()?))?;
+        context.assign_impl(ContextImpl::new(ZContext::new()?))?;
     }
 }
 
@@ -196,13 +202,14 @@ pub extern "C" fn rcl_init(
 pub extern "C" fn rcl_shutdown(context: *mut rcl_context_t) -> rcl_ret_t {
     tracing::trace!("rcl_shutdown");
     rclz_try! {
-        context.own_impl()?.shutdown()?;
+        context.own_impl()?.inner.shutdown()?;
     }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_context_fini(_context: *mut rcl_context_t) -> rcl_ret_t {
-    tracing::trace!("rcl_context_fini");
+    // FIXME: tracing is not usable at the exit stage
+    // tracing::trace!("rcl_context_fini");
     RCL_RET_OK as _
 }
 

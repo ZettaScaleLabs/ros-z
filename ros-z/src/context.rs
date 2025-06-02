@@ -32,9 +32,10 @@ impl ZContext {
         })
     }
 
-    pub fn create_node<'a>(&self, name: &'a str) -> ZNodeBuilder<'a> {
+    pub fn create_node<S: AsRef<str>>(&self, name: S) -> ZNodeBuilder {
         ZNodeBuilder {
-            name,
+            name: name.as_ref().to_owned(),
+            namespace: None,
             session: self.session.clone(),
             counter: self.counter.clone(),
         }
