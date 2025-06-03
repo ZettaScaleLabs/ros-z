@@ -6,7 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use ros_z::{Result, context::ZContext, Builder, ros_msg::ByteMultiArray};
+use ros_z::{Builder, Result, context::ZContext, ros_msg::ByteMultiArray};
 
 fn get_percentile(data: &[u64], percentile: f64) -> u64 {
     if data.is_empty() {
@@ -56,10 +56,11 @@ fn main() -> Result<()> {
     std::thread::spawn(move || {
         let mut rtts = Vec::with_capacity(args.sample);
         while rtts.len() < args.sample {
-            let msg = zsub.recv().unwrap();
-            let sent_time = u64::from_le_bytes(msg.data[0..8].try_into().unwrap());
-            let rtt = start.elapsed().as_nanos() as u64 - sent_time;
-            rtts.push(rtt);
+            if let Ok(msg) = zsub.recv() {
+                let sent_time = u64::from_le_bytes(msg.data[0..8].try_into().unwrap());
+                let rtt = start.elapsed().as_nanos() as u64 - sent_time;
+                rtts.push(rtt);
+            }
         }
         print_statistics(rtts);
         c_finished.store(true, SeqCst);
