@@ -1,9 +1,12 @@
 #![allow(unused)]
 
+use std::fs::File;
+use std::path::PathBuf;
 use std::sync::atomic::Ordering::SeqCst;
 use std::sync::{Arc, atomic::AtomicBool};
 use std::time::{Duration, Instant};
 use cdr::{CdrLe, Infinite};
+use csv::Writer;
 use ros_z::ros_msg::ByteMultiArray;
 use zenoh::{Result, Wait};
 
@@ -34,6 +37,37 @@ struct Args {
     frequency: usize,
     #[arg(short, long, default_value = "100")]
     sample: usize,
+    #[arg(short, long, default_value = "")]
+    log: String,
+}
+
+#[derive(Debug)]
+struct DataLogger {
+    payload: usize,
+    frequency: usize,
+    path: PathBuf,
+}
+
+impl DataLogger {
+    fn write(&self, data: Vec<u128>) -> Result<()> {
+        let file = File::create(&self.path)?;
+        let mut wtr = Writer::from_writer(file);
+        wtr.write_record(
+            ["Frequency", "Payload", "RTT"]
+                .iter()
+                .map(|x| x.to_string()),
+        )?;
+
+        for val in data {
+            wtr.write_record(
+                [self.frequency, self.payload, val as _]
+                    .iter()
+                    .map(|x| x.to_string()),
+            )?;
+            wtr.flush()?;
+        }
+        Ok(())
+    }
 }
 
 fn main() -> Result<()> {
@@ -60,6 +94,16 @@ fn main() -> Result<()> {
         &args.frequency, &args.payload, &args.sample
     );
 
+    let logger = if args.log.is_empty() {
+        None
+    } else {
+        Some(DataLogger {
+            frequency: args.frequency,
+            payload: args.payload,
+            path: PathBuf::from(args.log),
+        })
+    };
+
     let start = Instant::now();
     std::thread::spawn(move || {
         let mut rtts = Vec::with_capacity(args.sample);
@@ -70,6 +114,9 @@ fn main() -> Result<()> {
                 let rtt = start.elapsed().as_nanos() as u128 - sent_time;
                 rtts.push(rtt);
             }
+        }
+        if let Some(logger) = logger {
+            logger.write(rtts.clone()).expect("Failed to write the log");
         }
         // println!("Total(secs) = {:.2}, len = {}", rtts.iter().sum::<u128>() as f64 / 1e9, rtts.len());
         print_statistics(rtts);

@@ -1,4 +1,6 @@
 use std::{
+    fs::File,
+    path::PathBuf,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering::SeqCst},
@@ -6,6 +8,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use csv::Writer;
 use ros_z::{Builder, Result, context::ZContext, ros_msg::ByteMultiArray};
 
 fn get_percentile(data: &[u64], percentile: f64) -> u64 {
@@ -35,6 +38,37 @@ struct Args {
     frequency: usize,
     #[arg(short, long, default_value = "100")]
     sample: usize,
+    #[arg(short, long, default_value = "")]
+    log: String,
+}
+
+#[derive(Debug)]
+struct DataLogger {
+    payload: usize,
+    frequency: usize,
+    path: PathBuf,
+}
+
+impl DataLogger {
+    fn write(&self, data: Vec<u64>) -> Result<()> {
+        let file = File::create(&self.path)?;
+        let mut wtr = Writer::from_writer(file);
+        wtr.write_record(
+            ["Frequency", "Payload", "RTT"]
+                .iter()
+                .map(|x| x.to_string()),
+        )?;
+
+        for val in data {
+            wtr.write_record(
+                [self.frequency, self.payload, val as _]
+                    .iter()
+                    .map(|x| x.to_string()),
+            )?;
+            wtr.flush()?;
+        }
+        Ok(())
+    }
 }
 
 fn main() -> Result<()> {
@@ -52,6 +86,16 @@ fn main() -> Result<()> {
         &args.frequency, &args.payload, &args.sample
     );
 
+    let logger = if args.log.is_empty() {
+        None
+    } else {
+        Some(DataLogger {
+            frequency: args.frequency,
+            payload: args.payload,
+            path: PathBuf::from(args.log),
+        })
+    };
+
     let start = Instant::now();
     std::thread::spawn(move || {
         let mut rtts = Vec::with_capacity(args.sample);
@@ -61,6 +105,9 @@ fn main() -> Result<()> {
                 let rtt = start.elapsed().as_nanos() as u64 - sent_time;
                 rtts.push(rtt);
             }
+        }
+        if let Some(logger) = logger {
+            logger.write(rtts.clone()).expect("Failed to write the log");
         }
         print_statistics(rtts);
         c_finished.store(true, SeqCst);
