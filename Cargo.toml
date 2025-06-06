@@ -9,13 +9,13 @@ default-members = ["ros-z"]
 
 [workspace.dependencies]
 cdr = "0.2.4"
-clap = "4.5.38"
+clap = "4.5.39"
 flume = "0.11.1"
 serde = "1.0.219"
 tracing = "0.1.41"
-zenoh = { version = "1.3.4", default-features = false }
-zenoh-ext = { version = "1.3.4" }
-parking_lot = "0.12.3"
+zenoh = { version = "1.4.0", default-features = false }
+zenoh-ext = { version = "1.4.0" }
+parking_lot = "0.12.4"
 cxx = "1.0.158"
 strum = "0.27.1"
 sha2 = "0.10.9"
