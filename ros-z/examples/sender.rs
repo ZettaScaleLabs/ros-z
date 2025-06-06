@@ -1,4 +1,4 @@
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::{io::Write, time::{Duration, SystemTime, UNIX_EPOCH}};
 
 use zenoh::{Result, Wait, qos::CongestionControl};
 
@@ -50,8 +50,14 @@ fn main() -> Result<()> {
         &args.frequency, &args.payload, &args.sample
     );
 
+    print!("Waiting for a subscirber...");
+    std::io::stdout().flush()?;
+    zpub.matching_listener().wait()?.recv()?;
+    println!("done.");
+
     let mut msg = vec![0xAA; args.payload];
-    for _ in 0..args.sample {
+
+    for idx in 0.. {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards")
@@ -61,6 +67,10 @@ fn main() -> Result<()> {
 
         if let Some(ref period) = period {
             std::thread::sleep(*period);
+        }
+
+        if args.sample != 0 && idx >= args.sample {
+            break
         }
     }
     println!("Finished");

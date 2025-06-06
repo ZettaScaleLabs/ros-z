@@ -38,6 +38,8 @@ struct Args {
     log: String,
     #[arg(short, long, default_value = "")]
     config: String,
+    #[arg(long, default_value = "1")]
+    warmup: usize,
 }
 
 #[derive(Debug)]
@@ -85,6 +87,12 @@ fn main() -> Result<()> {
     let session = zenoh::open(config).wait()?;
 
     let zsub = session.declare_subscriber("ping").wait()?;
+
+    let now = std::time::Instant::now();
+    let warmup = std::time::Duration::from_secs(args.warmup as u64);
+    while now.elapsed() < warmup {
+        let _ = zsub.recv();
+    }
 
     let mut rtts = Vec::with_capacity(args.sample);
     while let Ok(sample) = zsub.recv() {

@@ -53,8 +53,8 @@ mkdir -v $out_dir
 let log_file = $out_dir | path join "log.txt"
 let err_file = $out_dir | path join "err.txt"
 
-# for payload in [1024, (1024 * 1024)] {
-#     for freq in [10, 1000] {
+# for payload in [64, 65536] {
+#     for freq in [0] {
 for payload in [64, (64 * 1024)] {
     for freq in [0, 10, 1000, 10000] {
         let sample = if $freq == 0 {
@@ -72,20 +72,20 @@ for payload in [64, (64 * 1024)] {
                     let name_dir = $out_dir | path join $x.name
                     mkdir $name_dir
                     let csv_file = $name_dir | path join $"($freq)-($payload).csv"
-                    taskset -c 0,2 ...($env.RECV | split row " ") -f $freq -s $sample -p $payload -l $csv_file
+                    taskset -c 0,2 ...($env.RECV | split row " ") -f $freq -s $sample -p $payload -l $csv_file --warmup 2
                 }
                 let send = {
-                    sleep 1sec
-                    taskset -c 1,3 ...($env.SEND | split row " ") -f $freq -s $sample -p $payload
+                    # sleep 1sec
+                    taskset -c 1,3 ...($env.SEND | split row " ") -f $freq -s 0 -p $payload
                 }
 
                 let txt = $"\n\n>>> Begin testing with ($x.name)"
                 print $txt
                 echo $txt | save -a $log_file
                 echo "\n" | save -a $log_file
-                let recv_id = job spawn $recv
-                do $send | tee { save -a $log_file --stderr $err_file }
-                job kill $recv_id
+                let send_id = job spawn $send
+                do $recv | tee { save -a $log_file --stderr $err_file }
+                job kill $send_id
                 cleanup
             }
         }
@@ -129,5 +129,7 @@ let res = open $csv_file
     }
     $row
 }
+| sort-by Payload p50 p95 p05
+
 $res | save -f ($out_dir | path join "stats.csv")
 print $res
