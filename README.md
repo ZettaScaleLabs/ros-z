@@ -15,7 +15,9 @@ users that interoperates with any Zenoh RMW-based ROS 2.
 
 ## Goals
 **ROS-Z** was started as an experiment to understand what we could gain from verticalisation while at the same time
-providing (1) a pure-Rust stack to ROS2 users, and (2) zenoh-native implementation of RCL-C.
+providing (1) a pure-Rust stack to ROS2 users, and (2) zenoh-native implementation of RCL-C. We hope that the lesson learned through 
+this experiment will help the ROS community making ROS 2 even better. 
 
 ## Status
-At this stage **ROS-Z** is experimental software
+**ROS-Z** is experimental software. It should be interoperable with ROS 2 Rolling, but we make no guarantees with respect 
+to official distributions.
