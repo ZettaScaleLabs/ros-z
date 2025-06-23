@@ -13,7 +13,10 @@ clap = "4.5.39"
 flume = "0.11.1"
 serde = "1.0.219"
 tracing = "0.1.41"
-zenoh = { version = "1.4.0", default-features = false }
+zenoh = { version = "1.4.0", default-features = false, features = [
+    "transport_tcp",
+    "transport_udp",
+] }
 zenoh-ext = { version = "1.4.0" }
 parking_lot = "0.12.4"
 cxx = "1.0.158"
@@ -21,6 +24,7 @@ strum = "0.27.1"
 sha2 = "0.10.9"
 ros-z = { version = "*", path = "ros-z" }
 rcl-z = { version = "*", path = "rcl-z" }
+tokio = "1.45.1"
 
 [profile.opt]
 inherits = "release"

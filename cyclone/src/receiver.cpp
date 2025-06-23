@@ -70,11 +70,11 @@ int main(int argc, char **argv) {
             perror("fopen");
             return 1;
         }
-        logf << "Frequency,Payload,RTT" << endl;
+        logf << "Frequency,Payload,Latency" << endl;
     }
 
-    vector<uint64_t> rtts;
-    rtts.reserve(sample_count);
+    vector<uint64_t> lats;
+    lats.reserve(sample_count);
     atomic<int> received_samples = 0;
 
     dds_entity_t participant = dds_create_participant(DDS_DOMAIN_DEFAULT, NULL, NULL);
@@ -93,7 +93,7 @@ int main(int argc, char **argv) {
     static bool warmup_finished = false;
 
     if (use_listener) {
-        auto *userdata = new pair<vector<uint64_t> *, atomic<int> *>(&rtts, &received_samples);
+        auto *userdata = new pair<vector<uint64_t> *, atomic<int> *>(&lats, &received_samples);
         dds_listener_t *listener = dds_create_listener(userdata);
 
         dds_lset_data_available(listener, [](dds_entity_t rd, void *arg) {
@@ -144,7 +144,7 @@ int main(int argc, char **argv) {
         dds_entity_t ws = dds_create_waitset(participant);
         dds_waitset_attach(ws, dds_create_readcondition(reader, DDS_ANY_STATE), reader);
 
-        while ((int)rtts.size() < sample_count) {
+        while ((int)lats.size() < sample_count) {
             dds_attach_t triggered[1];
             dds_return_t rc = dds_waitset_wait(ws, triggered, 1, DDS_MSECS(300));
             if (rc < 0) {
@@ -156,30 +156,30 @@ int main(int argc, char **argv) {
                 uint64_t recv_time = current_time_ns();
                 uint64_t send_time;
                 memcpy(&send_time, msg.payload._buffer, sizeof(uint64_t));
-                rtts.push_back(recv_time - send_time);
+                lats.push_back(recv_time - send_time);
             }
         }
     }
 
-    if (!rtts.empty()) {
+    if (!lats.empty()) {
         if (logf.is_open()) {
-            for (auto lat : rtts) {
+            for (auto lat : lats) {
                 logf << frequency << "," << payload_size << "," << lat << endl;
             }
         }
 
-        sort(rtts.begin(), rtts.end());
+        sort(lats.begin(), lats.end());
         auto get_percentile = [](const vector<uint64_t> &v, double p) {
             size_t idx = size_t(p * v.size());
             return v[min(idx, v.size() - 1)];
         };
 
-        cout << "\nRTT stats (nanoseconds):" << endl;
-        cout << "Min : " << rtts.front() << endl;
-        cout << "p05 : " << get_percentile(rtts, 0.05) << endl;
-        cout << "p50 : " << get_percentile(rtts, 0.50) << endl;
-        cout << "p95 : " << get_percentile(rtts, 0.95) << endl;
-        cout << "Max : " << rtts.back() << endl;
+        cout << "\nLatency stats (nanoseconds):" << endl;
+        cout << "Min : " << lats.front() << endl;
+        cout << "p05 : " << get_percentile(lats, 0.05) << endl;
+        cout << "p50 : " << get_percentile(lats, 0.50) << endl;
+        cout << "p95 : " << get_percentile(lats, 0.95) << endl;
+        cout << "Max : " << lats.back() << endl;
     }
 
     if (logf.is_open()) logf.close();
