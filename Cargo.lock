@@ -259,7 +259,11 @@ version = "0.72.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "993776b509cfb49c750f11b8f07a46fa23e0a1386ffc01fb1e7d343efc387895"
 dependencies = [
+<<<<<<< HEAD
  "bitflags 2.9.4",
+=======
+ "bitflags 2.9.2",
+>>>>>>> 87267d8 (chore: rename the column names)
  "cexpr",
  "clang-sys",
  "itertools",
@@ -276,6 +280,15 @@ dependencies = [
 [[package]]
 name = "bitflags"
 version = "1.3.2"
+<<<<<<< HEAD
+=======
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
+
+[[package]]
+name = "bitflags"
+version = "2.9.2"
+>>>>>>> 87267d8 (chore: rename the column names)
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
@@ -330,6 +343,15 @@ checksum = "d71b6127be86fdcfddb610f7182ac57211d4b18a3e9c82eb2d17662f2227ad6a"
 [[package]]
 name = "cache-padded"
 version = "1.3.0"
+<<<<<<< HEAD
+=======
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "981520c98f422fcc584dc1a95c334e6953900b9106bc47a9839b81790009eb21"
+
+[[package]]
+name = "cc"
+version = "1.2.33"
+>>>>>>> 87267d8 (chore: rename the column names)
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "981520c98f422fcc584dc1a95c334e6953900b9106bc47a9839b81790009eb21"
 
@@ -886,12 +908,15 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 name = "find-msvc-tools"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7fd99930f64d146689264c637b5af2f0233a933bef0d8570e2526bf9e083192d"
 
 [[package]]
+=======
+>>>>>>> 87267d8 (chore: rename the column names)
 name = "fixedbitset"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1133,7 +1158,11 @@ checksum = "e1f8bc1fce949d18098dc0a4e861314e40351a0144ebf61e59bdb5254a2273b2"
 dependencies = [
  "ahash 0.7.8",
  "backtrace",
+<<<<<<< HEAD
  "bitflags 2.9.4",
+=======
+ "bitflags 2.9.2",
+>>>>>>> 87267d8 (chore: rename the column names)
  "bitmaps",
  "buddy-alloc",
  "cc",
@@ -1412,9 +1441,41 @@ dependencies = [
 [[package]]
 name = "instant"
 version = "0.1.13"
+<<<<<<< HEAD
+=======
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e0242819d153cba4b4b05a5a8f2a7e9bbf97b6055b2a002b395c96b5ff3c0222"
 dependencies = [
+ "cfg-if",
+]
+
+[[package]]
+name = "intrusive-collections"
+version = "0.9.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "189d0897e4cbe8c75efedf3502c18c887b05046e59d28404d4d8e46cbc4d1e86"
+dependencies = [
+ "memoffset 0.9.1",
+]
+
+[[package]]
+name = "io-uring"
+version = "0.6.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "595a0399f411a508feb2ec1e970a4a30c249351e30208960d58298de8660b0e5"
+dependencies = [
+ "bitflags 1.3.2",
+ "libc",
+]
+
+[[package]]
+name = "io-uring"
+version = "0.7.9"
+>>>>>>> 87267d8 (chore: rename the column names)
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0242819d153cba4b4b05a5a8f2a7e9bbf97b6055b2a002b395c96b5ff3c0222"
+dependencies = [
+<<<<<<< HEAD
  "cfg-if",
 ]
 
@@ -1444,6 +1505,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "046fa2d4d00aea763528b4950358d0ead425372445dc8ff86312b3c69ff7727b"
 dependencies = [
  "bitflags 2.9.4",
+=======
+ "bitflags 2.9.2",
+>>>>>>> 87267d8 (chore: rename the column names)
  "cfg-if",
  "libc",
 ]
@@ -1582,7 +1646,11 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "391290121bad3d37fbddad76d8f5d1c1c314cfc646d143d7e07a3086ddff0ce3"
 dependencies = [
+<<<<<<< HEAD
  "bitflags 2.9.4",
+=======
+ "bitflags 2.9.2",
+>>>>>>> 87267d8 (chore: rename the column names)
  "libc",
 ]
 
@@ -1614,6 +1682,18 @@ dependencies = [
 [[package]]
 name = "lockfree"
 version = "0.5.1"
+<<<<<<< HEAD
+=======
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74ee94b5ad113c7cb98c5a040f783d0952ee4fe100993881d1673c2cb002dd23"
+dependencies = [
+ "owned-alloc",
+]
+
+[[package]]
+name = "log"
+version = "0.4.27"
+>>>>>>> 87267d8 (chore: rename the column names)
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "74ee94b5ad113c7cb98c5a040f783d0952ee4fe100993881d1673c2cb002dd23"
 dependencies = [
@@ -1771,7 +1851,11 @@ version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2eb04e9c688eff1c89d72b407f168cf79bb9e867a9d3323ed6c01519eb9cc053"
 dependencies = [
+<<<<<<< HEAD
  "bitflags 2.9.4",
+=======
+ "bitflags 2.9.2",
+>>>>>>> 87267d8 (chore: rename the column names)
  "cfg-if",
  "libc",
  "memoffset 0.9.1",
@@ -1783,7 +1867,11 @@ version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "71e2746dc3a24dd78b3cfcb7be93368c6de9963d30f43a6a73998a9cf4b17b46"
 dependencies = [
+<<<<<<< HEAD
  "bitflags 2.9.4",
+=======
+ "bitflags 2.9.2",
+>>>>>>> 87267d8 (chore: rename the column names)
  "cfg-if",
  "cfg_aliases",
  "libc",
@@ -1795,7 +1883,11 @@ version = "0.30.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "74523f3a35e05aba87a1d978330aef40f67b0304ac79c1c00b294c9830543db6"
 dependencies = [
+<<<<<<< HEAD
  "bitflags 2.9.4",
+=======
+ "bitflags 2.9.2",
+>>>>>>> 87267d8 (chore: rename the column names)
  "cfg-if",
  "cfg_aliases",
  "libc",
@@ -1949,6 +2041,12 @@ name = "option-ext"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
+
+[[package]]
+name = "owned-alloc"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "30fceb411f9a12ff9222c5f824026be368ff15dc2f13468d850c7d3f502205d6"
 
 [[package]]
 name = "owned-alloc"
@@ -2384,7 +2482,11 @@ version = "0.5.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5407465600fb0548f1442edf71dd20683c6ed326200ace4b1ef0763521bb3b77"
 dependencies = [
+<<<<<<< HEAD
  "bitflags 2.9.4",
+=======
+ "bitflags 2.9.2",
+>>>>>>> 87267d8 (chore: rename the column names)
 ]
 
 [[package]]
@@ -2487,7 +2589,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b91f7eff05f748767f183df4320a63d6936e9c6107d97c9e6bdd9784f4289c94"
 dependencies = [
  "base64 0.21.7",
+<<<<<<< HEAD
  "bitflags 2.9.4",
+=======
+ "bitflags 2.9.2",
+>>>>>>> 87267d8 (chore: rename the column names)
  "serde",
  "serde_derive",
 ]
@@ -2776,7 +2882,11 @@ version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "60b369d18893388b345804dc0007963c99b7d665ae71d275812d828c6f089640"
 dependencies = [
+<<<<<<< HEAD
  "bitflags 2.9.4",
+=======
+ "bitflags 2.9.2",
+>>>>>>> 87267d8 (chore: rename the column names)
  "core-foundation",
  "core-foundation-sys",
  "libc",
@@ -3266,7 +3376,11 @@ checksum = "89e49afdadebb872d3145a5638b59eb0691ea23e46ca484037cfab3b76b95038"
 dependencies = [
  "backtrace",
  "bytes",
+<<<<<<< HEAD
  "io-uring 0.7.10",
+=======
+ "io-uring 0.7.9",
+>>>>>>> 87267d8 (chore: rename the column names)
  "libc",
  "mio 1.0.4",
  "pin-project-lite",
@@ -4105,7 +4219,14 @@ checksum = "271414315aff87387382ec3d271b52d7ae78726f5d44ac98b4f4030c91880486"
 name = "wit-bindgen"
 version = "0.45.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+<<<<<<< HEAD
 checksum = "5c573471f125075647d03df72e026074b7203790d41351cd6edc96f46bcccd36"
+=======
+checksum = "6f42320e61fe2cfd34354ecb597f86f413484a798ba44a8ca1165c58d42da6c1"
+dependencies = [
+ "bitflags 2.9.2",
+]
+>>>>>>> 87267d8 (chore: rename the column names)
 
 [[package]]
 name = "writeable"
