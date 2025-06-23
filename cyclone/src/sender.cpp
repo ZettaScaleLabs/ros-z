@@ -12,14 +12,6 @@ static uint64_t current_time_ns() {
     return duration_cast<nanoseconds>(steady_clock::now().time_since_epoch()).count();
 }
 
-void fill_payload(std::vector<uint8_t>& payload, uint64_t timestamp_ns) {
-    if (payload.size() < sizeof(uint64_t)) return;
-    std::memcpy(payload.data(), &timestamp_ns, sizeof(uint64_t));
-    for (size_t i = sizeof(uint64_t); i < payload.size(); ++i) {
-        payload[i] = static_cast<uint8_t>(i & 0xFF);
-    }
-}
-
 void usage(const char* prog) {
     std::cerr << "Usage: " << prog << " --payload <bytes> --frequency <Hz> --sample <count>\n";
     std::exit(1);
@@ -67,6 +59,7 @@ int main(int argc, char** argv) {
 
     dds_qos_t *qos = dds_create_qos ();
     dds_qset_reliability (qos, DDS_RELIABILITY_RELIABLE, DDS_SECS (10));
+    // dds_qset_history (qos, DDS_HISTORY_KEEP_ALL, 0);
 
     dds_entity_t writer = dds_create_writer(participant, topic, qos, nullptr);
     if (writer < 0) {
@@ -101,9 +94,10 @@ int main(int argc, char** argv) {
     MessageModule_DataType msg{};
     msg.payload._length = payload_size;
     msg.payload._release = true;
-    std::vector<uint8_t> buffer(payload_size);
+    std::vector<uint8_t> buffer(payload_size, 0);
     while (sample_count == 0 || sent < sample_count) {
-        fill_payload(buffer, current_time_ns());
+        uint64_t timestamp = current_time_ns();
+        std::memcpy(buffer.data(), &timestamp, sizeof(uint64_t));
 
         msg.payload._buffer = buffer.data();
 

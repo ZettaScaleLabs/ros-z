@@ -1,18 +1,21 @@
 #include <dds/dds.h>
+#include <unistd.h>
+
+#include <algorithm>
+#include <cassert>
+#include <chrono>
+#include <cinttypes>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <cinttypes>
 #include <ctime>
-#include <unistd.h>
-#include <ostream>
-#include <vector>
-#include <string>
-#include <chrono>
 #include <fstream>
 #include <iostream>
+#include <ostream>
+#include <string>
+#include <vector>
+
 #include "Message.h"
-#include <algorithm>
 
 using namespace std;
 using Clock = chrono::steady_clock;
@@ -24,7 +27,9 @@ static uint64_t current_time_ns() {
 }
 
 void usage(const char *prog) {
-    cerr << "Usage: " << prog << " [--payload <bytes>] [--frequency <Hz>] [--sample <count>] [--log <file.csv>] [--warmup <seconds>]" << endl;
+    cerr << "Usage: " << prog
+         << " [--payload <bytes>] [--frequency <Hz>] [--sample <count>] [--log <file.csv>] [--warmup <seconds>]"
+         << endl;
     exit(1);
 }
 
@@ -51,7 +56,8 @@ int main(int argc, char **argv) {
         }
     }
 
-    std::cout << "Freq: " << frequency << " Hz, Payload: " << payload_size << " bytes, Samples: " << sample_count << std::endl;
+    std::cout << "Freq: " << frequency << " Hz, Payload: " << payload_size << " bytes, Samples: " << sample_count
+              << std::endl;
 
     ofstream logf;
     if (!log_path.empty()) {
@@ -68,6 +74,7 @@ int main(int argc, char **argv) {
 
     dds_qos_t *qos = dds_create_qos();
     dds_qset_reliability(qos, DDS_RELIABILITY_RELIABLE, DDS_SECS(10));
+    // dds_qset_history (qos, DDS_HISTORY_KEEP_ALL, 0);
     dds_entity_t reader = dds_create_reader(participant, topic, qos, NULL);
     dds_delete_qos(qos);
 
@@ -76,10 +83,10 @@ int main(int argc, char **argv) {
     auto warmup_dur = seconds(warmup_sec);
 
     dds_entity_t ws = dds_create_waitset(participant);
-    dds_waitset_attach(ws, reader, reader);
+    dds_waitset_attach(ws, dds_create_readcondition(reader, DDS_ANY_STATE), reader);
 
     MessageModule_DataType msg{};
-    void* samples[1];
+    void *samples[1];
     dds_sample_info_t infos[1];
     samples[0] = &msg;
 
@@ -95,26 +102,30 @@ int main(int argc, char **argv) {
 
     while (rtts.size() < (size_t)sample_count) {
         dds_attach_t triggered[1];
-        dds_waitset_wait(ws, triggered, 1, DDS_MSECS(300));
-        dds_return_t rc = dds_take(reader, samples, infos, 1, 1);
+        dds_return_t rc = dds_waitset_wait(ws, triggered, 1, DDS_MSECS(300));
+        if (rc < 0) {
+            cout << "Failed" << endl << flush;
+            return -1;
+        }
+        rc = dds_take(reader, samples, infos, 1, 1);
         if (rc > 0 && infos[0].valid_data) {
             uint64_t recv_time = current_time_ns();
-            uint64_t send_time = 0;
+            uint64_t send_time;
             memcpy(&send_time, msg.payload._buffer, sizeof(uint64_t));
-            uint64_t latency = recv_time > send_time ? recv_time - send_time : 0;
+            uint64_t latency = recv_time - send_time;
             rtts.push_back(latency);
         }
     }
 
     if (!rtts.empty()) {
         if (logf.is_open()) {
-            for (auto lat: rtts) {
+            for (auto lat : rtts) {
                 logf << frequency << "," << payload_size << "," << lat << endl;
             }
         }
 
         sort(rtts.begin(), rtts.end());
-        auto get_percentile = [](const vector<uint64_t>& v, double p) {
+        auto get_percentile = [](const vector<uint64_t> &v, double p) {
             size_t idx = size_t(p * v.size());
             return v[min(idx, v.size() - 1)];
         };
