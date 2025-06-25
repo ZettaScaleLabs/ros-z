@@ -129,8 +129,11 @@ let env_selection = {
         RUST_LOG: "z=error",
         RECV: "./target/release/examples/one_way_latency --recv",
         SEND: "./target/release/examples/one_way_latency --express",
-        # RECV: "./target/opt/examples/one_way_latency --recv",
-        # SEND: "./target/opt/examples/one_way_latency --express",
+    },
+    "Zenoh (low-lat)": {
+        RUST_LOG: "z=error",
+        RECV: "./target/release/examples/one_way_latency --recv --config (make_tmp_config ($low_latency_config))",
+        SEND: "./target/release/examples/one_way_latency --config (make_tmp_config ($low_latency_config))",
     },
     # "Foo (express)": {
     #     RUST_LOG: "z=error",
