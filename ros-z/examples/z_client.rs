@@ -1,12 +1,12 @@
 use ros_z::{
     Builder, Result,
-    context::ZContext,
+    context::ZContextBuilder,
     entity::TypeInfo,
     ros_msg::{Vector3D, srv::AddTwoInts},
 };
 
 fn main() -> Result<()> {
-    let ctx = ZContext::new()?;
+    let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("my_node_name").build()?;
     let zcli = node
         .create_client::<AddTwoInts::Service>("add_two_ints")

@@ -17,6 +17,7 @@ pub struct ZNode {
 }
 
 pub struct ZNodeBuilder {
+    pub domain_id: usize,
     pub name: String,
     pub namespace: Option<String>,
     pub session: Arc<Session>,
@@ -35,7 +36,7 @@ impl Builder for ZNodeBuilder {
     fn build(self) -> Result<ZNode> {
         let id = self.counter.increment();
         let node = NodeEntity::new(
-            0,
+            self.domain_id,
             self.session.zid(),
             id,
             self.name,

@@ -1,7 +1,7 @@
-use ros_z::{Builder, Result, context::ZContext, entity::TypeInfo, ros_msg::srv::AddTwoInts};
+use ros_z::{Builder, Result, context::ZContextBuilder, entity::TypeInfo, ros_msg::srv::AddTwoInts};
 
 fn main() -> Result<()> {
-    let ctx = ZContext::new()?;
+    let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("my_node_name").build()?;
     let mut zsrv = node
         .create_service::<AddTwoInts::Service>("add_two_ints")
