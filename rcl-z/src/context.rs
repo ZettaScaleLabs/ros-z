@@ -21,7 +21,7 @@ pub struct ContextImpl {
 }
 
 impl ContextImpl {
-    fn new(zcontext: ZContext) -> Self {
+    pub(crate) fn new(zcontext: ZContext) -> Self {
         Self {
             inner: zcontext,
             notifier: Arc::new(Notifier::default()),
@@ -61,35 +61,6 @@ impl ContextImpl {
 
 impl_has_impl_ptr!(rcl_context_t, rcl_context_impl_t, ContextImpl);
 
-struct RclInitOptionsImpl {
-    allocator: rcl_allocator_t,
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_init_options_init(
-    init_options: *mut rcl_init_options_t,
-    allocator: rcl_allocator_t,
-) -> rcl_ret_t {
-    unsafe {
-        let mut opts = rcl_init_options_t::default();
-        opts.impl_ = Box::into_raw(Box::new(RclInitOptionsImpl { allocator })) as _;
-        std::ptr::write(init_options, opts);
-    }
-    RCL_RET_OK as _
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_init_options_get_allocator(
-    init_options: *const rcl_init_options_t,
-) -> *const rcl_allocator_t {
-    tracing::trace!("rcl_init_options_get_allocator");
-    unsafe {
-        let opts_impl = (*init_options).impl_ as *mut RclInitOptionsImpl;
-        tracing::trace!("{:?}", (*opts_impl).allocator);
-        &(*opts_impl).allocator as _
-    }
-}
-
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_logging_configure_with_output_handler(
     _global_args: *const rcl_arguments_t,
@@ -100,20 +71,6 @@ pub extern "C" fn rcl_logging_configure_with_output_handler(
     RCL_RET_OK as _
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_init_options_fini(init_options: *mut rcl_init_options_t) -> rcl_ret_t {
-    // FIXME: tracing is not usable at the exit stage
-    // tracing::trace!("rcl_init_options_fini");
-    RCL_RET_OK as _
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_init_options_copy(
-    src: *const rcl_init_options_t,
-    dst: *mut rcl_init_options_t,
-) -> rcl_ret_t {
-    RCL_RET_OK as _
-}
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_parse_arguments(
@@ -184,19 +141,6 @@ pub extern "C" fn rcl_context_is_valid(context: *const rcl_context_t) -> bool {
     unsafe { !(*context).impl_.is_null() }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_init(
-    _argc: c_int,
-    _argv: *const *const c_char,
-    _options: *const rcl_init_options_t,
-    context: *mut rcl_context_t,
-) -> rcl_ret_t {
-    zenoh::init_log_from_env_or("error");
-    tracing::trace!("rcl_init");
-    rclz_try! {
-        context.assign_impl(ContextImpl::new(ZContext::new()?))?;
-    }
-}
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_shutdown(context: *mut rcl_context_t) -> rcl_ret_t {

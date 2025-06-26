@@ -1,7 +1,7 @@
-use ros_z::{Builder, Result, context::ZContext, ros_msg::Vector3D, entity::TypeInfo};
+use ros_z::{Result, Builder, context::ZContextBuilder, entity::TypeInfo, ros_msg::Vector3D};
 
 fn main() -> Result<()> {
-    let ctx = ZContext::new()?;
+    let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("my_node_name").build()?;
     let zsub = node
         .create_sub::<Vector3D>("vector")

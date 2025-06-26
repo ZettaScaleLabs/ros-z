@@ -9,7 +9,7 @@ use std::{
 };
 
 use csv::Writer;
-use ros_z::{Builder, Result, context::ZContext, ros_msg::ByteMultiArray};
+use ros_z::{context::{ZContext, ZContextBuilder}, ros_msg::ByteMultiArray, Builder, Result};
 
 fn get_percentile(data: &[u64], percentile: f64) -> u64 {
     if data.is_empty() {
@@ -73,7 +73,7 @@ impl DataLogger {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let ctx = ZContext::new()?;
+    let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("MyNode").build()?;
     let zpub = node.create_pub::<ByteMultiArray>("ping").build()?;
     let zsub = node.create_sub::<ByteMultiArray>("pong").build()?;
