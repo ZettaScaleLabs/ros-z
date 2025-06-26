@@ -1,7 +1,7 @@
-use ros_z::{Result, context::ZContext, Builder, ros_msg::ByteMultiArray};
+use ros_z::{Builder, Result, context::ZContextBuilder, ros_msg::ByteMultiArray};
 
 fn main() -> Result<()> {
-    let ctx = ZContext::new()?;
+    let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("MyNode").build()?;
     let zsub = node.create_sub::<ByteMultiArray>("ping").build()?;
     let zpub = node.create_pub::<ByteMultiArray>("pong").build()?;

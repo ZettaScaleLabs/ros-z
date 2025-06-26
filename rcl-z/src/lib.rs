@@ -11,6 +11,7 @@ pub mod pubsub;
 pub mod type_support;
 pub mod wait_set;
 pub mod guard_condition;
+pub mod init;
 
 
 /// Newtype wrapper for a C void. Only useful as a `*c_void`
