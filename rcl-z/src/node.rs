@@ -19,6 +19,7 @@ use crate::type_support::ServiceTypeSupport;
 use crate::utils::NOT_SUPPORTED_CSTR;
 use crate::utils::Notifier;
 use crate::utils::str_from_ptr;
+use ros_z::graph::Graph;
 use ros_z::Builder;
 use ros_z::entity::TypeInfo;
 use ros_z::node::ZNode;
@@ -123,6 +124,10 @@ impl NodeImpl {
             .with_type_info(ts.get_type_info())
             .build_with_notifier(notify_callback)?;
         Ok(ServiceImpl { inner: zsrv, ts })
+    }
+
+    pub fn graph(&self) -> &Arc<Graph> {
+        &self.inner.graph
     }
 }
 

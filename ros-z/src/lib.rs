@@ -6,6 +6,8 @@ pub mod service;
 pub mod ros_msg;
 pub mod entity;
 pub mod attachment;
+pub mod qos;
+pub mod graph;
 
 mod utils;
 
