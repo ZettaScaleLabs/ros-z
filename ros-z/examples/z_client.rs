@@ -1,3 +1,4 @@
+#![allow(unused)]
 use ros_z::{
     Builder, Result,
     context::ZContextBuilder,

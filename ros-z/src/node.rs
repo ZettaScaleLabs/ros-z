@@ -1,5 +1,8 @@
+use crate::entity::EntityKind;
+use crate::graph::Graph;
 use std::sync::Arc;
-use zenoh::{Result, Session};
+use zenoh::liveliness::LivelinessToken;
+use zenoh::{Result, Session, Wait};
 
 use crate::{
     Builder,
@@ -14,6 +17,8 @@ pub struct ZNode {
     pub entity: NodeEntity,
     session: Arc<Session>,
     counter: Arc<GlobalCounter>,
+    pub graph: Arc<Graph>,
+    _lv_token: LivelinessToken,
 }
 
 pub struct ZNodeBuilder {
@@ -22,6 +27,7 @@ pub struct ZNodeBuilder {
     pub namespace: Option<String>,
     pub session: Arc<Session>,
     pub counter: Arc<GlobalCounter>,
+    pub graph: Arc<Graph>,
 }
 
 impl ZNodeBuilder {
@@ -42,10 +48,17 @@ impl Builder for ZNodeBuilder {
             self.name,
             self.namespace.to_owned(),
         );
+        let lv_token = self
+            .session
+            .liveliness()
+            .declare_token(node.lv_token_key_expr()?)
+            .wait()?;
         Ok(ZNode {
             entity: node,
             session: self.session,
             counter: self.counter,
+            _lv_token: lv_token,
+            graph: self.graph,
         })
     }
 }
@@ -59,8 +72,9 @@ impl ZNode {
             id: self.counter.increment(),
             node: self.entity.clone(),
             topic: topic.to_string(),
-            kind: crate::entity::EndpointKind::Publisher,
+            kind: EntityKind::Publisher,
             type_info: None,
+            ..Default::default()
         };
         ZPubBuilder {
             entity,
@@ -74,8 +88,8 @@ impl ZNode {
             id: self.counter.increment(),
             node: self.entity.clone(),
             topic: topic.to_string(),
-            kind: crate::entity::EndpointKind::Subscription,
-            type_info: None,
+            kind: EntityKind::Subscription,
+            ..Default::default()
         };
         ZSubBuilder {
             entity,
@@ -89,8 +103,8 @@ impl ZNode {
             id: self.counter.increment(),
             node: self.entity.clone(),
             topic: topic.to_string(),
-            kind: crate::entity::EndpointKind::Service,
-            type_info: None,
+            kind: EntityKind::Service,
+            ..Default::default()
         };
         ZServerBuilder {
             entity,
@@ -104,8 +118,8 @@ impl ZNode {
             id: self.counter.increment(),
             node: self.entity.clone(),
             topic: topic.to_string(),
-            kind: crate::entity::EndpointKind::Client,
-            type_info: None,
+            kind: EntityKind::Client,
+            ..Default::default()
         };
         ZClientBuilder {
             entity,

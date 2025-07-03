@@ -2,7 +2,7 @@ use std::sync::{Arc, atomic::AtomicUsize};
 
 use zenoh::{Result, Session, Wait};
 
-use crate::{node::ZNodeBuilder, Builder};
+use crate::{Builder, graph::Graph, node::ZNodeBuilder};
 
 #[derive(Debug, Default)]
 pub struct GlobalCounter(AtomicUsize);
@@ -21,15 +21,15 @@ pub struct ZContextBuilder {
 impl Builder for ZContextBuilder {
     type Output = ZContext;
     fn build(self) -> Result<ZContext> {
-        zenoh::init_log_from_env_or("error");
-        tracing::trace!("rcl_init");
-
         let config = zenoh::Config::default();
         let session = zenoh::open(config).wait()?;
+        let domain_id = self.domain_id;
+        let graph = Arc::new(Graph::new(&session, domain_id)?);
         Ok(ZContext {
             session: Arc::new(session),
             counter: Arc::new(GlobalCounter::default()),
-            domain_id: self.domain_id,
+            domain_id,
+            graph,
         })
     }
 }
@@ -46,6 +46,7 @@ pub struct ZContext {
     // Global counter for the participants
     counter: Arc<GlobalCounter>,
     domain_id: usize,
+    graph: Arc<Graph>,
 }
 
 impl ZContext {
@@ -56,6 +57,7 @@ impl ZContext {
             namespace: None,
             session: self.session.clone(),
             counter: self.counter.clone(),
+            graph: self.graph.clone(),
         }
     }
 

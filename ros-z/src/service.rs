@@ -10,12 +10,14 @@ use serde::Deserialize;
 use zenoh::{
     Result, Session, Wait, bytes,
     key_expr::KeyExpr,
+    liveliness::LivelinessToken,
     query::{Query, Reply},
     sample::Sample,
 };
 
 use std::sync::atomic::Ordering::AcqRel;
 
+use crate::entity::TopicKE;
 use crate::impl_with_type_info;
 
 use crate::{
@@ -41,8 +43,7 @@ pub struct ZClient<T: ZService> {
     // TODO: replace this with zenoh's global entity id
     gid: GidArray,
     inner: zenoh::query::Querier<'static>,
-    // tx: flume::Sender<T::Response>,
-    // rx: flume::Receiver<T::Response>,
+    lv_token: LivelinessToken,
     tx: flume::Sender<Sample>,
     pub rx: flume::Receiver<Sample>,
     _phantom_data: PhantomData<T>,
@@ -58,10 +59,17 @@ where
         let key_expr = self.entity.topic_key_expr()?;
         tracing::debug!("[CLN] KE: {key_expr}");
 
+        let inner = self.session.declare_querier(key_expr).wait()?;
+        let lv_token = self
+            .session
+            .liveliness()
+            .declare_token(self.entity.lv_token_key_expr()?)
+            .wait()?;
         let (tx, rx) = flume::unbounded();
         Ok(ZClient {
             sn: AtomicUsize::new(0),
-            inner: self.session.declare_querier(key_expr).wait()?,
+            inner,
+            lv_token,
             gid: self.entity.gid(),
             tx,
             rx,
@@ -150,6 +158,7 @@ pub struct ZServer<T: ZService> {
     // TODO: replace this with zenoh's global entity id
     gid: GidArray,
     inner: zenoh::query::Queryable<()>,
+    lv_token: LivelinessToken,
     // rx: flume::Receiver<T::Request>,
     pub rx: flume::Receiver<Query>,
     pub map: HashMap<QueryKey, Query>,
@@ -167,17 +176,23 @@ where
         tracing::debug!("[SRV] KE: {key_expr}");
 
         let (tx, rx) = flume::unbounded();
-        let qable = self
+        let inner = self
             .session
             .declare_queryable(&key_expr)
             .callback(move |query| {
                 let _ = tx.send(query);
             })
             .wait()?;
+        let lv_token = self
+            .session
+            .liveliness()
+            .declare_token(self.entity.lv_token_key_expr()?)
+            .wait()?;
         Ok(ZServer {
             key_expr,
             sn: AtomicUsize::new(0),
-            inner: qable,
+            inner,
+            lv_token,
             gid: self.entity.gid(),
             rx,
             map: HashMap::new(),
@@ -187,7 +202,8 @@ where
 }
 
 impl<T> ZServerBuilder<T>
-    where T: ZService
+where
+    T: ZService,
 {
     #[cfg(feature = "rcl-z")]
     pub fn build_with_notifier<F>(self, notify: F) -> Result<ZServer<T>>
@@ -198,7 +214,7 @@ impl<T> ZServerBuilder<T>
         tracing::debug!("[SRV] KE: {key_expr}");
 
         let (tx, rx) = flume::unbounded();
-        let qable = self
+        let inner = self
             .session
             .declare_queryable(&key_expr)
             .callback(move |query| {
@@ -206,10 +222,16 @@ impl<T> ZServerBuilder<T>
                 notify();
             })
             .wait()?;
+        let lv_token = self
+            .session
+            .liveliness()
+            .declare_token(self.entity.lv_token_key_expr()?)
+            .wait()?;
         Ok(ZServer {
             key_expr,
             sn: AtomicUsize::new(0),
-            inner: qable,
+            inner,
+            lv_token,
             gid: self.entity.gid(),
             rx,
             map: HashMap::new(),

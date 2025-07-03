@@ -3,13 +3,14 @@ use std::sync::atomic::Ordering::AcqRel;
 use std::{marker::PhantomData, sync::Arc};
 
 use serde::Deserialize;
+use zenoh::liveliness::LivelinessToken;
 use zenoh::{Result, Session, Wait, sample::Sample};
 
 use crate::Builder;
 use crate::attachment::{Attachment, GidArray};
 use crate::entity::EndpointEntity;
-use crate::msg::{CdrSerdes, ZMessage};
 use crate::impl_with_type_info;
+use crate::msg::{CdrSerdes, ZMessage};
 
 pub struct ZPub<T: ZMessage> {
     // TODO: replace this with the sample sn
@@ -17,6 +18,7 @@ pub struct ZPub<T: ZMessage> {
     // TODO: replace this with zenoh's global entity id
     gid: GidArray,
     inner: zenoh::pubsub::Publisher<'static>,
+    _lv_token: LivelinessToken,
     _phantom_data: PhantomData<T>,
 }
 
@@ -40,9 +42,16 @@ where
     fn build(self) -> Result<Self::Output> {
         let key_expr = self.entity.topic_key_expr()?;
         tracing::debug!("[PUB] KE: {key_expr}");
+        let inner = self.session.declare_publisher(key_expr).wait()?;
+        let lv_token = self
+            .session
+            .liveliness()
+            .declare_token(self.entity.lv_token_key_expr()?)
+            .wait()?;
         Ok(ZPub {
             sn: AtomicUsize::new(0),
-            inner: self.session.declare_publisher(key_expr).wait()?,
+            inner,
+            _lv_token: lv_token,
             gid: self.entity.gid(),
             _phantom_data: Default::default(),
         })
@@ -112,9 +121,15 @@ where
                 tx.send(msg).unwrap();
             })
             .wait()?;
+        let lv_token = self
+            .session
+            .liveliness()
+            .declare_token(self.entity.lv_token_key_expr()?)
+            .wait()?;
         Ok(ZSub {
             entity: self.entity,
             _inner: inner,
+            _lv_token: lv_token,
             queue: rx,
             _phantom_data: Default::default(),
         })
@@ -139,9 +154,15 @@ where
                 notify();
             })
             .wait()?;
+        let lv_token = self
+            .session
+            .liveliness()
+            .declare_token(self.entity.lv_token_key_expr()?)
+            .wait()?;
         Ok(ZSub {
             entity: self.entity,
             _inner: inner,
+            _lv_token: lv_token,
             queue: rx,
             _phantom_data: Default::default(),
         })
@@ -163,9 +184,15 @@ where
                 let _ = tx.send(sample);
             })
             .wait()?;
+        let lv_token = self
+            .session
+            .liveliness()
+            .declare_token(self.entity.lv_token_key_expr()?)
+            .wait()?;
         Ok(Self::Output {
             entity: self.entity,
             _inner: inner,
+            _lv_token: lv_token,
             queue: rx,
             _phantom_data: Default::default(),
         })
@@ -174,8 +201,9 @@ where
 
 pub struct ZSub<T: ZMessage, Q> {
     pub entity: EndpointEntity,
-    _inner: zenoh::pubsub::Subscriber<()>,
     pub queue: flume::Receiver<Q>,
+    _inner: zenoh::pubsub::Subscriber<()>,
+    _lv_token: LivelinessToken,
     _phantom_data: PhantomData<T>,
 }
 
