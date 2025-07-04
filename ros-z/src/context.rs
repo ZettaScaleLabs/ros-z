@@ -21,7 +21,11 @@ pub struct ZContextBuilder {
 impl Builder for ZContextBuilder {
     type Output = ZContext;
     fn build(self) -> Result<ZContext> {
-        let config = zenoh::Config::default();
+        // FIXME
+        let config = match std::env::var("ROSZ_CONFIG_FILE") {
+            Ok(path) => zenoh::Config::from_file(path)?,
+            Err(_) => zenoh::Config::default(),
+        };
         let session = zenoh::open(config).wait()?;
         let domain_id = self.domain_id;
         let graph = Arc::new(Graph::new(&session, domain_id)?);
