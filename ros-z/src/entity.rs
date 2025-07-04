@@ -82,7 +82,16 @@ impl TryFrom<&NodeEntity> for LivelinessKE {
             name,
             namespace,
         } = value;
-        let namespace = namespace.as_deref().unwrap_or(EMPTY_NAMESPACE);
+        let namespace = match namespace {
+            None => EMPTY_NAMESPACE,
+            Some(ns) => {
+                if ns.is_empty() {
+                    EMPTY_NAMESPACE
+                } else {
+                    ns
+                }
+            },
+        };
         let entity_kind = EntityKind::Node;
         Ok(LivelinessKE(
             format!("{ADMIN_SPACE}/{domain_id}/{z_id}/{id}/{id}/{entity_kind}/{namespace}/{name}")
@@ -169,7 +178,16 @@ impl TryFrom<&EndpointEntity> for LivelinessKE {
             qos,
         } = value;
 
-        let node_namespace = mangle_name(node_namespace.as_deref().unwrap_or(EMPTY_NAMESPACE));
+        let node_namespace = match node_namespace {
+            None => EMPTY_NAMESPACE,
+            Some(ns) => {
+                if ns.is_empty() {
+                    EMPTY_NAMESPACE
+                } else {
+                    ns
+                }
+            },
+        };
         let node_name = mangle_name(node_name);
         let topic_name = mangle_name(topic_name);
         let type_info = type_info
