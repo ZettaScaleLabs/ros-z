@@ -53,6 +53,7 @@ impl rcl_guard_condition_t {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_get_zero_initialized_guard_condition() -> rcl_guard_condition_t {
+    tracing::trace!("rcl_get_zero_initialized_guard_condition");
     rcl_guard_condition_t::new()
 }
 
@@ -62,6 +63,7 @@ pub extern "C" fn rcl_guard_condition_init(
     context: *mut rcl_context_t,
     _options: rcl_guard_condition_options_t,
 ) -> rcl_ret_t {
+    tracing::trace!("rcl_guard_condition_init");
     unsafe {
         let x = &mut *((*guard_condition).impl_ as *mut GuardConditionImpl);
         x.notifier = Some(context.borrow_impl().unwrap().share_notifier());
@@ -73,6 +75,7 @@ pub extern "C" fn rcl_guard_condition_init(
 pub extern "C" fn rcl_guard_condition_get_options(
     _guard_condition: *const rcl_guard_condition_t,
 ) -> *const rcl_guard_condition_options_t {
+    tracing::trace!("rcl_guard_condition_get_options");
     std::ptr::null()
 }
 
@@ -83,6 +86,7 @@ pub extern "C" fn rcl_guard_condition_init_from_rmw(
     _context: *mut rcl_context_t,
     _options: rcl_guard_condition_options_t,
 ) -> rcl_ret_t {
+    tracing::trace!("rcl_guard_condition_init_from_rmw");
     todo!()
 }
 
@@ -90,6 +94,8 @@ pub extern "C" fn rcl_guard_condition_init_from_rmw(
 pub extern "C" fn rcl_guard_condition_fini(
     guard_condition: *mut rcl_guard_condition_t,
 ) -> rcl_ret_t {
+    // FIXME: TLS issue
+    // tracing::trace!("rcl_guard_condition_fini");
     std::mem::drop(guard_condition.own_impl().unwrap());
     RCL_RET_OK as _
 }
@@ -98,6 +104,7 @@ pub extern "C" fn rcl_guard_condition_fini(
 pub extern "C" fn rcl_trigger_guard_condition(
     guard_condition: *mut rcl_guard_condition_t,
 ) -> rcl_ret_t {
+    tracing::trace!("rcl_trigger_guard_condition");
     guard_condition.borrow_mut_impl().unwrap().trigger();
     RCL_RET_OK as _
 }
