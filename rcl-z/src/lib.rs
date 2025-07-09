@@ -13,6 +13,8 @@ pub mod wait_set;
 pub mod guard_condition;
 pub mod init;
 pub mod graph;
+pub mod timer;
+pub mod arguments;
 
 
 /// Newtype wrapper for a C void. Only useful as a `*c_void`

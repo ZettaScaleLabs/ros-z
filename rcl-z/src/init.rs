@@ -91,17 +91,21 @@ pub extern "C" fn rcl_init_options_get_allocator(
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_init(
-    _argc: c_int,
-    _argv: *const *const c_char,
+    argc: c_int,
+    argv: *const *const c_char,
     options: *const rcl_init_options_t,
     context: *mut rcl_context_t,
 ) -> rcl_ret_t {
     zenoh::init_log_from_env_or("error");
-    tracing::trace!("rcl_init");
-    rclz_try! {
-        let ctx = ZContextBuilder::default()
-            .with_domain_id(options.borrow_impl()?.domain_id)
-            .build()?;
-        context.assign_impl(ContextImpl::new(ctx))?;
-    }
+    tracing::error!(
+        "rcl_init with args: {:?}",
+        crate::utils::parse_args(argc, argv)
+    );
+    let ctx = ZContextBuilder::default()
+        .with_domain_id(options.borrow_impl().unwrap().domain_id)
+        .build()
+        .unwrap();
+    let ctx_impl = ContextImpl::new(ctx);
+    context.assign_impl(ctx_impl).unwrap();
+    RCL_RET_OK as _
 }

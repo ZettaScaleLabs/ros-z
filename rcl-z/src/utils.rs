@@ -81,3 +81,24 @@ macro_rules! impl_has_impl_ptr {
         }
     };
 }
+
+pub fn parse_args(argc: i32, argv: *const *const c_char) -> Vec<String> {
+    let mut args = Vec::new();
+
+    unsafe {
+        for i in 0..argc {
+            // Get the pointer to the i-th C string
+            let c_str_ptr = *argv.offset(i as isize);
+            if c_str_ptr.is_null() {
+                continue;
+            }
+
+            // Convert to &CStr then to String
+            let c_str = CStr::from_ptr(c_str_ptr);
+            let str_slice = c_str.to_string_lossy().into_owned();
+            args.push(str_slice);
+        }
+    }
+
+    args
+}

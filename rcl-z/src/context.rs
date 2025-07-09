@@ -71,34 +71,6 @@ pub extern "C" fn rcl_logging_configure_with_output_handler(
     RCL_RET_OK as _
 }
 
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_parse_arguments(
-    argc: ::std::os::raw::c_int,
-    argv: *const *const ::std::os::raw::c_char,
-    allocator: rcl_allocator_t,
-    args_output: *mut rcl_arguments_t,
-) -> rcl_ret_t {
-    tracing::trace!("rcl_parse_arguments");
-    RCL_RET_OK as _
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_arguments_get_count_unparsed_ros(
-    args: *const rcl_arguments_t,
-) -> ::std::os::raw::c_int {
-    tracing::trace!("rcl_arguments_get_count_unparsed_ros");
-    0
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_arguments_get_param_overrides(
-    arguments: *const rcl_arguments_t,
-    parameter_overrides: *mut *mut rcl_params_t,
-) -> rcl_ret_t {
-    RCL_RET_OK as _
-}
-
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_publisher_get_rmw_handle(
     publisher: *const rcl_publisher_t,

@@ -19,14 +19,15 @@ use std::time::Duration;
 use strum::{EnumIter, IntoEnumIterator};
 use zenoh::Result;
 
+// NOTE: The iterating order matters!
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, EnumIter)]
 pub enum WaitSetKind {
     Subscription,
     Client,
     Service,
     GuradCondition,
-    Event,
     Timer,
+    Event,
 }
 
 type WaitSetQueue = Vec<*const c_void>;
@@ -95,7 +96,10 @@ impl WaitSetImpl {
                 .iter()
                 .any(|&ptr| match (ptr as *const T).borrow_impl() {
                     Ok(x) => x.is_ready(),
-                    Err(_) => false,
+                    Err(err) => {
+                        tracing::error!("is_ready failed due to {err}");
+                        false
+                    }
                 }),
             None => false,
         }
@@ -107,6 +111,7 @@ impl WaitSetImpl {
                 || self.is_ready::<rcl_client_t>(WaitSetKind::Client)
                 || self.is_ready::<rcl_service_t>(WaitSetKind::Service)
                 || self.is_ready::<rcl_guard_condition_t>(WaitSetKind::GuradCondition)
+                || self.is_ready::<rcl_timer_t>(WaitSetKind::Timer)
         };
 
         let (mutex, cv) = {
@@ -141,6 +146,7 @@ impl WaitSetImpl {
             check::<rcl_client_t>,
             check::<rcl_service_t>,
             check::<rcl_guard_condition_t>,
+            check::<rcl_timer_t>,
         ]) {
             if let Some(queue) = self.hmap.get_mut(&k) {
                 if f(queue)? {
@@ -168,6 +174,24 @@ impl WaitSetImpl {
                 }
             });
         }
+    }
+
+    fn min_timeout(&self) -> Duration {
+        let mut timeout = Duration::MAX;
+
+        if let Some(queue) = self.hmap.get(&WaitSetKind::Timer) {
+            for &timer in queue {
+                match (timer as *const rcl_timer_t)
+                    .borrow_impl()
+                    .unwrap()
+                    .get_time_until_next_call()
+                {
+                    Ok(diff) => timeout = timeout.min(diff),
+                    Err(_) => return Duration::ZERO,
+                }
+            }
+        }
+        timeout
     }
 }
 
@@ -468,17 +492,18 @@ pub extern "C" fn rcl_wait_set_clear(wait_set: *mut rcl_wait_set_t) -> rcl_ret_t
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_wait(wait_set: *mut rcl_wait_set_t, timeout: i64) -> rcl_ret_t {
-    tracing::trace!("rcl_wait");
+    tracing::trace!("rcl_wait, timeout={timeout}");
     if wait_set.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
     }
 
+    let ws_impl = wait_set.borrow_mut_impl().unwrap();
+
     // -1 => u64::Max
     // =0 => 0 in u64
     // >0 => >0 in u64
-    let timeout = std::time::Duration::from_nanos(timeout as u64);
+    let timeout = std::time::Duration::from_nanos(timeout as u64).min(ws_impl.min_timeout());
 
-    let ws_impl = wait_set.borrow_mut_impl().unwrap();
     ws_impl.wait(ws_impl.notifier.as_ref().unwrap(), timeout);
 
     let ret = match ws_impl.check_ready() {
@@ -525,8 +550,6 @@ pub extern "C" fn rcl_wait_set_resize(
         events_size,
         "rcl_wait_set_resize called with sizes"
     );
-
-    let ws = wait_set.borrow_mut_impl().unwrap();
 
     unsafe {
         (*wait_set).size_of_subscriptions = subscriptions_size;
@@ -600,12 +623,7 @@ impl_wait_set_add!(
     rcl_guard_condition_t,
     WaitSetKind::GuradCondition
 );
-impl_wait_set_add!(
-    rcl_wait_set_add_timer,
-    rcl_timer_t,
-    WaitSetKind::Timer,
-    null
-);
+impl_wait_set_add!(rcl_wait_set_add_timer, rcl_timer_t, WaitSetKind::Timer);
 impl_wait_set_add!(
     rcl_wait_set_add_event,
     rcl_event_t,
