@@ -143,6 +143,9 @@ pub extern "C" fn rcl_node_init(
 ) -> rcl_ret_t {
     tracing::trace!("rcl_node_init");
 
+    unsafe {
+        (*node).context = context;
+    }
     let x = move || {
         let node_impl = context
             .borrow_impl()?
