@@ -1,3 +1,4 @@
+#![allow(unused)]
 use crate::ros::*;
 use crate::traits::{BorrowImpl, OwnImpl};
 use ros_z::entity::EntityKind;
