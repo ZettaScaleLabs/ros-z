@@ -31,7 +31,7 @@ pub struct QosProfile {
     pub history: QosHistory,
 }
 
-const QOS_DELIMITER: &'static str = ",";
+const QOS_DELIMITER: &'static str = ":";
 
 #[derive(Debug)]
 pub enum QosDecodeError {
@@ -59,7 +59,7 @@ impl QosProfile {
             QosHistory::KeepLast(depth) => format!("1,{depth}"),
             QosHistory::KeepAll => "2,".into(),
         };
-        // All other fields are left blank.
+        // TODO: All other fields are left blank.
         let deadline = ",";
         let lifespan = ",";
         let liveliness = ",,";
