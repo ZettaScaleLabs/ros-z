@@ -136,6 +136,14 @@ pub extern "C" fn rcl_client_init(
     rclz_try! { x()?; }
 }
 
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_client_fini(client: *mut rcl_client_t, _node: *mut rcl_node_t) -> rcl_ret_t {
+    // Drop the data regardless of the pointer's condition.
+    drop(client.own_impl());
+    RCL_RET_OK as _
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_send_request(
     client: *const rcl_client_t,
@@ -242,9 +250,8 @@ pub extern "C" fn rcl_service_init(
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_service_fini(service: *mut rcl_service_t, _node: *mut rcl_node_t) -> rcl_ret_t {
-    if let Ok(x)  = service.own_impl() {
-        std::mem::drop(x);
-    }
+    // Drop the data regardless of the pointer's condition.
+    drop(service.own_impl());
     RCL_RET_OK as _
 }
 
