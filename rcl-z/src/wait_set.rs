@@ -528,6 +528,7 @@ pub extern "C" fn rcl_wait(wait_set: *mut rcl_wait_set_t, timeout: i64) -> rcl_r
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_get_zero_initialized_wait_set() -> rcl_wait_set_t {
+    tracing::trace!("rcl_get_zero_initialized_wait_set");
     rcl_wait_set_t::new()
 }
 
