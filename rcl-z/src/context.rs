@@ -41,10 +41,7 @@ impl ContextImpl {
             .with_namespace(str_from_ptr(namespace_)?)
             .build()?;
 
-        let namespace = match &znode.entity.namespace {
-            Some(ns) => CString::from_str(&ns)?,
-            None => CString::new("")?,
-        };
+        let namespace = CString::from_str(&znode.entity.namespace)?;
         let name = CString::from_str(&znode.entity.name)?;
         Ok(NodeImpl {
             inner: znode,

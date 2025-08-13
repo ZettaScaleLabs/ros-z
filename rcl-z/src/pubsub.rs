@@ -5,11 +5,11 @@ use crate::msg::RosMessage;
 use crate::node::NodeImpl;
 use crate::rclz_try;
 use crate::ros::*;
+use crate::traits::Waitable;
 use crate::traits::{BorrowImpl, OwnImpl};
 use crate::type_support::MessageTypeSupport;
 use crate::utils::Notifier;
 use crate::utils::str_from_ptr;
-use crate::traits::Waitable;
 use ros_z::{
     Builder,
     entity::TypeInfo,
@@ -134,9 +134,9 @@ pub extern "C" fn rcl_publisher_fini(
     _node: *mut rcl_node_t,
 ) -> rcl_ret_t {
     tracing::trace!("rcl_publisher_fini");
-    rclz_try! {
-        std::mem::drop(publisher.own_impl()?);
-    }
+    // Drop the data regardless of the pointer's condition.
+    drop(publisher.own_impl());
+    RCL_RET_OK as _
 }
 
 #[unsafe(no_mangle)]
@@ -145,9 +145,9 @@ pub extern "C" fn rcl_subscription_fini(
     _node: *mut rcl_node_t,
 ) -> rcl_ret_t {
     tracing::trace!("rcl_subscription_fini");
-    rclz_try! {
-        std::mem::drop(subscription.own_impl()?);
-    }
+    // Drop the data regardless of the pointer's condition.
+    drop(subscription.own_impl());
+    RCL_RET_OK as _
 }
 
 #[unsafe(no_mangle)]

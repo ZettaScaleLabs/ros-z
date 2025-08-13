@@ -68,7 +68,7 @@ mod ffi {
 }
 
 use ffi::*;
-use ros_z::entity::TypeInfo;
+use ros_z::entity::{TypeInfo, TypeHash};
 
 use crate::ros::rosidl_type_hash_t;
 
@@ -106,8 +106,8 @@ impl MessageTypeSupport {
         Self { ptr: type_support }
     }
 
-    pub fn get_type_hash(&self) -> String {
-        let th = unsafe {
+    pub fn get_type_hash(&self) -> TypeHash {
+        let hash = unsafe {
             let type_hash = self
                 .as_ref()
                 .get_type_hash_func
@@ -115,7 +115,7 @@ impl MessageTypeSupport {
             assert!(!type_hash.is_null());
             *type_hash
         };
-        th.to_string()
+        TypeHash::new(hash.version, hash.value)
     }
 
     pub fn serialize_message(&self, ros_message: *const c_void, out: &mut Vec<u8>) {
@@ -151,7 +151,7 @@ impl MessageTypeSupport {
     }
 
     pub fn get_type_info(&self) -> TypeInfo {
-        TypeInfo::new(&self.get_type_prefix(), &self.get_type_hash())
+        TypeInfo::new(&self.get_type_prefix(), self.get_type_hash())
     }
 }
 
@@ -193,8 +193,8 @@ impl ServiceTypeSupport {
         }
     }
 
-    pub fn get_type_hash(&self) -> String {
-        let th = unsafe {
+    pub fn get_type_hash(&self) -> TypeHash {
+        let hash = unsafe {
             let type_hash = self
                 .as_ref()
                 .get_type_hash_func
@@ -202,7 +202,7 @@ impl ServiceTypeSupport {
             assert!(!type_hash.is_null());
             *type_hash
         };
-        th.to_string()
+        TypeHash::new(hash.version, hash.value)
     }
 
     pub fn get_type_info(&self) -> TypeInfo {
@@ -210,6 +210,6 @@ impl ServiceTypeSupport {
         let name = name_with_suffix
             .strip_suffix("Response_")
             .expect("Invalid Response_ type");
-        TypeInfo::new(name, &self.get_type_hash())
+        TypeInfo::new(name, self.get_type_hash())
     }
 }

@@ -24,7 +24,7 @@ pub struct ZNode {
 pub struct ZNodeBuilder {
     pub domain_id: usize,
     pub name: String,
-    pub namespace: Option<String>,
+    pub namespace: String,
     pub session: Arc<Session>,
     pub counter: Arc<GlobalCounter>,
     pub graph: Arc<Graph>,
@@ -32,7 +32,7 @@ pub struct ZNodeBuilder {
 
 impl ZNodeBuilder {
     pub fn with_namespace<S: AsRef<str>>(mut self, namespace: S) -> Self {
-        self.namespace = Some(namespace.as_ref().to_owned());
+        self.namespace = namespace.as_ref().to_owned();
         self
     }
 }
@@ -46,7 +46,7 @@ impl Builder for ZNodeBuilder {
             self.session.zid(),
             id,
             self.name,
-            self.namespace.to_owned(),
+            self.namespace,
         );
         let lv_token = self
             .session

@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use crate::ros::*;
+use ros_z::qos::{QosProfile, QosReliability, QosDurability, QosHistory};
 
 const QOS_COMPONENT_DELIMITER: &str = ",";
 const QOS_DELIMITER: &str = ":";
@@ -134,6 +135,42 @@ impl FromStr for rmw_qos_profile_t {
 
         Ok(qos)
 
+    }
+}
+
+impl From<&QosProfile> for rmw_qos_profile_t {
+    fn from(qos: &QosProfile) -> Self {
+        let reliability = match qos.reliability {
+            QosReliability::Reliable => rmw_qos_reliability_policy_e::RELIABLE,
+            QosReliability::BestEffort => rmw_qos_reliability_policy_e::BEST_EFFORT,
+        };
+        
+        let durability = match qos.durability {
+            QosDurability::TransientLocal => rmw_qos_durability_policy_e::TRANSIENT_LOCAL,
+            QosDurability::Volatile => rmw_qos_durability_policy_e::VOLATILE,
+        };
+        
+        let (history, depth) = match qos.history {
+            QosHistory::KeepLast(d) => (rmw_qos_history_policy_e::KEEP_LAST, d),
+            QosHistory::KeepAll => (rmw_qos_history_policy_e::KEEP_ALL, 0),
+        };
+
+        let infinite_time = rmw_time_s {
+            sec: 9223372036,
+            nsec: 854775807,
+        };
+
+        rmw_qos_profile_s {
+            history,
+            depth,
+            reliability,
+            durability,
+            deadline: infinite_time,
+            lifespan: infinite_time,
+            liveliness: rmw_qos_liveliness_policy_e::AUTOMATIC,
+            liveliness_lease_duration: infinite_time,
+            avoid_ros_namespace_conventions: false,
+        }
     }
 }
 

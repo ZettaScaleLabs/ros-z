@@ -21,6 +21,7 @@ strum = "0.27.1"
 sha2 = "0.10.9"
 ros-z = { version = "*", path = "ros-z" }
 rcl-z = { version = "*", path = "rcl-z" }
+slab = "0.4.10"
 
 [profile.opt]
 inherits = "release"
