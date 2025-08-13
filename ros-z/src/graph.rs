@@ -1,8 +1,9 @@
-use parking_lot::RwLock;
+use parking_lot::Mutex;
+use slab::Slab;
 use std::{
     collections::{HashMap, HashSet},
-    ops::Deref,
-    sync::Arc,
+    ffi::CString,
+    sync::{Arc, Weak},
 };
 
 use crate::entity::{
@@ -12,10 +13,10 @@ use zenoh::{Result, Session, Wait, pubsub::Subscriber, sample::SampleKind};
 
 #[derive(Default, Debug)]
 pub struct GraphData {
-    // by_node: HashMap<NodeKey, Vec<Entity>>,
-    // by_topic: HashMap<Topic, Vec<EndpointEntity>>,
-    // set: HashSet<Arc<Entity>>,
-    ke_set: HashSet<LivelinessKE>,
+    cached: HashSet<LivelinessKE>,
+    parsed: HashMap<LivelinessKE, Arc<Entity>>,
+    by_topic: HashMap<Topic, Slab<Weak<Entity>>>,
+    by_node: HashMap<NodeKey, Slab<Weak<Entity>>>,
 }
 
 impl GraphData {
@@ -24,44 +25,104 @@ impl GraphData {
     }
 
     fn insert(&mut self, ke: LivelinessKE) {
-        self.ke_set.insert(ke);
+        self.cached.insert(ke);
     }
 
     fn remove(&mut self, ke: &LivelinessKE) {
-        self.ke_set.remove(ke);
+        match (self.cached.remove(ke), self.parsed.remove(ke)) {
+            (true, Some(_)) => unreachable!(),
+            (false, None) => unreachable!(),
+            _ => {}
+        }
+        // TODO: clean up the maps
     }
 
-    // fn parse_iter(&mut self) -> impl Iterator<Item = &Entity> {
-    //     self.ke_map.iter_mut().map(|(k, v)| match v {
-    //         Some(v) => v,
-    //         None => match Entity::try_from(k) {
-    //             Ok(ent) => {
-    //                 v.replace(ent);
-    //                 v.as_ref().unwrap()
-    //             }
-    //             Err(err) => {
-    //                 panic!("Failed to iterate ke_map due to {err:?}")
-    //             }
-    //         },
-    //     })
-    // }
+    fn parse(&mut self) {
+        for ke in self.cached.drain() {
+            // FIXME: unwrap
+            let arc = Arc::new(Entity::try_from(&ke).unwrap());
+            let weak = Arc::downgrade(&arc);
+            match &*arc {
+                Entity::Node(x) => {
+                    // TODO: omit the clone of node key
+                    self.by_node
+                        .entry(x.key())
+                        .or_insert(Slab::new())
+                        .insert(weak);
+                }
+                Entity::Endpoint(x) => {
+                    // TODO: omit the clone of topic
+                    self.by_topic
+                        .entry(x.topic.clone())
+                        .or_insert(Slab::new())
+                        .insert(weak.clone());
+                    self.by_node
+                        .entry(x.node.key())
+                        .or_insert(Slab::new())
+                        .insert(weak);
+                }
+            }
+            self.parsed.insert(ke, arc);
+        }
+    }
+
+    pub fn visit_by_node<F>(&mut self, node_key: NodeKey, mut f: F)
+    where
+        F: FnMut(Arc<Entity>),
+    {
+        // dbg!(&self, &node_key);
+        if !self.cached.is_empty() {
+            self.parse();
+        }
+
+        if let Some(entities) = self.by_node.get_mut(&node_key) {
+            entities.retain(|_, weak| {
+                if let Some(rc) = weak.upgrade() {
+                    f(rc);
+                    true
+                } else {
+                    false
+                }
+            });
+        }
+    }
+
+    pub fn visit_by_topic<F>(&mut self, topic: impl AsRef<str>, mut f: F)
+    where
+        F: FnMut(Arc<Entity>),
+    {
+        if !self.cached.is_empty() {
+            self.parse();
+        }
+
+        if let Some(entities) = self.by_topic.get_mut(topic.as_ref()) {
+            entities.retain(|_, weak| {
+                if let Some(rc) = weak.upgrade() {
+                    f(rc);
+                    true
+                } else {
+                    false
+                }
+            });
+        }
+    }
 }
 
 pub struct Graph {
-    data: Arc<RwLock<GraphData>>,
+    pub data: Arc<Mutex<GraphData>>,
     _subscriber: Subscriber<()>,
 }
 
 impl Graph {
     pub fn new(session: &Session, domain_id: usize) -> Result<Self> {
-        let graph_data = Arc::new(RwLock::new(GraphData::new()));
+        let graph_data = Arc::new(Mutex::new(GraphData::new()));
         let c_graph_data = graph_data.clone();
         let sub = session
             .liveliness()
             .declare_subscriber(format!("{ADMIN_SPACE}/{domain_id}/**"))
             .history(true)
             .callback(move |sample| {
-                let mut graph_data_guard = c_graph_data.write();
+                let mut graph_data_guard = c_graph_data.lock();
                 let ke = LivelinessKE(sample.key_expr().to_owned());
                 match sample.kind() {
                     SampleKind::Put => graph_data_guard.insert(ke),
@@ -75,23 +136,33 @@ impl Graph {
         })
     }
 
-    pub fn count(&mut self, kind: EntityKind, topic: Topic) -> usize {
+    pub fn count(&self, kind: EntityKind, topic: impl AsRef<str>) -> usize {
         assert!(kind != EntityKind::Node);
-        todo!()
-        // self.data
-        //     .read()
-        //     .parse_iter()
-        //     .filter(|&x| {
-        //         if let Entity::Endpoint(ent) = x {
-        //             ent.topic == topic && ent.kind == kind
-        //         } else {
-        //             false
-        //         }
-        //     })
-        //     .count()
+        let mut total = 0;
+        self.data.lock().visit_by_topic(topic, |ent| {
+            if ent.kind() == kind {
+                total += 1;
+            }
+        });
+        total
     }
 
-    pub fn get_entities_by_node(&self, kind: EntityKind, node: NodeKey) -> Vec<EndpointEntity> {
+    pub fn get_entities_by_topic(
+        &self,
+        kind: EntityKind,
+        topic: impl AsRef<str>,
+    ) -> Vec<Arc<Entity>> {
+        assert!(kind != EntityKind::Node);
+        let mut res = Vec::new();
+        self.data.lock().visit_by_topic(topic, |ent| {
+            if ent.kind() == kind {
+                res.push(ent);
+            }
+        });
+        res
+    }
+
+    pub fn get_entities_by_node(&self, kind: EntityKind, _node: NodeKey) -> Vec<EndpointEntity> {
         assert!(kind != EntityKind::Node);
         todo!()
         // self.data
@@ -101,24 +172,6 @@ impl Graph {
         //     .filter_map(|x| {
         //         if let Entity::Endpoint(ent) = x {
         //             if ent.node.name == node.0 && ent.node.namespace == node.1 {
-        //                 return Some(ent.clone());
-        //             }
-        //         }
-        //         None
-        //     })
-        //     .collect()
-    }
-
-    pub fn get_entities_by_topic(&self, kind: EntityKind, topic: Topic) -> Vec<EndpointEntity> {
-        assert!(kind != EntityKind::Node);
-        todo!()
-        // self.data
-        //     .read()
-        //     .set
-        //     .iter()
-        //     .filter_map(|x| {
-        //         if let Entity::Endpoint(ent) = x {
-        //             if ent.topic == topic {
         //                 return Some(ent.clone());
         //             }
         //         }
