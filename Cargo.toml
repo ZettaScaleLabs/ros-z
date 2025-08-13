@@ -25,6 +25,7 @@ sha2 = "0.10.9"
 ros-z = { version = "*", path = "ros-z" }
 rcl-z = { version = "*", path = "rcl-z" }
 tokio = "1.45.1"
+slab = "0.4.10"
 
 [profile.opt]
 inherits = "release"

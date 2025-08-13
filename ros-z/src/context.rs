@@ -58,7 +58,7 @@ impl ZContext {
         ZNodeBuilder {
             domain_id: self.domain_id,
             name: name.as_ref().to_owned(),
-            namespace: None,
+            namespace: "".to_string(),
             session: self.session.clone(),
             counter: self.counter.clone(),
             graph: self.graph.clone(),

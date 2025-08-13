@@ -42,7 +42,7 @@ impl NodeImpl {
         // Message type support
         let ts = MessageTypeSupport::new(type_support);
         let topic = str_from_ptr(topic_name)?;
-        let type_info = TypeInfo::new(&ts.get_type_prefix(), &ts.get_type_hash());
+        let type_info = TypeInfo::new(&ts.get_type_prefix(), ts.get_type_hash());
 
         // Notification
         let notifier = self.notifier.clone();
@@ -74,7 +74,7 @@ impl NodeImpl {
     ) -> Result<PublisherImpl> {
         // Message type support
         let ts = MessageTypeSupport::new(type_support);
-        let type_info = TypeInfo::new(&ts.get_type_prefix(), &ts.get_type_hash());
+        let type_info = TypeInfo::new(&ts.get_type_prefix(), ts.get_type_hash());
         let topic = str_from_ptr(topic_name)?;
 
         let zpub = self

@@ -31,8 +31,8 @@ impl Deref for TopicKE {
 }
 
 type NodeName = String;
-type NodeNamespace = Option<String>;
-pub type NodeKey = (NodeName, NodeNamespace);
+type NodeNamespace = String;
+pub type NodeKey = (NodeNamespace, NodeName);
 
 #[derive(Default, Debug, Hash, Clone, PartialEq, Eq)]
 pub struct NodeEntity {
@@ -40,7 +40,7 @@ pub struct NodeEntity {
     pub z_id: ZenohId,
     pub id: usize,
     pub name: String,
-    pub namespace: Option<String>,
+    pub namespace: String,
 }
 
 impl NodeEntity {
@@ -49,7 +49,7 @@ impl NodeEntity {
         z_id: ZenohId,
         id: usize,
         name: String,
-        namespace: Option<String>,
+        namespace: String,
     ) -> Self {
         Self {
             domain_id,
@@ -61,7 +61,7 @@ impl NodeEntity {
     }
 
     pub fn key(&self) -> NodeKey {
-        (self.name.clone(), self.namespace.clone())
+        (self.namespace.clone(), self.name.clone())
     }
 
     pub fn lv_token_key_expr(&self) -> Result<KeyExpr<'static>> {
@@ -82,15 +82,10 @@ impl TryFrom<&NodeEntity> for LivelinessKE {
             name,
             namespace,
         } = value;
-        let namespace = match namespace {
-            None => EMPTY_NAMESPACE,
-            Some(ns) => {
-                if ns.is_empty() {
-                    EMPTY_NAMESPACE
-                } else {
-                    ns
-                }
-            },
+        let namespace = if namespace.is_empty() {
+            EMPTY_NAMESPACE
+        } else {
+            namespace
         };
         let entity_kind = EntityKind::Node;
         Ok(LivelinessKE(
@@ -116,16 +111,70 @@ pub enum EntityKind {
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
+pub struct TypeHash {
+    pub version: u8,
+    pub value: [u8; 32],
+}
+
+impl TypeHash {
+    pub fn new(version: u8, value: [u8; 32]) -> Self {
+        Self { version, value }
+    }
+
+    pub fn from_rihs_string(rihs_str: &str) -> Option<Self> {
+        if let Some(hex_part) = rihs_str.strip_prefix("RIHS01_") {
+            if hex_part.len() == 64 {
+                let mut hash_bytes = [0u8; 32];
+                for (i, chunk) in hex_part.as_bytes().chunks(2).enumerate() {
+                    if i < 32 {
+                        if let Ok(byte_val) = u8::from_str_radix(
+                            std::str::from_utf8(chunk).unwrap_or("00"), 
+                            16
+                        ) {
+                            hash_bytes[i] = byte_val;
+                        } else {
+                            return None;
+                        }
+                    }
+                }
+                return Some(TypeHash {
+                    version: 1,
+                    value: hash_bytes,
+                });
+            }
+        }
+        None
+    }
+
+    pub fn to_rihs_string(&self) -> String {
+        match self.version {
+            1 => {
+                let hex_str: String = self.value.iter().map(|b| format!("{:02x}", b)).collect();
+                format!("RIHS01_{}", hex_str)
+            }
+            _ => format!("RIHS{:02x}_{}", self.version, 
+                self.value.iter().map(|b| format!("{:02x}", b)).collect::<String>())
+        }
+    }
+}
+
+impl Display for TypeHash {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_rihs_string())
+    }
+}
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub struct TypeInfo {
     pub name: String,
-    pub hash: String,
+    pub hash: TypeHash,
 }
 
 impl TypeInfo {
-    pub fn new(name: &str, hash: &str) -> Self {
+    pub fn new(name: &str, hash: TypeHash) -> Self {
         TypeInfo {
             name: name.to_string(),
-            hash: hash.to_string(),
+            hash,
         }
     }
 }
@@ -133,7 +182,7 @@ impl TypeInfo {
 impl Display for TypeInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let Self { name, hash } = self;
-        write!(f, "{name}/{hash}")
+        write!(f, "{name}/{}", hash.to_rihs_string())
     }
 }
 
@@ -178,22 +227,17 @@ impl TryFrom<&EndpointEntity> for LivelinessKE {
             qos,
         } = value;
 
-        let node_namespace = match node_namespace {
-            None => EMPTY_NAMESPACE,
-            Some(ns) => {
-                if ns.is_empty() {
-                    EMPTY_NAMESPACE
-                } else {
-                    ns
-                }
-            },
+        let node_namespace = if node_namespace.is_empty() {
+            EMPTY_NAMESPACE
+        } else {
+            &mangle_name(node_namespace)
         };
         let node_name = mangle_name(node_name);
         let topic_name = mangle_name(topic_name);
         let type_info = type_info
             .as_ref()
             .map_or(format!("{EMPTY_TOPIC_TYPE}/{EMPTY_TOPIC_HASH}"), |x| {
-                mangle_name(&x.to_string())
+                format!("{}/{}", mangle_name(&x.name), x.hash.to_rihs_string())
             });
         let qos = qos.encode();
 
@@ -274,6 +318,22 @@ pub enum Entity {
     Endpoint(EndpointEntity),
 }
 
+impl Entity {
+    pub fn get_endpoint(&self) -> Option<&EndpointEntity> {
+        match self {
+            Self::Endpoint(x) => Some(x),
+            _ => None
+        }
+    }
+
+    pub fn kind(&self) -> EntityKind {
+        match self {
+            Self::Node(_) => EntityKind::Node,
+            Self::Endpoint(x) => x.kind
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum EntityConversionError {
     MissingAdminSpace,
@@ -327,8 +387,8 @@ impl TryFrom<&LivelinessKE> for Entity {
             .parse()
             .map_err(|_| ParsingError)?;
         let namespace = match iter.next().ok_or(MissingNamespace)? {
-            EMPTY_NAMESPACE => None,
-            x => Some(demangle_name(x)),
+            EMPTY_NAMESPACE => "",
+            x => &demangle_name(x),
         };
         let node_name = demangle_name(iter.next().ok_or(MissingNodeName)?);
 
@@ -337,7 +397,7 @@ impl TryFrom<&LivelinessKE> for Entity {
             domain_id,
             z_id,
             name: node_name,
-            namespace: namespace,
+            namespace: namespace.to_string(),
         };
         Ok(match entity_kind {
             EntityKind::Node => Entity::Node(node),
@@ -348,10 +408,14 @@ impl TryFrom<&LivelinessKE> for Entity {
                 let type_info = match (topic_type, topic_hash) {
                     (EMPTY_TOPIC_TYPE, EMPTY_TOPIC_HASH) => None,
                     (EMPTY_TOPIC_TYPE, _) | (_, EMPTY_TOPIC_HASH) => unreachable!(),
-                    (topic_type, topic_hash) => Some(TypeInfo {
-                        name: demangle_name(topic_type),
-                        hash: topic_hash.to_string(),
-                    }),
+                    (topic_type, topic_hash) => {
+                        let type_hash = TypeHash::from_rihs_string(topic_hash)
+                            .unwrap_or(TypeHash::new(0, [0u8; 32]));
+                        Some(TypeInfo {
+                            name: demangle_name(topic_type),
+                            hash: type_hash,
+                        })
+                    },
                 };
                 let qos = QosProfile::decode(iter.next().ok_or(MissingTopicQoS)?)
                     .map_err(|e| QosDecodeError(e))?;
