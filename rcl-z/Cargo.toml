@@ -22,4 +22,4 @@ crate-type = ["cdylib"]
 
 [build-dependencies]
 bindgen = "0.72.0"
-cxx-build = "1.0.160"
+cxx-build = "1.0.168"

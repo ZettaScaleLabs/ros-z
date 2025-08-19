@@ -9,19 +9,19 @@ default-members = ["ros-z"]
 
 [workspace.dependencies]
 cdr = "0.2.4"
-clap = "4.5.38"
+clap = "4.5.45"
 flume = "0.11.1"
 serde = "1.0.219"
 tracing = "0.1.41"
-zenoh = { version = "1.4.0", default-features = false }
-zenoh-ext = { version = "1.4.0" }
+zenoh = { version = "1.5.0", default-features = false }
+zenoh-ext = { version = "1.5.0" }
 parking_lot = "0.12.4"
-cxx = "1.0.60"
-strum = "0.27.1"
+cxx = "1.0.168"
+strum = "0.27.2"
 sha2 = "0.10.9"
 ros-z = { version = "*", path = "ros-z" }
 rcl-z = { version = "*", path = "rcl-z" }
-slab = "0.4.10"
+slab = "0.4.11"
 
 [profile.opt]
 inherits = "release"
