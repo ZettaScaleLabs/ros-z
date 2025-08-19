@@ -11,6 +11,8 @@ use crate::entity::{
 };
 use zenoh::{Result, Session, Wait, pubsub::Subscriber, sample::SampleKind};
 
+const DEFAULT_SLAB_CAPACITY: usize = 128;
+
 #[derive(Default, Debug)]
 pub struct GraphData {
     cached: HashSet<LivelinessKE>,
@@ -45,21 +47,40 @@ impl GraphData {
             match &*arc {
                 Entity::Node(x) => {
                     // TODO: omit the clone of node key
-                    self.by_node
+                    let slab = self.by_node
                         .entry(x.key())
-                        .or_insert(Slab::new())
-                        .insert(weak);
+                        .or_insert_with(|| Slab::with_capacity(DEFAULT_SLAB_CAPACITY));
+                    
+                    // If slab is full, remove failing weak pointers first
+                    if slab.len() >= slab.capacity() {
+                        slab.retain(|_, weak_ptr| weak_ptr.upgrade().is_some());
+                    }
+                    
+                    slab.insert(weak);
                 }
                 Entity::Endpoint(x) => {
                     // TODO: omit the clone of topic
-                    self.by_topic
+                    let topic_slab = self.by_topic
                         .entry(x.topic.clone())
-                        .or_insert(Slab::new())
-                        .insert(weak.clone());
-                    self.by_node
+                        .or_insert_with(|| Slab::with_capacity(DEFAULT_SLAB_CAPACITY));
+                    
+                    // If slab is full, remove failing weak pointers first
+                    if topic_slab.len() >= topic_slab.capacity() {
+                        topic_slab.retain(|_, weak_ptr| weak_ptr.upgrade().is_some());
+                    }
+                    
+                    topic_slab.insert(weak.clone());
+                    
+                    let node_slab = self.by_node
                         .entry(x.node.key())
-                        .or_insert(Slab::new())
-                        .insert(weak);
+                        .or_insert_with(|| Slab::with_capacity(DEFAULT_SLAB_CAPACITY));
+                    
+                    // If slab is full, remove failing weak pointers first
+                    if node_slab.len() >= node_slab.capacity() {
+                        node_slab.retain(|_, weak_ptr| weak_ptr.upgrade().is_some());
+                    }
+                    
+                    node_slab.insert(weak);
                 }
             }
             self.parsed.insert(ke, arc);
