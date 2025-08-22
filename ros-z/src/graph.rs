@@ -2,7 +2,6 @@ use parking_lot::Mutex;
 use slab::Slab;
 use std::{
     collections::{HashMap, HashSet},
-    ffi::CString,
     sync::{Arc, Weak},
 };
 
