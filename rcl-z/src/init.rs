@@ -97,10 +97,10 @@ pub extern "C" fn rcl_init(
     context: *mut rcl_context_t,
 ) -> rcl_ret_t {
     zenoh::init_log_from_env_or("error");
-    tracing::error!(
-        "rcl_init with args: {:?}",
-        crate::utils::parse_args(argc, argv)
-    );
+    // tracing::error!(
+    //     "rcl_init with args: {:?}",
+    //     crate::utils::parse_args(argc, argv)
+    // );
     let ctx = ZContextBuilder::default()
         .with_domain_id(options.borrow_impl().unwrap().domain_id)
         .build()
