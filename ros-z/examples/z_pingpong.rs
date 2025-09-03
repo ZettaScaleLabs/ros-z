@@ -10,7 +10,7 @@ use std::{
 
 use clap::Parser;
 use csv::Writer;
-use ros_z::{context::{ZContext, ZContextBuilder}, ros_msg::ByteMultiArray, Builder, Result};
+use ros_z::{context::{ZContext, ZContextBuilder}, msg::ZMessage, ros_msg::ByteMultiArray, Builder, Result};
 
 #[derive(Debug, Parser)]
 struct Args {
@@ -79,7 +79,10 @@ fn run_ping(args: &Args) -> Result<()> {
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("ping_node").build()?;
     let zpub = node.create_pub::<ByteMultiArray>("ping").build()?;
-    let zsub = node.create_sub::<ByteMultiArray>("pong").build()?;
+    let zsub = node
+        .create_sub::<ByteMultiArray>("pong")
+        .post_deserialization()
+        .build()?;
     let period = Duration::from_secs_f64(1.0 / args.frequency as f64);
     let finished = Arc::new(AtomicBool::new(false));
     let c_finished = finished.clone();
@@ -105,6 +108,7 @@ fn run_ping(args: &Args) -> Result<()> {
         let mut rtts = Vec::with_capacity(sample_count);
         while rtts.len() < sample_count {
             if let Ok(msg) = zsub.recv() {
+                let msg = <ByteMultiArray as ZMessage>::deserialize(&msg.payload().to_bytes());
                 let sent_time = u64::from_le_bytes(msg.data[0..8].try_into().unwrap());
                 let rtt = start.elapsed().as_nanos() as u64 - sent_time;
                 rtts.push(rtt);
@@ -133,7 +137,10 @@ fn run_ping(args: &Args) -> Result<()> {
 fn run_pong() -> Result<()> {
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("pong_node").build()?;
-    let zsub = node.create_sub::<ByteMultiArray>("ping").build()?;
+    let zsub = node
+        .create_sub::<ByteMultiArray>("ping")
+        .post_deserialization()
+        .build()?;
     let zpub = node.create_pub::<ByteMultiArray>("pong").build()?;
 
     println!("Pong begin looping...");
@@ -147,6 +154,7 @@ fn run_pong() -> Result<()> {
         if let Ok(msg) = zsub.recv() {
             message_count += 1;
 
+            let msg = <ByteMultiArray as ZMessage>::deserialize(&msg.payload().to_bytes());
             last_timestamp = u64::from_le_bytes(msg.data[0..8].try_into().unwrap());
             last_payload_size = msg.data.len();
 
