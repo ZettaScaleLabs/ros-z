@@ -22,6 +22,7 @@ sha2 = "0.10.9"
 ros-z = { version = "*", path = "ros-z" }
 rcl-z = { version = "*", path = "rcl-z" }
 slab = "0.4.11"
+cdr-encoding = { path = "../cdr-encoding/" }
 
 [profile.opt]
 inherits = "release"

@@ -10,6 +10,7 @@ pub struct Vector3D {
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct ByteMultiArray {
     pub layout: MultiArrayLayout,
+    #[serde(with = "serde_bytes")]
     pub data: Vec<u8>,
 }
 

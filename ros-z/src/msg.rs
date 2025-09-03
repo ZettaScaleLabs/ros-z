@@ -1,6 +1,5 @@
 use std::marker::PhantomData;
 
-use cdr::{CdrLe, Infinite};
 use serde::{Deserialize, Serialize};
 
 pub trait ZDeserializer {
@@ -37,7 +36,8 @@ where
     // FIXME: Use a result type
     type Output = T;
     fn deserialize(input: Self::Input<'_>) -> Self::Output {
-        cdr::deserialize::<T>(input).unwrap()
+        let x = cdr_encoding::from_bytes::<T, byteorder::LittleEndian>(&input).unwrap();
+        x.0
     }
 }
 
@@ -47,7 +47,7 @@ where
 {
     type Input<'a> = &'a T;
     fn serialize(input: &T) -> Vec<u8> {
-        cdr::serialize::<_, _, CdrLe>(input, Infinite).unwrap()
+         cdr_encoding::to_vec::<T, byteorder::LittleEndian>(input).unwrap()
     }
 }
 
