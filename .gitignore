@@ -1,3 +1,5 @@
 /target
 compile_commands.json
 _*
+*.svg
+perf.data*
