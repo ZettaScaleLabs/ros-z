@@ -1,11 +1,11 @@
 use std::time::Duration;
 
-use ros_z::{Builder, Result, context::ZContextBuilder, ros_msg::ByteMultiArray};
+use ros_z::{Builder, Result, context::ZContextBuilder, ros_msg::ByteMultiArray, entity::{TypeInfo, TypeHash}};
 
 use clap::Parser;
 #[derive(Debug, Parser)]
 struct Args {
-    #[arg(short, long, default_value = "20")]
+    #[arg(short, long, default_value = "64")]
     payload: usize,
     #[arg(short, long, default_value = "1")]
     rate: usize,
@@ -13,7 +13,7 @@ struct Args {
     // config: String,
     #[arg(short, long, default_value = "default_topic")]
     topic: String,
-    #[arg(short, long, default_value = "3")]
+    #[arg(short, long, default_value = "0")]
     duration: f64,
     #[arg(short, long, default_value = "sub")]
     mode: String,
@@ -22,25 +22,33 @@ struct Args {
 fn run_subscriber(topic: String, duration: Duration) -> Result<()> {
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("MyNode").build()?;
-    let zsub = node.create_sub::<ByteMultiArray>(&topic).build()?;
+    let zsub = node.create_sub::<ByteMultiArray>(&topic)
+        .with_type_info(TypeInfo::new(
+            "std_msgs::msg::dds_::UInt8MultiArray_",
+            TypeHash::from_rihs_string("RIHS01_5687e861b8d307a5e48b7515467ae7a5fc2daf805bd0ce6d8e9e604bade9f385").unwrap(),
+        ))
+        .build()?;
 
+    let mut counter = 0;
     if duration.is_zero() {
         loop {
-            let msg = zsub.recv()?;
-            tracing::info!("Recv {msg:?}");
+            let _msg = zsub.recv()?;
+            tracing::info!("Recv {counter}-th msg");
+            counter += 1;
         }
     } else {
         let fut = async {
             loop {
                 match zsub.async_recv().await {
-                    Ok(msg) => {
-                        tracing::info!("Recv {msg:?}");
+                    Ok(_msg) => {
+                        tracing::info!("Recv {counter}-th msg");
                     }
                     Err(err) => {
                         tracing::error!(err);
                         break;
                     }
                 }
+                counter += 1;
             }
         };
         tokio::runtime::Runtime::new()?.block_on(async {
@@ -60,7 +68,12 @@ fn run_publisher(
 ) -> Result<()> {
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("MyNode").build()?;
-    let zpub = node.create_pub::<ByteMultiArray>(&topic).build()?;
+    let zpub = node.create_pub::<ByteMultiArray>(&topic)
+        .with_type_info(TypeInfo::new(
+            "std_msgs::msg::dds_::UInt8MultiArray_",
+            TypeHash::from_rihs_string("RIHS01_5687e861b8d307a5e48b7515467ae7a5fc2daf805bd0ce6d8e9e604bade9f385").unwrap(),
+        ))
+        .build()?;
     let now = std::time::Instant::now();
     let mut msg = ros_z::ros_msg::ByteMultiArray::default();
     msg.data = vec![0u8; payload_size as _];
