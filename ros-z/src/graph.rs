@@ -36,7 +36,6 @@ impl GraphData {
             (false, None) => unreachable!(),
             _ => {}
         }
-        // TODO: clean up the maps
     }
 
     fn parse(&mut self) {
@@ -109,7 +108,6 @@ impl GraphData {
     where
         F: FnMut(Arc<Entity>),
     {
-        // dbg!(&self, &node_key);
         if !self.cached.is_empty() {
             self.parse();
         }
@@ -336,7 +334,7 @@ impl Graph {
     pub fn get_names_and_types_by_node(&self, node_key: NodeKey, kind: EntityKind) -> Vec<(String, String)> {
         let mut res = Vec::new();
         let mut data = self.data.lock();
-        
+
         if !data.cached.is_empty() {
             data.parse();
         }
