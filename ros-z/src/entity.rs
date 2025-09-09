@@ -7,6 +7,7 @@ use crate::{attachment::GidArray, qos::QosProfile};
 use sha2::Digest;
 
 const EMPTY_NAMESPACE: &'static str = "%";
+const EMPTY_ENCLAVE: &'static str = "%";
 const EMPTY_TOPIC_TYPE: &'static str = "EMPTY_TOPIC_TYPE";
 const EMPTY_TOPIC_HASH: &'static str = "EMPTY_TOPIC_HASH";
 pub const ADMIN_SPACE: &'static str = "@ros2_lv";
@@ -73,7 +74,8 @@ impl NodeEntity {
 impl TryFrom<&NodeEntity> for LivelinessKE {
     type Error = zenoh::Error;
 
-    // <ADMIN_SPACE>/<domain_id>/<zid>/<nid>/<eid>/<entity_kind>/<namespace>/<node_name>
+    // <ADMIN_SPACE>/<domain_id>/<zid>/<nid>/<eid>/<entity_kind>/<enclave>/<namespace>/<node_name>
+    // NOTE: enclave is not supported yet
     fn try_from(value: &NodeEntity) -> std::result::Result<Self, Self::Error> {
         let NodeEntity {
             domain_id,
@@ -89,7 +91,7 @@ impl TryFrom<&NodeEntity> for LivelinessKE {
         };
         let entity_kind = EntityKind::Node;
         Ok(LivelinessKE(
-            format!("{ADMIN_SPACE}/{domain_id}/{z_id}/{id}/{id}/{entity_kind}/{namespace}/{name}")
+            format!("{ADMIN_SPACE}/{domain_id}/{z_id}/{id}/{id}/{entity_kind}/{EMPTY_ENCLAVE}/{namespace}/{name}")
                 .try_into()?,
         ))
     }
@@ -128,7 +130,7 @@ impl TypeHash {
                 for (i, chunk) in hex_part.as_bytes().chunks(2).enumerate() {
                     if i < 32 {
                         if let Ok(byte_val) = u8::from_str_radix(
-                            std::str::from_utf8(chunk).unwrap_or("00"), 
+                            std::str::from_utf8(chunk).unwrap_or("00"),
                             16
                         ) {
                             hash_bytes[i] = byte_val;
@@ -152,7 +154,7 @@ impl TypeHash {
                 let hex_str: String = self.value.iter().map(|b| format!("{:02x}", b)).collect();
                 format!("RIHS01_{}", hex_str)
             }
-            _ => format!("RIHS{:02x}_{}", self.version, 
+            _ => format!("RIHS{:02x}_{}", self.version,
                 self.value.iter().map(|b| format!("{:02x}", b)).collect::<String>())
         }
     }
@@ -209,7 +211,8 @@ fn demangle_name(name: &str) -> String {
 impl TryFrom<&EndpointEntity> for LivelinessKE {
     type Error = zenoh::Error;
 
-    // <ADMIN_SPACE>/<domain_id>/<zid>/<nid>/<eid>/<entity_kind>/<namespace>/<node_name>/<topic_name>/<topic_type>/<topic_type_hash>/<topic_qos>
+    // <ADMIN_SPACE>/<domain_id>/<zid>/<nid>/<eid>/<entity_kind>/<enclave>/<namespace>/<node_name>/<topic_name>/<topic_type>/<topic_type_hash>/<topic_qos>
+    // NOTE: enclave is not supported yet
     fn try_from(value: &EndpointEntity) -> std::result::Result<Self, Self::Error> {
         let EndpointEntity {
             id,
@@ -242,7 +245,7 @@ impl TryFrom<&EndpointEntity> for LivelinessKE {
         let qos = qos.encode();
 
         Ok(LivelinessKE(format!(
-            "{ADMIN_SPACE}/{domain_id}/{z_id}/{node_id}/{id}/{kind}/{node_namespace}/{node_name}/{topic_name}/{type_info}/{qos}",
+            "{ADMIN_SPACE}/{domain_id}/{z_id}/{node_id}/{id}/{kind}/{EMPTY_ENCLAVE}/{node_namespace}/{node_name}/{topic_name}/{type_info}/{qos}",
         ).try_into()?))
     }
 }
@@ -277,7 +280,9 @@ impl TryFrom<&EndpointEntity> for TopicKE {
             .type_info
             .as_ref()
             .map_or(format!("{EMPTY_TOPIC_TYPE}/{EMPTY_TOPIC_HASH}"), |x| {
-                mangle_name(&x.to_string())
+                let type_name = demangle_name(&x.name);
+                let type_hash = demangle_name(&x.hash.to_string());
+                format!("{type_name}/{type_hash}")
             });
         Ok(TopicKE(
             format!("{domain_id}/{topic}/{type_info}").try_into()?,
@@ -341,6 +346,7 @@ pub enum EntityConversionError {
     MissingZId,
     MissingNodeId,
     MissingEntityId,
+    MissingEnclave,
     MissingNamespace,
     MissingNodeName,
     MissingEntityKind,
@@ -356,8 +362,8 @@ impl TryFrom<&LivelinessKE> for Entity {
     type Error = EntityConversionError;
     fn try_from(value: &LivelinessKE) -> std::result::Result<Entity, Self::Error> {
         // Possible formats
-        // - <ADMIN_SPACE>/<domain_id>/<zid>/<nid>/<eid>/<entity_kind>/<namespace>/<node_name>/<topic_name>/<topic_type>/<topic_type_hash>/<topic_qos>
-        // - <ADMIN_SPACE>/<domain_id>/<zid>/<nid>/<eid>/<entity_kind>/<namespace>/<node_name>
+        // - <ADMIN_SPACE>/<domain_id>/<zid>/<nid>/<eid>/<entity_kind>/<enclave>/<namespace>/<node_name>/<topic_name>/<topic_type>/<topic_type_hash>/<topic_qos>
+        // - <ADMIN_SPACE>/<domain_id>/<zid>/<nid>/<eid>/<entity_kind>/<enclave>/<namespace>/<node_name>
         use EntityConversionError::*;
         let mut iter = value.split("/");
         assert_eq!(ADMIN_SPACE, iter.next().ok_or(MissingAdminSpace)?);
@@ -386,6 +392,11 @@ impl TryFrom<&LivelinessKE> for Entity {
             .ok_or(MissingEntityKind)?
             .parse()
             .map_err(|_| ParsingError)?;
+        // NOTE: enclave is not supported yet
+        let _enclave = match iter.next().ok_or(MissingEnclave)? {
+            EMPTY_NAMESPACE => "",
+            _ => unreachable!(),
+        };
         let namespace = match iter.next().ok_or(MissingNamespace)? {
             EMPTY_NAMESPACE => "",
             x => &demangle_name(x),
