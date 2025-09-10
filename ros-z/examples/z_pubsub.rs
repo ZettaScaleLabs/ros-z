@@ -32,16 +32,16 @@ fn run_subscriber(topic: String, duration: Duration) -> Result<()> {
     let mut counter = 0;
     if duration.is_zero() {
         loop {
-            let _msg = zsub.recv()?;
-            tracing::info!("Recv {counter}-th msg");
+            let msg = zsub.recv()?;
+            tracing::info!("Recv {counter}-th msg of {} bytes", msg.data.len());
             counter += 1;
         }
     } else {
         let fut = async {
             loop {
                 match zsub.async_recv().await {
-                    Ok(_msg) => {
-                        tracing::info!("Recv {counter}-th msg");
+                    Ok(msg) => {
+                        tracing::info!("Recv {counter}-th msg of {} bytes", msg.data.len());
                     }
                     Err(err) => {
                         tracing::error!(err);

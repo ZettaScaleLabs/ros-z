@@ -10,7 +10,7 @@ use std::{
 
 use clap::Parser;
 use csv::Writer;
-use ros_z::{context::{ZContext, ZContextBuilder}, msg::ZMessage, ros_msg::ByteMultiArray, Builder, Result};
+use ros_z::{context::ZContextBuilder, msg::ZMessage, ros_msg::ByteMultiArray, Builder, Result, entity::{TypeHash, TypeInfo}};
 
 #[derive(Debug, Parser)]
 struct Args {
@@ -76,11 +76,18 @@ impl DataLogger {
 }
 
 fn run_ping(args: &Args) -> Result<()> {
+    let type_info = TypeInfo::new(
+        "std_msgs::msg::dds_::UInt8MultiArray_",
+        TypeHash::from_rihs_string("RIHS01_5687e861b8d307a5e48b7515467ae7a5fc2daf805bd0ce6d8e9e604bade9f385").unwrap(),
+    );
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("ping_node").build()?;
-    let zpub = node.create_pub::<ByteMultiArray>("ping").build()?;
+    let zpub = node.create_pub::<ByteMultiArray>("ping")
+        .with_type_info(type_info.clone())
+        .build()?;
     let zsub = node
         .create_sub::<ByteMultiArray>("pong")
+        .with_type_info(type_info)
         .post_deserialization()
         .build()?;
     let period = Duration::from_secs_f64(1.0 / args.frequency as f64);
@@ -135,13 +142,20 @@ fn run_ping(args: &Args) -> Result<()> {
 }
 
 fn run_pong() -> Result<()> {
+    let type_info = TypeInfo::new(
+        "std_msgs::msg::dds_::UInt8MultiArray_",
+        TypeHash::from_rihs_string("RIHS01_5687e861b8d307a5e48b7515467ae7a5fc2daf805bd0ce6d8e9e604bade9f385").unwrap(),
+    );
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("pong_node").build()?;
     let zsub = node
         .create_sub::<ByteMultiArray>("ping")
+        .with_type_info(type_info.clone())
         .post_deserialization()
         .build()?;
-    let zpub = node.create_pub::<ByteMultiArray>("pong").build()?;
+    let zpub = node.create_pub::<ByteMultiArray>("pong")
+        .with_type_info(type_info)
+        .build()?;
 
     println!("Pong begin looping...");
 
