@@ -65,27 +65,10 @@ where
 {
     type Input<'b> = &'b [u8];
     type Output = T;
-
-    fn deserialize(input: Self::Input<'_>) -> T {
-        if input.is_empty() {
-            panic!("Cannot deserialize from empty input");
-        }
-
-        println!("Deserializing {} bytes", input.len());
-
-        match cdr_encoding::from_bytes::<T, LittleEndian>(input) {
-            Ok((value, bytes_read)) => {
-                println!("Successfully deserialized, consumed {} bytes", bytes_read);
-                value
-            }
-            Err(e) => {
-                eprintln!("Deserialization failed!");
-                eprintln!("Error: {:?}", e);
-                eprintln!("Input length: {}", input.len());
-                eprintln!("Input data: {:?}", input);
-                panic!("Failed to deserialize: {:?}", e);
-            }
-        }
+    fn deserialize(input: Self::Input<'_>) -> Self::Output {
+        // Skip the first four bytes
+        let x = cdr_encoding::from_bytes::<T, byteorder::LittleEndian>(&input[4..]).unwrap();
+        x.0
     }
 }
 
@@ -105,7 +88,14 @@ where
         T: 'a;
 
     fn serialize(input: &T) -> Vec<u8> {
-        input.encode_to_vec()
+        // Allocate with enough space: 4 bytes header + payload
+        let mut buffer = Vec::with_capacity(std::mem::size_of_val(input) * 2 + 4);
+        // Write the encapsulation header (CDR LE = 0x00 01 00 00)
+        buffer.extend_from_slice(&[0x00, 0x01, 0x00, 0x00]);
+        // Serialize directly into the same buffer (appends after the header)
+        cdr_encoding::to_writer::<T, byteorder::LittleEndian, _>(&mut buffer, input).unwrap();
+
+        buffer
     }
 }
 
