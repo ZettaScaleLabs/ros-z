@@ -99,6 +99,15 @@ where
         let msg = <T::Response as ZMessage>::deserialize(&sample.payload().to_bytes());
         Ok(msg)
     }
+
+    pub async fn take_response_async(&self) -> Result<T::Response>
+    where
+        for<'c> T::Response: ZMessage<Serdes = CdrSerdes<T::Response>> + Deserialize<'c>,
+    {
+        let sample = self.rx.recv_async().await?;
+        let msg = <T::Response as ZMessage>::deserialize(&sample.payload().to_bytes());
+        Ok(msg)
+    }
 }
 
 impl<T> ZClient<T>
@@ -273,6 +282,23 @@ where
             ZMessage<Serdes = CdrSerdes<T::Request>> + Send + Sync + 'static + Deserialize<'c>,
     {
         let query = self.rx.recv()?;
+        let attachment: Attachment = query.attachment().unwrap().try_into()?;
+        let key: QueryKey = attachment.into();
+        if self.map.contains_key(&key) {
+            return Err("Existing query detected".into());
+        }
+        let msg = <T::Request as ZMessage>::deserialize(&query.payload().unwrap().to_bytes());
+        self.map.insert(key.clone(), query);
+
+        Ok((key, msg))
+    }
+
+    pub async fn take_request_async(&mut self) -> Result<(QueryKey, T::Request)>
+    where
+        for<'c> T::Request:
+            ZMessage<Serdes = CdrSerdes<T::Request>> + Send + Sync + 'static + Deserialize<'c>,
+    {
+        let query = self.rx.recv_async().await?;
         let attachment: Attachment = query.attachment().unwrap().try_into()?;
         let key: QueryKey = attachment.into();
         if self.map.contains_key(&key) {
