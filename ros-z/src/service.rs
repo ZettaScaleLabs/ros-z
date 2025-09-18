@@ -272,10 +272,16 @@ where
         Attachment::new(self.sn.fetch_add(1, AcqRel) as _, self.gid)
     }
 
+    /// Retrieve the next query on the service without deserializing the payload.
+    ///
+    /// This method is useful when custom deserialization logic is needed.
     pub fn take_query(&self) -> Result<Query> {
         Ok(self.rx.recv()?)
     }
 
+    /// Blocks waiting to receive the next request on the service and then deserializes the payload.
+    ///
+    /// This method may fail if the message does not deserialize as the requested type.
     pub fn take_request(&mut self) -> Result<(QueryKey, T::Request)>
     where
         for<'c> T::Request:
@@ -293,6 +299,9 @@ where
         Ok((key, msg))
     }
 
+    /// Awaits the next request on the service and then deserializes the payload.
+    ///
+    /// This method may fail if the message does not deserialize as the requested type.
     pub async fn take_request_async(&mut self) -> Result<(QueryKey, T::Request)>
     where
         for<'c> T::Request:
@@ -310,12 +319,32 @@ where
         Ok((key, msg))
     }
 
+    /// Blocks sending the response to a service request.
+    ///
+    /// - `msg` is the response message to send.
+    /// - `key` is the query key of the request to reply to and is obtained from [take_request](Self::take_request) or [take_request_async](Self::take_request_async)
     pub fn send_response(&mut self, msg: &T::Response, key: &QueryKey) -> Result<()> {
         match self.map.remove(key) {
             Some(query) => query
                 .reply(&self.key_expr, msg.serialize())
                 .attachment(self.new_attchment())
                 .wait(),
+            None => Err("Quey map doesn't contains {key}".into()),
+        }
+    }
+
+    /// Awaits sending the response to a service request.
+    ///
+    /// - `msg` is the response message to send.
+    /// - `key` is the query key of the request to reply to and is obtained from [take_request](Self::take_request) or [take_request_async](Self::take_request_async)
+    pub async fn send_response_async(&mut self, msg: &T::Response, key: &QueryKey) -> Result<()> {
+        match self.map.remove(key) {
+            Some(query) => {
+                query
+                    .reply(&self.key_expr, msg.serialize())
+                    .attachment(self.new_attchment())
+                    .await
+            }
             None => Err("Quey map doesn't contains {key}".into()),
         }
     }
