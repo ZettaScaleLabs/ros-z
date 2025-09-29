@@ -2,7 +2,6 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering::AcqRel;
 use std::{marker::PhantomData, sync::Arc};
 
-use serde::Deserialize;
 use zenoh::liveliness::LivelinessToken;
 use zenoh::{Result, Session, Wait, sample::Sample};
 
@@ -10,7 +9,7 @@ use crate::Builder;
 use crate::attachment::{Attachment, GidArray};
 use crate::entity::EndpointEntity;
 use crate::impl_with_type_info;
-use crate::msg::{CdrSerdes, ZMessage};
+use crate::msg::{ZMessage, ZDeserializer};
 
 pub struct ZPub<T: ZMessage> {
     // TODO: replace this with the sample sn
@@ -32,6 +31,29 @@ pub struct ZPubBuilder<T> {
 impl_with_type_info!(ZPubBuilder<T>);
 impl_with_type_info!(ZSubBuilder<T>);
 // impl_with_type_info!(ZSubBuilder<T, true>);
+
+// TODO: Serdes selection
+// pub enum SerdesKind {
+//     Cdr,
+//     Protobuf,
+// }
+// impl<T> ZPubBuilder<T>
+// where
+//     T: ZMessage,
+// {
+//     pub fn with_serdes(self, _serdes: SerdesKind) -> Self {
+//         self
+//     }
+// }
+//
+// impl<T> ZSubBuilder<T, false>
+// where
+//     T: ZMessage,
+// {
+//     pub fn with_serdes(self, _serdes: SerdesKind) -> Self {
+//         self
+//     }
+// }
 
 impl<T> Builder for ZPubBuilder<T>
 where
@@ -107,7 +129,9 @@ where
 
 impl<T> Builder for ZSubBuilder<T, false>
 where
-    for<'c> T: ZMessage<Serdes = CdrSerdes<T>> + Deserialize<'c> + Send + Sync + 'static,
+    T: ZMessage + Send + Sync + 'static,
+    <T::Serdes as ZDeserializer>::Output: Into<T>,
+    for<'a> <T::Serdes as ZDeserializer>::Input<'a>: From<&'a [u8]>,
 {
     type Output = ZSub<T, T>;
 
@@ -117,7 +141,9 @@ where
             .session
             .declare_subscriber(self.entity.topic_key_expr()?)
             .callback(move |sample| {
-                let msg = <T as ZMessage>::deserialize(&sample.payload().to_bytes());
+                let bytes = sample.payload().to_bytes();
+                let input = <_>::from(&*bytes);
+                let msg = <T as ZMessage>::deserialize(input).into();
                 tx.send(msg).unwrap();
             })
             .wait()?;

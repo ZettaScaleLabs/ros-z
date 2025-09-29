@@ -24,6 +24,11 @@ slab = { workspace = true }
 cdr-encoding = { workspace = true }
 byteorder = "1.5.0"
 serde_bytes = "0.11.17"
+prost = "0.13"
+
+[build-dependencies]
+prost-build = "0.13"
+which = "7"
 
 
 [features]

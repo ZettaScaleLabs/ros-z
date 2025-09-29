@@ -1,8 +1,23 @@
 use std::time::Duration;
 
-use ros_z::{Builder, Result, context::ZContextBuilder, ros_msg::ByteMultiArray, entity::{TypeInfo, TypeHash}};
+use ros_z::{Builder, Result, context::ZContextBuilder, ros_msg::ByteMultiArray, entity::{TypeInfo, TypeHash}, msg::{ZMessage, ProtobufSerdes}};
 
-use clap::Parser;
+mod example {
+    include!(concat!(env!("OUT_DIR"), "/example.rs"));
+}
+
+impl ZMessage for example::Entity {
+    type Serdes = ProtobufSerdes<Self>;
+}
+
+use clap::{Parser, ValueEnum};
+
+#[derive(Debug, Clone, ValueEnum)]
+enum SerdesType {
+    Cdr,
+    Protobuf,
+}
+
 #[derive(Debug, Parser)]
 struct Args {
     #[arg(short, long, default_value = "64")]
@@ -17,9 +32,11 @@ struct Args {
     duration: f64,
     #[arg(short, long, default_value = "sub")]
     mode: String,
+    #[arg(long, default_value = "cdr")]
+    serdes: SerdesType,
 }
 
-fn run_subscriber(topic: String, duration: Duration) -> Result<()> {
+fn run_cdr_subscriber(topic: String, duration: Duration) -> Result<()> {
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("MyNode").build()?;
     let zsub = node.create_sub::<ByteMultiArray>(&topic)
@@ -33,7 +50,7 @@ fn run_subscriber(topic: String, duration: Duration) -> Result<()> {
     if duration.is_zero() {
         loop {
             let msg = zsub.recv()?;
-            tracing::info!("Recv {counter}-th msg of {} bytes", msg.data.len());
+            tracing::info!("Recv {counter}-th CDR msg of {} bytes", msg.data.len());
             counter += 1;
         }
     } else {
@@ -41,7 +58,7 @@ fn run_subscriber(topic: String, duration: Duration) -> Result<()> {
             loop {
                 match zsub.async_recv().await {
                     Ok(msg) => {
-                        tracing::info!("Recv {counter}-th msg of {} bytes", msg.data.len());
+                        tracing::info!("Recv {counter}-th CDR msg of {} bytes", msg.data.len());
                     }
                     Err(err) => {
                         tracing::error!(err);
@@ -60,7 +77,7 @@ fn run_subscriber(topic: String, duration: Duration) -> Result<()> {
     Ok(())
 }
 
-fn run_publisher(
+fn run_cdr_publisher(
     topic: String,
     duration: Duration,
     period: Duration,
@@ -79,6 +96,80 @@ fn run_publisher(
     msg.data = vec![0u8; payload_size as _];
     loop {
         zpub.publish(&msg)?;
+        tracing::info!("Published CDR msg of {} bytes", msg.data.len());
+        std::thread::sleep(period);
+        if !duration.is_zero() && now.elapsed() >= duration {
+            break;
+        }
+    }
+    Ok(())
+}
+
+fn run_protobuf_subscriber(topic: String, duration: Duration) -> Result<()> {
+    let ctx = ZContextBuilder::default().build()?;
+    let node = ctx.create_node("MyNode").build()?;
+    let zsub = node.create_sub::<example::Entity>(&topic)
+        .with_type_info(TypeInfo::new(
+            "example::Entity",
+            TypeHash::from_rihs_string("RIHS01_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef").unwrap(),
+        ))
+        .build()?;
+
+    let mut counter = 0;
+    if duration.is_zero() {
+        loop {
+            let msg = zsub.recv()?;
+            tracing::info!("Recv {counter}-th protobuf msg: id={}, name={}", msg.id, msg.name);
+            counter += 1;
+        }
+    } else {
+        let fut = async {
+            loop {
+                match zsub.async_recv().await {
+                    Ok(msg) => {
+                        tracing::info!("Recv {counter}-th protobuf msg: id={}, name={}", msg.id, msg.name);
+                    }
+                    Err(err) => {
+                        tracing::error!(err);
+                        break;
+                    }
+                }
+                counter += 1;
+            }
+        };
+        tokio::runtime::Runtime::new()?.block_on(async {
+            let _ = tokio::time::timeout(duration, fut).await?;
+            Result::Ok(())
+        })?;
+    }
+
+    Ok(())
+}
+
+fn run_protobuf_publisher(
+    topic: String,
+    duration: Duration,
+    period: Duration,
+    _payload_size: usize,
+) -> Result<()> {
+    let ctx = ZContextBuilder::default().build()?;
+    let node = ctx.create_node("MyNode").build()?;
+    let zpub = node.create_pub::<example::Entity>(&topic)
+        .with_type_info(TypeInfo::new(
+            "example::Entity",
+            TypeHash::from_rihs_string("RIHS01_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef").unwrap(),
+        ))
+        .build()?;
+    let now = std::time::Instant::now();
+    let mut counter = 0u32;
+    loop {
+        let msg = example::Entity {
+            id: counter,
+            name: format!("Entity_{}", counter),
+        };
+        zpub.publish(&msg)?;
+        tracing::info!("Published protobuf msg: id={}, name={}", msg.id, msg.name);
+        counter += 1;
         std::thread::sleep(period);
         if !duration.is_zero() && now.elapsed() >= duration {
             break;
@@ -93,17 +184,32 @@ fn main() -> Result<()> {
     let period = std::time::Duration::from_secs_f64(1.0 / args.rate as f64);
     zenoh::init_log_from_env_or("error");
     tracing::info!(
-        "Begin testing with topic: {}, duration: {duration:?}, payload: {}, rate: {} Hz",
+        "Begin testing with topic: {}, duration: {duration:?}, payload: {}, rate: {} Hz, serdes: {:?}",
         args.topic,
         args.payload,
-        args.rate
+        args.rate,
+        args.serdes
     );
-    if args.mode == "sub" {
-        run_subscriber(args.topic, duration)?;
-    } else if args.mode == "pub" {
-        run_publisher(args.topic, duration, period, args.payload)?;
-    } else {
-        tracing::error!("The mode {} is not supported.", args.mode);
+    
+    match args.serdes {
+        SerdesType::Protobuf => {
+            if args.mode == "sub" {
+                run_protobuf_subscriber(args.topic, duration)?;
+            } else if args.mode == "pub" {
+                run_protobuf_publisher(args.topic, duration, period, args.payload)?;
+            } else {
+                tracing::error!("The mode {} is not supported.", args.mode);
+            }
+        }
+        SerdesType::Cdr => {
+            if args.mode == "sub" {
+                run_cdr_subscriber(args.topic, duration)?;
+            } else if args.mode == "pub" {
+                run_cdr_publisher(args.topic, duration, period, args.payload)?;
+            } else {
+                tracing::error!("The mode {} is not supported.", args.mode);
+            }
+        }
     }
     Ok(())
 }

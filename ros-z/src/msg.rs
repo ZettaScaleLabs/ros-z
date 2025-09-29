@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use serde::{Deserialize, Serialize};
+use prost::Message;
 
 pub trait ZDeserializer {
     type Input<'a>;
@@ -59,6 +60,31 @@ where
     }
 }
 
+pub struct ProtobufSerdes<T>(PhantomData<T>);
+
+impl<T> ZDeserializer for ProtobufSerdes<T>
+where
+    T: Message + Default,
+{
+    type Input<'a> = &'a [u8];
+    type Output = T;
+    fn deserialize(input: Self::Input<'_>) -> Self::Output {
+        T::decode(input).unwrap()
+    }
+}
+
+impl<T> ZSerializer for ProtobufSerdes<T>
+where
+    T: Message + 'static,
+{
+    type Input<'a> = &'a T where T: 'a;
+    fn serialize(input: &T) -> Vec<u8> {
+        input.encode_to_vec()
+    }
+}
+
+
+// Default implementation for compatibility
 impl<T> ZMessage for T
 where
     for<'a> T: Serialize + Deserialize<'a> + 'a,
