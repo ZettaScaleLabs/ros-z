@@ -124,7 +124,7 @@ impl ZNode {
     pub fn create_sub_with_serdes<T, S>(&self, topic: &str) -> ZSubBuilder<T, S>
     where
         T: ZMessage,
-        S: ZDeserializer,
+        S: ZDeserializer<Output = T>,
     {
         let entity = EndpointEntity {
             id: self.counter.increment(),

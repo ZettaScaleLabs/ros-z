@@ -14,8 +14,8 @@ mod example {
 
 // Users can choose the serdes at the pub/sub creation time using:
 //   - node.create_pub::<MyType>(&topic) uses MyType::Serdes (default)
-//   - node.create_pub_with_serdes::<MyType, CdrSerdes<MyType>>(&topic) for CDR
-//   - node.create_pub_with_serdes::<MyType, ProtobufSerdes<MyType>>(&topic) for Protobuf
+//   - node.create_pub_with_serdes::<MyType, CdrSerdes<_>>(&topic) for CDR
+//   - node.create_pub_with_serdes::<MyType, ProtobufSerdes<_>>(&topic) for Protobuf
 impl ZMessage for example::Entity {
     type Serdes = ProtobufSerdes<Self>; // Default
 }
@@ -128,7 +128,7 @@ fn run_protobuf_subscriber(topic: String, duration: Duration) -> Result<()> {
     let node = ctx.create_node("MyNode").build()?;
 
     let zsub = node
-        .create_sub_with_serdes::<example::Entity, ProtobufSerdes<example::Entity>>(&topic)
+        .create_sub_with_serdes::<example::Entity, ProtobufSerdes<_>>(&topic)
         .with_type_info(TypeInfo::new(
             "example::Entity",
             TypeHash::from_rihs_string(
@@ -188,7 +188,7 @@ fn run_protobuf_publisher(
 
     // Explicit serdes selection - using Protobuf serialization for this Entity
     let zpub = node
-        .create_pub_with_serdes::<example::Entity, ProtobufSerdes<example::Entity>>(&topic)
+        .create_pub_with_serdes::<example::Entity, ProtobufSerdes<_>>(&topic)
         .with_type_info(TypeInfo::new(
             "example::Entity",
             TypeHash::from_rihs_string(
