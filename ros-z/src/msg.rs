@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
-use serde::{Deserialize, Serialize};
 use prost::Message;
+use serde::{Deserialize, Serialize};
 
 pub trait ZDeserializer {
     type Input<'a>;
@@ -77,12 +77,14 @@ impl<T> ZSerializer for ProtobufSerdes<T>
 where
     T: Message + 'static,
 {
-    type Input<'a> = &'a T where T: 'a;
+    type Input<'a>
+        = &'a T
+    where
+        T: 'a;
     fn serialize(input: &T) -> Vec<u8> {
         input.encode_to_vec()
     }
 }
-
 
 // Default implementation for compatibility
 impl<T> ZMessage for T

@@ -1,13 +1,13 @@
 #![allow(unused)]
 
+use cdr::{CdrLe, Infinite};
+use csv::Writer;
+use ros_z::ros_msg::ByteMultiArray;
 use std::fs::File;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering::SeqCst;
 use std::sync::{Arc, atomic::AtomicBool};
 use std::time::{Duration, Instant};
-use cdr::{CdrLe, Infinite};
-use csv::Writer;
-use ros_z::ros_msg::ByteMultiArray;
 use zenoh::{Result, Wait};
 
 fn get_percentile(data: &Vec<u128>, percentile: f64) -> u128 {
@@ -109,7 +109,9 @@ fn main() -> Result<()> {
         let mut rtts = Vec::with_capacity(args.sample);
         while rtts.len() < args.sample {
             if let Ok(msg) = rx.recv() {
-                let sent_time = u128::from_le_bytes(msg.payload().to_bytes().to_vec()[0..16].try_into().unwrap());
+                let sent_time = u128::from_le_bytes(
+                    msg.payload().to_bytes().to_vec()[0..16].try_into().unwrap(),
+                );
                 // let sent_time = u128::from_le_bytes(msg.data[0..16].try_into().unwrap());
                 let rtt = start.elapsed().as_nanos() as u128 - sent_time;
                 rtts.push(rtt);

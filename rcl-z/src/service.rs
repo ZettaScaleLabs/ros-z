@@ -1,11 +1,6 @@
-use std::{sync::Arc};
+use std::sync::Arc;
 
-use crate::{
-    c_void,
-    ros::*,
-    utils::{Notifier },
-    traits::Waitable,
-};
+use crate::{c_void, ros::*, traits::Waitable, utils::Notifier};
 
 use ros_z::{
     attachment::{Attachment, GidArray},
@@ -19,7 +14,7 @@ use crate::{
     rclz_try,
     ros::*,
     traits::{BorrowImpl, OwnImpl},
-    type_support::{ServiceTypeSupport},
+    type_support::ServiceTypeSupport,
 };
 
 pub struct ClientImpl {
@@ -136,7 +131,6 @@ pub extern "C" fn rcl_client_init(
     rclz_try! { x()?; }
 }
 
-
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_client_fini(client: *mut rcl_client_t, _node: *mut rcl_node_t) -> rcl_ret_t {
     // Drop the data regardless of the pointer's condition.
@@ -249,7 +243,10 @@ pub extern "C" fn rcl_service_init(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_service_fini(service: *mut rcl_service_t, _node: *mut rcl_node_t) -> rcl_ret_t {
+pub extern "C" fn rcl_service_fini(
+    service: *mut rcl_service_t,
+    _node: *mut rcl_node_t,
+) -> rcl_ret_t {
     // Drop the data regardless of the pointer's condition.
     drop(service.own_impl());
     RCL_RET_OK as _

@@ -68,7 +68,7 @@ mod ffi {
 }
 
 use ffi::*;
-use ros_z::entity::{TypeInfo, TypeHash};
+use ros_z::entity::{TypeHash, TypeInfo};
 
 use crate::ros::rosidl_type_hash_t;
 

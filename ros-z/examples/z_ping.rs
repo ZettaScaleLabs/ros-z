@@ -9,7 +9,11 @@ use std::{
 };
 
 use csv::Writer;
-use ros_z::{context::{ZContext, ZContextBuilder}, ros_msg::ByteMultiArray, Builder, Result};
+use ros_z::{
+    Builder, Result,
+    context::{ZContext, ZContextBuilder},
+    ros_msg::ByteMultiArray,
+};
 
 fn get_percentile(data: &[u64], percentile: f64) -> u64 {
     if data.is_empty() {

@@ -8,7 +8,7 @@ use crate::{
     Builder,
     context::GlobalCounter,
     entity::*,
-    msg::ZMessage,
+    msg::{ZDeserializer, ZMessage, ZSerializer},
     pubsub::{ZPubBuilder, ZSubBuilder},
     service::{ZClientBuilder, ZServerBuilder},
 };
@@ -83,7 +83,49 @@ impl ZNode {
         }
     }
 
-    pub fn create_sub<T>(&self, topic: &str) -> ZSubBuilder<T> {
+    pub fn create_pub_with_serdes<T, S>(&self, topic: &str) -> ZPubBuilder<T, S>
+    where
+        T: ZMessage,
+        S: for<'a> ZSerializer<Input<'a> = &'a T>,
+    {
+        let entity = EndpointEntity {
+            id: self.counter.increment(),
+            node: self.entity.clone(),
+            topic: topic.to_string(),
+            kind: EntityKind::Publisher,
+            type_info: None,
+            ..Default::default()
+        };
+        ZPubBuilder {
+            entity,
+            session: self.session.clone(),
+            _phantom_data: Default::default(),
+        }
+    }
+
+    pub fn create_sub<T>(&self, topic: &str) -> ZSubBuilder<T>
+    where
+        T: ZMessage,
+    {
+        let entity = EndpointEntity {
+            id: self.counter.increment(),
+            node: self.entity.clone(),
+            topic: topic.to_string(),
+            kind: EntityKind::Subscription,
+            ..Default::default()
+        };
+        ZSubBuilder {
+            entity,
+            session: self.session.clone(),
+            _phantom_data: Default::default(),
+        }
+    }
+
+    pub fn create_sub_with_serdes<T, S>(&self, topic: &str) -> ZSubBuilder<T, S>
+    where
+        T: ZMessage,
+        S: ZDeserializer,
+    {
         let entity = EndpointEntity {
             id: self.counter.increment(),
             node: self.entity.clone(),

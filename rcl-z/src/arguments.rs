@@ -2,9 +2,7 @@
 use crate::ros::*;
 use crate::utils::parse_args;
 
-struct ArgumentsImpl {
-
-}
+struct ArgumentsImpl {}
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_get_zero_initialized_arguments() -> rcl_arguments_t {
@@ -19,7 +17,10 @@ pub unsafe extern "C" fn rcl_parse_arguments(
     _allocator: rcl_allocator_t,
     _args_output: *mut rcl_arguments_t,
 ) -> rcl_ret_t {
-    tracing::warn!("rcl_parse_arguments is skipped with {:?}", parse_args(argc, argv));
+    tracing::warn!(
+        "rcl_parse_arguments is skipped with {:?}",
+        parse_args(argc, argv)
+    );
     RCL_RET_OK as _
 }
 
@@ -116,9 +117,7 @@ pub unsafe extern "C" fn rcl_arguments_copy(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn rcl_arguments_fini(
-    args: *mut rcl_arguments_t,
-) -> rcl_ret_t {
+pub unsafe extern "C" fn rcl_arguments_fini(args: *mut rcl_arguments_t) -> rcl_ret_t {
     tracing::warn!("rcl_arguments_fini is skipped");
     RCL_RET_OK as _
 }

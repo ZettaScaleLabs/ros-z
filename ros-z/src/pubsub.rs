@@ -9,57 +9,42 @@ use crate::Builder;
 use crate::attachment::{Attachment, GidArray};
 use crate::entity::EndpointEntity;
 use crate::impl_with_type_info;
-use crate::msg::{ZMessage, ZDeserializer};
+use crate::msg::{ZDeserializer, ZMessage, ZSerializer};
 
-pub struct ZPub<T: ZMessage> {
+pub struct ZPub<T, S = <T as ZMessage>::Serdes>
+where
+    T: ZMessage,
+    S: for<'a> ZSerializer<Input<'a> = &'a T>,
+{
     // TODO: replace this with the sample sn
     sn: AtomicUsize,
     // TODO: replace this with zenoh's global entity id
     gid: GidArray,
     inner: zenoh::pubsub::Publisher<'static>,
     _lv_token: LivelinessToken,
-    _phantom_data: PhantomData<T>,
+    _phantom_data: PhantomData<(T, S)>,
 }
 
 #[derive(Debug)]
-pub struct ZPubBuilder<T> {
-    pub entity: EndpointEntity,
-    pub session: Arc<Session>,
-    pub _phantom_data: PhantomData<T>,
-}
-
-impl_with_type_info!(ZPubBuilder<T>);
-impl_with_type_info!(ZSubBuilder<T>);
-// impl_with_type_info!(ZSubBuilder<T, true>);
-
-// TODO: Serdes selection
-// pub enum SerdesKind {
-//     Cdr,
-//     Protobuf,
-// }
-// impl<T> ZPubBuilder<T>
-// where
-//     T: ZMessage,
-// {
-//     pub fn with_serdes(self, _serdes: SerdesKind) -> Self {
-//         self
-//     }
-// }
-//
-// impl<T> ZSubBuilder<T, false>
-// where
-//     T: ZMessage,
-// {
-//     pub fn with_serdes(self, _serdes: SerdesKind) -> Self {
-//         self
-//     }
-// }
-
-impl<T> Builder for ZPubBuilder<T>
+pub struct ZPubBuilder<T, S = <T as ZMessage>::Serdes>
 where
     T: ZMessage,
+    S: for<'a> ZSerializer<Input<'a> = &'a T>,
 {
-    type Output = ZPub<T>;
+    pub entity: EndpointEntity,
+    pub session: Arc<Session>,
+    pub _phantom_data: PhantomData<(T, S)>,
+}
+
+impl_with_type_info!(ZPubBuilder<T, S>);
+impl_with_type_info!(ZSubBuilder<T, S>);
+
+impl<T, S> Builder for ZPubBuilder<T, S>
+where
+    T: ZMessage,
+    S: for<'a> ZSerializer<Input<'a> = &'a T>,
+{
+    type Output = ZPub<T, S>;
 
     fn build(self) -> Result<Self::Output> {
         let key_expr = self.entity.topic_key_expr()?;
@@ -80,9 +65,10 @@ where
     }
 }
 
-impl<T> ZPub<T>
+impl<T, S> ZPub<T, S>
 where
     T: ZMessage,
+    S: for<'a> ZSerializer<Input<'a> = &'a T>,
 {
     fn new_attchment(&self) -> Attachment {
         Attachment::new(self.sn.fetch_add(1, AcqRel) as _, self.gid)
@@ -90,13 +76,13 @@ where
 
     pub fn publish(&self, msg: &T) -> Result<()> {
         self.inner
-            .put(msg.serialize())
+            .put(S::serialize(msg))
             .attachment(self.new_attchment())
             .wait()
     }
 
     pub async fn async_publish(&self, msg: &T) -> Result<()> {
-        self.inner.put(msg.serialize()).await
+        self.inner.put(S::serialize(msg)).await
     }
 
     pub fn publish_serialized_message(&self, msg: &[u8]) -> Result<()> {
@@ -108,32 +94,22 @@ where
     }
 }
 
-pub struct ZSubBuilder<T, const POST_DESERIALIZATION: bool = false> {
-    pub entity: EndpointEntity,
-    pub session: Arc<Session>,
-    pub _phantom_data: PhantomData<T>,
-}
-
-impl<T> ZSubBuilder<T, false>
+pub struct ZSubBuilder<T, S = <T as ZMessage>::Serdes>
 where
     T: ZMessage,
+    S: ZDeserializer,
 {
-    pub fn post_deserialization(self) -> ZSubBuilder<T, true> {
-        ZSubBuilder {
-            entity: self.entity,
-            session: self.session,
-            _phantom_data: self._phantom_data,
-        }
-    }
+    pub entity: EndpointEntity,
+    pub session: Arc<Session>,
+    pub _phantom_data: PhantomData<(T, S)>,
 }
 
-impl<T> Builder for ZSubBuilder<T, false>
+impl<T, S> Builder for ZSubBuilder<T, S>
 where
     T: ZMessage + Send + Sync + 'static,
-    <T::Serdes as ZDeserializer>::Output: Into<T>,
-    for<'a> <T::Serdes as ZDeserializer>::Input<'a>: From<&'a [u8]>,
+    S: ZDeserializer + Send + Sync + 'static,
 {
-    type Output = ZSub<T, T>;
+    type Output = ZSub<T, S>;
 
     fn build(self) -> Result<Self::Output> {
         let (tx, rx) = flume::bounded(10);
@@ -141,10 +117,7 @@ where
             .session
             .declare_subscriber(self.entity.topic_key_expr()?)
             .callback(move |sample| {
-                let bytes = sample.payload().to_bytes();
-                let input = <_>::from(&*bytes);
-                let msg = <T as ZMessage>::deserialize(input).into();
-                tx.send(msg).unwrap();
+                tx.send(sample).unwrap();
             })
             .wait()?;
         let lv_token = self
@@ -162,12 +135,15 @@ where
     }
 }
 
-impl<T> ZSubBuilder<T, true>
+impl<T, S> ZSubBuilder<T, S>
 where
     T: ZMessage,
+    S: ZDeserializer,
 {
+    /// Creates a ZSub with a notification callback.
+    /// This is primarily used by rcl-z for ROS 2 integration.
     #[cfg(feature = "rcl-z")]
-    pub fn build_with_notifier<F>(self, notify: F) -> Result<ZSub<T, Sample>>
+    pub fn build_with_notifier<F>(self, notify: F) -> Result<ZSub<T, S>>
     where
         F: Fn() + Send + Sync + 'static,
     {
@@ -195,69 +171,61 @@ where
     }
 }
 
-impl<T> Builder for ZSubBuilder<T, true>
+pub struct ZSub<T: ZMessage, S = <T as ZMessage>::Serdes>
 where
-    T: ZMessage + 'static + Sync + Send,
+    S: ZDeserializer,
 {
-    type Output = ZSub<T, Sample>;
-
-    fn build(self) -> Result<Self::Output> {
-        let (tx, rx) = flume::bounded(10);
-        let inner = self
-            .session
-            .declare_subscriber(self.entity.topic_key_expr()?)
-            .callback(move |sample| {
-                let _ = tx.send(sample);
-            })
-            .wait()?;
-        let lv_token = self
-            .session
-            .liveliness()
-            .declare_token(self.entity.lv_token_key_expr()?)
-            .wait()?;
-        Ok(Self::Output {
-            entity: self.entity,
-            _inner: inner,
-            _lv_token: lv_token,
-            queue: rx,
-            _phantom_data: Default::default(),
-        })
-    }
-}
-
-pub struct ZSub<T: ZMessage, Q> {
     pub entity: EndpointEntity,
-    pub queue: flume::Receiver<Q>,
+    pub queue: flume::Receiver<Sample>,
     _inner: zenoh::pubsub::Subscriber<()>,
     _lv_token: LivelinessToken,
-    _phantom_data: PhantomData<T>,
+    _phantom_data: PhantomData<(T, S)>,
 }
 
-impl<T, Q> ZSub<T, Q>
+impl<T, S> ZSub<T, S>
 where
     T: ZMessage,
+    S: ZDeserializer,
 {
-    pub fn recv(&self) -> Result<Q> {
-        let msg = self.queue.recv()?;
-        Ok(msg)
+    /// Receives the raw Sample without deserialization
+    pub fn recv_sample(&self) -> Result<Sample> {
+        let sample = self.queue.recv()?;
+        Ok(sample)
     }
 
-    pub async fn async_recv(&self) -> Result<Q> {
-        let msg = self.queue.recv_async().await?;
-        Ok(msg)
+    /// Receives the raw Sample asynchronously without deserialization
+    pub async fn async_recv_sample(&self) -> Result<Sample> {
+        let sample = self.queue.recv_async().await?;
+        Ok(sample)
     }
 
-    pub fn into_stream<'a>(self) -> flume::r#async::RecvStream<'a, Q> {
+    pub fn into_stream<'a>(self) -> flume::r#async::RecvStream<'a, Sample> {
         self.queue.into_stream()
     }
 }
 
-impl<T> ZSub<T, Sample>
+impl<T, S> ZSub<T, S>
 where
     T: ZMessage,
+    S: ZDeserializer,
+    S::Output: Into<T>,
+    for<'a> S::Input<'a>: From<&'a [u8]>,
 {
-    pub fn recv_sample(&self) -> Result<Sample> {
-        let msg = self.queue.recv()?;
+    /// Receives a deserialized message
+    pub fn recv(&self) -> Result<T> {
+        let sample = self.queue.recv()?;
+        let bytes = sample.payload().to_bytes();
+        let input = <_>::from(&*bytes);
+        let msg = S::deserialize(input).into();
+        Ok(msg)
+    }
+
+    /// Receives a deserialized message asynchronously
+    pub async fn async_recv(&self) -> Result<T> {
+        let sample = self.queue.recv_async().await?;
+        let bytes = sample.payload().to_bytes();
+        let input = <_>::from(&*bytes);
+        let msg = S::deserialize(input).into();
         Ok(msg)
     }
 }

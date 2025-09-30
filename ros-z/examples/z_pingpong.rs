@@ -10,7 +10,12 @@ use std::{
 
 use clap::Parser;
 use csv::Writer;
-use ros_z::{context::ZContextBuilder, msg::ZMessage, ros_msg::ByteMultiArray, Builder, Result, entity::{TypeHash, TypeInfo}};
+use ros_z::{
+    Builder, Result,
+    context::ZContextBuilder,
+    entity::{TypeHash, TypeInfo},
+    ros_msg::ByteMultiArray,
+};
 
 #[derive(Debug, Parser)]
 struct Args {
@@ -78,17 +83,20 @@ impl DataLogger {
 fn run_ping(args: &Args) -> Result<()> {
     let type_info = TypeInfo::new(
         "std_msgs::msg::dds_::UInt8MultiArray_",
-        TypeHash::from_rihs_string("RIHS01_5687e861b8d307a5e48b7515467ae7a5fc2daf805bd0ce6d8e9e604bade9f385").unwrap(),
+        TypeHash::from_rihs_string(
+            "RIHS01_5687e861b8d307a5e48b7515467ae7a5fc2daf805bd0ce6d8e9e604bade9f385",
+        )
+        .unwrap(),
     );
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("ping_node").build()?;
-    let zpub = node.create_pub::<ByteMultiArray>("ping")
+    let zpub = node
+        .create_pub::<ByteMultiArray>("ping")
         .with_type_info(type_info.clone())
         .build()?;
     let zsub = node
         .create_sub::<ByteMultiArray>("pong")
         .with_type_info(type_info)
-        .post_deserialization()
         .build()?;
     let period = Duration::from_secs_f64(1.0 / args.frequency as f64);
     let finished = Arc::new(AtomicBool::new(false));
@@ -115,7 +123,6 @@ fn run_ping(args: &Args) -> Result<()> {
         let mut rtts = Vec::with_capacity(sample_count);
         while rtts.len() < sample_count {
             if let Ok(msg) = zsub.recv() {
-                let msg = <ByteMultiArray as ZMessage>::deserialize(&msg.payload().to_bytes());
                 let sent_time = u64::from_le_bytes(msg.data[0..8].try_into().unwrap());
                 let rtt = start.elapsed().as_nanos() as u64 - sent_time;
                 rtts.push(rtt);
@@ -144,16 +151,19 @@ fn run_ping(args: &Args) -> Result<()> {
 fn run_pong() -> Result<()> {
     let type_info = TypeInfo::new(
         "std_msgs::msg::dds_::UInt8MultiArray_",
-        TypeHash::from_rihs_string("RIHS01_5687e861b8d307a5e48b7515467ae7a5fc2daf805bd0ce6d8e9e604bade9f385").unwrap(),
+        TypeHash::from_rihs_string(
+            "RIHS01_5687e861b8d307a5e48b7515467ae7a5fc2daf805bd0ce6d8e9e604bade9f385",
+        )
+        .unwrap(),
     );
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("pong_node").build()?;
     let zsub = node
         .create_sub::<ByteMultiArray>("ping")
         .with_type_info(type_info.clone())
-        .post_deserialization()
         .build()?;
-    let zpub = node.create_pub::<ByteMultiArray>("pong")
+    let zpub = node
+        .create_pub::<ByteMultiArray>("pong")
         .with_type_info(type_info)
         .build()?;
 
@@ -168,7 +178,6 @@ fn run_pong() -> Result<()> {
         if let Ok(msg) = zsub.recv() {
             message_count += 1;
 
-            let msg = <ByteMultiArray as ZMessage>::deserialize(&msg.payload().to_bytes());
             last_timestamp = u64::from_le_bytes(msg.data[0..8].try_into().unwrap());
             last_payload_size = msg.data.len();
 

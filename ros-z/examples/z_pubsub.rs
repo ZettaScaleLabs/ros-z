@@ -1,15 +1,23 @@
 use std::time::Duration;
 
-use ros_z::{Builder, Result, context::ZContextBuilder, ros_msg::ByteMultiArray, entity::{TypeInfo, TypeHash}, msg::{ZMessage, ProtobufSerdes}};
-
-use futures_util::stream::StreamExt;
+use ros_z::{
+    Builder, Result,
+    context::ZContextBuilder,
+    entity::{TypeHash, TypeInfo},
+    msg::{ProtobufSerdes, ZMessage},
+    ros_msg::ByteMultiArray,
+};
 
 mod example {
     include!(concat!(env!("OUT_DIR"), "/example.rs"));
 }
 
+// Users can choose the serdes at the pub/sub creation time using:
+//   - node.create_pub::<MyType>(&topic) uses MyType::Serdes (default)
+//   - node.create_pub_with_serdes::<MyType, CdrSerdes<MyType>>(&topic) for CDR
+//   - node.create_pub_with_serdes::<MyType, ProtobufSerdes<MyType>>(&topic) for Protobuf
 impl ZMessage for example::Entity {
-    type Serdes = ProtobufSerdes<Self>;
+    type Serdes = ProtobufSerdes<Self>; // Default
 }
 
 use clap::{Parser, ValueEnum};
@@ -41,10 +49,14 @@ struct Args {
 fn run_cdr_subscriber(topic: String, duration: Duration) -> Result<()> {
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("MyNode").build()?;
-    let zsub = node.create_sub::<ByteMultiArray>(&topic)
+    let zsub = node
+        .create_sub::<ByteMultiArray>(&topic)
         .with_type_info(TypeInfo::new(
             "std_msgs::msg::dds_::UInt8MultiArray_",
-            TypeHash::from_rihs_string("RIHS01_5687e861b8d307a5e48b7515467ae7a5fc2daf805bd0ce6d8e9e604bade9f385").unwrap(),
+            TypeHash::from_rihs_string(
+                "RIHS01_5687e861b8d307a5e48b7515467ae7a5fc2daf805bd0ce6d8e9e604bade9f385",
+            )
+            .unwrap(),
         ))
         .build()?;
 
@@ -87,10 +99,14 @@ fn run_cdr_publisher(
 ) -> Result<()> {
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("MyNode").build()?;
-    let zpub = node.create_pub::<ByteMultiArray>(&topic)
+    let zpub = node
+        .create_pub::<ByteMultiArray>(&topic)
         .with_type_info(TypeInfo::new(
             "std_msgs::msg::dds_::UInt8MultiArray_",
-            TypeHash::from_rihs_string("RIHS01_5687e861b8d307a5e48b7515467ae7a5fc2daf805bd0ce6d8e9e604bade9f385").unwrap(),
+            TypeHash::from_rihs_string(
+                "RIHS01_5687e861b8d307a5e48b7515467ae7a5fc2daf805bd0ce6d8e9e604bade9f385",
+            )
+            .unwrap(),
         ))
         .build()?;
     let now = std::time::Instant::now();
@@ -110,10 +126,15 @@ fn run_cdr_publisher(
 fn run_protobuf_subscriber(topic: String, duration: Duration) -> Result<()> {
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("MyNode").build()?;
-    let zsub = node.create_sub::<example::Entity>(&topic)
+
+    let zsub = node
+        .create_sub_with_serdes::<example::Entity, ProtobufSerdes<example::Entity>>(&topic)
         .with_type_info(TypeInfo::new(
             "example::Entity",
-            TypeHash::from_rihs_string("RIHS01_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef").unwrap(),
+            TypeHash::from_rihs_string(
+                "RIHS01_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            )
+            .unwrap(),
         ))
         .build()?;
 
@@ -121,14 +142,29 @@ fn run_protobuf_subscriber(topic: String, duration: Duration) -> Result<()> {
     if duration.is_zero() {
         loop {
             let msg = zsub.recv()?;
-            tracing::info!("Recv {counter}-th protobuf msg: id={}, name={}", msg.id, msg.name);
+            tracing::info!(
+                "Recv {counter}-th protobuf msg: id={}, name={}",
+                msg.id,
+                msg.name
+            );
             counter += 1;
         }
     } else {
-        let mut stream = zsub.into_stream();
         let fut = async {
-            while let Some(msg) = stream.next().await {
-                tracing::info!("Recv {counter}-th protobuf msg: id={}, name={}", msg.id, msg.name);
+            loop {
+                match zsub.async_recv().await {
+                    Ok(msg) => {
+                        tracing::info!(
+                            "Recv {counter}-th protobuf msg: id={}, name={}",
+                            msg.id,
+                            msg.name
+                        );
+                    }
+                    Err(err) => {
+                        tracing::error!("Error: {err}");
+                        break;
+                    }
+                }
                 counter += 1;
             }
         };
@@ -149,10 +185,16 @@ fn run_protobuf_publisher(
 ) -> Result<()> {
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("MyNode").build()?;
-    let zpub = node.create_pub::<example::Entity>(&topic)
+
+    // Explicit serdes selection - using Protobuf serialization for this Entity
+    let zpub = node
+        .create_pub_with_serdes::<example::Entity, ProtobufSerdes<example::Entity>>(&topic)
         .with_type_info(TypeInfo::new(
             "example::Entity",
-            TypeHash::from_rihs_string("RIHS01_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef").unwrap(),
+            TypeHash::from_rihs_string(
+                "RIHS01_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            )
+            .unwrap(),
         ))
         .build()?;
     let now = std::time::Instant::now();

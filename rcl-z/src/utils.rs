@@ -1,7 +1,6 @@
-use zenoh::Result;
 use std::ffi::CStr;
 use std::ffi::c_char;
-
+use zenoh::Result;
 
 /// Safely converts a C string pointer to a Rust `&str`.
 ///
