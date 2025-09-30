@@ -25,6 +25,7 @@ cdr-encoding = { workspace = true }
 byteorder = "1.5.0"
 serde_bytes = "0.11.17"
 prost = "0.13"
+futures-util = "0.3.31"
 
 [build-dependencies]
 prost-build = "0.13"

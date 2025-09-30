@@ -2,6 +2,8 @@ use std::time::Duration;
 
 use ros_z::{Builder, Result, context::ZContextBuilder, ros_msg::ByteMultiArray, entity::{TypeInfo, TypeHash}, msg::{ZMessage, ProtobufSerdes}};
 
+use futures_util::stream::StreamExt;
+
 mod example {
     include!(concat!(env!("OUT_DIR"), "/example.rs"));
 }
@@ -123,17 +125,10 @@ fn run_protobuf_subscriber(topic: String, duration: Duration) -> Result<()> {
             counter += 1;
         }
     } else {
+        let mut stream = zsub.into_stream();
         let fut = async {
-            loop {
-                match zsub.async_recv().await {
-                    Ok(msg) => {
-                        tracing::info!("Recv {counter}-th protobuf msg: id={}, name={}", msg.id, msg.name);
-                    }
-                    Err(err) => {
-                        tracing::error!(err);
-                        break;
-                    }
-                }
+            while let Some(msg) = stream.next().await {
+                tracing::info!("Recv {counter}-th protobuf msg: id={}, name={}", msg.id, msg.name);
                 counter += 1;
             }
         };
@@ -190,7 +185,7 @@ fn main() -> Result<()> {
         args.rate,
         args.serdes
     );
-    
+
     match args.serdes {
         SerdesType::Protobuf => {
             if args.mode == "sub" {

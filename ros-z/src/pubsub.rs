@@ -246,6 +246,10 @@ where
         let msg = self.queue.recv_async().await?;
         Ok(msg)
     }
+
+    pub fn into_stream<'a>(self) -> flume::r#async::RecvStream<'a, Q> {
+        self.queue.into_stream()
+    }
 }
 
 impl<T> ZSub<T, Sample>
