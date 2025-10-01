@@ -4,7 +4,7 @@ use ros_z::{
     Builder, Result,
     context::ZContextBuilder,
     entity::{TypeHash, TypeInfo},
-    msg::{ProtobufSerdes, ZMessage},
+    msg::ProtobufSerdes,
     ros_msg::ByteMultiArray,
 };
 
@@ -16,9 +16,8 @@ mod example {
 //   - node.create_pub::<MyType>(&topic) uses MyType::Serdes (default)
 //   - node.create_pub_with_serdes::<MyType, CdrSerdes<_>>(&topic) for CDR
 //   - node.create_pub_with_serdes::<MyType, ProtobufSerdes<_>>(&topic) for Protobuf
-impl ZMessage for example::Entity {
-    type Serdes = ProtobufSerdes<Self>; // Default
-}
+
+// ZMessage implementation is now auto-generated in build.rs
 
 use clap::{Parser, ValueEnum};
 

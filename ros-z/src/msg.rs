@@ -86,12 +86,24 @@ where
     }
 }
 
-// Default implementation for compatibility
+// Implementation for serde types (CDR)
 impl<T> ZMessage for T
 where
     for<'a> T: Serialize + Deserialize<'a> + 'a,
 {
     type Serdes = CdrSerdes<T>;
+}
+
+// Macro to auto-implement ZMessage for protobuf types
+#[macro_export]
+macro_rules! impl_zmessage_protobuf {
+    ($($type:ty),* $(,)?) => {
+        $(
+            impl $crate::msg::ZMessage for $type {
+                type Serdes = $crate::msg::ProtobufSerdes<Self>;
+            }
+        )*
+    };
 }
 
 pub trait ZService {
