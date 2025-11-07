@@ -30,6 +30,12 @@ impl MessageGenerator {
 
     /// Primary generation method - uses roslibrust for .msg files
     pub fn generate_from_msg_files(&self, packages: &[&Path]) -> Result<()> {
+        // Parse messages first
+        let package_paths: Vec<PathBuf> = packages.iter().map(|p| p.to_path_buf()).collect();
+        let (messages, services, _actions) = roslibrust_codegen::find_and_parse_ros_messages(&package_paths)?;
+        let (resolved_msgs, _resolved_srvs) = roslibrust_codegen::resolve_dependency_graph(messages, services)?;
+
+        // Generate CDR-compatible types
         if self.config.generate_cdr {
             roslibrust_adapter::generate_ros_messages(
                 packages.to_vec(),
@@ -37,20 +43,32 @@ impl MessageGenerator {
                 self.config.generate_type_info,
             )?;
         }
-        Ok(())
-    }
 
-    /// Protobuf-first generation
-    pub fn generate_from_proto_files(&self, protos: &[protobuf_adapter::ProtoFile]) -> Result<()> {
+        // Generate protobuf types
         if self.config.generate_protobuf {
-            let generator = protobuf_adapter::ProtobufMessageGenerator::new(&self.config.output_dir);
-            generator.generate_from_proto(protos)?;
+            let proto_dir = self.config.output_dir.join("proto");
+            let generator = protobuf_adapter::ProtobufMessageGenerator::new(&proto_dir);
+
+            // Generate .proto files
+            let proto_files = generator.generate_proto_files(&resolved_msgs)?;
+
+            // Generate Rust code from .proto files
+            let proto_output = self.config.output_dir.join("generated_proto.rs");
+            generator.generate_rust_from_proto(&proto_files, &proto_output)?;
+
+            // Generate MessageTypeInfo implementations
+            let type_info_impls = generator.generate_type_info_impls(&resolved_msgs)?;
+
+            // Append type info implementations to the proto output
+            let mut proto_code = std::fs::read_to_string(&proto_output)?;
+            proto_code.push_str("\n");
+            proto_code.push_str(&type_info_impls);
+            std::fs::write(&proto_output, proto_code)?;
+
+            println!("cargo:info=Generated {} protobuf types", resolved_msgs.len());
         }
+
         Ok(())
     }
 
-    pub fn msg_to_proto(&self, msg_files: &[protobuf_adapter::MsgFile]) -> Result<Vec<protobuf_adapter::ProtoFile>> {
-        let generator = protobuf_adapter::ProtobufMessageGenerator::new(&self.config.output_dir);
-        generator.msg_to_proto(msg_files)
-    }
 }
