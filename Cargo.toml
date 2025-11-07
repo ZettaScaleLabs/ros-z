@@ -4,7 +4,7 @@ edition = "2024"
 
 [workspace]
 resolver = "2"
-members = ["ros-z", "rcl-z"]
+members = ["ros-z", "rcl-z", "ros-z-codegen", "ros-z-msgs"]
 default-members = ["ros-z"]
 
 [workspace.dependencies]
