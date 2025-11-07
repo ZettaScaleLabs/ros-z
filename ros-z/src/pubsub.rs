@@ -2,7 +2,6 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering::AcqRel;
 use std::{marker::PhantomData, sync::Arc};
 
-use serde::Deserialize;
 use zenoh::liveliness::LivelinessToken;
 use zenoh::{Result, Session, Wait, sample::Sample};
 
@@ -130,13 +129,13 @@ where
     }
 }
 
-pub struct ZSubBuilder<T, S = CdrSerdes<T>, const POST_DESERIALIZATION: bool = false> {
+pub struct ZSubBuilder<T, S = CdrSerdes<T>> {
     pub entity: EndpointEntity,
     pub session: Arc<Session>,
     pub _phantom_data: PhantomData<(T, S)>,
 }
 
-impl<T, S> ZSubBuilder<T, S, false>
+impl<T, S> ZSubBuilder<T, S>
 where
     T: ZMessage,
 {
@@ -145,31 +144,20 @@ where
         self
     }
 
-    pub fn post_deserialization(self) -> ZSubBuilder<T, S, true> {
-        ZSubBuilder {
-            entity: self.entity,
-            session: self.session,
-            _phantom_data: self._phantom_data,
-        }
-    }
-
-    pub fn with_serdes<S2>(self) -> ZSubBuilder<T, S2, false> {
+    pub fn with_serdes<S2>(self) -> ZSubBuilder<T, S2> {
         ZSubBuilder {
             entity: self.entity,
             session: self.session,
             _phantom_data: PhantomData,
         }
     }
-}
 
-impl<T, S> Builder for ZSubBuilder<T, S, false>
-where
-    for<'c> T: ZMessage<Serdes = CdrSerdes<T>> + Deserialize<'c> + Send + Sync + 'static,
-    S: for<'a> ZDeserializer<Input<'a> = &'a [u8], Output = T> + Send + Sync + 'static,
-{
-    type Output = ZSub<T, T, S>;
-
-    fn build(self) -> Result<Self::Output> {
+    #[cfg(feature = "rcl-z")]
+    pub fn build_with_notifier<F>(self, notify: F) -> Result<ZSub<T, Sample, S>>
+    where
+        F: Fn() + Send + Sync + 'static,
+        S: ZDeserializer,
+    {
         // Map QoS history to queue size
         let queue_size = match self.entity.qos.history {
             QosHistory::KeepLast(depth) => depth,
@@ -181,8 +169,8 @@ where
             .session
             .declare_subscriber(self.entity.topic_key_expr()?)
             .callback(move |sample| {
-                let msg = S::deserialize(&sample.payload().to_bytes());
-                tx.send(msg).unwrap();
+                let _ = tx.send(sample);
+                notify();
             })
             .wait()?;
         let lv_token = self
@@ -200,20 +188,10 @@ where
     }
 }
 
-impl<T, S> ZSubBuilder<T, S, true>
-where
-    T: ZMessage,
-{
-    pub fn with_qos(mut self, qos: QosProfile) -> Self {
-        self.entity.qos = qos;
-        self
-    }
-}
-
-impl<T, S> Builder for ZSubBuilder<T, S, true>
+impl<T, S> Builder for ZSubBuilder<T, S>
 where
     T: ZMessage + 'static + Sync + Send,
-    S: for<'a> ZDeserializer<Input<'a> = &'a [u8], Output = T> + Send + Sync + 'static,
+    S: ZDeserializer,
 {
     type Output = ZSub<T, Sample, S>;
 
@@ -255,17 +233,19 @@ pub struct ZSub<T: ZMessage, Q, S: ZDeserializer> {
     _phantom_data: PhantomData<(T, S)>,
 }
 
-impl<T, Q, S> ZSub<T, Q, S>
+impl<T, S> ZSub<T, Sample, S>
 where
     T: ZMessage,
     S: ZDeserializer,
 {
-    pub fn recv(&self) -> Result<Q> {
+    /// Receive the next serialized message (raw sample)
+    pub fn recv_serialized(&self) -> Result<Sample> {
         let msg = self.queue.recv()?;
         Ok(msg)
     }
 
-    pub async fn async_recv(&self) -> Result<Q> {
+    /// Async receive the next serialized message (raw sample)
+    pub async fn async_recv_serialized(&self) -> Result<Sample> {
         let msg = self.queue.recv_async().await?;
         Ok(msg)
     }
@@ -274,10 +254,19 @@ where
 impl<T, S> ZSub<T, Sample, S>
 where
     T: ZMessage,
-    S: ZDeserializer,
+    S: for<'a> ZDeserializer<Input<'a> = &'a [u8]>,
 {
-    pub fn recv_sample(&self) -> Result<Sample> {
-        let msg = self.queue.recv()?;
-        Ok(msg)
+    /// Receive and deserialize the next message (aligned with ROS behavior)
+    pub fn recv(&self) -> Result<S::Output> {
+        let sample = self.queue.recv()?;
+        let payload = sample.payload().to_bytes();
+        Ok(S::deserialize(&payload))
+    }
+
+    /// Async receive and deserialize the next message
+    pub async fn async_recv(&self) -> Result<S::Output> {
+        let sample = self.queue.recv_async().await?;
+        let payload = sample.payload().to_bytes();
+        Ok(S::deserialize(&payload))
     }
 }
