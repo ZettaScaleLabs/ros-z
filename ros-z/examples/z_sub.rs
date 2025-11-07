@@ -9,7 +9,6 @@ fn main() -> Result<()> {
             "geometry_msgs::msg::dds_::Vector3_",
             TypeHash::from_rihs_string("RIHS01_cc12fe83e4c02719f1ce8070bfd14aecd40f75a96696a67a2a1f37f7dbb0765d").unwrap(),
         ))
-        // .post_deserialization()
         .build()?;
 
     loop {
