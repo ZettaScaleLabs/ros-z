@@ -24,15 +24,6 @@ fn main() -> Result<()> {
         let package_refs: Vec<&std::path::Path> = ros_packages.iter().map(|p| p.as_path()).collect();
         generator.generate_from_msg_files(&package_refs)?;
 
-        #[cfg(feature = "protobuf")]
-        {
-            // This is a placeholder for getting the message files.
-            // In a real implementation, `generate_from_msg_files` would return the parsed message files.
-            let msg_files = Vec::new(); 
-            let proto_files = generator.msg_to_proto(&msg_files)?;
-            generator.generate_from_proto_files(&proto_files)?;
-        }
-
         println!("cargo:info=Generated ROS messages from {} packages", ros_packages.len());
     }
 
