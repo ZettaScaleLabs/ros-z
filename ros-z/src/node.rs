@@ -65,7 +65,24 @@ impl Builder for ZNodeBuilder {
 }
 
 impl ZNode {
+    /// Create a publisher for the given topic
+    /// If T implements MessageTypeInfo, type information will be automatically populated
     pub fn create_pub<T>(&self, topic: &str) -> ZPubBuilder<T>
+    where
+        T: ZMessage,
+    {
+        self.create_pub_impl(topic, None)
+    }
+
+    /// Create a publisher with automatic type info (for types implementing MessageTypeInfo)
+    pub fn create_pub_with_info<T>(&self, topic: &str) -> ZPubBuilder<T>
+    where
+        T: ZMessage + WithTypeInfo,
+    {
+        self.create_pub_impl(topic, Some(T::type_info()))
+    }
+
+    fn create_pub_impl<T>(&self, topic: &str, type_info: Option<crate::entity::TypeInfo>) -> ZPubBuilder<T>
     where
         T: ZMessage,
     {
@@ -74,7 +91,7 @@ impl ZNode {
             node: self.entity.clone(),
             topic: topic.to_string(),
             kind: EntityKind::Publisher,
-            type_info: None,
+            type_info,
             ..Default::default()
         };
         ZPubBuilder {
@@ -84,50 +101,27 @@ impl ZNode {
         }
     }
 
-    pub fn create_pub_with_info<T>(&self, topic: &str) -> ZPubBuilder<T>
-    where
-        T: ZMessage + WithTypeInfo,
-    {
-        let entity = EndpointEntity {
-            id: self.counter.increment(),
-            node: self.entity.clone(),
-            topic: topic.to_string(),
-            kind: EntityKind::Publisher,
-            type_info: Some(T::type_info()),
-            ..Default::default()
-        };
-        ZPubBuilder {
-            entity,
-            session: self.session.clone(),
-            _phantom_data: Default::default(),
-        }
-    }
-
+    /// Create a subscriber for the given topic
+    /// If T implements MessageTypeInfo, type information will be automatically populated
     pub fn create_sub<T>(&self, topic: &str) -> ZSubBuilder<T> {
-        let entity = EndpointEntity {
-            id: self.counter.increment(),
-            node: self.entity.clone(),
-            topic: topic.to_string(),
-            kind: EntityKind::Subscription,
-            ..Default::default()
-        };
-        ZSubBuilder {
-            entity,
-            session: self.session.clone(),
-            _phantom_data: Default::default(),
-        }
+        self.create_sub_impl(topic, None)
     }
 
+    /// Create a subscriber with automatic type info (for types implementing MessageTypeInfo)
     pub fn create_sub_with_info<T>(&self, topic: &str) -> ZSubBuilder<T>
     where
         T: WithTypeInfo,
     {
+        self.create_sub_impl(topic, Some(T::type_info()))
+    }
+
+    fn create_sub_impl<T>(&self, topic: &str, type_info: Option<crate::entity::TypeInfo>) -> ZSubBuilder<T> {
         let entity = EndpointEntity {
             id: self.counter.increment(),
             node: self.entity.clone(),
             topic: topic.to_string(),
             kind: EntityKind::Subscription,
-            type_info: Some(T::type_info()),
+            type_info,
             ..Default::default()
         };
         ZSubBuilder {
