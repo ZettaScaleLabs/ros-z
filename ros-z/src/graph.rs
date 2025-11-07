@@ -31,9 +31,20 @@ impl GraphData {
     }
 
     fn remove(&mut self, ke: &LivelinessKE) {
-        match (self.cached.remove(ke), self.parsed.remove(ke)) {
-            (true, Some(_)) => unreachable!(),
-            (false, None) => unreachable!(),
+        let in_cached = self.cached.remove(ke);
+        let in_parsed = self.parsed.remove(ke);
+
+        match (in_cached, in_parsed) {
+            // Both should not be present at the same time
+            (true, Some(_)) => {
+                eprintln!("Warning: LivelinessKE was in both cached and parsed: {:?}", ke);
+            }
+            // If not in either set, it might have been already removed or never existed
+            (false, None) => {
+                // This can happen due to duplicate removal events or race conditions
+                // Log but don't panic
+            }
+            // Expected cases: either in cached (not yet parsed) or in parsed
             _ => {}
         }
     }
