@@ -52,7 +52,7 @@ impl NodeImpl {
             .inner
             .create_sub::<RosMessage>(topic)
             .with_type_info(type_info)
-            .post_deserialization()
+            .with_serdes::<crate::msg::RosSerdes>()
             .build_with_notifier(notify_callback)?;
 
         // TODO: get the qualified topic
@@ -81,6 +81,7 @@ impl NodeImpl {
             .inner
             .create_pub(topic)
             .with_type_info(type_info)
+            .with_serdes::<crate::msg::RosSerdes>()
             .build()?;
         Ok(PublisherImpl { inner: zpub, ts })
     }

@@ -21,7 +21,7 @@ use std::time::Duration;
 use zenoh::{Result, sample::Sample};
 
 pub struct PublisherImpl {
-    pub(crate) inner: ZPub<RosMessage>,
+    pub(crate) inner: ZPub<RosMessage, crate::msg::RosSerdes>,
     pub(crate) ts: MessageTypeSupport,
 }
 
@@ -39,7 +39,7 @@ impl PublisherImpl {
 }
 
 pub struct SubscriptionImpl {
-    pub(crate) inner: ZSub<RosMessage, Sample>,
+    pub(crate) inner: ZSub<RosMessage, Sample, crate::msg::RosSerdes>,
     pub(crate) topic: CString,
     pub(crate) ts: MessageTypeSupport,
 }
@@ -165,7 +165,7 @@ pub extern "C" fn rcl_take(
 
     unsafe {
         let sub_impl = subscription.borrow_impl().unwrap();
-        let Ok(sample) = sub_impl.inner.recv() else {
+        let Ok(sample) = sub_impl.inner.recv_serialized() else {
             return RCL_RET_ERROR as _;
         };
 
