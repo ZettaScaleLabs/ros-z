@@ -18,13 +18,14 @@ use zenoh::{
 use std::sync::atomic::Ordering::AcqRel;
 
 use crate::entity::TopicKE;
-use crate::impl_with_type_info;
+
 
 use crate::{
     Builder,
     attachment::{self, Attachment, GidArray},
     entity::EndpointEntity,
     msg::{CdrSerdes, ZMessage, ZService},
+    impl_with_type_info,
 };
 
 #[derive(Debug)]
