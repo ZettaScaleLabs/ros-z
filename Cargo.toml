@@ -13,8 +13,8 @@ clap = "4.5.45"
 flume = "0.11.1"
 serde = "1.0.219"
 tracing = "0.1.41"
-zenoh = { version = "1.5.0", default-features = false }
-zenoh-ext = { version = "1.5.0" }
+zenoh = { version = "1.6.2", default-features = false, features = ["transport_tcp", "transport_serial"] }
+zenoh-ext = { version = "1.6.2" }
 parking_lot = "0.12.4"
 cxx = "1.0.168"
 strum = "0.27.2"
