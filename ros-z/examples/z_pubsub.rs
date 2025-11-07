@@ -73,7 +73,7 @@ fn run_publisher(
     let now = std::time::Instant::now();
     let msg = ByteMultiArray {
         layout: MultiArrayLayout::default(),
-        r#data: vec![0u8; payload_size as _],
+        data: vec![0u8; payload_size as _],
     };
     loop {
         zpub.publish(&msg)?;

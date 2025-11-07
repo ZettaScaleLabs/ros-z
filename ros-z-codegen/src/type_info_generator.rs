@@ -1,6 +1,3 @@
-use proc_macro2::TokenStream;
-use quote::quote;
-
 /// Helper struct for generating MessageTypeInfo trait implementations
 pub struct TypeInfoGenerator;
 
@@ -27,6 +24,8 @@ impl ::ros_z::MessageTypeInfo for {rust_type_name} {{
         ::ros_z::entity::TypeInfo::new(Self::type_name(), Self::type_hash())
     }}
 }}
+
+impl ::ros_z::ros_msg::WithTypeInfo for {rust_type_name} {{}}
 "#,
             rust_type_name = rust_type_name,
             ros_type_name = ros_type_name,

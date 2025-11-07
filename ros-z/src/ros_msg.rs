@@ -29,6 +29,17 @@ pub trait MessageTypeInfo {
 /// Backward compatibility alias for existing code
 pub trait WithTypeInfo: MessageTypeInfo {}
 
+// NOTE: These hand-written message definitions are kept for backward compatibility.
+// Auto-generated versions are available in ros-z-msgs and automatically implement
+// both MessageTypeInfo and WithTypeInfo traits via the code generator.
+//
+// To use auto-generated messages:
+// 1. Add ros-z-msgs as a dependency
+// 2. Import from ros-z-msgs: `use ros_z_msgs::geometry_msgs::Vector3;`
+// 3. The type will automatically work with all ros-z APIs that require WithTypeInfo
+// 4. Use normal field names: `Vector3 { x: 1.0, y: 2.0, z: 3.0 }`
+//    (Only Rust keywords require r# prefix, e.g., `r#type`, `r#use`)
+
 #[derive(Debug, Serialize, Deserialize, Default, Clone, Copy)]
 pub struct Vector3D {
     pub x: f64,

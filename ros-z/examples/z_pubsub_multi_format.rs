@@ -37,7 +37,7 @@ fn run_subscriber_cdr(topic: String, duration: Duration) -> Result<()> {
     if duration.is_zero() {
         loop {
             let msg = zsub.recv()?;
-            tracing::info!("CDR Recv {counter}-th msg: x={}, y={}, z={}", msg.r#x, msg.r#y, msg.r#z);
+            tracing::info!("CDR Recv {counter}-th msg: x={}, y={}, z={}", msg.x, msg.y, msg.z);
             counter += 1;
         }
     } else {
@@ -45,7 +45,7 @@ fn run_subscriber_cdr(topic: String, duration: Duration) -> Result<()> {
             loop {
                 match zsub.async_recv().await {
                     Ok(msg) => {
-                        tracing::info!("CDR Recv {counter}-th msg: x={}, y={}, z={}", msg.r#x, msg.r#y, msg.r#z);
+                        tracing::info!("CDR Recv {counter}-th msg: x={}, y={}, z={}", msg.x, msg.y, msg.z);
                         counter += 1;
                     }
                     Err(err) => {
@@ -83,9 +83,9 @@ fn run_publisher_cdr(
 
     loop {
         let msg = Vector3 {
-            r#x: counter as f64,
-            r#y: (counter as f64) * 2.0,
-            r#z: (counter as f64) * 3.0,
+            x: counter as f64,
+            y: (counter as f64) * 2.0,
+            z: (counter as f64) * 3.0,
         };
 
         zpub.publish(&msg)?;

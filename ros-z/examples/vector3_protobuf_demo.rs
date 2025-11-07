@@ -1,9 +1,14 @@
-use ros_z::{Builder, Result, context::ZContextBuilder, MessageTypeInfo};
+use ros_z::{Builder, Result, MessageTypeInfo};
+
+#[cfg(feature = "protobuf")]
 use ros_z::msg::ProtobufSerdes;
+
+#[cfg(feature = "protobuf")]
 use std::time::Duration;
 
 // Manually define a protobuf version of Vector3 for demonstration
 // In a real implementation, this would be auto-generated from .proto files
+#[cfg(feature = "protobuf")]
 #[derive(Clone, PartialEq, prost::Message)]
 pub struct Vector3Proto {
     #[prost(double, tag = "1")]
@@ -15,6 +20,7 @@ pub struct Vector3Proto {
 }
 
 // Implement MessageTypeInfo to use with ros-z
+#[cfg(feature = "protobuf")]
 impl MessageTypeInfo for Vector3Proto {
     fn type_name() -> &'static str {
         "geometry_msgs::msg::dds_::Vector3_"
@@ -28,6 +34,7 @@ impl MessageTypeInfo for Vector3Proto {
 }
 
 // Implement ZMessage to specify protobuf serialization
+#[cfg(feature = "protobuf")]
 impl ros_z::msg::ZMessage for Vector3Proto {
     type Serdes = ProtobufSerdes<Vector3Proto>;
 }
