@@ -10,6 +10,7 @@ use crate::{
     entity::*,
     msg::ZMessage,
     pubsub::{ZPubBuilder, ZSubBuilder},
+    ros_msg::WithTypeInfo,
     service::{ZClientBuilder, ZServerBuilder},
 };
 
@@ -83,12 +84,50 @@ impl ZNode {
         }
     }
 
+    pub fn create_pub_with_info<T>(&self, topic: &str) -> ZPubBuilder<T>
+    where
+        T: ZMessage + WithTypeInfo,
+    {
+        let entity = EndpointEntity {
+            id: self.counter.increment(),
+            node: self.entity.clone(),
+            topic: topic.to_string(),
+            kind: EntityKind::Publisher,
+            type_info: Some(T::type_info()),
+            ..Default::default()
+        };
+        ZPubBuilder {
+            entity,
+            session: self.session.clone(),
+            _phantom_data: Default::default(),
+        }
+    }
+
     pub fn create_sub<T>(&self, topic: &str) -> ZSubBuilder<T> {
         let entity = EndpointEntity {
             id: self.counter.increment(),
             node: self.entity.clone(),
             topic: topic.to_string(),
             kind: EntityKind::Subscription,
+            ..Default::default()
+        };
+        ZSubBuilder {
+            entity,
+            session: self.session.clone(),
+            _phantom_data: Default::default(),
+        }
+    }
+
+    pub fn create_sub_with_info<T>(&self, topic: &str) -> ZSubBuilder<T>
+    where
+        T: WithTypeInfo,
+    {
+        let entity = EndpointEntity {
+            id: self.counter.increment(),
+            node: self.entity.clone(),
+            topic: topic.to_string(),
+            kind: EntityKind::Subscription,
+            type_info: Some(T::type_info()),
             ..Default::default()
         };
         ZSubBuilder {

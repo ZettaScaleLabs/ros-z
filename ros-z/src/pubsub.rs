@@ -11,6 +11,7 @@ use crate::attachment::{Attachment, GidArray};
 use crate::entity::EndpointEntity;
 use crate::impl_with_type_info;
 use crate::msg::{CdrSerdes, ZMessage};
+use crate::qos::{QosProfile, QosReliability, QosDurability, QosHistory};
 
 pub struct ZPub<T: ZMessage> {
     // TODO: replace this with the sample sn
@@ -33,6 +34,13 @@ impl_with_type_info!(ZPubBuilder<T>);
 impl_with_type_info!(ZSubBuilder<T>);
 // impl_with_type_info!(ZSubBuilder<T, true>);
 
+impl<T> ZPubBuilder<T> {
+    pub fn with_qos(mut self, qos: QosProfile) -> Self {
+        self.entity.qos = qos;
+        self
+    }
+}
+
 impl<T> Builder for ZPubBuilder<T>
 where
     T: ZMessage,
@@ -42,7 +50,31 @@ where
     fn build(self) -> Result<Self::Output> {
         let key_expr = self.entity.topic_key_expr()?;
         tracing::debug!("[PUB] KE: {key_expr}");
-        let inner = self.session.declare_publisher(key_expr).wait()?;
+
+        // Map QoS to Zenoh publisher settings
+        let mut pub_builder = self.session.declare_publisher(key_expr);
+
+        // Map reliability: Reliable uses Block, BestEffort uses Drop
+        match self.entity.qos.reliability {
+            QosReliability::Reliable => {
+                pub_builder = pub_builder.congestion_control(zenoh::qos::CongestionControl::Block);
+            }
+            QosReliability::BestEffort => {
+                pub_builder = pub_builder.congestion_control(zenoh::qos::CongestionControl::Drop);
+            }
+        }
+
+        // Map durability: TransientLocal uses express=true for caching
+        match self.entity.qos.durability {
+            QosDurability::TransientLocal => {
+                pub_builder = pub_builder.express(true);
+            }
+            QosDurability::Volatile => {
+                pub_builder = pub_builder.express(false);
+            }
+        }
+
+        let inner = pub_builder.wait()?;
         let lv_token = self
             .session
             .liveliness()
@@ -96,12 +128,27 @@ impl<T> ZSubBuilder<T, false>
 where
     T: ZMessage,
 {
+    pub fn with_qos(mut self, qos: QosProfile) -> Self {
+        self.entity.qos = qos;
+        self
+    }
+
     pub fn post_deserialization(self) -> ZSubBuilder<T, true> {
         ZSubBuilder {
             entity: self.entity,
             session: self.session,
             _phantom_data: self._phantom_data,
         }
+    }
+}
+
+impl<T> ZSubBuilder<T, true>
+where
+    T: ZMessage,
+{
+    pub fn with_qos(mut self, qos: QosProfile) -> Self {
+        self.entity.qos = qos;
+        self
     }
 }
 
@@ -112,7 +159,13 @@ where
     type Output = ZSub<T, T>;
 
     fn build(self) -> Result<Self::Output> {
-        let (tx, rx) = flume::bounded(10);
+        // Map QoS history to queue size
+        let queue_size = match self.entity.qos.history {
+            QosHistory::KeepLast(depth) => depth,
+            QosHistory::KeepAll => 100, // Use a reasonable default for KeepAll
+        };
+
+        let (tx, rx) = flume::bounded(queue_size);
         let inner = self
             .session
             .declare_subscriber(self.entity.topic_key_expr()?)
@@ -145,7 +198,13 @@ where
     where
         F: Fn() + Send + Sync + 'static,
     {
-        let (tx, rx) = flume::bounded(10);
+        // Map QoS history to queue size
+        let queue_size = match self.entity.qos.history {
+            QosHistory::KeepLast(depth) => depth,
+            QosHistory::KeepAll => 100, // Use a reasonable default for KeepAll
+        };
+
+        let (tx, rx) = flume::bounded(queue_size);
         let inner = self
             .session
             .declare_subscriber(self.entity.topic_key_expr()?)
@@ -176,7 +235,13 @@ where
     type Output = ZSub<T, Sample>;
 
     fn build(self) -> Result<Self::Output> {
-        let (tx, rx) = flume::bounded(10);
+        // Map QoS history to queue size
+        let queue_size = match self.entity.qos.history {
+            QosHistory::KeepLast(depth) => depth,
+            QosHistory::KeepAll => 100, // Use a reasonable default for KeepAll
+        };
+
+        let (tx, rx) = flume::bounded(queue_size);
         let inner = self
             .session
             .declare_subscriber(self.entity.topic_key_expr()?)
