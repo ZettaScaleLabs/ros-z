@@ -12,6 +12,7 @@ pub mod graph;
 mod utils;
 
 pub use zenoh::Result;
+pub use ros_msg::MessageTypeInfo;
 
 
 pub trait Builder {

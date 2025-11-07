@@ -1,10 +1,33 @@
 use serde::{Deserialize, Serialize};
 use crate::entity::{TypeInfo, TypeHash};
 
-/// Trait for ROS messages that have associated type information
-pub trait WithTypeInfo {
-    fn type_info() -> TypeInfo;
+/// Trait for ROS messages that provides compile-time message metadata
+/// This trait is independent of serialization format
+pub trait MessageTypeInfo {
+    /// Returns the ROS message type name (e.g., "geometry_msgs::msg::dds_::Vector3_")
+    fn type_name() -> &'static str;
+
+    /// Returns the type hash (RIHS01 for ROS2, MD5 for ROS1)
+    fn type_hash() -> TypeHash;
+
+    /// Returns complete TypeInfo combining name and hash
+    fn type_info() -> TypeInfo {
+        TypeInfo::new(Self::type_name(), Self::type_hash())
+    }
+
+    /// Returns the package name (extracted from type name)
+    fn package_name() -> &'static str {
+        Self::type_name().split("::").next().unwrap_or("unknown")
+    }
+
+    /// Returns whether this message has a fixed size (for optimization)
+    fn is_fixed_size() -> bool {
+        false
+    }
 }
+
+/// Backward compatibility alias for existing code
+pub trait WithTypeInfo: MessageTypeInfo {}
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone, Copy)]
 pub struct Vector3D {
@@ -13,14 +36,21 @@ pub struct Vector3D {
     pub z: f64,
 }
 
-impl WithTypeInfo for Vector3D {
-    fn type_info() -> TypeInfo {
-        TypeInfo::new(
-            "geometry_msgs::msg::dds_::Vector3_",
-            TypeHash::from_rihs_string("RIHS01_cc12fe83e4c02719f1ce8070bfd14aecd40f75a96696a67a2a1f37f7dbb0765d").unwrap(),
-        )
+impl MessageTypeInfo for Vector3D {
+    fn type_name() -> &'static str {
+        "geometry_msgs::msg::dds_::Vector3_"
+    }
+
+    fn type_hash() -> TypeHash {
+        TypeHash::from_rihs_string("RIHS01_cc12fe83e4c02719f1ce8070bfd14aecd40f75a96696a67a2a1f37f7dbb0765d").unwrap()
+    }
+
+    fn is_fixed_size() -> bool {
+        true
     }
 }
+
+impl WithTypeInfo for Vector3D {}
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone, Copy)]
 pub struct Twist {
@@ -28,56 +58,80 @@ pub struct Twist {
     pub angular: Vector3D,
 }
 
-impl WithTypeInfo for Twist {
-    fn type_info() -> TypeInfo {
-        TypeInfo::new(
-            "geometry_msgs::msg::dds_::Twist_",
-            TypeHash::from_rihs_string("RIHS01_9c45bf16fe0983d80e3cfe750d6835843d265a9a6c46bd2e609fcddde6fb8d2a").unwrap(),
-        )
+impl MessageTypeInfo for Twist {
+    fn type_name() -> &'static str {
+        "geometry_msgs::msg::dds_::Twist_"
+    }
+
+    fn type_hash() -> TypeHash {
+        TypeHash::from_rihs_string("RIHS01_9c45bf16fe0983d80e3cfe750d6835843d265a9a6c46bd2e609fcddde6fb8d2a").unwrap()
+    }
+
+    fn is_fixed_size() -> bool {
+        true
     }
 }
+
+impl WithTypeInfo for Twist {}
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone, Copy)]
 pub struct Bool {
     pub data: bool,
 }
 
-impl WithTypeInfo for Bool {
-    fn type_info() -> TypeInfo {
-        TypeInfo::new(
-            "std_msgs::msg::dds_::Bool_",
-            TypeHash::from_rihs_string("RIHS01_feb91e995ff9ebd09c0cb3d2aed18b11077585839fb5db80193b62d74528f6c9").unwrap(),
-        )
+impl MessageTypeInfo for Bool {
+    fn type_name() -> &'static str {
+        "std_msgs::msg::dds_::Bool_"
+    }
+
+    fn type_hash() -> TypeHash {
+        TypeHash::from_rihs_string("RIHS01_feb91e995ff9ebd09c0cb3d2aed18b11077585839fb5db80193b62d74528f6c9").unwrap()
+    }
+
+    fn is_fixed_size() -> bool {
+        true
     }
 }
+
+impl WithTypeInfo for Bool {}
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone, Copy)]
 pub struct Int16 {
     pub data: i16,
 }
 
-impl WithTypeInfo for Int16 {
-    fn type_info() -> TypeInfo {
-        TypeInfo::new(
-            "std_msgs::msg::dds_::Int16_",
-            TypeHash::from_rihs_string("RIHS01_1dcc3464e47c288a55f943a389d337cdb06804de3f5cd7a266b0de718eee17e5").unwrap(),
-        )
+impl MessageTypeInfo for Int16 {
+    fn type_name() -> &'static str {
+        "std_msgs::msg::dds_::Int16_"
+    }
+
+    fn type_hash() -> TypeHash {
+        TypeHash::from_rihs_string("RIHS01_1dcc3464e47c288a55f943a389d337cdb06804de3f5cd7a266b0de718eee17e5").unwrap()
+    }
+
+    fn is_fixed_size() -> bool {
+        true
     }
 }
+
+impl WithTypeInfo for Int16 {}
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct RosString {
     pub data: std::string::String,
 }
 
-impl WithTypeInfo for RosString {
-    fn type_info() -> TypeInfo {
-        TypeInfo::new(
-            "std_msgs::msg::dds_::String_",
-            TypeHash::from_rihs_string("RIHS01_df668c740482bbd48fb39d76a70dfd4bd59db1288021743503259e948f6b1a18").unwrap(),
-        )
+impl MessageTypeInfo for RosString {
+    fn type_name() -> &'static str {
+        "std_msgs::msg::dds_::String_"
+    }
+
+    fn type_hash() -> TypeHash {
+        TypeHash::from_rihs_string("RIHS01_df668c740482bbd48fb39d76a70dfd4bd59db1288021743503259e948f6b1a18").unwrap()
     }
 }
+
+impl WithTypeInfo for RosString {}
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct Time {
@@ -163,14 +217,17 @@ impl Default for BatteryState {
     }
 }
 
-impl WithTypeInfo for BatteryState {
-    fn type_info() -> TypeInfo {
-        TypeInfo::new(
-            "sensor_msgs::msg::dds_::BatteryState_",
-            TypeHash::from_rihs_string("RIHS01_4bee5dfce981c98faa6828b868307a0a73f992ed0789f374ee96c8f840e69741").unwrap(),
-        )
+impl MessageTypeInfo for BatteryState {
+    fn type_name() -> &'static str {
+        "sensor_msgs::msg::dds_::BatteryState_"
+    }
+
+    fn type_hash() -> TypeHash {
+        TypeHash::from_rihs_string("RIHS01_4bee5dfce981c98faa6828b868307a0a73f992ed0789f374ee96c8f840e69741").unwrap()
     }
 }
+
+impl WithTypeInfo for BatteryState {}
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct LaserScan {
@@ -186,14 +243,17 @@ pub struct LaserScan {
     pub intensities: Vec<f32>,
 }
 
-impl WithTypeInfo for LaserScan {
-    fn type_info() -> TypeInfo {
-        TypeInfo::new(
-            "sensor_msgs::msg::dds_::LaserScan_",
-            TypeHash::from_rihs_string("RIHS01_64c191398013af96509d518dac71d5164f9382553fce5c1f8cca5be7924bd828").unwrap(),
-        )
+impl MessageTypeInfo for LaserScan {
+    fn type_name() -> &'static str {
+        "sensor_msgs::msg::dds_::LaserScan_"
+    }
+
+    fn type_hash() -> TypeHash {
+        TypeHash::from_rihs_string("RIHS01_64c191398013af96509d518dac71d5164f9382553fce5c1f8cca5be7924bd828").unwrap()
     }
 }
+
+impl WithTypeInfo for LaserScan {}
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct ByteMultiArray {
