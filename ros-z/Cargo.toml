@@ -23,6 +23,14 @@ tokio = { version = "1.47.1", features = ["rt-multi-thread"] }
 slab = { workspace = true }
 
 
+prost = { version = "0.13", optional = true }
+cdr-encoding = { workspace = true }
+byteorder = "1.3"
+
+[dev-dependencies]
+ros-z-msgs = { path = "../ros-z-msgs" }
+
 [features]
 default = []
+protobuf = ["prost"]
 rcl-z = []

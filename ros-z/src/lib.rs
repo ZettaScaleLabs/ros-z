@@ -9,7 +9,8 @@ pub mod attachment;
 pub mod qos;
 pub mod graph;
 
-mod utils;
+#[macro_use]
+pub mod utils;
 
 pub use zenoh::Result;
 pub use ros_msg::MessageTypeInfo;
