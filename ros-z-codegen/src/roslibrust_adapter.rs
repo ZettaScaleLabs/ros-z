@@ -29,7 +29,7 @@ pub fn generate_ros_messages(
         let (messages, services, _actions) = roslibrust_codegen::find_and_parse_ros_messages(&package_paths_vec)?;
 
         // Resolve dependencies to calculate hashes
-        let (resolved_msgs, _resolved_srvs) = roslibrust_codegen::resolve_dependency_graph(messages, services)?;
+        let (resolved_msgs, resolved_srvs) = roslibrust_codegen::resolve_dependency_graph(messages, services)?;
 
         // Build a map for hash lookups
         let msg_map: BTreeMap<String, &roslibrust_codegen::MessageFile> = resolved_msgs
@@ -37,12 +37,20 @@ pub fn generate_ros_messages(
             .map(|msg| (msg.parsed.get_full_name(), msg))
             .collect();
 
-        // Generate MessageTypeInfo implementations
+        // Generate MessageTypeInfo implementations for messages
         let type_info_impls = generate_message_type_info_impls(&resolved_msgs, &msg_map)?;
 
         generated_code.push_str("\n\n");
         generated_code.push_str("// MessageTypeInfo trait implementations for ros-z integration\n");
         generated_code.push_str(&type_info_impls);
+
+        // Generate ServiceTypeInfo implementations for services
+        if !resolved_srvs.is_empty() {
+            let service_info_impls = generate_service_type_info_impls(&resolved_srvs)?;
+            generated_code.push_str("\n\n");
+            generated_code.push_str("// ServiceTypeInfo trait implementations for ros-z integration\n");
+            generated_code.push_str(&service_info_impls);
+        }
     }
 
     // Write to output file
@@ -83,6 +91,50 @@ fn generate_message_type_info_impls(
         );
 
         impls.push_str(&type_info_impl);
+    }
+
+    Ok(impls)
+}
+
+/// Generate ServiceTypeInfo trait implementations for all services
+fn generate_service_type_info_impls(
+    services: &[roslibrust_codegen::ServiceFile],
+) -> Result<String> {
+    let mut impls = String::new();
+
+    for srv in services {
+        let package_name = srv.get_package_name();
+        let srv_name = srv.get_short_name();
+
+        // Get request and response hashes
+        let request_hash = srv.request().ros2_hash.to_hash_string();
+        let response_hash = srv.response().ros2_hash.to_hash_string();
+
+        // Generate the Rust type name for Request
+        // Note: roslibrust generates services as AddTwoIntsRequest, not srv::AddTwoInts::Request
+        let request_rust_type = format!("{}::{}Request", package_name, srv_name);
+        let request_ros_type = format!("{}::srv::dds_::{}_Request_", package_name, srv_name);
+
+        // Generate the Rust type name for Response
+        let response_rust_type = format!("{}::{}Response", package_name, srv_name);
+        let response_ros_type = format!("{}::srv::dds_::{}_Response_", package_name, srv_name);
+
+        // Generate MessageTypeInfo for Request
+        let request_impl = TypeInfoGenerator::generate_type_info_impl(
+            &request_rust_type,
+            &request_ros_type,
+            &request_hash,
+        );
+
+        // Generate MessageTypeInfo for Response
+        let response_impl = TypeInfoGenerator::generate_type_info_impl(
+            &response_rust_type,
+            &response_ros_type,
+            &response_hash,
+        );
+
+        impls.push_str(&request_impl);
+        impls.push_str(&response_impl);
     }
 
     Ok(impls)

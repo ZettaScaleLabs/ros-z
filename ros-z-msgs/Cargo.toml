@@ -13,7 +13,7 @@ roslibrust_codegen = { path = "../../roslibrust/roslibrust_codegen" }
 smart-default = "0.7"
 serde-big-array = "0.5"
 
-prost = { version = "0.13", optional = true }
+prost = { version = "0.14", optional = true }
 
 [dev-dependencies]
 cdr = { workspace = true }
@@ -25,11 +25,12 @@ glob = "0.3"
 
 [features]
 default = ["common_interfaces"]
-common_interfaces = ["std_msgs", "geometry_msgs", "sensor_msgs"]
+common_interfaces = ["std_msgs", "geometry_msgs", "sensor_msgs", "example_interfaces"]
 std_msgs = []
 geometry_msgs = ["std_msgs"]
 sensor_msgs = ["std_msgs"]
 nav_msgs = ["std_msgs", "geometry_msgs"]
+example_interfaces = []
 # ... more ROS packages
 
 protobuf = ["prost", "ros-z-codegen/protobuf"]

@@ -55,6 +55,9 @@ fn discover_ros_packages() -> Result<Vec<PathBuf>> {
     #[cfg(feature = "nav_msgs")]
     package_names.push("nav_msgs");
 
+    #[cfg(feature = "example_interfaces")]
+    package_names.push("example_interfaces");
+
     // Try to find packages using standard ROS 2 discovery mechanisms
     // 1. Check AMENT_PREFIX_PATH (standard ROS 2 environment variable)
     if let Ok(ament_prefix_path) = env::var("AMENT_PREFIX_PATH") {
@@ -139,11 +142,20 @@ fn discover_ros_packages() -> Result<Vec<PathBuf>> {
             }
         }
 
+        #[cfg(feature = "example_interfaces")]
+        {
+            let example_interfaces = roslibrust_assets.join("example_interfaces");
+            if example_interfaces.exists() {
+                ros_packages.push(example_interfaces);
+            }
+        }
+
         if ros_packages.is_empty() {
             ros_packages.push(roslibrust_assets.join("builtin_interfaces"));
             ros_packages.push(roslibrust_assets.join("std_msgs"));
             ros_packages.push(roslibrust_assets.join("geometry_msgs"));
             ros_packages.push(roslibrust_assets.join("sensor_msgs"));
+            ros_packages.push(roslibrust_assets.join("example_interfaces"));
         }
     }
 
