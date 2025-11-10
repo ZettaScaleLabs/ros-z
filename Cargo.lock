@@ -2517,7 +2517,7 @@ dependencies = [
  "anyhow",
  "cdr",
  "glob",
- "prost 0.13.5",
+ "prost 0.14.1",
  "ros-z",
  "ros-z-codegen",
  "roslibrust",

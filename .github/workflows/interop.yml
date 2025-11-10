@@ -1,0 +1,64 @@
+name: Interop Tests
+
+on:
+  push:
+    branches: [ main, dev/** ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build and Interop Tests (ROS2 Rolling)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - name: Setup Cachix
+        uses: cachix/cachix-action@v15
+        with:
+          name: ros
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          skipPush: true
+
+      - name: Check Rust formatting
+        run: |
+          nix develop .#ci -c cargo fmt --all -- --check
+
+      - name: Check for warnings
+        run: |
+          nix develop .#ci -c cargo check --all-targets --all-features
+
+      - name: Build ros-z
+        run: |
+          nix develop .#ci -c cargo build --all-features
+
+      - name: Build examples
+        run: |
+          nix develop .#ci -c cargo build --examples
+
+      - name: Run unit tests
+        run: |
+          nix develop .#ci -c cargo test --all-features
+
+      - name: Run interop tests
+        run: |
+          nix develop .#ci -c nu scripts/interop.nu
+
+      - name: Cleanup
+        if: always()
+        run: |
+          # Kill any remaining processes
+          pkill -9 z_srvcli || true
+          pkill -9 z_pubsub || true
+          pkill -9 ros2 || true
