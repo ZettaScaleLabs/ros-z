@@ -1,6 +1,6 @@
+use clap::Parser;
 use ros_z::{Builder, Result, context::ZContextBuilder};
 use ros_z_msgs::example_interfaces::{AddTwoIntsRequest, AddTwoIntsResponse};
-use clap::Parser;
 
 #[derive(Debug, Parser)]
 struct Args {

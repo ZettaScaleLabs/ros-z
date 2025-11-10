@@ -13,7 +13,7 @@ const INCLUDE_PACKAGES: &[&str] = &[
     "rosidl_typesupport_interface",
     "rosidl_dynamic_typesupport",
     "fastcdr",
-    "type_description_interfaces"
+    "type_description_interfaces",
 ];
 
 fn main() {

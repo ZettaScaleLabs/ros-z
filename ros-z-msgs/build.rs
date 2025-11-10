@@ -21,10 +21,14 @@ fn main() -> Result<()> {
 
         let generator = ros_z_codegen::MessageGenerator::new(config);
 
-        let package_refs: Vec<&std::path::Path> = ros_packages.iter().map(|p| p.as_path()).collect();
+        let package_refs: Vec<&std::path::Path> =
+            ros_packages.iter().map(|p| p.as_path()).collect();
         generator.generate_from_msg_files(&package_refs)?;
 
-        println!("cargo:info=Generated ROS messages from {} packages", ros_packages.len());
+        println!(
+            "cargo:info=Generated ROS messages from {} packages",
+            ros_packages.len()
+        );
     }
 
     println!("cargo:rerun-if-changed=build.rs");

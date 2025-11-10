@@ -1,11 +1,13 @@
-use std::marker::PhantomData;
-use serde::{Serialize, Deserialize};
 use byteorder::LittleEndian;
 #[cfg(feature = "protobuf")]
 use prost::Message as ProstMessage;
+use serde::{Deserialize, Serialize};
+use std::marker::PhantomData;
 
 pub trait ZSerializer {
-    type Input<'a> where Self: 'a;
+    type Input<'a>
+    where
+        Self: 'a;
     fn serialize(input: Self::Input<'_>) -> Vec<u8>;
 }
 
@@ -47,7 +49,10 @@ impl<T> ZSerializer for CdrSerdes<T>
 where
     T: Serialize,
 {
-    type Input<'a> = &'a T where T: 'a;
+    type Input<'a>
+        = &'a T
+    where
+        T: 'a;
 
     fn serialize(input: &T) -> Vec<u8> {
         cdr_encoding::to_vec::<T, LittleEndian>(input).unwrap()
@@ -62,7 +67,9 @@ where
     type Output = T;
 
     fn deserialize(input: Self::Input<'_>) -> T {
-        cdr_encoding::from_bytes::<T, LittleEndian>(input).unwrap().0
+        cdr_encoding::from_bytes::<T, LittleEndian>(input)
+            .unwrap()
+            .0
     }
 }
 
@@ -76,7 +83,10 @@ impl<T> ZSerializer for ProtobufSerdes<T>
 where
     T: ProstMessage,
 {
-    type Input<'a> = &'a T where T: 'a;
+    type Input<'a>
+        = &'a T
+    where
+        T: 'a;
 
     fn serialize(input: &T) -> Vec<u8> {
         input.encode_to_vec()

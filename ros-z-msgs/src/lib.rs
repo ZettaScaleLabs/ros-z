@@ -26,4 +26,4 @@ pub mod proto {
 
 // Re-export commonly used items from ros-z for convenience
 pub use ros_z::MessageTypeInfo;
-pub use ros_z::entity::{TypeInfo, TypeHash};
+pub use ros_z::entity::{TypeHash, TypeInfo};

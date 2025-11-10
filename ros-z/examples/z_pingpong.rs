@@ -10,7 +10,7 @@ use std::{
 
 use clap::Parser;
 use csv::Writer;
-use ros_z::{context::ZContextBuilder, Builder, Result};
+use ros_z::{Builder, Result, context::ZContextBuilder};
 use ros_z_msgs::std_msgs::ByteMultiArray;
 
 #[derive(Debug, Parser)]

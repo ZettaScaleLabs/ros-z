@@ -19,9 +19,9 @@ use crate::type_support::ServiceTypeSupport;
 use crate::utils::NOT_SUPPORTED_CSTR;
 use crate::utils::Notifier;
 use crate::utils::str_from_ptr;
-use ros_z::graph::Graph;
 use ros_z::Builder;
 use ros_z::entity::TypeInfo;
+use ros_z::graph::Graph;
 use ros_z::node::ZNode;
 use zenoh::Result;
 

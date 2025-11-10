@@ -1,14 +1,12 @@
-use ros_z::{Result, Builder, context::ZContextBuilder};
-use ros_z_msgs::geometry_msgs::{Vector3, Twist};
+use ros_z::{Builder, Result, context::ZContextBuilder};
+use ros_z_msgs::geometry_msgs::{Twist, Vector3};
 use std::thread;
 use std::time::Duration;
 
 fn main() -> Result<()> {
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("twist_publisher").build()?;
-    let zpub = node
-        .create_pub::<Twist>("cmd_vel")
-        .build()?;
+    let zpub = node.create_pub::<Twist>("cmd_vel").build()?;
 
     println!("Publishing Twist messages on /cmd_vel...");
 

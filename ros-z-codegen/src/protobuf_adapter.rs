@@ -1,7 +1,7 @@
-use std::path::{Path, PathBuf};
-use std::fs;
-use anyhow::{Result, Context};
+use anyhow::{Context, Result};
 use std::collections::BTreeMap;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 /// Adapter for generating protobuf definitions and Rust code from ROS messages
 pub struct ProtobufMessageGenerator {
@@ -21,15 +21,15 @@ impl ProtobufMessageGenerator {
         messages: &[roslibrust_codegen::MessageFile],
     ) -> Result<Vec<PathBuf>> {
         // Create proto directory if it doesn't exist
-        fs::create_dir_all(&self.proto_dir)
-            .context("Failed to create proto directory")?;
+        fs::create_dir_all(&self.proto_dir).context("Failed to create proto directory")?;
 
         let mut proto_files = Vec::new();
 
         // Group messages by package
         let mut packages: BTreeMap<String, Vec<&roslibrust_codegen::MessageFile>> = BTreeMap::new();
         for msg in messages {
-            packages.entry(msg.parsed.package.clone())
+            packages
+                .entry(msg.parsed.package.clone())
                 .or_default()
                 .push(msg);
         }
@@ -84,7 +84,10 @@ impl ProtobufMessageGenerator {
             let proto_type = self.ros_field_to_proto_type(field)?;
             let field_name = &field.field_name;
 
-            proto.push_str(&format!("  {} {} = {};\n", proto_type, field_name, field_number));
+            proto.push_str(&format!(
+                "  {} {} = {};\n",
+                proto_type, field_name, field_number
+            ));
         }
 
         proto.push_str("}\n");
@@ -95,13 +98,16 @@ impl ProtobufMessageGenerator {
     /// Convert ROS field type to protobuf type
     fn ros_field_to_proto_type(&self, field: &roslibrust_codegen::FieldInfo) -> Result<String> {
         let base_type = &field.field_type.field_type;
-        let is_array = !matches!(field.field_type.array_info, roslibrust_codegen::ArrayType::NotArray);
+        let is_array = !matches!(
+            field.field_type.array_info,
+            roslibrust_codegen::ArrayType::NotArray
+        );
 
         // Map ROS primitive types to protobuf types
         let proto_type = match base_type.as_str() {
             "bool" => "bool",
             "byte" | "uint8" | "char" => "uint32", // Proto3 has no uint8
-            "int8" | "int16" => "int32", // Proto3 has no int8/int16
+            "int8" | "int16" => "int32",           // Proto3 has no int8/int16
             "uint16" => "uint32",
             "int32" => "int32",
             "uint32" => "uint32",
@@ -113,7 +119,9 @@ impl ProtobufMessageGenerator {
             // Complex types (other messages)
             _ => {
                 // If it has a package name, it's a message type
-                if field.field_type.package_name.is_some() || field.field_type.source_package != field.field_type.field_type {
+                if field.field_type.package_name.is_some()
+                    || field.field_type.source_package != field.field_type.field_type
+                {
                     // Use the message type name directly
                     // Proto will resolve it within the same package
                     base_type.as_str()
@@ -152,7 +160,8 @@ impl ProtobufMessageGenerator {
 
         // Compile proto files
         let proto_paths: Vec<&Path> = proto_files.iter().map(|p| p.as_path()).collect();
-        config.compile_protos(&proto_paths, &[&self.proto_dir])
+        config
+            .compile_protos(&proto_paths, &[&self.proto_dir])
             .context("Failed to compile proto files with prost_build")?;
 
         // Read generated files and combine them

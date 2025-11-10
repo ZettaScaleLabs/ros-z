@@ -1,21 +1,20 @@
-mod ros;
-mod utils;
-mod traits;
 mod qos;
+mod ros;
+mod traits;
+mod utils;
 
-pub mod service;
-pub mod msg;
+pub mod arguments;
 pub mod context;
-pub mod node;
-pub mod pubsub;
-pub mod type_support;
-pub mod wait_set;
+pub mod graph;
 pub mod guard_condition;
 pub mod init;
-pub mod graph;
+pub mod msg;
+pub mod node;
+pub mod pubsub;
+pub mod service;
 pub mod timer;
-pub mod arguments;
-
+pub mod type_support;
+pub mod wait_set;
 
 /// Newtype wrapper for a C void. Only useful as a `*c_void`
 #[allow(non_camel_case_types)]

@@ -23,8 +23,7 @@ struct Args {
 fn run_subscriber(topic: String, duration: Duration) -> Result<()> {
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("MyNode").build()?;
-    let zsub = node.create_sub::<ByteMultiArray>(&topic)
-        .build()?;
+    let zsub = node.create_sub::<ByteMultiArray>(&topic).build()?;
 
     let mut counter = 0;
     if duration.is_zero() {
@@ -65,8 +64,7 @@ fn run_publisher(
 ) -> Result<()> {
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("MyNode").build()?;
-    let zpub = node.create_pub::<ByteMultiArray>(&topic)
-        .build()?;
+    let zpub = node.create_pub::<ByteMultiArray>(&topic).build()?;
     let now = std::time::Instant::now();
     let msg = ByteMultiArray {
         layout: MultiArrayLayout::default(),

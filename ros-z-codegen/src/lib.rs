@@ -1,9 +1,9 @@
+pub mod protobuf_adapter;
 pub mod roslibrust_adapter;
 pub mod type_info_generator;
-pub mod protobuf_adapter;
 
-use std::path::{Path, PathBuf};
 use anyhow::Result;
+use std::path::{Path, PathBuf};
 
 pub struct MessageGenerator {
     config: GeneratorConfig,
@@ -22,7 +22,6 @@ pub struct GeneratorConfig {
     pub output_dir: PathBuf,
 }
 
-
 impl MessageGenerator {
     pub fn new(config: GeneratorConfig) -> Self {
         Self { config }
@@ -32,8 +31,10 @@ impl MessageGenerator {
     pub fn generate_from_msg_files(&self, packages: &[&Path]) -> Result<()> {
         // Parse messages first
         let package_paths: Vec<PathBuf> = packages.iter().map(|p| p.to_path_buf()).collect();
-        let (messages, services, _actions) = roslibrust_codegen::find_and_parse_ros_messages(&package_paths)?;
-        let (resolved_msgs, _resolved_srvs) = roslibrust_codegen::resolve_dependency_graph(messages, services)?;
+        let (messages, services, _actions) =
+            roslibrust_codegen::find_and_parse_ros_messages(&package_paths)?;
+        let (resolved_msgs, _resolved_srvs) =
+            roslibrust_codegen::resolve_dependency_graph(messages, services)?;
 
         // Generate CDR-compatible types
         if self.config.generate_cdr {
@@ -65,10 +66,12 @@ impl MessageGenerator {
             proto_code.push_str(&type_info_impls);
             std::fs::write(&proto_output, proto_code)?;
 
-            println!("cargo:info=Generated {} protobuf types", resolved_msgs.len());
+            println!(
+                "cargo:info=Generated {} protobuf types",
+                resolved_msgs.len()
+            );
         }
 
         Ok(())
     }
-
 }

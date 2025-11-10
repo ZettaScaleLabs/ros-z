@@ -1,10 +1,10 @@
-use ros_z::{Result, Builder, context::ZContextBuilder};
+use clap::Parser;
+use ros_z::{Builder, Result, context::ZContextBuilder};
+use ros_z_msgs::builtin_interfaces::Time;
 use ros_z_msgs::sensor_msgs::LaserScan;
 use ros_z_msgs::std_msgs::Header;
-use ros_z_msgs::builtin_interfaces::Time;
 use std::thread;
 use std::time::Duration;
-use clap::Parser;
 
 #[derive(Debug, Parser)]
 struct Args {
@@ -28,9 +28,7 @@ fn main() -> Result<()> {
 fn run_publisher() -> Result<()> {
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("laser_scan_publisher").build()?;
-    let zpub = node
-        .create_pub::<LaserScan>("scan")
-        .build()?;
+    let zpub = node.create_pub::<LaserScan>("scan").build()?;
 
     println!("Publishing LaserScan messages on /scan...");
 
@@ -82,7 +80,10 @@ fn run_publisher() -> Result<()> {
         zpub.publish(&msg)?;
         println!(
             "Published LaserScan #{}: {} ranges, angle [{:.2}, {:.2}] rad",
-            seq, msg.ranges.len(), msg.angle_min, msg.angle_max
+            seq,
+            msg.ranges.len(),
+            msg.angle_min,
+            msg.angle_max
         );
 
         seq += 1;
@@ -93,9 +94,7 @@ fn run_publisher() -> Result<()> {
 fn run_subscriber() -> Result<()> {
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("laser_scan_subscriber").build()?;
-    let zsub = node
-        .create_sub::<LaserScan>("scan")
-        .build()?;
+    let zsub = node.create_sub::<LaserScan>("scan").build()?;
 
     println!("Listening for LaserScan messages on /scan...");
 
@@ -103,14 +102,18 @@ fn run_subscriber() -> Result<()> {
         let msg = zsub.recv()?;
         println!("Received LaserScan:");
         println!("  Frame: {}", msg.header.frame_id);
-        println!("  Angle range: [{:.2}, {:.2}] rad", msg.angle_min, msg.angle_max);
+        println!(
+            "  Angle range: [{:.2}, {:.2}] rad",
+            msg.angle_min, msg.angle_max
+        );
         println!("  Angle increment: {:.4} rad", msg.angle_increment);
         println!("  Range: [{:.2}, {:.2}] m", msg.range_min, msg.range_max);
         println!("  Number of ranges: {}", msg.ranges.len());
         println!("  Scan time: {:.3} s", msg.scan_time);
 
         if !msg.ranges.is_empty() {
-            let valid_ranges: Vec<f32> = msg.ranges
+            let valid_ranges: Vec<f32> = msg
+                .ranges
                 .iter()
                 .filter(|&&r| r >= msg.range_min && r <= msg.range_max)
                 .copied()
@@ -118,8 +121,15 @@ fn run_subscriber() -> Result<()> {
 
             if !valid_ranges.is_empty() {
                 let min = valid_ranges.iter().fold(f32::INFINITY, |a, &b| a.min(b));
-                let max = valid_ranges.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b));
-                println!("  Valid ranges: {} (min: {:.2}m, max: {:.2}m)", valid_ranges.len(), min, max);
+                let max = valid_ranges
+                    .iter()
+                    .fold(f32::NEG_INFINITY, |a, &b| a.max(b));
+                println!(
+                    "  Valid ranges: {} (min: {:.2}m, max: {:.2}m)",
+                    valid_ranges.len(),
+                    min,
+                    max
+                );
             }
         }
         println!("---");

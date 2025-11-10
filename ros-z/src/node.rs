@@ -74,7 +74,11 @@ impl ZNode {
         self.create_pub_impl(topic, Some(T::type_info()))
     }
 
-    fn create_pub_impl<T>(&self, topic: &str, type_info: Option<crate::entity::TypeInfo>) -> ZPubBuilder<T>
+    fn create_pub_impl<T>(
+        &self,
+        topic: &str,
+        type_info: Option<crate::entity::TypeInfo>,
+    ) -> ZPubBuilder<T>
     where
         T: ZMessage,
     {
@@ -102,7 +106,11 @@ impl ZNode {
         self.create_sub_impl(topic, Some(T::type_info()))
     }
 
-    fn create_sub_impl<T>(&self, topic: &str, type_info: Option<crate::entity::TypeInfo>) -> ZSubBuilder<T> {
+    fn create_sub_impl<T>(
+        &self,
+        topic: &str,
+        type_info: Option<crate::entity::TypeInfo>,
+    ) -> ZSubBuilder<T> {
         let entity = EndpointEntity {
             id: self.counter.increment(),
             node: self.entity.clone(),

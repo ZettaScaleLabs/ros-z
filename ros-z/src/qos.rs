@@ -41,7 +41,6 @@ pub enum QosDecodeError {
     InvalidHistory,
 }
 
-
 impl QosProfile {
     // This format comes from rmw_zenoh
     // <ReliabilityKind>:<DurabilityKind>:<HistoryKind>,<HistoryDepth>:<DeadlineSec, DeadlineNSec>:<LifespanSec, LifespanNSec>:<Liveliness, LivelinessSec, LivelinessNSec>"

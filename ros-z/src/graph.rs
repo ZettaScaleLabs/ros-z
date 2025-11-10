@@ -37,7 +37,10 @@ impl GraphData {
         match (in_cached, in_parsed) {
             // Both should not be present at the same time
             (true, Some(_)) => {
-                eprintln!("Warning: LivelinessKE was in both cached and parsed: {:?}", ke);
+                eprintln!(
+                    "Warning: LivelinessKE was in both cached and parsed: {:?}",
+                    ke
+                );
             }
             // If not in either set, it might have been already removed or never existed
             (false, None) => {
@@ -57,7 +60,8 @@ impl GraphData {
             match &*arc {
                 Entity::Node(x) => {
                     // TODO: omit the clone of node key
-                    let slab = self.by_node
+                    let slab = self
+                        .by_node
                         .entry(x.key())
                         .or_insert_with(|| Slab::with_capacity(DEFAULT_SLAB_CAPACITY));
 
@@ -72,7 +76,8 @@ impl GraphData {
                     // Index by topic for Publisher/Subscription entities
                     if matches!(x.kind, EntityKind::Publisher | EntityKind::Subscription) {
                         // TODO: omit the clone of topic
-                        let topic_slab = self.by_topic
+                        let topic_slab = self
+                            .by_topic
                             .entry(x.topic.clone())
                             .or_insert_with(|| Slab::with_capacity(DEFAULT_SLAB_CAPACITY));
 
@@ -87,7 +92,8 @@ impl GraphData {
                     // Index by service for Service/Client entities
                     if matches!(x.kind, EntityKind::Service | EntityKind::Client) {
                         // TODO: omit the clone of service name (stored in topic field)
-                        let service_slab = self.by_service
+                        let service_slab = self
+                            .by_service
                             .entry(x.topic.clone())
                             .or_insert_with(|| Slab::with_capacity(DEFAULT_SLAB_CAPACITY));
 
@@ -99,7 +105,8 @@ impl GraphData {
                         service_slab.insert(weak.clone());
                     }
 
-                    let node_slab = self.by_node
+                    let node_slab = self
+                        .by_node
                         .entry(x.node.key())
                         .or_insert_with(|| Slab::with_capacity(DEFAULT_SLAB_CAPACITY));
 
@@ -323,7 +330,8 @@ impl Graph {
                     if found_type.is_none() {
                         if let Some(enp) = ent.get_endpoint() {
                             // Include both publishers and subscribers
-                            if matches!(enp.kind, EntityKind::Publisher | EntityKind::Subscription) {
+                            if matches!(enp.kind, EntityKind::Publisher | EntityKind::Subscription)
+                            {
                                 found_type = Some(enp.type_info.as_ref().unwrap().name.clone());
                             }
                         }
@@ -342,7 +350,11 @@ impl Graph {
         res
     }
 
-    pub fn get_names_and_types_by_node(&self, node_key: NodeKey, kind: EntityKind) -> Vec<(String, String)> {
+    pub fn get_names_and_types_by_node(
+        &self,
+        node_key: NodeKey,
+        kind: EntityKind,
+    ) -> Vec<(String, String)> {
         let mut res = Vec::new();
         let mut data = self.data.lock();
 
@@ -353,7 +365,10 @@ impl Graph {
         data.visit_by_node(node_key, |ent| {
             if let Some(enp) = ent.get_endpoint() {
                 if enp.kind == kind {
-                    res.push((enp.topic.clone(), enp.type_info.as_ref().unwrap().name.clone()));
+                    res.push((
+                        enp.topic.clone(),
+                        enp.type_info.as_ref().unwrap().name.clone(),
+                    ));
                 }
             }
         });

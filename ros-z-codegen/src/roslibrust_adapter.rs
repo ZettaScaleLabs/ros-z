@@ -12,13 +12,15 @@ pub fn generate_ros_messages(
     generate_type_info: bool,
 ) -> Result<()> {
     // Convert paths once
-    let package_paths_vec: Vec<PathBuf> = package_paths.into_iter().map(|p| p.to_path_buf()).collect();
+    let package_paths_vec: Vec<PathBuf> =
+        package_paths.into_iter().map(|p| p.to_path_buf()).collect();
 
     // Use roslibrust_codegen to generate message code
     // This returns a TokenStream and list of files
-    let (token_stream, _files) = roslibrust_codegen::find_and_generate_ros_messages_without_ros_package_path(
-        package_paths_vec.clone(),
-    )?;
+    let (token_stream, _files) =
+        roslibrust_codegen::find_and_generate_ros_messages_without_ros_package_path(
+            package_paths_vec.clone(),
+        )?;
 
     // Convert TokenStream to string
     let mut generated_code = token_stream.to_string();
@@ -26,10 +28,12 @@ pub fn generate_ros_messages(
     // If requested, add MessageTypeInfo trait implementations with real ROS2 hashes
     if generate_type_info {
         // Parse all messages to get their metadata (actions are also returned but we ignore for now)
-        let (messages, services, _actions) = roslibrust_codegen::find_and_parse_ros_messages(&package_paths_vec)?;
+        let (messages, services, _actions) =
+            roslibrust_codegen::find_and_parse_ros_messages(&package_paths_vec)?;
 
         // Resolve dependencies to calculate hashes
-        let (resolved_msgs, resolved_srvs) = roslibrust_codegen::resolve_dependency_graph(messages, services)?;
+        let (resolved_msgs, resolved_srvs) =
+            roslibrust_codegen::resolve_dependency_graph(messages, services)?;
 
         // Build a map for hash lookups
         let msg_map: BTreeMap<String, &roslibrust_codegen::MessageFile> = resolved_msgs
@@ -48,7 +52,8 @@ pub fn generate_ros_messages(
         if !resolved_srvs.is_empty() {
             let service_info_impls = generate_service_type_info_impls(&resolved_srvs)?;
             generated_code.push_str("\n\n");
-            generated_code.push_str("// ServiceTypeInfo trait implementations for ros-z integration\n");
+            generated_code
+                .push_str("// ServiceTypeInfo trait implementations for ros-z integration\n");
             generated_code.push_str(&service_info_impls);
         }
     }
@@ -84,11 +89,8 @@ fn generate_message_type_info_impls(
         let type_hash = msg.ros2_hash.to_hash_string();
 
         // Generate the MessageTypeInfo implementation
-        let type_info_impl = TypeInfoGenerator::generate_type_info_impl(
-            &rust_type_name,
-            &ros_type_name,
-            &type_hash,
-        );
+        let type_info_impl =
+            TypeInfoGenerator::generate_type_info_impl(&rust_type_name, &ros_type_name, &type_hash);
 
         impls.push_str(&type_info_impl);
     }

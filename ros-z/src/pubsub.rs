@@ -10,8 +10,8 @@ use crate::attachment::{Attachment, GidArray};
 use crate::entity::EndpointEntity;
 use crate::impl_with_type_info;
 
-use crate::qos::{QosProfile, QosReliability, QosDurability, QosHistory};
-use crate::msg::{CdrSerdes, ZMessage, ZSerializer, ZDeserializer};
+use crate::msg::{CdrSerdes, ZDeserializer, ZMessage, ZSerializer};
+use crate::qos::{QosDurability, QosHistory, QosProfile, QosReliability};
 
 pub struct ZPub<T: ZMessage, S: ZSerializer> {
     // TODO: replace this with the sample sn

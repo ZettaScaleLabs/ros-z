@@ -1,4 +1,4 @@
-use crate::entity::{TypeInfo, TypeHash};
+use crate::entity::{TypeHash, TypeInfo};
 
 /// Trait for ROS messages that provides compile-time message metadata
 /// This trait is independent of serialization format
@@ -63,4 +63,3 @@ pub mod srv {
         type Response = RP;
     }
 }
-
