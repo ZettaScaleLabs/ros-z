@@ -28,7 +28,8 @@ fn main() -> Result<()> {
     }
 
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-env-changed=ROS_PACKAGE_PATH");
+    println!("cargo:rerun-if-env-changed=AMENT_PREFIX_PATH");
+    println!("cargo:rerun-if-env-changed=CMAKE_PREFIX_PATH");
 
     Ok(())
 }
@@ -36,17 +37,73 @@ fn main() -> Result<()> {
 fn discover_ros_packages() -> Result<Vec<PathBuf>> {
     let mut ros_packages = Vec::new();
 
-    // Check for nix-ros installation (rolling)
-    let nix_ros_paths = vec![
-        "/nix/store/*-ros-rolling-std-msgs-*/share/std_msgs",
-        "/nix/store/*-ros-rolling-geometry-msgs-*/share/geometry_msgs",
-    ];
+    // Determine packages to discover based on enabled features
+    let mut package_names = Vec::new();
 
-    for pattern in nix_ros_paths {
-        if let Ok(paths) = glob::glob(pattern) {
-            for path in paths.flatten() {
-                if path.exists() && path.join("package.xml").exists() {
-                    ros_packages.push(path);
+    // builtin_interfaces is always needed as a dependency for other message types
+    package_names.push("builtin_interfaces");
+
+    #[cfg(feature = "std_msgs")]
+    package_names.push("std_msgs");
+
+    #[cfg(feature = "geometry_msgs")]
+    package_names.push("geometry_msgs");
+
+    #[cfg(feature = "sensor_msgs")]
+    package_names.push("sensor_msgs");
+
+    #[cfg(feature = "nav_msgs")]
+    package_names.push("nav_msgs");
+
+    // Try to find packages using standard ROS 2 discovery mechanisms
+    // 1. Check AMENT_PREFIX_PATH (standard ROS 2 environment variable)
+    if let Ok(ament_prefix_path) = env::var("AMENT_PREFIX_PATH") {
+        for prefix in ament_prefix_path.split(':') {
+            let prefix_path = PathBuf::from(prefix);
+            for package_name in &package_names {
+                let package_path = prefix_path.join("share").join(package_name);
+                if package_path.exists() && package_path.join("package.xml").exists() {
+                    ros_packages.push(package_path);
+                }
+            }
+        }
+    }
+
+    // 2. Check CMAKE_PREFIX_PATH (also commonly set in ROS 2)
+    if ros_packages.is_empty() {
+        if let Ok(cmake_prefix_path) = env::var("CMAKE_PREFIX_PATH") {
+            for prefix in cmake_prefix_path.split(':') {
+                let prefix_path = PathBuf::from(prefix);
+                for package_name in &package_names {
+                    let package_path = prefix_path.join("share").join(package_name);
+                    if package_path.exists() && package_path.join("package.xml").exists() {
+                        ros_packages.push(package_path);
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Check common ROS 2 installation paths
+    if ros_packages.is_empty() {
+        let common_install_paths = vec![
+            "/opt/ros/rolling",
+            "/opt/ros/jazzy",
+            "/opt/ros/iron",
+            "/opt/ros/humble",
+        ];
+
+        for install_path in common_install_paths {
+            let install = PathBuf::from(install_path);
+            if install.exists() {
+                for package_name in &package_names {
+                    let package_path = install.join("share").join(package_name);
+                    if package_path.exists() && package_path.join("package.xml").exists() {
+                        ros_packages.push(package_path);
+                    }
+                }
+                if !ros_packages.is_empty() {
+                    break;
                 }
             }
         }
@@ -74,10 +131,21 @@ fn discover_ros_packages() -> Result<Vec<PathBuf>> {
             }
         }
 
+        #[cfg(feature = "sensor_msgs")]
+        {
+            let sensor_msgs = roslibrust_assets.join("sensor_msgs");
+            if sensor_msgs.exists() {
+                ros_packages.push(sensor_msgs);
+            }
+        }
+
         if ros_packages.is_empty() {
+            ros_packages.push(roslibrust_assets.join("builtin_interfaces"));
             ros_packages.push(roslibrust_assets.join("std_msgs"));
             ros_packages.push(roslibrust_assets.join("geometry_msgs"));
+            ros_packages.push(roslibrust_assets.join("sensor_msgs"));
         }
     }
+
     Ok(ros_packages)
 }
