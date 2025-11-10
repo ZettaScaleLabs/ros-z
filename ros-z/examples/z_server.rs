@@ -1,4 +1,4 @@
-use ros_z::{Builder, Result, context::ZContextBuilder, entity::TypeInfo, ros_msg::srv::AddTwoInts};
+use ros_z::{Builder, Result, context::ZContextBuilder, ros_msg::srv::AddTwoInts};
 
 fn main() -> Result<()> {
     let ctx = ZContextBuilder::default().build()?;

@@ -2,7 +2,6 @@ use std::time::Duration;
 
 use ros_z::{Builder, Result, context::ZContextBuilder};
 use ros_z_msgs::std_msgs::{ByteMultiArray, MultiArrayLayout};
-use ros_z::MessageTypeInfo;
 
 use clap::Parser;
 #[derive(Debug, Parser)]
@@ -25,7 +24,6 @@ fn run_subscriber(topic: String, duration: Duration) -> Result<()> {
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("MyNode").build()?;
     let zsub = node.create_sub::<ByteMultiArray>(&topic)
-        .with_type_info(ByteMultiArray::type_info())
         .build()?;
 
     let mut counter = 0;
@@ -68,7 +66,6 @@ fn run_publisher(
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("MyNode").build()?;
     let zpub = node.create_pub::<ByteMultiArray>(&topic)
-        .with_type_info(ByteMultiArray::type_info())
         .build()?;
     let now = std::time::Instant::now();
     let msg = ByteMultiArray {

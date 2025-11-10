@@ -3,7 +3,7 @@ use ros_z::{
     Builder, Result,
     context::ZContextBuilder,
     entity::TypeInfo,
-    ros_msg::{Vector3D, srv::AddTwoInts},
+    ros_msg::srv::AddTwoInts,
 };
 
 fn main() -> Result<()> {

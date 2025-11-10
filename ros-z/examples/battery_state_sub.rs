@@ -1,10 +1,11 @@
-use ros_z::{Result, Builder, context::ZContextBuilder, ros_msg::BatteryState};
+use ros_z::{Result, Builder, context::ZContextBuilder};
+use ros_z_msgs::sensor_msgs::BatteryState;
 
 fn main() -> Result<()> {
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("battery_state_subscriber").build()?;
     let zsub = node
-        .create_sub_with_info::<BatteryState>("battery_status")
+        .create_sub::<BatteryState>("battery_status")
         .build()?;
 
     println!("Listening for BatteryState messages on /battery_status...");
