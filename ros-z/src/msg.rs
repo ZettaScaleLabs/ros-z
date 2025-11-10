@@ -67,9 +67,25 @@ where
     type Output = T;
 
     fn deserialize(input: Self::Input<'_>) -> T {
-        cdr_encoding::from_bytes::<T, LittleEndian>(input)
-            .unwrap()
-            .0
+        if input.is_empty() {
+            panic!("Cannot deserialize from empty input");
+        }
+
+        println!("Deserializing {} bytes", input.len());
+
+        match cdr_encoding::from_bytes::<T, LittleEndian>(input) {
+            Ok((value, bytes_read)) => {
+                println!("Successfully deserialized, consumed {} bytes", bytes_read);
+                value
+            }
+            Err(e) => {
+                eprintln!("Deserialization failed!");
+                eprintln!("Error: {:?}", e);
+                eprintln!("Input length: {}", input.len());
+                eprintln!("Input data: {:?}", input);
+                panic!("Failed to deserialize: {:?}", e);
+            }
+        }
     }
 }
 

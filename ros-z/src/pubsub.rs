@@ -1,6 +1,7 @@
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering::AcqRel;
 use std::{marker::PhantomData, sync::Arc};
+use std::time::Duration;
 
 use zenoh::liveliness::LivelinessToken;
 use zenoh::{Result, Session, Wait, sample::Sample};
@@ -257,6 +258,12 @@ where
     /// Receive and deserialize the next message (aligned with ROS behavior)
     pub fn recv(&self) -> Result<S::Output> {
         let sample = self.queue.recv()?;
+        let payload = sample.payload().to_bytes();
+        Ok(S::deserialize(&payload))
+    }
+
+    pub fn recv_timeout(&self, timeout: Duration) -> Result<S::Output> {
+        let sample = self.queue.recv_timeout(timeout)?;
         let payload = sample.payload().to_bytes();
         Ok(S::deserialize(&payload))
     }

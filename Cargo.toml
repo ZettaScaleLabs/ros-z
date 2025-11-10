@@ -1,10 +1,12 @@
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
+description = "Native Rust ROS 2 implementation using Zenoh"
+homepage = "https://github.com/ZettaScaleLabs/ros-z"
 
 [workspace]
 resolver = "2"
-members = ["ros-z", "rcl-z", "ros-z-codegen", "ros-z-msgs"]
+members = ["ros-z", "rcl-z", "ros-z-codegen", "ros-z-msgs", "ros-z-tests"]
 default-members = ["ros-z"]
 
 [workspace.dependencies]
@@ -13,7 +15,10 @@ clap = "4.5.45"
 flume = "0.11.1"
 serde = "1.0.219"
 tracing = "0.1.41"
-zenoh = { version = "1.6.2", default-features = false, features = ["transport_tcp", "transport_serial"] }
+zenoh = { version = "1.6.2", default-features = false, features = [
+    "transport_tcp",
+    "transport_serial",
+] }
 zenoh-ext = { version = "1.6.2" }
 parking_lot = "0.12.4"
 cxx = "1.0.168"
