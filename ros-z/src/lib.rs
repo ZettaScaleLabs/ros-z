@@ -15,7 +15,6 @@ pub mod utils;
 pub use zenoh::Result;
 pub use ros_msg::MessageTypeInfo;
 
-
 pub trait Builder {
     type Output;
     fn build(self) -> Result<Self::Output>;

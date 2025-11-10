@@ -218,6 +218,8 @@ impl ProtobufMessageGenerator {
     }}
 }}
 
+impl ::ros_z::WithTypeInfo for {proto_type} {{}}
+
 impl ::ros_z::msg::ZMessage for {proto_type} {{
     type Serdes = ::ros_z::msg::ProtobufSerdes<{proto_type}>;
 }}

@@ -8,7 +8,7 @@ edition.workspace = true
 roslibrust_codegen = { path = "../../roslibrust/roslibrust_codegen" }
 # For code manipulation
 quote = "1.0"
-prost-build = { version = "0.13", optional = true }
+prost-build = { version = "0.14", optional = true }
 syn = "2.0"
 proc-macro2 = "1.0"
 # For error handling

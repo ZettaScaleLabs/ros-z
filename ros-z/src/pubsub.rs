@@ -12,8 +12,6 @@ use crate::impl_with_type_info;
 
 use crate::qos::{QosProfile, QosReliability, QosDurability, QosHistory};
 use crate::msg::{CdrSerdes, ZMessage, ZSerializer, ZDeserializer};
-#[cfg(feature = "protobuf")]
-use crate::msg::ProtobufSerdes;
 
 pub struct ZPub<T: ZMessage, S: ZSerializer> {
     // TODO: replace this with the sample sn

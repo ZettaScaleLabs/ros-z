@@ -66,16 +66,8 @@ impl Builder for ZNodeBuilder {
 
 impl ZNode {
     /// Create a publisher for the given topic
-    /// If T implements MessageTypeInfo, type information will be automatically populated
+    /// If T implements WithTypeInfo, type information will be automatically populated
     pub fn create_pub<T>(&self, topic: &str) -> ZPubBuilder<T>
-    where
-        T: ZMessage,
-    {
-        self.create_pub_impl(topic, None)
-    }
-
-    /// Create a publisher with automatic type info (for types implementing MessageTypeInfo)
-    pub fn create_pub_with_info<T>(&self, topic: &str) -> ZPubBuilder<T>
     where
         T: ZMessage + WithTypeInfo,
     {
@@ -102,13 +94,8 @@ impl ZNode {
     }
 
     /// Create a subscriber for the given topic
-    /// If T implements MessageTypeInfo, type information will be automatically populated
-    pub fn create_sub<T>(&self, topic: &str) -> ZSubBuilder<T> {
-        self.create_sub_impl(topic, None)
-    }
-
-    /// Create a subscriber with automatic type info (for types implementing MessageTypeInfo)
-    pub fn create_sub_with_info<T>(&self, topic: &str) -> ZSubBuilder<T>
+    /// If T implements WithTypeInfo, type information will be automatically populated
+    pub fn create_sub<T>(&self, topic: &str) -> ZSubBuilder<T>
     where
         T: WithTypeInfo,
     {
