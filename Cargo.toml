@@ -7,7 +7,6 @@ homepage = "https://github.com/ZettaScaleLabs/ros-z"
 [workspace]
 resolver = "2"
 members = ["ros-z", "rcl-z", "ros-z-codegen", "ros-z-msgs", "ros-z-tests"]
-default-members = ["ros-z"]
 
 [workspace.dependencies]
 # Workspace members

@@ -41,11 +41,14 @@ impl ZContextBuilder {
     /// # Example
     /// ```
     /// use serde_json::json;
+    /// use ros_z::context::ZContextBuilder;
+    /// use ros_z::Builder;
     ///
     /// let ctx = ZContextBuilder::default()
     ///     .with_json("scouting/multicast/enabled", json!(false))
     ///     .with_json("connect/endpoints", json!(["tcp/127.0.0.1:7447"]))
-    ///     .build()?;
+    ///     .build()
+    ///     .expect("Failed to build context");
     /// ```
     pub fn with_json<K: Into<String>, V: serde::Serialize>(mut self, key: K, value: V) -> Self {
         let key = key.into();
@@ -64,9 +67,13 @@ impl ZContextBuilder {
     ///
     /// # Example
     /// ```
+    /// use ros_z::context::ZContextBuilder;
+    /// use ros_z::Builder;
+    ///
     /// let ctx = ZContextBuilder::default()
     ///     .with_connect_endpoints(["tcp/127.0.0.1:7447"])
-    ///     .build()?;
+    ///     .build()
+    ///     .expect("Failed to build context");
     /// ```
     pub fn with_connect_endpoints<I, S>(self, endpoints: I) -> Self
     where
@@ -94,7 +101,8 @@ impl ZContextBuilder {
     ///
     /// # Example
     /// ```
-    /// export ROSZ_CONFIG_OVERRIDE='mode="client";connect/endpoints=["tcp/192.168.1.1:7447"]'
+    /// // In shell:
+    /// // export ROSZ_CONFIG_OVERRIDE='mode="client";connect/endpoints=["tcp/192.168.1.1:7447"]'
     /// ```
     fn apply_env_overrides(mut self) -> Result<Self> {
         if let Ok(overrides_str) = std::env::var("ROSZ_CONFIG_OVERRIDE") {

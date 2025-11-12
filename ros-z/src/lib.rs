@@ -13,7 +13,7 @@ pub mod service;
 pub mod utils;
 
 pub use entity::{TypeHash, TypeInfo};
-pub use ros_msg::{MessageTypeInfo, ServiceTypeInfo};
+pub use ros_msg::{MessageTypeInfo, ServiceTypeInfo, WithTypeInfo};
 pub use zenoh::Result;
 
 pub trait Builder {

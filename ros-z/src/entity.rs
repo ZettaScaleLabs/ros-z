@@ -119,8 +119,17 @@ pub struct TypeHash {
 }
 
 impl TypeHash {
-    pub fn new(version: u8, value: [u8; 32]) -> Self {
+    pub const fn new(version: u8, value: [u8; 32]) -> Self {
         Self { version, value }
+    }
+
+    /// Creates a zero/placeholder TypeHash (RIHS01 version with all zeros)
+    /// Useful for generic wrapper types where actual hash is instance-specific
+    pub const fn zero() -> Self {
+        Self {
+            version: 1,
+            value: [0u8; 32],
+        }
     }
 
     pub fn from_rihs_string(rihs_str: &str) -> Option<Self> {

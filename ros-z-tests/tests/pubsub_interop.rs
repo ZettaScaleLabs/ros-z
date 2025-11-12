@@ -12,6 +12,7 @@ use ros_z_msgs::std_msgs::String as RosString;
 
 use common::*;
 
+#[serial_test::serial]
 #[test]
 fn test_ros_z_pub_to_ros2_sub() {
     if !check_ros2_available() {
@@ -65,6 +66,7 @@ fn test_ros_z_pub_to_ros2_sub() {
     println!("✅ Test passed: ROS2 subscriber received message");
 }
 
+#[serial_test::serial]
 #[test]
 fn test_ros2_pub_to_ros_z_sub() {
     if !check_ros2_available() {

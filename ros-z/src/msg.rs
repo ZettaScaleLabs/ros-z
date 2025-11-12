@@ -55,7 +55,11 @@ where
         T: 'a;
 
     fn serialize(input: &T) -> Vec<u8> {
-        cdr_encoding::to_vec::<T, LittleEndian>(input).unwrap()
+        let mut buffer = cdr_encoding::to_vec::<T, LittleEndian>(input).unwrap();
+        // Prepend CDR encapsulation header (0x00 0x01 0x00 0x00 = CDR LE)
+        let mut result = vec![0x00, 0x01, 0x00, 0x00];
+        result.append(&mut buffer);
+        result
     }
 }
 

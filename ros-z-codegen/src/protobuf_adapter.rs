@@ -63,6 +63,22 @@ impl ProtobufMessageGenerator {
         // Package name (convert hyphens to underscores for proto compatibility)
         proto.push_str(&format!("package {};\n\n", package.replace("-", "_")));
 
+        // Collect all dependencies
+        let mut dependencies = std::collections::BTreeSet::new();
+        for msg in messages {
+            self.collect_dependencies(msg, &mut dependencies);
+        }
+
+        // Add imports for dependencies (excluding self)
+        for dep in &dependencies {
+            if dep != package {
+                proto.push_str(&format!("import \"{}.proto\";\n", dep.replace("-", "_")));
+            }
+        }
+        if !dependencies.is_empty() {
+            proto.push('\n');
+        }
+
         // Generate message definitions
         for msg in messages {
             proto.push_str(&self.generate_proto_message(msg)?);
@@ -95,6 +111,23 @@ impl ProtobufMessageGenerator {
         Ok(proto)
     }
 
+    /// Collect all package dependencies for a message
+    fn collect_dependencies(
+        &self,
+        msg: &roslibrust_codegen::MessageFile,
+        dependencies: &mut std::collections::BTreeSet<String>,
+    ) {
+        for field in &msg.parsed.fields {
+            if let Some(ref package_name) = field.field_type.package_name {
+                if package_name != &msg.parsed.package {
+                    dependencies.insert(package_name.clone());
+                }
+            } else if field.field_type.source_package != msg.parsed.package {
+                dependencies.insert(field.field_type.source_package.clone());
+            }
+        }
+    }
+
     /// Convert ROS field type to protobuf type
     fn ros_field_to_proto_type(&self, field: &roslibrust_codegen::FieldInfo) -> Result<String> {
         let base_type = &field.field_type.field_type;
@@ -105,29 +138,31 @@ impl ProtobufMessageGenerator {
 
         // Map ROS primitive types to protobuf types
         let proto_type = match base_type.as_str() {
-            "bool" => "bool",
-            "byte" | "uint8" | "char" => "uint32", // Proto3 has no uint8
-            "int8" | "int16" => "int32",           // Proto3 has no int8/int16
-            "uint16" => "uint32",
-            "int32" => "int32",
-            "uint32" => "uint32",
-            "int64" => "int64",
-            "uint64" => "uint64",
-            "float32" => "float",
-            "float64" => "double",
-            "string" => "string",
+            "bool" => "bool".to_string(),
+            "byte" | "uint8" | "char" => "uint32".to_string(), // Proto3 has no uint8
+            "int8" | "int16" => "int32".to_string(),           // Proto3 has no int8/int16
+            "uint16" => "uint32".to_string(),
+            "int32" => "int32".to_string(),
+            "uint32" => "uint32".to_string(),
+            "int64" => "int64".to_string(),
+            "uint64" => "uint64".to_string(),
+            "float32" => "float".to_string(),
+            "float64" => "double".to_string(),
+            "string" => "string".to_string(),
             // Complex types (other messages)
             _ => {
-                // If it has a package name, it's a message type
-                if field.field_type.package_name.is_some()
-                    || field.field_type.source_package != field.field_type.field_type
-                {
-                    // Use the message type name directly
-                    // Proto will resolve it within the same package
-                    base_type.as_str()
+                // If it has a package name, it's a message type from another package
+                if let Some(ref package_name) = field.field_type.package_name {
+                    format!("{}.{}", package_name.replace("-", "_"), base_type)
+                } else if field.field_type.source_package != field.field_type.field_type {
+                    format!(
+                        "{}.{}",
+                        field.field_type.source_package.replace("-", "_"),
+                        base_type
+                    )
                 } else {
-                    // Unknown type - use bytes as fallback
-                    "bytes"
+                    // Same package message type
+                    base_type.clone()
                 }
             }
         };
@@ -150,45 +185,77 @@ impl ProtobufMessageGenerator {
             return Ok(());
         }
 
-        // Configure prost_build
-        let mut config = prost_build::Config::new();
-
-        // Generate code to a specific output directory
-        let temp_dir = self.proto_dir.join("prost_output");
-        fs::create_dir_all(&temp_dir)?;
-        config.out_dir(&temp_dir);
-
-        // Compile proto files
-        let proto_paths: Vec<&Path> = proto_files.iter().map(|p| p.as_path()).collect();
-        config
-            .compile_protos(&proto_paths, &[&self.proto_dir])
-            .context("Failed to compile proto files with prost_build")?;
-
         // Read generated files and combine them
         let mut combined_output = String::new();
 
         // Add necessary imports
         combined_output.push_str("// Auto-generated protobuf message types\n");
         combined_output.push_str("// DO NOT EDIT\n\n");
-        combined_output.push_str("use prost::Message as ProstMessage;\n\n");
+        combined_output.push_str("use prost::Message as ProstMessage;\n");
+        combined_output.push_str("use ros_z::MessageTypeInfo;\n");
+        combined_output.push_str("use ros_z::ros_msg::WithTypeInfo;\n");
+        combined_output.push_str("use ros_z::msg::ZMessage;\n");
+        combined_output.push_str("use ros_z::msg::ProtobufSerdes;\n\n");
 
-        // Read all generated .rs files
+        // Compile all proto files at once to avoid duplicates
+        let temp_dir = self.proto_dir.join("prost_output");
+        fs::create_dir_all(&temp_dir)?;
+
+        let mut config = prost_build::Config::new();
+        config.out_dir(&temp_dir);
+
+        // Compile all proto files together
+        config
+            .compile_protos(proto_files, &[&self.proto_dir])
+            .context("Failed to compile proto files with prost_build")?;
+
+        // Read all generated files and organize them by package
+        let mut package_modules = std::collections::BTreeMap::new();
+
         for entry in fs::read_dir(&temp_dir)? {
             let entry = entry?;
             let path = entry.path();
             if path.extension().and_then(|s| s.to_str()) == Some("rs") {
                 let content = fs::read_to_string(&path)?;
-                combined_output.push_str(&content);
-                combined_output.push('\n');
+
+                // The file name typically corresponds to the package name
+                let file_stem = path
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("unknown")
+                    .to_string(); // Convert to owned String
+
+                // Map common file patterns to package names
+                let package_name = match file_stem.as_str() {
+                    "builtin_interfaces" => "builtin_interfaces",
+                    "example_interfaces" => "example_interfaces",
+                    "geometry_msgs" => "geometry_msgs",
+                    "nav_msgs" => "nav_msgs",
+                    "sensor_msgs" => "sensor_msgs",
+                    "service_msgs" => "service_msgs",
+                    "std_msgs" => "std_msgs",
+                    _ => file_stem.as_str(),
+                };
+
+                package_modules.insert(package_name.to_string(), content);
             }
+        }
+
+        // Write modules in a consistent order
+        for (package_name, content) in package_modules {
+            combined_output.push_str(&format!("pub mod {} {{\n", package_name.replace("-", "_")));
+            combined_output.push_str(&content);
+            combined_output.push_str("}\n\n");
         }
 
         // Write combined output
         fs::write(output_file, combined_output)
             .with_context(|| format!("Failed to write combined output: {:?}", output_file))?;
 
-        // Clean up temp directory
-        fs::remove_dir_all(&temp_dir).ok();
+        // Note: Temp directory left for debugging
+        // if temp_dir.exists() {
+        //     fs::remove_dir_all(&temp_dir).ok();
+        // }
 
         Ok(())
     }
@@ -206,8 +273,12 @@ impl ProtobufMessageGenerator {
             let package = &msg.parsed.package;
             let msg_name = &msg.parsed.name;
 
+            // Convert ROS message name to prost naming convention
+            // Prost converts camelCase to snake_case differently for acronyms
+            let proto_struct_name = self.convert_to_prost_naming(msg_name);
+
             // Rust type name for the protobuf struct
-            let proto_type = format!("{}::{}", package.replace("-", "_"), msg_name);
+            let proto_type = format!("{}::{}", package.replace("-", "_"), proto_struct_name);
 
             // ROS2 type name
             let ros2_type_name = format!("{}::msg::dds_::{}_", package, msg_name);
@@ -238,5 +309,16 @@ impl ::ros_z::msg::ZMessage for {proto_type} {{
         }
 
         Ok(impls)
+    }
+
+    /// Convert ROS message name to prost naming convention
+    fn convert_to_prost_naming(&self, name: &str) -> String {
+        // Handle specific known cases where prost naming differs
+        match name {
+            "MultiDOFJointState" => "MultiDofJointState".to_string(),
+            "ColorRGBA" => "ColorRgba".to_string(),
+            // Add more mappings as needed
+            _ => name.to_string(),
+        }
     }
 }
