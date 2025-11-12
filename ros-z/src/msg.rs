@@ -93,7 +93,7 @@ where
         // Write the encapsulation header (CDR LE = 0x00 01 00 00)
         buffer.extend_from_slice(&[0x00, 0x01, 0x00, 0x00]);
         // Serialize directly into the same buffer (appends after the header)
-        cdr_encoding::to_writer::<T, byteorder::LittleEndian, _>(&mut buffer, input).unwrap();
+        input.encode(&mut buffer).unwrap();
 
         buffer
     }
