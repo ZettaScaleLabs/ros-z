@@ -12,7 +12,8 @@ pub mod service;
 #[macro_use]
 pub mod utils;
 
-pub use ros_msg::MessageTypeInfo;
+pub use entity::{TypeHash, TypeInfo};
+pub use ros_msg::{MessageTypeInfo, ServiceTypeInfo};
 pub use zenoh::Result;
 
 pub trait Builder {
