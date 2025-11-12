@@ -108,9 +108,10 @@ fn generate_service_type_info_impls(
         let package_name = srv.get_package_name();
         let srv_name = srv.get_short_name();
 
-        // Get request and response hashes
+        // Get request, response, and service-level hashes
         let request_hash = srv.request().ros2_hash.to_hash_string();
         let response_hash = srv.response().ros2_hash.to_hash_string();
+        let service_hash = srv.get_ros2_hash().to_hash_string();
 
         // Generate the Rust type name for Request
         // Note: roslibrust generates services as AddTwoIntsRequest, not srv::AddTwoInts::Request
@@ -137,6 +138,36 @@ fn generate_service_type_info_impls(
 
         impls.push_str(&request_impl);
         impls.push_str(&response_impl);
+
+        // Generate ServiceTypeInfo and ZService implementations for the service struct
+        // Note: roslibrust already generates the service struct (e.g., AddTwoInts) inside the package module
+        // We just need to add the ros-z trait implementations
+        let service_type_name = format!("{}::srv::dds_::{}_", package_name, srv_name);
+        let service_full_type = format!("{}::{}", package_name, srv_name);
+
+        let service_impl = format!(
+            r#"
+impl ::ros_z::msg::ZService for {service_full_type} {{
+    type Request = {request_rust_type};
+    type Response = {response_rust_type};
+}}
+
+impl ::ros_z::ServiceTypeInfo for {service_full_type} {{
+    fn service_type_info() -> ::ros_z::TypeInfo {{
+        ::ros_z::TypeInfo::new(
+            "{service_type_name}",
+            ::ros_z::TypeHash::from_rihs_string("{service_hash}").expect("Invalid RIHS01 hash")
+        )
+    }}
+}}
+"#,
+            service_full_type = service_full_type,
+            request_rust_type = request_rust_type,
+            response_rust_type = response_rust_type,
+            service_type_name = service_type_name,
+            service_hash = service_hash
+        );
+        impls.push_str(&service_impl);
     }
 
     Ok(impls)
