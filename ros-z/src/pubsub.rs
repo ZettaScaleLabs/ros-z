@@ -1,7 +1,7 @@
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering::AcqRel;
-use std::{marker::PhantomData, sync::Arc};
 use std::time::Duration;
+use std::{marker::PhantomData, sync::Arc};
 
 use zenoh::liveliness::LivelinessToken;
 use zenoh::{Result, Session, Wait, sample::Sample};

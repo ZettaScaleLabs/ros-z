@@ -1,6 +1,6 @@
-use std::process::{Command, Child, Stdio};
-use std::time::Duration;
+use std::process::{Child, Command, Stdio};
 use std::thread;
+use std::time::Duration;
 
 /// Helper to manage background processes with automatic cleanup
 pub struct ProcessGuard {
@@ -70,8 +70,5 @@ pub fn wait_for_ready(duration: Duration) {
 
 /// Check if ros2 CLI is available
 pub fn check_ros2_available() -> bool {
-    Command::new("ros2")
-        .arg("--version")
-        .output()
-        .is_ok()
+    Command::new("ros2").arg("--version").output().is_ok()
 }

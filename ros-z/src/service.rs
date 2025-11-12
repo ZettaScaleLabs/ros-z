@@ -3,7 +3,8 @@
 use std::{
     collections::HashMap,
     marker::PhantomData,
-    sync::{Arc, atomic::AtomicUsize}, time::Duration,
+    sync::{Arc, atomic::AtomicUsize},
+    time::Duration,
 };
 
 use serde::Deserialize;

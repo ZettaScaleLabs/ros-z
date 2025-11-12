@@ -4,8 +4,8 @@ mod common;
 
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 use std::thread;
+use std::time::Duration;
 
 use ros_z::Builder;
 use ros_z_msgs::std_msgs::String as RosString;
@@ -24,12 +24,7 @@ fn test_ros_z_pub_to_ros2_sub() {
 
     // Start ROS2 subscriber
     let subscriber = Command::new("ros2")
-        .args([
-            "topic", "echo",
-            "/chatter",
-            "std_msgs/msg/String",
-            "--once"
-        ])
+        .args(["topic", "echo", "/chatter", "std_msgs/msg/String", "--once"])
         .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -42,14 +37,15 @@ fn test_ros_z_pub_to_ros2_sub() {
 
     // Start ros-z publisher
     let publisher_handle = thread::spawn(|| {
-        let ctx = create_ros_z_context()
-            .expect("Failed to create ros-z context");
+        let ctx = create_ros_z_context().expect("Failed to create ros-z context");
 
-        let node = ctx.create_node("test_publisher")
+        let node = ctx
+            .create_node("test_publisher")
             .build()
             .expect("Failed to create node");
 
-        let publisher = node.create_pub::<RosString>("/chatter")
+        let publisher = node
+            .create_pub::<RosString>("/chatter")
             .build()
             .expect("Failed to create publisher");
 
@@ -83,14 +79,15 @@ fn test_ros2_pub_to_ros_z_sub() {
     let received_clone = received.clone();
 
     let subscriber_handle = thread::spawn(move || {
-        let ctx = create_ros_z_context()
-            .expect("Failed to create ros-z context");
+        let ctx = create_ros_z_context().expect("Failed to create ros-z context");
 
-        let node = ctx.create_node("test_subscriber")
+        let node = ctx
+            .create_node("test_subscriber")
             .build()
             .expect("Failed to create node");
 
-        let subscriber = node.create_sub::<RosString>("/chatter")
+        let subscriber = node
+            .create_sub::<RosString>("/chatter")
             .build()
             .expect("Failed to create subscriber");
 
@@ -118,12 +115,15 @@ fn test_ros2_pub_to_ros_z_sub() {
 
     let publisher = Command::new("ros2")
         .args([
-            "topic", "pub",
+            "topic",
+            "pub",
             "/chatter",
             "std_msgs/msg/String",
             "{data: 'Hello from ROS2'}",
-            "--rate", "1",
-            "--times", "5"
+            "--rate",
+            "1",
+            "--times",
+            "5",
         ])
         .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
         .stdout(Stdio::null())
@@ -133,10 +133,15 @@ fn test_ros2_pub_to_ros_z_sub() {
 
     let _pub_guard = ProcessGuard::new(publisher, "ros2 publisher");
 
-    subscriber_handle.join().expect("Subscriber thread panicked");
+    subscriber_handle
+        .join()
+        .expect("Subscriber thread panicked");
 
     let received_flag = received.lock().unwrap();
-    assert!(*received_flag, "❌ Test failed: Did not receive message from ROS2");
+    assert!(
+        *received_flag,
+        "❌ Test failed: Did not receive message from ROS2"
+    );
 
     println!("✅ Test passed: Received message from ROS2");
 }

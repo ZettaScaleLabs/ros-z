@@ -125,24 +125,25 @@ impl TypeHash {
 
     pub fn from_rihs_string(rihs_str: &str) -> Option<Self> {
         if let Some(hex_part) = rihs_str.strip_prefix("RIHS01_")
-            && hex_part.len() == 64 {
-                let mut hash_bytes = [0u8; 32];
-                for (i, chunk) in hex_part.as_bytes().chunks(2).enumerate() {
-                    if i < 32 {
-                        if let Ok(byte_val) =
-                            u8::from_str_radix(std::str::from_utf8(chunk).unwrap_or("00"), 16)
-                        {
-                            hash_bytes[i] = byte_val;
-                        } else {
-                            return None;
-                        }
+            && hex_part.len() == 64
+        {
+            let mut hash_bytes = [0u8; 32];
+            for (i, chunk) in hex_part.as_bytes().chunks(2).enumerate() {
+                if i < 32 {
+                    if let Ok(byte_val) =
+                        u8::from_str_radix(std::str::from_utf8(chunk).unwrap_or("00"), 16)
+                    {
+                        hash_bytes[i] = byte_val;
+                    } else {
+                        return None;
                     }
                 }
-                return Some(TypeHash {
-                    version: 1,
-                    value: hash_bytes,
-                });
             }
+            return Some(TypeHash {
+                version: 1,
+                value: hash_bytes,
+            });
+        }
         None
     }
 

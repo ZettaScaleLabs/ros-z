@@ -30,9 +30,7 @@ fn main() -> Result<()> {
 fn run_server() -> Result<()> {
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("add_two_ints_server").build()?;
-    let mut zsrv = node
-        .create_service::<AddTwoInts>("add_two_ints")
-        .build()?;
+    let mut zsrv = node.create_service::<AddTwoInts>("add_two_ints").build()?;
 
     println!("AddTwoInts service server started, waiting for requests...");
 
@@ -50,9 +48,7 @@ fn run_server() -> Result<()> {
 fn run_client(a: i64, b: i64) -> Result<()> {
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("add_two_ints_client").build()?;
-    let zcli = node
-        .create_client::<AddTwoInts>("add_two_ints")
-        .build()?;
+    let zcli = node.create_client::<AddTwoInts>("add_two_ints").build()?;
 
     println!("AddTwoInts service client started");
 

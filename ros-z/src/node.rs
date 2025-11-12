@@ -135,7 +135,11 @@ impl ZNode {
         self.create_service_impl(topic, Some(T::service_type_info()))
     }
 
-    fn create_service_impl<T>(&self, topic: &str, type_info: Option<crate::entity::TypeInfo>) -> ZServerBuilder<T> {
+    fn create_service_impl<T>(
+        &self,
+        topic: &str,
+        type_info: Option<crate::entity::TypeInfo>,
+    ) -> ZServerBuilder<T> {
         let entity = EndpointEntity {
             id: self.counter.increment(),
             node: self.entity.clone(),
@@ -160,7 +164,11 @@ impl ZNode {
         self.create_client_impl(topic, Some(T::service_type_info()))
     }
 
-    fn create_client_impl<T>(&self, topic: &str, type_info: Option<crate::entity::TypeInfo>) -> ZClientBuilder<T> {
+    fn create_client_impl<T>(
+        &self,
+        topic: &str,
+        type_info: Option<crate::entity::TypeInfo>,
+    ) -> ZClientBuilder<T> {
         let entity = EndpointEntity {
             id: self.counter.increment(),
             node: self.entity.clone(),

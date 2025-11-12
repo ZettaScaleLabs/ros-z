@@ -23,7 +23,6 @@ pub struct ZContextBuilder {
     config_overrides: Vec<(String, serde_json::Value)>,
 }
 
-
 impl ZContextBuilder {
     /// Set the ROS domain ID
     pub fn with_domain_id(mut self, domain_id: usize) -> Self {

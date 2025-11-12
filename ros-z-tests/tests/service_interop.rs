@@ -3,8 +3,8 @@
 mod common;
 
 use std::process::Command;
-use std::time::Duration;
 use std::thread;
+use std::time::Duration;
 
 use ros_z::Builder;
 use ros_z_msgs::example_interfaces::{AddTwoInts, AddTwoIntsRequest, AddTwoIntsResponse};
@@ -19,10 +19,10 @@ fn test_ros_z_server_ros_z_client() {
 
     // Start server in background thread
     let server_handle = thread::spawn(|| {
-        let ctx = create_ros_z_context()
-            .expect("Failed to create context");
+        let ctx = create_ros_z_context().expect("Failed to create context");
 
-        let node = ctx.create_node("test_server")
+        let node = ctx
+            .create_node("test_server")
             .build()
             .expect("Failed to create node");
 
@@ -37,11 +37,10 @@ fn test_ros_z_server_ros_z_client() {
         // Handle one request
         if let Ok((key, req)) = zsrv.take_request() {
             println!("Received request: {} + {}", req.a, req.b);
-            let resp = AddTwoIntsResponse {
-                sum: req.a + req.b,
-            };
+            let resp = AddTwoIntsResponse { sum: req.a + req.b };
             println!("Sending response: {}", resp.sum);
-            zsrv.send_response(&resp, &key).expect("Failed to send response");
+            zsrv.send_response(&resp, &key)
+                .expect("Failed to send response");
         }
     });
 
@@ -49,10 +48,10 @@ fn test_ros_z_server_ros_z_client() {
 
     // Run client
     let client_handle = thread::spawn(|| {
-        let ctx = create_ros_z_context()
-            .expect("Failed to create context");
+        let ctx = create_ros_z_context().expect("Failed to create context");
 
-        let node = ctx.create_node("test_client")
+        let node = ctx
+            .create_node("test_client")
             .build()
             .expect("Failed to create node");
 

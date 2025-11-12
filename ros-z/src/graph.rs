@@ -242,9 +242,10 @@ impl Graph {
         let mut res = Vec::new();
         self.data.lock().visit_by_node(node, |ent| {
             if ent.kind() == kind
-                && let Entity::Endpoint(endpoint) = &*ent {
-                    res.push(endpoint.clone());
-                }
+                && let Entity::Endpoint(endpoint) = &*ent
+            {
+                res.push(endpoint.clone());
+            }
         });
         res
     }
@@ -290,12 +291,13 @@ impl Graph {
                 if let Some(ent) = weak.upgrade() {
                     // Skip expensive get_endpoint() if we already found the type
                     if found_type.is_none()
-                        && let Some(enp) = ent.get_endpoint() {
-                            // Include both services and clients
-                            if matches!(enp.kind, EntityKind::Service | EntityKind::Client) {
-                                found_type = Some(enp.type_info.as_ref().unwrap().name.clone());
-                            }
+                        && let Some(enp) = ent.get_endpoint()
+                    {
+                        // Include both services and clients
+                        if matches!(enp.kind, EntityKind::Service | EntityKind::Client) {
+                            found_type = Some(enp.type_info.as_ref().unwrap().name.clone());
                         }
+                    }
                     true
                 } else {
                     false
@@ -326,13 +328,13 @@ impl Graph {
                 if let Some(ent) = weak.upgrade() {
                     // Skip expensive get_endpoint() if we already found the type
                     if found_type.is_none()
-                        && let Some(enp) = ent.get_endpoint() {
-                            // Include both publishers and subscribers
-                            if matches!(enp.kind, EntityKind::Publisher | EntityKind::Subscription)
-                            {
-                                found_type = Some(enp.type_info.as_ref().unwrap().name.clone());
-                            }
+                        && let Some(enp) = ent.get_endpoint()
+                    {
+                        // Include both publishers and subscribers
+                        if matches!(enp.kind, EntityKind::Publisher | EntityKind::Subscription) {
+                            found_type = Some(enp.type_info.as_ref().unwrap().name.clone());
                         }
+                    }
                     true
                 } else {
                     false
@@ -361,12 +363,13 @@ impl Graph {
 
         data.visit_by_node(node_key, |ent| {
             if let Some(enp) = ent.get_endpoint()
-                && enp.kind == kind {
-                    res.push((
-                        enp.topic.clone(),
-                        enp.type_info.as_ref().unwrap().name.clone(),
-                    ));
-                }
+                && enp.kind == kind
+            {
+                res.push((
+                    enp.topic.clone(),
+                    enp.type_info.as_ref().unwrap().name.clone(),
+                ));
+            }
         });
 
         res

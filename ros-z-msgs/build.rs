@@ -79,17 +79,18 @@ fn discover_ros_packages() -> Result<Vec<PathBuf>> {
 
     // 2. Check CMAKE_PREFIX_PATH (also commonly set in ROS 2)
     if ros_packages.is_empty()
-        && let Ok(cmake_prefix_path) = env::var("CMAKE_PREFIX_PATH") {
-            for prefix in cmake_prefix_path.split(':') {
-                let prefix_path = PathBuf::from(prefix);
-                for package_name in &package_names {
-                    let package_path = prefix_path.join("share").join(package_name);
-                    if package_path.exists() && package_path.join("package.xml").exists() {
-                        ros_packages.push(package_path);
-                    }
+        && let Ok(cmake_prefix_path) = env::var("CMAKE_PREFIX_PATH")
+    {
+        for prefix in cmake_prefix_path.split(':') {
+            let prefix_path = PathBuf::from(prefix);
+            for package_name in &package_names {
+                let package_path = prefix_path.join("share").join(package_name);
+                if package_path.exists() && package_path.join("package.xml").exists() {
+                    ros_packages.push(package_path);
                 }
             }
         }
+    }
 
     // 3. Check common ROS 2 installation paths
     if ros_packages.is_empty() {
