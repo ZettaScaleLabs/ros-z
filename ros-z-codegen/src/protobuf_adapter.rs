@@ -66,7 +66,7 @@ impl ProtobufMessageGenerator {
         // Generate message definitions
         for msg in messages {
             proto.push_str(&self.generate_proto_message(msg)?);
-            proto.push_str("\n");
+            proto.push('\n');
         }
 
         Ok(proto)
@@ -179,7 +179,7 @@ impl ProtobufMessageGenerator {
             if path.extension().and_then(|s| s.to_str()) == Some("rs") {
                 let content = fs::read_to_string(&path)?;
                 combined_output.push_str(&content);
-                combined_output.push_str("\n");
+                combined_output.push('\n');
             }
         }
 

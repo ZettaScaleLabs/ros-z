@@ -62,7 +62,7 @@ impl MessageGenerator {
 
             // Append type info implementations to the proto output
             let mut proto_code = std::fs::read_to_string(&proto_output)?;
-            proto_code.push_str("\n");
+            proto_code.push('\n');
             proto_code.push_str(&type_info_impls);
             std::fs::write(&proto_output, proto_code)?;
 
