@@ -10,8 +10,8 @@ ros-z-msgs = { path = "../ros-z-msgs" }
 # rcl-z = { path = "../rcl-z" }
 
 # Test runtime dependencies
-tokio = { version = "1", features = ["full"] }
-once_cell = "1.19"  # For lazy static zenohd daemon
+tokio = { workspace = true, features = ["full"] }
+once_cell = { workspace = true }  # For lazy static zenohd daemon
 
 [features]
 default = []
