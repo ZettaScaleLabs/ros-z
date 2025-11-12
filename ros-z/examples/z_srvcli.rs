@@ -40,8 +40,7 @@ fn run_server() -> Result<()> {
         let (key, req) = zsrv.take_request()?;
         println!("Received request: {} + {}", req.a, req.b);
 
-        let mut resp = AddTwoIntsResponse::default();
-        resp.sum = req.a + req.b;
+        let resp = AddTwoIntsResponse { sum: req.a + req.b };
 
         println!("Sending response: {}", resp.sum);
         zsrv.send_response(&resp, &key)?;

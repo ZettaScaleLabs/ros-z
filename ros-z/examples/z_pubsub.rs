@@ -48,7 +48,7 @@ fn run_subscriber(topic: String, duration: Duration) -> Result<()> {
             }
         };
         tokio::runtime::Runtime::new()?.block_on(async {
-            let _ = tokio::time::timeout(duration, fut).await?;
+            tokio::time::timeout(duration, fut).await?;
             Result::Ok(())
         })?;
     }
