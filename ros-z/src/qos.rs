@@ -31,7 +31,7 @@ pub struct QosProfile {
     pub history: QosHistory,
 }
 
-const QOS_DELIMITER: &'static str = ":";
+const QOS_DELIMITER: &str = ":";
 
 #[derive(Debug)]
 pub enum QosDecodeError {
@@ -45,34 +45,53 @@ impl QosProfile {
     // This format comes from rmw_zenoh
     // <ReliabilityKind>:<DurabilityKind>:<HistoryKind>,<HistoryDepth>:<DeadlineSec, DeadlineNSec>:<LifespanSec, LifespanNSec>:<Liveliness, LivelinessSec, LivelinessNSec>"
     pub fn encode(&self) -> String {
-        // Only reliability, durability, and history are supported.
-        let reliability = match self.reliability {
-            QosReliability::Reliable => 1,
-            QosReliability::BestEffort => 2,
+        let default_qos = Self::default();
+
+        // Reliability - empty if default
+        let reliability = if self.reliability != default_qos.reliability {
+            match self.reliability {
+                QosReliability::Reliable => "1",
+                QosReliability::BestEffort => "2",
+            }
+        } else {
+            ""
         };
-        let durability = match self.durability {
-            QosDurability::TransientLocal => 1,
-            QosDurability::Volatile => 2,
+
+        // Durability - empty if default
+        let durability = if self.durability != default_qos.durability {
+            match self.durability {
+                QosDurability::TransientLocal => "1",
+                QosDurability::Volatile => "2",
+            }
+        } else {
+            ""
         };
+
+        // History format: <history_kind>,<depth>
+        // Only include kind if it's non-default
+        // Always include depth (even if default)
         let history = match self.history {
-            QosHistory::KeepLast(depth) => format!("1,{depth}"),
-            QosHistory::KeepAll => "2,".into(),
+            QosHistory::KeepLast(depth) => {
+                if self.history != default_qos.history {
+                    // Non-default history kind - include both kind and depth
+                    format!("1,{}", depth)
+                } else {
+                    // Default history kind - only include depth
+                    format!(",{}", depth)
+                }
+            }
+            QosHistory::KeepAll => "2,".to_string(),
         };
-        // TODO: All other fields are left blank.
+
+        // Deadline, lifespan, liveliness (all empty for now)
         let deadline = ",";
         let lifespan = ",";
         let liveliness = ",,";
 
-        [
-            reliability.to_string(),
-            durability.to_string(),
-            history,
-            deadline.into(),
-            lifespan.into(),
-            liveliness.into(),
-        ]
-        .join(QOS_DELIMITER)
-        .into()
+        format!(
+            "{}:{}:{}:{}:{}:{}",
+            reliability, durability, history, deadline, lifespan, liveliness
+        )
     }
 
     pub fn decode(encoded: impl AsRef<str>) -> Result<Self, QosDecodeError> {
@@ -125,7 +144,6 @@ impl QosProfile {
             reliability,
             durability,
             history,
-            ..Default::default()
         })
     }
 }
