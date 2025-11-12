@@ -16,21 +16,13 @@ impl GlobalCounter {
 use serde_json::json;
 use std::path::PathBuf;
 
+#[derive(Default)]
 pub struct ZContextBuilder {
     domain_id: usize,
     config_file: Option<PathBuf>,
     config_overrides: Vec<(String, serde_json::Value)>,
 }
 
-impl Default for ZContextBuilder {
-    fn default() -> Self {
-        Self {
-            domain_id: 0,
-            config_file: None,
-            config_overrides: Vec::new(),
-        }
-    }
-}
 
 impl ZContextBuilder {
     /// Set the ROS domain ID
