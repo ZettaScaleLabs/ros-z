@@ -108,6 +108,7 @@
           clang-tools
           rust-analyzer
           nixfmt-rfc-style
+          gdb
         ];
 
         # Environment variables for Rust/C++ interop
