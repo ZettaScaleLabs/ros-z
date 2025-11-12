@@ -27,7 +27,7 @@ sha2 = "0.10.9"
 ros-z = { version = "*", path = "ros-z" }
 rcl-z = { version = "*", path = "rcl-z" }
 slab = "0.4.11"
-cdr-encoding = "0.10.2"
+cdr-encoding = { git = "https://github.com/YuanYuYuan/cdr-encoding", branch = "feat/byte-buf" }
 
 [profile.opt]
 inherits = "release"

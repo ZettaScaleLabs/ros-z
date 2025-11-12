@@ -343,8 +343,7 @@ dependencies = [
 [[package]]
 name = "cdr-encoding"
 version = "0.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73f0cdb643d85bb03b1b786ab8d332747f386f0a25b19367d559b437f44f1e46"
+source = "git+https://github.com/YuanYuYuan/cdr-encoding?branch=feat%2Fbyte-buf#ef25d97d6a02e327bc9ec66755701d5db71392b1"
 dependencies = [
  "byteorder",
  "log",

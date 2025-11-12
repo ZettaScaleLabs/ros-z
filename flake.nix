@@ -3,7 +3,7 @@
 
   inputs = {
     nix-ros-overlay.url = "github:lopsided98/nix-ros-overlay";
-    nixpkgs.follows = "nix-ros-overlay/nixpkgs"; # IMPORTANT!!!
+    nixpkgs.follows = "nix-ros-overlay/nixpkgs";
     rust-overlay.url = "github:oxalica/rust-overlay";
   };
 
@@ -34,9 +34,8 @@
 
         rosDistro = "rolling";
 
-        # Define ROS package dependencies per workspace member
+        # ROS package dependencies organized by purpose
         rosDeps = {
-          # rcl-z needs RCL packages
           rcl = with pkgs.rosPackages.${rosDistro}; [
             rcl
             rcl-interfaces
@@ -44,7 +43,6 @@
             rcutils
           ];
 
-          # ros-z-msgs needs message packages
           messages = with pkgs.rosPackages.${rosDistro}; [
             std-msgs
             geometry-msgs
@@ -56,7 +54,6 @@
             rosidl-adapter
           ];
 
-          # Additional packages for development/testing
           devExtras = with pkgs.rosPackages.${rosDistro}; [
             ament-cmake-core
             ros-core
@@ -76,38 +73,44 @@
           ];
         };
 
-        # Create ROS environments for different purposes
-        rosEnvDev = pkgs.rosPackages.${rosDistro}.buildEnv {
-          paths = rosDeps.rcl ++ rosDeps.messages ++ rosDeps.devExtras;
+        # ROS environments for different build contexts
+        rosEnv = {
+          dev = pkgs.rosPackages.${rosDistro}.buildEnv {
+            paths = rosDeps.rcl ++ rosDeps.messages ++ rosDeps.devExtras;
+          };
+          rcl = pkgs.rosPackages.${rosDistro}.buildEnv {
+            paths = rosDeps.rcl;
+          };
+          msgs = pkgs.rosPackages.${rosDistro}.buildEnv {
+            paths = rosDeps.messages;
+          };
+          build = pkgs.rosPackages.${rosDistro}.buildEnv {
+            paths = rosDeps.rcl ++ rosDeps.messages;
+          };
         };
 
-        rosEnvRcl = pkgs.rosPackages.${rosDistro}.buildEnv {
-          paths = rosDeps.rcl;
-        };
-
-        rosEnvMsgs = pkgs.rosPackages.${rosDistro}.buildEnv {
-          paths = rosDeps.messages;
-        };
-
-        # Build dependencies: union of what rcl-z and ros-z-msgs need
-        rosEnvBuild = pkgs.rosPackages.${rosDistro}.buildEnv {
-          paths = rosDeps.rcl ++ rosDeps.messages;
-        };
-
-        # Common build inputs shared across shells
+        # Common build tools
         commonBuildInputs = with pkgs; [
           rustToolchain
-          cargo-edit
-          cargo-watch
           sccache
           clang
           llvmPackages.libclang
           llvmPackages.bintools
           pkg-config
           nushell
+          protobuf
         ];
 
-        # Common environment variables
+        # Development tools
+        devTools = with pkgs; [
+          cargo-edit
+          cargo-watch
+          clang-tools
+          rust-analyzer
+          nixfmt-rfc-style
+        ];
+
+        # Environment variables for Rust/C++ interop
         commonEnvVars = {
           LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
           CLANG_PATH = "${pkgs.llvmPackages.clang}/bin/clang";
@@ -117,197 +120,152 @@
           RUSTC_WRAPPER = "${pkgs.sccache}/bin/sccache";
         };
 
-        # Shell hook generator
+        # Export environment variables as shell commands
+        exportEnvVars = pkgs.lib.concatStringsSep "\n" (
+          pkgs.lib.mapAttrsToList (name: value: "export ${name}=\"${value}\"") commonEnvVars
+        );
+
+        # Banner text for development shell
+        bannerText = ''
+          echo "🦀 ros-z development environment"
+          echo "ROS 2 Distribution: ${rosDistro}"
+          echo "RMW Implementation: rmw_zenoh_cpp"
+          echo "Rust: $(rustc --version)"
+          echo "sccache: enabled"
+          echo ""
+          echo "Workspace members:"
+          echo "  ros-z         - Core (no ROS deps)"
+          echo "  rcl-z         - RCL bindings (needs rcl)"
+          echo "  ros-z-codegen - Code generation"
+          echo "  ros-z-msgs    - Message definitions (needs ROS messages)"
+          echo ""
+          echo "Available commands:"
+          echo "  cargo build -p ros-z           - Build core (no ROS deps)"
+          echo "  cargo build -p rcl-z           - Build RCL bindings"
+          echo "  cargo build -p ros-z-msgs      - Build messages"
+          echo "  cargo build                    - Build all members"
+          echo "  cargo test                     - Run tests"
+          echo "  cargo check --all-features     - Check all features"
+          echo "  cargo clippy                   - Run linter"
+          echo "  nu scripts/interop.nu          - Run interop tests"
+          echo "  nix fmt                        - Format flake"
+          echo "  sccache --show-stats           - Show cache statistics"
+        '';
+
+        # Generate shell hook with optional banner
         mkShellHook =
           { showBanner ? true }:
-          ''
-            ${pkgs.lib.concatStringsSep "\n" (
-              pkgs.lib.mapAttrsToList (name: value: "export ${name}=\"${value}\"") commonEnvVars
-            )}
+          exportEnvVars + pkgs.lib.optionalString showBanner ("\n" + bannerText);
 
-            ${pkgs.lib.optionalString showBanner ''
-              echo "🦀 ros-z development environment"
-              echo "ROS 2 Distribution: ${rosDistro}"
-              echo "RMW Implementation: rmw_zenoh_cpp"
-              echo "Rust: $(rustc --version)"
-              echo "sccache: enabled"
-              echo ""
-              echo "Workspace members:"
-              echo "  ros-z         - Core (no ROS deps)"
-              echo "  rcl-z         - RCL bindings (needs rcl)"
-              echo "  ros-z-codegen - Code generation"
-              echo "  ros-z-msgs    - Message definitions (needs ROS messages)"
-              echo ""
-              echo "Available commands:"
-              echo "  cargo build -p ros-z           - Build core (no ROS deps)"
-              echo "  cargo build -p rcl-z           - Build RCL bindings"
-              echo "  cargo build -p ros-z-msgs      - Build messages"
-              echo "  cargo build                    - Build all members"
-              echo "  cargo test                     - Run tests"
-              echo "  cargo check --all-features     - Check all features"
-              echo "  cargo clippy                   - Run linter"
-              echo "  nu scripts/interop.nu          - Run interop tests"
-              echo "  nix fmt                        - Format flake"
-              echo "  sccache --show-stats           - Show cache statistics"
-            ''}
-          '';
+        # Base shell configuration factory
+        mkDevShell =
+          {
+            name,
+            packages,
+            showBanner ? true,
+          }:
+          pkgs.mkShell {
+            inherit name packages;
+            shellHook = mkShellHook { inherit showBanner; };
+            hardeningDisable = [ "all" ];
+          };
 
-        # Read Cargo.toml metadata
+        # Cargo metadata
         cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+
+        # Common package attributes factory
+        mkRustPackage =
+          {
+            pname,
+            buildAndTestSubdir ? null,
+            rosInputs ? [ ],
+            description,
+          }:
+          pkgs.rustPlatform.buildRustPackage {
+            inherit pname;
+            version = cargoToml.workspace.package.version;
+            src = ./.;
+            inherit buildAndTestSubdir;
+
+            cargoLock = {
+              lockFile = ./Cargo.lock;
+            };
+
+            nativeBuildInputs = commonBuildInputs;
+            buildInputs = rosInputs;
+
+            inherit (commonEnvVars) LIBCLANG_PATH CLANG_PATH RUSTC_WRAPPER;
+
+            meta = with pkgs.lib; {
+              inherit description;
+              homepage = cargoToml.workspace.package.homepage;
+              license = licenses.asl20;
+              maintainers = [ ];
+            };
+          };
       in
       {
-        # Default development shell - includes everything for all workspace members
-        devShells.default = pkgs.mkShell {
-          name = "ros-z-dev";
+        # Development shells
+        devShells = {
+          default = mkDevShell {
+            name = "ros-z-dev";
+            packages = commonBuildInputs ++ devTools ++ [ rosEnv.dev ];
+          };
 
-          packages =
-            commonBuildInputs
-            ++ (with pkgs; [
-              clang-tools
-              rust-analyzer
-              nixfmt-rfc-style
-            ])
-            ++ [ rosEnvDev ];
+          noBanner = mkDevShell {
+            name = "ros-z-dev";
+            packages = commonBuildInputs ++ devTools ++ [ rosEnv.dev ];
+            showBanner = false;
+          };
 
-          shellHook = mkShellHook { showBanner = true; };
+          ci = mkDevShell {
+            name = "ros-z-ci";
+            packages = commonBuildInputs ++ [ rosEnv.build ];
+            showBanner = false;
+          };
 
-          hardeningDisable = [ "all" ];
+          minimal = pkgs.mkShell {
+            name = "ros-z-minimal";
+            packages = commonBuildInputs ++ devTools;
+            shellHook = ''
+              ${exportEnvVars}
+              echo "🦀 ros-z minimal environment (no ROS dependencies)"
+              echo "Rust: $(rustc --version)"
+            '';
+            hardeningDisable = [ "all" ];
+          };
         };
 
-        # CI shell - includes only build dependencies
-        devShells.ci = pkgs.mkShell {
-          name = "ros-z-ci";
-
-          packages = commonBuildInputs ++ [ rosEnvBuild ];
-
-          shellHook = mkShellHook { showBanner = false; };
-
-          hardeningDisable = [ "all" ];
-        };
-
-        # Minimal shell - no ROS dependencies (for ros-z core development)
-        devShells.minimal = pkgs.mkShell {
-          name = "ros-z-minimal";
-
-          packages =
-            commonBuildInputs
-            ++ (with pkgs; [
-              clang-tools
-              rust-analyzer
-              nixfmt-rfc-style
-            ]);
-
-          shellHook = ''
-            ${pkgs.lib.concatStringsSep "\n" (
-              pkgs.lib.mapAttrsToList (name: value: "export ${name}=\"${value}\"") commonEnvVars
-            )}
-            echo "🦀 ros-z minimal environment (no ROS dependencies)"
-            echo "Rust: $(rustc --version)"
-          '';
-
-          hardeningDisable = [ "all" ];
-        };
-
-        # Formatter for `nix fmt`
-        formatter = pkgs.nixfmt-rfc-style;
-
-        # Multiple package outputs for different workspace members
+        # Package outputs
         packages = {
-          # ros-z core - no ROS dependencies
-          ros-z = pkgs.rustPlatform.buildRustPackage {
+          ros-z = mkRustPackage {
             pname = "ros-z";
-            version = cargoToml.workspace.package.version;
-            src = ./.;
             buildAndTestSubdir = "ros-z";
-
-            cargoLock = {
-              lockFile = ./Cargo.lock;
-            };
-
-            nativeBuildInputs = commonBuildInputs;
-            # No ROS buildInputs for ros-z core
-
-            inherit (commonEnvVars) LIBCLANG_PATH CLANG_PATH RUSTC_WRAPPER;
-
-            meta = with pkgs.lib; {
-              description = "Native Rust ROS 2 implementation using Zenoh - Core";
-              homepage = cargoToml.workspace.package.homepage;
-              license = licenses.asl20;
-              maintainers = [ ];
-            };
+            description = "Native Rust ROS 2 implementation using Zenoh - Core";
           };
 
-          # rcl-z - needs RCL packages
-          rcl-z = pkgs.rustPlatform.buildRustPackage {
+          rcl-z = mkRustPackage {
             pname = "rcl-z";
-            version = cargoToml.workspace.package.version;
-            src = ./.;
             buildAndTestSubdir = "rcl-z";
-
-            cargoLock = {
-              lockFile = ./Cargo.lock;
-            };
-
-            nativeBuildInputs = commonBuildInputs;
-            buildInputs = [ rosEnvRcl ];
-
-            inherit (commonEnvVars) LIBCLANG_PATH CLANG_PATH RUSTC_WRAPPER;
-
-            meta = with pkgs.lib; {
-              description = "Native Rust ROS 2 implementation using Zenoh - RCL Bindings";
-              homepage = cargoToml.workspace.package.homepage;
-              license = licenses.asl20;
-              maintainers = [ ];
-            };
+            rosInputs = [ rosEnv.rcl ];
+            description = "Native Rust ROS 2 implementation using Zenoh - RCL Bindings";
           };
 
-          # ros-z-msgs - needs message packages
-          ros-z-msgs = pkgs.rustPlatform.buildRustPackage {
+          ros-z-msgs = mkRustPackage {
             pname = "ros-z-msgs";
-            version = cargoToml.workspace.package.version;
-            src = ./.;
             buildAndTestSubdir = "ros-z-msgs";
-
-            cargoLock = {
-              lockFile = ./Cargo.lock;
-            };
-
-            nativeBuildInputs = commonBuildInputs;
-            buildInputs = [ rosEnvMsgs ];
-
-            inherit (commonEnvVars) LIBCLANG_PATH CLANG_PATH RUSTC_WRAPPER;
-
-            meta = with pkgs.lib; {
-              description = "Native Rust ROS 2 implementation using Zenoh - Message Definitions";
-              homepage = cargoToml.workspace.package.homepage;
-              license = licenses.asl20;
-              maintainers = [ ];
-            };
+            rosInputs = [ rosEnv.msgs ];
+            description = "Native Rust ROS 2 implementation using Zenoh - Message Definitions";
           };
 
-          # Default: build everything with all dependencies
-          default = pkgs.rustPlatform.buildRustPackage {
+          default = mkRustPackage {
             pname = "ros-z";
-            version = cargoToml.workspace.package.version;
-            src = ./.;
-
-            cargoLock = {
-              lockFile = ./Cargo.lock;
-            };
-
-            nativeBuildInputs = commonBuildInputs;
-            buildInputs = [ rosEnvBuild ];
-
-            inherit (commonEnvVars) LIBCLANG_PATH CLANG_PATH RUSTC_WRAPPER;
-
-            meta = with pkgs.lib; {
-              description = cargoToml.workspace.package.description;
-              homepage = cargoToml.workspace.package.homepage;
-              license = licenses.asl20;
-              maintainers = [ ];
-            };
+            rosInputs = [ rosEnv.build ];
+            description = cargoToml.workspace.package.description;
           };
         };
+
+        formatter = pkgs.nixfmt-rfc-style;
       }
     );
 
