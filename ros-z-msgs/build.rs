@@ -42,25 +42,26 @@ fn discover_ros_packages() -> Result<Vec<PathBuf>> {
     let mut ros_packages = Vec::new();
 
     // Determine packages to discover based on enabled features
-    let mut package_names = Vec::new();
+    let package_names = {
+        let mut names = vec!["builtin_interfaces"];
 
-    // builtin_interfaces is always needed as a dependency for other message types
-    package_names.push("builtin_interfaces");
+        #[cfg(feature = "std_msgs")]
+        names.push("std_msgs");
 
-    #[cfg(feature = "std_msgs")]
-    package_names.push("std_msgs");
+        #[cfg(feature = "geometry_msgs")]
+        names.push("geometry_msgs");
 
-    #[cfg(feature = "geometry_msgs")]
-    package_names.push("geometry_msgs");
+        #[cfg(feature = "sensor_msgs")]
+        names.push("sensor_msgs");
 
-    #[cfg(feature = "sensor_msgs")]
-    package_names.push("sensor_msgs");
+        #[cfg(feature = "nav_msgs")]
+        names.push("nav_msgs");
 
-    #[cfg(feature = "nav_msgs")]
-    package_names.push("nav_msgs");
+        #[cfg(feature = "example_interfaces")]
+        names.push("example_interfaces");
 
-    #[cfg(feature = "example_interfaces")]
-    package_names.push("example_interfaces");
+        names
+    };
 
     // Try to find packages using standard ROS 2 discovery mechanisms
     // 1. Check AMENT_PREFIX_PATH (standard ROS 2 environment variable)
@@ -77,8 +78,8 @@ fn discover_ros_packages() -> Result<Vec<PathBuf>> {
     }
 
     // 2. Check CMAKE_PREFIX_PATH (also commonly set in ROS 2)
-    if ros_packages.is_empty() {
-        if let Ok(cmake_prefix_path) = env::var("CMAKE_PREFIX_PATH") {
+    if ros_packages.is_empty()
+        && let Ok(cmake_prefix_path) = env::var("CMAKE_PREFIX_PATH") {
             for prefix in cmake_prefix_path.split(':') {
                 let prefix_path = PathBuf::from(prefix);
                 for package_name in &package_names {
@@ -89,7 +90,6 @@ fn discover_ros_packages() -> Result<Vec<PathBuf>> {
                 }
             }
         }
-    }
 
     // 3. Check common ROS 2 installation paths
     if ros_packages.is_empty() {

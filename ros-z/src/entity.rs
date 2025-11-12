@@ -6,11 +6,11 @@ use zenoh::{Result, key_expr::KeyExpr, session::ZenohId};
 use crate::{attachment::GidArray, qos::QosProfile};
 use sha2::Digest;
 
-const EMPTY_NAMESPACE: &'static str = "%";
-const EMPTY_ENCLAVE: &'static str = "%";
-const EMPTY_TOPIC_TYPE: &'static str = "EMPTY_TOPIC_TYPE";
-const EMPTY_TOPIC_HASH: &'static str = "EMPTY_TOPIC_HASH";
-pub const ADMIN_SPACE: &'static str = "@ros2_lv";
+const EMPTY_NAMESPACE: &str = "%";
+const EMPTY_ENCLAVE: &str = "%";
+const EMPTY_TOPIC_TYPE: &str = "EMPTY_TOPIC_TYPE";
+const EMPTY_TOPIC_HASH: &str = "EMPTY_TOPIC_HASH";
+pub const ADMIN_SPACE: &str = "@ros2_lv";
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct LivelinessKE(pub KeyExpr<'static>);
@@ -124,8 +124,8 @@ impl TypeHash {
     }
 
     pub fn from_rihs_string(rihs_str: &str) -> Option<Self> {
-        if let Some(hex_part) = rihs_str.strip_prefix("RIHS01_") {
-            if hex_part.len() == 64 {
+        if let Some(hex_part) = rihs_str.strip_prefix("RIHS01_")
+            && hex_part.len() == 64 {
                 let mut hash_bytes = [0u8; 32];
                 for (i, chunk) in hex_part.as_bytes().chunks(2).enumerate() {
                     if i < 32 {
@@ -143,7 +143,6 @@ impl TypeHash {
                     value: hash_bytes,
                 });
             }
-        }
         None
     }
 
@@ -434,7 +433,7 @@ impl TryFrom<&LivelinessKE> for Entity {
                     }
                 };
                 let qos = QosProfile::decode(iter.next().ok_or(MissingTopicQoS)?)
-                    .map_err(|e| QosDecodeError(e))?;
+                    .map_err(QosDecodeError)?;
                 Entity::Endpoint(EndpointEntity {
                     id: entity_id,
                     node,
