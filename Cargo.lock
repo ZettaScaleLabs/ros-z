@@ -2391,6 +2391,7 @@ dependencies = [
 [[package]]
 name = "roslibrust"
 version = "0.16.0"
+source = "git+https://github.com/YuanYuYuan/roslibrust?branch=dev%2Fros-z#7b56d91be872cf62323a413ceb6e0308d7eb4781"
 dependencies = [
  "roslibrust_codegen",
  "roslibrust_common",
@@ -2399,6 +2400,7 @@ dependencies = [
 [[package]]
 name = "roslibrust_codegen"
 version = "0.16.0"
+source = "git+https://github.com/YuanYuYuan/roslibrust?branch=dev%2Fros-z#7b56d91be872cf62323a413ceb6e0308d7eb4781"
 dependencies = [
  "anyhow",
  "hex",
@@ -2423,6 +2425,7 @@ dependencies = [
 [[package]]
 name = "roslibrust_common"
 version = "0.16.0"
+source = "git+https://github.com/YuanYuYuan/roslibrust?branch=dev%2Fros-z#7b56d91be872cf62323a413ceb6e0308d7eb4781"
 dependencies = [
  "anyhow",
  "async-stream",
