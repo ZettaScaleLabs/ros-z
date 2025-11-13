@@ -1,7 +1,6 @@
-use zenoh::Result;
 use std::ffi::CStr;
 use std::ffi::c_char;
-
+use zenoh::Result;
 
 /// Safely converts a C string pointer to a Rust `&str`.
 ///
@@ -44,7 +43,7 @@ pub struct Notifier {
 
 impl Notifier {
     pub fn notify_all(&self) {
-        let _ = self.mutex.lock();
+        std::mem::drop(self.mutex.lock());
         self.cv.notify_all();
     }
 }
@@ -69,7 +68,7 @@ impl Notifier {
 #[macro_export]
 macro_rules! impl_has_impl_ptr {
     ($ctype:ty, $cimpl_type:ty, $impl_type:ty) => {
-        impl crate::traits::HasImplPtr for $ctype {
+        impl $crate::traits::HasImplPtr for $ctype {
             type ImplType = $impl_type;
             type CImplType = $cimpl_type;
             fn get_impl(&self) -> *mut Self::CImplType {

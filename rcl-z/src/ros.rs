@@ -1,5 +1,6 @@
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals, unused)]
 
+#[allow(clippy::upper_case_acronyms)]
 #[repr(u32)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, strum::FromRepr)]
 pub enum rmw_qos_reliability_policy_e {
@@ -11,6 +12,7 @@ pub enum rmw_qos_reliability_policy_e {
 }
 pub use self::rmw_qos_reliability_policy_e as rmw_qos_reliability_policy_t;
 
+#[allow(clippy::upper_case_acronyms)]
 #[repr(u32)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, strum::FromRepr)]
 pub enum rmw_qos_history_policy_e {
@@ -21,6 +23,7 @@ pub enum rmw_qos_history_policy_e {
 }
 pub use self::rmw_qos_history_policy_e as rmw_qos_history_policy_t;
 
+#[allow(clippy::upper_case_acronyms)]
 #[repr(u32)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, strum::FromRepr)]
 pub enum rmw_qos_durability_policy_e {
@@ -32,6 +35,7 @@ pub enum rmw_qos_durability_policy_e {
 }
 pub use self::rmw_qos_durability_policy_e as rmw_qos_durability_policy_t;
 
+#[allow(clippy::upper_case_acronyms)]
 #[repr(u32)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, strum::FromRepr)]
 pub enum rmw_qos_liveliness_policy_e {

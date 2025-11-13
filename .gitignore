@@ -1,3 +1,5 @@
-/target
+.envrc
+.direnv
+target
 compile_commands.json
 _*

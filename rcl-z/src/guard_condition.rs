@@ -25,7 +25,7 @@ impl GuardConditionImpl {
             .notifier
             .as_ref()
             .expect("GuardConditionImpl has no Notifier");
-        let _ = notifier.mutex.lock();
+        std::mem::drop(notifier.mutex.lock());
         self.triggered = true;
         notifier.cv.notify_all();
     }
@@ -44,10 +44,10 @@ impl_has_impl_ptr!(
 impl rcl_guard_condition_t {
     fn new() -> Self {
         let gc_impl = GuardConditionImpl::default();
-        let mut gc = Self::default();
-
-        gc.impl_ = Box::into_raw(Box::new(gc_impl)) as _;
-        gc
+        Self {
+            impl_: Box::into_raw(Box::new(gc_impl)) as _,
+            ..Default::default()
+        }
     }
 }
 
@@ -58,7 +58,7 @@ pub extern "C" fn rcl_get_zero_initialized_guard_condition() -> rcl_guard_condit
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_guard_condition_init(
+pub unsafe extern "C" fn rcl_guard_condition_init(
     guard_condition: *mut rcl_guard_condition_t,
     context: *mut rcl_context_t,
     _options: rcl_guard_condition_options_t,

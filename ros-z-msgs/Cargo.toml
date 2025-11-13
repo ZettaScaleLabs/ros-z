@@ -1,0 +1,36 @@
+[package]
+name = "ros-z-msgs"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+ros-z = { path = "../ros-z", default-features = false }
+serde = { workspace = true }
+serde_bytes = { workspace = true }
+# Required by roslibrust-generated code
+roslibrust = { workspace = true, features = ["codegen"] }
+roslibrust_codegen = { workspace = true }
+smart-default = { workspace = true }
+serde-big-array = { workspace = true }
+
+prost = { workspace = true, optional = true }
+
+[dev-dependencies]
+cdr = { workspace = true }
+
+[build-dependencies]
+ros-z-codegen = { version = "0.1", path = "../ros-z-codegen" }
+anyhow = { workspace = true }
+glob = { workspace = true }
+
+[features]
+default = ["common_interfaces"]
+common_interfaces = ["std_msgs", "geometry_msgs", "sensor_msgs", "example_interfaces"]
+std_msgs = []
+geometry_msgs = ["std_msgs"]
+sensor_msgs = ["std_msgs"]
+nav_msgs = ["std_msgs", "geometry_msgs"]
+example_interfaces = []
+# ... more ROS packages
+
+protobuf = ["prost", "ros-z-codegen/protobuf"]

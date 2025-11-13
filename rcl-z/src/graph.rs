@@ -10,7 +10,7 @@ use crate::ros::*;
 use crate::traits::{BorrowImpl, OwnImpl};
 use crate::utils::str_from_ptr;
 use ros_z::entity::{EndpointEntity, EntityKind, NodeKey};
-use ros_z::qos::{QosProfile, QosReliability, QosDurability, QosHistory};
+use ros_z::qos::{QosDurability, QosHistory, QosProfile, QosReliability};
 
 impl TryFrom<EndpointEntity> for rmw_topic_endpoint_info_t {
     type Error = NulError;
@@ -23,7 +23,7 @@ impl TryFrom<EndpointEntity> for rmw_topic_endpoint_info_t {
         };
         let topic_type = match &value.type_info {
             Some(info) => CString::from_str(&info.name)?.into_raw(),
-            None => std::ptr::null()
+            None => std::ptr::null(),
         };
 
         // Convert TypeHash to rosidl_type_hash_t
@@ -35,7 +35,7 @@ impl TryFrom<EndpointEntity> for rmw_topic_endpoint_info_t {
             None => rosidl_type_hash_t {
                 version: 0,
                 value: [0u8; 32],
-            }
+            },
         };
 
         // Convert EntityKind to rmw_endpoint_type_t
@@ -65,8 +65,7 @@ impl TryFrom<EndpointEntity> for rmw_topic_endpoint_info_t {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_get_zero_initialized_names_and_types() -> rcl_names_and_types_t {
-    let x = rcl_names_and_types_t::default();
-    x
+    rcl_names_and_types_t::default()
 }
 
 // impl TryFrom<EndpointEntity> for rcl_names_and_types_t {
@@ -164,7 +163,7 @@ impl rcl_names_and_types_t {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_get_topic_names_and_types(
+pub unsafe extern "C" fn rcl_get_topic_names_and_types(
     node: *const rcl_node_t,
     _allocator: *mut rcl_allocator_t,
     _no_demangle: bool,
@@ -194,7 +193,7 @@ pub extern "C" fn rcl_get_topic_names_and_types(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_names_and_types_fini(
+pub unsafe extern "C" fn rcl_names_and_types_fini(
     topic_names_and_types: *mut rcl_names_and_types_t,
 ) -> rcl_ret_t {
     tracing::error!("rcl_names_and_types_fini");
@@ -207,7 +206,7 @@ pub extern "C" fn rcl_names_and_types_fini(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_get_service_names_and_types(
+pub unsafe extern "C" fn rcl_get_service_names_and_types(
     node: *const rcl_node_t,
     _allocator: *mut rcl_allocator_t,
     service_names_and_types: *mut rcl_names_and_types_t,
@@ -242,7 +241,11 @@ fn rcl_get_names_and_types_by_node_impl(
     names_and_types: *mut rcl_names_and_types_t,
     kind: EntityKind,
 ) -> rcl_ret_t {
-    if node.is_null() || remote_node_name.is_null() || remote_node_namespace.is_null() || names_and_types.is_null() {
+    if node.is_null()
+        || remote_node_name.is_null()
+        || remote_node_namespace.is_null()
+        || names_and_types.is_null()
+    {
         return RCL_RET_INVALID_ARGUMENT as _;
     }
 
@@ -250,23 +253,25 @@ fn rcl_get_names_and_types_by_node_impl(
         Ok(impl_) => impl_,
         Err(_) => return RCL_RET_INVALID_ARGUMENT as _,
     };
-    
+
     let remote_name = match str_from_ptr(remote_node_name) {
         Ok(s) => s,
         Err(_) => return RCL_RET_INVALID_ARGUMENT as _,
     };
-    
+
     let remote_namespace = match str_from_ptr(remote_node_namespace) {
         Ok(s) => s,
         Err(_) => return RCL_RET_INVALID_ARGUMENT as _,
     };
-    
+
     let remote_node_key = (remote_namespace.to_string(), remote_name.to_string());
-    let data = node_impl.graph().get_names_and_types_by_node(remote_node_key, kind);
-    
+    let data = node_impl
+        .graph()
+        .get_names_and_types_by_node(remote_node_key, kind);
+
     let mut names = Vec::new();
     let mut types = Vec::new();
-    
+
     for (name, type_name) in data {
         names.push(CString::from_str(&name).unwrap());
         types.push(CString::from_str(&type_name).unwrap());
@@ -288,7 +293,13 @@ pub extern "C" fn rcl_get_subscriber_names_and_types_by_node(
     remote_node_namespace: *const ::std::os::raw::c_char,
     subscriber_names_and_types: *mut rcl_names_and_types_t,
 ) -> rcl_ret_t {
-    rcl_get_names_and_types_by_node_impl(node, remote_node_name, remote_node_namespace, subscriber_names_and_types, EntityKind::Subscription)
+    rcl_get_names_and_types_by_node_impl(
+        node,
+        remote_node_name,
+        remote_node_namespace,
+        subscriber_names_and_types,
+        EntityKind::Subscription,
+    )
 }
 
 #[unsafe(no_mangle)]
@@ -300,18 +311,30 @@ pub extern "C" fn rcl_get_publisher_names_and_types_by_node(
     remote_node_namespace: *const ::std::os::raw::c_char,
     publisher_names_and_types: *mut rcl_names_and_types_t,
 ) -> rcl_ret_t {
-    rcl_get_names_and_types_by_node_impl(node, remote_node_name, remote_node_namespace, publisher_names_and_types, EntityKind::Publisher)
+    rcl_get_names_and_types_by_node_impl(
+        node,
+        remote_node_name,
+        remote_node_namespace,
+        publisher_names_and_types,
+        EntityKind::Publisher,
+    )
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_get_service_names_and_types_by_node(
+pub unsafe extern "C" fn rcl_get_service_names_and_types_by_node(
     node: *const rcl_node_t,
     _allocator: *mut rcl_allocator_t,
     remote_node_name: *const ::std::os::raw::c_char,
     remote_node_namespace: *const ::std::os::raw::c_char,
     service_names_and_types: *mut rcl_names_and_types_t,
 ) -> rcl_ret_t {
-    rcl_get_names_and_types_by_node_impl(node, remote_node_name, remote_node_namespace, service_names_and_types, EntityKind::Service)
+    rcl_get_names_and_types_by_node_impl(
+        node,
+        remote_node_name,
+        remote_node_namespace,
+        service_names_and_types,
+        EntityKind::Service,
+    )
 }
 
 #[unsafe(no_mangle)]
@@ -322,7 +345,13 @@ pub extern "C" fn rcl_get_client_names_and_types_by_node(
     remote_node_namespace: *const ::std::os::raw::c_char,
     client_names_and_types: *mut rcl_names_and_types_t,
 ) -> rcl_ret_t {
-    rcl_get_names_and_types_by_node_impl(node, remote_node_name, remote_node_namespace, client_names_and_types, EntityKind::Client)
+    rcl_get_names_and_types_by_node_impl(
+        node,
+        remote_node_name,
+        remote_node_namespace,
+        client_names_and_types,
+        EntityKind::Client,
+    )
 }
 
 #[unsafe(no_mangle)]
@@ -344,7 +373,12 @@ pub extern "C" fn rcl_get_subscriptions_info_by_topic(
     _no_mangle: bool,
     subscriptions_info: *mut rcl_topic_endpoint_info_array_t,
 ) -> rcl_ret_t {
-    rcl_get_entities_info_by_topic(node, topic_name, subscriptions_info, EntityKind::Subscription)
+    rcl_get_entities_info_by_topic(
+        node,
+        topic_name,
+        subscriptions_info,
+        EntityKind::Subscription,
+    )
 }
 
 fn rcl_get_entities_info_by_topic(
@@ -368,9 +402,7 @@ fn rcl_get_entities_info_by_topic(
     };
 
     // Get entities by topic
-    let entities = node_impl
-        .graph()
-        .get_entities_by_topic(kind, topic);
+    let entities = node_impl.graph().get_entities_by_topic(kind, topic);
 
     // Convert EndpointEntity to rmw_topic_endpoint_info_t
     let mut endpoint_infos = Vec::new();
@@ -437,7 +469,6 @@ pub extern "C" fn rcl_count_publishers(
 ) -> rcl_ret_t {
     rcl_count_entities(node, topic_name, count, EntityKind::Publisher)
 }
-
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_count_subscribers(

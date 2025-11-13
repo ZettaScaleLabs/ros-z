@@ -1,11 +1,6 @@
-use std::{sync::Arc};
+use std::sync::Arc;
 
-use crate::{
-    c_void,
-    ros::*,
-    utils::{Notifier },
-    traits::Waitable,
-};
+use crate::{c_void, traits::Waitable, utils::Notifier};
 
 use ros_z::{
     attachment::{Attachment, GidArray},
@@ -19,7 +14,7 @@ use crate::{
     rclz_try,
     ros::*,
     traits::{BorrowImpl, OwnImpl},
-    type_support::{ServiceTypeSupport},
+    type_support::ServiceTypeSupport,
 };
 
 pub struct ClientImpl {
@@ -34,12 +29,12 @@ pub struct ServiceImpl {
 }
 
 impl ServiceImpl {
-    pub fn take_request(&mut self, ros_request: *mut c_void) -> Result<RequestId> {
+    pub unsafe fn take_request(&mut self, ros_request: *mut c_void) -> Result<RequestId> {
         let query = self.inner.take_query().unwrap();
 
         let attachment: Attachment = query.attachment().unwrap().try_into().unwrap();
-        let gid = attachment.source_gid.clone();
-        let sn = attachment.sequence_number.clone();
+        let gid = attachment.source_gid;
+        let sn = attachment.sequence_number;
         let key: QueryKey = attachment.into();
         if self.inner.map.contains_key(&key) {
             tracing::error!("Existing query detected");
@@ -47,15 +42,17 @@ impl ServiceImpl {
         }
 
         let bytes = query.payload().unwrap().to_bytes();
-        self.ts
-            .request
-            .deserialize_message(&bytes.to_vec(), ros_request);
+        unsafe {
+            self.ts
+                .request
+                .deserialize_message(&bytes.to_vec(), ros_request);
+        }
         self.inner.map.insert(key.clone(), query);
 
         Ok(RequestId { sn, gid })
     }
 
-    pub fn send_response(
+    pub unsafe fn send_response(
         &mut self,
         ros_response: *mut c_void,
         request_id: *mut rmw_request_id_t,
@@ -74,7 +71,7 @@ impl ServiceImpl {
 
 impl Waitable for ServiceImpl {
     fn is_ready(&self) -> bool {
-        self.inner.rx.len() > 0
+        !self.inner.rx.is_empty()
     }
 }
 
@@ -93,13 +90,15 @@ impl ClientImpl {
         self.inner.rcl_send_request(&req, notify)
     }
 
-    pub fn take_response(&self, ros_response: *mut c_void) -> Result<RequestId> {
+    pub unsafe fn take_response(&self, ros_response: *mut c_void) -> Result<RequestId> {
         let sample = self.inner.take_sample()?;
         let attachment: Attachment = sample.attachment().unwrap().try_into()?;
         let bytes = sample.payload().to_bytes();
-        self.ts
-            .response
-            .deserialize_message(&bytes.to_vec(), ros_response);
+        unsafe {
+            self.ts
+                .response
+                .deserialize_message(&bytes.to_vec(), ros_response);
+        }
         Ok(RequestId {
             sn: attachment.sequence_number,
             gid: attachment.source_gid,
@@ -109,7 +108,7 @@ impl ClientImpl {
 
 impl Waitable for ClientImpl {
     fn is_ready(&self) -> bool {
-        self.inner.rx.len() > 0
+        !self.inner.rx.is_empty()
     }
 }
 
@@ -117,7 +116,8 @@ impl_has_impl_ptr!(rcl_client_t, rcl_client_impl_t, ClientImpl);
 impl_has_impl_ptr!(rcl_service_t, rcl_service_impl_t, ServiceImpl);
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_client_init(
+#[allow(unsafe_op_in_unsafe_fn)]
+pub unsafe extern "C" fn rcl_client_init(
     client: *mut rcl_client_t,
     node: *const rcl_node_t,
     type_support: *const rosidl_service_type_support_t,
@@ -127,15 +127,15 @@ pub extern "C" fn rcl_client_init(
     tracing::trace!("rcl_client_init");
 
     let x = move || {
-        let cli_impl = node
-            .borrow_impl()?
-            .new_client(type_support, service_name, _options)?;
+        let cli_impl = unsafe {
+            node.borrow_impl()?
+                .new_client(type_support, service_name, _options)?
+        };
         client.assign_impl(cli_impl)?;
         Result::Ok(())
     };
     rclz_try! { x()?; }
 }
-
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_client_fini(client: *mut rcl_client_t, _node: *mut rcl_node_t) -> rcl_ret_t {
@@ -145,7 +145,7 @@ pub extern "C" fn rcl_client_fini(client: *mut rcl_client_t, _node: *mut rcl_nod
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_send_request(
+pub unsafe extern "C" fn rcl_send_request(
     client: *const rcl_client_t,
     ros_request: *const c_void,
     sequence_number: *mut i64,
@@ -162,7 +162,8 @@ pub extern "C" fn rcl_send_request(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_take_response(
+#[allow(unsafe_op_in_unsafe_fn)]
+pub unsafe extern "C" fn rcl_take_response(
     client: *const rcl_client_t,
     request_header: *mut rmw_request_id_t,
     ros_response: *mut c_void,
@@ -179,22 +180,6 @@ pub extern "C" fn rcl_take_response(
     RCL_RET_OK as _
 }
 
-macro_rules! impl_trivial_ok_fn {
-    (
-        pub fn $fn_name:ident (
-            $( $arg_name:ident : $arg_ty:ty ),* $(,)?
-        ) -> $ret:ty ;
-    ) => {
-        #[unsafe(no_mangle)]
-        pub extern "C" fn $fn_name(
-            $( $arg_name : $arg_ty ),*
-        ) -> $ret {
-            tracing::trace!(stringify!($fn_name));
-            RCL_RET_OK as _
-        }
-    };
-}
-
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_take_request_with_info(
     _service: *const rcl_service_t,
@@ -206,7 +191,7 @@ pub extern "C" fn rcl_take_request_with_info(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_service_server_is_available(
+pub unsafe extern "C" fn rcl_service_server_is_available(
     _node: *const rcl_node_t,
     _client: *const rcl_client_t,
     is_available: *mut bool,
@@ -230,7 +215,7 @@ pub extern "C" fn rcl_node_type_description_service_handle_request(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_service_init(
+pub unsafe extern "C" fn rcl_service_init(
     service: *mut rcl_service_t,
     node: *const rcl_node_t,
     type_support: *const rosidl_service_type_support_t,
@@ -239,9 +224,10 @@ pub extern "C" fn rcl_service_init(
 ) -> rcl_ret_t {
     tracing::trace!("rcl_service_init: {service:?}");
     let x = move || {
-        let srv_impl = node
-            .borrow_impl()?
-            .new_service(type_support, service_name, _options)?;
+        let srv_impl = unsafe {
+            node.borrow_impl()?
+                .new_service(type_support, service_name, _options)
+        }?;
         service.assign_impl(srv_impl)?;
         Result::Ok(())
     };
@@ -249,14 +235,17 @@ pub extern "C" fn rcl_service_init(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_service_fini(service: *mut rcl_service_t, _node: *mut rcl_node_t) -> rcl_ret_t {
+pub extern "C" fn rcl_service_fini(
+    service: *mut rcl_service_t,
+    _node: *mut rcl_node_t,
+) -> rcl_ret_t {
     // Drop the data regardless of the pointer's condition.
     drop(service.own_impl());
     RCL_RET_OK as _
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_take_request(
+pub unsafe extern "C" fn rcl_take_request(
     service: *const rcl_service_t,
     request_header: *mut rmw_request_id_t,
     ros_request: *mut c_void,
@@ -265,7 +254,7 @@ pub extern "C" fn rcl_take_request(
 
     // Interior mutability is not allowed in Rust
     let x = (service as *mut rcl_service_t).borrow_mut_impl().unwrap();
-    let request_id = x.take_request(ros_request).unwrap();
+    let request_id = unsafe { x.take_request(ros_request).unwrap() };
     unsafe {
         (*request_header).sequence_number = request_id.sn;
         (*request_header).writer_guid = request_id.gid;
@@ -274,25 +263,25 @@ pub extern "C" fn rcl_take_request(
 }
 
 #[unsafe(no_mangle)]
-pub fn rcl_send_response(
+pub unsafe fn rcl_send_response(
     service: *const rcl_service_t,
     response_header: *mut rmw_request_id_t,
     ros_response: *mut c_void,
 ) -> rcl_ret_t {
     // Interior mutability is not allowed in Rust
     let x = (service as *mut rcl_service_t).borrow_mut_impl().unwrap();
-    x.send_response(ros_response, response_header).unwrap();
+    unsafe { x.send_response(ros_response, response_header).unwrap() };
     RCL_RET_OK as _
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_service_is_valid(service: *const rcl_service_t) -> bool {
-    service.borrow_impl().is_ok()
+pub extern "C" fn rcl_service_is_valid(_service: *const rcl_service_t) -> bool {
+    _service.borrow_impl().is_ok()
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_service_get_service_name(
-    service: *const rcl_service_t,
+    _service: *const rcl_service_t,
 ) -> *const ::std::os::raw::c_char {
     c"rcl_service_get_service_name not yet implemented".as_ptr()
 }

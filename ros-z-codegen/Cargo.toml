@@ -1,0 +1,20 @@
+[package]
+name = "ros-z-codegen"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+# Use local roslibrust for message parsing and code generation
+roslibrust_codegen = { workspace = true }
+# For code manipulation
+quote = { workspace = true }
+prost-build = { workspace = true, optional = true }
+syn = { workspace = true }
+proc-macro2 = { workspace = true }
+# For error handling
+anyhow = { workspace = true }
+
+[features]
+default = ["roslibrust", "protobuf"]
+roslibrust = []
+protobuf = ["prost-build"]

@@ -1,18 +1,20 @@
+pub mod attachment;
 pub mod context;
+pub mod entity;
+pub mod graph;
 pub mod msg;
 pub mod node;
 pub mod pubsub;
-pub mod service;
-pub mod ros_msg;
-pub mod entity;
-pub mod attachment;
 pub mod qos;
-pub mod graph;
+pub mod ros_msg;
+pub mod service;
 
-mod utils;
+#[macro_use]
+pub mod utils;
 
+pub use entity::{TypeHash, TypeInfo};
+pub use ros_msg::{MessageTypeInfo, ServiceTypeInfo, WithTypeInfo};
 pub use zenoh::Result;
-
 
 pub trait Builder {
     type Output;

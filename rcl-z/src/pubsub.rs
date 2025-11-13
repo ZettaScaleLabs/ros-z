@@ -21,7 +21,7 @@ use std::time::Duration;
 use zenoh::{Result, sample::Sample};
 
 pub struct PublisherImpl {
-    pub(crate) inner: ZPub<RosMessage>,
+    pub(crate) inner: ZPub<RosMessage, crate::msg::RosSerdes>,
     pub(crate) ts: MessageTypeSupport,
 }
 
@@ -39,14 +39,14 @@ impl PublisherImpl {
 }
 
 pub struct SubscriptionImpl {
-    pub(crate) inner: ZSub<RosMessage, Sample>,
+    pub(crate) inner: ZSub<RosMessage, Sample, crate::msg::RosSerdes>,
     pub(crate) topic: CString,
     pub(crate) ts: MessageTypeSupport,
 }
 
 impl Waitable for SubscriptionImpl {
     fn is_ready(&self) -> bool {
-        self.inner.queue.len() > 0
+        !self.inner.queue.is_empty()
     }
 }
 
@@ -58,7 +58,8 @@ impl_has_impl_ptr!(
 );
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_publisher_init(
+#[allow(unsafe_op_in_unsafe_fn)]
+pub unsafe extern "C" fn rcl_publisher_init(
     publisher: *mut rcl_publisher_t,
     node: *const rcl_node_t,
     type_support: *const rosidl_message_type_support_t,
@@ -90,7 +91,7 @@ pub extern "C" fn rcl_publish(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_publish_serialized_message(
+pub unsafe extern "C" fn rcl_publish_serialized_message(
     publisher: *const rcl_publisher_t,
     serialized_message: *const rcl_serialized_message_t,
     _allocation: *mut rmw_publisher_allocation_t,
@@ -105,12 +106,13 @@ pub extern "C" fn rcl_publish_serialized_message(
     rclz_try! {
         publisher
             .borrow_impl()?
-            .publish_serialized_message(&msg)?;
+            .publish_serialized_message(msg)?;
     }
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_subscription_init(
+#[allow(unsafe_op_in_unsafe_fn)]
+pub unsafe extern "C" fn rcl_subscription_init(
     subscription: *mut rcl_subscription_t,
     node: *const rcl_node_t,
     type_support: *const rosidl_message_type_support_t,
@@ -151,7 +153,7 @@ pub extern "C" fn rcl_subscription_fini(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_take(
+pub unsafe extern "C" fn rcl_take(
     subscription: *const rcl_subscription_t,
     ros_message: *mut crate::c_void,
     _message_info: *mut rmw_message_info_t,
@@ -164,8 +166,11 @@ pub extern "C" fn rcl_take(
     }
 
     unsafe {
-        let sub_impl = subscription.borrow_impl().unwrap();
-        let Ok(sample) = sub_impl.inner.recv() else {
+        let sub_impl = match subscription.borrow_impl() {
+            Ok(impl_) => impl_,
+            Err(_) => return RCL_RET_INVALID_ARGUMENT as _,
+        };
+        let Ok(sample) = sub_impl.inner.recv_serialized() else {
             return RCL_RET_ERROR as _;
         };
 
@@ -212,5 +217,8 @@ pub extern "C" fn rcl_subscription_can_loan_messages(
 pub extern "C" fn rcl_subscription_get_topic_name(
     subscription: *const rcl_subscription_t,
 ) -> *const ::std::os::raw::c_char {
-    subscription.borrow_impl().unwrap().topic.as_ptr()
+    match subscription.borrow_impl() {
+        Ok(impl_) => impl_.topic.as_ptr(),
+        Err(_) => std::ptr::null(),
+    }
 }

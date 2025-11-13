@@ -4,6 +4,7 @@ use std::{
     collections::HashMap,
     marker::PhantomData,
     sync::{Arc, atomic::AtomicUsize},
+    time::Duration,
 };
 
 use serde::Deserialize;
@@ -18,12 +19,12 @@ use zenoh::{
 use std::sync::atomic::Ordering::AcqRel;
 
 use crate::entity::TopicKE;
-use crate::impl_with_type_info;
 
 use crate::{
     Builder,
     attachment::{self, Attachment, GidArray},
     entity::EndpointEntity,
+    impl_with_type_info,
     msg::{CdrSerdes, ZMessage, ZService},
 };
 
@@ -90,12 +91,25 @@ where
         Ok(self.rx.recv()?)
     }
 
+    pub fn take_sample_timeout(&self, timeout: Duration) -> Result<Sample> {
+        Ok(self.rx.recv_timeout(timeout)?)
+    }
+
     // For ROS-Z
     pub fn take_response(&self) -> Result<T::Response>
     where
         for<'c> T::Response: ZMessage<Serdes = CdrSerdes<T::Response>> + Deserialize<'c>,
     {
         let sample = self.take_sample()?;
+        let msg = <T::Response as ZMessage>::deserialize(&sample.payload().to_bytes());
+        Ok(msg)
+    }
+
+    pub fn take_response_timeout(&self, timeout: Duration) -> Result<T::Response>
+    where
+        for<'c> T::Response: ZMessage<Serdes = CdrSerdes<T::Response>> + Deserialize<'c>,
+    {
+        let sample = self.take_sample_timeout(timeout)?;
         let msg = <T::Response as ZMessage>::deserialize(&sample.payload().to_bytes());
         Ok(msg)
     }
@@ -188,8 +202,11 @@ where
         let inner = self
             .session
             .declare_queryable(&key_expr)
+            .complete(true)
             .callback(move |query| {
-                let _ = tx.send(query);
+                tracing::error!("🔥 RECEIVED QUERY: {}", &query.key_expr());
+                tracing::error!("   Selector: {}", &query.selector());
+                assert!(tx.send(query).is_ok());
             })
             .wait()?;
         let lv_token = self
@@ -226,6 +243,7 @@ where
         let inner = self
             .session
             .declare_queryable(&key_expr)
+            .complete(true)
             .callback(move |query| {
                 let _ = tx.send(query);
                 notify();
@@ -325,10 +343,14 @@ where
     /// - `key` is the query key of the request to reply to and is obtained from [take_request](Self::take_request) or [take_request_async](Self::take_request_async)
     pub fn send_response(&mut self, msg: &T::Response, key: &QueryKey) -> Result<()> {
         match self.map.remove(key) {
-            Some(query) => query
-                .reply(&self.key_expr, msg.serialize())
-                .attachment(self.new_attchment())
-                .wait(),
+            Some(query) => {
+                // Use the sequence number and GID from the request
+                let attachment = Attachment::new(key.sn, key.gid);
+                query
+                    .reply(&self.key_expr, msg.serialize())
+                    .attachment(attachment)
+                    .wait()
+            }
             None => Err("Quey map doesn't contains {key}".into()),
         }
     }
@@ -340,9 +362,11 @@ where
     pub async fn send_response_async(&mut self, msg: &T::Response, key: &QueryKey) -> Result<()> {
         match self.map.remove(key) {
             Some(query) => {
+                // Use the sequence number and GID from the request
+                let attachment = Attachment::new(key.sn, key.gid);
                 query
                     .reply(&self.key_expr, msg.serialize())
-                    .attachment(self.new_attchment())
+                    .attachment(attachment)
                     .await
             }
             None => Err("Quey map doesn't contains {key}".into()),

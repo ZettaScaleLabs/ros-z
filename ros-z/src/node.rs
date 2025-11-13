@@ -8,8 +8,9 @@ use crate::{
     Builder,
     context::GlobalCounter,
     entity::*,
-    msg::ZMessage,
+    msg::{ZMessage, ZService},
     pubsub::{ZPubBuilder, ZSubBuilder},
+    ros_msg::{self, WithTypeInfo},
     service::{ZClientBuilder, ZServerBuilder},
 };
 
@@ -64,7 +65,20 @@ impl Builder for ZNodeBuilder {
 }
 
 impl ZNode {
+    /// Create a publisher for the given topic
+    /// If T implements WithTypeInfo, type information will be automatically populated
     pub fn create_pub<T>(&self, topic: &str) -> ZPubBuilder<T>
+    where
+        T: ZMessage + WithTypeInfo,
+    {
+        self.create_pub_impl(topic, Some(T::type_info()))
+    }
+
+    fn create_pub_impl<T>(
+        &self,
+        topic: &str,
+        type_info: Option<crate::entity::TypeInfo>,
+    ) -> ZPubBuilder<T>
     where
         T: ZMessage,
     {
@@ -73,7 +87,7 @@ impl ZNode {
             node: self.entity.clone(),
             topic: topic.to_string(),
             kind: EntityKind::Publisher,
-            type_info: None,
+            type_info,
             ..Default::default()
         };
         ZPubBuilder {
@@ -83,12 +97,26 @@ impl ZNode {
         }
     }
 
-    pub fn create_sub<T>(&self, topic: &str) -> ZSubBuilder<T> {
+    /// Create a subscriber for the given topic
+    /// If T implements WithTypeInfo, type information will be automatically populated
+    pub fn create_sub<T>(&self, topic: &str) -> ZSubBuilder<T>
+    where
+        T: WithTypeInfo,
+    {
+        self.create_sub_impl(topic, Some(T::type_info()))
+    }
+
+    fn create_sub_impl<T>(
+        &self,
+        topic: &str,
+        type_info: Option<crate::entity::TypeInfo>,
+    ) -> ZSubBuilder<T> {
         let entity = EndpointEntity {
             id: self.counter.increment(),
             node: self.entity.clone(),
             topic: topic.to_string(),
             kind: EntityKind::Subscription,
+            type_info,
             ..Default::default()
         };
         ZSubBuilder {
@@ -98,12 +126,26 @@ impl ZNode {
         }
     }
 
-    pub fn create_service<T>(&self, topic: &str) -> ZServerBuilder<T> {
+    /// Create a service for the given topic
+    /// If T is a tuple (Req, Resp) where both implement WithTypeInfo, type information will be automatically populated
+    pub fn create_service<T>(&self, topic: &str) -> ZServerBuilder<T>
+    where
+        T: ZService + ros_msg::ServiceTypeInfo,
+    {
+        self.create_service_impl(topic, Some(T::service_type_info()))
+    }
+
+    fn create_service_impl<T>(
+        &self,
+        topic: &str,
+        type_info: Option<crate::entity::TypeInfo>,
+    ) -> ZServerBuilder<T> {
         let entity = EndpointEntity {
             id: self.counter.increment(),
             node: self.entity.clone(),
             topic: topic.to_string(),
             kind: EntityKind::Service,
+            type_info,
             ..Default::default()
         };
         ZServerBuilder {
@@ -113,12 +155,26 @@ impl ZNode {
         }
     }
 
-    pub fn create_client<T>(&self, topic: &str) -> ZClientBuilder<T> {
+    /// Create a client for the given topic
+    /// If T is a tuple (Req, Resp) where both implement WithTypeInfo, type information will be automatically populated
+    pub fn create_client<T>(&self, topic: &str) -> ZClientBuilder<T>
+    where
+        T: ZService + ros_msg::ServiceTypeInfo,
+    {
+        self.create_client_impl(topic, Some(T::service_type_info()))
+    }
+
+    fn create_client_impl<T>(
+        &self,
+        topic: &str,
+        type_info: Option<crate::entity::TypeInfo>,
+    ) -> ZClientBuilder<T> {
         let entity = EndpointEntity {
             id: self.counter.increment(),
             node: self.entity.clone(),
             topic: topic.to_string(),
             kind: EntityKind::Client,
+            type_info,
             ..Default::default()
         };
         ZClientBuilder {
