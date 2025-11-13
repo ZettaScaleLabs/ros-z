@@ -32,7 +32,7 @@
           ];
         };
 
-        rosDistro = "jazzy";
+        rosDistro = "rolling";
 
         # ROS package dependencies organized by purpose
         rosDeps = {
@@ -190,9 +190,6 @@
 
             cargoLock = {
               lockFile = ./Cargo.lock;
-              outputHashes = {
-                "cdr-encoding-0.10.2" = "sha256-bpo8Fu3Qp5TapzFFAvyRJdSiO50G3YBBTSJNV/cNa4Y=";
-              };
             };
 
             nativeBuildInputs = commonBuildInputs;
