@@ -19,7 +19,10 @@ pub extern "C" fn rcl_init_options_init(
     init_options: *mut rcl_init_options_t,
     allocator: rcl_allocator_t,
 ) -> rcl_ret_t {
-    let opts_impl = InitOptionsImpl { allocator, ..Default::default() };
+    let opts_impl = InitOptionsImpl {
+        allocator,
+        ..Default::default()
+    };
     rclz_try! {
         init_options.assign_impl(opts_impl)?;
     }
@@ -104,15 +107,12 @@ pub extern "C" fn rcl_init(
         Ok(opts) => opts.domain_id,
         Err(_) => return RCL_RET_INVALID_ARGUMENT as _,
     };
-    
-    let ctx = match ZContextBuilder::default()
-        .with_domain_id(domain_id)
-        .build()
-    {
+
+    let ctx = match ZContextBuilder::default().with_domain_id(domain_id).build() {
         Ok(ctx) => ctx,
         Err(_) => return RCL_RET_ERROR as _,
     };
-    
+
     let ctx_impl = ContextImpl::new(ctx);
     match context.assign_impl(ctx_impl) {
         Ok(_) => RCL_RET_OK as _,

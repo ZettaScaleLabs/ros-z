@@ -16,8 +16,6 @@ const INCLUDE_PACKAGES: &[&str] = &[
     "type_description_interfaces",
 ];
 
-
-
 fn main() {
     // Get AMENT_PREFIX_PATH from the environment
     let ament_prefix = env::var("AMENT_PREFIX_PATH").expect("AMENT_PREFIX_PATH is missing!");

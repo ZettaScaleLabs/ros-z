@@ -1,6 +1,5 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(clippy::missing_safety_doc)]
-
 #![allow(clippy::explicit_auto_deref)]
 #![allow(clippy::collapsible_if)]
 #![allow(clippy::cast_slice_from_raw_parts)]

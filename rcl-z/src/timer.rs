@@ -158,7 +158,10 @@ pub extern "C" fn rcl_clock_fini(clock: *mut rcl_clock_t) -> rcl_ret_t {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn rcl_timer_is_ready(timer: *const rcl_timer_t, is_ready: *mut bool) -> rcl_ret_t {
+pub unsafe extern "C" fn rcl_timer_is_ready(
+    timer: *const rcl_timer_t,
+    is_ready: *mut bool,
+) -> rcl_ret_t {
     tracing::trace!("rcl_timer_is_ready");
     unsafe {
         (*is_ready) = timer.borrow_impl().unwrap().is_ready();

@@ -127,9 +127,10 @@ pub unsafe extern "C" fn rcl_client_init(
     tracing::trace!("rcl_client_init");
 
     let x = move || {
-        let cli_impl = unsafe { node
-            .borrow_impl()?
-            .new_client(type_support, service_name, _options)? };
+        let cli_impl = unsafe {
+            node.borrow_impl()?
+                .new_client(type_support, service_name, _options)?
+        };
         client.assign_impl(cli_impl)?;
         Result::Ok(())
     };
@@ -179,8 +180,6 @@ pub unsafe extern "C" fn rcl_take_response(
     RCL_RET_OK as _
 }
 
-
-
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_take_request_with_info(
     _service: *const rcl_service_t,
@@ -225,7 +224,10 @@ pub unsafe extern "C" fn rcl_service_init(
 ) -> rcl_ret_t {
     tracing::trace!("rcl_service_init: {service:?}");
     let x = move || {
-        let srv_impl = unsafe { node.borrow_impl()?.new_service(type_support, service_name, _options) }?;
+        let srv_impl = unsafe {
+            node.borrow_impl()?
+                .new_service(type_support, service_name, _options)
+        }?;
         service.assign_impl(srv_impl)?;
         Result::Ok(())
     };
