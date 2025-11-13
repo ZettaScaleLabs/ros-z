@@ -32,7 +32,7 @@
           ];
         };
 
-        rosDistro = "rolling";
+        rosDistro = "jazzy";
 
         # ROS package dependencies organized by purpose
         rosDeps = {
