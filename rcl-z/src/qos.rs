@@ -1,13 +1,13 @@
 use std::str::FromStr;
 
 use crate::ros::*;
-use ros_z::qos::{QosProfile, QosReliability, QosDurability, QosHistory};
+use ros_z::qos::{QosDurability, QosHistory, QosProfile, QosReliability};
 
 const QOS_COMPONENT_DELIMITER: &str = ",";
 const QOS_DELIMITER: &str = ":";
 
-impl ToString for rmw_qos_profile_t {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for rmw_qos_profile_t {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let default_qos = rmw_qos_profile_t::default();
         macro_rules! format_field {
             ($field:ident) => {
@@ -34,7 +34,7 @@ impl ToString for rmw_qos_profile_t {
                 }
             };
         }
-        [
+        let result = [
             format_field!(reliability),
             format_field!(durability),
             join_components!(format_field!(history), format_field!(depth)),
@@ -46,7 +46,8 @@ impl ToString for rmw_qos_profile_t {
                 format_field!(liveliness_lease_duration.nsec),
             ),
         ]
-        .join(QOS_DELIMITER)
+        .join(QOS_DELIMITER);
+        write!(f, "{}", result)
     }
 }
 
@@ -79,11 +80,7 @@ impl FromStr for rmw_qos_profile_t {
             {
                 qos.history = rmw_qos_history_policy_t::from_repr(x).ok_or("Invalid value")?;
             }
-            if let Ok(x) = components
-                .next()
-                .ok_or("History:depth is missing")?
-                .parse()
-            {
+            if let Ok(x) = components.next().ok_or("History:depth is missing")?.parse() {
                 qos.depth = x;
             }
         }
@@ -122,19 +119,31 @@ impl FromStr for rmw_qos_profile_t {
                 .next()
                 .ok_or("Liveliness is missing")?
                 .split(QOS_COMPONENT_DELIMITER);
-            if let Ok(x) = components.next().ok_or("Liveliness:liveliness is missing")?.parse() {
-                qos.liveliness = rmw_qos_liveliness_policy_t::from_repr(x).ok_or("Invalid value")?;
+            if let Ok(x) = components
+                .next()
+                .ok_or("Liveliness:liveliness is missing")?
+                .parse()
+            {
+                qos.liveliness =
+                    rmw_qos_liveliness_policy_t::from_repr(x).ok_or("Invalid value")?;
             }
-            if let Ok(x) = components.next().ok_or("Liveliness:lease_duration:sec is missing")?.parse() {
+            if let Ok(x) = components
+                .next()
+                .ok_or("Liveliness:lease_duration:sec is missing")?
+                .parse()
+            {
                 qos.liveliness_lease_duration.sec = x;
             }
-            if let Ok(x) = components.next().ok_or("Liveliness:lease_duration:nsec is missing")?.parse() {
+            if let Ok(x) = components
+                .next()
+                .ok_or("Liveliness:lease_duration:nsec is missing")?
+                .parse()
+            {
                 qos.liveliness_lease_duration.nsec = x;
             }
         }
 
         Ok(qos)
-
     }
 }
 
@@ -144,12 +153,12 @@ impl From<&QosProfile> for rmw_qos_profile_t {
             QosReliability::Reliable => rmw_qos_reliability_policy_e::RELIABLE,
             QosReliability::BestEffort => rmw_qos_reliability_policy_e::BEST_EFFORT,
         };
-        
+
         let durability = match qos.durability {
             QosDurability::TransientLocal => rmw_qos_durability_policy_e::TRANSIENT_LOCAL,
             QosDurability::Volatile => rmw_qos_durability_policy_e::VOLATILE,
         };
-        
+
         let (history, depth) = match qos.history {
             QosHistory::KeepLast(d) => (rmw_qos_history_policy_e::KEEP_LAST, d),
             QosHistory::KeepAll => (rmw_qos_history_policy_e::KEEP_ALL, 0),
@@ -183,8 +192,8 @@ mod tests {
     fn test_qos_to_string() {
         assert_eq!(rmw_qos_profile_t::default().to_string(), "::,:,:,:,,");
 
-        let x= rmw_qos_profile_t::default();
-        let y= x.to_string();
+        let x = rmw_qos_profile_t::default();
+        let y = x.to_string();
         let z = rmw_qos_profile_t::from_str(&y).unwrap();
         assert_eq!(x, z);
     }

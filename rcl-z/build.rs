@@ -13,7 +13,7 @@ const INCLUDE_PACKAGES: &[&str] = &[
     "rosidl_typesupport_interface",
     "rosidl_dynamic_typesupport",
     "fastcdr",
-    "type_description_interfaces"
+    "type_description_interfaces",
 ];
 
 fn main() {
@@ -34,7 +34,7 @@ fn main() {
     // println!("cargo:warning=include_args: {:?}", include_args);
 
     // Build the bindgen builder
-    let mut builder = bindgen::Builder::default()
+    let builder = bindgen::Builder::default()
         .header("wrapper.hpp")
         .generate_comments(false)
         .clang_args(include_args)
@@ -51,9 +51,9 @@ fn main() {
         })
         .prepend_enum_name(false)
         .derive_debug(true)
+        .derive_default(true)
         .derive_partialeq(true)
-        .derive_eq(true)
-        .derive_default(true);
+        .derive_eq(true);
 
     let blocked_functions = [
         "rcl_init_options_init",
@@ -79,6 +79,7 @@ fn main() {
         "rcl_init_options_get_allocator",
     ];
 
+    let mut builder = builder;
     for func in blocked_functions {
         builder = builder.blocklist_function(func);
     }

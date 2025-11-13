@@ -1,21 +1,28 @@
-mod ros;
-mod utils;
-mod traits;
-mod qos;
+#![allow(clippy::enum_variant_names)]
+#![allow(clippy::missing_safety_doc)]
+#![allow(clippy::explicit_auto_deref)]
+#![allow(clippy::collapsible_if)]
+#![allow(clippy::cast_slice_from_raw_parts)]
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
+#![allow(unpredictable_function_pointer_comparisons)]
 
-pub mod service;
-pub mod msg;
+mod qos;
+mod ros;
+mod traits;
+mod utils;
+
+pub mod arguments;
 pub mod context;
-pub mod node;
-pub mod pubsub;
-pub mod type_support;
-pub mod wait_set;
+pub mod graph;
 pub mod guard_condition;
 pub mod init;
-pub mod graph;
+pub mod msg;
+pub mod node;
+pub mod pubsub;
+pub mod service;
 pub mod timer;
-pub mod arguments;
-
+pub mod type_support;
+pub mod wait_set;
 
 /// Newtype wrapper for a C void. Only useful as a `*c_void`
 #[allow(non_camel_case_types)]

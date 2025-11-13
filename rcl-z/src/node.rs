@@ -19,9 +19,9 @@ use crate::type_support::ServiceTypeSupport;
 use crate::utils::NOT_SUPPORTED_CSTR;
 use crate::utils::Notifier;
 use crate::utils::str_from_ptr;
-use ros_z::graph::Graph;
 use ros_z::Builder;
 use ros_z::entity::TypeInfo;
+use ros_z::graph::Graph;
 use ros_z::node::ZNode;
 use zenoh::Result;
 
@@ -33,14 +33,14 @@ pub struct NodeImpl {
 }
 
 impl NodeImpl {
-    pub fn new_sub(
+    pub unsafe fn new_sub(
         &self,
         type_support: *const rosidl_message_type_support_t,
         topic_name: *const ::std::os::raw::c_char,
         _options: *const rcl_subscription_options_t,
     ) -> Result<SubscriptionImpl> {
         // Message type support
-        let ts = MessageTypeSupport::new(type_support);
+        let ts = unsafe { MessageTypeSupport::new(type_support) };
         let topic = str_from_ptr(topic_name)?;
         let type_info = TypeInfo::new(&ts.get_type_prefix(), ts.get_type_hash());
 
@@ -52,7 +52,7 @@ impl NodeImpl {
             .inner
             .create_sub::<RosMessage>(topic)
             .with_type_info(type_info)
-            .post_deserialization()
+            .with_serdes::<crate::msg::RosSerdes>()
             .build_with_notifier(notify_callback)?;
 
         // TODO: get the qualified topic
@@ -66,14 +66,14 @@ impl NodeImpl {
         })
     }
 
-    pub fn new_pub(
+    pub unsafe fn new_pub(
         &self,
         type_support: *const rosidl_message_type_support_t,
         topic_name: *const ::std::os::raw::c_char,
         _options: *const rcl_publisher_options_t,
     ) -> Result<PublisherImpl> {
         // Message type support
-        let ts = MessageTypeSupport::new(type_support);
+        let ts = unsafe { MessageTypeSupport::new(type_support) };
         let type_info = TypeInfo::new(&ts.get_type_prefix(), ts.get_type_hash());
         let topic = str_from_ptr(topic_name)?;
 
@@ -81,17 +81,18 @@ impl NodeImpl {
             .inner
             .create_pub(topic)
             .with_type_info(type_info)
+            .with_serdes::<crate::msg::RosSerdes>()
             .build()?;
         Ok(PublisherImpl { inner: zpub, ts })
     }
 
-    pub fn new_client(
+    pub unsafe fn new_client(
         &self,
         type_support: *const rosidl_service_type_support_t,
         service_name: *const ::std::os::raw::c_char,
         _options: *const rcl_client_options_t,
     ) -> Result<ClientImpl> {
-        let ts = ServiceTypeSupport::new(type_support);
+        let ts = unsafe { ServiceTypeSupport::new(type_support) };
         let topic = str_from_ptr(service_name)?;
         let zcli = self
             .inner
@@ -105,13 +106,13 @@ impl NodeImpl {
         })
     }
 
-    pub fn new_service(
+    pub unsafe fn new_service(
         &self,
         type_support: *const rosidl_service_type_support_t,
         service_name: *const ::std::os::raw::c_char,
         _options: *const rcl_service_options_t,
     ) -> Result<ServiceImpl> {
-        let ts = ServiceTypeSupport::new(type_support);
+        let ts = unsafe { ServiceTypeSupport::new(type_support) };
 
         let topic = str_from_ptr(service_name)?;
         let notifier = self.notifier.clone();
@@ -134,7 +135,7 @@ impl NodeImpl {
 impl_has_impl_ptr!(rcl_node_t, rcl_node_impl_t, NodeImpl);
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_node_init(
+pub unsafe extern "C" fn rcl_node_init(
     node: *mut rcl_node_t,
     name: *const ::std::os::raw::c_char,
     namespace_: *const ::std::os::raw::c_char,
@@ -190,12 +191,18 @@ pub extern "C" fn rcl_node_get_fully_qualified_name(
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_node_get_namespace(node: *const rcl_node_t) -> *const ::std::os::raw::c_char {
-    node.borrow_impl().unwrap().namespace.as_ptr()
+    match node.borrow_impl() {
+        Ok(impl_) => impl_.namespace.as_ptr(),
+        Err(_) => std::ptr::null(),
+    }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_node_get_name(node: *const rcl_node_t) -> *const ::std::os::raw::c_char {
-    node.borrow_impl().unwrap().name.as_ptr()
+    match node.borrow_impl() {
+        Ok(impl_) => impl_.name.as_ptr(),
+        Err(_) => std::ptr::null(),
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -256,7 +263,7 @@ pub extern "C" fn rcl_remap_node_namespace(
     RCL_RET_OK as _
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_node_resolve_name(
+pub unsafe extern "C" fn rcl_node_resolve_name(
     node: *const rcl_node_t,
     input_name: *const ::std::os::raw::c_char,
     allocator: rcl_allocator_t,
@@ -277,7 +284,7 @@ pub extern "C" fn rcl_node_is_valid(node: *const rcl_node_t) -> bool {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_node_type_description_service_init(
+pub unsafe extern "C" fn rcl_node_type_description_service_init(
     service: *mut rcl_service_t,
     node: *const rcl_node_t,
 ) -> rcl_ret_t {
@@ -285,7 +292,10 @@ pub extern "C" fn rcl_node_type_description_service_init(
         rosidl_typesupport_c__get_service_type_support_handle__type_description_interfaces__srv__GetTypeDescription()
     };
 
-    let x = node.borrow_impl().unwrap();
+    let x = match node.borrow_impl() {
+        Ok(impl_) => impl_,
+        Err(_) => return RCL_RET_INVALID_ARGUMENT as _,
+    };
     let service_name = CString::from_str(&format!(
         "{:?}/{:?}/get_type_description",
         x.namespace, x.name

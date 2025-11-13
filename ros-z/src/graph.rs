@@ -31,9 +31,23 @@ impl GraphData {
     }
 
     fn remove(&mut self, ke: &LivelinessKE) {
-        match (self.cached.remove(ke), self.parsed.remove(ke)) {
-            (true, Some(_)) => unreachable!(),
-            (false, None) => unreachable!(),
+        let in_cached = self.cached.remove(ke);
+        let in_parsed = self.parsed.remove(ke);
+
+        match (in_cached, in_parsed) {
+            // Both should not be present at the same time
+            (true, Some(_)) => {
+                eprintln!(
+                    "Warning: LivelinessKE was in both cached and parsed: {:?}",
+                    ke
+                );
+            }
+            // If not in either set, it might have been already removed or never existed
+            (false, None) => {
+                // This can happen due to duplicate removal events or race conditions
+                // Log but don't panic
+            }
+            // Expected cases: either in cached (not yet parsed) or in parsed
             _ => {}
         }
     }
@@ -46,7 +60,8 @@ impl GraphData {
             match &*arc {
                 Entity::Node(x) => {
                     // TODO: omit the clone of node key
-                    let slab = self.by_node
+                    let slab = self
+                        .by_node
                         .entry(x.key())
                         .or_insert_with(|| Slab::with_capacity(DEFAULT_SLAB_CAPACITY));
 
@@ -61,7 +76,8 @@ impl GraphData {
                     // Index by topic for Publisher/Subscription entities
                     if matches!(x.kind, EntityKind::Publisher | EntityKind::Subscription) {
                         // TODO: omit the clone of topic
-                        let topic_slab = self.by_topic
+                        let topic_slab = self
+                            .by_topic
                             .entry(x.topic.clone())
                             .or_insert_with(|| Slab::with_capacity(DEFAULT_SLAB_CAPACITY));
 
@@ -76,7 +92,8 @@ impl GraphData {
                     // Index by service for Service/Client entities
                     if matches!(x.kind, EntityKind::Service | EntityKind::Client) {
                         // TODO: omit the clone of service name (stored in topic field)
-                        let service_slab = self.by_service
+                        let service_slab = self
+                            .by_service
                             .entry(x.topic.clone())
                             .or_insert_with(|| Slab::with_capacity(DEFAULT_SLAB_CAPACITY));
 
@@ -88,7 +105,8 @@ impl GraphData {
                         service_slab.insert(weak.clone());
                     }
 
-                    let node_slab = self.by_node
+                    let node_slab = self
+                        .by_node
                         .entry(x.node.key())
                         .or_insert_with(|| Slab::with_capacity(DEFAULT_SLAB_CAPACITY));
 
@@ -223,10 +241,10 @@ impl Graph {
         assert!(kind != EntityKind::Node);
         let mut res = Vec::new();
         self.data.lock().visit_by_node(node, |ent| {
-            if ent.kind() == kind {
-                if let Entity::Endpoint(endpoint) = &*ent {
-                    res.push(endpoint.clone());
-                }
+            if ent.kind() == kind
+                && let Entity::Endpoint(endpoint) = &*ent
+            {
+                res.push(endpoint.clone());
             }
         });
         res
@@ -272,12 +290,12 @@ impl Graph {
             slab.retain(|_, weak| {
                 if let Some(ent) = weak.upgrade() {
                     // Skip expensive get_endpoint() if we already found the type
-                    if found_type.is_none() {
-                        if let Some(enp) = ent.get_endpoint() {
-                            // Include both services and clients
-                            if matches!(enp.kind, EntityKind::Service | EntityKind::Client) {
-                                found_type = Some(enp.type_info.as_ref().unwrap().name.clone());
-                            }
+                    if found_type.is_none()
+                        && let Some(enp) = ent.get_endpoint()
+                    {
+                        // Include both services and clients
+                        if matches!(enp.kind, EntityKind::Service | EntityKind::Client) {
+                            found_type = Some(enp.type_info.as_ref().unwrap().name.clone());
                         }
                     }
                     true
@@ -309,12 +327,12 @@ impl Graph {
             slab.retain(|_, weak| {
                 if let Some(ent) = weak.upgrade() {
                     // Skip expensive get_endpoint() if we already found the type
-                    if found_type.is_none() {
-                        if let Some(enp) = ent.get_endpoint() {
-                            // Include both publishers and subscribers
-                            if matches!(enp.kind, EntityKind::Publisher | EntityKind::Subscription) {
-                                found_type = Some(enp.type_info.as_ref().unwrap().name.clone());
-                            }
+                    if found_type.is_none()
+                        && let Some(enp) = ent.get_endpoint()
+                    {
+                        // Include both publishers and subscribers
+                        if matches!(enp.kind, EntityKind::Publisher | EntityKind::Subscription) {
+                            found_type = Some(enp.type_info.as_ref().unwrap().name.clone());
                         }
                     }
                     true
@@ -331,7 +349,11 @@ impl Graph {
         res
     }
 
-    pub fn get_names_and_types_by_node(&self, node_key: NodeKey, kind: EntityKind) -> Vec<(String, String)> {
+    pub fn get_names_and_types_by_node(
+        &self,
+        node_key: NodeKey,
+        kind: EntityKind,
+    ) -> Vec<(String, String)> {
         let mut res = Vec::new();
         let mut data = self.data.lock();
 
@@ -340,10 +362,13 @@ impl Graph {
         }
 
         data.visit_by_node(node_key, |ent| {
-            if let Some(enp) = ent.get_endpoint() {
-                if enp.kind == kind {
-                    res.push((enp.topic.clone(), enp.type_info.as_ref().unwrap().name.clone()));
-                }
+            if let Some(enp) = ent.get_endpoint()
+                && enp.kind == kind
+            {
+                res.push((
+                    enp.topic.clone(),
+                    enp.type_info.as_ref().unwrap().name.clone(),
+                ));
             }
         });
 

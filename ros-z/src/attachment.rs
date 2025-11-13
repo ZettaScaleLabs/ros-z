@@ -27,7 +27,7 @@ impl Attachment {
 impl TryFrom<&ZBytes> for Attachment {
     type Error = zenoh::Error;
     fn try_from(value: &ZBytes) -> Result<Self, Self::Error> {
-        let mut des = ZDeserializer::new(&value);
+        let mut des = ZDeserializer::new(value);
         let sequence_number = des.deserialize::<i64>()?;
         let source_timestamp = des.deserialize::<i64>()?;
         let source_gid = des.deserialize::<GidArray>()?;
@@ -44,7 +44,7 @@ impl From<Attachment> for ZBytes {
         let mut ser = ZSerializer::new();
         ser.serialize(value.sequence_number);
         ser.serialize(value.source_timestamp);
-        ser.serialize(&value.source_gid);
+        ser.serialize(value.source_gid);
         ser.finish()
     }
 }

@@ -6,11 +6,11 @@ use zenoh::{Result, key_expr::KeyExpr, session::ZenohId};
 use crate::{attachment::GidArray, qos::QosProfile};
 use sha2::Digest;
 
-const EMPTY_NAMESPACE: &'static str = "%";
-const EMPTY_ENCLAVE: &'static str = "%";
-const EMPTY_TOPIC_TYPE: &'static str = "EMPTY_TOPIC_TYPE";
-const EMPTY_TOPIC_HASH: &'static str = "EMPTY_TOPIC_HASH";
-pub const ADMIN_SPACE: &'static str = "@ros2_lv";
+const EMPTY_NAMESPACE: &str = "%";
+const EMPTY_ENCLAVE: &str = "%";
+const EMPTY_TOPIC_TYPE: &str = "EMPTY_TOPIC_TYPE";
+const EMPTY_TOPIC_HASH: &str = "EMPTY_TOPIC_HASH";
+pub const ADMIN_SPACE: &str = "@ros2_lv";
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct LivelinessKE(pub KeyExpr<'static>);
@@ -119,31 +119,39 @@ pub struct TypeHash {
 }
 
 impl TypeHash {
-    pub fn new(version: u8, value: [u8; 32]) -> Self {
+    pub const fn new(version: u8, value: [u8; 32]) -> Self {
         Self { version, value }
     }
 
+    /// Creates a zero/placeholder TypeHash (RIHS01 version with all zeros)
+    /// Useful for generic wrapper types where actual hash is instance-specific
+    pub const fn zero() -> Self {
+        Self {
+            version: 1,
+            value: [0u8; 32],
+        }
+    }
+
     pub fn from_rihs_string(rihs_str: &str) -> Option<Self> {
-        if let Some(hex_part) = rihs_str.strip_prefix("RIHS01_") {
-            if hex_part.len() == 64 {
-                let mut hash_bytes = [0u8; 32];
-                for (i, chunk) in hex_part.as_bytes().chunks(2).enumerate() {
-                    if i < 32 {
-                        if let Ok(byte_val) = u8::from_str_radix(
-                            std::str::from_utf8(chunk).unwrap_or("00"),
-                            16
-                        ) {
-                            hash_bytes[i] = byte_val;
-                        } else {
-                            return None;
-                        }
+        if let Some(hex_part) = rihs_str.strip_prefix("RIHS01_")
+            && hex_part.len() == 64
+        {
+            let mut hash_bytes = [0u8; 32];
+            for (i, chunk) in hex_part.as_bytes().chunks(2).enumerate() {
+                if i < 32 {
+                    if let Ok(byte_val) =
+                        u8::from_str_radix(std::str::from_utf8(chunk).unwrap_or("00"), 16)
+                    {
+                        hash_bytes[i] = byte_val;
+                    } else {
+                        return None;
                     }
                 }
-                return Some(TypeHash {
-                    version: 1,
-                    value: hash_bytes,
-                });
             }
+            return Some(TypeHash {
+                version: 1,
+                value: hash_bytes,
+            });
         }
         None
     }
@@ -154,8 +162,14 @@ impl TypeHash {
                 let hex_str: String = self.value.iter().map(|b| format!("{:02x}", b)).collect();
                 format!("RIHS01_{}", hex_str)
             }
-            _ => format!("RIHS{:02x}_{}", self.version,
-                self.value.iter().map(|b| format!("{:02x}", b)).collect::<String>())
+            _ => format!(
+                "RIHS{:02x}_{}",
+                self.version,
+                self.value
+                    .iter()
+                    .map(|b| format!("{:02x}", b))
+                    .collect::<String>()
+            ),
         }
     }
 }
@@ -276,14 +290,14 @@ impl TryFrom<&EndpointEntity> for TopicKE {
             let s = s.strip_suffix('/').unwrap_or(s);
             mangle_name(s)
         };
-        let type_info = value
-            .type_info
-            .as_ref()
-            .map_or(format!("{EMPTY_TOPIC_TYPE}/{EMPTY_TOPIC_HASH}"), |x| {
+        let type_info = value.type_info.as_ref().map_or(
+            format!("{EMPTY_TOPIC_TYPE}/{EMPTY_TOPIC_HASH}"),
+            |x| {
                 let type_name = demangle_name(&x.name);
                 let type_hash = demangle_name(&x.hash.to_string());
                 format!("{type_name}/{type_hash}")
-            });
+            },
+        );
         Ok(TopicKE(
             format!("{domain_id}/{topic}/{type_info}").try_into()?,
         ))
@@ -327,14 +341,14 @@ impl Entity {
     pub fn get_endpoint(&self) -> Option<&EndpointEntity> {
         match self {
             Self::Endpoint(x) => Some(x),
-            _ => None
+            _ => None,
         }
     }
 
     pub fn kind(&self) -> EntityKind {
         match self {
             Self::Node(_) => EntityKind::Node,
-            Self::Endpoint(x) => x.kind
+            Self::Endpoint(x) => x.kind,
         }
     }
 }
@@ -426,10 +440,10 @@ impl TryFrom<&LivelinessKE> for Entity {
                             name: demangle_name(topic_type),
                             hash: type_hash,
                         })
-                    },
+                    }
                 };
                 let qos = QosProfile::decode(iter.next().ok_or(MissingTopicQoS)?)
-                    .map_err(|e| QosDecodeError(e))?;
+                    .map_err(QosDecodeError)?;
                 Entity::Endpoint(EndpointEntity {
                     id: entity_id,
                     node,

@@ -19,15 +19,17 @@ pub extern "C" fn rcl_init_options_init(
     init_options: *mut rcl_init_options_t,
     allocator: rcl_allocator_t,
 ) -> rcl_ret_t {
-    let mut opts_impl = InitOptionsImpl::default();
-    opts_impl.allocator = allocator;
+    let opts_impl = InitOptionsImpl {
+        allocator,
+        ..Default::default()
+    };
     rclz_try! {
         init_options.assign_impl(opts_impl)?;
     }
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_init_options_get_domain_id(
+pub unsafe extern "C" fn rcl_init_options_get_domain_id(
     init_options: *const rcl_init_options_t,
     domain_id: *mut usize,
 ) -> rcl_ret_t {
@@ -70,7 +72,7 @@ pub extern "C" fn rcl_init_options_copy(
     dst: *mut rcl_init_options_t,
 ) -> rcl_ret_t {
     rclz_try! {
-        dst.assign_impl(src.borrow_impl()?.clone())?;
+        dst.assign_impl(*src.borrow_impl()?)?;
     }
 }
 
@@ -91,8 +93,8 @@ pub extern "C" fn rcl_init_options_get_allocator(
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_init(
-    argc: c_int,
-    argv: *const *const c_char,
+    _argc: c_int,
+    _argv: *const *const c_char,
     options: *const rcl_init_options_t,
     context: *mut rcl_context_t,
 ) -> rcl_ret_t {
@@ -101,11 +103,19 @@ pub extern "C" fn rcl_init(
     //     "rcl_init with args: {:?}",
     //     crate::utils::parse_args(argc, argv)
     // );
-    let ctx = ZContextBuilder::default()
-        .with_domain_id(options.borrow_impl().unwrap().domain_id)
-        .build()
-        .unwrap();
+    let domain_id = match options.borrow_impl() {
+        Ok(opts) => opts.domain_id,
+        Err(_) => return RCL_RET_INVALID_ARGUMENT as _,
+    };
+
+    let ctx = match ZContextBuilder::default().with_domain_id(domain_id).build() {
+        Ok(ctx) => ctx,
+        Err(_) => return RCL_RET_ERROR as _,
+    };
+
     let ctx_impl = ContextImpl::new(ctx);
-    context.assign_impl(ctx_impl).unwrap();
-    RCL_RET_OK as _
+    match context.assign_impl(ctx_impl) {
+        Ok(_) => RCL_RET_OK as _,
+        Err(_) => RCL_RET_ERROR as _,
+    }
 }

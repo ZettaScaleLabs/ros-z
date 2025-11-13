@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  interop_test:
+    name: Interop tests with ROS 2 Jazzy
+    runs-on: ubuntu-latest
+    container:
+      image: rostooling/setup-ros-docker:ubuntu-noble-ros-jazzy-ros-base-latest
+    steps:
+    - name: Install Node.js
+      run: apt-get update && apt-get install -y nodejs 
+    - name: ROS dependencies
+      run: apt-get install -y ros-jazzy-example-interfaces 
+    - uses: actions/checkout@v4
+    - uses: actions-rust-lang/setup-rust-toolchain@v1
+    - name: Run ROS tests
+      shell: bash
+      # Note that we limit only one test item tested at the same time to avoid the confliction between bridges
+      run: "source /opt/ros/jazzy/setup.bash && cd ros-z && cargo test --all-features --verbose"

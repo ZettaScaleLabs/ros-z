@@ -1,6 +1,7 @@
 use std::time::Duration;
 
-use ros_z::{Builder, Result, context::ZContextBuilder, ros_msg::ByteMultiArray, entity::{TypeInfo, TypeHash}};
+use ros_z::{Builder, Result, context::ZContextBuilder};
+use ros_z_msgs::std_msgs::{ByteMultiArray, MultiArrayLayout};
 
 use clap::Parser;
 #[derive(Debug, Parser)]
@@ -22,12 +23,7 @@ struct Args {
 fn run_subscriber(topic: String, duration: Duration) -> Result<()> {
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("MyNode").build()?;
-    let zsub = node.create_sub::<ByteMultiArray>(&topic)
-        .with_type_info(TypeInfo::new(
-            "std_msgs::msg::dds_::UInt8MultiArray_",
-            TypeHash::from_rihs_string("RIHS01_5687e861b8d307a5e48b7515467ae7a5fc2daf805bd0ce6d8e9e604bade9f385").unwrap(),
-        ))
-        .build()?;
+    let zsub = node.create_sub::<ByteMultiArray>(&topic).build()?;
 
     let mut counter = 0;
     if duration.is_zero() {
@@ -52,7 +48,7 @@ fn run_subscriber(topic: String, duration: Duration) -> Result<()> {
             }
         };
         tokio::runtime::Runtime::new()?.block_on(async {
-            let _ = tokio::time::timeout(duration, fut).await?;
+            tokio::time::timeout(duration, fut).await?;
             Result::Ok(())
         })?;
     }
@@ -68,15 +64,12 @@ fn run_publisher(
 ) -> Result<()> {
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("MyNode").build()?;
-    let zpub = node.create_pub::<ByteMultiArray>(&topic)
-        .with_type_info(TypeInfo::new(
-            "std_msgs::msg::dds_::UInt8MultiArray_",
-            TypeHash::from_rihs_string("RIHS01_5687e861b8d307a5e48b7515467ae7a5fc2daf805bd0ce6d8e9e604bade9f385").unwrap(),
-        ))
-        .build()?;
+    let zpub = node.create_pub::<ByteMultiArray>(&topic).build()?;
     let now = std::time::Instant::now();
-    let mut msg = ros_z::ros_msg::ByteMultiArray::default();
-    msg.data = vec![0u8; payload_size as _];
+    let msg = ByteMultiArray {
+        layout: MultiArrayLayout::default(),
+        data: vec![0u8; payload_size as _],
+    };
     loop {
         zpub.publish(&msg)?;
         std::thread::sleep(period);

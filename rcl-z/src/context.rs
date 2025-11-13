@@ -106,10 +106,9 @@ pub extern "C" fn rcl_subscription_event_init(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_context_is_valid(context: *const rcl_context_t) -> bool {
+pub unsafe extern "C" fn rcl_context_is_valid(context: *const rcl_context_t) -> bool {
     unsafe { !(*context).impl_.is_null() }
 }
-
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_shutdown(context: *mut rcl_context_t) -> rcl_ret_t {
