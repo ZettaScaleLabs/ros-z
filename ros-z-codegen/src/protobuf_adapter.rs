@@ -191,10 +191,15 @@ impl ProtobufMessageGenerator {
         // Add necessary imports
         combined_output.push_str("// Auto-generated protobuf message types\n");
         combined_output.push_str("// DO NOT EDIT\n\n");
+        combined_output.push_str("#[allow(unused_imports)]\n");
         combined_output.push_str("use prost::Message as ProstMessage;\n");
+        combined_output.push_str("#[allow(unused_imports)]\n");
         combined_output.push_str("use ros_z::MessageTypeInfo;\n");
+        combined_output.push_str("#[allow(unused_imports)]\n");
         combined_output.push_str("use ros_z::ros_msg::WithTypeInfo;\n");
+        combined_output.push_str("#[allow(unused_imports)]\n");
         combined_output.push_str("use ros_z::msg::ZMessage;\n");
+        combined_output.push_str("#[allow(unused_imports)]\n");
         combined_output.push_str("use ros_z::msg::ProtobufSerdes;\n\n");
 
         // Compile all proto files at once to avoid duplicates

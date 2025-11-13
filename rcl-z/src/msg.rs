@@ -22,17 +22,17 @@ impl ZDeserializer for RosSerdes {
     type Output = bool;
     fn deserialize<'a>(input: Self::Input<'a>) -> Self::Output {
         let (bytes, msg) = input;
-        msg.ts.deserialize_message(&bytes, msg.msg as *mut _);
+        unsafe { msg.ts.deserialize_message(bytes, msg.msg as *mut _) };
         true
     }
 }
 
 impl ZSerializer for RosSerdes {
     type Input<'a> = &'a RosMessage;
-    fn serialize<'a>(input: &'a RosMessage) -> Vec<u8> {
+    fn serialize(input: &RosMessage) -> Vec<u8> {
         let RosMessage { msg, ts } = input;
-        let mut bytes = vec![0; ts.get_serialized_size(*msg)];
-        ts.serialize_message(*msg, &mut bytes);
+        let mut bytes = vec![0; unsafe { ts.get_serialized_size(*msg) }];
+        unsafe { ts.serialize_message(*msg, &mut bytes) };
         bytes
     }
 }

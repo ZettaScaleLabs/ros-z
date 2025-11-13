@@ -1,3 +1,12 @@
+#![allow(clippy::enum_variant_names)]
+#![allow(clippy::missing_safety_doc)]
+
+#![allow(clippy::explicit_auto_deref)]
+#![allow(clippy::collapsible_if)]
+#![allow(clippy::cast_slice_from_raw_parts)]
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
+#![allow(unpredictable_function_pointer_comparisons)]
+
 mod qos;
 mod ros;
 mod traits;

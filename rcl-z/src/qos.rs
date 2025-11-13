@@ -6,8 +6,8 @@ use ros_z::qos::{QosDurability, QosHistory, QosProfile, QosReliability};
 const QOS_COMPONENT_DELIMITER: &str = ",";
 const QOS_DELIMITER: &str = ":";
 
-impl ToString for rmw_qos_profile_t {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for rmw_qos_profile_t {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let default_qos = rmw_qos_profile_t::default();
         macro_rules! format_field {
             ($field:ident) => {
@@ -34,7 +34,7 @@ impl ToString for rmw_qos_profile_t {
                 }
             };
         }
-        [
+        let result = [
             format_field!(reliability),
             format_field!(durability),
             join_components!(format_field!(history), format_field!(depth)),
@@ -46,7 +46,8 @@ impl ToString for rmw_qos_profile_t {
                 format_field!(liveliness_lease_duration.nsec),
             ),
         ]
-        .join(QOS_DELIMITER)
+        .join(QOS_DELIMITER);
+        write!(f, "{}", result)
     }
 }
 

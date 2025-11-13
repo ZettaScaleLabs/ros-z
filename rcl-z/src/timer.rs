@@ -22,7 +22,7 @@ pub struct TimerImpl {
 fn signed_duration_to_nanos(dur: Result<Duration, SystemTimeError>) -> rcl_time_point_value_t {
     match dur {
         Ok(d) => d.as_nanos() as _,
-        Err(e) => -1 * e.duration().as_nanos() as i64,
+        Err(e) => -(e.duration().as_nanos() as i64),
     }
 }
 
@@ -72,15 +72,15 @@ impl_has_impl_ptr!(rcl_timer_t, rcl_timer_impl_t, TimerImpl);
 impl rcl_timer_t {
     fn new() -> Self {
         let timer_impl = TimerImpl::default();
-        let mut timer = Self::default();
-        timer.impl_ = Box::into_raw(Box::new(timer_impl)) as _;
-        timer
+        Self {
+            impl_: Box::into_raw(Box::new(timer_impl)) as _,
+        }
     }
 }
 
 // NOTE: This is not presented in rclcpp
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_ros_clock_init(
+pub unsafe extern "C" fn rcl_ros_clock_init(
     clock: *mut rcl_clock_t,
     _allocator: *mut rcl_allocator_t,
 ) -> rcl_ret_t {
@@ -158,7 +158,7 @@ pub extern "C" fn rcl_clock_fini(clock: *mut rcl_clock_t) -> rcl_ret_t {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_timer_is_ready(timer: *const rcl_timer_t, is_ready: *mut bool) -> rcl_ret_t {
+pub unsafe extern "C" fn rcl_timer_is_ready(timer: *const rcl_timer_t, is_ready: *mut bool) -> rcl_ret_t {
     tracing::trace!("rcl_timer_is_ready");
     unsafe {
         (*is_ready) = timer.borrow_impl().unwrap().is_ready();
@@ -167,7 +167,7 @@ pub extern "C" fn rcl_timer_is_ready(timer: *const rcl_timer_t, is_ready: *mut b
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_timer_call(timer: *mut rcl_timer_t) -> rcl_ret_t {
+pub unsafe extern "C" fn rcl_timer_call(timer: *mut rcl_timer_t) -> rcl_ret_t {
     tracing::trace!("rcl_timer_call");
     let x = timer.borrow_mut_impl().unwrap();
     let now = SystemTime::now();
@@ -182,7 +182,7 @@ pub extern "C" fn rcl_timer_call(timer: *mut rcl_timer_t) -> rcl_ret_t {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_timer_call_with_info(
+pub unsafe extern "C" fn rcl_timer_call_with_info(
     timer: *mut rcl_timer_t,
     call_info: *mut rcl_timer_call_info_t,
 ) -> rcl_ret_t {
@@ -204,7 +204,7 @@ pub extern "C" fn rcl_timer_call_with_info(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_timer_get_time_until_next_call(
+pub unsafe extern "C" fn rcl_timer_get_time_until_next_call(
     timer: *const rcl_timer_t,
     time_until_next_call: *mut i64,
 ) -> rcl_ret_t {
@@ -218,7 +218,7 @@ pub extern "C" fn rcl_timer_get_time_until_next_call(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_clock_get_now(
+pub unsafe extern "C" fn rcl_clock_get_now(
     _clock: *mut rcl_clock_t,
     time_point_value: *mut rcl_time_point_value_t,
 ) -> rcl_ret_t {

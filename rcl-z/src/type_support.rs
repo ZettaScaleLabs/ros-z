@@ -72,11 +72,11 @@ use ros_z::entity::{TypeHash, TypeInfo};
 
 use crate::ros::rosidl_type_hash_t;
 
-impl ToString for rosidl_type_hash_t {
-    fn to_string(&self) -> String {
-        const HASH_PREFIX: &'static str = "RIHS01_";
+impl std::fmt::Display for rosidl_type_hash_t {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        const HASH_PREFIX: &str = "RIHS01_";
         let hex_str: String = self.value.iter().map(|b| format!("{:02x}", b)).collect();
-        format!("{HASH_PREFIX}{hex_str}")
+        write!(f, "{HASH_PREFIX}{hex_str}")
     }
 }
 
@@ -95,7 +95,7 @@ impl AsRef<rosidl_message_type_support_t> for MessageTypeSupport {
 }
 
 impl MessageTypeSupport {
-    pub fn new(type_support: *const rosidl_message_type_support_t) -> Self {
+    pub unsafe fn new(type_support: *const rosidl_message_type_support_t) -> Self {
         let type_support = unsafe {
             let ts = get_message_typesupport(type_support);
             if ts.is_null() {
@@ -118,18 +118,18 @@ impl MessageTypeSupport {
         TypeHash::new(hash.version, hash.value)
     }
 
-    pub fn serialize_message(&self, ros_message: *const c_void, out: &mut Vec<u8>) {
+    pub unsafe fn serialize_message(&self, ros_message: *const c_void, out: &mut Vec<u8>) {
         let res = unsafe { serialize_message(self.as_ref(), ros_message, out) };
         if !res {
             tracing::error!("Failed to run serialize_message");
         }
     }
 
-    pub fn get_serialized_size(&self, ros_message: *const c_void) -> usize {
+    pub unsafe fn get_serialized_size(&self, ros_message: *const c_void) -> usize {
         unsafe { get_serialized_size(self.as_ref(), ros_message) }
     }
 
-    pub fn deserialize_message(&self, data: &Vec<u8>, ros_message: *mut c_void) {
+    pub unsafe fn deserialize_message(&self, data: &Vec<u8>, ros_message: *mut c_void) {
         let res = unsafe { deserialize_message(self.as_ref(), data, ros_message) };
         if !res {
             tracing::error!("Failed to run serialize_message");
@@ -172,7 +172,7 @@ impl AsRef<rosidl_service_type_support_t> for ServiceTypeSupport {
 }
 
 impl ServiceTypeSupport {
-    pub fn new(type_support: *const rosidl_service_type_support_t) -> Self {
+    pub unsafe fn new(type_support: *const rosidl_service_type_support_t) -> Self {
         let type_support = unsafe {
             let ts = get_service_typesupport(type_support);
             if ts.is_null() {
@@ -188,8 +188,8 @@ impl ServiceTypeSupport {
         };
         Self {
             ptr: type_support,
-            request: MessageTypeSupport::new(request),
-            response: MessageTypeSupport::new(response),
+            request: unsafe { MessageTypeSupport::new(request) },
+            response: unsafe { MessageTypeSupport::new(response) },
         }
     }
 

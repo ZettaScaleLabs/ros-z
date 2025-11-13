@@ -65,8 +65,7 @@ impl TryFrom<EndpointEntity> for rmw_topic_endpoint_info_t {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_get_zero_initialized_names_and_types() -> rcl_names_and_types_t {
-    let x = rcl_names_and_types_t::default();
-    x
+    rcl_names_and_types_t::default()
 }
 
 // impl TryFrom<EndpointEntity> for rcl_names_and_types_t {
@@ -164,7 +163,7 @@ impl rcl_names_and_types_t {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_get_topic_names_and_types(
+pub unsafe extern "C" fn rcl_get_topic_names_and_types(
     node: *const rcl_node_t,
     _allocator: *mut rcl_allocator_t,
     _no_demangle: bool,
@@ -194,7 +193,7 @@ pub extern "C" fn rcl_get_topic_names_and_types(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_names_and_types_fini(
+pub unsafe extern "C" fn rcl_names_and_types_fini(
     topic_names_and_types: *mut rcl_names_and_types_t,
 ) -> rcl_ret_t {
     tracing::error!("rcl_names_and_types_fini");
@@ -207,7 +206,7 @@ pub extern "C" fn rcl_names_and_types_fini(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_get_service_names_and_types(
+pub unsafe extern "C" fn rcl_get_service_names_and_types(
     node: *const rcl_node_t,
     _allocator: *mut rcl_allocator_t,
     service_names_and_types: *mut rcl_names_and_types_t,
@@ -322,7 +321,7 @@ pub extern "C" fn rcl_get_publisher_names_and_types_by_node(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_get_service_names_and_types_by_node(
+pub unsafe extern "C" fn rcl_get_service_names_and_types_by_node(
     node: *const rcl_node_t,
     _allocator: *mut rcl_allocator_t,
     remote_node_name: *const ::std::os::raw::c_char,

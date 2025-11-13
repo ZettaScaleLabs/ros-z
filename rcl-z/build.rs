@@ -16,6 +16,8 @@ const INCLUDE_PACKAGES: &[&str] = &[
     "type_description_interfaces",
 ];
 
+
+
 fn main() {
     // Get AMENT_PREFIX_PATH from the environment
     let ament_prefix = env::var("AMENT_PREFIX_PATH").expect("AMENT_PREFIX_PATH is missing!");
@@ -34,7 +36,7 @@ fn main() {
     // println!("cargo:warning=include_args: {:?}", include_args);
 
     // Build the bindgen builder
-    let mut builder = bindgen::Builder::default()
+    let builder = bindgen::Builder::default()
         .header("wrapper.hpp")
         .generate_comments(false)
         .clang_args(include_args)
@@ -51,9 +53,9 @@ fn main() {
         })
         .prepend_enum_name(false)
         .derive_debug(true)
+        .derive_default(true)
         .derive_partialeq(true)
-        .derive_eq(true)
-        .derive_default(true);
+        .derive_eq(true);
 
     let blocked_functions = [
         "rcl_init_options_init",
@@ -79,6 +81,7 @@ fn main() {
         "rcl_init_options_get_allocator",
     ];
 
+    let mut builder = builder;
     for func in blocked_functions {
         builder = builder.blocklist_function(func);
     }
