@@ -18,6 +18,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Clean existing Nix installation (macOS)
+        if: runner.os == 'macOS'
+        continue-on-error: true
+        run: |
+          for u in $(seq 1 32); do
+            sudo dscl . -delete "/Users/_nixbld$u" 2>/dev/null || true
+          done
+          sudo dscl . -delete "/Groups/nixbld" 2>/dev/null || true
+
       - name: Install Nix
         uses: cachix/install-nix-action@v27
         with:
