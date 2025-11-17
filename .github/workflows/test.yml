@@ -27,4 +27,4 @@ jobs:
       shell: bash
       run: |
         source /opt/ros/jazzy/setup.bash
-        cargo test -p ros-z-tests --features interop-tests -- --nocapture
+        cargo test -p ros-z-tests --features interop-tests --release
