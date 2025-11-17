@@ -17,6 +17,12 @@
     nix-ros-overlay.inputs.flake-utils.lib.eachDefaultSystem (
       system:
       let
+        # List of supported ROS distros
+        distros = [
+          "jazzy"  # default
+          "rolling"
+        ];
+
         pkgs = import nixpkgs {
           inherit system;
           overlays = [
@@ -32,62 +38,61 @@
           ];
         };
 
-        rosDistro = "jazzy";
+        # Factory to create environment for a specific ROS distro
+        mkRosEnv = rosDistro:
+          let
+            rosDeps = {
+              rcl = with pkgs.rosPackages.${rosDistro}; [
+                rcl
+                rcl-interfaces
+                rclcpp
+                rcutils
+              ];
 
-        # ROS package dependencies organized by purpose
-        rosDeps = {
-          rcl = with pkgs.rosPackages.${rosDistro}; [
-            rcl
-            rcl-interfaces
-            rclcpp
-            rcutils
-          ];
+              messages = with pkgs.rosPackages.${rosDistro}; [
+                std-msgs
+                geometry-msgs
+                sensor-msgs
+                example-interfaces
+                common-interfaces
+                rosidl-default-generators
+                rosidl-default-runtime
+                rosidl-adapter
+              ];
 
-          messages = with pkgs.rosPackages.${rosDistro}; [
-            std-msgs
-            geometry-msgs
-            sensor-msgs
-            example-interfaces
-            common-interfaces
-            rosidl-default-generators
-            rosidl-default-runtime
-            rosidl-adapter
-          ];
-
-          devExtras = with pkgs.rosPackages.${rosDistro}; [
-            ament-cmake-core
-            ros-core
-            demo-nodes-cpp
-            demo-nodes-py
-            rclpy
-            rmw
-            rmw-implementation
-            rmw-zenoh-cpp
-            ament-cmake
-            ament-cmake-gtest
-            ament-lint-auto
-            ament-lint-common
-            launch
-            launch-testing
-            ros2cli
-          ];
-        };
-
-        # ROS environments for different build contexts
-        rosEnv = {
-          dev = pkgs.rosPackages.${rosDistro}.buildEnv {
-            paths = rosDeps.rcl ++ rosDeps.messages ++ rosDeps.devExtras;
+              devExtras = with pkgs.rosPackages.${rosDistro}; [
+                ament-cmake-core
+                ros-core
+                demo-nodes-cpp
+                demo-nodes-py
+                rclpy
+                rmw
+                rmw-implementation
+                rmw-zenoh-cpp
+                ament-cmake
+                ament-cmake-gtest
+                ament-lint-auto
+                ament-lint-common
+                launch
+                launch-testing
+                ros2cli
+              ];
+            };
+          in
+          {
+            dev = pkgs.rosPackages.${rosDistro}.buildEnv {
+              paths = rosDeps.rcl ++ rosDeps.messages ++ rosDeps.devExtras;
+            };
+            rcl = pkgs.rosPackages.${rosDistro}.buildEnv {
+              paths = rosDeps.rcl;
+            };
+            msgs = pkgs.rosPackages.${rosDistro}.buildEnv {
+              paths = rosDeps.messages;
+            };
+            build = pkgs.rosPackages.${rosDistro}.buildEnv {
+              paths = rosDeps.rcl ++ rosDeps.messages;
+            };
           };
-          rcl = pkgs.rosPackages.${rosDistro}.buildEnv {
-            paths = rosDeps.rcl;
-          };
-          msgs = pkgs.rosPackages.${rosDistro}.buildEnv {
-            paths = rosDeps.messages;
-          };
-          build = pkgs.rosPackages.${rosDistro}.buildEnv {
-            paths = rosDeps.rcl ++ rosDeps.messages;
-          };
-        };
 
         # Common build tools
         commonBuildInputs = with pkgs; [
@@ -126,53 +131,76 @@
           pkgs.lib.mapAttrsToList (name: value: "export ${name}=\"${value}\"") commonEnvVars
         );
 
-        # Banner text for development shell
-        bannerText = ''
-          echo "🦀 ros-z development environment"
-          echo "ROS 2 Distribution: ${rosDistro}"
-          echo "RMW Implementation: rmw_zenoh_cpp"
-          echo "Rust: $(rustc --version)"
-          echo "sccache: enabled"
-          echo ""
-          echo "Workspace members:"
-          echo "  ros-z         - Core (no ROS deps)"
-          echo "  rcl-z         - RCL bindings (needs rcl)"
-          echo "  ros-z-codegen - Code generation"
-          echo "  ros-z-msgs    - Message definitions (needs ROS messages)"
-          echo ""
-          echo "Available commands:"
-          echo "  cargo build -p ros-z           - Build core (no ROS deps)"
-          echo "  cargo build -p rcl-z           - Build RCL bindings"
-          echo "  cargo build -p ros-z-msgs      - Build messages"
-          echo "  cargo build                    - Build all members"
-          echo "  cargo test                     - Run tests"
-          echo "  cargo check --all-features     - Check all features"
-          echo "  cargo clippy                   - Run linter"
-          echo "  nu scripts/interop.nu          - Run interop tests"
-          echo "  nix fmt                        - Format flake"
-          echo "  sccache --show-stats           - Show cache statistics"
-        '';
-
-        # Generate shell hook with optional banner
-        mkShellHook =
-          { showBanner ? true }:
-          exportEnvVars + pkgs.lib.optionalString showBanner ("\n" + bannerText);
-
         # Base shell configuration factory
         mkDevShell =
           {
             name,
             packages,
-            showBanner ? true,
+            banner ? "",
           }:
           pkgs.mkShell {
             inherit name packages;
-            shellHook = mkShellHook { inherit showBanner; };
+            shellHook = exportEnvVars + (if banner != "" then "\n${banner}" else "");
             hardeningDisable = [ "all" ];
+          };
+
+        # Helper to create shells for a specific ROS distro
+        mkRosShells = rosDistro:
+          let
+            rosEnv = mkRosEnv rosDistro;
+          in
+          {
+            default = mkDevShell {
+              name = "ros-z-dev-${rosDistro}";
+              packages = commonBuildInputs ++ devTools ++ [ rosEnv.dev ];
+              banner = ''
+                echo "🦀 ros-z development environment (with ROS)"
+                echo "ROS 2 Distribution: ${rosDistro}"
+                echo "Rust: $(rustc --version)"
+              '';
+            };
+
+            ci = mkDevShell {
+              name = "ros-z-ci-${rosDistro}";
+              packages = commonBuildInputs ++ [ rosEnv.build ];
+            };
           };
 
         # Cargo metadata
         cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+
+        # Helper to create packages for a specific ROS distro
+        mkRosPackages = rosDistro:
+          let
+            rosEnv = mkRosEnv rosDistro;
+          in
+          {
+            "ros-z-${rosDistro}" = mkRustPackage {
+              pname = "ros-z";
+              buildAndTestSubdir = "ros-z";
+              description = "Native Rust ROS 2 implementation using Zenoh - Core";
+            };
+
+            "rcl-z-${rosDistro}" = mkRustPackage {
+              pname = "rcl-z";
+              buildAndTestSubdir = "rcl-z";
+              rosInputs = [ rosEnv.rcl ];
+              description = "Native Rust ROS 2 implementation using Zenoh - RCL Bindings (${rosDistro})";
+            };
+
+            "ros-z-msgs-${rosDistro}" = mkRustPackage {
+              pname = "ros-z-msgs";
+              buildAndTestSubdir = "ros-z-msgs";
+              rosInputs = [ rosEnv.msgs ];
+              description = "Native Rust ROS 2 implementation using Zenoh - Message Definitions (${rosDistro})";
+            };
+
+            "ros-z-full-${rosDistro}" = mkRustPackage {
+              pname = "ros-z";
+              rosInputs = [ rosEnv.build ];
+              description = cargoToml.workspace.package.description;
+            };
+          };
 
         # Common package attributes factory
         mkRustPackage =
@@ -204,67 +232,72 @@
               maintainers = [ ];
             };
           };
+
+        # Generate shells for all distros
+        allDistroShells = builtins.listToAttrs (
+          builtins.map (distro: {
+            name = distro;
+            value = mkRosShells distro;
+          }) distros
+        );
       in
       {
         # Development shells
-        devShells = {
-          default = mkDevShell {
-            name = "ros-z-dev";
-            packages = commonBuildInputs ++ devTools ++ [ rosEnv.dev ];
-          };
+        devShells =
+          {
+            # Default: first distro in the list with ROS
+            default = allDistroShells.${builtins.head distros}.default;
 
-          noBanner = mkDevShell {
-            name = "ros-z-dev";
-            packages = commonBuildInputs ++ devTools ++ [ rosEnv.dev ];
-            showBanner = false;
-          };
+            # Without ROS
+            noRos = mkDevShell {
+              name = "ros-z-no-ros";
+              packages = commonBuildInputs ++ devTools;
+              banner = ''
+                echo "🦀 ros-z development environment (without ROS)"
+                echo "Rust: $(rustc --version)"
+              '';
+            };
 
-          ci = mkDevShell {
-            name = "ros-z-ci";
-            packages = commonBuildInputs ++ [ rosEnv.build ];
-            showBanner = false;
-          };
-
-          minimal = pkgs.mkShell {
-            name = "ros-z-minimal";
-            packages = commonBuildInputs ++ devTools;
-            shellHook = ''
-              ${exportEnvVars}
-              echo "🦀 ros-z minimal environment (no ROS dependencies)"
-              echo "Rust: $(rustc --version)"
-            '';
-            hardeningDisable = [ "all" ];
-          };
-        };
+            # CI without ROS
+            noRos-ci = mkDevShell {
+              name = "ros-z-ci-no-ros";
+              packages = commonBuildInputs;
+            };
+          }
+          # Add per-distro dev shells (jazzy, rolling, ...)
+          // (builtins.listToAttrs (
+            builtins.map (distro: {
+              name = distro;
+              value = allDistroShells.${distro}.default;
+            }) distros
+          ))
+          # Add per-distro CI shells (jazzy-ci, rolling-ci, ...)
+          // (builtins.listToAttrs (
+            builtins.map (distro: {
+              name = "${distro}-ci";
+              value = allDistroShells.${distro}.ci;
+            }) distros
+          ));
 
         # Package outputs
-        packages = {
-          ros-z = mkRustPackage {
-            pname = "ros-z";
-            buildAndTestSubdir = "ros-z";
-            description = "Native Rust ROS 2 implementation using Zenoh - Core";
-          };
+        packages =
+          let
+            basePackage = mkRustPackage {
+              pname = "ros-z";
+              buildAndTestSubdir = "ros-z";
+              description = "Native Rust ROS 2 implementation using Zenoh - Core";
+            };
 
-          rcl-z = mkRustPackage {
-            pname = "rcl-z";
-            buildAndTestSubdir = "rcl-z";
-            rosInputs = [ rosEnv.rcl ];
-            description = "Native Rust ROS 2 implementation using Zenoh - RCL Bindings";
-          };
-
-          ros-z-msgs = mkRustPackage {
-            pname = "ros-z-msgs";
-            buildAndTestSubdir = "ros-z-msgs";
-            rosInputs = [ rosEnv.msgs ];
-            description = "Native Rust ROS 2 implementation using Zenoh - Message Definitions";
-          };
-
-          default = mkRustPackage {
-            pname = "ros-z";
-            rosInputs = [ rosEnv.build ];
-            description = cargoToml.workspace.package.description;
-          };
-        };
+            # Generate packages for all distros
+            allDistroPackages = builtins.foldl' (
+              acc: distro: acc // (mkRosPackages distro)
+            ) { } distros;
+          in
+          {
+            ros-z = basePackage;
+            default = basePackage;
+          }
+          // allDistroPackages;
 
         formatter = pkgs.nixfmt-rfc-style;
       }
