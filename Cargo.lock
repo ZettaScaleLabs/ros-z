@@ -2068,6 +2068,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "protobuf_demo"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "prost-build",
+ "ros-z",
+ "ros-z-msgs",
+ "serde",
+ "zenoh",
+]
+
+[[package]]
 name = "quinn"
 version = "0.11.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2391,7 +2403,7 @@ dependencies = [
 [[package]]
 name = "roslibrust"
 version = "0.16.0"
-source = "git+https://github.com/YuanYuYuan/roslibrust?branch=dev%2Fros-z#7b56d91be872cf62323a413ceb6e0308d7eb4781"
+source = "git+https://github.com/YuanYuYuan/roslibrust?branch=dev%2Fros-z#f08547babb04c3b19a77af9a55a10b8148908e55"
 dependencies = [
  "roslibrust_codegen",
  "roslibrust_common",
@@ -2400,7 +2412,7 @@ dependencies = [
 [[package]]
 name = "roslibrust_codegen"
 version = "0.16.0"
-source = "git+https://github.com/YuanYuYuan/roslibrust?branch=dev%2Fros-z#7b56d91be872cf62323a413ceb6e0308d7eb4781"
+source = "git+https://github.com/YuanYuYuan/roslibrust?branch=dev%2Fros-z#f08547babb04c3b19a77af9a55a10b8148908e55"
 dependencies = [
  "anyhow",
  "hex",
@@ -2425,7 +2437,7 @@ dependencies = [
 [[package]]
 name = "roslibrust_common"
 version = "0.16.0"
-source = "git+https://github.com/YuanYuYuan/roslibrust?branch=dev%2Fros-z#7b56d91be872cf62323a413ceb6e0308d7eb4781"
+source = "git+https://github.com/YuanYuYuan/roslibrust?branch=dev%2Fros-z#f08547babb04c3b19a77af9a55a10b8148908e55"
 dependencies = [
  "anyhow",
  "async-stream",
