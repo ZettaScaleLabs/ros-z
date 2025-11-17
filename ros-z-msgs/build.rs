@@ -41,59 +41,115 @@ fn main() -> Result<()> {
 fn discover_ros_packages() -> Result<Vec<PathBuf>> {
     let mut ros_packages = Vec::new();
 
-    // Determine packages to discover based on enabled features
-    let package_names = {
-        let mut names = vec!["builtin_interfaces"];
+    // Categorize packages into bundled (available via roslibrust) and external (require ROS)
+    let bundled_packages = get_bundled_packages();
+    let external_packages = get_external_packages();
 
-        #[cfg(feature = "std_msgs")]
-        names.push("std_msgs");
+    // Try to find packages from ROS 2 installation first (supports both bundled and external)
+    let system_packages = discover_system_packages(&bundled_packages, &external_packages)?;
 
-        #[cfg(feature = "geometry_msgs")]
-        names.push("geometry_msgs");
+    if !system_packages.is_empty() {
+        println!(
+            "cargo:info=Found {} packages from ROS 2 installation",
+            system_packages.len()
+        );
+        return Ok(system_packages);
+    }
 
-        #[cfg(feature = "sensor_msgs")]
-        names.push("sensor_msgs");
+    // Fallback to roslibrust bundled assets for bundled packages only
+    if !bundled_packages.is_empty() {
+        println!("cargo:info=No system ROS packages found, using bundled roslibrust assets");
+        ros_packages = discover_bundled_packages(&bundled_packages)?;
+    }
 
-        #[cfg(feature = "nav_msgs")]
-        names.push("nav_msgs");
+    // Warn if external packages are requested but not found
+    if !external_packages.is_empty() && system_packages.is_empty() {
+        for package in &external_packages {
+            println!(
+                "cargo:warning={} feature enabled but package not found - requires ROS 2 installation",
+                package
+            );
+        }
+    }
 
-        #[cfg(feature = "example_interfaces")]
-        names.push("example_interfaces");
+    Ok(ros_packages)
+}
 
-        names
-    };
+/// Get list of bundled package names based on enabled features
+/// These packages are available in roslibrust assets and don't require ROS installation
+fn get_bundled_packages() -> Vec<&'static str> {
+    let mut names = vec!["builtin_interfaces"]; // Always required
 
-    // Try to find packages using standard ROS 2 discovery mechanisms
+    #[cfg(feature = "std_msgs")]
+    names.push("std_msgs");
+
+    #[cfg(feature = "geometry_msgs")]
+    names.push("geometry_msgs");
+
+    #[cfg(feature = "sensor_msgs")]
+    names.push("sensor_msgs");
+
+    #[cfg(feature = "nav_msgs")]
+    names.push("nav_msgs");
+
+    names
+}
+
+/// Get list of external package names based on enabled features
+/// These packages require a ROS 2 installation and are not bundled
+fn get_external_packages() -> Vec<&'static str> {
+    #[cfg(feature = "example_interfaces")]
+    return vec!["example_interfaces"];
+
+    #[cfg(not(feature = "example_interfaces"))]
+    Vec::new()
+}
+
+/// Try to discover packages from system ROS 2 installation
+fn discover_system_packages(
+    bundled_packages: &[&str],
+    external_packages: &[&str],
+) -> Result<Vec<PathBuf>> {
+    let mut all_packages = Vec::new();
+    all_packages.extend_from_slice(bundled_packages);
+    all_packages.extend_from_slice(external_packages);
+
+    if all_packages.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut found_packages = Vec::new();
+
     // 1. Check AMENT_PREFIX_PATH (standard ROS 2 environment variable)
     if let Ok(ament_prefix_path) = env::var("AMENT_PREFIX_PATH") {
         for prefix in ament_prefix_path.split(':') {
             let prefix_path = PathBuf::from(prefix);
-            for package_name in &package_names {
+            for package_name in &all_packages {
                 let package_path = prefix_path.join("share").join(package_name);
                 if package_path.exists() && package_path.join("package.xml").exists() {
-                    ros_packages.push(package_path);
+                    found_packages.push(package_path);
                 }
             }
         }
     }
 
     // 2. Check CMAKE_PREFIX_PATH (also commonly set in ROS 2)
-    if ros_packages.is_empty()
+    if found_packages.is_empty()
         && let Ok(cmake_prefix_path) = env::var("CMAKE_PREFIX_PATH")
     {
         for prefix in cmake_prefix_path.split(':') {
             let prefix_path = PathBuf::from(prefix);
-            for package_name in &package_names {
+            for package_name in &all_packages {
                 let package_path = prefix_path.join("share").join(package_name);
                 if package_path.exists() && package_path.join("package.xml").exists() {
-                    ros_packages.push(package_path);
+                    found_packages.push(package_path);
                 }
             }
         }
     }
 
     // 3. Check common ROS 2 installation paths
-    if ros_packages.is_empty() {
+    if found_packages.is_empty() {
         let common_install_paths = vec![
             "/opt/ros/rolling",
             "/opt/ros/jazzy",
@@ -104,65 +160,109 @@ fn discover_ros_packages() -> Result<Vec<PathBuf>> {
         for install_path in common_install_paths {
             let install = PathBuf::from(install_path);
             if install.exists() {
-                for package_name in &package_names {
+                for package_name in &all_packages {
                     let package_path = install.join("share").join(package_name);
                     if package_path.exists() && package_path.join("package.xml").exists() {
-                        ros_packages.push(package_path);
+                        found_packages.push(package_path);
                     }
                 }
-                if !ros_packages.is_empty() {
+                if !found_packages.is_empty() {
                     break;
                 }
             }
         }
     }
 
-    // Fallback to roslibrust assets if no system packages found
-    if ros_packages.is_empty() {
-        println!("cargo:warning=No system ROS packages found, falling back to roslibrust assets");
-        let roslibrust_assets = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../roslibrust/assets/ros2_common_interfaces");
+    Ok(found_packages)
+}
 
-        #[cfg(feature = "std_msgs")]
-        {
-            let std_msgs = roslibrust_assets.join("std_msgs");
-            if std_msgs.exists() {
-                ros_packages.push(std_msgs);
-            }
+/// Discover bundled packages from roslibrust assets
+fn discover_bundled_packages(bundled_packages: &[&str]) -> Result<Vec<PathBuf>> {
+    let mut ros_packages = Vec::new();
+    let roslibrust_assets = find_roslibrust_assets();
+
+    // builtin_interfaces is in ros2_required_msgs
+    if bundled_packages.contains(&"builtin_interfaces") {
+        let builtin_interfaces =
+            roslibrust_assets.join("ros2_required_msgs/rcl_interfaces/builtin_interfaces");
+        if builtin_interfaces.exists() {
+            ros_packages.push(builtin_interfaces);
+        } else {
+            println!("cargo:warning=builtin_interfaces not found in roslibrust assets");
+        }
+    }
+
+    // Common interfaces are in ros2_common_interfaces
+    let common_interfaces = roslibrust_assets.join("ros2_common_interfaces");
+
+    for package_name in bundled_packages {
+        if *package_name == "builtin_interfaces" {
+            continue; // Already handled above
         }
 
-        #[cfg(feature = "geometry_msgs")]
-        {
-            let geometry_msgs = roslibrust_assets.join("geometry_msgs");
-            if geometry_msgs.exists() {
-                ros_packages.push(geometry_msgs);
-            }
-        }
-
-        #[cfg(feature = "sensor_msgs")]
-        {
-            let sensor_msgs = roslibrust_assets.join("sensor_msgs");
-            if sensor_msgs.exists() {
-                ros_packages.push(sensor_msgs);
-            }
-        }
-
-        #[cfg(feature = "example_interfaces")]
-        {
-            let example_interfaces = roslibrust_assets.join("example_interfaces");
-            if example_interfaces.exists() {
-                ros_packages.push(example_interfaces);
-            }
-        }
-
-        if ros_packages.is_empty() {
-            ros_packages.push(roslibrust_assets.join("builtin_interfaces"));
-            ros_packages.push(roslibrust_assets.join("std_msgs"));
-            ros_packages.push(roslibrust_assets.join("geometry_msgs"));
-            ros_packages.push(roslibrust_assets.join("sensor_msgs"));
-            ros_packages.push(roslibrust_assets.join("example_interfaces"));
+        let package_path = common_interfaces.join(package_name);
+        if package_path.exists() {
+            ros_packages.push(package_path);
+        } else {
+            println!(
+                "cargo:warning={} not found in roslibrust assets at {}",
+                package_name,
+                package_path.display()
+            );
         }
     }
 
     Ok(ros_packages)
+}
+
+/// Find roslibrust assets directory
+/// This works with both git dependencies and local paths
+/// Returns the base assets directory (not ros2_common_interfaces subdirectory)
+fn find_roslibrust_assets() -> PathBuf {
+    // First, try the local path (for development)
+    let local_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../roslibrust/assets");
+
+    if local_path.exists() {
+        println!(
+            "cargo:warning=Using local roslibrust assets at {}",
+            local_path.display()
+        );
+        return local_path;
+    }
+
+    // For git dependencies, search in cargo's git checkout directory
+    // The path will be something like: ~/.cargo/git/checkouts/roslibrust-{hash}/{commit}/assets
+    if let Ok(home) = env::var("CARGO_HOME").or_else(|_| env::var("HOME")) {
+        let cargo_git = PathBuf::from(home).join(".cargo/git/checkouts");
+
+        if let Ok(entries) = std::fs::read_dir(&cargo_git) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir()
+                    && path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .is_some_and(|n| n.starts_with("roslibrust-"))
+                {
+                    // Look for the assets directory in any commit subdirectory
+                    if let Ok(commits) = std::fs::read_dir(&path) {
+                        for commit_entry in commits.flatten() {
+                            let assets_path = commit_entry.path().join("assets");
+                            if assets_path.exists() {
+                                println!(
+                                    "cargo:warning=Using roslibrust git assets at {}",
+                                    assets_path.display()
+                                );
+                                return assets_path;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback: return the local path anyway, it will fail gracefully if it doesn't exist
+    println!("cargo:warning=Could not find roslibrust assets, packages may not be available");
+    local_path
 }

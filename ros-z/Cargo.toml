@@ -34,5 +34,44 @@ prost-build = { workspace = true, optional = true }
 
 [features]
 default = []
-protobuf = ["prost"]
+protobuf = ["prost", "prost-build"]
 rcl-z = []
+# Feature to enable examples that require external ROS message packages
+external_msgs = ["ros-z-msgs/external_msgs"]
+
+# Note: Examples that use ros-z-msgs must be built from workspace root
+# since ros-z-msgs depends on ros-z (circular dependency prevents direct dependency)
+
+# Examples that work without ros-z-msgs (using custom Rust-defined messages)
+[[example]]
+name = "z_custom_message"
+required-features = []
+
+# Examples using ros-z-msgs with bundled messages (no ROS installation required)
+# These use messages from roslibrust assets: std_msgs, geometry_msgs, sensor_msgs
+[[example]]
+name = "z_pubsub"
+required-features = []
+
+[[example]]
+name = "z_pingpong"
+required-features = []
+
+[[example]]
+name = "twist_pub"
+required-features = []
+
+[[example]]
+name = "battery_state_sub"
+required-features = []
+
+[[example]]
+name = "laser_scan"
+required-features = []
+
+# Examples using external messages (requires ROS 2 installation)
+# Note: z_srvcli uses example_interfaces which requires ROS 2.
+# Build with: cargo build --example z_srvcli --features external_msgs
+[[example]]
+name = "z_srvcli"
+required-features = ["external_msgs"]

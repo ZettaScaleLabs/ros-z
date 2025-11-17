@@ -15,6 +15,5 @@ proc-macro2 = { workspace = true }
 anyhow = { workspace = true }
 
 [features]
-default = ["roslibrust", "protobuf"]
-roslibrust = []
+default = []
 protobuf = ["prost-build"]

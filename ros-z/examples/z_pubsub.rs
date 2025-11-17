@@ -10,8 +10,6 @@ struct Args {
     payload: usize,
     #[arg(short, long, default_value = "1")]
     rate: usize,
-    // #[arg(short, long, default_value = "")]
-    // config: String,
     #[arg(short, long, default_value = "default_topic")]
     topic: String,
     #[arg(short, long, default_value = "0")]
