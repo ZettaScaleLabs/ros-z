@@ -136,7 +136,7 @@ jobs:
           nix develop '.#${{ matrix.distro }}-ci' -c cargo build --example twist_pub
           nix develop '.#${{ matrix.distro }}-ci' -c cargo build --example battery_state_sub
           nix develop '.#${{ matrix.distro }}-ci' -c cargo build --example laser_scan
-          nix develop '.#${{ matrix.distro }}-ci' -c cargo build --example z_srvcli --features ros-z-msgs/external_msgs
+          nix develop '.#${{ matrix.distro }}-ci' -c cargo build --example z_srvcli --features external_msgs
 
       - name: Build protobuf demo
         run: |
