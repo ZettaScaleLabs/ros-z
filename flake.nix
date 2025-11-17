@@ -19,7 +19,7 @@
       let
         # List of supported ROS distros
         distros = [
-          "jazzy"  # default
+          "jazzy" # default
           "rolling"
         ];
 
@@ -39,7 +39,8 @@
         };
 
         # Factory to create environment for a specific ROS distro
-        mkRosEnv = rosDistro:
+        mkRosEnv =
+          rosDistro:
           let
             rosDeps = {
               rcl = with pkgs.rosPackages.${rosDistro}; [
@@ -146,7 +147,8 @@
           };
 
         # Helper to create shells for a specific ROS distro
-        mkRosShells = rosDistro:
+        mkRosShells =
+          rosDistro:
           let
             rosEnv = mkRosEnv rosDistro;
           in
@@ -171,7 +173,8 @@
         cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
 
         # Helper to create packages for a specific ROS distro
-        mkRosPackages = rosDistro:
+        mkRosPackages =
+          rosDistro:
           let
             rosEnv = mkRosEnv rosDistro;
           in
@@ -244,41 +247,40 @@
       in
       {
         # Development shells
-        devShells =
-          {
-            # Default: first distro in the list with ROS
-            default = allDistroShells.${builtins.head distros}.default;
+        devShells = {
+          # Default: first distro in the list with ROS
+          default = allDistroShells.${builtins.head distros}.default;
 
-            # Without ROS
-            noRos = mkDevShell {
-              name = "ros-z-no-ros";
-              packages = commonBuildInputs ++ devTools;
-              banner = ''
-                echo "🦀 ros-z development environment (without ROS)"
-                echo "Rust: $(rustc --version)"
-              '';
-            };
+          # Without ROS
+          noRos = mkDevShell {
+            name = "ros-z-no-ros";
+            packages = commonBuildInputs ++ devTools;
+            banner = ''
+              echo "🦀 ros-z development environment (without ROS)"
+              echo "Rust: $(rustc --version)"
+            '';
+          };
 
-            # CI without ROS
-            noRos-ci = mkDevShell {
-              name = "ros-z-ci-no-ros";
-              packages = commonBuildInputs;
-            };
-          }
-          # Add per-distro dev shells (jazzy, rolling, ...)
-          // (builtins.listToAttrs (
-            builtins.map (distro: {
-              name = distro;
-              value = allDistroShells.${distro}.default;
-            }) distros
-          ))
-          # Add per-distro CI shells (jazzy-ci, rolling-ci, ...)
-          // (builtins.listToAttrs (
-            builtins.map (distro: {
-              name = "${distro}-ci";
-              value = allDistroShells.${distro}.ci;
-            }) distros
-          ));
+          # CI without ROS
+          noRos-ci = mkDevShell {
+            name = "ros-z-ci-no-ros";
+            packages = commonBuildInputs;
+          };
+        }
+        # Add per-distro dev shells (jazzy, rolling, ...)
+        // (builtins.listToAttrs (
+          builtins.map (distro: {
+            name = distro;
+            value = allDistroShells.${distro}.default;
+          }) distros
+        ))
+        # Add per-distro CI shells (jazzy-ci, rolling-ci, ...)
+        // (builtins.listToAttrs (
+          builtins.map (distro: {
+            name = "${distro}-ci";
+            value = allDistroShells.${distro}.ci;
+          }) distros
+        ));
 
         # Package outputs
         packages =
@@ -290,9 +292,7 @@
             };
 
             # Generate packages for all distros
-            allDistroPackages = builtins.foldl' (
-              acc: distro: acc // (mkRosPackages distro)
-            ) { } distros;
+            allDistroPackages = builtins.foldl' (acc: distro: acc // (mkRosPackages distro)) { } distros;
           in
           {
             ros-z = basePackage;

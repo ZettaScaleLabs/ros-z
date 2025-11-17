@@ -27,6 +27,10 @@ jobs:
         if: env.ACT != 'true'
         uses: mozilla-actions/sccache-action@v0.0.9
 
+      - name: Check Nix formatting
+        run: |
+          nix fmt -- --check flake.nix
+
       - name: Check Markdown formatting
         run: |
           nix develop '.#noRos-ci' -c markdownlint '**/*.md'
