@@ -21,4 +21,4 @@ serial_test = "3.0"  # For sequential test execution
 [features]
 default = []
 ros-msgs = ["dep:ros-z-msgs"]
-interop-tests = ["ros-msgs"]
+interop-tests = ["ros-msgs", "ros-z-msgs/external_msgs"]
