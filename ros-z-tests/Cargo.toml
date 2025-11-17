@@ -4,9 +4,13 @@ version.workspace = true
 edition.workspace = true
 publish = false
 
+# NOTE: This crate requires ros-z-msgs (which needs ROS dependencies) for integration tests.
+# To build without ROS, exclude this crate from the workspace build:
+#   cargo build --workspace --exclude rcl-z --exclude ros-z-msgs --exclude ros-z-tests
+
 [dependencies]
 ros-z = { path = "../ros-z" }
-ros-z-msgs = { path = "../ros-z-msgs" }
+ros-z-msgs = { path = "../ros-z-msgs", optional = true }
 # rcl-z = { path = "../rcl-z" }
 
 # Test runtime dependencies
@@ -16,4 +20,5 @@ serial_test = "3.0"  # For sequential test execution
 
 [features]
 default = []
-interop-tests = []
+ros-msgs = ["dep:ros-z-msgs"]
+interop-tests = ["ros-msgs"]
