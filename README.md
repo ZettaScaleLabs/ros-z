@@ -81,7 +81,7 @@ cargo build -p rcl-z
 cargo build -p ros-z-msgs --features external_msgs
 
 # Build example that uses external messages (requires ROS 2)
-cargo build --example z_srvcli --features ros-z-msgs/external_msgs
+cargo build --example z_srvcli --features ros-z/external_msgs
 ```
 
 ### Using Nix (Optional)
@@ -156,6 +156,7 @@ Examples are categorized by their dependencies:
 
 - **External messages** (requires ROS 2 installation):
   - `z_srvcli` - Service client/server using example_interfaces
+    - Build with: `cargo build --example z_srvcli --features ros-z/external_msgs`
 
 - **Advanced** (requires protobuf feature):
   - `protobuf_demo` - Demonstrates protobuf serialization with both ROS
@@ -168,6 +169,8 @@ Examples are categorized by their dependencies:
 
 - `protobuf` - Enable protobuf serialization support (requires `prost`)
 - `rcl-z` - Enable RCL integration features
+- `external_msgs` - Enable examples that require external ROS message packages
+  (propagates to `ros-z-msgs/external_msgs`)
 
 ### ros-z-msgs
 

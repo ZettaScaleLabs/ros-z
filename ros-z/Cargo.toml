@@ -36,6 +36,8 @@ prost-build = { workspace = true, optional = true }
 default = []
 protobuf = ["prost", "prost-build"]
 rcl-z = []
+# Feature to enable examples that require external ROS message packages
+external_msgs = ["ros-z-msgs/external_msgs"]
 
 # Note: Examples that use ros-z-msgs must be built from workspace root
 # since ros-z-msgs depends on ros-z (circular dependency prevents direct dependency)
@@ -69,9 +71,7 @@ required-features = []
 
 # Examples using external messages (requires ROS 2 installation)
 # Note: z_srvcli uses example_interfaces which requires ROS 2.
-# Build with: cargo build --example z_srvcli --features ros-z-msgs/external_msgs
-# This example will fail with `cargo check --all-features --all-targets` because
-# --all-features doesn't propagate ros-z-msgs/external_msgs to dependencies.
+# Build with: cargo build --example z_srvcli --features external_msgs
 [[example]]
 name = "z_srvcli"
-required-features = []
+required-features = ["external_msgs"]
