@@ -104,6 +104,7 @@
           pkg-config
           nushell
           protobuf
+          markdownlint-cli
         ];
 
         # Development tools

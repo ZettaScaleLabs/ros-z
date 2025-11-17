@@ -27,6 +27,10 @@ jobs:
         if: env.ACT != 'true'
         uses: mozilla-actions/sccache-action@v0.0.9
 
+      - name: Check Markdown formatting
+        run: |
+          nix develop '.#noRos-ci' -c markdownlint '**/*.md' --ignore 'target/**' --ignore 'node_modules/**'
+
       - name: Check Rust formatting
         run: |
           nix develop '.#noRos-ci' -c cargo fmt --all -- --check
