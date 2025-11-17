@@ -1,4 +1,4 @@
-use ros_z::{Result, msg::ProtobufSerdes};
+use ros_z::{Builder, MessageTypeInfo, Result, WithTypeInfo, entity::TypeHash, msg::ProtobufSerdes};
 use std::time::Duration;
 
 // Import ROS-generated protobuf messages
@@ -10,6 +10,19 @@ pub mod sensor_data {
 }
 
 use sensor_data::SensorData;
+
+// Implement required traits for custom protobuf message
+impl MessageTypeInfo for SensorData {
+    fn type_name() -> &'static str {
+        "examples::msg::dds_::SensorData_"
+    }
+
+    fn type_hash() -> TypeHash {
+        TypeHash::zero() // For custom messages without ROS type support
+    }
+}
+
+impl WithTypeInfo for SensorData {}
 
 fn main() -> Result<()> {
     zenoh::init_log_from_env_or("info");
