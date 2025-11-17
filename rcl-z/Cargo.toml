@@ -3,6 +3,10 @@ name = "rcl-z"
 version = "0.1.0"
 edition = "2024"
 
+# NOTE: This crate requires RCL (ROS Client Library) dependencies at build time.
+# To build without ROS, exclude this crate from the workspace build:
+#   cargo build --workspace --exclude rcl-z --exclude ros-z-msgs --exclude ros-z-tests
+
 [dependencies]
 tracing = { workspace = true }
 zenoh = { workspace = true, default-features = false, features = [
