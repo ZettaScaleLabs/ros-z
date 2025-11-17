@@ -1,4 +1,6 @@
-use ros_z::{Builder, MessageTypeInfo, Result, WithTypeInfo, entity::TypeHash, msg::ProtobufSerdes};
+use ros_z::{
+    Builder, MessageTypeInfo, Result, WithTypeInfo, entity::TypeHash, msg::ProtobufSerdes,
+};
 use std::time::Duration;
 
 // Import ROS-generated protobuf messages
@@ -38,7 +40,8 @@ fn main() -> Result<()> {
 
     // Part 1: ROS message with protobuf serialization
     println!("--- Part 1: ROS geometry_msgs/Vector3 with Protobuf ---");
-    let ros_pub = node.create_pub::<Vector3Proto>("/vector_proto")
+    let ros_pub = node
+        .create_pub::<Vector3Proto>("/vector_proto")
         .with_serdes::<ProtobufSerdes<Vector3Proto>>()
         .build()?;
 
@@ -57,7 +60,8 @@ fn main() -> Result<()> {
 
     // Part 2: Custom protobuf message
     println!("\n--- Part 2: Custom SensorData message (pure protobuf) ---");
-    let custom_pub = node.create_pub::<SensorData>("/sensor_data")
+    let custom_pub = node
+        .create_pub::<SensorData>("/sensor_data")
         .with_serdes::<ProtobufSerdes<SensorData>>()
         .build()?;
 
@@ -74,8 +78,10 @@ fn main() -> Result<()> {
         };
 
         custom_pub.publish(&msg)?;
-        println!("  Published SensorData: id={}, temp={:.1}°C, humidity={:.1}%, ts={}",
-                 msg.sensor_id, msg.temperature, msg.humidity, msg.timestamp);
+        println!(
+            "  Published SensorData: id={}, temp={:.1}°C, humidity={:.1}%, ts={}",
+            msg.sensor_id, msg.temperature, msg.humidity, msg.timestamp
+        );
         std::thread::sleep(Duration::from_millis(500));
     }
 
