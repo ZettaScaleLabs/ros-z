@@ -21,13 +21,3 @@ this experiment will help the ROS community making ROS 2 even better.
 ## Status
 **ROS-Z** is experimental software. It should be interoperable with ROS 2 Rolling, but we make no guarantees with respect 
 to official distributions.
-
-## Building
-To build ROS-Z without any ROS 2 dependency do:
-
-    $ cargo build -p ros-z
-
-Otherwise if you have ROS 2 installed you can build with:
-
-    $ cargo build 
-
