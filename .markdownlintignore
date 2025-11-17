@@ -3,9 +3,7 @@ target/
 node_modules/
 
 # Temporary and analysis files
-_*.md
-_results/
-_cyclone/
+_*
 
 # Third-party dependencies
 .cargo/
