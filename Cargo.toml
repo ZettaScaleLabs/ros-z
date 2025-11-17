@@ -6,7 +6,9 @@ homepage = "https://github.com/ZettaScaleLabs/ros-z"
 
 [workspace]
 resolver = "2"
-members = ["ros-z", "rcl-z", "ros-z-codegen", "ros-z-msgs", "ros-z-tests"]
+members = ["ros-z", "ros-z-codegen", "rcl-z", "ros-z-msgs", "ros-z-tests", "ros-z/examples/protobuf_demo"]
+default-members = ["ros-z", "ros-z-codegen"]
+# Note: protobuf_demo is an advanced example demonstrating protobuf serialization
 
 [workspace.dependencies]
 # Workspace members

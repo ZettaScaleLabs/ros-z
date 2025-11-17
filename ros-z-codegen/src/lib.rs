@@ -1,3 +1,4 @@
+#[cfg(feature = "protobuf")]
 pub mod protobuf_adapter;
 pub mod roslibrust_adapter;
 pub mod type_info_generator;
@@ -29,13 +30,6 @@ impl MessageGenerator {
 
     /// Primary generation method - uses roslibrust for .msg files
     pub fn generate_from_msg_files(&self, packages: &[&Path]) -> Result<()> {
-        // Parse messages first
-        let package_paths: Vec<PathBuf> = packages.iter().map(|p| p.to_path_buf()).collect();
-        let (messages, services, _actions) =
-            roslibrust_codegen::find_and_parse_ros_messages(&package_paths)?;
-        let (resolved_msgs, _resolved_srvs) =
-            roslibrust_codegen::resolve_dependency_graph(messages, services)?;
-
         // Generate CDR-compatible types
         if self.config.generate_cdr {
             roslibrust_adapter::generate_ros_messages(
@@ -46,7 +40,15 @@ impl MessageGenerator {
         }
 
         // Generate protobuf types
+        #[cfg(feature = "protobuf")]
         if self.config.generate_protobuf {
+            // Parse messages for protobuf generation
+            let package_paths: Vec<PathBuf> = packages.iter().map(|p| p.to_path_buf()).collect();
+            let (messages, services, _actions) =
+                roslibrust_codegen::find_and_parse_ros_messages(&package_paths)?;
+            let (resolved_msgs, _resolved_srvs) =
+                roslibrust_codegen::resolve_dependency_graph(messages, services)?;
+
             let proto_dir = self.config.output_dir.join("proto");
             let generator = protobuf_adapter::ProtobufMessageGenerator::new(&proto_dir);
 

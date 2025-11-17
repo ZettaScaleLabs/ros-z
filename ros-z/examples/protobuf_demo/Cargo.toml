@@ -1,14 +1,15 @@
 [package]
 name = "protobuf_demo"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
 publish = false
 
 [dependencies]
-ros-z = { path = "../.." }
+ros-z = { workspace = true, features = ["protobuf"] }
 ros-z-msgs = { path = "../../../ros-z-msgs", features = ["geometry_msgs", "protobuf"] }
-prost = "0.13"
-zenoh = { version = "1.6.2", default-features = false }
+prost = { workspace = true }
+serde = { workspace = true }
+zenoh = { workspace = true }
 
 [build-dependencies]
-prost-build = "0.13"
+prost-build = { workspace = true }

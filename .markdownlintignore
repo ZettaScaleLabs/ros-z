@@ -1,0 +1,9 @@
+# Build artifacts
+target/
+node_modules/
+
+# Temporary and analysis files
+_*
+
+# Third-party dependencies
+.cargo/
