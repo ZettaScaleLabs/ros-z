@@ -108,13 +108,12 @@ nix develop .#noRos-ci
 
 **Note on `ros-z-msgs`:** This package can build without ROS installed! When
 ROS is not available, it automatically falls back to using bundled message
-definitions from the roslibrust repository. The build system searches for ROS
-packages in this order:
+definitions from the roslibrust git dependency. The build system searches for
+ROS packages in this order:
 
 1. System ROS installation (via `AMENT_PREFIX_PATH` or `CMAKE_PREFIX_PATH`)
 2. Common ROS installation paths (`/opt/ros/{rolling,jazzy,iron,humble}`)
-3. Local roslibrust checkout (`../../roslibrust/assets/`)
-4. Roslibrust git dependency (`~/.cargo/git/checkouts/roslibrust-*/assets/`)
+3. Roslibrust git dependency (`~/.cargo/git/checkouts/roslibrust-*/assets/`)
 
 This allows `ros-z-msgs` to generate message types even in environments without
 ROS 2 installed. The default `common_interfaces` feature includes `std_msgs`,
