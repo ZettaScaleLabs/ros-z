@@ -21,5 +21,26 @@ jobs:
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
 
+      - name: Fetch dependencies and update submodules
+        run: |
+          cargo fetch
+          # Ensure git submodules in the cargo git checkouts are initialized
+          for dir in ~/.cargo/git/checkouts/roslibrust-*/*/; do
+            if [ -d "$dir" ]; then
+              echo "Updating submodules in $dir"
+              (cd "$dir" && git submodule update --init --recursive) || true
+            fi
+          done
+
+      - name: Debug - Check cargo git checkouts
+        run: |
+          echo "HOME: $HOME"
+          echo "CARGO_HOME: ${CARGO_HOME:-not set}"
+          echo "Checking for roslibrust checkouts:"
+          ls -la ~/.cargo/git/checkouts/ 2>/dev/null || echo "No checkouts directory"
+          find ~/.cargo/git/checkouts -name "roslibrust-*" -type d 2>/dev/null || echo "No roslibrust directories found"
+          echo "Checking for assets directory:"
+          find ~/.cargo/git/checkouts -name "assets" -type d 2>/dev/null || echo "No assets directories found"
+
       - name: Build examples without ROS dependencies
         run: cargo build --examples
