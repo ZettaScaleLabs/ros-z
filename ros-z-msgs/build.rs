@@ -215,22 +215,10 @@ fn discover_bundled_packages(bundled_packages: &[&str]) -> Result<Vec<PathBuf>> 
     Ok(ros_packages)
 }
 
-/// Find roslibrust assets directory
-/// This works with both git dependencies and local paths
+/// Find roslibrust assets directory from git dependency
 /// Returns the base assets directory (not ros2_common_interfaces subdirectory)
 fn find_roslibrust_assets() -> PathBuf {
-    // First, try the local path (for development)
-    let local_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../roslibrust/assets");
-
-    if local_path.exists() {
-        println!(
-            "cargo:warning=Using local roslibrust assets at {}",
-            local_path.display()
-        );
-        return local_path;
-    }
-
-    // For git dependencies, search in cargo's git checkout directory
+    // Search in cargo's git checkout directory
     // The path will be something like: ~/.cargo/git/checkouts/roslibrust-{hash}/{commit}/assets
     if let Ok(home) = env::var("CARGO_HOME").or_else(|_| env::var("HOME")) {
         let cargo_git = PathBuf::from(home).join(".cargo/git/checkouts");
