@@ -20,7 +20,8 @@ jobs:
       run: |
         apt-get install -y \
           ros-jazzy-example-interfaces \
-          ros-jazzy-rmw-zenoh-cpp
+          ros-jazzy-rmw-zenoh-cpp \
+          ros-jazzy-demo-nodes-cpp
 
     - uses: actions/checkout@v4
 
