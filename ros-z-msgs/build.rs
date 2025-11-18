@@ -250,7 +250,10 @@ fn find_roslibrust_assets() -> PathBuf {
         }
     }
 
-    // Fallback: return the local path anyway, it will fail gracefully if it doesn't exist
-    println!("cargo:warning=Could not find roslibrust assets, packages may not be available");
-    local_path
+    // Fallback: panic with helpful error message
+    panic!(
+        "Could not find roslibrust assets directory!\n\
+         Make sure roslibrust is specified as a git dependency in Cargo.toml.\n\
+         The build system searches: ~/.cargo/git/checkouts/roslibrust-*/*/assets/"
+    );
 }

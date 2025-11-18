@@ -282,24 +282,6 @@
           }) distros
         ));
 
-        # Package outputs
-        packages =
-          let
-            basePackage = mkRustPackage {
-              pname = "ros-z";
-              buildAndTestSubdir = "ros-z";
-              description = "Native Rust ROS 2 implementation using Zenoh - Core";
-            };
-
-            # Generate packages for all distros
-            allDistroPackages = builtins.foldl' (acc: distro: acc // (mkRosPackages distro)) { } distros;
-          in
-          {
-            ros-z = basePackage;
-            default = basePackage;
-          }
-          // allDistroPackages;
-
         formatter = pkgs.nixfmt-rfc-style;
       }
     );
