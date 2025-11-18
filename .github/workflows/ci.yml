@@ -53,7 +53,7 @@ jobs:
 
       - name: Build examples without ROS dependencies
         run: |
-          nix develop '.#noRos-ci' -c cargo build --example z_custom_message
+          nix develop '.#noRos-ci' -c cargo build --examples
 
       - name: Run tests
         run: |
@@ -133,9 +133,7 @@ jobs:
       - name: Build ROS message examples
         run: |
           nix develop '.#${{ matrix.distro }}-ci' -c cargo build -p ros-z-msgs
-          nix develop '.#${{ matrix.distro }}-ci' -c cargo build --example twist_pub
-          nix develop '.#${{ matrix.distro }}-ci' -c cargo build --example battery_state_sub
-          nix develop '.#${{ matrix.distro }}-ci' -c cargo build --example laser_scan
+          nix develop '.#${{ matrix.distro }}-ci' -c cargo build --examples
           nix develop '.#${{ matrix.distro }}-ci' -c cargo build --example z_srvcli --features external_msgs
 
       - name: Build protobuf demo
