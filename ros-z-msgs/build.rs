@@ -220,29 +220,33 @@ fn discover_bundled_packages(bundled_packages: &[&str]) -> Result<Vec<PathBuf>> 
 fn find_roslibrust_assets() -> PathBuf {
     // Search in cargo's git checkout directory
     // The path will be something like: ~/.cargo/git/checkouts/roslibrust-{hash}/{commit}/assets
-    if let Ok(home) = env::var("CARGO_HOME").or_else(|_| env::var("HOME")) {
-        let cargo_git = PathBuf::from(home).join(".cargo/git/checkouts");
+    let cargo_git = if let Ok(cargo_home) = env::var("CARGO_HOME") {
+        PathBuf::from(cargo_home).join("git/checkouts")
+    } else if let Ok(home) = env::var("HOME") {
+        PathBuf::from(home).join(".cargo/git/checkouts")
+    } else {
+        panic!("Neither CARGO_HOME nor HOME environment variable is set");
+    };
 
-        if let Ok(entries) = std::fs::read_dir(&cargo_git) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_dir()
-                    && path
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .is_some_and(|n| n.starts_with("roslibrust-"))
-                {
-                    // Look for the assets directory in any commit subdirectory
-                    if let Ok(commits) = std::fs::read_dir(&path) {
-                        for commit_entry in commits.flatten() {
-                            let assets_path = commit_entry.path().join("assets");
-                            if assets_path.exists() {
-                                println!(
-                                    "cargo:warning=Using roslibrust git assets at {}",
-                                    assets_path.display()
-                                );
-                                return assets_path;
-                            }
+    if let Ok(entries) = std::fs::read_dir(&cargo_git) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir()
+                && path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| n.starts_with("roslibrust-"))
+            {
+                // Look for the assets directory in any commit subdirectory
+                if let Ok(commits) = std::fs::read_dir(&path) {
+                    for commit_entry in commits.flatten() {
+                        let assets_path = commit_entry.path().join("assets");
+                        if assets_path.exists() {
+                            println!(
+                                "cargo:warning=Using roslibrust git assets at {}",
+                                assets_path.display()
+                            );
+                            return assets_path;
                         }
                     }
                 }
