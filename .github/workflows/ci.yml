@@ -7,10 +7,11 @@ on:
     branches: [ main ]
 
 jobs:
-  no-ros:
-    name: ROS-independent Test
+  nix-matrix:
+    name: Generate Nix CI Matrix
     runs-on: ubuntu-latest
-
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -23,63 +24,22 @@ jobs:
             experimental-features = nix-command flakes
             accept-flake-config = true
 
-      - name: Setup sccache
-        if: env.ACT != 'true'
-        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Setup Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v8
 
-      - name: Check Nix formatting
+      - name: Generate CI matrix from flake
+        id: set-matrix
         run: |
-          nix fmt -- --check flake.nix
+          set -euo pipefail
+          matrix="$(nix eval --json '.#githubActions.matrix')"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
-      - name: Check Markdown formatting
-        run: |
-          nix develop '.#noRos-ci' -c markdownlint '**/*.md'
-
-      - name: Check Rust formatting
-        run: |
-          nix develop '.#noRos-ci' -c cargo fmt --all -- --check
-
-      - name: Clippy (default workspace)
-        run: |
-          nix develop '.#noRos-ci' -c cargo clippy --lib --bins --tests -- -D warnings
-
-      - name: Check default workspace
-        run: |
-          nix develop '.#noRos-ci' -c cargo check
-
-      - name: Build default workspace
-        run: |
-          nix develop '.#noRos-ci' -c cargo build
-
-      - name: Build examples without ROS dependencies
-        run: |
-          nix develop '.#noRos-ci' -c cargo build --examples
-
-      - name: Run tests
-        run: |
-          nix develop '.#noRos-ci' -c cargo test
-
-      - name: Check ros-z-msgs with bundled messages (no ROS required)
-        run: |
-          nix develop '.#noRos-ci' -c cargo check -p ros-z-msgs
-          nix develop '.#noRos-ci' -c cargo check -p ros-z-msgs --features bundled_msgs
-          nix develop '.#noRos-ci' -c cargo check -p ros-z-msgs --features common_interfaces
-
-      - name: Build ros-z-msgs with individual bundled packages
-        run: |
-          nix develop '.#noRos-ci' -c cargo build -p ros-z-msgs --no-default-features --features std_msgs
-          nix develop '.#noRos-ci' -c cargo build -p ros-z-msgs --no-default-features --features geometry_msgs
-          nix develop '.#noRos-ci' -c cargo build -p ros-z-msgs --no-default-features --features sensor_msgs
-          nix develop '.#noRos-ci' -c cargo build -p ros-z-msgs --no-default-features --features nav_msgs
-
-  with-ros:
-    name: ROS-dependent Test (${{ matrix.distro }})
+  nix-build:
+    name: ${{ matrix.attr }}
+    needs: nix-matrix
     runs-on: ubuntu-latest
     strategy:
-      matrix:
-        distro: [jazzy]
-        # distro: [jazzy, rolling]  # Uncomment to test rolling when stable
-
+      matrix: ${{fromJSON(needs.nix-matrix.outputs.matrix)}}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -99,48 +59,11 @@ jobs:
         with:
           name: ros
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-          skipPush: true
+          # Push build outputs to cachix for reuse
+          skipPush: false
 
-      - name: Setup sccache
-        if: env.ACT != 'true'
-        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Setup Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v8
 
-      - name: Check rcl-z
-        run: |
-          nix develop '.#${{ matrix.distro }}-ci' -c cargo check -p rcl-z
-
-      - name: Check ros-z-msgs (default bundled features)
-        run: |
-          nix develop '.#${{ matrix.distro }}-ci' -c cargo check -p ros-z-msgs
-
-      - name: Check ros-z-msgs with external messages
-        run: |
-          nix develop '.#${{ matrix.distro }}-ci' -c cargo check -p ros-z-msgs --features external_msgs
-          nix develop '.#${{ matrix.distro }}-ci' -c cargo check -p ros-z-msgs --features example_interfaces
-
-      - name: Check ros-z-msgs with all messages (bundled + external)
-        run: |
-          nix develop '.#${{ matrix.distro }}-ci' -c cargo check -p ros-z-msgs --features all_msgs
-
-      - name: Check with protobuf feature
-        run: |
-          nix develop '.#${{ matrix.distro }}-ci' -c cargo check -p ros-z -p ros-z-msgs --features ros-z/protobuf,ros-z-msgs/protobuf
-
-      - name: Check ros-z (with rcl-z feature)
-        run: |
-          nix develop '.#${{ matrix.distro }}-ci' -c cargo check -p ros-z --features rcl-z
-
-      - name: Build ROS message examples
-        run: |
-          nix develop '.#${{ matrix.distro }}-ci' -c cargo build -p ros-z-msgs
-          nix develop '.#${{ matrix.distro }}-ci' -c cargo build --examples
-          nix develop '.#${{ matrix.distro }}-ci' -c cargo build --example z_srvcli --features external_msgs
-
-      - name: Build protobuf demo
-        run: |
-          nix develop '.#${{ matrix.distro }}-ci' -c cargo build -p protobuf_demo
-
-      # FIXME: This requires the installation of rmw_zenoh_cpp triggering a build from source...
-      # - name: Run unit tests
-      #   run: |
-      #     nix develop .#ci -c cargo test --all-features
+      - name: Run check
+        run: nix build -L '.#${{ matrix.attr }}'

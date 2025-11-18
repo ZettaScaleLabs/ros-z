@@ -218,7 +218,19 @@ fn discover_bundled_packages(bundled_packages: &[&str]) -> Result<Vec<PathBuf>> 
 /// Find roslibrust assets directory from git dependency
 /// Returns the base assets directory (not ros2_common_interfaces subdirectory)
 fn find_roslibrust_assets() -> PathBuf {
-    // Search in cargo's git checkout directory
+    // 1. Check if ROSLIBRUST_ASSETS_DIR env var is set (for Nix builds with vendored deps)
+    if let Ok(assets_dir) = env::var("ROSLIBRUST_ASSETS_DIR") {
+        let path = PathBuf::from(assets_dir);
+        if path.exists() {
+            println!(
+                "cargo:warning=Using roslibrust assets from ROSLIBRUST_ASSETS_DIR: {}",
+                path.display()
+            );
+            return path;
+        }
+    }
+
+    // 2. Search in cargo's git checkout directory
     // The path will be something like: ~/.cargo/git/checkouts/roslibrust-{hash}/{commit}/assets
     if let Ok(home) = env::var("CARGO_HOME").or_else(|_| env::var("HOME")) {
         let cargo_git = PathBuf::from(home).join(".cargo/git/checkouts");
@@ -250,7 +262,12 @@ fn find_roslibrust_assets() -> PathBuf {
         }
     }
 
-    // Fallback: return the local path anyway, it will fail gracefully if it doesn't exist
-    println!("cargo:warning=Could not find roslibrust assets, packages may not be available");
-    local_path
+    // Fallback: panic with helpful error message
+    panic!(
+        "Could not find roslibrust assets directory!\n\
+         Make sure roslibrust is specified as a git dependency in Cargo.toml.\n\
+         The build system searches for:\n\
+         1. ROSLIBRUST_ASSETS_DIR environment variable\n\
+         2. ~/.cargo/git/checkouts/roslibrust-*/*/assets/"
+    );
 }
