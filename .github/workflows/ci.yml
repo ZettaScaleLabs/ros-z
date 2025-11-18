@@ -26,22 +26,15 @@ jobs:
   no-ros:
     name: ROS-independent Test
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Nix
-        uses: cachix/install-nix-action@v27
-        with:
-          nix_path: nixpkgs=channel:nixos-unstable
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            accept-flake-config = true
-
-      - name: Setup sccache
-        if: env.ACT != 'true'
-        uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: DeterminateSystems/determinate-nix-action@v3
 
       - name: Clippy (default workspace)
         run: |
@@ -79,6 +72,9 @@ jobs:
   with-ros:
     name: ROS-dependent Test (${{ matrix.distro }})
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     strategy:
       matrix:
         distro: [jazzy]
@@ -88,13 +84,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Nix
-        uses: cachix/install-nix-action@v27
+      - uses: DeterminateSystems/determinate-nix-action@v3
         with:
-          nix_path: nixpkgs=channel:nixos-unstable
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            accept-flake-config = true
+          extra-conf: |
             extra-substituters = https://ros.cachix.org
             extra-trusted-public-keys = ros.cachix.org-1:dSyZxI8geDCJrwgvCOHDoAfOm5sV1wCPjBkKL+38Rvo=
 
@@ -104,10 +96,6 @@ jobs:
           name: ros
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
           skipPush: true
-
-      - name: Setup sccache
-        if: env.ACT != 'true'
-        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Clippy (all targets, all features)
         run: |
