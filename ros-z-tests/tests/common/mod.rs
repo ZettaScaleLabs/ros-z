@@ -32,6 +32,15 @@ impl Drop for ProcessGuard {
 pub static ZENOHD: once_cell::sync::Lazy<ProcessGuard> = once_cell::sync::Lazy::new(|| {
     println!("🚀 Starting shared rmw_zenohd daemon...");
 
+    // Check if rmw_zenoh_cpp is available
+    if !check_rmw_zenoh_available() {
+        panic!(
+            "rmw_zenoh_cpp package not found!\n\
+             Please install it with: apt install ros-$ROS_DISTRO-rmw-zenoh-cpp\n\
+             Or ensure ROS environment is sourced: source /opt/ros/$ROS_DISTRO/setup.bash"
+        );
+    }
+
     let child = Command::new("ros2")
         .args(["run", "rmw_zenoh_cpp", "rmw_zenohd"])
         .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
@@ -71,4 +80,15 @@ pub fn wait_for_ready(duration: Duration) {
 /// Check if ros2 CLI is available
 pub fn check_ros2_available() -> bool {
     Command::new("ros2").arg("--version").output().is_ok()
+}
+
+/// Check if rmw_zenoh_cpp package is available
+pub fn check_rmw_zenoh_available() -> bool {
+    Command::new("ros2")
+        .args(["pkg", "prefix", "rmw_zenoh_cpp"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
 }

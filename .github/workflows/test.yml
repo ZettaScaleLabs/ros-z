@@ -13,19 +13,23 @@ jobs:
     container:
       image: rostooling/setup-ros-docker:ubuntu-noble-ros-jazzy-ros-base-latest
     steps:
-    - name: Install Node.js
+    - name: Install system dependencies
       run: apt-get update && apt-get install -y nodejs
 
     - name: Install ROS dependencies
-      run: apt-get install -y ros-jazzy-example-interfaces
+      run: |
+        apt-get install -y \
+          ros-jazzy-example-interfaces \
+          ros-jazzy-rmw-zenoh-cpp \
+          ros-jazzy-demo-nodes-cpp
 
     - uses: actions/checkout@v4
 
     - uses: actions-rust-lang/setup-rust-toolchain@v1
 
-    # FIXME: This fails on Github runner
-    # - name: Run interop tests
-    #   shell: bash
-    #   run: |
-    #     source /opt/ros/jazzy/setup.bash
-    #     cargo test -p ros-z-tests --features interop-tests --release
+    - name: Run interop tests
+      shell: bash
+      run: |
+        source /opt/ros/jazzy/setup.bash
+        export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+        cargo test -p ros-z-tests --features interop-tests --release
