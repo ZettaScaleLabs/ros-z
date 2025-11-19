@@ -10,8 +10,8 @@ flume = { workspace = true }
 serde = { workspace = true, features = ["serde_derive"] }
 tracing = { workspace = true }
 zenoh = { workspace = true, default-features = false, features = [
-    "transport_tcp",
-    "unstable",
+  "transport_tcp",
+  "unstable",
 ] }
 zenoh-ext = { workspace = true }
 strum = { workspace = true, features = ["derive"] }

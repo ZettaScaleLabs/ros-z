@@ -2,11 +2,27 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
+  formatting:
+    name: Check Formatting
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - uses: DeterminateSystems/determinate-nix-action@v3
+
+      - name: Check formatting
+        run: nix build .#checks.x86_64-linux.pre-commit-check -L
+
   no-ros:
     name: ROS-independent Test
     runs-on: ubuntu-latest
@@ -26,18 +42,6 @@ jobs:
       - name: Setup sccache
         if: env.ACT != 'true'
         uses: mozilla-actions/sccache-action@v0.0.9
-
-      - name: Check Nix formatting
-        run: |
-          nix fmt -- --check flake.nix
-
-      - name: Check Markdown formatting
-        run: |
-          nix develop '.#noRos-ci' -c markdownlint '**/*.md'
-
-      - name: Check Rust formatting
-        run: |
-          nix develop '.#noRos-ci' -c cargo fmt --all -- --check
 
       - name: Clippy (default workspace)
         run: |
@@ -124,7 +128,8 @@ jobs:
 
       - name: Check with protobuf feature
         run: |
-          nix develop '.#${{ matrix.distro }}-ci' -c cargo check -p ros-z -p ros-z-msgs --features ros-z/protobuf,ros-z-msgs/protobuf
+          nix develop '.#${{ matrix.distro }}-ci' -c cargo check -p ros-z -p ros-z-msgs \
+            --features ros-z/protobuf,ros-z-msgs/protobuf
 
       - name: Check ros-z (with rcl-z feature)
         run: |

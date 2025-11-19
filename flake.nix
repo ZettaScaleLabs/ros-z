@@ -5,6 +5,8 @@
     nix-ros-overlay.url = "github:lopsided98/nix-ros-overlay";
     nixpkgs.follows = "nix-ros-overlay/nixpkgs";
     rust-overlay.url = "github:oxalica/rust-overlay";
+    git-hooks.url = "github:cachix/git-hooks.nix";
+    systems.url = "github:nix-systems/default";
   };
 
   outputs =
@@ -13,6 +15,8 @@
       nix-ros-overlay,
       nixpkgs,
       rust-overlay,
+      git-hooks,
+      systems,
     }:
     nix-ros-overlay.inputs.flake-utils.lib.eachDefaultSystem (
       system:
@@ -139,10 +143,15 @@
             name,
             packages,
             banner ? "",
+            extraShellHook ? "",
           }:
           pkgs.mkShell {
             inherit name packages;
-            shellHook = exportEnvVars + (if banner != "" then "\n${banner}" else "");
+            shellHook = ''
+              ${exportEnvVars}
+              ${extraShellHook}
+              ${if banner != "" then banner else ""}
+            '';
             hardeningDisable = [ "all" ];
           };
 
@@ -155,7 +164,8 @@
           {
             default = mkDevShell {
               name = "ros-z-dev-${rosDistro}";
-              packages = commonBuildInputs ++ devTools ++ [ rosEnv.dev ];
+              packages = commonBuildInputs ++ devTools ++ [ rosEnv.dev ] ++ pre-commit-check.enabledPackages;
+              extraShellHook = pre-commit-check.shellHook;
               banner = ''
                 echo "🦀 ros-z development environment (with ROS)"
                 echo "ROS 2 Distribution: ${rosDistro}"
@@ -244,8 +254,70 @@
             value = mkRosShells distro;
           }) distros
         );
+        # yamllint configuration
+        yamlFormat = pkgs.formats.yaml { };
+        yamllintConfigData = {
+          extends = "default";
+          rules = {
+            line-length = {
+              max = 120;
+            };
+            document-start = "disable";
+            truthy = "disable";
+          };
+        };
+        yamllintConfig = yamlFormat.generate ".yamllint.yaml" yamllintConfigData;
+
+        # markdownlint configuration
+        markdownlintConfig = {
+          MD013 = false; # Line length
+          MD033 = {
+            # Inline HTML
+            allowed_elements = [
+              "div"
+              "h1"
+              "p"
+              "strong"
+              "a"
+              "sub"
+            ];
+          };
+          MD041 = false; # First line in file should be a top-level heading
+        };
+
+        # Pre-commit hooks configuration
+        pre-commit-check = git-hooks.lib.${system}.run {
+          src = ./.;
+          hooks = {
+            # Rust formatter
+            rustfmt.enable = true;
+
+            # TOML formatter
+            taplo.enable = true;
+
+            # YAML linter with relaxed rules
+            yamllint = {
+              enable = true;
+              settings.configPath = "${yamllintConfig}";
+            };
+
+            # Markdown linter
+            markdownlint = {
+              enable = true;
+              settings.configuration = markdownlintConfig;
+            };
+
+            # Nix formatter
+            nixfmt-rfc-style.enable = true;
+          };
+        };
       in
       {
+        # Pre-commit checks
+        checks = {
+          inherit pre-commit-check;
+        };
+
         # Development shells
         devShells = {
           # Default: first distro in the list with ROS
@@ -254,7 +326,8 @@
           # Without ROS
           noRos = mkDevShell {
             name = "ros-z-no-ros";
-            packages = commonBuildInputs ++ devTools;
+            packages = commonBuildInputs ++ devTools ++ pre-commit-check.enabledPackages;
+            extraShellHook = pre-commit-check.shellHook;
             banner = ''
               echo "🦀 ros-z development environment (without ROS)"
               echo "Rust: $(rustc --version)"
