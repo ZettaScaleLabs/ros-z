@@ -7,6 +7,22 @@ on:
     branches: [main]
 
 jobs:
+  formatting:
+    name: Check Formatting
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - uses: DeterminateSystems/determinate-nix-action@v3
+
+      - name: Check formatting
+        run: nix flake check -L
+
   no-ros:
     name: ROS-independent Test
     runs-on: ubuntu-latest
@@ -26,10 +42,6 @@ jobs:
       - name: Setup sccache
         if: env.ACT != 'true'
         uses: mozilla-actions/sccache-action@v0.0.9
-
-      - name: Check formatting (Nix, Markdown, Rust, TOML, YAML)
-        run: |
-          nix flake check -L
 
       - name: Clippy (default workspace)
         run: |
