@@ -94,6 +94,7 @@ pub fn check_rmw_zenoh_available() -> bool {
 }
 
 /// Check if demo_nodes_cpp package is available
+#[allow(dead_code)]
 pub fn check_demo_nodes_cpp_available() -> bool {
     Command::new("ros2")
         .args(["pkg", "prefix", "demo_nodes_cpp"])
