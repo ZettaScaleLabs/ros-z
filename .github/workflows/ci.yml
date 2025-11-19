@@ -21,7 +21,7 @@ jobs:
       - uses: DeterminateSystems/determinate-nix-action@v3
 
       - name: Check formatting
-        run: nix flake check -L
+        run: nix build .#checks.x86_64-linux.pre-commit-check -L
 
   no-ros:
     name: ROS-independent Test
