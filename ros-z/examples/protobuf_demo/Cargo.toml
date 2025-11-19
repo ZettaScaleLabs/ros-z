@@ -6,7 +6,10 @@ publish = false
 
 [dependencies]
 ros-z = { workspace = true, features = ["protobuf"] }
-ros-z-msgs = { path = "../../../ros-z-msgs", features = ["geometry_msgs", "protobuf"] }
+ros-z-msgs = { path = "../../../ros-z-msgs", features = [
+  "geometry_msgs",
+  "protobuf",
+] }
 prost = { workspace = true }
 serde = { workspace = true }
 zenoh = { workspace = true }
