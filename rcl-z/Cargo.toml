@@ -10,7 +10,7 @@ edition = "2024"
 [dependencies]
 tracing = { workspace = true }
 zenoh = { workspace = true, default-features = false, features = [
-    "transport_tcp",
+  "transport_tcp",
 ] }
 flume = { workspace = true }
 parking_lot = { workspace = true }

@@ -6,7 +6,14 @@ homepage = "https://github.com/ZettaScaleLabs/ros-z"
 
 [workspace]
 resolver = "2"
-members = ["ros-z", "ros-z-codegen", "rcl-z", "ros-z-msgs", "ros-z-tests", "ros-z/examples/protobuf_demo"]
+members = [
+  "ros-z",
+  "ros-z-codegen",
+  "rcl-z",
+  "ros-z-msgs",
+  "ros-z-tests",
+  "ros-z/examples/protobuf_demo",
+]
 default-members = ["ros-z", "ros-z-codegen"]
 # Note: protobuf_demo is an advanced example demonstrating protobuf serialization
 
@@ -28,8 +35,8 @@ serde_json = "1.0"
 
 # Zenoh
 zenoh = { version = "1.6.2", default-features = false, features = [
-    "transport_tcp",
-    "transport_serial",
+  "transport_tcp",
+  "transport_serial",
 ] }
 zenoh-ext = { version = "1.6.2" }
 

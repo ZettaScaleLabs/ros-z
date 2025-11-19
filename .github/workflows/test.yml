@@ -2,9 +2,9 @@ name: Interop Tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   interop_test:
@@ -13,23 +13,23 @@ jobs:
     container:
       image: rostooling/setup-ros-docker:ubuntu-noble-ros-jazzy-ros-base-latest
     steps:
-    - name: Install system dependencies
-      run: apt-get update && apt-get install -y nodejs
+      - name: Install system dependencies
+        run: apt-get update && apt-get install -y nodejs
 
-    - name: Install ROS dependencies
-      run: |
-        apt-get install -y \
-          ros-jazzy-example-interfaces \
-          ros-jazzy-rmw-zenoh-cpp \
-          ros-jazzy-demo-nodes-cpp
+      - name: Install ROS dependencies
+        run: |
+          apt-get install -y \
+            ros-jazzy-example-interfaces \
+            ros-jazzy-rmw-zenoh-cpp \
+            ros-jazzy-demo-nodes-cpp
 
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
 
-    - name: Run interop tests
-      shell: bash
-      run: |
-        source /opt/ros/jazzy/setup.bash
-        export RMW_IMPLEMENTATION=rmw_zenoh_cpp
-        cargo test -p ros-z-tests --features interop-tests --release
+      - name: Run interop tests
+        shell: bash
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+          cargo test -p ros-z-tests --features interop-tests --release

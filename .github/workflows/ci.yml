@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   no-ros:
@@ -27,17 +27,9 @@ jobs:
         if: env.ACT != 'true'
         uses: mozilla-actions/sccache-action@v0.0.9
 
-      - name: Check Nix formatting
+      - name: Check formatting (Nix, Markdown, Rust, TOML, YAML)
         run: |
-          nix fmt -- --check flake.nix
-
-      - name: Check Markdown formatting
-        run: |
-          nix develop '.#noRos-ci' -c markdownlint '**/*.md'
-
-      - name: Check Rust formatting
-        run: |
-          nix develop '.#noRos-ci' -c cargo fmt --all -- --check
+          nix flake check -L
 
       - name: Clippy (default workspace)
         run: |
@@ -124,7 +116,8 @@ jobs:
 
       - name: Check with protobuf feature
         run: |
-          nix develop '.#${{ matrix.distro }}-ci' -c cargo check -p ros-z -p ros-z-msgs --features ros-z/protobuf,ros-z-msgs/protobuf
+          nix develop '.#${{ matrix.distro }}-ci' -c cargo check -p ros-z -p ros-z-msgs \
+            --features ros-z/protobuf,ros-z-msgs/protobuf
 
       - name: Check ros-z (with rcl-z feature)
         run: |

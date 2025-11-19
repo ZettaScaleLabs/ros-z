@@ -31,7 +31,10 @@ default = ["bundled_msgs"]
 bundled_msgs = ["std_msgs", "geometry_msgs", "sensor_msgs", "nav_msgs"]
 std_msgs = []
 geometry_msgs = ["std_msgs"]
-sensor_msgs = ["std_msgs", "geometry_msgs"]  # sensor_msgs depends on geometry_msgs types
+sensor_msgs = [
+  "std_msgs",
+  "geometry_msgs",
+] # sensor_msgs depends on geometry_msgs types
 nav_msgs = ["std_msgs", "geometry_msgs"]
 
 # External messages - require ROS 2 installation
