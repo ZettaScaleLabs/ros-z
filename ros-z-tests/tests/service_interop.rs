@@ -150,6 +150,14 @@ fn test_ros2_server_ros_z_client() {
         panic!("ros2 CLI not available");
     }
 
+    if !check_demo_nodes_cpp_available() {
+        panic!(
+            "demo_nodes_cpp package not found!\n\
+             Please install it with: apt install ros-$ROS_DISTRO-demo-nodes-cpp\n\
+             Or ensure ROS environment is sourced: source /opt/ros/$ROS_DISTRO/setup.bash"
+        );
+    }
+
     ensure_zenohd_running();
 
     println!("\n=== Test: ROS2 server <-> ros-z client ===");
