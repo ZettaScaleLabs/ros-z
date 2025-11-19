@@ -90,8 +90,12 @@ fn test_ros_z_server_ros2_client() {
 
     println!("\n=== Test: ros-z server <-> ROS2 client ===");
 
+    // Use shared state to confirm this specific server gets our specific request
+    let shared_state = std::sync::Arc::new(std::sync::Mutex::new(0));
+    let shared_state_clone = shared_state.clone();
+
     // Start ros-z server
-    let _server = thread::spawn(|| {
+    let _server = thread::spawn(move || {
         let ctx = create_ros_z_context().expect("Failed to create context");
 
         let node = ctx
@@ -113,10 +117,16 @@ fn test_ros_z_server_ros2_client() {
             println!("Sending response: {}", resp.sum);
             zsrv.send_response(&resp, &key)
                 .expect("Failed to send response");
+            // Store most recent sum in shared state
+            *shared_state_clone.lock().unwrap() = resp.sum;
         }
     });
 
     wait_for_ready(Duration::from_secs(10));
+
+    // Pick two random values to add
+    let a = rand::random::<u8>() as i64;
+    let b = rand::random::<u8>() as i64;
 
     // Call from ros2 CLI
     let output = Command::new("timeout")
@@ -127,7 +137,7 @@ fn test_ros_z_server_ros2_client() {
             "call",
             "/add_two_ints",
             "example_interfaces/srv/AddTwoInts",
-            "{a: 10, b: 7}",
+            &format!("{{a: {}, b: {}}}", a, b),
         ])
         .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
         .output()
@@ -136,11 +146,15 @@ fn test_ros_z_server_ros2_client() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     println!("ROS2 output: {}", stdout);
     assert!(
-        stdout.contains("sum: 17") || stdout.contains("sum=17"),
-        "Expected sum: 17, got: {}",
+        stdout.contains(&format!("sum: {}", a + b)) || stdout.contains(&format!("sum={}", a + b)),
+        "Expected sum: {}, got: {}",
+        a + b,
         stdout
     );
 
+    // Confirm server received the request
+    let received_sum = shared_state.lock().unwrap();
+    assert_eq!(*received_sum, a + b as i64);
     println!("✅ Test passed: ROS2 client called ros-z service");
 }
 

@@ -22,7 +22,14 @@ impl Drop for ProcessGuard {
     fn drop(&mut self) {
         if let Some(mut child) = self.child.take() {
             println!("Stopping process: {}", self.name);
-            let _ = child.kill();
+            // Note: cannot directly kill a `ros2` command line command
+            // As that will kill the commandline process without giving it time to shutdown whatever
+            // child processes it spawns.
+            let pid = child.id();
+            // Send Ctrl-C to trigger graceful shutdown
+            nix::sys::signal::kill(nix::unistd::Pid::from_raw(pid as _), nix::sys::signal::SIGINT)
+                .expect("Failed to send SIGINT to process");
+            // Wait for shutdown, we assume procces is well behaved and will exit
             let _ = child.wait();
         }
     }
