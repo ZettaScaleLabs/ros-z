@@ -3,8 +3,9 @@ pub mod protobuf_adapter;
 pub mod roslibrust_adapter;
 pub mod type_info_generator;
 
-use anyhow::Result;
 use std::path::{Path, PathBuf};
+
+use anyhow::Result;
 
 pub struct MessageGenerator {
     config: GeneratorConfig,

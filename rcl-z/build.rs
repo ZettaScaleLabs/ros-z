@@ -1,5 +1,4 @@
-use std::env;
-use std::path::PathBuf;
+use std::{env, path::PathBuf};
 
 const INCLUDE_PACKAGES: &[&str] = &[
     "rcl",

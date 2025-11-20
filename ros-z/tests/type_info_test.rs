@@ -1,5 +1,4 @@
-use ros_z::MessageTypeInfo;
-use ros_z::entity::TypeHash;
+use ros_z::{MessageTypeInfo, entity::TypeHash};
 
 #[test]
 fn test_type_hash_zero() {

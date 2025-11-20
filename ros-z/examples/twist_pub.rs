@@ -1,7 +1,7 @@
+use std::{thread, time::Duration};
+
 use ros_z::{Builder, Result, context::ZContextBuilder};
 use ros_z_msgs::geometry_msgs::{Twist, Vector3};
-use std::thread;
-use std::time::Duration;
 
 fn main() -> Result<()> {
     let ctx = ZContextBuilder::default().build()?;
