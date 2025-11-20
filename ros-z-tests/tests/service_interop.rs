@@ -2,14 +2,11 @@
 
 mod common;
 
-use std::process::Command;
-use std::thread;
-use std::time::Duration;
-
-use ros_z::Builder;
-use ros_z_msgs::example_interfaces::{AddTwoInts, AddTwoIntsRequest, AddTwoIntsResponse};
+use std::{process::Command, thread, time::Duration};
 
 use common::*;
+use ros_z::Builder;
+use ros_z_msgs::example_interfaces::{AddTwoInts, AddTwoIntsRequest, AddTwoIntsResponse};
 
 #[serial_test::serial]
 #[test]

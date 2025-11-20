@@ -1,10 +1,11 @@
+use std::time::Duration;
+
 use clap::Parser;
 use ros_z::{
     Builder, MessageTypeInfo, Result, ServiceTypeInfo, context::ZContextBuilder, entity::TypeHash,
     msg::ZService,
 };
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
 
 // Custom message for pub/sub example
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

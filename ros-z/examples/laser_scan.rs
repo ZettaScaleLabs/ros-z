@@ -1,10 +1,8 @@
+use std::{thread, time::Duration};
+
 use clap::Parser;
 use ros_z::{Builder, Result, context::ZContextBuilder};
-use ros_z_msgs::builtin_interfaces::Time;
-use ros_z_msgs::sensor_msgs::LaserScan;
-use ros_z_msgs::std_msgs::Header;
-use std::thread;
-use std::time::Duration;
+use ros_z_msgs::{builtin_interfaces::Time, sensor_msgs::LaserScan, std_msgs::Header};
 
 #[derive(Debug, Parser)]
 struct Args {

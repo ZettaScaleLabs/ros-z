@@ -1,8 +1,8 @@
+use std::time::Duration;
+
 use ros_z::{
     Builder, MessageTypeInfo, Result, WithTypeInfo, entity::TypeHash, msg::ProtobufSerdes,
 };
-use std::time::Duration;
-
 // Import ROS-generated protobuf messages
 use ros_z_msgs::proto::geometry_msgs::Vector3 as Vector3Proto;
 
