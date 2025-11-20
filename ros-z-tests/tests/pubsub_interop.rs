@@ -2,15 +2,16 @@
 
 mod common;
 
-use std::process::{Command, Stdio};
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::Duration;
-
-use ros_z::Builder;
-use ros_z_msgs::std_msgs::String as RosString;
+use std::{
+    process::{Command, Stdio},
+    sync::{Arc, Mutex},
+    thread,
+    time::Duration,
+};
 
 use common::*;
+use ros_z::Builder;
+use ros_z_msgs::std_msgs::String as RosString;
 
 #[serial_test::serial]
 #[test]

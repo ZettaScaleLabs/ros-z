@@ -42,6 +42,13 @@
           ];
         };
 
+        rustfmtNightly = pkgs.rust-bin.nightly.latest.rustfmt;
+
+        # Override rustfmt to use nightly
+        rustfmt-nightly-bin = pkgs.writeShellScriptBin "rustfmt" ''
+          exec ${rustfmtNightly}/bin/rustfmt "$@"
+        '';
+
         # Factory to create environment for a specific ROS distro
         mkRosEnv =
           rosDistro:
@@ -164,7 +171,13 @@
           {
             default = mkDevShell {
               name = "ros-z-dev-${rosDistro}";
-              packages = commonBuildInputs ++ devTools ++ [ rosEnv.dev ] ++ pre-commit-check.enabledPackages;
+              packages = [
+                rustfmt-nightly-bin
+              ]
+              ++ commonBuildInputs
+              ++ devTools
+              ++ [ rosEnv.dev ]
+              ++ pre-commit-check.enabledPackages;
               extraShellHook = pre-commit-check.shellHook;
               banner = ''
                 echo "🦀 ros-z development environment (with ROS)"
@@ -179,74 +192,6 @@
             };
           };
 
-        # Cargo metadata
-        cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
-
-        # Helper to create packages for a specific ROS distro
-        mkRosPackages =
-          rosDistro:
-          let
-            rosEnv = mkRosEnv rosDistro;
-          in
-          {
-            "ros-z-${rosDistro}" = mkRustPackage {
-              pname = "ros-z";
-              buildAndTestSubdir = "ros-z";
-              description = "Native Rust ROS 2 implementation using Zenoh - Core";
-            };
-
-            "rcl-z-${rosDistro}" = mkRustPackage {
-              pname = "rcl-z";
-              buildAndTestSubdir = "rcl-z";
-              rosInputs = [ rosEnv.rcl ];
-              description = "Native Rust ROS 2 implementation using Zenoh - RCL Bindings (${rosDistro})";
-            };
-
-            "ros-z-msgs-${rosDistro}" = mkRustPackage {
-              pname = "ros-z-msgs";
-              buildAndTestSubdir = "ros-z-msgs";
-              rosInputs = [ rosEnv.msgs ];
-              description = "Native Rust ROS 2 implementation using Zenoh - Message Definitions (${rosDistro})";
-            };
-
-            "ros-z-full-${rosDistro}" = mkRustPackage {
-              pname = "ros-z";
-              rosInputs = [ rosEnv.build ];
-              description = cargoToml.workspace.package.description;
-            };
-          };
-
-        # Common package attributes factory
-        mkRustPackage =
-          {
-            pname,
-            buildAndTestSubdir ? null,
-            rosInputs ? [ ],
-            description,
-          }:
-          pkgs.rustPlatform.buildRustPackage {
-            inherit pname;
-            version = cargoToml.workspace.package.version;
-            src = ./.;
-            inherit buildAndTestSubdir;
-
-            cargoLock = {
-              lockFile = ./Cargo.lock;
-            };
-
-            nativeBuildInputs = commonBuildInputs;
-            buildInputs = rosInputs;
-
-            inherit (commonEnvVars) LIBCLANG_PATH CLANG_PATH RUSTC_WRAPPER;
-
-            meta = with pkgs.lib; {
-              inherit description;
-              homepage = cargoToml.workspace.package.homepage;
-              license = licenses.asl20;
-              maintainers = [ ];
-            };
-          };
-
         # Generate shells for all distros
         allDistroShells = builtins.listToAttrs (
           builtins.map (distro: {
@@ -254,62 +199,14 @@
             value = mkRosShells distro;
           }) distros
         );
-        # yamllint configuration
-        yamlFormat = pkgs.formats.yaml { };
-        yamllintConfigData = {
-          extends = "default";
-          rules = {
-            line-length = {
-              max = 120;
-            };
-            document-start = "disable";
-            truthy = "disable";
-          };
-        };
-        yamllintConfig = yamlFormat.generate ".yamllint.yaml" yamllintConfigData;
-
-        # markdownlint configuration
-        markdownlintConfig = {
-          MD013 = false; # Line length
-          MD033 = {
-            # Inline HTML
-            allowed_elements = [
-              "div"
-              "h1"
-              "p"
-              "strong"
-              "a"
-              "sub"
-            ];
-          };
-          MD041 = false; # First line in file should be a top-level heading
-        };
-
         # Pre-commit hooks configuration
-        pre-commit-check = git-hooks.lib.${system}.run {
-          src = ./.;
-          hooks = {
-            # Rust formatter
-            rustfmt.enable = true;
-
-            # TOML formatter
-            taplo.enable = true;
-
-            # YAML linter with relaxed rules
-            yamllint = {
-              enable = true;
-              settings.configPath = "${yamllintConfig}";
-            };
-
-            # Markdown linter
-            markdownlint = {
-              enable = true;
-              settings.configuration = markdownlintConfig;
-            };
-
-            # Nix formatter
-            nixfmt-rfc-style.enable = true;
-          };
+        pre-commit-check = import ./nix/pre-commit.nix {
+          inherit
+            pkgs
+            git-hooks
+            system
+            rustfmtNightly
+            ;
         };
       in
       {
@@ -326,7 +223,12 @@
           # Without ROS
           noRos = mkDevShell {
             name = "ros-z-no-ros";
-            packages = commonBuildInputs ++ devTools ++ pre-commit-check.enabledPackages;
+            packages = [
+              rustfmt-nightly-bin
+            ]
+            ++ commonBuildInputs
+            ++ devTools
+            ++ pre-commit-check.enabledPackages;
             extraShellHook = pre-commit-check.shellHook;
             banner = ''
               echo "🦀 ros-z development environment (without ROS)"
