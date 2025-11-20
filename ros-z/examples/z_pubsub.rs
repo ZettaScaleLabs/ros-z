@@ -7,7 +7,6 @@ use ros_z::{
 use ros_z_msgs::std_msgs::String as RosString;
 
 async fn run_subscriber(ctx: ZContext, topic: String) -> Result<()> {
-    // let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("Sub").build()?;
     let zsub = node.create_sub::<RosString>(&topic).build()?;
     while let Ok(msg) = zsub.async_recv().await {
