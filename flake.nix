@@ -129,6 +129,11 @@
           gdb
         ];
 
+        # Test tools
+        testTools = with pkgs; [
+          cargo-nextest
+        ];
+
         # Environment variables for Rust/C++ interop
         commonEnvVars = {
           LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
@@ -176,6 +181,7 @@
               ]
               ++ commonBuildInputs
               ++ devTools
+              ++ testTools
               ++ [ rosEnv.dev ]
               ++ pre-commit-check.enabledPackages;
               extraShellHook = pre-commit-check.shellHook;
@@ -228,6 +234,7 @@
             ]
             ++ commonBuildInputs
             ++ devTools
+            ++ testTools
             ++ pre-commit-check.enabledPackages;
             extraShellHook = pre-commit-check.shellHook;
             banner = ''
@@ -239,7 +246,7 @@
           # CI without ROS
           noRos-ci = mkDevShell {
             name = "ros-z-ci-no-ros";
-            packages = commonBuildInputs;
+            packages = commonBuildInputs ++ testTools;
           };
         }
         # Add per-distro dev shells (jazzy, rolling, ...)
