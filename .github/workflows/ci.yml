@@ -61,7 +61,7 @@ jobs:
 
       - name: Run tests
         run: |
-          nix develop '.#noRos-ci' -c cargo test
+          nix develop '.#noRos-ci' -c cargo nextest run
 
       - name: Check ros-z-msgs with bundled messages (no ROS required)
         run: |
