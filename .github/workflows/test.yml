@@ -27,9 +27,14 @@ jobs:
 
       - uses: actions-rust-lang/setup-rust-toolchain@v1
 
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
       - name: Run interop tests
         shell: bash
         run: |
           source /opt/ros/jazzy/setup.bash
           export RMW_IMPLEMENTATION=rmw_zenoh_cpp
-          cargo test -p ros-z-tests --features interop-tests --release
+          cargo nextest run -p ros-z-tests --features interop-tests --release
