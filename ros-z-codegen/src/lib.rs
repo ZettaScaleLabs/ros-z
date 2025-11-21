@@ -1,7 +1,6 @@
 #[cfg(feature = "protobuf")]
 pub mod protobuf_adapter;
 pub mod roslibrust_adapter;
-pub mod type_info_generator;
 
 use std::path::{Path, PathBuf};
 

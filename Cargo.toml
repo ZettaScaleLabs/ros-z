@@ -23,8 +23,8 @@ ros-z = { version = "*", path = "ros-z" }
 rcl-z = { version = "*", path = "rcl-z" }
 
 # Local roslibrust dependencies
-roslibrust = { git = "https://github.com/YuanYuYuan/roslibrust", branch = "dev/ros-z" }
-roslibrust_codegen = { git = "https://github.com/YuanYuYuan/roslibrust", branch = "dev/ros-z" }
+roslibrust = { git = "https://github.com/YuanYuYuan/roslibrust", branch = "feat/codegen-options" }
+roslibrust_codegen = { git = "https://github.com/YuanYuYuan/roslibrust", branch = "feat/codegen-options" }
 
 # Serialization
 cdr = "0.2.4"

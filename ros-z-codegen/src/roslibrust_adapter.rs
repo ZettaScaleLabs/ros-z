@@ -1,62 +1,137 @@
 use anyhow::{Context, Result};
+use proc_macro2::TokenStream;
+use quote::quote;
+use roslibrust_codegen::{MessageFile, ServiceFile};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::type_info_generator::TypeInfoGenerator;
+/// Configuration for code generation
+pub struct CodegenConfig {
+    /// Generate trait implementations for ros-z
+    pub generate_type_info: bool,
+    /// Format the generated code with proper indentation and newlines
+    pub format_code: bool,
+    /// Generate DEFINITION field in RosMessageType trait (default: false)
+    pub generate_definition: bool,
+}
 
-/// Generate ROS messages using roslibrust with proper MessageTypeInfo implementations
+impl Default for CodegenConfig {
+    fn default() -> Self {
+        Self {
+            generate_type_info: true,
+            format_code: true,
+            generate_definition: false,
+        }
+    }
+}
+
+/// Generate ROS messages using roslibrust with ros-z trait implementations
 pub fn generate_ros_messages(
     package_paths: Vec<&Path>,
     output_dir: &Path,
     generate_type_info: bool,
 ) -> Result<()> {
+    let config = CodegenConfig {
+        generate_type_info,
+        format_code: true,
+        generate_definition: false,
+    };
+    generate_ros_messages_with_config(package_paths, output_dir, config)
+}
+
+/// Generate ROS messages with custom configuration
+pub fn generate_ros_messages_with_config(
+    package_paths: Vec<&Path>,
+    output_dir: &Path,
+    config: CodegenConfig,
+) -> Result<()> {
     // Convert paths once
-    let package_paths_vec: Vec<PathBuf> =
-        package_paths.into_iter().map(|p| p.to_path_buf()).collect();
+    let package_paths_vec: Vec<PathBuf> = package_paths.into_iter().map(|p| p.to_path_buf()).collect();
 
-    // Use roslibrust_codegen to generate message code
-    // This returns a TokenStream and list of files
-    let (token_stream, _files) =
-        roslibrust_codegen::find_and_generate_ros_messages_without_ros_package_path(
-            package_paths_vec.clone(),
-        )?;
+    // Parse all messages to get their metadata
+    let (messages, services, _actions) = roslibrust_codegen::find_and_parse_ros_messages(&package_paths_vec)?;
 
-    // Convert TokenStream to string
-    let mut generated_code = token_stream.to_string();
+    // Filter out deprecated actionlib messages and unsupported wstring messages
+    // actionlib_msgs was deprecated in ROS 2 and causes dependency resolution issues
+    // wstring is poorly supported in Rust and causes codegen failures
+    let messages = messages
+        .into_iter()
+        .filter(|msg| {
+            let full_name = msg.get_full_name();
 
-    // If requested, add MessageTypeInfo trait implementations with real ROS2 hashes
-    if generate_type_info {
-        // Parse all messages to get their metadata (actions are also returned but we ignore for now)
-        let (messages, services, _actions) =
-            roslibrust_codegen::find_and_parse_ros_messages(&package_paths_vec)?;
+            // Filter out actionlib
+            if full_name.starts_with("actionlib_msgs/") || full_name.contains("Action") {
+                return false;
+            }
 
-        // Resolve dependencies to calculate hashes
-        let (resolved_msgs, resolved_srvs) =
-            roslibrust_codegen::resolve_dependency_graph(messages, services)?;
+            // Filter out messages with wstring fields
+            let has_wstring = msg.fields.iter().any(|field| {
+                field.field_type.to_string().contains("wstring")
+            });
 
+            if has_wstring {
+                println!("cargo:warning=Skipping message {} due to wstring field (unsupported)", full_name);
+                return false;
+            }
+
+            true
+        })
+        .collect();
+
+    let services = services
+        .into_iter()
+        .filter(|srv| {
+            let full_name = format!("{}/{}", srv.package, srv.name);
+            !full_name.starts_with("actionlib_msgs/")
+        })
+        .collect();
+
+    // Resolve dependencies to calculate hashes
+    let (resolved_msgs, resolved_srvs) = roslibrust_codegen::resolve_dependency_graph(messages, services)?;
+
+    // Create roslibrust codegen options
+    let roslibrust_options = roslibrust_codegen::CodegenOptions {
+        generate_definition: config.generate_definition,
+        roslibrust_serde: false, // Use standard Rust serde instead of roslibrust's re-exports
+    };
+
+    // Generate message code with options
+    let mut token_stream = roslibrust_codegen::generate_rust_ros_message_definitions(
+        resolved_msgs.clone(),
+        resolved_srvs.clone(),
+        &roslibrust_options,
+    )?;
+
+    // If requested, add trait implementations with real ROS2 hashes
+    if config.generate_type_info {
         // Build a map for hash lookups
-        let msg_map: BTreeMap<String, &roslibrust_codegen::MessageFile> = resolved_msgs
+        let msg_map: BTreeMap<String, &MessageFile> = resolved_msgs
             .iter()
             .map(|msg| (msg.parsed.get_full_name(), msg))
             .collect();
 
-        // Generate MessageTypeInfo implementations for messages
-        let type_info_impls = generate_message_type_info_impls(&resolved_msgs, &msg_map)?;
+        // Generate trait implementations for messages as TokenStreams
+        let type_info_tokens = generate_message_type_info_tokens(&resolved_msgs, &msg_map)?;
+        token_stream.extend(type_info_tokens);
 
-        generated_code.push_str("\n\n");
-        generated_code.push_str("// MessageTypeInfo trait implementations for ros-z integration\n");
-        generated_code.push_str(&type_info_impls);
-
-        // Generate ServiceTypeInfo implementations for services
+        // Generate trait implementations for services
         if !resolved_srvs.is_empty() {
-            let service_info_impls = generate_service_type_info_impls(&resolved_srvs)?;
-            generated_code.push_str("\n\n");
-            generated_code
-                .push_str("// ServiceTypeInfo trait implementations for ros-z integration\n");
-            generated_code.push_str(&service_info_impls);
+            let service_info_tokens = generate_service_type_info_tokens(&resolved_srvs)?;
+            token_stream.extend(service_info_tokens);
         }
     }
+
+    // Convert TokenStream to string (formatted or compact)
+    let generated_code = if config.format_code {
+        // Parse and format using prettyplease for readable output
+        let syntax_tree = syn::parse2(token_stream)
+            .context("Failed to parse generated token stream")?;
+        prettyplease::unparse(&syntax_tree)
+    } else {
+        // Compact output
+        token_stream.to_string()
+    };
 
     // Write to output file
     let output_file = output_dir.join("generated.rs");
@@ -68,107 +143,116 @@ pub fn generate_ros_messages(
     Ok(())
 }
 
-/// Generate MessageTypeInfo trait implementations for all messages
-fn generate_message_type_info_impls(
-    messages: &[roslibrust_codegen::MessageFile],
-    _msg_map: &BTreeMap<String, &roslibrust_codegen::MessageFile>,
-) -> Result<String> {
-    let mut impls = String::new();
+/// Generate MessageTypeInfo trait implementations as TokenStreams
+fn generate_message_type_info_tokens(
+    messages: &[MessageFile],
+    _msg_map: &BTreeMap<String, &MessageFile>,
+) -> Result<TokenStream> {
+    let mut tokens = TokenStream::new();
 
     for msg in messages {
-        let package_name = &msg.parsed.package;
-        let msg_name = &msg.parsed.name;
+        let package_name = syn::Ident::new(&msg.parsed.package, proc_macro2::Span::call_site());
+        let msg_name = syn::Ident::new(&msg.parsed.name, proc_macro2::Span::call_site());
 
-        // Generate the Rust type name (e.g., geometry_msgs::Vector3 - roslibrust doesn't use ::msg)
-        let rust_type_name = format!("{}::{}", package_name, msg_name);
-
-        // Generate the ROS2 type name (e.g., "geometry_msgs::msg::dds_::Vector3_")
-        let ros_type_name = format!("{}::msg::dds_::{}_", package_name, msg_name);
-
-        // Get the RIHS01 hash from roslibrust's calculation
+        let ros_type_name = format!("{}::msg::dds_::{}_", msg.parsed.package, msg.parsed.name);
         let type_hash = msg.ros2_hash.to_hash_string();
 
-        // Generate the MessageTypeInfo implementation
-        let type_info_impl =
-            TypeInfoGenerator::generate_type_info_impl(&rust_type_name, &ros_type_name, &type_hash);
+        let impl_block = quote! {
+            impl ::ros_z::MessageTypeInfo for #package_name::#msg_name {
+                fn type_name() -> &'static str {
+                    #ros_type_name
+                }
 
-        impls.push_str(&type_info_impl);
+                fn type_hash() -> ::ros_z::entity::TypeHash {
+                    ::ros_z::entity::TypeHash::from_rihs_string(#type_hash)
+                        .expect("Invalid RIHS hash string")
+                }
+
+                fn type_info() -> ::ros_z::entity::TypeInfo {
+                    ::ros_z::entity::TypeInfo::new(Self::type_name(), Self::type_hash())
+                }
+            }
+
+            impl ::ros_z::ros_msg::WithTypeInfo for #package_name::#msg_name {}
+        };
+
+        tokens.extend(impl_block);
     }
 
-    Ok(impls)
+    Ok(tokens)
 }
 
-/// Generate ServiceTypeInfo trait implementations for all services
-fn generate_service_type_info_impls(
-    services: &[roslibrust_codegen::ServiceFile],
-) -> Result<String> {
-    let mut impls = String::new();
+/// Generate ServiceTypeInfo trait implementations as TokenStreams
+fn generate_service_type_info_tokens(services: &[ServiceFile]) -> Result<TokenStream> {
+    let mut tokens = TokenStream::new();
 
     for srv in services {
-        let package_name = srv.get_package_name();
-        let srv_name = srv.get_short_name();
+        let package_name = syn::Ident::new(&srv.get_package_name(), proc_macro2::Span::call_site());
+        let srv_name = syn::Ident::new(&srv.get_short_name(), proc_macro2::Span::call_site());
+        let request_name = syn::Ident::new(&format!("{}Request", srv.get_short_name()), proc_macro2::Span::call_site());
+        let response_name = syn::Ident::new(&format!("{}Response", srv.get_short_name()), proc_macro2::Span::call_site());
 
-        // Get request, response, and service-level hashes
         let request_hash = srv.request().ros2_hash.to_hash_string();
         let response_hash = srv.response().ros2_hash.to_hash_string();
         let service_hash = srv.get_ros2_hash().to_hash_string();
 
-        // Generate the Rust type name for Request
-        // Note: roslibrust generates services as AddTwoIntsRequest, not srv::AddTwoInts::Request
-        let request_rust_type = format!("{}::{}Request", package_name, srv_name);
-        let request_ros_type = format!("{}::srv::dds_::{}_Request_", package_name, srv_name);
+        let request_ros_type = format!("{}::srv::dds_::{}_Request_", srv.get_package_name(), srv.get_short_name());
+        let response_ros_type = format!("{}::srv::dds_::{}_Response_", srv.get_package_name(), srv.get_short_name());
+        let service_ros_type = format!("{}::srv::dds_::{}_", srv.get_package_name(), srv.get_short_name());
 
-        // Generate the Rust type name for Response
-        let response_rust_type = format!("{}::{}Response", package_name, srv_name);
-        let response_ros_type = format!("{}::srv::dds_::{}_Response_", package_name, srv_name);
+        let impl_block = quote! {
+            impl ::ros_z::MessageTypeInfo for #package_name::#request_name {
+                fn type_name() -> &'static str {
+                    #request_ros_type
+                }
 
-        // Generate MessageTypeInfo for Request
-        let request_impl = TypeInfoGenerator::generate_type_info_impl(
-            &request_rust_type,
-            &request_ros_type,
-            &request_hash,
-        );
+                fn type_hash() -> ::ros_z::entity::TypeHash {
+                    ::ros_z::entity::TypeHash::from_rihs_string(#request_hash)
+                        .expect("Invalid RIHS hash string")
+                }
 
-        // Generate MessageTypeInfo for Response
-        let response_impl = TypeInfoGenerator::generate_type_info_impl(
-            &response_rust_type,
-            &response_ros_type,
-            &response_hash,
-        );
+                fn type_info() -> ::ros_z::entity::TypeInfo {
+                    ::ros_z::entity::TypeInfo::new(Self::type_name(), Self::type_hash())
+                }
+            }
 
-        impls.push_str(&request_impl);
-        impls.push_str(&response_impl);
+            impl ::ros_z::ros_msg::WithTypeInfo for #package_name::#request_name {}
 
-        // Generate ServiceTypeInfo and ZService implementations for the service struct
-        // Note: roslibrust already generates the service struct (e.g., AddTwoInts) inside the package module
-        // We just need to add the ros-z trait implementations
-        let service_type_name = format!("{}::srv::dds_::{}_", package_name, srv_name);
-        let service_full_type = format!("{}::{}", package_name, srv_name);
+            impl ::ros_z::MessageTypeInfo for #package_name::#response_name {
+                fn type_name() -> &'static str {
+                    #response_ros_type
+                }
 
-        let service_impl = format!(
-            r#"
-impl ::ros_z::msg::ZService for {service_full_type} {{
-    type Request = {request_rust_type};
-    type Response = {response_rust_type};
-}}
+                fn type_hash() -> ::ros_z::entity::TypeHash {
+                    ::ros_z::entity::TypeHash::from_rihs_string(#response_hash)
+                        .expect("Invalid RIHS hash string")
+                }
 
-impl ::ros_z::ServiceTypeInfo for {service_full_type} {{
-    fn service_type_info() -> ::ros_z::TypeInfo {{
-        ::ros_z::TypeInfo::new(
-            "{service_type_name}",
-            ::ros_z::TypeHash::from_rihs_string("{service_hash}").expect("Invalid RIHS01 hash")
-        )
-    }}
-}}
-"#,
-            service_full_type = service_full_type,
-            request_rust_type = request_rust_type,
-            response_rust_type = response_rust_type,
-            service_type_name = service_type_name,
-            service_hash = service_hash
-        );
-        impls.push_str(&service_impl);
+                fn type_info() -> ::ros_z::entity::TypeInfo {
+                    ::ros_z::entity::TypeInfo::new(Self::type_name(), Self::type_hash())
+                }
+            }
+
+            impl ::ros_z::ros_msg::WithTypeInfo for #package_name::#response_name {}
+
+            impl ::ros_z::msg::ZService for #package_name::#srv_name {
+                type Request = #package_name::#request_name;
+                type Response = #package_name::#response_name;
+            }
+
+            impl ::ros_z::ServiceTypeInfo for #package_name::#srv_name {
+                fn service_type_info() -> ::ros_z::TypeInfo {
+                    ::ros_z::TypeInfo::new(
+                        #service_ros_type,
+                        ::ros_z::TypeHash::from_rihs_string(#service_hash)
+                            .expect("Invalid RIHS01 hash")
+                    )
+                }
+            }
+        };
+
+        tokens.extend(impl_block);
     }
 
-    Ok(impls)
+    Ok(tokens)
 }
