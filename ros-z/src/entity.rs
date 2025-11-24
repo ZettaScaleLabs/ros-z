@@ -87,9 +87,10 @@ impl TryFrom<&NodeEntity> for LivelinessKE {
         let namespace = if namespace.is_empty() {
             EMPTY_NAMESPACE
         } else {
-            namespace
+            &mangle_name(namespace)
         };
         let entity_kind = EntityKind::Node;
+        let name = mangle_name(name);
         Ok(LivelinessKE(
             format!("{ADMIN_SPACE}/{domain_id}/{z_id}/{id}/{id}/{entity_kind}/{EMPTY_ENCLAVE}/{namespace}/{name}")
                 .try_into()?,

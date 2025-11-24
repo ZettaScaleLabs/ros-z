@@ -151,11 +151,7 @@ pub fn qualify_topic_name(
     } else if topic.starts_with('~') {
         // Private topic - expand with namespace and node name
         let topic_suffix = topic.strip_prefix('~').unwrap();
-        let topic_suffix = if topic_suffix.starts_with('/') {
-            &topic_suffix[1..]
-        } else {
-            topic_suffix
-        };
+        let topic_suffix = topic_suffix.strip_prefix('/').unwrap_or(topic_suffix);
 
         // Validate the topic suffix
         if !topic_suffix.is_empty() {
@@ -174,12 +170,10 @@ pub fn qualify_topic_name(
             } else {
                 format!("/{}/{}", node_name, topic_suffix)
             }
+        } else if topic_suffix.is_empty() {
+            format!("{}/{}", namespace, node_name)
         } else {
-            if topic_suffix.is_empty() {
-                format!("{}/{}", namespace, node_name)
-            } else {
-                format!("{}/{}/{}", namespace, node_name, topic_suffix)
-            }
+            format!("{}/{}/{}", namespace, node_name, topic_suffix)
         }
     } else {
         // Relative topic - expand with namespace only

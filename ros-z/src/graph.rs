@@ -290,13 +290,8 @@ impl Graph {
             slab.retain(|_, weak| {
                 if let Some(ent) = weak.upgrade() {
                     // Skip expensive get_endpoint() if we already found the type
-                    if found_type.is_none()
-                        && let Some(enp) = ent.get_endpoint()
-                    {
-                        // Include both services and clients
-                        if matches!(enp.kind, EntityKind::Service | EntityKind::Client) {
-                            found_type = Some(enp.type_info.as_ref().unwrap().name.clone());
-                        }
+                    if let Some(enp) = ent.get_endpoint() && found_type.is_none() && enp.kind == EntityKind::Service {
+                        found_type = enp.type_info.as_ref().map(|x| x.name.clone());
                     }
                     true
                 } else {
@@ -373,5 +368,61 @@ impl Graph {
         });
 
         res
+    }
+
+    /// Get all node names and namespaces discovered in the graph
+    ///
+    /// Returns a vector of tuples (node_name, node_namespace)
+    pub fn get_node_names(&self) -> Vec<(String, String)> {
+        let mut data = self.data.lock();
+
+        if !data.cached.is_empty() {
+            data.parse();
+        }
+
+        // Extract all node keys from by_node HashMap
+        // Denormalize namespace: empty string becomes "/"
+        data.by_node
+            .keys()
+            .map(|(namespace, name)| {
+                let denormalized_ns = if namespace.is_empty() {
+                    "/".to_string()
+                } else if !namespace.starts_with('/') {
+                    format!("/{}", namespace)
+                } else {
+                    namespace.clone()
+                };
+                (name.clone(), denormalized_ns)
+            })
+            .collect()
+    }
+
+    /// Get all node names, namespaces, and enclaves discovered in the graph
+    ///
+    /// Returns a vector of tuples (node_name, node_namespace, enclave)
+    /// Note: Enclave information is not currently tracked, so empty string is returned
+    pub fn get_node_names_with_enclaves(&self) -> Vec<(String, String, String)> {
+        let mut data = self.data.lock();
+
+        if !data.cached.is_empty() {
+            data.parse();
+        }
+
+        // Extract all node keys from by_node HashMap
+        // Denormalize namespace: empty string becomes "/"
+        // For now, enclave is always empty string as we don't track this yet
+        data.by_node
+            .keys()
+            .map(|(namespace, name)| {
+                let denormalized_ns = if namespace.is_empty() {
+                    "/".to_string()
+                } else if !namespace.starts_with('/') {
+                    format!("/{}", namespace)
+                } else {
+                    namespace.clone()
+                };
+                (name.clone(), denormalized_ns, String::new())
+            })
+            .collect()
     }
 }

@@ -7,11 +7,12 @@
 #![allow(unpredictable_function_pointer_comparisons)]
 
 mod qos;
-mod ros;
+pub mod ros;
 mod traits;
 mod utils;
 
 pub mod arguments;
+pub mod common;
 pub mod context;
 pub mod graph;
 pub mod guard_condition;
@@ -22,6 +23,7 @@ pub mod pubsub;
 pub mod service;
 pub mod timer;
 pub mod type_support;
+pub mod validate_topic_name;
 pub mod wait_set;
 
 /// Newtype wrapper for a C void. Only useful as a `*c_void`

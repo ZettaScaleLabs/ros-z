@@ -72,7 +72,7 @@ fn test_rcl_init_invalid_arguments() {
         // If argc is not 0, argv is not null but contains one, it should be an invalid argument
         {
             let mut context = rcl_get_zero_initialized_context();
-            let null_args: [*const i8; 2] = [b"some-arg\0".as_ptr() as *const i8, ptr::null()];
+            let null_args: [*const i8; 2] = [c"some-arg".as_ptr(), ptr::null()];
             let ret = rcl_init(2, null_args.as_ptr(), &init_options, &mut context);
             assert_eq!(ret, RCL_RET_INVALID_ARGUMENT as i32);
             assert!(!rcl_context_is_valid(&context));
@@ -81,7 +81,7 @@ fn test_rcl_init_invalid_arguments() {
         // If argc is less than 1, argv is not null, it should be an invalid argument
         {
             let mut context = rcl_get_zero_initialized_context();
-            let some_args: [*const i8; 1] = [b"some-arg\0".as_ptr() as *const i8];
+            let some_args: [*const i8; 1] = [c"some-arg".as_ptr()];
             let ret = rcl_init(0, some_args.as_ptr(), &init_options, &mut context);
             assert_eq!(ret, RCL_RET_INVALID_ARGUMENT as i32);
             assert!(!rcl_context_is_valid(&context));
@@ -91,10 +91,10 @@ fn test_rcl_init_invalid_arguments() {
         {
             let mut context = rcl_get_zero_initialized_context();
             let bad_remap_args: [*const i8; 4] = [
-                b"some-arg\0".as_ptr() as *const i8,
-                b"--ros-args\0".as_ptr() as *const i8,
-                b"-r\0".as_ptr() as *const i8,
-                b"name:=\0".as_ptr() as *const i8,
+                c"some-arg".as_ptr(),
+                c"--ros-args".as_ptr(),
+                c"-r".as_ptr(),
+                c"name:=".as_ptr(),
             ];
             let ret = rcl_init(4, bad_remap_args.as_ptr(), &init_options, &mut context);
             assert_eq!(ret, RCL_RET_INVALID_ROS_ARGS as i32);
@@ -139,10 +139,7 @@ fn test_rcl_init_and_shutdown() {
         // Valid argc/argv values and a valid allocator should succeed
         context = rcl_get_zero_initialized_context();
         {
-            let args: [*const i8; 2] = [
-                b"foo\0".as_ptr() as *const i8,
-                b"bar\0".as_ptr() as *const i8,
-            ];
+            let args: [*const i8; 2] = [c"foo".as_ptr(), c"bar".as_ptr()];
             let ret = rcl_init(2, args.as_ptr(), &init_options, &mut context);
             assert_eq!(ret, RCL_RET_OK as i32);
             assert!(rcl_context_is_valid(&context));
@@ -169,10 +166,7 @@ fn test_rcl_init_and_shutdown() {
 
         // Repeat, but valid, calls to rcl_init() should fail
         {
-            let args: [*const i8; 2] = [
-                b"foo\0".as_ptr() as *const i8,
-                b"bar\0".as_ptr() as *const i8,
-            ];
+            let args: [*const i8; 2] = [c"foo".as_ptr(), c"bar".as_ptr()];
             let ret = rcl_init(2, args.as_ptr(), &init_options, &mut context);
             assert_eq!(ret, RCL_RET_OK as i32);
             assert!(rcl_context_is_valid(&context));
@@ -219,10 +213,7 @@ fn test_rcl_get_instance_id() {
         assert_eq!(ret, RCL_RET_OK as i32);
 
         {
-            let args: [*const i8; 2] = [
-                b"foo\0".as_ptr() as *const i8,
-                b"bar\0".as_ptr() as *const i8,
-            ];
+            let args: [*const i8; 2] = [c"foo".as_ptr(), c"bar".as_ptr()];
             let ret = rcl_init(2, args.as_ptr(), &init_options, &mut context);
             assert_eq!(ret, RCL_RET_OK as i32);
             assert!(rcl_context_is_valid(&context));
@@ -247,10 +238,7 @@ fn test_rcl_get_instance_id() {
         // It should return a different value after another valid init
         context = rcl_get_zero_initialized_context();
         {
-            let args: [*const i8; 2] = [
-                b"foo\0".as_ptr() as *const i8,
-                b"bar\0".as_ptr() as *const i8,
-            ];
+            let args: [*const i8; 2] = [c"foo".as_ptr(), c"bar".as_ptr()];
             let ret = rcl_init(2, args.as_ptr(), &init_options, &mut context);
             assert_eq!(ret, RCL_RET_OK as i32);
             assert!(rcl_context_is_valid(&context));

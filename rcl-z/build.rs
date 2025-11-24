@@ -42,11 +42,14 @@ fn main() {
         .clang_args(include_args)
         .allowlist_function("rcl_.*")
         .allowlist_function("rmw_get_gid_for_publisher")
+        .allowlist_function("rmw_publisher_count_matched_subscriptions")
+        .allowlist_function("rmw_subscription_count_matched_publishers")
         .allowlist_function("rosidl_typesupport_c__get_service_type_support_handle__type_description_interfaces__srv__GetTypeDescription")
         .allowlist_type("rcl_.*")
         .blocklist_type("rmw_qos_profile_s")
         .blocklist_type("rmw_qos_.*_policy_e")
         .allowlist_var("RCL_.*")
+        .allowlist_var("RMW_.*")
         // .no_default("rmw_qos_profile_s")
         .default_enum_style(bindgen::EnumVariation::Rust {
             non_exhaustive: false,
@@ -131,6 +134,8 @@ fn main() {
 
     println!("cargo:rustc-link-search=native=/usr/local/lib");
     println!("cargo:rustc-link-search=native={ament_prefix}/lib/");
+
+    println!("cargo:rustc-link-lib=dylib=rcl");
     println!("cargo:rustc-link-lib=dylib=rmw");
     println!("cargo:rustc-link-lib=dylib=rcutils");
     println!("cargo:rustc-link-lib=dylib=fastcdr");

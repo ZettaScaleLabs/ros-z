@@ -3,6 +3,33 @@ use std::str::FromStr;
 use crate::ros::*;
 use ros_z::qos::{QosDurability, QosHistory, QosProfile, QosReliability};
 
+/// Convert RMW QoS profile to ros-z QoS profile
+pub fn rmw_qos_to_ros_z_qos(rmw_qos: &rmw_qos_profile_t) -> QosProfile {
+    let reliability = match rmw_qos.reliability {
+        rmw_qos_reliability_policy_e::RELIABLE => QosReliability::Reliable,
+        rmw_qos_reliability_policy_e::BEST_EFFORT => QosReliability::BestEffort,
+        _ => QosReliability::default(),
+    };
+
+    let durability = match rmw_qos.durability {
+        rmw_qos_durability_policy_e::TRANSIENT_LOCAL => QosDurability::TransientLocal,
+        rmw_qos_durability_policy_e::VOLATILE => QosDurability::Volatile,
+        _ => QosDurability::default(),
+    };
+
+    let history = match rmw_qos.history {
+        rmw_qos_history_policy_e::KEEP_LAST => QosHistory::KeepLast(rmw_qos.depth),
+        rmw_qos_history_policy_e::KEEP_ALL => QosHistory::KeepAll,
+        _ => QosHistory::default(),
+    };
+
+    QosProfile {
+        reliability,
+        durability,
+        history,
+    }
+}
+
 const QOS_COMPONENT_DELIMITER: &str = ",";
 const QOS_DELIMITER: &str = ":";
 

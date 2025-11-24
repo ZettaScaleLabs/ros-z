@@ -9,7 +9,7 @@ use rcl_z::{
     },
     init::{
         rcl_get_default_allocator, rcl_get_zero_initialized_init_options, rcl_init,
-        rcl_init_options_fini, rcl_init_options_init,
+        rcl_init_options_fini, rcl_init_options_init, rcl_init_options_set_domain_id,
     },
     node::{
         rcl_get_zero_initialized_node, rcl_node_fini, rcl_node_get_default_options, rcl_node_init,
@@ -24,21 +24,23 @@ struct TestGetNodeNamesFixture {
 }
 
 impl TestGetNodeNamesFixture {
-    fn new() -> Self {
-        unsafe {
-            // Initialize context
-            let mut init_options = rcl_get_zero_initialized_init_options();
-            let ret = rcl_init_options_init(&mut init_options, rcl_get_default_allocator());
-            assert_eq!(ret, RCL_RET_OK as i32, "Failed to initialize init options");
+    fn new(domain_id: usize) -> Self {
+        // Initialize context with unique domain_id to isolate from other tests
+        let mut init_options = rcl_get_zero_initialized_init_options();
+        let ret = rcl_init_options_init(&mut init_options, rcl_get_default_allocator());
+        assert_eq!(ret, RCL_RET_OK as i32, "Failed to initialize init options");
 
-            let mut context = rcl_get_zero_initialized_context();
-            let ret = rcl_init(0, ptr::null(), &init_options, &mut context);
-            assert_eq!(ret, RCL_RET_OK as i32, "Failed to initialize context");
+        // Use specified domain_id to isolate this test from others
+        let ret = rcl_init_options_set_domain_id(&mut init_options, domain_id);
+        assert_eq!(ret, RCL_RET_OK as i32, "Failed to set domain_id");
 
-            TestGetNodeNamesFixture {
-                context,
-                init_options,
-            }
+        let mut context = rcl_get_zero_initialized_context();
+        let ret = rcl_init(0, ptr::null(), &init_options, &mut context);
+        assert_eq!(ret, RCL_RET_OK as i32, "Failed to initialize context");
+
+        TestGetNodeNamesFixture {
+            context,
+            init_options,
         }
     }
 
@@ -64,9 +66,11 @@ impl Drop for TestGetNodeNamesFixture {
 unsafe fn string_array_to_vec(array: &rcutils_string_array_t) -> Vec<String> {
     let mut result = Vec::new();
     for i in 0..array.size {
-        let ptr = *array.data.add(i);
+        // SAFETY: array.data is valid for array.size elements
+        let ptr = unsafe { *array.data.add(i) };
         if !ptr.is_null() {
-            let c_str = CStr::from_ptr(ptr);
+            // SAFETY: ptr is checked to be non-null and comes from valid C string array
+            let c_str = unsafe { CStr::from_ptr(ptr) };
             result.push(c_str.to_string_lossy().to_string());
         }
     }
@@ -76,7 +80,7 @@ unsafe fn string_array_to_vec(array: &rcutils_string_array_t) -> Vec<String> {
 /// Test rcl_get_node_names with multiple nodes
 #[test]
 fn test_rcl_get_node_names() {
-    let mut fixture = TestGetNodeNamesFixture::new();
+    let mut fixture = TestGetNodeNamesFixture::new(99);
 
     // Expected nodes: (name, namespace)
     let mut expected_nodes: HashSet<(String, String)> = HashSet::new();
@@ -224,7 +228,7 @@ fn test_rcl_get_node_names() {
 /// Test rcl_get_node_names with invalid arguments
 #[test]
 fn test_rcl_get_node_names_invalid_args() {
-    let mut fixture = TestGetNodeNamesFixture::new();
+    let mut fixture = TestGetNodeNamesFixture::new(100);
 
     unsafe {
         let mut node = rcl_get_zero_initialized_node();

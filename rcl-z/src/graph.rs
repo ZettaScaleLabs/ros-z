@@ -197,10 +197,11 @@ pub unsafe extern "C" fn rcl_names_and_types_fini(
     topic_names_and_types: *mut rcl_names_and_types_t,
 ) -> rcl_ret_t {
     tracing::error!("rcl_names_and_types_fini");
-    if !topic_names_and_types.is_null() {
-        unsafe {
-            (*topic_names_and_types).free();
-        }
+    if topic_names_and_types.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+    unsafe {
+        (*topic_names_and_types).free();
     }
     RCL_RET_OK as _
 }
@@ -212,9 +213,24 @@ pub unsafe extern "C" fn rcl_get_service_names_and_types(
     service_names_and_types: *mut rcl_names_and_types_t,
 ) -> rcl_ret_t {
     tracing::error!("rcl_get_service_names_and_types");
-    assert!(!service_names_and_types.is_null());
+    if node.is_null() {
+        return RCL_RET_NODE_INVALID as _;
+    }
+    if _allocator.is_null() || service_names_and_types.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
 
-    let node_impl = node.borrow_impl().unwrap();
+    // Check if service_names_and_types is already initialized (has size > 0)
+    unsafe {
+        if (*service_names_and_types).names.size > 0 {
+            return RCL_RET_INVALID_ARGUMENT as _;
+        }
+    }
+
+    let node_impl = match node.borrow_impl() {
+        Ok(impl_) => impl_,
+        Err(_) => return RCL_RET_NODE_INVALID as _,
+    };
 
     let service_data = node_impl.graph().get_service_names_and_types();
 
@@ -438,13 +454,16 @@ fn rcl_count_entities(
     count: *mut usize,
     kind: EntityKind,
 ) -> rcl_ret_t {
-    if node.is_null() || name.is_null() || count.is_null() {
+    if node.is_null() {
+        return RCL_RET_NODE_INVALID as _;
+    }
+    if name.is_null() || count.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
     }
 
     let node_impl = match node.borrow_impl() {
         Ok(impl_) => impl_,
-        Err(_) => return RCL_RET_INVALID_ARGUMENT as _,
+        Err(_) => return RCL_RET_NODE_INVALID as _,
     };
 
     let name_str = match str_from_ptr(name) {
@@ -495,4 +514,113 @@ pub extern "C" fn rcl_count_services(
     count: *mut usize,
 ) -> rcl_ret_t {
     rcl_count_entities(node, service_name, count, EntityKind::Service)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn rcutils_string_array_fini(
+    string_array: *mut rcutils_string_array_t,
+) -> i32 {
+    if string_array.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    unsafe {
+        (*string_array).free();
+        *string_array = rcutils_string_array_t {
+            data: ptr::null_mut(),
+            size: 0,
+            allocator: rcutils_allocator_t::default(),
+        };
+    }
+
+    RCL_RET_OK as _
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcutils_get_zero_initialized_string_array() -> rcutils_string_array_t {
+    rcutils_string_array_t {
+        data: ptr::null_mut(),
+        size: 0,
+        allocator: rcutils_allocator_t::default(),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn rcl_get_node_names(
+    node: *const rcl_node_t,
+    allocator: rcl_allocator_t,
+    node_names: *mut rcutils_string_array_t,
+    node_namespaces: *mut rcutils_string_array_t,
+) -> rcl_ret_t {
+    if node.is_null() || node_names.is_null() || node_namespaces.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    let node_impl = match node.borrow_impl() {
+        Ok(impl_) => impl_,
+        Err(_) => return RCL_RET_INVALID_ARGUMENT as _,
+    };
+
+    // Get all nodes from the graph
+    let nodes = node_impl.graph().get_node_names();
+
+    // Separate names and namespaces
+    let mut names = Vec::new();
+    let mut namespaces = Vec::new();
+
+    for (name, namespace) in nodes {
+        names.push(CString::from_str(&name).unwrap());
+        namespaces.push(CString::from_str(&namespace).unwrap());
+    }
+
+    unsafe {
+        *node_names = rcutils_string_array_t::from(names);
+        *node_namespaces = rcutils_string_array_t::from(namespaces);
+    }
+
+    RCL_RET_OK as _
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn rcl_get_node_names_with_enclaves(
+    node: *const rcl_node_t,
+    allocator: rcl_allocator_t,
+    node_names: *mut rcutils_string_array_t,
+    node_namespaces: *mut rcutils_string_array_t,
+    enclaves: *mut rcutils_string_array_t,
+) -> rcl_ret_t {
+    if node.is_null()
+        || node_names.is_null()
+        || node_namespaces.is_null()
+        || enclaves.is_null()
+    {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    let node_impl = match node.borrow_impl() {
+        Ok(impl_) => impl_,
+        Err(_) => return RCL_RET_INVALID_ARGUMENT as _,
+    };
+
+    // Get all nodes with enclaves from the graph
+    let nodes = node_impl.graph().get_node_names_with_enclaves();
+
+    // Separate names, namespaces, and enclaves
+    let mut names = Vec::new();
+    let mut namespaces = Vec::new();
+    let mut enclave_vec = Vec::new();
+
+    for (name, namespace, enclave) in nodes {
+        names.push(CString::from_str(&name).unwrap());
+        namespaces.push(CString::from_str(&namespace).unwrap());
+        enclave_vec.push(CString::from_str(&enclave).unwrap());
+    }
+
+    unsafe {
+        *node_names = rcutils_string_array_t::from(names);
+        *node_namespaces = rcutils_string_array_t::from(namespaces);
+        *enclaves = rcutils_string_array_t::from(enclave_vec);
+    }
+
+    RCL_RET_OK as _
 }

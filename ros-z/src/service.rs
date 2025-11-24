@@ -19,6 +19,7 @@ use zenoh::{
 use std::sync::atomic::Ordering::AcqRel;
 
 use crate::entity::TopicKE;
+use crate::topic_name;
 
 use crate::{
     Builder,
@@ -56,7 +57,17 @@ where
 {
     type Output = ZClient<T>;
 
-    fn build(self) -> Result<Self::Output> {
+    fn build(mut self) -> Result<Self::Output> {
+        // Qualify the service name according to ROS 2 rules
+        let qualified_service = topic_name::qualify_service_name(
+            &self.entity.topic,
+            &self.entity.node.namespace,
+            &self.entity.node.name,
+        )
+        .map_err(|e| zenoh::Error::from(format!("Failed to qualify service: {}", e)))?;
+
+        self.entity.topic = qualified_service;
+
         let key_expr = self.entity.topic_key_expr()?;
         tracing::debug!("[CLN] KE: {key_expr}");
 
@@ -194,7 +205,17 @@ where
 {
     type Output = ZServer<T>;
 
-    fn build(self) -> Result<Self::Output> {
+    fn build(mut self) -> Result<Self::Output> {
+        // Qualify the service name according to ROS 2 rules
+        let qualified_service = topic_name::qualify_service_name(
+            &self.entity.topic,
+            &self.entity.node.namespace,
+            &self.entity.node.name,
+        )
+        .map_err(|e| zenoh::Error::from(format!("Failed to qualify service: {}", e)))?;
+
+        self.entity.topic = qualified_service;
+
         let key_expr = self.entity.topic_key_expr()?;
         tracing::debug!("[SRV] KE: {key_expr}");
 
@@ -232,10 +253,20 @@ where
     T: ZService,
 {
     #[cfg(feature = "rcl-z")]
-    pub fn build_with_notifier<F>(self, notify: F) -> Result<ZServer<T>>
+    pub fn build_with_notifier<F>(mut self, notify: F) -> Result<ZServer<T>>
     where
         F: Fn() + Send + Sync + 'static,
     {
+        // Qualify the service name according to ROS 2 rules
+        let qualified_service = topic_name::qualify_service_name(
+            &self.entity.topic,
+            &self.entity.node.namespace,
+            &self.entity.node.name,
+        )
+        .map_err(|e| zenoh::Error::from(format!("Failed to qualify service: {}", e)))?;
+
+        self.entity.topic = qualified_service;
+
         let key_expr = self.entity.topic_key_expr()?;
         tracing::debug!("[SRV] KE: {key_expr}");
 

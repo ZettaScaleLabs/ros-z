@@ -8,6 +8,7 @@ pub mod pubsub;
 pub mod qos;
 pub mod ros_msg;
 pub mod service;
+pub mod topic_name;
 
 #[macro_use]
 pub mod utils;

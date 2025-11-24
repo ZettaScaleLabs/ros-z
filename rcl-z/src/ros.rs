@@ -1,5 +1,7 @@
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals, unused)]
 
+use std::ffi::c_void;
+
 #[allow(clippy::upper_case_acronyms)]
 #[repr(u32)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, strum::FromRepr)]
@@ -81,6 +83,12 @@ impl Default for rmw_qos_profile_s {
             avoid_ros_namespace_conventions: false,
         }
     }
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct rcl_publisher_allocation_t {
+    pub data: *mut c_void,
 }
 
 include!(concat!(env!("CARGO_MANIFEST_DIR"), "/bindings.rs"));

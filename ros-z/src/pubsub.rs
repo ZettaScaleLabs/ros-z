@@ -10,11 +10,13 @@ use crate::Builder;
 use crate::attachment::{Attachment, GidArray};
 use crate::entity::EndpointEntity;
 use crate::impl_with_type_info;
+use crate::topic_name;
 
 use crate::msg::{CdrSerdes, ZDeserializer, ZMessage, ZSerializer};
 use crate::qos::{QosDurability, QosHistory, QosProfile, QosReliability};
 
 pub struct ZPub<T: ZMessage, S: ZSerializer> {
+    pub entity: EndpointEntity,
     // TODO: replace this with the sample sn
     sn: AtomicUsize,
     // TODO: replace this with zenoh's global entity id
@@ -64,7 +66,17 @@ where
 {
     type Output = ZPub<T, S>;
 
-    fn build(self) -> Result<Self::Output> {
+    fn build(mut self) -> Result<Self::Output> {
+        // Qualify the topic name according to ROS 2 rules
+        let qualified_topic = topic_name::qualify_topic_name(
+            &self.entity.topic,
+            &self.entity.node.namespace,
+            &self.entity.node.name,
+        )
+        .map_err(|e| zenoh::Error::from(format!("Failed to qualify topic: {}", e)))?;
+
+        self.entity.topic = qualified_topic;
+
         let key_expr = self.entity.topic_key_expr()?;
         tracing::debug!("[PUB] KE: {key_expr}");
 
@@ -97,11 +109,13 @@ where
             .liveliness()
             .declare_token(self.entity.lv_token_key_expr()?)
             .wait()?;
+        let gid = self.entity.gid();
         Ok(ZPub {
+            entity: self.entity,
             sn: AtomicUsize::new(0),
             inner,
             _lv_token: lv_token,
-            gid: self.entity.gid(),
+            gid,
             with_attachment: self.with_attachment,
             _phantom_data: Default::default(),
         })
@@ -174,11 +188,21 @@ where
     }
 
     #[cfg(feature = "rcl-z")]
-    pub fn build_with_notifier<F>(self, notify: F) -> Result<ZSub<T, Sample, S>>
+    pub fn build_with_notifier<F>(mut self, notify: F) -> Result<ZSub<T, Sample, S>>
     where
         F: Fn() + Send + Sync + 'static,
         S: ZDeserializer,
     {
+        // Qualify the topic name according to ROS 2 rules
+        let qualified_topic = topic_name::qualify_topic_name(
+            &self.entity.topic,
+            &self.entity.node.namespace,
+            &self.entity.node.name,
+        )
+        .map_err(|e| zenoh::Error::from(format!("Failed to qualify topic: {}", e)))?;
+
+        self.entity.topic = qualified_topic;
+
         // Map QoS history to queue size
         let queue_size = match self.entity.qos.history {
             QosHistory::KeepLast(depth) => depth,
@@ -216,7 +240,17 @@ where
 {
     type Output = ZSub<T, Sample, S>;
 
-    fn build(self) -> Result<Self::Output> {
+    fn build(mut self) -> Result<Self::Output> {
+        // Qualify the topic name according to ROS 2 rules
+        let qualified_topic = topic_name::qualify_topic_name(
+            &self.entity.topic,
+            &self.entity.node.namespace,
+            &self.entity.node.name,
+        )
+        .map_err(|e| zenoh::Error::from(format!("Failed to qualify topic: {}", e)))?;
+
+        self.entity.topic = qualified_topic;
+
         // Map QoS history to queue size
         let queue_size = match self.entity.qos.history {
             QosHistory::KeepLast(depth) => depth,

@@ -97,23 +97,30 @@ pub unsafe extern "C" fn rcl_ros_clock_init(
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_clock_init(
-    clock_type: rcl_clock_type_t,
+    clock_type: rcl_clock_type_e,
     clock: *mut rcl_clock_t,
     _allocator: *mut rcl_allocator_t,
 ) -> rcl_ret_t {
     tracing::trace!("rcl_clock_init");
-    tracing::warn!("rcl_clock_init is skipped.");
-    // match clock_type {
-    //     rcl_clock_type_e::RCL_ROS_TIME => {
-    //         let ret = rcl_ros_clock_init(clock, _allocator);
-    //         if ret != RCL_RET_OK as i32 {
-    //             tracing::error!("rcl_clock_init failed with {ret}");
-    //         }
-    //     }
-    //     _ => {
-    //         todo!()
-    //     }
-    // }
+
+    if clock.is_null() || _allocator.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    // Check for CLOCK_UNINITIALIZED type
+    if clock_type == rcl_clock_type_e::RCL_CLOCK_UNINITIALIZED {
+        return RCL_RET_ERROR as _;
+    }
+
+    tracing::warn!("rcl_clock_init is partially implemented.");
+    unsafe {
+        (*clock).type_ = clock_type;
+        (*clock).jump_callbacks = std::ptr::null_mut();
+        (*clock).num_jump_callbacks = 0;
+        (*clock).get_now = None;
+        (*clock).data = std::ptr::null_mut();
+        (*clock).allocator = rcl_allocator_t::default();
+    }
     RCL_RET_OK as _
 }
 
@@ -134,19 +141,46 @@ pub extern "C" fn rcl_timer_init2(
     autostart: bool,
 ) -> rcl_ret_t {
     tracing::trace!("rcl_timer_init2");
+
+    // Check for null arguments
+    if timer.is_null() || clock.is_null() || context.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    // Check for negative period
+    if period < 0 {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    // Check for invalid allocator
+    if allocator.allocate.is_none() || allocator.deallocate.is_none() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
     let now = SystemTime::now();
-    let x = timer.borrow_mut_impl().unwrap();
-    x.period = Duration::from_nanos(period as _);
-    x.last_call_time = now;
-    x.next_call_time = now + x.period;
-    x.callback = callback;
-    RCL_RET_OK as _
+    match timer.borrow_mut_impl() {
+        Ok(x) => {
+            x.period = Duration::from_nanos(period as _);
+            x.last_call_time = now;
+            x.next_call_time = now + x.period;
+            x.callback = callback;
+            RCL_RET_OK as _
+        }
+        Err(_) => RCL_RET_ERROR as _,
+    }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_timer_fini(timer: *mut rcl_timer_t) -> rcl_ret_t {
     tracing::trace!("rcl_timer_fini");
-    drop(timer.own_impl().unwrap());
+
+    if timer.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    if let Ok(impl_) = timer.own_impl() {
+        drop(impl_);
+    }
     RCL_RET_OK as _
 }
 

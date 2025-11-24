@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{ffi::CString, sync::Arc};
 
 use crate::{c_void, traits::Waitable, utils::Notifier};
 
@@ -21,11 +21,13 @@ pub struct ClientImpl {
     pub(crate) inner: ZClient<RosService>,
     pub(crate) ts: ServiceTypeSupport,
     pub(crate) notifier: Arc<Notifier>,
+    pub(crate) service_name: String,
 }
 
 pub struct ServiceImpl {
     pub(crate) inner: ZServer<RosService>,
     pub(crate) ts: ServiceTypeSupport,
+    pub(crate) service_name: CString,
 }
 
 impl ServiceImpl {
@@ -126,19 +128,45 @@ pub unsafe extern "C" fn rcl_client_init(
 ) -> rcl_ret_t {
     tracing::trace!("rcl_client_init");
 
+    // Validate input parameters
+    if client.is_null() || node.is_null() || type_support.is_null() || service_name.is_null() || _options.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
     let x = move || {
         let cli_impl = unsafe {
             node.borrow_impl()?
                 .new_client(type_support, service_name, _options)?
         };
-        client.assign_impl(cli_impl)?;
-        Result::Ok(())
+        Result::Ok(cli_impl)
     };
-    rclz_try! { x()?; }
+
+    // First create the client impl
+    let cli_impl = match x() {
+        Ok(impl_) => impl_,
+        Err(e) => {
+            tracing::error!("{e}");
+            return RCL_RET_ERROR as _;
+        }
+    };
+
+    // Then assign it, checking for already initialized
+    match client.assign_impl(cli_impl) {
+        Ok(_) => RCL_RET_OK as _,
+        Err(crate::traits::ImplAccessError::NonNullImplPtr) => RCL_RET_ALREADY_INIT as _,
+        Err(e) => {
+            tracing::error!("{e}");
+            RCL_RET_ERROR as _
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_client_fini(client: *mut rcl_client_t, _node: *mut rcl_node_t) -> rcl_ret_t {
+    // Validate input parameters
+    if client.is_null() || _node.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
     // Drop the data regardless of the pointer's condition.
     drop(client.own_impl());
     RCL_RET_OK as _
@@ -150,15 +178,21 @@ pub unsafe extern "C" fn rcl_send_request(
     ros_request: *const c_void,
     sequence_number: *mut i64,
 ) -> rcl_ret_t {
-    let sn = client
-        .borrow_impl()
-        .unwrap()
-        .send_request(ros_request)
-        .unwrap();
-    unsafe {
-        *sequence_number = sn;
+    if client.is_null() || sequence_number.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
     }
-    RCL_RET_OK as _
+    match client.borrow_impl() {
+        Ok(impl_) => match impl_.send_request(ros_request) {
+            Ok(sn) => {
+                unsafe {
+                    *sequence_number = sn;
+                }
+                RCL_RET_OK as _
+            }
+            Err(_) => RCL_RET_ERROR as _,
+        },
+        Err(_) => RCL_RET_INVALID_ARGUMENT as _,
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -168,16 +202,22 @@ pub unsafe extern "C" fn rcl_take_response(
     request_header: *mut rmw_request_id_t,
     ros_response: *mut c_void,
 ) -> rcl_ret_t {
-    let request_id = client
-        .borrow_impl()
-        .unwrap()
-        .take_response(ros_response)
-        .unwrap();
-    unsafe {
-        (*request_header).sequence_number = request_id.sn;
-        (*request_header).writer_guid = request_id.gid;
+    if client.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
     }
-    RCL_RET_OK as _
+    if request_header.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+    if ros_response.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+    rclz_try! {
+        let request_id = client.borrow_impl()?.take_response(ros_response)?;
+        unsafe {
+            (*request_header).sequence_number = request_id.sn;
+            (*request_header).writer_guid = request_id.gid;
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -192,13 +232,25 @@ pub extern "C" fn rcl_take_request_with_info(
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn rcl_service_server_is_available(
-    _node: *const rcl_node_t,
-    _client: *const rcl_client_t,
+    node: *const rcl_node_t,
+    client: *const rcl_client_t,
     is_available: *mut bool,
 ) -> rcl_ret_t {
     tracing::trace!("rcl_service_server_is_available");
-    unsafe {
-        *is_available = true;
+    if node.is_null() || client.is_null() || is_available.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+    // SAFETY: is_available is checked to be non-null above
+    unsafe { *is_available = false; }
+    let node_impl = match node.borrow_impl() {
+        Ok(n) => n,
+        Err(_) => return RCL_RET_ERROR as _,
+    };
+    if let Ok(client_impl) = client.borrow_impl() {
+        let service_names = node_impl.graph().get_service_names_and_types();
+        let available = service_names.iter().any(|(name, _)| name == &client_impl.service_name);
+        // SAFETY: is_available is checked to be non-null above
+        unsafe { *is_available = available; }
     }
     RCL_RET_OK as _
 }
@@ -223,15 +275,38 @@ pub unsafe extern "C" fn rcl_service_init(
     _options: *const rcl_service_options_t,
 ) -> rcl_ret_t {
     tracing::trace!("rcl_service_init: {service:?}");
+
+    // Validate input parameters
+    if service.is_null() || node.is_null() || type_support.is_null() || service_name.is_null() || _options.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
     let x = move || {
         let srv_impl = unsafe {
             node.borrow_impl()?
                 .new_service(type_support, service_name, _options)
         }?;
-        service.assign_impl(srv_impl)?;
-        Result::Ok(())
+        Result::Ok(srv_impl)
     };
-    rclz_try! { x()?; }
+
+    // First create the service impl
+    let srv_impl = match x() {
+        Ok(impl_) => impl_,
+        Err(e) => {
+            tracing::error!("{e}");
+            return RCL_RET_ERROR as _;
+        }
+    };
+
+    // Then assign it, checking for already initialized
+    match service.assign_impl(srv_impl) {
+        Ok(_) => RCL_RET_OK as _,
+        Err(crate::traits::ImplAccessError::NonNullImplPtr) => RCL_RET_ALREADY_INIT as _,
+        Err(e) => {
+            tracing::error!("{e}");
+            RCL_RET_ERROR as _
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -239,6 +314,10 @@ pub extern "C" fn rcl_service_fini(
     service: *mut rcl_service_t,
     _node: *mut rcl_node_t,
 ) -> rcl_ret_t {
+    // Validate input parameters
+    if service.is_null() || _node.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
     // Drop the data regardless of the pointer's condition.
     drop(service.own_impl());
     RCL_RET_OK as _
@@ -280,8 +359,40 @@ pub extern "C" fn rcl_service_is_valid(_service: *const rcl_service_t) -> bool {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn rcl_client_is_valid(_client: *const rcl_client_t) -> bool {
+    _client.borrow_impl().is_ok()
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn rcl_service_get_service_name(
     _service: *const rcl_service_t,
 ) -> *const ::std::os::raw::c_char {
-    c"rcl_service_get_service_name not yet implemented".as_ptr()
+    if _service.is_null() {
+        return std::ptr::null();
+    }
+    match _service.borrow_impl() {
+        Ok(impl_) => impl_.service_name.as_ptr(),
+        Err(_) => std::ptr::null(),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_client_get_default_options() -> rcl_client_options_t {
+    // TODO: Implement proper default options
+    unsafe { std::mem::zeroed() }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_get_zero_initialized_client() -> rcl_client_t {
+    unsafe { std::mem::zeroed() }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_get_zero_initialized_service() -> rcl_service_t {
+    unsafe { std::mem::zeroed() }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_service_get_default_options() -> rcl_service_options_t {
+    unsafe { std::mem::zeroed() }
 }
