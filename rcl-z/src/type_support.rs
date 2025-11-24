@@ -95,15 +95,19 @@ impl AsRef<rosidl_message_type_support_t> for MessageTypeSupport {
 }
 
 impl MessageTypeSupport {
-    pub unsafe fn new(type_support: *const rosidl_message_type_support_t) -> Self {
+    pub unsafe fn new(type_support: *const rosidl_message_type_support_t) -> zenoh::Result<Self> {
         let type_support = unsafe {
             let ts = get_message_typesupport(type_support);
             if ts.is_null() {
                 tracing::error!("Failed to create the type support.");
+                return Err(zenoh::Error::from(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "Failed to get message type support - type support library not found or invalid",
+                )));
             }
             ts
         };
-        Self { ptr: type_support }
+        Ok(Self { ptr: type_support })
     }
 
     pub fn get_type_hash(&self) -> TypeHash {
@@ -121,7 +125,7 @@ impl MessageTypeSupport {
     pub unsafe fn serialize_message(&self, ros_message: *const c_void, out: &mut Vec<u8>) {
         let res = unsafe { serialize_message(self.as_ref(), ros_message, out) };
         if !res {
-            tracing::error!("Failed to run serialize_message");
+            tracing::warn!("Failed to run serialize_message");
         }
     }
 
@@ -132,7 +136,7 @@ impl MessageTypeSupport {
     pub unsafe fn deserialize_message(&self, data: &Vec<u8>, ros_message: *mut c_void) {
         let res = unsafe { deserialize_message(self.as_ref(), data, ros_message) };
         if !res {
-            tracing::error!("Failed to run serialize_message");
+            tracing::warn!("Failed to run deserialize_message");
         }
     }
 
@@ -172,11 +176,15 @@ impl AsRef<rosidl_service_type_support_t> for ServiceTypeSupport {
 }
 
 impl ServiceTypeSupport {
-    pub unsafe fn new(type_support: *const rosidl_service_type_support_t) -> Self {
+    pub unsafe fn new(type_support: *const rosidl_service_type_support_t) -> zenoh::Result<Self> {
         let type_support = unsafe {
             let ts = get_service_typesupport(type_support);
             if ts.is_null() {
                 tracing::error!("Failed to create the type support.");
+                return Err(zenoh::Error::from(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "Failed to get service type support - type support library not found or invalid",
+                )));
             }
             ts
         };
@@ -186,11 +194,11 @@ impl ServiceTypeSupport {
                 get_response_type_support(type_support),
             )
         };
-        Self {
+        Ok(Self {
             ptr: type_support,
-            request: unsafe { MessageTypeSupport::new(request) },
-            response: unsafe { MessageTypeSupport::new(response) },
-        }
+            request: unsafe { MessageTypeSupport::new(request)? },
+            response: unsafe { MessageTypeSupport::new(response)? },
+        })
     }
 
     pub fn get_type_hash(&self) -> TypeHash {
