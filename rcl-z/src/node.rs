@@ -469,6 +469,15 @@ pub unsafe extern "C" fn rcl_node_resolve_name(
     only_expand: bool,
     output_name: *mut *mut ::std::os::raw::c_char,
 ) -> rcl_ret_t {
+    if node.is_null() || input_name.is_null() || output_name.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    // Check if node has valid implementation
+    if node.borrow_impl().is_err() {
+        return RCL_RET_ERROR as _;
+    }
+
     let cstr = CString::new("skip_rcl_node_resolve_name").unwrap();
     unsafe {
         *output_name = cstr.into_raw();
@@ -609,7 +618,10 @@ pub extern "C" fn rcl_node_options_copy(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_node_options_fini(_options: *mut rcl_node_options_t) -> rcl_ret_t {
+pub extern "C" fn rcl_node_options_fini(options: *mut rcl_node_options_t) -> rcl_ret_t {
+    if options.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
     RCL_RET_OK as _
 }
 
