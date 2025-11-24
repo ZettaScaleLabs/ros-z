@@ -2,6 +2,8 @@
 
 #include <rosidl_typesupport_fastrtps_cpp/message_type_support.h>
 #include <rosidl_typesupport_fastrtps_cpp/service_type_support.h>
+#include <rosidl_typesupport_fastrtps_c/identifier.h>
+#include <rosidl_typesupport_fastrtps_cpp/identifier.hpp>
 
 #include "rust/cxx.h"
 

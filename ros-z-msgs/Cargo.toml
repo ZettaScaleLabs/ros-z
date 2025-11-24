@@ -39,8 +39,9 @@ nav_msgs = ["std_msgs", "geometry_msgs"]
 
 # External messages - require ROS 2 installation
 # These packages are not bundled with roslibrust and must be found in the system
-external_msgs = ["example_interfaces"]
+external_msgs = ["example_interfaces", "test_msgs"]
 example_interfaces = []
+test_msgs = []
 
 # Convenience feature for common ROS 2 interfaces (bundled only)
 common_interfaces = ["std_msgs", "geometry_msgs", "sensor_msgs"]

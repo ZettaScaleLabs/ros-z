@@ -16,6 +16,9 @@ const INCLUDE_PACKAGES: &[&str] = &[
 ];
 
 fn main() {
+    // Declare custom cfg for auto-detection
+    println!("cargo:rustc-check-cfg=cfg(has_test_msgs)");
+
     // Get AMENT_PREFIX_PATH from the environment
     let ament_prefix = env::var("AMENT_PREFIX_PATH").expect("AMENT_PREFIX_PATH is missing!");
 
@@ -135,4 +138,14 @@ fn main() {
     println!("cargo:rustc-link-lib=dylib=rosidl_typesupport_fastrtps_c");
     println!("cargo:rustc-link-lib=dylib=rosidl_typesupport_fastrtps_cpp");
     println!("cargo:rustc-link-lib=dylib=type_description_interfaces__rosidl_typesupport_c");
+
+    // Link test_msgs for tests
+    #[cfg(feature = "test-msgs")]
+    {
+        // Explicit feature: always link (fail if not available)
+        println!("cargo:rustc-link-lib=dylib=test_msgs__rosidl_generator_c");
+        println!("cargo:rustc-link-lib=dylib=test_msgs__rosidl_typesupport_c");
+        println!("cargo:rustc-link-lib=dylib=test_msgs__rosidl_typesupport_fastrtps_c");
+        println!("cargo:rustc-link-lib=dylib=test_msgs__rosidl_typesupport_fastrtps_cpp");
+    }
 }
