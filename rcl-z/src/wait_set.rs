@@ -108,6 +108,34 @@ impl WaitSetImpl {
         }
     }
 
+    fn is_event_ready(&self) -> bool {
+        use crate::event::EVENT_MAP;
+        match self.hmap.get(&WaitSetKind::Event) {
+            Some(queue) => queue.iter().any(|&ptr| {
+                if ptr.is_null() {
+                    return false;
+                }
+                let event_ptr = ptr as usize;
+                if let Some(map) = EVENT_MAP.get() {
+                    if let Ok(map) = map.lock() {
+                        if let Some(event_impl) = map.get(&event_ptr) {
+                            // Check if the event has unread status
+                            let rmw_handle = &*event_impl.rmw_handle;
+                            rmw_handle.is_ready()
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }),
+            None => false,
+        }
+    }
+
     fn wait(&self, notifier: &Arc<Notifier>, timeout: Duration) {
         let is_ready = || {
             self.is_ready::<rcl_subscription_t>(WaitSetKind::Subscription)
@@ -115,6 +143,7 @@ impl WaitSetImpl {
                 || self.is_ready::<rcl_service_t>(WaitSetKind::Service)
                 || self.is_ready::<rcl_guard_condition_t>(WaitSetKind::GuradCondition)
                 || self.is_ready::<rcl_timer_t>(WaitSetKind::Timer)
+                || self.is_event_ready()
         };
 
         let (mutex, cv) = {
@@ -157,6 +186,12 @@ impl WaitSetImpl {
                 }
             }
         }
+
+        // Check events separately
+        if self.is_event_ready() {
+            ready = true;
+        }
+
         Ok(ready)
     }
 

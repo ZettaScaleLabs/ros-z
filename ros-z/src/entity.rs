@@ -12,7 +12,7 @@ const EMPTY_TOPIC_TYPE: &str = "EMPTY_TOPIC_TYPE";
 const EMPTY_TOPIC_HASH: &str = "EMPTY_TOPIC_HASH";
 pub const ADMIN_SPACE: &str = "@ros2_lv";
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct LivelinessKE(pub KeyExpr<'static>);
 
 impl Deref for LivelinessKE {

@@ -6,6 +6,7 @@
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 #![allow(unpredictable_function_pointer_comparisons)]
 
+pub mod event;
 mod qos;
 pub mod ros;
 mod traits;

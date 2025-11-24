@@ -8,6 +8,7 @@ use std::{
 use crate::entity::{
     ADMIN_SPACE, EndpointEntity, Entity, EntityKind, LivelinessKE, NodeKey, Topic,
 };
+use crate::event::GraphEventManager;
 use zenoh::{Result, Session, Wait, pubsub::Subscriber, sample::SampleKind};
 
 const DEFAULT_SLAB_CAPACITY: usize = 128;
@@ -185,29 +186,46 @@ impl GraphData {
 
 pub struct Graph {
     pub data: Arc<Mutex<GraphData>>,
+    pub event_manager: Arc<GraphEventManager>,
     _subscriber: Subscriber<()>,
 }
 
 impl Graph {
     pub fn new(session: &Session, domain_id: usize) -> Result<Self> {
         let graph_data = Arc::new(Mutex::new(GraphData::new()));
+        let event_manager = Arc::new(GraphEventManager::new());
         let c_graph_data = graph_data.clone();
+        let c_event_manager = event_manager.clone();
         let sub = session
             .liveliness()
             .declare_subscriber(format!("{ADMIN_SPACE}/{domain_id}/**"))
             .history(true)
             .callback(move |sample| {
                 let mut graph_data_guard = c_graph_data.lock();
-                let ke = LivelinessKE(sample.key_expr().to_owned());
+                let key_expr = sample.key_expr().to_owned();
+                let ke = LivelinessKE(key_expr);
                 match sample.kind() {
-                    SampleKind::Put => graph_data_guard.insert(ke),
-                    SampleKind::Delete => graph_data_guard.remove(&ke),
+                    SampleKind::Put => {
+                        graph_data_guard.insert(ke.clone());
+                        // Trigger graph change events
+                        if let Ok(entity) = Entity::try_from(&ke) {
+                            c_event_manager.trigger_graph_change(&entity, true);
+                        }
+                    }
+                    SampleKind::Delete => {
+                        // Trigger graph change events before removal
+                        if let Ok(entity) = Entity::try_from(&ke) {
+                            c_event_manager.trigger_graph_change(&entity, false);
+                        }
+                        graph_data_guard.remove(&ke);
+                    }
                 }
             })
             .wait()?;
         Ok(Self {
             _subscriber: sub,
             data: graph_data,
+            event_manager,
         })
     }
 

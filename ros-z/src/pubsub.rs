@@ -9,11 +9,13 @@ use zenoh::{Result, Session, Wait, sample::Sample};
 use crate::Builder;
 use crate::attachment::{Attachment, GidArray};
 use crate::entity::EndpointEntity;
+use crate::event::EventsManager;
 use crate::impl_with_type_info;
 use crate::topic_name;
 
 use crate::msg::{CdrSerdes, ZDeserializer, ZMessage, ZSerializer};
 use crate::qos::{QosDurability, QosHistory, QosProfile, QosReliability};
+use std::sync::Mutex;
 
 pub struct ZPub<T: ZMessage, S: ZSerializer> {
     pub entity: EndpointEntity,
@@ -24,6 +26,7 @@ pub struct ZPub<T: ZMessage, S: ZSerializer> {
     inner: zenoh::pubsub::Publisher<'static>,
     _lv_token: LivelinessToken,
     with_attachment: bool,
+    events_mgr: Arc<Mutex<EventsManager>>,
     _phantom_data: PhantomData<(T, S)>,
 }
 
@@ -116,6 +119,7 @@ where
             inner,
             _lv_token: lv_token,
             gid,
+            events_mgr: Arc::new(Mutex::new(EventsManager::new(gid))),
             with_attachment: self.with_attachment,
             _phantom_data: Default::default(),
         })
@@ -161,6 +165,10 @@ where
             put_builder = put_builder.attachment(self.new_attchment());
         }
         put_builder.wait()
+    }
+
+    pub fn events_mgr(&self) -> &Arc<Mutex<EventsManager>> {
+        &self.events_mgr
     }
 }
 
@@ -218,6 +226,7 @@ where
                 notify();
             })
             .wait()?;
+        let gid = self.entity.gid();
         let lv_token = self
             .session
             .liveliness()
@@ -228,6 +237,7 @@ where
             _inner: inner,
             _lv_token: lv_token,
             queue: rx,
+            events_mgr: Arc::new(Mutex::new(EventsManager::new(gid))),
             _phantom_data: Default::default(),
         })
     }
@@ -265,6 +275,7 @@ where
                 let _ = tx.send(sample);
             })
             .wait()?;
+        let gid = self.entity.gid();
         let lv_token = self
             .session
             .liveliness()
@@ -275,6 +286,7 @@ where
             _inner: inner,
             _lv_token: lv_token,
             queue: rx,
+            events_mgr: Arc::new(Mutex::new(EventsManager::new(gid))),
             _phantom_data: Default::default(),
         })
     }
@@ -285,6 +297,7 @@ pub struct ZSub<T: ZMessage, Q, S: ZDeserializer> {
     pub queue: flume::Receiver<Q>,
     _inner: zenoh::pubsub::Subscriber<()>,
     _lv_token: LivelinessToken,
+    events_mgr: Arc<Mutex<EventsManager>>,
     _phantom_data: PhantomData<(T, S)>,
 }
 
@@ -303,6 +316,10 @@ where
     pub async fn async_recv_serialized(&self) -> Result<Sample> {
         let msg = self.queue.recv_async().await?;
         Ok(msg)
+    }
+
+    pub fn events_mgr(&self) -> &Arc<Mutex<EventsManager>> {
+        &self.events_mgr
     }
 }
 

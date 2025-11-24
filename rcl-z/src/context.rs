@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+use crate::event::*;
 use crate::node::NodeImpl;
 use crate::ros::*;
 use crate::traits::{BorrowImpl, OwnImpl};
@@ -33,6 +34,8 @@ pub struct ContextImpl {
     is_valid: bool,
     /// Domain ID for this context
     domain_id: usize,
+    /// Events manager for this context
+    events_manager: EventsManager,
 }
 
 impl ContextImpl {
@@ -45,10 +48,19 @@ impl ContextImpl {
             notifier: Arc::new(Notifier::default()),
             instance_id,
             init_options,
+            events_manager: EventsManager::new(),
             rmw_context: rmw_context_t::default(),
             is_valid: true,
             domain_id,
         }
+    }
+
+    pub(crate) fn events_manager(&self) -> &EventsManager {
+        &self.events_manager
+    }
+
+    pub(crate) fn events_manager_mut(&mut self) -> &mut EventsManager {
+        &mut self.events_manager
     }
 
     pub(crate) fn new_node(
@@ -163,75 +175,6 @@ pub extern "C" fn rmw_get_gid_for_publisher(
     gid: *mut rmw_gid_t,
 ) -> rmw_ret_t {
     RCL_RET_OK as _
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_publisher_event_init(
-    event: *mut rcl_event_t,
-    publisher: *const rcl_publisher_t,
-    event_type: rcl_publisher_event_type_t,
-) -> rcl_ret_t {
-    if event.is_null() || publisher.is_null() {
-        return RCL_RET_INVALID_ARGUMENT as _;
-    }
-    // Assume valid types are 0-10, invalid >10
-    if event_type as i32 > 10 {
-        return RCL_RET_INVALID_ARGUMENT as _;
-    }
-    RCL_RET_UNSUPPORTED as _
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_subscription_event_init(
-    event: *mut rcl_event_t,
-    subscription: *const rcl_subscription_t,
-    event_type: rcl_subscription_event_type_t,
-) -> rcl_ret_t {
-    // FIXME: Follow the event implementation in rmw_zenoh_cpp: /home/circle/Workings/ZettaScale/project/nix-ros/ws/src/rmw_zenoh/rmw_zenoh_cpp/src/detail/event.cpp
-    if event.is_null() || subscription.is_null() {
-        return RCL_RET_INVALID_ARGUMENT as _;
-    }
-    // Assume valid types are 0-10, invalid >10
-    if event_type as i32 > 10 {
-        return RCL_RET_INVALID_ARGUMENT as _;
-    }
-    RCL_RET_UNSUPPORTED as _
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_event_fini(event: *mut rcl_event_t) -> rcl_ret_t {
-    // FIXME: Follow the event implementation in rmw_zenoh_cpp: /home/circle/Workings/ZettaScale/project/nix-ros/ws/src/rmw_zenoh/rmw_zenoh_cpp/src/detail/event.cpp
-    RCL_RET_OK as _
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_event_is_valid(event: *const rcl_event_t) -> bool {
-    // FIXME: Follow the event implementation in rmw_zenoh_cpp: /home/circle/Workings/ZettaScale/project/nix-ros/ws/src/rmw_zenoh/rmw_zenoh_cpp/src/detail/event.cpp
-    false
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_take_event(
-    event: *const rcl_event_t,
-    event_status: *mut c_void,
-) -> rcl_ret_t {
-    // FIXME: Follow the event implementation in rmw_zenoh_cpp: /home/circle/Workings/ZettaScale/project/nix-ros/ws/src/rmw_zenoh/rmw_zenoh_cpp/src/detail/event.cpp
-    if event.is_null() {
-        return RCL_RET_EVENT_INVALID as _;
-    }
-    // Assume the event is invalid since we don't support events
-    RCL_RET_EVENT_INVALID as _
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_event_get_rmw_handle(event: *const rcl_event_t) -> *mut rmw_event_t {
-    // FIXME: print a non-support warnings
-    std::ptr::null_mut()
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rcl_get_zero_initialized_event() -> rcl_event_t {
-    rcl_event_t::default()
 }
 
 #[unsafe(no_mangle)]
