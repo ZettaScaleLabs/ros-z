@@ -128,8 +128,17 @@ pub unsafe extern "C" fn rcl_client_init(
 ) -> rcl_ret_t {
     tracing::trace!("rcl_client_init");
 
-    // Validate input parameters
-    if client.is_null() || node.is_null() || type_support.is_null() || service_name.is_null() || _options.is_null() {
+    // Validate input parameters - check null first, with specific checks for node
+    if client.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    // Check node separately for better error reporting (must be before other checks to match C++ behavior)
+    if node.is_null() {
+        return RCL_RET_NODE_INVALID as _;
+    }
+
+    if type_support.is_null() || service_name.is_null() || _options.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
     }
 
@@ -146,6 +155,10 @@ pub unsafe extern "C" fn rcl_client_init(
         Ok(impl_) => impl_,
         Err(e) => {
             tracing::error!("{e}");
+            // Check if it's because the node is not valid (zero-initialized)
+            if node.borrow_impl().is_err() {
+                return RCL_RET_NODE_INVALID as _;
+            }
             return RCL_RET_ERROR as _;
         }
     };
@@ -164,8 +177,11 @@ pub unsafe extern "C" fn rcl_client_init(
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_client_fini(client: *mut rcl_client_t, _node: *mut rcl_node_t) -> rcl_ret_t {
     // Validate input parameters
-    if client.is_null() || _node.is_null() {
-        return RCL_RET_INVALID_ARGUMENT as _;
+    if client.is_null() {
+        return RCL_RET_CLIENT_INVALID as _;
+    }
+    if _node.is_null() {
+        return RCL_RET_NODE_INVALID as _;
     }
     // Drop the data regardless of the pointer's condition.
     drop(client.own_impl());
@@ -221,13 +237,81 @@ pub unsafe extern "C" fn rcl_take_response(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_take_request_with_info(
-    _service: *const rcl_service_t,
-    _request_header: *mut rmw_service_info_t,
-    _ros_request: *mut ::std::os::raw::c_void,
+pub unsafe extern "C" fn rcl_take_response_with_info(
+    client: *const rcl_client_t,
+    request_header: *mut rmw_service_info_t,
+    ros_response: *mut c_void,
+) -> rcl_ret_t {
+    if client.is_null() {
+        return RCL_RET_CLIENT_INVALID as _;
+    }
+    if request_header.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+    if ros_response.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    let client_impl = match client.borrow_impl() {
+        Ok(impl_) => impl_,
+        Err(_) => return RCL_RET_CLIENT_INVALID as _,
+    };
+
+    let request_id = match unsafe { client_impl.take_response(ros_response) } {
+        Ok(id) => id,
+        Err(_) => return RCL_RET_CLIENT_TAKE_FAILED as _,
+    };
+
+    unsafe {
+        (*request_header).request_id.sequence_number = request_id.sn;
+        (*request_header).request_id.writer_guid = request_id.gid;
+        // Set timestamps to 0 for now (not currently supported)
+        (*request_header).source_timestamp = 0;
+        (*request_header).received_timestamp = 0;
+    }
+
+    RCL_RET_OK as _
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn rcl_take_request_with_info(
+    service: *const rcl_service_t,
+    request_header: *mut rmw_service_info_t,
+    ros_request: *mut ::std::os::raw::c_void,
 ) -> rcl_ret_t {
     tracing::trace!("rcl_take_request_with_info");
-    todo!()
+
+    if service.is_null() {
+        return RCL_RET_SERVICE_INVALID as _;
+    }
+    if request_header.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+    if ros_request.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    // Interior mutability is not allowed in Rust
+    let service_mut = service as *mut rcl_service_t;
+    let service_impl = match service_mut.borrow_mut_impl() {
+        Ok(impl_) => impl_,
+        Err(_) => return RCL_RET_SERVICE_INVALID as _,
+    };
+
+    let request_id = match unsafe { service_impl.take_request(ros_request as *mut c_void) } {
+        Ok(id) => id,
+        Err(_) => return RCL_RET_SERVICE_TAKE_FAILED as _,
+    };
+
+    unsafe {
+        (*request_header).request_id.sequence_number = request_id.sn;
+        (*request_header).request_id.writer_guid = request_id.gid;
+        // Set timestamps to 0 for now (not currently supported)
+        (*request_header).source_timestamp = 0;
+        (*request_header).received_timestamp = 0;
+    }
+
+    RCL_RET_OK as _
 }
 
 #[unsafe(no_mangle)]
@@ -276,8 +360,17 @@ pub unsafe extern "C" fn rcl_service_init(
 ) -> rcl_ret_t {
     tracing::trace!("rcl_service_init: {service:?}");
 
-    // Validate input parameters
-    if service.is_null() || node.is_null() || type_support.is_null() || service_name.is_null() || _options.is_null() {
+    // Validate input parameters - check null first, with specific checks for node
+    if service.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    // Check node separately for better error reporting (must be before other checks to match C++ behavior)
+    if node.is_null() {
+        return RCL_RET_NODE_INVALID as _;
+    }
+
+    if type_support.is_null() || service_name.is_null() || _options.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
     }
 
@@ -294,6 +387,10 @@ pub unsafe extern "C" fn rcl_service_init(
         Ok(impl_) => impl_,
         Err(e) => {
             tracing::error!("{e}");
+            // Check if it's because the node is not valid (zero-initialized)
+            if node.borrow_impl().is_err() {
+                return RCL_RET_NODE_INVALID as _;
+            }
             return RCL_RET_ERROR as _;
         }
     };
@@ -315,8 +412,11 @@ pub extern "C" fn rcl_service_fini(
     _node: *mut rcl_node_t,
 ) -> rcl_ret_t {
     // Validate input parameters
-    if service.is_null() || _node.is_null() {
-        return RCL_RET_INVALID_ARGUMENT as _;
+    if service.is_null() {
+        return RCL_RET_SERVICE_INVALID as _;
+    }
+    if _node.is_null() {
+        return RCL_RET_NODE_INVALID as _;
     }
     // Drop the data regardless of the pointer's condition.
     drop(service.own_impl());
@@ -395,4 +495,143 @@ pub extern "C" fn rcl_get_zero_initialized_service() -> rcl_service_t {
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_service_get_default_options() -> rcl_service_options_t {
     unsafe { std::mem::zeroed() }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_service_get_options(
+    _service: *const rcl_service_t,
+) -> *const rcl_service_options_t {
+    if _service.is_null() {
+        return std::ptr::null();
+    }
+    // In the current implementation, options are not stored in the service
+    // Return null for now to indicate options are not available
+    std::ptr::null()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_service_get_rmw_handle(
+    _service: *const rcl_service_t,
+) -> *const c_void {
+    if _service.is_null() {
+        return std::ptr::null();
+    }
+    match _service.borrow_impl() {
+        Ok(_) => {
+            // In the current implementation, we don't expose the rmw handle
+            // Return null for now
+            std::ptr::null()
+        }
+        Err(_) => std::ptr::null(),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_service_request_subscription_get_actual_qos(
+    _service: *const rcl_service_t,
+) -> *const rmw_qos_profile_t {
+    if _service.is_null() {
+        return std::ptr::null();
+    }
+    match _service.borrow_impl() {
+        Ok(_) => {
+            // In the current implementation, we don't store QoS profiles
+            // Return null for now
+            std::ptr::null()
+        }
+        Err(_) => std::ptr::null(),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_service_response_publisher_get_actual_qos(
+    _service: *const rcl_service_t,
+) -> *const rmw_qos_profile_t {
+    if _service.is_null() {
+        return std::ptr::null();
+    }
+    match _service.borrow_impl() {
+        Ok(_) => {
+            // In the current implementation, we don't store QoS profiles
+            // Return null for now
+            std::ptr::null()
+        }
+        Err(_) => std::ptr::null(),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_client_get_options(
+    _client: *const rcl_client_t,
+) -> *const rcl_client_options_t {
+    if _client.is_null() {
+        return std::ptr::null();
+    }
+    // In the current implementation, options are not stored in the client
+    // Return null for now to indicate options are not available
+    std::ptr::null()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_client_get_rmw_handle(
+    _client: *const rcl_client_t,
+) -> *const c_void {
+    if _client.is_null() {
+        return std::ptr::null();
+    }
+    match _client.borrow_impl() {
+        Ok(_) => {
+            // In the current implementation, we don't expose the rmw handle
+            // Return null for now
+            std::ptr::null()
+        }
+        Err(_) => std::ptr::null(),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_client_get_service_name(
+    client: *const rcl_client_t,
+) -> *const ::std::os::raw::c_char {
+    if client.is_null() {
+        return std::ptr::null();
+    }
+    match client.borrow_impl() {
+        Ok(impl_) => impl_.service_name.as_ptr() as *const ::std::os::raw::c_char,
+        Err(_) => std::ptr::null(),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_client_request_publisher_get_actual_qos(
+    _client: *const rcl_client_t,
+) -> *const rmw_qos_profile_t {
+    if _client.is_null() {
+        return std::ptr::null();
+    }
+    match _client.borrow_impl() {
+        Ok(_) => {
+            // In the current implementation, we don't store QoS profiles
+            // Return null for now
+            std::ptr::null()
+        }
+        Err(_) => std::ptr::null(),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_client_response_subscription_get_actual_qos(
+    _client: *const rcl_client_t,
+) -> *const rmw_qos_profile_t {
+    if _client.is_null() {
+        return std::ptr::null();
+    }
+    match _client.borrow_impl() {
+        Ok(_) => {
+            // In the current implementation, we don't store QoS profiles
+            // Return null for now
+            std::ptr::null()
+        }
+        Err(_) => std::ptr::null(),
+    }
 }

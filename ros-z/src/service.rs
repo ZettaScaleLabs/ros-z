@@ -79,7 +79,7 @@ where
             .wait()?;
         let (tx, rx) = flume::unbounded();
         Ok(ZClient {
-            sn: AtomicUsize::new(0),
+            sn: AtomicUsize::new(1), // Start at 1 for ROS compatibility
             inner,
             lv_token,
             gid: self.entity.gid(),
@@ -237,7 +237,7 @@ where
             .wait()?;
         Ok(ZServer {
             key_expr,
-            sn: AtomicUsize::new(0),
+            sn: AtomicUsize::new(1), // Start at 1 for ROS compatibility
             inner,
             lv_token,
             gid: self.entity.gid(),
@@ -287,7 +287,7 @@ where
             .wait()?;
         Ok(ZServer {
             key_expr,
-            sn: AtomicUsize::new(0),
+            sn: AtomicUsize::new(1), // Start at 1 for ROS compatibility
             inner,
             lv_token,
             gid: self.entity.gid(),

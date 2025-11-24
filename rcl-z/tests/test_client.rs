@@ -17,11 +17,13 @@ use rcl_z::{
     node::{
         rcl_get_zero_initialized_node, rcl_node_fini, rcl_node_get_default_options, rcl_node_init,
     },
-    ros::{RCL_RET_INVALID_ARGUMENT, RCL_RET_OK, rcl_context_t, rcl_node_t, rmw_request_id_t},
+    ros::*,
     service::{
-        rcl_client_fini, rcl_client_get_default_options, rcl_client_init,
+        rcl_client_fini, rcl_client_get_default_options, rcl_client_get_options,
+        rcl_client_get_rmw_handle, rcl_client_get_service_name, rcl_client_init, rcl_client_is_valid,
+        rcl_client_request_publisher_get_actual_qos, rcl_client_response_subscription_get_actual_qos,
         rcl_get_zero_initialized_client, rcl_send_request, rcl_service_server_is_available,
-        rcl_take_response,
+        rcl_take_response, rcl_take_response_with_info,
     },
 };
 
@@ -271,5 +273,207 @@ fn test_client_lifecycle() {
         // Try to finalize again - should still succeed
         let ret = rcl_client_fini(&mut client, fixture.node());
         assert_eq!(ret, RCL_RET_OK as i32);
+    }
+}
+
+/// Test rcl_client_is_valid with various client states
+#[test]
+fn test_client_is_valid_comprehensive() {
+    let mut fixture = TestClientFixture::new();
+
+    unsafe {
+        // Check if null client is valid
+        assert!(
+            !rcl_client_is_valid(ptr::null()),
+            "Null client should not be valid"
+        );
+
+        // Check if zero initialized client is valid
+        let client = rcl_get_zero_initialized_client();
+        assert!(
+            !rcl_client_is_valid(&client),
+            "Zero initialized client should not be valid"
+        );
+
+        // We can't fully test a valid client without type support
+        // but the basic validation checks work
+    }
+}
+
+/// Test rcl_client_get_service_name
+#[test]
+fn test_client_get_service_name() {
+    unsafe {
+        // Test with null client
+        let service_name = rcl_client_get_service_name(ptr::null());
+        assert!(
+            service_name.is_null(),
+            "Service name should be null for null client"
+        );
+
+        // Test with zero-initialized (invalid) client
+        let client = rcl_get_zero_initialized_client();
+        let service_name = rcl_client_get_service_name(&client);
+        assert!(
+            service_name.is_null(),
+            "Service name should be null for invalid client"
+        );
+    }
+}
+
+/// Test rcl_client helper functions
+#[test]
+fn test_client_helper_functions() {
+    unsafe {
+        // Test with null client
+        assert!(
+            rcl_client_get_options(ptr::null()).is_null(),
+            "get_options should return null for null client"
+        );
+        assert!(
+            rcl_client_get_rmw_handle(ptr::null()).is_null(),
+            "get_rmw_handle should return null for null client"
+        );
+        assert!(
+            rcl_client_get_service_name(ptr::null()).is_null(),
+            "get_service_name should return null for null client"
+        );
+        assert!(
+            rcl_client_request_publisher_get_actual_qos(ptr::null()).is_null(),
+            "request_publisher QoS should return null for null client"
+        );
+        assert!(
+            rcl_client_response_subscription_get_actual_qos(ptr::null()).is_null(),
+            "response_subscription QoS should return null for null client"
+        );
+
+        // Test with zero-initialized (invalid) client
+        let client = rcl_get_zero_initialized_client();
+        assert!(
+            rcl_client_get_options(&client).is_null(),
+            "get_options should return null for invalid client"
+        );
+        assert!(
+            rcl_client_get_rmw_handle(&client).is_null(),
+            "get_rmw_handle should return null for invalid client"
+        );
+        assert!(
+            rcl_client_get_service_name(&client).is_null(),
+            "get_service_name should return null for invalid client"
+        );
+        assert!(
+            rcl_client_request_publisher_get_actual_qos(&client).is_null(),
+            "request_publisher QoS should return null for invalid client"
+        );
+        assert!(
+            rcl_client_response_subscription_get_actual_qos(&client).is_null(),
+            "response_subscription QoS should return null for invalid client"
+        );
+    }
+}
+
+/// Test rcl_client_init with NODE_INVALID error
+#[test]
+fn test_client_init_node_invalid() {
+    unsafe {
+        let mut client = rcl_get_zero_initialized_client();
+        let service_name = c"test_service";
+        let client_options = rcl_client_get_default_options();
+
+        // Test with null node - should return RCL_RET_NODE_INVALID
+        let ret = rcl_client_init(
+            &mut client,
+            ptr::null(),
+            ptr::null(),
+            service_name.as_ptr(),
+            &client_options,
+        );
+        assert_eq!(
+            ret, RCL_RET_NODE_INVALID as i32,
+            "Null node should return RCL_RET_NODE_INVALID"
+        );
+
+        // Test with zero-initialized (invalid) node
+        // Note: Without type support, we get RCL_RET_INVALID_ARGUMENT (11)
+        // With proper type support, it would return RCL_RET_NODE_INVALID (200)
+        // But since type support is null here, the error comes from that first
+        let invalid_node = rcl_get_zero_initialized_node();
+        let ret = rcl_client_init(
+            &mut client,
+            &invalid_node,
+            ptr::null(),
+            service_name.as_ptr(),
+            &client_options,
+        );
+        // The function checks type_support before it can even try to use the node,
+        // so we get INVALID_ARGUMENT for null type support
+        assert_eq!(
+            ret, RCL_RET_INVALID_ARGUMENT as i32,
+            "Null type support should return RCL_RET_INVALID_ARGUMENT"
+        );
+    }
+}
+
+/// Test rcl_client_fini with various invalid arguments
+#[test]
+fn test_client_fini_error_codes() {
+    let mut fixture = TestClientFixture::new();
+
+    unsafe {
+        let mut client = rcl_get_zero_initialized_client();
+
+        // Test with null client - should return RCL_RET_CLIENT_INVALID
+        let ret = rcl_client_fini(ptr::null_mut(), fixture.node());
+        assert_eq!(
+            ret, RCL_RET_CLIENT_INVALID as i32,
+            "Null client should return RCL_RET_CLIENT_INVALID"
+        );
+
+        // Test with null node - should return RCL_RET_NODE_INVALID
+        let ret = rcl_client_fini(&mut client, ptr::null_mut());
+        assert_eq!(
+            ret, RCL_RET_NODE_INVALID as i32,
+            "Null node should return RCL_RET_NODE_INVALID"
+        );
+
+        // Test with zero-initialized (invalid) node - this succeeds because fini just drops
+        // the impl regardless of node validity (the node is not actually used in fini)
+        let mut invalid_node = rcl_get_zero_initialized_node();
+        let ret = rcl_client_fini(&mut client, &mut invalid_node as *mut _);
+        assert_eq!(
+            ret, RCL_RET_OK as i32,
+            "Fini with invalid node should succeed as it doesn't use the node"
+        );
+    }
+}
+
+/// Test rcl_take_response_with_info
+#[test]
+fn test_take_response_with_info_null_arguments() {
+    unsafe {
+        let mut response_header = rmw_service_info_t::default();
+        let dummy_response: *mut c_void = ptr::null_mut();
+
+        // Test with null client
+        let ret = rcl_take_response_with_info(ptr::null(), &mut response_header, dummy_response);
+        assert_eq!(
+            ret, RCL_RET_CLIENT_INVALID as i32,
+            "Null client should return RCL_RET_CLIENT_INVALID"
+        );
+
+        // Test with null response
+        let client = rcl_get_zero_initialized_client();
+        let ret = rcl_take_response_with_info(&client, &mut response_header, ptr::null_mut());
+        assert_eq!(
+            ret, RCL_RET_INVALID_ARGUMENT as i32,
+            "Null response should return RCL_RET_INVALID_ARGUMENT"
+        );
+
+        // Test with null request header
+        let ret = rcl_take_response_with_info(&client, ptr::null_mut(), dummy_response);
+        assert_eq!(
+            ret, RCL_RET_INVALID_ARGUMENT as i32,
+            "Null request header should return RCL_RET_INVALID_ARGUMENT"
+        );
     }
 }

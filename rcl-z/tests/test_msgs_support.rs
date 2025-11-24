@@ -24,7 +24,7 @@ pub struct test_msgs__msg__Strings {
 
 // Service Request/Response structures for BasicTypes service
 #[repr(C)]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 #[allow(non_camel_case_types, dead_code)]
 pub struct test_msgs__srv__BasicTypes_Request {
     pub bool_value: bool,
@@ -40,10 +40,29 @@ pub struct test_msgs__srv__BasicTypes_Request {
     pub uint32_value: u32,
     pub int64_value: i64,
     pub uint64_value: u64,
+    pub string_value: rosidl_runtime_c__String,
+}
+
+impl Default for test_msgs__srv__BasicTypes_Request {
+    fn default() -> Self {
+        unsafe {
+            let mut s: Self = std::mem::zeroed();
+            test_msgs__srv__BasicTypes_Request__init(&mut s);
+            s
+        }
+    }
+}
+
+impl Drop for test_msgs__srv__BasicTypes_Request {
+    fn drop(&mut self) {
+        unsafe {
+            test_msgs__srv__BasicTypes_Request__fini(self);
+        }
+    }
 }
 
 #[repr(C)]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 #[allow(non_camel_case_types, dead_code)]
 pub struct test_msgs__srv__BasicTypes_Response {
     pub bool_value: bool,
@@ -59,6 +78,25 @@ pub struct test_msgs__srv__BasicTypes_Response {
     pub uint32_value: u32,
     pub int64_value: i64,
     pub uint64_value: u64,
+    pub string_value: rosidl_runtime_c__String,
+}
+
+impl Default for test_msgs__srv__BasicTypes_Response {
+    fn default() -> Self {
+        unsafe {
+            let mut s: Self = std::mem::zeroed();
+            test_msgs__srv__BasicTypes_Response__init(&mut s);
+            s
+        }
+    }
+}
+
+impl Drop for test_msgs__srv__BasicTypes_Response {
+    fn drop(&mut self) {
+        unsafe {
+            test_msgs__srv__BasicTypes_Response__fini(self);
+        }
+    }
 }
 
 unsafe extern "C" {
@@ -76,6 +114,16 @@ unsafe extern "C" {
     #[allow(dead_code)]
     pub fn rosidl_typesupport_fastrtps_c__get_service_type_support_handle__test_msgs__srv__BasicTypes()
     -> *const rosidl_service_type_support_t;
+
+    // Message init/fini functions
+    #[allow(dead_code)]
+    pub fn test_msgs__srv__BasicTypes_Request__init(msg: *mut test_msgs__srv__BasicTypes_Request) -> bool;
+    #[allow(dead_code)]
+    pub fn test_msgs__srv__BasicTypes_Request__fini(msg: *mut test_msgs__srv__BasicTypes_Request);
+    #[allow(dead_code)]
+    pub fn test_msgs__srv__BasicTypes_Response__init(msg: *mut test_msgs__srv__BasicTypes_Response) -> bool;
+    #[allow(dead_code)]
+    pub fn test_msgs__srv__BasicTypes_Response__fini(msg: *mut test_msgs__srv__BasicTypes_Response);
 
     // String manipulation functions
     #[allow(dead_code)]
