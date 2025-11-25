@@ -148,10 +148,7 @@ fn test_service_nominal() {
                 rmw_qos_history_policy_t::KEEP_LAST,
                 "Request QoS history should be KEEP_LAST"
             );
-            assert_eq!(
-                req_qos.depth, 10,
-                "Request QoS depth should be 10"
-            );
+            assert_eq!(req_qos.depth, 10, "Request QoS depth should be 10");
             assert_eq!(
                 req_qos.reliability,
                 rmw_qos_reliability_policy_t::RELIABLE,
@@ -172,10 +169,7 @@ fn test_service_nominal() {
                 rmw_qos_history_policy_t::KEEP_LAST,
                 "Response QoS history should be KEEP_LAST"
             );
-            assert_eq!(
-                resp_qos.depth, 10,
-                "Response QoS depth should be 10"
-            );
+            assert_eq!(resp_qos.depth, 10, "Response QoS depth should be 10");
             assert_eq!(
                 resp_qos.reliability,
                 rmw_qos_reliability_policy_t::RELIABLE,
@@ -248,6 +242,10 @@ fn test_service_nominal() {
 /// Test basic service with rcl_take_response (without info)
 /// This matches the C++ test_service_without_info test
 #[test]
+#[allow(clippy::field_reassign_with_default)]
+// Using ..Default::default() in struct initialization causes shallow copy issues
+// for fields containing pointers (e.g., string_value), leading to double-free on drop.
+// Therefore, we initialize with Default::default() and reassign fields instead.
 fn test_service_without_info() {
     use std::{thread, time::Duration};
 
@@ -329,7 +327,8 @@ fn test_service_without_info() {
 
         // Create and send response
         let mut service_response = test_msgs__srv__BasicTypes_Response::default();
-        service_response.uint64_value = (service_request.uint8_value as u64) + (service_request.uint32_value as u64);
+        service_response.uint64_value =
+            (service_request.uint8_value as u64) + (service_request.uint32_value as u64);
 
         let ret = rcl_send_response(
             &service,
@@ -1044,6 +1043,10 @@ fn test_send_response_null_arguments() {
 
 /// Test complete request/response communication between client and service
 #[test]
+#[allow(clippy::field_reassign_with_default)]
+// Using ..Default::default() in struct initialization causes shallow copy issues
+// for fields containing pointers (e.g., string_value), leading to double-free on drop.
+// Therefore, we initialize with Default::default() and reassign fields instead.
 fn test_service_client_communication() {
     use std::{thread, time::Duration};
 
@@ -1125,7 +1128,8 @@ fn test_service_client_communication() {
 
         // Create and send response
         let mut service_response = test_msgs__srv__BasicTypes_Response::default();
-        service_response.uint64_value = (service_request.uint8_value as u64) + (service_request.uint32_value as u64);
+        service_response.uint64_value =
+            (service_request.uint8_value as u64) + (service_request.uint32_value as u64);
 
         let ret = rcl_send_response(
             &service,
@@ -1172,6 +1176,10 @@ fn test_service_client_communication() {
 
 /// Test take_request_with_info and take_response_with_info
 #[test]
+#[allow(clippy::field_reassign_with_default)]
+// Using ..Default::default() in struct initialization causes shallow copy issues
+// for fields containing pointers (e.g., string_value), leading to double-free on drop.
+// Therefore, we initialize with Default::default() and reassign fields instead.
 fn test_service_with_info() {
     use std::{thread, time::Duration};
 
@@ -1252,7 +1260,8 @@ fn test_service_with_info() {
 
         // Create and send response
         let mut service_response = test_msgs__srv__BasicTypes_Response::default();
-        service_response.uint64_value = (service_request.uint8_value as u64) + (service_request.uint32_value as u64);
+        service_response.uint64_value =
+            (service_request.uint8_value as u64) + (service_request.uint32_value as u64);
 
         let ret = rcl_send_response(
             &service,

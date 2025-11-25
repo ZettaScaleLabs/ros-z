@@ -7,20 +7,18 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(clippy::needless_range_loop)]
 
-use std::ffi::CString;
-use std::ptr;
+use std::{ffi::CString, ptr};
 
 use rcl_z::{
     arguments::{
         rcl_arguments_copy, rcl_arguments_fini, rcl_arguments_get_count_unparsed,
-        rcl_arguments_get_count_unparsed_ros,
-        rcl_arguments_get_param_files, rcl_arguments_get_param_files_count,
-        rcl_arguments_get_param_overrides, rcl_arguments_get_unparsed,
-        rcl_arguments_get_unparsed_ros, rcl_get_zero_initialized_arguments, rcl_parse_arguments,
-        rcl_remove_ros_arguments,
+        rcl_arguments_get_count_unparsed_ros, rcl_arguments_get_param_files,
+        rcl_arguments_get_param_files_count, rcl_arguments_get_param_overrides,
+        rcl_arguments_get_unparsed, rcl_arguments_get_unparsed_ros,
+        rcl_get_zero_initialized_arguments, rcl_parse_arguments, rcl_remove_ros_arguments,
     },
     init::rcl_get_default_allocator,
-    ros::{rcl_arguments_t, rcl_params_t, RCL_RET_ERROR, RCL_RET_INVALID_ARGUMENT, RCL_RET_OK},
+    ros::{RCL_RET_ERROR, RCL_RET_INVALID_ARGUMENT, RCL_RET_OK, rcl_arguments_t, rcl_params_t},
 };
 
 /// Test fixture that provides initialized arguments
@@ -98,9 +96,11 @@ unsafe fn expect_unparsed(args: &rcl_arguments_t, expected_indices: &[i32]) {
     let actual_count = rcl_arguments_get_count_unparsed(args);
 
     assert_eq!(
-        actual_count, expected_indices.len() as i32,
+        actual_count,
+        expected_indices.len() as i32,
         "Expected {} unparsed args, got {}",
-        expected_indices.len(), actual_count
+        expected_indices.len(),
+        actual_count
     );
 
     if actual_count > 0 {
@@ -111,8 +111,10 @@ unsafe fn expect_unparsed(args: &rcl_arguments_t, expected_indices: &[i32]) {
 
         for i in 0..actual_count as usize {
             assert_eq!(
-                *actual_unparsed.add(i), expected_indices[i],
-                "Unparsed index {} mismatch", i
+                *actual_unparsed.add(i),
+                expected_indices[i],
+                "Unparsed index {} mismatch",
+                i
             );
         }
 
@@ -126,9 +128,11 @@ unsafe fn expect_unparsed_ros(args: &rcl_arguments_t, expected_indices: &[i32]) 
     let actual_count = rcl_arguments_get_count_unparsed_ros(args);
 
     assert_eq!(
-        actual_count, expected_indices.len() as i32,
+        actual_count,
+        expected_indices.len() as i32,
         "Expected {} unparsed ROS args, got {}",
-        expected_indices.len(), actual_count
+        expected_indices.len(),
+        actual_count
     );
 
     if actual_count > 0 {
@@ -139,8 +143,10 @@ unsafe fn expect_unparsed_ros(args: &rcl_arguments_t, expected_indices: &[i32]) 
 
         for i in 0..actual_count as usize {
             assert_eq!(
-                *actual_unparsed_ros.add(i), expected_indices[i],
-                "Unparsed ROS index {} mismatch", i
+                *actual_unparsed_ros.add(i),
+                expected_indices[i],
+                "Unparsed ROS index {} mismatch",
+                i
             );
         }
 
@@ -161,32 +167,84 @@ fn test_get_zero_initialized_arguments() {
 fn test_check_known_vs_unknown_args() {
     unsafe {
         // Valid remap rules
-        assert!(are_known_ros_args(&["--ros-args", "-r", "__node:=node_name"]));
-        assert!(are_known_ros_args(&["--ros-args", "-r", "old_name:__node:=node_name"]));
-        assert!(are_known_ros_args(&["--ros-args", "-r", "old_name:__node:=nodename123"]));
-        assert!(are_known_ros_args(&["--ros-args", "-r", "__node:=nodename123"]));
+        assert!(are_known_ros_args(&[
+            "--ros-args",
+            "-r",
+            "__node:=node_name"
+        ]));
+        assert!(are_known_ros_args(&[
+            "--ros-args",
+            "-r",
+            "old_name:__node:=node_name"
+        ]));
+        assert!(are_known_ros_args(&[
+            "--ros-args",
+            "-r",
+            "old_name:__node:=nodename123"
+        ]));
+        assert!(are_known_ros_args(&[
+            "--ros-args",
+            "-r",
+            "__node:=nodename123"
+        ]));
         assert!(are_known_ros_args(&["--ros-args", "-r", "__ns:=/foo/bar"]));
         assert!(are_known_ros_args(&["--ros-args", "-r", "__ns:=/"]));
         assert!(are_known_ros_args(&["--ros-args", "-r", "_:=kq"]));
-        assert!(are_known_ros_args(&["--ros-args", "-r", "nodename:__ns:=/foobar"]));
+        assert!(are_known_ros_args(&[
+            "--ros-args",
+            "-r",
+            "nodename:__ns:=/foobar"
+        ]));
         assert!(are_known_ros_args(&["--ros-args", "-r", "foo:=bar"]));
         assert!(are_known_ros_args(&["--ros-args", "-r", "~/foo:=~/bar"]));
         assert!(are_known_ros_args(&["--ros-args", "-r", "/foo/bar:=bar"]));
         assert!(are_known_ros_args(&["--ros-args", "-r", "foo:=/bar"]));
-        assert!(are_known_ros_args(&["--ros-args", "-r", "/foo123:=/bar123"]));
-        assert!(are_known_ros_args(&["--ros-args", "-r", "node:/foo123:=/bar123"]));
-        assert!(are_known_ros_args(&["--ros-args", "-r", "rostopic:=/foo/bar"]));
+        assert!(are_known_ros_args(&[
+            "--ros-args",
+            "-r",
+            "/foo123:=/bar123"
+        ]));
+        assert!(are_known_ros_args(&[
+            "--ros-args",
+            "-r",
+            "node:/foo123:=/bar123"
+        ]));
+        assert!(are_known_ros_args(&[
+            "--ros-args",
+            "-r",
+            "rostopic:=/foo/bar"
+        ]));
         assert!(are_known_ros_args(&["--ros-args", "-r", "rosservice:=baz"]));
-        assert!(are_known_ros_args(&["--ros-args", "-r", "rostopic://rostopic:=rosservice"]));
-        assert!(are_known_ros_args(&["--ros-args", "-r", "rostopic:///rosservice:=rostopic"]));
-        assert!(are_known_ros_args(&["--ros-args", "-r", "rostopic:///foo/bar:=baz"]));
+        assert!(are_known_ros_args(&[
+            "--ros-args",
+            "-r",
+            "rostopic://rostopic:=rosservice"
+        ]));
+        assert!(are_known_ros_args(&[
+            "--ros-args",
+            "-r",
+            "rostopic:///rosservice:=rostopic"
+        ]));
+        assert!(are_known_ros_args(&[
+            "--ros-args",
+            "-r",
+            "rostopic:///foo/bar:=baz"
+        ]));
 
         // Valid param rules
         assert!(are_known_ros_args(&["--ros-args", "-p", "foo:=bar"]));
-        assert!(are_known_ros_args(&["--ros-args", "-p", "qos_overrides./foo/bar.publisher.history:=keep_last"]));
+        assert!(are_known_ros_args(&[
+            "--ros-args",
+            "-p",
+            "qos_overrides./foo/bar.publisher.history:=keep_last"
+        ]));
         assert!(are_known_ros_args(&["--ros-args", "-p", "foo.bar:=bar"]));
         assert!(are_known_ros_args(&["--ros-args", "-p", "node:foo:=bar"]));
-        assert!(are_known_ros_args(&["--ros-args", "-p", "fizz123:=buzz456"]));
+        assert!(are_known_ros_args(&[
+            "--ros-args",
+            "-p",
+            "fizz123:=buzz456"
+        ]));
 
         // Valid log level args
         assert!(are_known_ros_args(&["--ros-args", "--log-level", "UNSET"]));
@@ -199,30 +257,55 @@ fn test_check_known_vs_unknown_args() {
         assert!(are_known_ros_args(&["--ros-args", "--log-level", "Info"]));
 
         // Valid log config args
-        assert!(are_known_ros_args(&["--ros-args", "--log-config-file", "file.config"]));
-        assert!(are_known_ros_args(&["--ros-args", "--log-file-name", "filename"]));
+        assert!(are_known_ros_args(&[
+            "--ros-args",
+            "--log-config-file",
+            "file.config"
+        ]));
+        assert!(are_known_ros_args(&[
+            "--ros-args",
+            "--log-file-name",
+            "filename"
+        ]));
 
         // Valid log enable/disable flags
         assert!(are_known_ros_args(&["--ros-args", "--enable-rosout-logs"]));
         assert!(are_known_ros_args(&["--ros-args", "--disable-rosout-logs"]));
         assert!(are_known_ros_args(&["--ros-args", "--enable-stdout-logs"]));
         assert!(are_known_ros_args(&["--ros-args", "--disable-stdout-logs"]));
-        assert!(are_known_ros_args(&["--ros-args", "--enable-external-lib-logs"]));
-        assert!(are_known_ros_args(&["--ros-args", "--disable-external-lib-logs"]));
+        assert!(are_known_ros_args(&[
+            "--ros-args",
+            "--enable-external-lib-logs"
+        ]));
+        assert!(are_known_ros_args(&[
+            "--ros-args",
+            "--disable-external-lib-logs"
+        ]));
 
         // Unknown ROS args (should have unparsed_ros)
         assert!(!are_known_ros_args(&["--ros-args", "--custom-ros-arg"]));
-        assert!(!are_known_ros_args(&["--ros-args", "__node:=node_name"]));  // Missing -r flag
-        assert!(!are_known_ros_args(&["--ros-args", "old_name:__node:=node_name"]));  // Missing -r flag
-        assert!(!are_known_ros_args(&["--ros-args", "/foo/bar:=bar"]));  // Missing -r flag
-        assert!(!are_known_ros_args(&["--ros-args", "foo:=/bar"]));  // Missing -r flag
-        assert!(!are_known_ros_args(&["--ros-args", "file_name.yaml"]));  // Missing --params-file flag
-        assert!(!are_known_ros_args(&["--ros-args", "--log", "foo"]));  // Invalid flag
-        assert!(!are_known_ros_args(&["--ros-args", "--loglevel", "foo"]));  // Invalid flag
-        assert!(!are_known_ros_args(&["--ros-args", "--logfile-name", "filename"]));  // Invalid flag
-        assert!(!are_known_ros_args(&["--ros-args", "--log-filename", "filename"]));  // Invalid flag
-        assert!(!are_known_ros_args(&["--ros-args", "stdout-logs"]));  // Invalid flag
-        assert!(!are_known_ros_args(&["--ros-args", "external-lib-logs"]));  // Invalid flag
+        assert!(!are_known_ros_args(&["--ros-args", "__node:=node_name"])); // Missing -r flag
+        assert!(!are_known_ros_args(&[
+            "--ros-args",
+            "old_name:__node:=node_name"
+        ])); // Missing -r flag
+        assert!(!are_known_ros_args(&["--ros-args", "/foo/bar:=bar"])); // Missing -r flag
+        assert!(!are_known_ros_args(&["--ros-args", "foo:=/bar"])); // Missing -r flag
+        assert!(!are_known_ros_args(&["--ros-args", "file_name.yaml"])); // Missing --params-file flag
+        assert!(!are_known_ros_args(&["--ros-args", "--log", "foo"])); // Invalid flag
+        assert!(!are_known_ros_args(&["--ros-args", "--loglevel", "foo"])); // Invalid flag
+        assert!(!are_known_ros_args(&[
+            "--ros-args",
+            "--logfile-name",
+            "filename"
+        ])); // Invalid flag
+        assert!(!are_known_ros_args(&[
+            "--ros-args",
+            "--log-filename",
+            "filename"
+        ])); // Invalid flag
+        assert!(!are_known_ros_args(&["--ros-args", "stdout-logs"])); // Invalid flag
+        assert!(!are_known_ros_args(&["--ros-args", "external-lib-logs"])); // Invalid flag
     }
 }
 
@@ -232,8 +315,17 @@ fn test_check_valid_vs_invalid_args() {
     unsafe {
         // Valid comprehensive example
         assert!(are_valid_ros_args(&[
-            "--ros-args", "-p", "foo:=bar", "-r", "__node:=node_name",
-            "--log-level", "INFO", "--log-config-file", "file.config", "--log-file-name", "filename"
+            "--ros-args",
+            "-p",
+            "foo:=bar",
+            "-r",
+            "__node:=node_name",
+            "--log-level",
+            "INFO",
+            "--log-config-file",
+            "file.config",
+            "--log-file-name",
+            "filename"
         ]));
 
         // ROS args unknown to rcl are not (necessarily) invalid
@@ -254,18 +346,38 @@ fn test_check_valid_vs_invalid_args() {
         assert!(!are_valid_ros_args(&["--ros-args", "-r", "1:="]));
         assert!(!are_valid_ros_args(&["--ros-args", "-r", "~:="]));
         assert!(!are_valid_ros_args(&["--ros-args", "-r", "__node:="]));
-        assert!(!are_valid_ros_args(&["--ros-args", "-r", "__node:=/foo/bar"]));
+        assert!(!are_valid_ros_args(&[
+            "--ros-args",
+            "-r",
+            "__node:=/foo/bar"
+        ]));
         assert!(!are_valid_ros_args(&["--ros-args", "-r", "__ns:="]));
         assert!(!are_valid_ros_args(&["--ros-args", "-r", "__ns:=foo"]));
-        assert!(!are_valid_ros_args(&["--ros-args", "-r", ":__node:=nodename"]));
-        assert!(!are_valid_ros_args(&["--ros-args", "-r", "~:__node:=nodename"]));
+        assert!(!are_valid_ros_args(&[
+            "--ros-args",
+            "-r",
+            ":__node:=nodename"
+        ]));
+        assert!(!are_valid_ros_args(&[
+            "--ros-args",
+            "-r",
+            "~:__node:=nodename"
+        ]));
         assert!(!are_valid_ros_args(&["--ros-args", "-r", "}foo:=/bar"]));
         assert!(!are_valid_ros_args(&["--ros-args", "-r", "f oo:=/bar"]));
         assert!(!are_valid_ros_args(&["--ros-args", "-r", "foo:=/b ar"]));
         assert!(!are_valid_ros_args(&["--ros-args", "-r", "f{oo:=/bar"]));
         assert!(!are_valid_ros_args(&["--ros-args", "-r", "foo:=/b}ar"]));
-        assert!(!are_valid_ros_args(&["--ros-args", "-r", "rostopic://:=rosservice"]));
-        assert!(!are_valid_ros_args(&["--ros-args", "-r", "rostopic::=rosservice"]));
+        assert!(!are_valid_ros_args(&[
+            "--ros-args",
+            "-r",
+            "rostopic://:=rosservice"
+        ]));
+        assert!(!are_valid_ros_args(&[
+            "--ros-args",
+            "-r",
+            "rostopic::=rosservice"
+        ]));
 
         // Invalid param rules (missing argument)
         assert!(!are_valid_ros_args(&["--ros-args", "-p"]));
@@ -281,14 +393,34 @@ fn test_check_valid_vs_invalid_args() {
         assert!(!are_valid_ros_args(&["--ros-args", "-p", "1:="]));
         assert!(!are_valid_ros_args(&["--ros-args", "-p", "~:="]));
         assert!(!are_valid_ros_args(&["--ros-args", "-p", "__node:="]));
-        assert!(!are_valid_ros_args(&["--ros-args", "-p", "__node:=/foo/bar"]));
+        assert!(!are_valid_ros_args(&[
+            "--ros-args",
+            "-p",
+            "__node:=/foo/bar"
+        ]));
         assert!(!are_valid_ros_args(&["--ros-args", "-p", "__ns:=foo"]));
-        assert!(!are_valid_ros_args(&["--ros-args", "-p", ":__node:=nodename"]));
-        assert!(!are_valid_ros_args(&["--ros-args", "-p", "~:__node:=nodename"]));
+        assert!(!are_valid_ros_args(&[
+            "--ros-args",
+            "-p",
+            ":__node:=nodename"
+        ]));
+        assert!(!are_valid_ros_args(&[
+            "--ros-args",
+            "-p",
+            "~:__node:=nodename"
+        ]));
         assert!(!are_valid_ros_args(&["--ros-args", "-p", "}foo:=/bar"]));
-        assert!(!are_valid_ros_args(&["--ros-args", "--param", "}foo:=/bar"]));
+        assert!(!are_valid_ros_args(&[
+            "--ros-args",
+            "--param",
+            "}foo:=/bar"
+        ]));
         assert!(!are_valid_ros_args(&["--ros-args", "-p", "f oo:=/bar"]));
-        assert!(!are_valid_ros_args(&["--ros-args", "--param", "f oo:=/bar"]));
+        assert!(!are_valid_ros_args(&[
+            "--ros-args",
+            "--param",
+            "f oo:=/bar"
+        ]));
 
         // Invalid enclave (missing argument)
         assert!(!are_valid_ros_args(&["--ros-args", "-e"]));
@@ -314,7 +446,12 @@ fn test_check_valid_vs_invalid_args() {
 fn test_no_args() {
     unsafe {
         let mut parsed_args = rcl_get_zero_initialized_arguments();
-        let ret = rcl_parse_arguments(0, ptr::null(), rcl_get_default_allocator(), &mut parsed_args);
+        let ret = rcl_parse_arguments(
+            0,
+            ptr::null(),
+            rcl_get_default_allocator(),
+            &mut parsed_args,
+        );
         assert_eq!(ret, RCL_RET_OK as i32);
         assert_eq!(rcl_arguments_get_count_unparsed(&parsed_args), 0);
         assert_eq!(rcl_arguments_get_count_unparsed_ros(&parsed_args), 0);
@@ -328,7 +465,12 @@ fn test_null_args() {
     unsafe {
         let argc = 1;
         let mut parsed_args = rcl_get_zero_initialized_arguments();
-        let ret = rcl_parse_arguments(argc, ptr::null(), rcl_get_default_allocator(), &mut parsed_args);
+        let ret = rcl_parse_arguments(
+            argc,
+            ptr::null(),
+            rcl_get_default_allocator(),
+            &mut parsed_args,
+        );
         assert_eq!(ret, RCL_RET_INVALID_ARGUMENT as i32);
     }
 }
@@ -340,7 +482,12 @@ fn test_negative_args() {
         let argc = -1;
         let argv = [c"process_name".as_ptr()];
         let mut parsed_args = rcl_get_zero_initialized_arguments();
-        let ret = rcl_parse_arguments(argc, argv.as_ptr(), rcl_get_default_allocator(), &mut parsed_args);
+        let ret = rcl_parse_arguments(
+            argc,
+            argv.as_ptr(),
+            rcl_get_default_allocator(),
+            &mut parsed_args,
+        );
         assert_eq!(ret, RCL_RET_INVALID_ARGUMENT as i32);
     }
 }
@@ -351,7 +498,12 @@ fn test_null_args_output() {
     unsafe {
         let argv = [c"process_name".as_ptr()];
         let argc = argv.len() as i32;
-        let ret = rcl_parse_arguments(argc, argv.as_ptr(), rcl_get_default_allocator(), ptr::null_mut());
+        let ret = rcl_parse_arguments(
+            argc,
+            argv.as_ptr(),
+            rcl_get_default_allocator(),
+            ptr::null_mut(),
+        );
         assert_eq!(ret, RCL_RET_INVALID_ARGUMENT as i32);
     }
 }
@@ -363,7 +515,12 @@ fn test_no_ros_args() {
         let argv = [c"process_name".as_ptr()];
         let argc = argv.len() as i32;
         let mut parsed_args = rcl_get_zero_initialized_arguments();
-        let ret = rcl_parse_arguments(argc, argv.as_ptr(), rcl_get_default_allocator(), &mut parsed_args);
+        let ret = rcl_parse_arguments(
+            argc,
+            argv.as_ptr(),
+            rcl_get_default_allocator(),
+            &mut parsed_args,
+        );
         assert_eq!(ret, RCL_RET_OK as i32);
         expect_unparsed(&parsed_args, &[0]);
         assert_eq!(rcl_arguments_get_count_unparsed_ros(&parsed_args), 0);
@@ -378,7 +535,12 @@ fn test_zero_ros_args() {
         let argv = [c"process_name".as_ptr(), c"--ros-args".as_ptr()];
         let argc = argv.len() as i32;
         let mut parsed_args = rcl_get_zero_initialized_arguments();
-        let ret = rcl_parse_arguments(argc, argv.as_ptr(), rcl_get_default_allocator(), &mut parsed_args);
+        let ret = rcl_parse_arguments(
+            argc,
+            argv.as_ptr(),
+            rcl_get_default_allocator(),
+            &mut parsed_args,
+        );
         assert_eq!(ret, RCL_RET_OK as i32);
         expect_unparsed(&parsed_args, &[0]);
         assert_eq!(rcl_arguments_get_count_unparsed_ros(&parsed_args), 0);
@@ -390,10 +552,19 @@ fn test_zero_ros_args() {
 #[test]
 fn test_zero_ros_args_w_trailing_dashes() {
     unsafe {
-        let argv = [c"process_name".as_ptr(), c"--ros-args".as_ptr(), c"--".as_ptr()];
+        let argv = [
+            c"process_name".as_ptr(),
+            c"--ros-args".as_ptr(),
+            c"--".as_ptr(),
+        ];
         let argc = argv.len() as i32;
         let mut parsed_args = rcl_get_zero_initialized_arguments();
-        let ret = rcl_parse_arguments(argc, argv.as_ptr(), rcl_get_default_allocator(), &mut parsed_args);
+        let ret = rcl_parse_arguments(
+            argc,
+            argv.as_ptr(),
+            rcl_get_default_allocator(),
+            &mut parsed_args,
+        );
         assert_eq!(ret, RCL_RET_OK as i32);
         expect_unparsed(&parsed_args, &[0]);
         assert_eq!(rcl_arguments_get_count_unparsed_ros(&parsed_args), 0);
@@ -415,7 +586,12 @@ fn test_remap() {
         ];
         let argc = argv.len() as i32;
         let mut parsed_args = rcl_get_zero_initialized_arguments();
-        let ret = rcl_parse_arguments(argc, argv.as_ptr(), rcl_get_default_allocator(), &mut parsed_args);
+        let ret = rcl_parse_arguments(
+            argc,
+            argv.as_ptr(),
+            rcl_get_default_allocator(),
+            &mut parsed_args,
+        );
         assert_eq!(ret, RCL_RET_OK as i32);
         expect_unparsed(&parsed_args, &[0]);
         assert_eq!(rcl_arguments_get_count_unparsed_ros(&parsed_args), 0);
@@ -436,7 +612,12 @@ fn test_one_remap_two_ros_args() {
         ];
         let argc = argv.len() as i32;
         let mut parsed_args = rcl_get_zero_initialized_arguments();
-        let ret = rcl_parse_arguments(argc, argv.as_ptr(), rcl_get_default_allocator(), &mut parsed_args);
+        let ret = rcl_parse_arguments(
+            argc,
+            argv.as_ptr(),
+            rcl_get_default_allocator(),
+            &mut parsed_args,
+        );
         assert_eq!(ret, RCL_RET_OK as i32);
         expect_unparsed(&parsed_args, &[0]);
         assert_eq!(rcl_arguments_get_count_unparsed_ros(&parsed_args), 0);
@@ -457,7 +638,12 @@ fn test_one_remap_w_trailing_dashes() {
         ];
         let argc = argv.len() as i32;
         let mut parsed_args = rcl_get_zero_initialized_arguments();
-        let ret = rcl_parse_arguments(argc, argv.as_ptr(), rcl_get_default_allocator(), &mut parsed_args);
+        let ret = rcl_parse_arguments(
+            argc,
+            argv.as_ptr(),
+            rcl_get_default_allocator(),
+            &mut parsed_args,
+        );
         assert_eq!(ret, RCL_RET_OK as i32);
         expect_unparsed(&parsed_args, &[0]);
         assert_eq!(rcl_arguments_get_count_unparsed_ros(&parsed_args), 0);
@@ -479,7 +665,12 @@ fn test_one_remap_w_two_trailing_dashes() {
         ];
         let argc = argv.len() as i32;
         let mut parsed_args = rcl_get_zero_initialized_arguments();
-        let ret = rcl_parse_arguments(argc, argv.as_ptr(), rcl_get_default_allocator(), &mut parsed_args);
+        let ret = rcl_parse_arguments(
+            argc,
+            argv.as_ptr(),
+            rcl_get_default_allocator(),
+            &mut parsed_args,
+        );
         assert_eq!(ret, RCL_RET_OK as i32);
         expect_unparsed(&parsed_args, &[0, 5]);
         assert_eq!(rcl_arguments_get_count_unparsed_ros(&parsed_args), 0);
@@ -494,16 +685,21 @@ fn test_mix_valid_invalid_rules() {
         let argv = [
             c"process_name".as_ptr(),
             c"--ros-args".as_ptr(),
-            c"/foo/bar:=".as_ptr(),  // Invalid (unparsed ROS)
+            c"/foo/bar:=".as_ptr(), // Invalid (unparsed ROS)
             c"-r".as_ptr(),
-            c"bar:=/fiz/buz".as_ptr(),  // Valid
-            c"}bar:=fiz".as_ptr(),  // Invalid (unparsed ROS)
+            c"bar:=/fiz/buz".as_ptr(), // Valid
+            c"}bar:=fiz".as_ptr(),     // Invalid (unparsed ROS)
             c"--".as_ptr(),
-            c"arg".as_ptr(),  // Unparsed
+            c"arg".as_ptr(), // Unparsed
         ];
         let argc = argv.len() as i32;
         let mut parsed_args = rcl_get_zero_initialized_arguments();
-        let ret = rcl_parse_arguments(argc, argv.as_ptr(), rcl_get_default_allocator(), &mut parsed_args);
+        let ret = rcl_parse_arguments(
+            argc,
+            argv.as_ptr(),
+            rcl_get_default_allocator(),
+            &mut parsed_args,
+        );
         assert_eq!(ret, RCL_RET_OK as i32);
         expect_unparsed(&parsed_args, &[0, 7]);
         expect_unparsed_ros(&parsed_args, &[2, 5]);
@@ -528,7 +724,12 @@ fn test_copy() {
         ];
         let argc = argv.len() as i32;
         let mut parsed_args = rcl_get_zero_initialized_arguments();
-        let ret = rcl_parse_arguments(argc, argv.as_ptr(), rcl_get_default_allocator(), &mut parsed_args);
+        let ret = rcl_parse_arguments(
+            argc,
+            argv.as_ptr(),
+            rcl_get_default_allocator(),
+            &mut parsed_args,
+        );
         assert_eq!(ret, RCL_RET_OK as i32);
 
         let mut copied_args = rcl_get_zero_initialized_arguments();
@@ -564,7 +765,12 @@ fn test_copy_no_ros_args() {
         ];
         let argc = argv.len() as i32;
         let mut parsed_args = rcl_get_zero_initialized_arguments();
-        let ret = rcl_parse_arguments(argc, argv.as_ptr(), rcl_get_default_allocator(), &mut parsed_args);
+        let ret = rcl_parse_arguments(
+            argc,
+            argv.as_ptr(),
+            rcl_get_default_allocator(),
+            &mut parsed_args,
+        );
         assert_eq!(ret, RCL_RET_OK as i32);
 
         let mut copied_args = rcl_get_zero_initialized_arguments();
@@ -588,7 +794,12 @@ fn test_copy_no_ros_args() {
 fn test_copy_no_args() {
     unsafe {
         let mut parsed_args = rcl_get_zero_initialized_arguments();
-        let ret = rcl_parse_arguments(0, ptr::null(), rcl_get_default_allocator(), &mut parsed_args);
+        let ret = rcl_parse_arguments(
+            0,
+            ptr::null(),
+            rcl_get_default_allocator(),
+            &mut parsed_args,
+        );
         assert_eq!(ret, RCL_RET_OK as i32);
         assert_eq!(rcl_arguments_get_count_unparsed(&parsed_args), 0);
         assert_eq!(rcl_arguments_get_count_unparsed_ros(&parsed_args), 0);
@@ -618,7 +829,12 @@ fn test_two_namespace() {
         ];
         let argc = argv.len() as i32;
         let mut parsed_args = rcl_get_zero_initialized_arguments();
-        let ret = rcl_parse_arguments(argc, argv.as_ptr(), rcl_get_default_allocator(), &mut parsed_args);
+        let ret = rcl_parse_arguments(
+            argc,
+            argv.as_ptr(),
+            rcl_get_default_allocator(),
+            &mut parsed_args,
+        );
         assert_eq!(ret, RCL_RET_OK as i32);
         expect_unparsed(&parsed_args, &[0]);
         assert_eq!(rcl_arguments_get_count_unparsed_ros(&parsed_args), 0);
@@ -636,7 +852,12 @@ fn test_uninitialized_parsed_args() {
         let mut parsed_args = rcl_arguments_t {
             impl_: &not_null as *const i32 as *mut _,
         };
-        let ret = rcl_parse_arguments(argc, argv.as_ptr(), rcl_get_default_allocator(), &mut parsed_args);
+        let ret = rcl_parse_arguments(
+            argc,
+            argv.as_ptr(),
+            rcl_get_default_allocator(),
+            &mut parsed_args,
+        );
         assert_eq!(ret, RCL_RET_INVALID_ARGUMENT as i32);
     }
 }
@@ -655,11 +876,21 @@ fn test_double_parse() {
         ];
         let argc = argv.len() as i32;
         let mut parsed_args = rcl_get_zero_initialized_arguments();
-        let ret = rcl_parse_arguments(argc, argv.as_ptr(), rcl_get_default_allocator(), &mut parsed_args);
+        let ret = rcl_parse_arguments(
+            argc,
+            argv.as_ptr(),
+            rcl_get_default_allocator(),
+            &mut parsed_args,
+        );
         assert_eq!(ret, RCL_RET_OK as i32);
 
         // Try to parse again (should fail)
-        let ret = rcl_parse_arguments(argc, argv.as_ptr(), rcl_get_default_allocator(), &mut parsed_args);
+        let ret = rcl_parse_arguments(
+            argc,
+            argv.as_ptr(),
+            rcl_get_default_allocator(),
+            &mut parsed_args,
+        );
         assert_eq!(ret, RCL_RET_INVALID_ARGUMENT as i32);
 
         assert_eq!(rcl_arguments_fini(&mut parsed_args), RCL_RET_OK as i32);
@@ -693,7 +924,12 @@ fn test_fini_twice() {
         let argv = [c"process_name".as_ptr()];
         let argc = argv.len() as i32;
         let mut parsed_args = rcl_get_zero_initialized_arguments();
-        let ret = rcl_parse_arguments(argc, argv.as_ptr(), rcl_get_default_allocator(), &mut parsed_args);
+        let ret = rcl_parse_arguments(
+            argc,
+            argv.as_ptr(),
+            rcl_get_default_allocator(),
+            &mut parsed_args,
+        );
         assert_eq!(ret, RCL_RET_OK as i32);
 
         assert_eq!(rcl_arguments_fini(&mut parsed_args), RCL_RET_OK as i32);
@@ -758,7 +994,8 @@ fn test_bad_remove_ros_args() {
 
         // Test non-zero initialized output
         let stack_allocated_nonros_argv = [c"--foo".as_ptr(), c"--bar".as_ptr()];
-        let mut initialized_nonros_argv: *mut *const i8 = stack_allocated_nonros_argv.as_ptr() as *mut _;
+        let mut initialized_nonros_argv: *mut *const i8 =
+            stack_allocated_nonros_argv.as_ptr() as *mut _;
         let mut initialized_nonros_argc = stack_allocated_nonros_argv.len() as i32;
 
         let ret = rcl_remove_ros_arguments(
@@ -819,12 +1056,42 @@ fn test_remove_ros_args() {
         assert_eq!(nonros_argc, 6);
 
         // Verify the non-ROS arguments
-        assert_eq!(std::ffi::CStr::from_ptr(*nonros_argv.add(0)).to_str().unwrap(), "process_name");
-        assert_eq!(std::ffi::CStr::from_ptr(*nonros_argv.add(1)).to_str().unwrap(), "-d");
-        assert_eq!(std::ffi::CStr::from_ptr(*nonros_argv.add(2)).to_str().unwrap(), "--foo=bar");
-        assert_eq!(std::ffi::CStr::from_ptr(*nonros_argv.add(3)).to_str().unwrap(), "--baz");
-        assert_eq!(std::ffi::CStr::from_ptr(*nonros_argv.add(4)).to_str().unwrap(), "--");
-        assert_eq!(std::ffi::CStr::from_ptr(*nonros_argv.add(5)).to_str().unwrap(), "arg");
+        assert_eq!(
+            std::ffi::CStr::from_ptr(*nonros_argv.add(0))
+                .to_str()
+                .unwrap(),
+            "process_name"
+        );
+        assert_eq!(
+            std::ffi::CStr::from_ptr(*nonros_argv.add(1))
+                .to_str()
+                .unwrap(),
+            "-d"
+        );
+        assert_eq!(
+            std::ffi::CStr::from_ptr(*nonros_argv.add(2))
+                .to_str()
+                .unwrap(),
+            "--foo=bar"
+        );
+        assert_eq!(
+            std::ffi::CStr::from_ptr(*nonros_argv.add(3))
+                .to_str()
+                .unwrap(),
+            "--baz"
+        );
+        assert_eq!(
+            std::ffi::CStr::from_ptr(*nonros_argv.add(4))
+                .to_str()
+                .unwrap(),
+            "--"
+        );
+        assert_eq!(
+            std::ffi::CStr::from_ptr(*nonros_argv.add(5))
+                .to_str()
+                .unwrap(),
+            "arg"
+        );
 
         alloc.deallocate.unwrap()(nonros_argv as *mut _, alloc.state);
         assert_eq!(rcl_arguments_fini(&mut parsed_args), RCL_RET_OK as i32);
@@ -922,7 +1189,10 @@ fn test_param_argument_zero() {
 #[test]
 fn test_param_argument_single() {
     unsafe {
-        let test_params_path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/resources/test_arguments/test_parameters.1.yaml");
+        let test_params_path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/resources/test_arguments/test_parameters.1.yaml"
+        );
         let test_params_cstr = CString::new(test_params_path).unwrap();
 
         let argv = [
@@ -949,7 +1219,9 @@ fn test_param_argument_single() {
         let ret = rcl_arguments_get_param_files(&parsed_args, alloc, &mut parameter_files);
         assert_eq!(ret, RCL_RET_OK as i32);
 
-        let file_path = std::ffi::CStr::from_ptr(*parameter_files.add(0)).to_str().unwrap();
+        let file_path = std::ffi::CStr::from_ptr(*parameter_files.add(0))
+            .to_str()
+            .unwrap();
         assert_eq!(file_path, test_params_path);
 
         // Cleanup
@@ -966,8 +1238,14 @@ fn test_param_argument_single() {
 #[test]
 fn test_param_argument_multiple() {
     unsafe {
-        let test_params_path1 = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/resources/test_arguments/test_parameters.1.yaml");
-        let test_params_path2 = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/resources/test_arguments/test_parameters.2.yaml");
+        let test_params_path1 = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/resources/test_arguments/test_parameters.1.yaml"
+        );
+        let test_params_path2 = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/resources/test_arguments/test_parameters.2.yaml"
+        );
         let test_params_cstr1 = CString::new(test_params_path1).unwrap();
         let test_params_cstr2 = CString::new(test_params_path2).unwrap();
 
@@ -997,8 +1275,12 @@ fn test_param_argument_multiple() {
         let ret = rcl_arguments_get_param_files(&parsed_args, alloc, &mut parameter_files);
         assert_eq!(ret, RCL_RET_OK as i32);
 
-        let file_path1 = std::ffi::CStr::from_ptr(*parameter_files.add(0)).to_str().unwrap();
-        let file_path2 = std::ffi::CStr::from_ptr(*parameter_files.add(1)).to_str().unwrap();
+        let file_path1 = std::ffi::CStr::from_ptr(*parameter_files.add(0))
+            .to_str()
+            .unwrap();
+        let file_path2 = std::ffi::CStr::from_ptr(*parameter_files.add(1))
+            .to_str()
+            .unwrap();
         assert_eq!(file_path1, test_params_path1);
         assert_eq!(file_path2, test_params_path2);
 
@@ -1016,8 +1298,14 @@ fn test_param_argument_multiple() {
 #[test]
 fn test_param_arguments_copy() {
     unsafe {
-        let test_params_path1 = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/resources/test_arguments/test_parameters.1.yaml");
-        let test_params_path2 = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/resources/test_arguments/test_parameters.2.yaml");
+        let test_params_path1 = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/resources/test_arguments/test_parameters.1.yaml"
+        );
+        let test_params_path2 = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/resources/test_arguments/test_parameters.2.yaml"
+        );
         let test_params_cstr1 = CString::new(test_params_path1).unwrap();
         let test_params_cstr2 = CString::new(test_params_path2).unwrap();
 
@@ -1123,7 +1411,8 @@ fn test_empty_unparsed() {
         let ret = rcl_arguments_get_unparsed(&empty_parsed_args, allocator, &mut actual_unparsed);
         assert_eq!(ret, RCL_RET_INVALID_ARGUMENT as i32);
 
-        let ret = rcl_arguments_get_unparsed_ros(&empty_parsed_args, allocator, &mut actual_unparsed_ros);
+        let ret =
+            rcl_arguments_get_unparsed_ros(&empty_parsed_args, allocator, &mut actual_unparsed_ros);
         assert_eq!(ret, RCL_RET_INVALID_ARGUMENT as i32);
     }
 }
