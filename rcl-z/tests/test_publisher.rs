@@ -386,6 +386,9 @@ fn test_publisher_loan_disable() {
     let mut fixture = TestPublisherFixture::new();
 
     unsafe {
+        // Save original value of ROS_DISABLE_LOANED_MESSAGES
+        let original_env = std::env::var("ROS_DISABLE_LOANED_MESSAGES").ok();
+
         // Test with ROS_DISABLE_LOANED_MESSAGES=1
         std::env::set_var("ROS_DISABLE_LOANED_MESSAGES", "1");
 
@@ -435,8 +438,12 @@ fn test_publisher_loan_disable() {
         let ret = rcl_publisher_fini(&mut publisher2, fixture.node());
         assert_eq!(ret, RCL_RET_OK as i32, "Failed to finalize publisher");
 
-        // Reset environment variable
-        std::env::remove_var("ROS_DISABLE_LOANED_MESSAGES");
+        // Restore original environment variable
+        if let Some(val) = original_env {
+            std::env::set_var("ROS_DISABLE_LOANED_MESSAGES", val);
+        } else {
+            std::env::remove_var("ROS_DISABLE_LOANED_MESSAGES");
+        }
     }
 }
 
