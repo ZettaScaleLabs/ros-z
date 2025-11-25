@@ -99,7 +99,11 @@ where
     }
 
     pub fn take_sample(&self) -> Result<Sample> {
-        Ok(self.rx.recv()?)
+        match self.rx.try_recv() {
+            Ok(sample) => Ok(sample),
+            Err(flume::TryRecvError::Empty) => Err("No sample available".into()),
+            Err(flume::TryRecvError::Disconnected) => Err("Channel disconnected".into()),
+        }
     }
 
     pub fn take_sample_timeout(&self, timeout: Duration) -> Result<Sample> {
@@ -333,7 +337,11 @@ where
     ///
     /// This method is useful when custom deserialization logic is needed.
     pub fn take_query(&self) -> Result<Query> {
-        Ok(self.rx.recv()?)
+        match self.rx.try_recv() {
+            Ok(query) => Ok(query),
+            Err(flume::TryRecvError::Empty) => Err("No query available".into()),
+            Err(flume::TryRecvError::Disconnected) => Err("Channel disconnected".into()),
+        }
     }
 
     /// Blocks waiting to receive the next request on the service and then deserializes the payload.
