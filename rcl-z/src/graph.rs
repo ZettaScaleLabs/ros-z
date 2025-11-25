@@ -403,14 +403,26 @@ fn rcl_get_entities_info_by_topic(
     entities_info: *mut rcl_topic_endpoint_info_array_t,
     kind: EntityKind,
 ) -> rcl_ret_t {
-    if node.is_null() || topic_name.is_null() || entities_info.is_null() {
+    if node.is_null() {
+        return RCL_RET_NODE_INVALID as _;
+    }
+    if topic_name.is_null() || entities_info.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
     }
 
-    let node_impl = match node.borrow_impl() {
-        Ok(impl_) => impl_,
-        Err(_) => return RCL_RET_INVALID_ARGUMENT as _,
-    };
+    // Check if entities_info is properly initialized (info_array should be null)
+    unsafe {
+        if !(*entities_info).info_array.is_null() {
+            return RCL_RET_ERROR as _;
+        }
+    }
+
+    // Check if node is valid
+    if !crate::node::rcl_node_is_valid(node) {
+        return RCL_RET_NODE_INVALID as _;
+    }
+
+    let node_impl = node.borrow_impl().unwrap();
 
     let topic = match str_from_ptr(topic_name) {
         Ok(topic_str) => topic_str,

@@ -493,11 +493,19 @@ pub unsafe extern "C" fn rcl_wait_set_init(
         return RCL_RET_INVALID_ARGUMENT as _;
     }
 
-    // Initialize impl_ if null
-    if unsafe { (*wait_set).impl_.is_null() } {
-        unsafe {
-            (*wait_set).impl_ = Box::into_raw(Box::new(WaitSetImpl::new())) as _;
-        }
+    // Check if context is initialized
+    if !unsafe { crate::context::rcl_context_is_valid(context) } {
+        return RCL_RET_NOT_INIT as _;
+    }
+
+    // Check if wait set is already initialized
+    if !unsafe { (*wait_set).impl_.is_null() } {
+        return RCL_RET_ALREADY_INIT as _;
+    }
+
+    // Initialize impl_
+    unsafe {
+        (*wait_set).impl_ = Box::into_raw(Box::new(WaitSetImpl::new())) as _;
     }
 
     if let (Ok(ws_impl), Ok(ctx_impl)) = (wait_set.borrow_mut_impl(), context.borrow_impl()) {
@@ -535,8 +543,8 @@ pub extern "C" fn rcl_wait_set_fini(wait_set: *mut rcl_wait_set_t) -> rcl_ret_t 
     if wait_set.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
     }
-    if let Ok(impl_) = wait_set.borrow_mut_impl() {
-        impl_.reset_all();
+    if let Ok(impl_) = wait_set.own_impl() {
+        drop(impl_);
     }
     RCL_RET_OK as _
 }
@@ -553,6 +561,23 @@ pub extern "C" fn rcl_wait(wait_set: *mut rcl_wait_set_t, timeout: i64) -> rcl_r
     tracing::trace!("rcl_wait, timeout={timeout}");
     if wait_set.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    if !rcl_wait_set_is_valid(wait_set) {
+        return RCL_RET_WAIT_SET_INVALID as _;
+    }
+
+    // Check if wait set is empty (initialized with zero capacity for all types)
+    let is_empty = unsafe {
+        (*wait_set).size_of_subscriptions == 0
+            && (*wait_set).size_of_guard_conditions == 0
+            && (*wait_set).size_of_timers == 0
+            && (*wait_set).size_of_clients == 0
+            && (*wait_set).size_of_services == 0
+            && (*wait_set).size_of_events == 0
+    };
+    if is_empty {
+        return RCL_RET_WAIT_SET_EMPTY as _;
     }
 
     let ws_impl = wait_set.borrow_mut_impl().unwrap();
