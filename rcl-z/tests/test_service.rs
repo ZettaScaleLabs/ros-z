@@ -290,12 +290,10 @@ fn test_service_without_info() {
         thread::sleep(Duration::from_millis(500));
 
         // Create and send request
-        let client_request = test_msgs__srv__BasicTypes_Request {
-            bool_value: false,
-            uint8_value: 1,
-            uint32_value: 2,
-            ..Default::default()
-        };
+        let mut client_request = test_msgs__srv__BasicTypes_Request::default();
+        client_request.bool_value = false;
+        client_request.uint8_value = 1;
+        client_request.uint32_value = 2;
 
         let mut sequence_number: i64 = 0;
         let ret = rcl_send_request(
@@ -330,10 +328,8 @@ fn test_service_without_info() {
         );
 
         // Create and send response
-        let service_response = test_msgs__srv__BasicTypes_Response {
-            uint64_value: (service_request.uint8_value as u64) + (service_request.uint32_value as u64),
-            ..Default::default()
-        };
+        let mut service_response = test_msgs__srv__BasicTypes_Response::default();
+        service_response.uint64_value = (service_request.uint8_value as u64) + (service_request.uint32_value as u64);
 
         let ret = rcl_send_response(
             &service,
@@ -1089,12 +1085,10 @@ fn test_service_client_communication() {
         thread::sleep(Duration::from_millis(500));
 
         // Create and send request
-        let client_request = test_msgs__srv__BasicTypes_Request {
-            bool_value: false,
-            uint8_value: 1,
-            uint32_value: 2,
-            ..Default::default()
-        };
+        let mut client_request = test_msgs__srv__BasicTypes_Request::default();
+        client_request.bool_value = false;
+        client_request.uint8_value = 1;
+        client_request.uint32_value = 2;
 
         let mut sequence_number: i64 = 0;
         let ret = rcl_send_request(
@@ -1130,10 +1124,8 @@ fn test_service_client_communication() {
         );
 
         // Create and send response
-        let mut service_response = test_msgs__srv__BasicTypes_Response {
-            uint64_value: (service_request.uint8_value as u64) + (service_request.uint32_value as u64),
-            ..Default::default()
-        };
+        let mut service_response = test_msgs__srv__BasicTypes_Response::default();
+        service_response.uint64_value = (service_request.uint8_value as u64) + (service_request.uint32_value as u64);
 
         let ret = rcl_send_response(
             &service,
@@ -1221,12 +1213,10 @@ fn test_service_with_info() {
         thread::sleep(Duration::from_millis(500));
 
         // Create and send request
-        let client_request = test_msgs__srv__BasicTypes_Request {
-            bool_value: false,
-            uint8_value: 1,
-            uint32_value: 2,
-            ..Default::default()
-        };
+        let mut client_request = test_msgs__srv__BasicTypes_Request::default();
+        client_request.bool_value = false;
+        client_request.uint8_value = 1;
+        client_request.uint32_value = 2;
 
         let mut sequence_number: i64 = 0;
         let ret = rcl_send_request(
@@ -1261,10 +1251,8 @@ fn test_service_with_info() {
         );
 
         // Create and send response
-        let mut service_response = test_msgs__srv__BasicTypes_Response {
-            uint64_value: (service_request.uint8_value as u64) + (service_request.uint32_value as u64),
-            ..Default::default()
-        };
+        let mut service_response = test_msgs__srv__BasicTypes_Response::default();
+        service_response.uint64_value = (service_request.uint8_value as u64) + (service_request.uint32_value as u64);
 
         let ret = rcl_send_response(
             &service,
