@@ -34,8 +34,8 @@ use rcl_z::{
 };
 // Re-export from test_msgs_support for convenience
 use test_msgs_support::{
-    rosidl_runtime_c__String__assign, rosidl_runtime_c__String__fini,
-    rosidl_runtime_c__String__init, test_msgs__msg__BasicTypes, test_msgs__msg__Strings,
+    rosidl_runtime_c__String__assignn, test_msgs__msg__BasicTypes, test_msgs__msg__Strings,
+    test_msgs__msg__Strings__fini, test_msgs__msg__Strings__init,
 };
 
 /// Test fixture that provides an initialized RCL context and node
@@ -455,40 +455,45 @@ fn test_subscription_nominal_string() {
 
         // Publish a message
         let mut msg: test_msgs__msg__Strings = std::mem::zeroed();
-        rosidl_runtime_c__String__init(&mut msg.string_value);
+        // Use the proper init function which initializes ALL string fields
+        assert!(test_msgs__msg__Strings__init(&mut msg));
+
         let test_string = c"testing";
-        assert!(rosidl_runtime_c__String__assign(
+
+        // Use assignn to assign the string with explicit length
+        // This should properly set capacity > size
+        let test_str_len = test_string.to_bytes().len();
+        assert!(rosidl_runtime_c__String__assignn(
             &mut msg.string_value,
-            test_string.as_ptr()
+            test_string.as_ptr(),
+            test_str_len
         ));
+
         let ret = rcl_publish(
             &publisher,
             &mut msg as *mut _ as *mut c_void,
             ptr::null_mut(),
         );
         assert_eq!(ret, RCL_RET_OK as i32, "Failed to publish message");
-        rosidl_runtime_c__String__fini(&mut msg.string_value);
+        test_msgs__msg__Strings__fini(&mut msg);
 
         // Take the message
-        // FIXME: Disabled due to string serialization issues - "string capacity not greater than size"
-        // This appears to be a limitation with how rosidl_runtime_c__String__assign works
-        // The publisher succeeds but serialization fails, so we can't deserialize on the subscriber side
-        // let mut taken_msg: test_msgs__msg__Strings = std::mem::zeroed();
-        // rosidl_runtime_c__String__init(&mut taken_msg.string_value);
-        // let ret = rcl_take(
-        //     &subscriber,
-        //     &mut taken_msg as *mut _ as *mut c_void,
-        //     ptr::null_mut(),
-        //     ptr::null_mut(),
-        // );
-        // // In this implementation, since it's non-blocking, it may not get the message immediately
-        // // But for the test, we check if it succeeds or not
-        // if ret == RCL_RET_OK as i32 {
-        //     // Check the content
-        //     let taken_str = std::ffi::CStr::from_ptr(taken_msg.string_value.data).to_string_lossy();
-        //     assert_eq!(taken_str, "testing");
-        // }
-        // rosidl_runtime_c__String__fini(&mut taken_msg.string_value);
+        let mut taken_msg: test_msgs__msg__Strings = std::mem::zeroed();
+        assert!(test_msgs__msg__Strings__init(&mut taken_msg));
+        let ret = rcl_take(
+            &subscriber,
+            &mut taken_msg as *mut _ as *mut c_void,
+            ptr::null_mut(),
+            ptr::null_mut(),
+        );
+        // In this implementation, since it's non-blocking, it may not get the message immediately
+        // But for the test, we check if it succeeds or not
+        if ret == RCL_RET_OK as i32 {
+            // Check the content
+            let taken_str = std::ffi::CStr::from_ptr(taken_msg.string_value.data).to_string_lossy();
+            assert_eq!(taken_str, "testing");
+        }
+        test_msgs__msg__Strings__fini(&mut taken_msg);
 
         // Finalize
         let ret = rcl_subscription_fini(&mut subscriber, fixture.node());

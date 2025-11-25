@@ -10,7 +10,6 @@ mod test_msgs_support;
 use std::ptr;
 
 // Re-export from test_msgs_support for convenience
-use rcl_z::ros::rosidl_runtime_c__String;
 use rcl_z::{
     c_void,
     context::{rcl_context_fini, rcl_get_zero_initialized_context, rcl_shutdown},
@@ -32,8 +31,8 @@ use rcl_z::{
     ros::*,
 };
 use test_msgs_support::{
-    rosidl_runtime_c__String__assign, rosidl_runtime_c__String__fini,
-    rosidl_runtime_c__String__init, test_msgs__msg__BasicTypes, test_msgs__msg__Strings,
+    rosidl_runtime_c__String__assign, test_msgs__msg__BasicTypes, test_msgs__msg__Strings,
+    test_msgs__msg__Strings__fini, test_msgs__msg__Strings__init,
 };
 
 /// Test fixture that provides an initialized RCL context and node
@@ -169,14 +168,8 @@ fn test_publisher_nominal_string() {
         assert_eq!(ret, RCL_RET_OK as i32, "Failed to initialize publisher");
 
         // Create and publish a Strings message
-        let mut msg = test_msgs__msg__Strings {
-            string_value: rosidl_runtime_c__String {
-                data: ptr::null_mut(),
-                size: 0,
-                capacity: 0,
-            },
-        };
-        rosidl_runtime_c__String__init(&mut msg.string_value);
+        let mut msg: test_msgs__msg__Strings = std::mem::zeroed();
+        assert!(test_msgs__msg__Strings__init(&mut msg));
         let test_string = c"testing";
         assert!(rosidl_runtime_c__String__assign(
             &mut msg.string_value,
@@ -188,7 +181,7 @@ fn test_publisher_nominal_string() {
             ptr::null_mut(),
         );
         assert_eq!(ret, RCL_RET_OK as i32, "Failed to publish message");
-        rosidl_runtime_c__String__fini(&mut msg.string_value);
+        test_msgs__msg__Strings__fini(&mut msg);
 
         // Finalize publisher
         let ret = rcl_publisher_fini(&mut publisher, fixture.node());
@@ -277,14 +270,8 @@ fn test_publishers_different_types() {
             "Failed to publish BasicTypes message"
         );
 
-        let mut msg_string = test_msgs__msg__Strings {
-            string_value: rosidl_runtime_c__String {
-                data: ptr::null_mut(),
-                size: 0,
-                capacity: 0,
-            },
-        };
-        rosidl_runtime_c__String__init(&mut msg_string.string_value);
+        let mut msg_string: test_msgs__msg__Strings = std::mem::zeroed();
+        assert!(test_msgs__msg__Strings__init(&mut msg_string));
         let test_string = c"testing";
         assert!(rosidl_runtime_c__String__assign(
             &mut msg_string.string_value,
@@ -296,7 +283,7 @@ fn test_publishers_different_types() {
             ptr::null_mut(),
         );
         assert_eq!(ret, RCL_RET_OK as i32, "Failed to publish Strings message");
-        rosidl_runtime_c__String__fini(&mut msg_string.string_value);
+        test_msgs__msg__Strings__fini(&mut msg_string);
 
         // Finalize publishers
         let ret = rcl_publisher_fini(&mut publisher1, fixture.node());

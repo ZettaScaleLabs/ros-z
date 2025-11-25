@@ -20,6 +20,17 @@ pub struct test_msgs__msg__BasicTypes {
 #[allow(dead_code)]
 pub struct test_msgs__msg__Strings {
     pub string_value: rosidl_runtime_c__String,
+    pub string_value_default1: rosidl_runtime_c__String,
+    pub string_value_default2: rosidl_runtime_c__String,
+    pub string_value_default3: rosidl_runtime_c__String,
+    pub string_value_default4: rosidl_runtime_c__String,
+    pub string_value_default5: rosidl_runtime_c__String,
+    pub bounded_string_value: rosidl_runtime_c__String,
+    pub bounded_string_value_default1: rosidl_runtime_c__String,
+    pub bounded_string_value_default2: rosidl_runtime_c__String,
+    pub bounded_string_value_default3: rosidl_runtime_c__String,
+    pub bounded_string_value_default4: rosidl_runtime_c__String,
+    pub bounded_string_value_default5: rosidl_runtime_c__String,
 }
 
 // Service Request/Response structures for BasicTypes service
@@ -117,6 +128,10 @@ unsafe extern "C" {
 
     // Message init/fini functions
     #[allow(dead_code)]
+    pub fn test_msgs__msg__Strings__init(msg: *mut test_msgs__msg__Strings) -> bool;
+    #[allow(dead_code)]
+    pub fn test_msgs__msg__Strings__fini(msg: *mut test_msgs__msg__Strings);
+    #[allow(dead_code)]
     pub fn test_msgs__srv__BasicTypes_Request__init(
         msg: *mut test_msgs__srv__BasicTypes_Request,
     ) -> bool;
@@ -128,8 +143,10 @@ unsafe extern "C" {
     ) -> bool;
     #[allow(dead_code)]
     pub fn test_msgs__srv__BasicTypes_Response__fini(msg: *mut test_msgs__srv__BasicTypes_Response);
+}
 
-    // String manipulation functions
+// String manipulation functions - separate extern block to make them publicly accessible
+unsafe extern "C" {
     #[allow(dead_code)]
     pub fn rosidl_runtime_c__String__init(str: *mut rcl_z::ros::rosidl_runtime_c__String);
     #[allow(dead_code)]
@@ -139,7 +156,12 @@ unsafe extern "C" {
         str: *mut rcl_z::ros::rosidl_runtime_c__String,
         value: *const c_char,
     ) -> bool;
-
+    #[allow(dead_code)]
+    pub fn rosidl_runtime_c__String__assignn(
+        str: *mut rcl_z::ros::rosidl_runtime_c__String,
+        value: *const c_char,
+        n: usize,
+    ) -> bool;
 }
 
 // Macro to get type support similar to C++ ROSIDL_GET_MSG_TYPE_SUPPORT
