@@ -493,6 +493,13 @@ pub unsafe extern "C" fn rcl_wait_set_init(
         return RCL_RET_INVALID_ARGUMENT as _;
     }
 
+    // Initialize impl_ if null
+    if unsafe { (*wait_set).impl_.is_null() } {
+        unsafe {
+            (*wait_set).impl_ = Box::into_raw(Box::new(WaitSetImpl::new())) as _;
+        }
+    }
+
     if let (Ok(ws_impl), Ok(ctx_impl)) = (wait_set.borrow_mut_impl(), context.borrow_impl()) {
         ws_impl.notifier = Some(ctx_impl.share_notifier());
         ws_impl.allocator = _allocator;
