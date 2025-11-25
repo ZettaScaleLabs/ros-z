@@ -168,9 +168,17 @@ where
             .payload(msg.serialize())
             .attachment(attachment)
             .callback(move |reply| {
-                let sample = reply.into_result().unwrap();
-                tx.send(sample);
-                notify()
+                match reply.into_result() {
+                    Ok(sample) => {
+                        tx.send(sample);
+                        notify()
+                    }
+                    Err(err) => {
+                        // Handle timeout and other reply errors gracefully
+                        // This can happen when a service is not available or times out
+                        tracing::debug!("Reply error in rcl_send_request: {:?}", err);
+                    }
+                }
             })
             .wait()?;
         Ok(sn)

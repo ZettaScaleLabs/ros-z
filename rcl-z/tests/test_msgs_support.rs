@@ -16,7 +16,7 @@ pub struct test_msgs__msg__BasicTypes {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 #[allow(dead_code)]
 pub struct test_msgs__msg__Strings {
     pub string_value: rosidl_runtime_c__String,
@@ -24,7 +24,7 @@ pub struct test_msgs__msg__Strings {
 
 // Service Request/Response structures for BasicTypes service
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 #[allow(non_camel_case_types, dead_code)]
 pub struct test_msgs__srv__BasicTypes_Request {
     pub bool_value: bool,
@@ -62,7 +62,7 @@ impl Drop for test_msgs__srv__BasicTypes_Request {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 #[allow(non_camel_case_types, dead_code)]
 pub struct test_msgs__srv__BasicTypes_Response {
     pub bool_value: bool,
@@ -117,11 +117,15 @@ unsafe extern "C" {
 
     // Message init/fini functions
     #[allow(dead_code)]
-    pub fn test_msgs__srv__BasicTypes_Request__init(msg: *mut test_msgs__srv__BasicTypes_Request) -> bool;
+    pub fn test_msgs__srv__BasicTypes_Request__init(
+        msg: *mut test_msgs__srv__BasicTypes_Request,
+    ) -> bool;
     #[allow(dead_code)]
     pub fn test_msgs__srv__BasicTypes_Request__fini(msg: *mut test_msgs__srv__BasicTypes_Request);
     #[allow(dead_code)]
-    pub fn test_msgs__srv__BasicTypes_Response__init(msg: *mut test_msgs__srv__BasicTypes_Response) -> bool;
+    pub fn test_msgs__srv__BasicTypes_Response__init(
+        msg: *mut test_msgs__srv__BasicTypes_Response,
+    ) -> bool;
     #[allow(dead_code)]
     pub fn test_msgs__srv__BasicTypes_Response__fini(msg: *mut test_msgs__srv__BasicTypes_Response);
 

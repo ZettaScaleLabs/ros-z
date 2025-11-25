@@ -26,7 +26,8 @@ use rcl_z::{
         rcl_service_get_options, rcl_service_get_rmw_handle, rcl_service_get_service_name,
         rcl_service_init, rcl_service_is_valid, rcl_service_request_subscription_get_actual_qos,
         rcl_service_response_publisher_get_actual_qos, rcl_service_server_is_available,
-        rcl_take_request, rcl_take_request_with_info, rcl_take_response, rcl_take_response_with_info,
+        rcl_take_request, rcl_take_request_with_info, rcl_take_response,
+        rcl_take_response_with_info,
     },
 };
 
@@ -96,9 +97,6 @@ impl Drop for TestServiceFixture {
 }
 
 /// Test basic service initialization and QoS validation
-/// This is a comprehensive test similar to the C++ test_service_nominal
-/// Note: The communication part is similar to test_service_client_communication
-/// which is ignored due to serialization issues. We test what we can.
 #[test]
 fn test_service_nominal() {
     let mut fixture = TestServiceFixture::new("test_service_node");
@@ -133,21 +131,79 @@ fn test_service_nominal() {
             "Double init should return RCL_RET_ALREADY_INIT"
         );
 
-        // Test QoS profiles (note: current implementation may return null)
-        let _request_qos = rcl_service_request_subscription_get_actual_qos(&service);
-        let _response_qos = rcl_service_response_publisher_get_actual_qos(&service);
-        // In the current implementation, these may be null, which is acceptable
+        // Test QoS profiles - validate they match rmw_qos_profile_services_default
+        // rmw_qos_profile_services_default values:
+        // - history: KEEP_LAST
+        // - depth: 10
+        // - reliability: RELIABLE
+        // - durability: VOLATILE
+        let request_qos = rcl_service_request_subscription_get_actual_qos(&service);
+        let response_qos = rcl_service_response_publisher_get_actual_qos(&service);
+
+        // Validate request subscription QoS
+        if !request_qos.is_null() {
+            let req_qos = &*request_qos;
+            assert_eq!(
+                req_qos.history,
+                rmw_qos_history_policy_t::KEEP_LAST,
+                "Request QoS history should be KEEP_LAST"
+            );
+            assert_eq!(
+                req_qos.depth, 10,
+                "Request QoS depth should be 10"
+            );
+            assert_eq!(
+                req_qos.reliability,
+                rmw_qos_reliability_policy_t::RELIABLE,
+                "Request QoS reliability should be RELIABLE"
+            );
+            assert_eq!(
+                req_qos.durability,
+                rmw_qos_durability_policy_t::VOLATILE,
+                "Request QoS durability should be VOLATILE"
+            );
+        }
+
+        // Validate response publisher QoS
+        if !response_qos.is_null() {
+            let resp_qos = &*response_qos;
+            assert_eq!(
+                resp_qos.history,
+                rmw_qos_history_policy_t::KEEP_LAST,
+                "Response QoS history should be KEEP_LAST"
+            );
+            assert_eq!(
+                resp_qos.depth, 10,
+                "Response QoS depth should be 10"
+            );
+            assert_eq!(
+                resp_qos.reliability,
+                rmw_qos_reliability_policy_t::RELIABLE,
+                "Response QoS reliability should be RELIABLE"
+            );
+            assert_eq!(
+                resp_qos.durability,
+                rmw_qos_durability_policy_t::VOLATILE,
+                "Response QoS durability should be VOLATILE"
+            );
+        }
 
         // Finalize service temporarily
         let ret = rcl_service_fini(&mut service, fixture.node());
         assert_eq!(ret, RCL_RET_OK as i32, "Failed to finalize service");
 
         // Check if null service is valid
-        assert!(!rcl_service_is_valid(ptr::null()), "Null service should not be valid");
+        assert!(
+            !rcl_service_is_valid(ptr::null()),
+            "Null service should not be valid"
+        );
 
         // Check if zero initialized service is valid
         let service = rcl_get_zero_initialized_service();
-        assert!(!rcl_service_is_valid(&service), "Zero-initialized service should not be valid");
+        assert!(
+            !rcl_service_is_valid(&service),
+            "Zero-initialized service should not be valid"
+        );
 
         // Re-initialize service for full test
         let mut service = rcl_get_zero_initialized_service();
@@ -194,6 +250,7 @@ fn test_service_nominal() {
 #[test]
 fn test_service_without_info() {
     use std::{thread, time::Duration};
+
     use test_msgs_support::{
         test_msgs__srv__BasicTypes_Request, test_msgs__srv__BasicTypes_Response,
     };
@@ -263,8 +320,14 @@ fn test_service_without_info() {
         assert_eq!(ret, RCL_RET_OK as i32, "Failed to take request");
 
         // Verify request data
-        assert_eq!(service_request.uint8_value, 1, "Request uint8_value should be 1");
-        assert_eq!(service_request.uint32_value, 2, "Request uint32_value should be 2");
+        assert_eq!(
+            service_request.uint8_value, 1,
+            "Request uint8_value should be 1"
+        );
+        assert_eq!(
+            service_request.uint32_value, 2,
+            "Request uint32_value should be 2"
+        );
 
         // Create and send response
         let service_response = test_msgs__srv__BasicTypes_Response {
@@ -293,12 +356,28 @@ fn test_service_without_info() {
         assert_eq!(ret, RCL_RET_OK as i32, "Failed to take response");
 
         // Verify response data
-        assert_eq!(client_response.uint64_value, 3, "Response should be 1 + 2 = 3");
-        assert_ne!(response_header.sequence_number, 0, "Response sequence number should be non-zero");
+        assert_eq!(
+            client_response.uint64_value, 3,
+            "Response should be 1 + 2 = 3"
+        );
+        assert_ne!(
+            response_header.sequence_number, 0,
+            "Response sequence number should be non-zero"
+        );
 
         // Try to take response again (should fail as there's nothing to take)
-        // Note: The actual error code may vary depending on implementation
-        // In C++, it expects RCL_RET_CLIENT_TAKE_FAILED
+        // The C++ test expects RCL_RET_CLIENT_TAKE_FAILED.
+        let mut second_response = test_msgs__srv__BasicTypes_Response::default();
+        let mut second_response_header = rmw_request_id_t::default();
+        let ret = rcl_take_response(
+            &client,
+            &mut second_response_header,
+            &mut second_response as *mut _ as *mut c_void,
+        );
+        assert_eq!(
+            ret, RCL_RET_CLIENT_TAKE_FAILED as i32,
+            "Second take_response should return RCL_RET_CLIENT_TAKE_FAILED"
+        );
 
         // Cleanup
         let ret = rcl_client_fini(&mut client, fixture.node());
@@ -709,10 +788,9 @@ fn test_service_name_invalid() {
         );
 
         // Should fail with service name invalid error
-        // Note: The exact error code may vary based on implementation
-        assert_ne!(
-            ret, RCL_RET_OK as i32,
-            "Service with whitespace in name should fail"
+        assert_eq!(
+            ret, RCL_RET_SERVICE_NAME_INVALID as i32,
+            "Service with whitespace in name should return RCL_RET_SERVICE_NAME_INVALID"
         );
 
         // Test with curly braces in name (invalid)
@@ -727,9 +805,9 @@ fn test_service_name_invalid() {
         );
 
         // Should fail with service name invalid error
-        assert_ne!(
-            ret, RCL_RET_OK as i32,
-            "Service with curly braces in name should fail"
+        assert_eq!(
+            ret, RCL_RET_SERVICE_NAME_INVALID as i32,
+            "Service with curly braces in name should return RCL_RET_SERVICE_NAME_INVALID"
         );
     }
 }
@@ -886,17 +964,29 @@ fn test_take_request_null_arguments() {
         assert_eq!(ret, RCL_RET_OK as i32, "Failed to initialize service");
 
         // Create dummy request and header for testing
-        let _request_header = rmw_request_id_t::default();
-        let _dummy_request: *mut c_void = ptr::null_mut();
+        let mut request_header = rmw_request_id_t::default();
+        let dummy_request: *mut c_void = ptr::null_mut();
 
-        // Test rcl_take_request with null service - causes crash, can't test safely
-        // let ret = rcl_take_request(ptr::null(), &mut request_header, dummy_request);
+        // Test rcl_take_request with null service
+        let ret = rcl_take_request(ptr::null(), &mut request_header, dummy_request);
+        assert_eq!(
+            ret, RCL_RET_SERVICE_INVALID as i32,
+            "Null service should return RCL_RET_SERVICE_INVALID"
+        );
 
-        // Test rcl_take_request with null request_header - causes crash, can't test safely
-        // let ret = rcl_take_request(&service, ptr::null_mut(), dummy_request);
+        // Test rcl_take_request with null request_header
+        let ret = rcl_take_request(&service, ptr::null_mut(), dummy_request);
+        assert_eq!(
+            ret, RCL_RET_INVALID_ARGUMENT as i32,
+            "Null request_header should return RCL_RET_INVALID_ARGUMENT"
+        );
 
-        // Test rcl_take_request with null request - causes crash, can't test safely
-        // let ret = rcl_take_request(&service, &mut request_header, ptr::null_mut());
+        // Test rcl_take_request with null request
+        let ret = rcl_take_request(&service, &mut request_header, ptr::null_mut());
+        assert_eq!(
+            ret, RCL_RET_INVALID_ARGUMENT as i32,
+            "Null request should return RCL_RET_INVALID_ARGUMENT"
+        );
 
         // Cleanup
         let ret = rcl_service_fini(&mut service, fixture.node());
@@ -926,17 +1016,29 @@ fn test_send_response_null_arguments() {
         assert_eq!(ret, RCL_RET_OK as i32, "Failed to initialize service");
 
         // Create dummy response and header for testing
-        let _response_header = rmw_request_id_t::default();
-        let _dummy_response: *mut c_void = ptr::null_mut();
+        let mut response_header = rmw_request_id_t::default();
+        let dummy_response: *mut c_void = ptr::null_mut();
 
-        // Test rcl_send_response with null service - causes crash, can't test safely
-        // let ret = rcl_send_response(ptr::null(), &mut response_header, dummy_response);
+        // Test rcl_send_response with null service
+        let ret = rcl_send_response(ptr::null(), &mut response_header, dummy_response);
+        assert_eq!(
+            ret, RCL_RET_SERVICE_INVALID as i32,
+            "Null service should return RCL_RET_SERVICE_INVALID"
+        );
 
-        // Test rcl_send_response with null response_header - causes crash, can't test safely
-        // let ret = rcl_send_response(&service, ptr::null_mut(), dummy_response);
+        // Test rcl_send_response with null response_header
+        let ret = rcl_send_response(&service, ptr::null_mut(), dummy_response);
+        assert_eq!(
+            ret, RCL_RET_INVALID_ARGUMENT as i32,
+            "Null response_header should return RCL_RET_INVALID_ARGUMENT"
+        );
 
-        // Test rcl_send_response with null response - causes crash, can't test safely
-        // let ret = rcl_send_response(&service, &mut response_header, ptr::null_mut());
+        // Test rcl_send_response with null response
+        let ret = rcl_send_response(&service, &mut response_header, ptr::null_mut());
+        assert_eq!(
+            ret, RCL_RET_INVALID_ARGUMENT as i32,
+            "Null response should return RCL_RET_INVALID_ARGUMENT"
+        );
 
         // Cleanup
         let ret = rcl_service_fini(&mut service, fixture.node());
@@ -1029,8 +1131,7 @@ fn test_service_client_communication() {
 
         // Create and send response
         let mut service_response = test_msgs__srv__BasicTypes_Response {
-            uint64_value: (service_request.uint8_value as u64)
-                + (service_request.uint32_value as u64),
+            uint64_value: (service_request.uint8_value as u64) + (service_request.uint32_value as u64),
             ..Default::default()
         };
 
@@ -1081,6 +1182,7 @@ fn test_service_client_communication() {
 #[test]
 fn test_service_with_info() {
     use std::{thread, time::Duration};
+
     use test_msgs_support::{
         test_msgs__srv__BasicTypes_Request, test_msgs__srv__BasicTypes_Response,
     };
@@ -1149,8 +1251,14 @@ fn test_service_with_info() {
         assert_eq!(ret, RCL_RET_OK as i32, "Failed to take request with info");
 
         // Verify request data
-        assert_eq!(service_request.uint8_value, 1, "Request uint8_value should be 1");
-        assert_eq!(service_request.uint32_value, 2, "Request uint32_value should be 2");
+        assert_eq!(
+            service_request.uint8_value, 1,
+            "Request uint8_value should be 1"
+        );
+        assert_eq!(
+            service_request.uint32_value, 2,
+            "Request uint32_value should be 2"
+        );
 
         // Create and send response
         let mut service_response = test_msgs__srv__BasicTypes_Response {
@@ -1179,8 +1287,14 @@ fn test_service_with_info() {
         assert_eq!(ret, RCL_RET_OK as i32, "Failed to take response with info");
 
         // Verify response data
-        assert_eq!(client_response.uint64_value, 3, "Response should be 1 + 2 = 3");
-        assert_eq!(response_header.request_id.sequence_number, 1, "Response sequence number should be 1");
+        assert_eq!(
+            client_response.uint64_value, 3,
+            "Response should be 1 + 2 = 3"
+        );
+        assert_eq!(
+            response_header.request_id.sequence_number, 1,
+            "Response sequence number should be 1"
+        );
 
         // Cleanup
         let ret = rcl_client_fini(&mut client, fixture.node());

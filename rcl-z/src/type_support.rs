@@ -122,10 +122,19 @@ impl MessageTypeSupport {
         TypeHash::new(hash.version, hash.value)
     }
 
-    pub unsafe fn serialize_message(&self, ros_message: *const c_void, out: &mut Vec<u8>) {
-        let res = unsafe { serialize_message(self.as_ref(), ros_message, out) };
+    pub unsafe fn serialize_message(&self, ros_message: *const c_void) -> Vec<u8> {
+        // Get the serialized size and add extra buffer for safety
+        let size = unsafe { self.get_serialized_size(ros_message) };
+        // Add significant extra buffer to account for potential alignment, padding, and string overhead
+        // For string messages, we need more space than get_serialized_size might report
+        let buffer_size = (size + 256).max(512);
+        let mut out = vec![0u8; buffer_size];
+        let res = unsafe { serialize_message(self.as_ref(), ros_message, &mut out) };
         if !res {
             tracing::warn!("Failed to run serialize_message");
+            vec![]
+        } else {
+            out
         }
     }
 

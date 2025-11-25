@@ -20,10 +20,11 @@ use rcl_z::{
     ros::*,
     service::{
         rcl_client_fini, rcl_client_get_default_options, rcl_client_get_options,
-        rcl_client_get_rmw_handle, rcl_client_get_service_name, rcl_client_init, rcl_client_is_valid,
-        rcl_client_request_publisher_get_actual_qos, rcl_client_response_subscription_get_actual_qos,
-        rcl_get_zero_initialized_client, rcl_send_request, rcl_service_server_is_available,
-        rcl_take_response, rcl_take_response_with_info,
+        rcl_client_get_rmw_handle, rcl_client_get_service_name, rcl_client_init,
+        rcl_client_is_valid, rcl_client_request_publisher_get_actual_qos,
+        rcl_client_response_subscription_get_actual_qos, rcl_get_zero_initialized_client,
+        rcl_send_request, rcl_service_server_is_available, rcl_take_response,
+        rcl_take_response_with_info,
     },
 };
 
@@ -171,7 +172,7 @@ fn test_send_request_invalid() {
 
         // Test with null client
         let ret = rcl_send_request(ptr::null(), dummy_request, &mut sequence_number);
-        assert_eq!(ret, RCL_RET_INVALID_ARGUMENT as i32);
+        assert_eq!(ret, RCL_RET_CLIENT_INVALID as i32);
 
         // Test with null request
         let client = rcl_get_zero_initialized_client();
@@ -196,7 +197,7 @@ fn test_take_response_invalid() {
 
         // Test with null client
         let ret = rcl_take_response(ptr::null(), &mut request_header, dummy_response);
-        assert_eq!(ret, RCL_RET_INVALID_ARGUMENT as i32);
+        assert_eq!(ret, RCL_RET_CLIENT_INVALID as i32);
 
         // Test with null response
         let client = rcl_get_zero_initialized_client();
@@ -429,13 +430,12 @@ fn test_client_fini_error_codes() {
         "Null node should return RCL_RET_NODE_INVALID"
     );
 
-    // Test with zero-initialized (invalid) node - this succeeds because fini just drops
-    // the impl regardless of node validity (the node is not actually used in fini)
+    // Test with zero-initialized (invalid) node - should return RCL_RET_NODE_INVALID
     let mut invalid_node = rcl_get_zero_initialized_node();
     let ret = rcl_client_fini(&mut client, &mut invalid_node as *mut _);
     assert_eq!(
-        ret, RCL_RET_OK as i32,
-        "Fini with invalid node should succeed as it doesn't use the node"
+        ret, RCL_RET_NODE_INVALID as i32,
+        "Fini with invalid node should return RCL_RET_NODE_INVALID"
     );
 }
 
@@ -466,6 +466,36 @@ fn test_take_response_with_info_null_arguments() {
         assert_eq!(
             ret, RCL_RET_INVALID_ARGUMENT as i32,
             "Null request header should return RCL_RET_INVALID_ARGUMENT"
+        );
+    }
+}
+
+/// Test client initialization with invalid service name
+#[test]
+fn test_client_init_invalid_service_name() {
+    let mut fixture = TestClientFixture::new();
+
+    unsafe {
+        // Test with service name containing whitespace (invalid)
+        let invalid_service_name = c"invalid name";
+        let mut client = rcl_get_zero_initialized_client();
+        let client_options = rcl_client_get_default_options();
+
+        let ret = rcl_client_init(
+            &mut client,
+            fixture.node(),
+            ptr::null(),
+            invalid_service_name.as_ptr(),
+            &client_options,
+        );
+
+        // Note: When type support is null, we get RCL_RET_INVALID_ARGUMENT
+        // before service name validation. With valid type support, this would
+        // return RCL_RET_SERVICE_NAME_INVALID.
+        // For this test without type support, we just verify it fails.
+        assert_eq!(
+            ret, RCL_RET_INVALID_ARGUMENT as i32,
+            "Client init should fail with RCL_RET_INVALID_ARGUMENT (null type support checked first)"
         );
     }
 }

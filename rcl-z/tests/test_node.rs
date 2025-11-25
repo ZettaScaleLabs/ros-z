@@ -1111,15 +1111,17 @@ fn test_rcl_node_names() {
 /// Aligns with test_node.cpp::test_rcl_node_options
 #[test]
 fn test_rcl_node_options() {
-    use rcl_z::arguments::{
-        rcl_arguments_get_count_unparsed, rcl_arguments_get_count_unparsed_ros,
-        rcl_parse_arguments,
-    };
-    use rcl_z::init::rcl_get_default_allocator;
-    use rcl_z::node::{rcl_node_get_default_options, rcl_node_options_copy, rcl_node_options_fini};
-    use rcl_z::ros::RCL_RET_INVALID_ARGUMENT;
-    use rcl_z::ros::RCL_RET_OK;
     use std::ptr;
+
+    use rcl_z::{
+        arguments::{
+            rcl_arguments_get_count_unparsed, rcl_arguments_get_count_unparsed_ros,
+            rcl_parse_arguments,
+        },
+        init::rcl_get_default_allocator,
+        node::{rcl_node_get_default_options, rcl_node_options_copy, rcl_node_options_fini},
+        ros::{RCL_RET_INVALID_ARGUMENT, RCL_RET_OK},
+    };
 
     let mut default_options = rcl_node_get_default_options();
     let mut not_ini_options = rcl_node_get_default_options();
@@ -1164,8 +1166,7 @@ fn test_rcl_node_options() {
         let count2 = rcl_arguments_get_count_unparsed(&not_ini_options.arguments);
         assert_eq!(count1, count2);
 
-        let count_ros1 =
-            rcl_arguments_get_count_unparsed_ros(&default_options_with_args.arguments);
+        let count_ros1 = rcl_arguments_get_count_unparsed_ros(&default_options_with_args.arguments);
         let count_ros2 = rcl_arguments_get_count_unparsed_ros(&not_ini_options.arguments);
         assert_eq!(count_ros1, count_ros2);
     }
@@ -1185,10 +1186,12 @@ fn test_rcl_node_options() {
 /// Aligns with test_node.cpp::test_rcl_node_options_fail
 #[test]
 fn test_rcl_node_options_fail() {
-    use rcl_z::arguments::{rcl_arguments_fini, rcl_parse_arguments};
-    use rcl_z::init::rcl_get_default_allocator;
-    use rcl_z::node::{rcl_node_get_default_options, rcl_node_options_copy};
-    use rcl_z::ros::RCL_RET_OK;
+    use rcl_z::{
+        arguments::{rcl_arguments_fini, rcl_parse_arguments},
+        init::rcl_get_default_allocator,
+        node::{rcl_node_get_default_options, rcl_node_options_copy},
+        ros::{RCL_RET_INVALID_ARGUMENT, RCL_RET_OK},
+    };
 
     let mut prev_ini_options = rcl_node_get_default_options();
     let argv = [c"--ros-args".as_ptr()];
@@ -1205,8 +1208,9 @@ fn test_rcl_node_options_fail() {
     assert_eq!(ret, RCL_RET_OK as i32);
 
     let default_options = rcl_node_get_default_options();
-    // In C++ this tests a failure case, but our implementation might handle it differently
-    let _ret = rcl_node_options_copy(&default_options, &mut prev_ini_options);
+    // This should fail because prev_ini_options.arguments is already initialized
+    let ret = rcl_node_options_copy(&default_options, &mut prev_ini_options);
+    assert_eq!(ret, RCL_RET_INVALID_ARGUMENT as i32);
 
     unsafe {
         let ret = rcl_arguments_fini(&mut prev_ini_options.arguments);
@@ -1218,17 +1222,20 @@ fn test_rcl_node_options_fail() {
 /// Aligns with test_node.cpp::test_rcl_node_resolve_name
 #[test]
 fn test_rcl_node_resolve_name() {
-    use rcl_z::context::{rcl_context_fini, rcl_get_zero_initialized_context, rcl_shutdown};
-    use rcl_z::init::{
-        rcl_get_default_allocator, rcl_get_zero_initialized_init_options, rcl_init,
-        rcl_init_options_fini, rcl_init_options_init,
-    };
-    use rcl_z::node::{
-        rcl_get_zero_initialized_node, rcl_node_fini, rcl_node_get_default_options, rcl_node_init,
-        rcl_node_options_fini, rcl_node_resolve_name,
-    };
-    use rcl_z::ros::{RCL_RET_ERROR, RCL_RET_INVALID_ARGUMENT, RCL_RET_OK};
     use std::ptr;
+
+    use rcl_z::{
+        context::{rcl_context_fini, rcl_get_zero_initialized_context, rcl_shutdown},
+        init::{
+            rcl_get_default_allocator, rcl_get_zero_initialized_init_options, rcl_init,
+            rcl_init_options_fini, rcl_init_options_init,
+        },
+        node::{
+            rcl_get_zero_initialized_node, rcl_node_fini, rcl_node_get_default_options,
+            rcl_node_init, rcl_node_options_fini, rcl_node_resolve_name,
+        },
+        ros::{RCL_RET_ERROR, RCL_RET_INVALID_ARGUMENT, RCL_RET_OK},
+    };
 
     let default_allocator = rcl_get_default_allocator();
     let mut final_name: *mut i8 = ptr::null_mut();
@@ -1357,9 +1364,12 @@ fn test_rcl_node_resolve_name() {
 /// Aligns with test_node.cpp::test_rcl_get_disable_loaned_message
 #[test]
 fn test_rcl_get_disable_loaned_message() {
-    use rcl_z::node::rcl_get_disable_loaned_message;
-    use rcl_z::ros::{RCL_RET_INVALID_ARGUMENT, RCL_RET_OK};
     use std::ptr;
+
+    use rcl_z::{
+        node::rcl_get_disable_loaned_message,
+        ros::{RCL_RET_INVALID_ARGUMENT, RCL_RET_OK},
+    };
 
     // Test with null pointer
     let ret = rcl_get_disable_loaned_message(ptr::null_mut());
@@ -1404,16 +1414,20 @@ fn test_rcl_get_disable_loaned_message() {
 /// Note: This is a simplified version since Rust doesn't have the same mocking capabilities
 #[test]
 fn test_rcl_node_init_with_internal_errors() {
-    use rcl_z::context::{rcl_context_fini, rcl_get_zero_initialized_context, rcl_shutdown};
-    use rcl_z::init::{
-        rcl_get_default_allocator, rcl_get_zero_initialized_init_options, rcl_init,
-        rcl_init_options_fini, rcl_init_options_init,
-    };
-    use rcl_z::node::{
-        rcl_get_zero_initialized_node, rcl_node_fini, rcl_node_get_default_options, rcl_node_init,
-    };
-    use rcl_z::ros::RCL_RET_OK;
     use std::ptr;
+
+    use rcl_z::{
+        context::{rcl_context_fini, rcl_get_zero_initialized_context, rcl_shutdown},
+        init::{
+            rcl_get_default_allocator, rcl_get_zero_initialized_init_options, rcl_init,
+            rcl_init_options_fini, rcl_init_options_init,
+        },
+        node::{
+            rcl_get_zero_initialized_node, rcl_node_fini, rcl_node_get_default_options,
+            rcl_node_init,
+        },
+        ros::RCL_RET_OK,
+    };
 
     // Initialize rcl
     let mut init_options = rcl_get_zero_initialized_init_options();

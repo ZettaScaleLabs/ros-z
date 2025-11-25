@@ -11,7 +11,6 @@ use zenoh::Result;
 use crate::{
     impl_has_impl_ptr,
     msg::{RosMessage, RosService},
-    rclz_try,
     ros::*,
     traits::{BorrowImpl, OwnImpl},
     type_support::ServiceTypeSupport,
@@ -154,10 +153,17 @@ pub unsafe extern "C" fn rcl_client_init(
     let cli_impl = match x() {
         Ok(impl_) => impl_,
         Err(e) => {
-            tracing::error!("{e}");
+            let error_msg = format!("{e}");
+            tracing::error!("{error_msg}");
             // Check if it's because the node is not valid (zero-initialized)
             if node.borrow_impl().is_err() {
                 return RCL_RET_NODE_INVALID as _;
+            }
+            // Check if it's a service name validation error
+            if error_msg.contains("Topic name contains invalid characters")
+                || error_msg.contains("invalid component")
+            {
+                return RCL_RET_SERVICE_NAME_INVALID as _;
             }
             return RCL_RET_ERROR as _;
         }
@@ -175,12 +181,13 @@ pub unsafe extern "C" fn rcl_client_init(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_client_fini(client: *mut rcl_client_t, _node: *mut rcl_node_t) -> rcl_ret_t {
+pub extern "C" fn rcl_client_fini(client: *mut rcl_client_t, node: *mut rcl_node_t) -> rcl_ret_t {
     // Validate input parameters
     if client.is_null() {
         return RCL_RET_CLIENT_INVALID as _;
     }
-    if _node.is_null() {
+    // Check if node is valid (not just null)
+    if !crate::node::rcl_node_is_valid_except_context(node) {
         return RCL_RET_NODE_INVALID as _;
     }
     // Drop the data regardless of the pointer's condition.
@@ -194,7 +201,10 @@ pub unsafe extern "C" fn rcl_send_request(
     ros_request: *const c_void,
     sequence_number: *mut i64,
 ) -> rcl_ret_t {
-    if client.is_null() || sequence_number.is_null() {
+    if client.is_null() {
+        return RCL_RET_CLIENT_INVALID as _;
+    }
+    if sequence_number.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
     }
     match client.borrow_impl() {
@@ -207,7 +217,7 @@ pub unsafe extern "C" fn rcl_send_request(
             }
             Err(_) => RCL_RET_ERROR as _,
         },
-        Err(_) => RCL_RET_INVALID_ARGUMENT as _,
+        Err(_) => RCL_RET_CLIENT_INVALID as _,
     }
 }
 
@@ -219,7 +229,7 @@ pub unsafe extern "C" fn rcl_take_response(
     ros_response: *mut c_void,
 ) -> rcl_ret_t {
     if client.is_null() {
-        return RCL_RET_INVALID_ARGUMENT as _;
+        return RCL_RET_CLIENT_INVALID as _;
     }
     if request_header.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
@@ -227,13 +237,23 @@ pub unsafe extern "C" fn rcl_take_response(
     if ros_response.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
     }
-    rclz_try! {
-        let request_id = client.borrow_impl()?.take_response(ros_response)?;
-        unsafe {
-            (*request_header).sequence_number = request_id.sn;
-            (*request_header).writer_guid = request_id.gid;
-        }
+
+    let client_impl = match client.borrow_impl() {
+        Ok(impl_) => impl_,
+        Err(_) => return RCL_RET_CLIENT_INVALID as _,
+    };
+
+    let request_id = match unsafe { client_impl.take_response(ros_response) } {
+        Ok(id) => id,
+        Err(_) => return RCL_RET_CLIENT_TAKE_FAILED as _,
+    };
+
+    unsafe {
+        (*request_header).sequence_number = request_id.sn;
+        (*request_header).writer_guid = request_id.gid;
     }
+
+    RCL_RET_OK as _
 }
 
 #[unsafe(no_mangle)]
@@ -386,10 +406,17 @@ pub unsafe extern "C" fn rcl_service_init(
     let srv_impl = match x() {
         Ok(impl_) => impl_,
         Err(e) => {
-            tracing::error!("{e}");
+            let error_msg = format!("{e}");
+            tracing::error!("{error_msg}");
             // Check if it's because the node is not valid (zero-initialized)
             if node.borrow_impl().is_err() {
                 return RCL_RET_NODE_INVALID as _;
+            }
+            // Check if it's a service name validation error
+            if error_msg.contains("Topic name contains invalid characters")
+                || error_msg.contains("invalid component")
+            {
+                return RCL_RET_SERVICE_NAME_INVALID as _;
             }
             return RCL_RET_ERROR as _;
         }
@@ -431,9 +458,27 @@ pub unsafe extern "C" fn rcl_take_request(
 ) -> rcl_ret_t {
     tracing::trace!("rcl_take_request: {service:?}");
 
+    if service.is_null() {
+        return RCL_RET_SERVICE_INVALID as _;
+    }
+    if request_header.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+    if ros_request.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
     // Interior mutability is not allowed in Rust
-    let x = (service as *mut rcl_service_t).borrow_mut_impl().unwrap();
-    let request_id = unsafe { x.take_request(ros_request).unwrap() };
+    let service_impl = match (service as *mut rcl_service_t).borrow_mut_impl() {
+        Ok(impl_) => impl_,
+        Err(_) => return RCL_RET_SERVICE_INVALID as _,
+    };
+
+    let request_id = match unsafe { service_impl.take_request(ros_request) } {
+        Ok(id) => id,
+        Err(_) => return RCL_RET_SERVICE_TAKE_FAILED as _,
+    };
+
     unsafe {
         (*request_header).sequence_number = request_id.sn;
         (*request_header).writer_guid = request_id.gid;
@@ -447,10 +492,26 @@ pub unsafe fn rcl_send_response(
     response_header: *mut rmw_request_id_t,
     ros_response: *mut c_void,
 ) -> rcl_ret_t {
+    if service.is_null() {
+        return RCL_RET_SERVICE_INVALID as _;
+    }
+    if response_header.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+    if ros_response.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
     // Interior mutability is not allowed in Rust
-    let x = (service as *mut rcl_service_t).borrow_mut_impl().unwrap();
-    unsafe { x.send_response(ros_response, response_header).unwrap() };
-    RCL_RET_OK as _
+    let service_impl = match (service as *mut rcl_service_t).borrow_mut_impl() {
+        Ok(impl_) => impl_,
+        Err(_) => return RCL_RET_SERVICE_INVALID as _,
+    };
+
+    match unsafe { service_impl.send_response(ros_response, response_header) } {
+        Ok(_) => RCL_RET_OK as _,
+        Err(_) => RCL_RET_ERROR as _,
+    }
 }
 
 #[unsafe(no_mangle)]

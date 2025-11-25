@@ -611,9 +611,33 @@ pub extern "C" fn rcl_node_options_copy(
     if src.is_null() || dst.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
     }
+
     unsafe {
-        std::ptr::copy_nonoverlapping(src, dst, 1);
+        // Check if dst and src are the same
+        if src == dst {
+            tracing::error!("Attempted to copy options into itself");
+            return RCL_RET_INVALID_ARGUMENT as _;
+        }
+
+        // Check if dst->arguments.impl is not null (must be zero initialized)
+        if !(*dst).arguments.impl_.is_null() {
+            tracing::error!("Options out must be zero initialized");
+            return RCL_RET_INVALID_ARGUMENT as _;
+        }
+
+        // Copy simple fields
+        (*dst).allocator = (*src).allocator;
+        (*dst).use_global_arguments = (*src).use_global_arguments;
+        (*dst).enable_rosout = (*src).enable_rosout;
+        (*dst).rosout_qos = (*src).rosout_qos;
+
+        // If src has initialized arguments, copy them
+        if !(*src).arguments.impl_.is_null() {
+            use crate::arguments::rcl_arguments_copy;
+            return rcl_arguments_copy(&(*src).arguments, &mut (*dst).arguments);
+        }
     }
+
     RCL_RET_OK as _
 }
 
