@@ -82,7 +82,7 @@ impl TestInfoByTopicFixture {
             node,
             init_options,
             test_graph_node_name: "test_graph_node",
-            topic_name: "valid_topic_name",
+            topic_name: "/unique_topic_for_info_by_topic_test",
         }
     }
 
@@ -313,4 +313,46 @@ fn test_rcl_get_subscriptions_info_by_topic_invalid_participants() {
     unsafe { let _ = Box::from_raw(invalid_ptr); }
 }
 
-// TODO: Implement the main test when message types are properly supported
+/// Test main functionality of rcl_get_publishers_info_by_topic
+#[test]
+fn test_rcl_get_publishers_info_by_topic() {
+    let mut fixture = TestInfoByTopicFixture::new();
+
+    let mut topic_endpoint_info_array = rmw_topic_endpoint_info_array_t::default();
+    let mut allocator = rcl_get_default_allocator();
+
+    // Valid call (should succeed even with no publishers)
+    let ret = rcl_get_publishers_info_by_topic(
+        fixture.node(),
+        &mut allocator,
+        fixture.topic_name.as_ptr() as *const _,
+        false,
+        &mut topic_endpoint_info_array,
+    );
+    assert_eq!(ret, RCL_RET_OK as i32);
+
+    // Should have zero publishers initially
+    assert_eq!(topic_endpoint_info_array.size, 0);
+}
+
+/// Test main functionality of rcl_get_subscriptions_info_by_topic
+#[test]
+fn test_rcl_get_subscriptions_info_by_topic() {
+    let mut fixture = TestInfoByTopicFixture::new();
+
+    let mut topic_endpoint_info_array = rmw_topic_endpoint_info_array_t::default();
+    let mut allocator = rcl_get_default_allocator();
+
+    // Valid call (should succeed even with no subscriptions)
+    let ret = rcl_get_subscriptions_info_by_topic(
+        fixture.node(),
+        &mut allocator,
+        fixture.topic_name.as_ptr() as *const _,
+        false,
+        &mut topic_endpoint_info_array,
+    );
+    assert_eq!(ret, RCL_RET_OK as i32);
+
+    // Should have zero subscriptions initially
+    assert_eq!(topic_endpoint_info_array.size, 0);
+}

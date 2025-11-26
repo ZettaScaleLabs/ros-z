@@ -260,8 +260,8 @@ fn test_rcl_get_node_names_invalid_args() {
             &mut node_namespaces,
         );
         assert_eq!(
-            ret, RCL_RET_INVALID_ARGUMENT as i32,
-            "Expected INVALID_ARGUMENT for null node"
+            ret, RCL_RET_NODE_INVALID as i32,
+            "Expected NODE_INVALID for null node"
         );
 
         // Test with null node_names
@@ -286,6 +286,44 @@ fn test_rcl_get_node_names_invalid_args() {
         assert_eq!(
             ret, RCL_RET_INVALID_ARGUMENT as i32,
             "Expected INVALID_ARGUMENT for null node_namespaces"
+        );
+
+        // Test with zero-initialized node (uninitialized)
+        let zero_node = rcl_get_zero_initialized_node();
+        let ret = rcl_get_node_names(
+            &zero_node,
+            rcl_get_default_allocator(),
+            &mut node_names,
+            &mut node_namespaces,
+        );
+        assert_eq!(
+            ret, RCL_RET_NODE_INVALID as i32,
+            "Expected NODE_INVALID for zero-initialized node"
+        );
+
+        // Test with finalized node
+        let mut finalized_node = rcl_get_zero_initialized_node();
+        let finalized_name = c"finalized_node";
+        let ret = rcl_node_init(
+            &mut finalized_node,
+            finalized_name.as_ptr(),
+            node_namespace.as_ptr(),
+            fixture.context(),
+            &node_options,
+        );
+        assert_eq!(ret, RCL_RET_OK as i32);
+        let ret = rcl_node_fini(&mut finalized_node);
+        assert_eq!(ret, RCL_RET_OK as i32);
+
+        let ret = rcl_get_node_names(
+            &finalized_node,
+            rcl_get_default_allocator(),
+            &mut node_names,
+            &mut node_namespaces,
+        );
+        assert_eq!(
+            ret, RCL_RET_NODE_INVALID as i32,
+            "Expected NODE_INVALID for finalized node"
         );
 
         let ret = rcl_node_fini(&mut node);

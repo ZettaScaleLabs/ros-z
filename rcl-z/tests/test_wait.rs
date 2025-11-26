@@ -469,3 +469,103 @@ fn test_timer_with_wait() {
     let ret = rcl_wait_set_fini(&mut wait_set);
     assert_eq!(ret, RCL_RET_OK as i32);
 }
+
+#[test]
+fn test_zero_timeout_with_triggered_guard_condition() {
+    let mut fixture = TestWaitSetFixture::new();
+
+    let mut wait_set = rcl_get_zero_initialized_wait_set();
+    let ret = unsafe { rcl_wait_set_init(
+        &mut wait_set,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        fixture.context(),
+        rcl_get_default_allocator(),
+    ) };
+    assert_eq!(ret, RCL_RET_OK as i32);
+
+    let mut guard_cond = rcl_get_zero_initialized_guard_condition();
+    let ret = unsafe {
+        rcl_guard_condition_init(
+            &mut guard_cond,
+            fixture.context(),
+            rcl_guard_condition_get_default_options(),
+        )
+    };
+    assert_eq!(ret, RCL_RET_OK as i32);
+
+    let ret = rcl_wait_set_add_guard_condition(&mut wait_set, &guard_cond, ptr::null_mut());
+    assert_eq!(ret, RCL_RET_OK as i32);
+
+    // Trigger the guard condition
+    let ret = rcl_trigger_guard_condition(&mut guard_cond);
+    assert_eq!(ret, RCL_RET_OK as i32);
+
+    // Wait with zero timeout - should return immediately since guard condition is triggered
+    let before = std::time::Instant::now();
+    let ret = rcl_wait(&mut wait_set, 0); // zero timeout
+    let elapsed = before.elapsed().as_micros();
+
+    assert_eq!(ret, RCL_RET_OK as i32);
+    assert!(elapsed < 1000); // Should return almost immediately (< 1ms)
+
+    let ret = rcl_guard_condition_fini(&mut guard_cond);
+    assert_eq!(ret, RCL_RET_OK as i32);
+
+    let ret = rcl_wait_set_fini(&mut wait_set);
+    assert_eq!(ret, RCL_RET_OK as i32);
+}
+
+#[test]
+fn test_guard_condition_negative_timeout() {
+    let mut fixture = TestWaitSetFixture::new();
+
+    let mut wait_set = rcl_get_zero_initialized_wait_set();
+    let ret = unsafe { rcl_wait_set_init(
+        &mut wait_set,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        fixture.context(),
+        rcl_get_default_allocator(),
+    ) };
+    assert_eq!(ret, RCL_RET_OK as i32);
+
+    let mut guard_cond = rcl_get_zero_initialized_guard_condition();
+    let ret = unsafe {
+        rcl_guard_condition_init(
+            &mut guard_cond,
+            fixture.context(),
+            rcl_guard_condition_get_default_options(),
+        )
+    };
+    assert_eq!(ret, RCL_RET_OK as i32);
+
+    let ret = rcl_wait_set_add_guard_condition(&mut wait_set, &guard_cond, ptr::null_mut());
+    assert_eq!(ret, RCL_RET_OK as i32);
+
+    // Trigger the guard condition
+    let ret = rcl_trigger_guard_condition(&mut guard_cond);
+    assert_eq!(ret, RCL_RET_OK as i32);
+
+    // Wait with negative timeout - should be treated as no timeout (wait indefinitely until ready)
+    let before = std::time::Instant::now();
+    let ret = rcl_wait(&mut wait_set, -1); // negative timeout
+    let elapsed = before.elapsed().as_micros();
+
+    assert_eq!(ret, RCL_RET_OK as i32);
+    assert!(elapsed < 1000); // Should return almost immediately since guard condition is triggered
+
+    let ret = rcl_guard_condition_fini(&mut guard_cond);
+    assert_eq!(ret, RCL_RET_OK as i32);
+
+    let ret = rcl_wait_set_fini(&mut wait_set);
+    assert_eq!(ret, RCL_RET_OK as i32);
+}

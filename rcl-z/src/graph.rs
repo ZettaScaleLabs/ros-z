@@ -68,6 +68,28 @@ pub extern "C" fn rcl_get_zero_initialized_names_and_types() -> rcl_names_and_ty
     rcl_names_and_types_t::default()
 }
 
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn rcl_names_and_types_init(
+    names_and_types: *mut rcl_names_and_types_t,
+    size: usize,
+    allocator: *mut rcl_allocator_t,
+) -> rcl_ret_t {
+    if names_and_types.is_null() || allocator.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    // Initialize names array
+    let names = rcutils_string_array_t::from(Vec::new());
+    let types = Box::into_raw(Box::new(rcutils_string_array_t::from(Vec::new())));
+
+    unsafe {
+        (*names_and_types).names = names;
+        (*names_and_types).types = types;
+    }
+
+    RCL_RET_OK as _
+}
+
 // impl TryFrom<EndpointEntity> for rcl_names_and_types_t {
 //     type Error = NulError;
 //     fn try_from(value: EndpointEntity) -> Result<Self, Self::Error> {
@@ -169,12 +191,24 @@ pub unsafe extern "C" fn rcl_get_topic_names_and_types(
     _no_demangle: bool,
     topic_names_and_types: *mut rcl_names_and_types_t,
 ) -> rcl_ret_t {
-    tracing::error!("rcl_get_topic_names_and_types");
-    assert!(!topic_names_and_types.is_null());
+    tracing::trace!("rcl_get_topic_names_and_types");
 
-    let node_impl = node.borrow_impl().unwrap();
+    if node.is_null() {
+        return RCL_RET_NODE_INVALID as _;
+    }
+    if topic_names_and_types.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
 
-    let topic_data = node_impl.graph().get_topic_names_and_types();
+    if !crate::node::rcl_node_is_valid(node) {
+        return RCL_RET_NODE_INVALID as _;
+    }
+
+    let topic_data = if let Ok(node_impl) = node.borrow_impl() {
+        node_impl.graph().get_topic_names_and_types()
+    } else {
+        Vec::new()
+    };
 
     let mut topic_names = Vec::new();
     let mut type_names = Vec::new();
@@ -196,7 +230,6 @@ pub unsafe extern "C" fn rcl_get_topic_names_and_types(
 pub unsafe extern "C" fn rcl_names_and_types_fini(
     topic_names_and_types: *mut rcl_names_and_types_t,
 ) -> rcl_ret_t {
-    tracing::error!("rcl_names_and_types_fini");
     if topic_names_and_types.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
     }
@@ -212,7 +245,6 @@ pub unsafe extern "C" fn rcl_get_service_names_and_types(
     _allocator: *mut rcl_allocator_t,
     service_names_and_types: *mut rcl_names_and_types_t,
 ) -> rcl_ret_t {
-    tracing::error!("rcl_get_service_names_and_types");
     if node.is_null() {
         return RCL_RET_NODE_INVALID as _;
     }
@@ -257,8 +289,10 @@ fn rcl_get_names_and_types_by_node_impl(
     names_and_types: *mut rcl_names_and_types_t,
     kind: EntityKind,
 ) -> rcl_ret_t {
-    if node.is_null()
-        || remote_node_name.is_null()
+    if node.is_null() {
+        return RCL_RET_NODE_INVALID as _;
+    }
+    if remote_node_name.is_null()
         || remote_node_namespace.is_null()
         || names_and_types.is_null()
     {
@@ -267,7 +301,7 @@ fn rcl_get_names_and_types_by_node_impl(
 
     let node_impl = match node.borrow_impl() {
         Ok(impl_) => impl_,
-        Err(_) => return RCL_RET_INVALID_ARGUMENT as _,
+        Err(_) => return RCL_RET_NODE_INVALID as _,
     };
 
     let remote_name = match str_from_ptr(remote_node_name) {
@@ -373,24 +407,25 @@ pub extern "C" fn rcl_get_client_names_and_types_by_node(
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_get_publishers_info_by_topic(
     node: *const rcl_node_t,
-    _allocator: *mut rcutils_allocator_t,
+    allocator: *mut rcutils_allocator_t,
     topic_name: *const ::std::os::raw::c_char,
     _no_mangle: bool,
     publishers_info: *mut rcl_topic_endpoint_info_array_t,
 ) -> rcl_ret_t {
-    rcl_get_entities_info_by_topic(node, topic_name, publishers_info, EntityKind::Publisher)
+    rcl_get_entities_info_by_topic(node, allocator, topic_name, publishers_info, EntityKind::Publisher)
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_get_subscriptions_info_by_topic(
     node: *const rcl_node_t,
-    _allocator: *mut rcutils_allocator_t,
+    allocator: *mut rcutils_allocator_t,
     topic_name: *const ::std::os::raw::c_char,
     _no_mangle: bool,
     subscriptions_info: *mut rcl_topic_endpoint_info_array_t,
 ) -> rcl_ret_t {
     rcl_get_entities_info_by_topic(
         node,
+        allocator,
         topic_name,
         subscriptions_info,
         EntityKind::Subscription,
@@ -399,12 +434,16 @@ pub extern "C" fn rcl_get_subscriptions_info_by_topic(
 
 fn rcl_get_entities_info_by_topic(
     node: *const rcl_node_t,
+    allocator: *mut rcutils_allocator_t,
     topic_name: *const ::std::os::raw::c_char,
     entities_info: *mut rcl_topic_endpoint_info_array_t,
     kind: EntityKind,
 ) -> rcl_ret_t {
     if node.is_null() {
         return RCL_RET_NODE_INVALID as _;
+    }
+    if allocator.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
     }
     if topic_name.is_null() || entities_info.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
@@ -564,13 +603,16 @@ pub unsafe extern "C" fn rcl_get_node_names(
     node_names: *mut rcutils_string_array_t,
     node_namespaces: *mut rcutils_string_array_t,
 ) -> rcl_ret_t {
-    if node.is_null() || node_names.is_null() || node_namespaces.is_null() {
+    if node.is_null() {
+        return RCL_RET_NODE_INVALID as _;
+    }
+    if node_names.is_null() || node_namespaces.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
     }
 
     let node_impl = match node.borrow_impl() {
         Ok(impl_) => impl_,
-        Err(_) => return RCL_RET_INVALID_ARGUMENT as _,
+        Err(_) => return RCL_RET_NODE_INVALID as _,
     };
 
     // Get all nodes from the graph
@@ -594,20 +636,124 @@ pub unsafe extern "C" fn rcl_get_node_names(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn rcl_get_node_names_with_enclaves(
+pub extern "C" fn rcl_get_node_names_with_enclaves(
     node: *const rcl_node_t,
     allocator: rcl_allocator_t,
     node_names: *mut rcutils_string_array_t,
     node_namespaces: *mut rcutils_string_array_t,
     enclaves: *mut rcutils_string_array_t,
 ) -> rcl_ret_t {
-    if node.is_null()
-        || node_names.is_null()
+    if node.is_null() {
+        return RCL_RET_NODE_INVALID as _;
+    }
+    if node_names.is_null()
         || node_namespaces.is_null()
         || enclaves.is_null()
     {
         return RCL_RET_INVALID_ARGUMENT as _;
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn rcl_wait_for_publishers(
+    node: *const rcl_node_t,
+    allocator: *mut rcl_allocator_t,
+    topic_name: *const ::std::os::raw::c_char,
+    count: usize,
+    timeout: i64,
+    success: *mut bool,
+) -> rcl_ret_t {
+    if node.is_null() {
+        return RCL_RET_NODE_INVALID as _;
     }
+    if allocator.is_null() || topic_name.is_null() || success.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    let node_impl = match node.borrow_impl() {
+        Ok(impl_) => impl_,
+        Err(_) => return RCL_RET_NODE_INVALID as _,
+    };
+
+    let topic = match str_from_ptr(topic_name) {
+        Ok(s) => s,
+        Err(_) => return RCL_RET_INVALID_ARGUMENT as _,
+    };
+
+    // Wait for publishers by polling the graph
+    let start_time = std::time::Instant::now();
+    let timeout_duration = if timeout < 0 {
+        std::time::Duration::from_secs(30) // Default timeout
+    } else {
+        std::time::Duration::from_nanos(timeout as u64)
+    };
+
+    loop {
+        let publisher_count = node_impl.graph().count(EntityKind::Publisher, topic);
+        if publisher_count >= count {
+            unsafe { *success = true; }
+            return RCL_RET_OK as _;
+        }
+
+        if start_time.elapsed() >= timeout_duration {
+            unsafe { *success = false; }
+            return RCL_RET_TIMEOUT as _;
+        }
+
+        // Sleep for a short time before checking again
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn rcl_wait_for_subscribers(
+    node: *const rcl_node_t,
+    allocator: *mut rcl_allocator_t,
+    topic_name: *const ::std::os::raw::c_char,
+    count: usize,
+    timeout: i64,
+    success: *mut bool,
+) -> rcl_ret_t {
+    if node.is_null() {
+        return RCL_RET_NODE_INVALID as _;
+    }
+    if allocator.is_null() || topic_name.is_null() || success.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    let node_impl = match node.borrow_impl() {
+        Ok(impl_) => impl_,
+        Err(_) => return RCL_RET_NODE_INVALID as _,
+    };
+
+    let topic = match str_from_ptr(topic_name) {
+        Ok(s) => s,
+        Err(_) => return RCL_RET_INVALID_ARGUMENT as _,
+    };
+
+    // Wait for subscribers by polling the graph
+    let start_time = std::time::Instant::now();
+    let timeout_duration = if timeout < 0 {
+        std::time::Duration::from_secs(30) // Default timeout
+    } else {
+        std::time::Duration::from_nanos(timeout as u64)
+    };
+
+    loop {
+        let subscriber_count = node_impl.graph().count(EntityKind::Subscription, topic);
+        if subscriber_count >= count {
+            unsafe { *success = true; }
+            return RCL_RET_OK as _;
+        }
+
+        if start_time.elapsed() >= timeout_duration {
+            unsafe { *success = false; }
+            return RCL_RET_TIMEOUT as _;
+        }
+
+        // Sleep for a short time before checking again
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
 
     let node_impl = match node.borrow_impl() {
         Ok(impl_) => impl_,

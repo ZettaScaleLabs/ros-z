@@ -150,6 +150,7 @@ impl NodeImpl {
 
         // Cache the qualified topic name from the built publisher
         let topic_clone = CString::new(zpub.entity.topic.clone())?;
+
         let options = unsafe { std::ptr::read(options) };
 
         Ok(PublisherImpl {
@@ -361,8 +362,6 @@ pub extern "C" fn rcl_node_get_name(node: *const rcl_node_t) -> *const ::std::os
         Err(_) => std::ptr::null(),
     }
 }
-
-// FIXME: Implement rcl_node_get_options
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn rcl_expand_topic_name(

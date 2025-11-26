@@ -352,6 +352,13 @@ impl Entity {
             Self::Endpoint(x) => x.kind,
         }
     }
+
+    pub fn id(&self) -> u64 {
+        match self {
+            Self::Node(x) => x.id as u64,
+            Self::Endpoint(x) => x.id as u64,
+        }
+    }
 }
 
 #[derive(Debug)]

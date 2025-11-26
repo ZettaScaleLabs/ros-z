@@ -285,6 +285,14 @@ pub extern "C" fn rcl_init(
     }
 }
 
+/// Get the RMW implementation identifier.
+///
+/// Returns a string identifying the RMW implementation used by this RCL implementation.
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_get_rmw_implementation_identifier() -> *const c_char {
+    c"rmw_zenoh_cpp".as_ptr()
+}
+
 /// Get the default domain ID from the ROS_DOMAIN_ID environment variable.
 ///
 /// If ROS_DOMAIN_ID is not set or is empty, domain_id is left unchanged and RCL_RET_OK is returned.
@@ -302,6 +310,7 @@ pub unsafe extern "C" fn rcl_get_default_domain_id(domain_id: *mut usize) -> rcl
     // Try to read ROS_DOMAIN_ID environment variable
     match env::var("ROS_DOMAIN_ID") {
         Ok(value) => {
+            tracing::trace!("ROS_DOMAIN_ID found: '{}'", value);
             // If the value is empty, leave domain_id unchanged
             if value.is_empty() {
                 return RCL_RET_OK as _;
@@ -330,6 +339,7 @@ pub unsafe extern "C" fn rcl_get_default_domain_id(domain_id: *mut usize) -> rcl
             // Try to parse the trimmed value
             match trimmed.parse::<usize>() {
                 Ok(parsed_value) => {
+                    tracing::trace!("Parsed ROS_DOMAIN_ID to: {}", parsed_value);
                     unsafe {
                         *domain_id = parsed_value;
                     }
