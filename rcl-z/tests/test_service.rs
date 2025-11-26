@@ -29,15 +29,16 @@ use rcl_z::{
         rcl_take_request, rcl_take_request_with_info, rcl_take_response,
         rcl_take_response_with_info,
     },
-
 };
 
 mod test_msgs_support;
 
-
-
 /// Wait for the server (service) to be available from the client's perspective
-fn wait_for_server_to_be_available(node: *const rcl_node_t, client: &rcl_client_t, timeout_ms: u64) -> bool {
+fn wait_for_server_to_be_available(
+    node: *const rcl_node_t,
+    client: &rcl_client_t,
+    timeout_ms: u64,
+) -> bool {
     let start = std::time::Instant::now();
     while start.elapsed() < std::time::Duration::from_millis(timeout_ms) {
         let mut is_available = false;
@@ -116,7 +117,10 @@ impl Drop for TestServiceFixture {
         // In Zenoh implementation, shutdown may timeout due to network issues
         // Log the error but don't panic to avoid test failures
         if ret != RCL_RET_OK as i32 {
-            eprintln!("Warning: rcl_shutdown failed with code {}, but continuing", ret);
+            eprintln!(
+                "Warning: rcl_shutdown failed with code {}, but continuing",
+                ret
+            );
         }
 
         let ret = rcl_context_fini(&mut self.context);
@@ -319,7 +323,10 @@ fn test_service_without_info() {
         assert_eq!(ret, RCL_RET_OK as i32, "Failed to init client");
 
         // Wait for service to be discovered
-        assert!(wait_for_server_to_be_available(fixture.node() as *const _, &client, 10000), "Service should be available within timeout");
+        assert!(
+            wait_for_server_to_be_available(fixture.node() as *const _, &client, 10000),
+            "Service should be available within timeout"
+        );
 
         // Create and send request
         let mut client_request = test_msgs__srv__BasicTypes_Request::default();
@@ -1131,7 +1138,10 @@ fn test_service_client_communication() {
         assert_eq!(ret, RCL_RET_OK as i32, "Failed to initialize client");
 
         // Wait for service to be discovered
-        assert!(wait_for_server_to_be_available(fixture.node() as *const _, &client, 10000), "Service should be available within timeout");
+        assert!(
+            wait_for_server_to_be_available(fixture.node() as *const _, &client, 10000),
+            "Service should be available within timeout"
+        );
 
         // Create and send request
         let mut client_request = test_msgs__srv__BasicTypes_Request::default();

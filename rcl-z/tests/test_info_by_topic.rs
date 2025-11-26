@@ -10,18 +10,19 @@ mod test_msgs_support;
 use std::ptr;
 
 use rcl_z::{
-    context::{rcl_context_fini, rcl_context_is_valid, rcl_get_zero_initialized_context, rcl_shutdown},
-    graph::{
-        rcl_get_publishers_info_by_topic, rcl_get_subscriptions_info_by_topic,
+    context::{
+        rcl_context_fini, rcl_context_is_valid, rcl_get_zero_initialized_context, rcl_shutdown,
     },
+    graph::{rcl_get_publishers_info_by_topic, rcl_get_subscriptions_info_by_topic},
     init::{
         rcl_get_default_allocator, rcl_get_zero_initialized_init_options, rcl_init,
         rcl_init_options_fini, rcl_init_options_init,
     },
-    node::{rcl_get_zero_initialized_node, rcl_node_fini, rcl_node_get_default_options, rcl_node_init},
+    node::{
+        rcl_get_zero_initialized_node, rcl_node_fini, rcl_node_get_default_options, rcl_node_init,
+    },
     ros::*,
 };
-
 
 /// Test fixture for topic info by topic tests
 struct TestInfoByTopicFixture {
@@ -48,13 +49,15 @@ impl TestInfoByTopicFixture {
         let mut old_node = rcl_get_zero_initialized_node();
         let old_name = c"old_node_name";
         let node_options = rcl_node_get_default_options();
-            let ret = unsafe { rcl_node_init(
+        let ret = unsafe {
+            rcl_node_init(
                 &mut old_node,
                 old_name.as_ptr(),
                 c"".as_ptr(),
                 &mut old_context,
                 &node_options,
-            ) };
+            )
+        };
         assert_eq!(ret, RCL_RET_OK as i32);
 
         let ret = rcl_shutdown(&mut old_context);
@@ -66,13 +69,15 @@ impl TestInfoByTopicFixture {
 
         let mut node = rcl_get_zero_initialized_node();
         let name = c"test_graph_node";
-            let ret = unsafe { rcl_node_init(
+        let ret = unsafe {
+            rcl_node_init(
                 &mut node,
                 name.as_ptr(),
                 c"".as_ptr(),
                 &mut context,
                 &node_options,
-            ) };
+            )
+        };
         assert_eq!(ret, RCL_RET_OK as i32);
 
         TestInfoByTopicFixture {
@@ -287,7 +292,9 @@ fn test_rcl_get_publishers_info_by_topic_invalid_participants() {
     );
     assert_eq!(ret, RCL_RET_ERROR as i32);
     // Clean up
-    unsafe { let _ = Box::from_raw(invalid_ptr); }
+    unsafe {
+        let _ = Box::from_raw(invalid_ptr);
+    }
 }
 
 #[test]
@@ -310,7 +317,9 @@ fn test_rcl_get_subscriptions_info_by_topic_invalid_participants() {
     );
     assert_eq!(ret, RCL_RET_ERROR as i32);
     // Clean up
-    unsafe { let _ = Box::from_raw(invalid_ptr); }
+    unsafe {
+        let _ = Box::from_raw(invalid_ptr);
+    }
 }
 
 /// Test main functionality of rcl_get_publishers_info_by_topic

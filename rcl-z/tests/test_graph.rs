@@ -34,9 +34,7 @@ use rcl_z::{
     node::{
         rcl_get_zero_initialized_node, rcl_node_fini, rcl_node_get_default_options, rcl_node_init,
     },
-    pubsub::{
-        rcl_subscription_fini, rcl_subscription_get_default_options, rcl_subscription_init,
-    },
+    pubsub::{rcl_subscription_fini, rcl_subscription_get_default_options, rcl_subscription_init},
     ros::*,
 };
 
@@ -171,10 +169,16 @@ impl NodeGraphMultiNodeFixture {
             // Initialize rosout publishers for both nodes
             if rcl_logging_rosout_enabled() && node_options.enable_rosout {
                 let ret = rcl_logging_rosout_init_publisher_for_node(&mut node);
-                assert_eq!(ret, RCL_RET_OK as i32, "Failed to initialize rosout publisher for node");
+                assert_eq!(
+                    ret, RCL_RET_OK as i32,
+                    "Failed to initialize rosout publisher for node"
+                );
 
                 let ret = rcl_logging_rosout_init_publisher_for_node(&mut remote_node);
-                assert_eq!(ret, RCL_RET_OK as i32, "Failed to initialize rosout publisher for remote node");
+                assert_eq!(
+                    ret, RCL_RET_OK as i32,
+                    "Failed to initialize rosout publisher for remote node"
+                );
             }
 
             NodeGraphMultiNodeFixture {
@@ -203,16 +207,25 @@ impl Drop for NodeGraphMultiNodeFixture {
             let node_ops = rcl_node_get_options(&self.node);
             if rcl_logging_rosout_enabled() && !node_ops.is_null() && (*node_ops).enable_rosout {
                 let ret = rcl_logging_rosout_fini_publisher_for_node(&mut self.node);
-                assert_eq!(ret, RCL_RET_OK as i32, "Failed to finalize rosout publisher for node");
+                assert_eq!(
+                    ret, RCL_RET_OK as i32,
+                    "Failed to finalize rosout publisher for node"
+                );
             }
 
             let ret = rcl_node_fini(&mut self.node);
             assert_eq!(ret, RCL_RET_OK as i32, "Failed to finalize node");
 
             let remote_node_ops = rcl_node_get_options(&self.remote_node);
-            if rcl_logging_rosout_enabled() && !remote_node_ops.is_null() && (*remote_node_ops).enable_rosout {
+            if rcl_logging_rosout_enabled()
+                && !remote_node_ops.is_null()
+                && (*remote_node_ops).enable_rosout
+            {
                 let ret = rcl_logging_rosout_fini_publisher_for_node(&mut self.remote_node);
-                assert_eq!(ret, RCL_RET_OK as i32, "Failed to finalize rosout publisher for remote node");
+                assert_eq!(
+                    ret, RCL_RET_OK as i32,
+                    "Failed to finalize rosout publisher for remote node"
+                );
             }
 
             let ret = rcl_node_fini(&mut self.remote_node);
@@ -278,7 +291,11 @@ unsafe fn expect_topics_types(
         }
         *is_success &= num_topics == nat.names.size;
         if expect {
-            assert_eq!(num_topics, nat.names.size, "Expected {} topics, got {}", num_topics, nat.names.size);
+            assert_eq!(
+                num_topics, nat.names.size,
+                "Expected {} topics, got {}",
+                num_topics, nat.names.size
+            );
         }
         let ret = rcl_names_and_types_fini(&mut nat);
         assert_eq!(ret, RCL_RET_OK as i32, "Failed to finalize names and types");
@@ -287,7 +304,11 @@ unsafe fn expect_topics_types(
 
 /// Verify subsystem count for both nodes
 impl NodeGraphMultiNodeFixture {
-    fn verify_subsystem_count(&mut self, node_state: ExpectedNodeState, remote_node_state: ExpectedNodeState) {
+    fn verify_subsystem_count(
+        &mut self,
+        node_state: ExpectedNodeState,
+        remote_node_state: ExpectedNodeState,
+    ) {
         let node_vec = vec![self.node(), self.remote_node()];
 
         let attempts = 50;
@@ -460,12 +481,8 @@ fn test_get_topic_names_and_types() {
 
         // Test with zero-initialized node
         let zero_node = rcl_get_zero_initialized_node();
-        let ret = rcl_get_topic_names_and_types(
-            &zero_node,
-            ptr::null_mut(),
-            false,
-            &mut names_and_types,
-        );
+        let ret =
+            rcl_get_topic_names_and_types(&zero_node, ptr::null_mut(), false, &mut names_and_types);
         assert_eq!(ret, RCL_RET_NODE_INVALID as i32);
 
         // Test with finalized node
@@ -478,12 +495,8 @@ fn test_get_topic_names_and_types() {
         assert_eq!(ret, RCL_RET_NODE_INVALID as i32);
 
         // Test with null names_and_types
-        let ret = rcl_get_topic_names_and_types(
-            fixture.node(),
-            ptr::null_mut(),
-            false,
-            ptr::null_mut(),
-        );
+        let ret =
+            rcl_get_topic_names_and_types(fixture.node(), ptr::null_mut(), false, ptr::null_mut());
         assert_eq!(ret, RCL_RET_INVALID_ARGUMENT as i32);
 
         // Valid call
@@ -1087,15 +1100,36 @@ fn test_rcl_wait_for_publishers() {
         let mut success = false;
 
         // Test with null node
-        let ret = rcl_wait_for_publishers(ptr::null(), &mut allocator, topic_name.as_ptr(), 1, 1000000000, &mut success);
+        let ret = rcl_wait_for_publishers(
+            ptr::null(),
+            &mut allocator,
+            topic_name.as_ptr(),
+            1,
+            1000000000,
+            &mut success,
+        );
         assert_eq!(ret, RCL_RET_NODE_INVALID as i32);
 
         // Test with null topic_name
-        let ret = rcl_wait_for_publishers(fixture.node(), &mut allocator, ptr::null(), 1, 1000000000, &mut success);
+        let ret = rcl_wait_for_publishers(
+            fixture.node(),
+            &mut allocator,
+            ptr::null(),
+            1,
+            1000000000,
+            &mut success,
+        );
         assert_eq!(ret, RCL_RET_INVALID_ARGUMENT as i32);
 
         // Test timeout case (no publishers available)
-        let ret = rcl_wait_for_publishers(fixture.node(), &mut allocator, topic_name.as_ptr(), 1, 1000000, &mut success); // 1ms timeout
+        let ret = rcl_wait_for_publishers(
+            fixture.node(),
+            &mut allocator,
+            topic_name.as_ptr(),
+            1,
+            1000000,
+            &mut success,
+        ); // 1ms timeout
         assert_eq!(ret, RCL_RET_TIMEOUT as i32);
         assert!(!success);
     }
@@ -1112,15 +1146,36 @@ fn test_rcl_wait_for_subscribers() {
         let mut success = false;
 
         // Test with null node
-        let ret = rcl_wait_for_subscribers(ptr::null(), &mut allocator, topic_name.as_ptr(), 1, 1000000000, &mut success);
+        let ret = rcl_wait_for_subscribers(
+            ptr::null(),
+            &mut allocator,
+            topic_name.as_ptr(),
+            1,
+            1000000000,
+            &mut success,
+        );
         assert_eq!(ret, RCL_RET_NODE_INVALID as i32);
 
         // Test with null topic_name
-        let ret = rcl_wait_for_subscribers(fixture.node(), &mut allocator, ptr::null(), 1, 1000000000, &mut success);
+        let ret = rcl_wait_for_subscribers(
+            fixture.node(),
+            &mut allocator,
+            ptr::null(),
+            1,
+            1000000000,
+            &mut success,
+        );
         assert_eq!(ret, RCL_RET_INVALID_ARGUMENT as i32);
 
         // Test timeout case (no subscribers available)
-        let ret = rcl_wait_for_subscribers(fixture.node(), &mut allocator, topic_name.as_ptr(), 1, 1000000, &mut success); // 1ms timeout
+        let ret = rcl_wait_for_subscribers(
+            fixture.node(),
+            &mut allocator,
+            topic_name.as_ptr(),
+            1,
+            1000000,
+            &mut success,
+        ); // 1ms timeout
         assert_eq!(ret, RCL_RET_TIMEOUT as i32);
         assert!(!success);
     }
@@ -1136,13 +1191,28 @@ fn test_node_info_subscriptions() {
         let mut sub = rcl_get_zero_initialized_subscription();
         let sub_ops = rcl_subscription_get_default_options();
         let ts = ROSIDL_GET_MSG_TYPE_SUPPORT!(test_msgs, msg, BasicTypes);
-        let ret = rcl_subscription_init(&mut sub, fixture.node(), ts, fixture.topic_name.as_ptr().cast(), &sub_ops);
+        let ret = rcl_subscription_init(
+            &mut sub,
+            fixture.node(),
+            ts,
+            fixture.topic_name.as_ptr().cast(),
+            &sub_ops,
+        );
         assert_eq!(ret, RCL_RET_OK as i32, "Failed to initialize subscription");
 
         let mut sub2 = rcl_get_zero_initialized_subscription();
         let sub_ops2 = rcl_subscription_get_default_options();
-        let ret = rcl_subscription_init(&mut sub2, fixture.remote_node(), ts, fixture.topic_name.as_ptr().cast(), &sub_ops2);
-        assert_eq!(ret, RCL_RET_OK as i32, "Failed to initialize remote subscription");
+        let ret = rcl_subscription_init(
+            &mut sub2,
+            fixture.remote_node(),
+            ts,
+            fixture.topic_name.as_ptr().cast(),
+            &sub_ops2,
+        );
+        assert_eq!(
+            ret, RCL_RET_OK as i32,
+            "Failed to initialize remote subscription"
+        );
 
         fixture.verify_subsystem_count(
             ExpectedNodeState::new(0, 1, 0, 0),
@@ -1159,7 +1229,10 @@ fn test_node_info_subscriptions() {
 
         // Destroy the remote node's subscriber
         let ret = rcl_subscription_fini(&mut sub2, fixture.remote_node());
-        assert_eq!(ret, RCL_RET_OK as i32, "Failed to finalize remote subscription");
+        assert_eq!(
+            ret, RCL_RET_OK as i32,
+            "Failed to finalize remote subscription"
+        );
         fixture.verify_subsystem_count(
             ExpectedNodeState::new(0, 0, 0, 0),
             ExpectedNodeState::new(0, 0, 0, 0),
