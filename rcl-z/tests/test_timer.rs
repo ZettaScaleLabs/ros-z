@@ -157,12 +157,26 @@ fn test_timer_with_invalid_clock() {
         let ret = rcl_init(0, ptr::null(), &init_options, &mut context);
         assert_eq!(ret, RCL_RET_OK as i32);
 
+        // Initialize clock with UNINITIALIZED type (this should succeed)
         let mut clock = rcl_clock_t::default();
         let mut allocator = rcl_get_default_allocator();
         let ret = rcl_clock_init(
             rcl_clock_type_e::RCL_CLOCK_UNINITIALIZED,
             &mut clock,
             &mut allocator as *mut _,
+        );
+        assert_eq!(ret, RCL_RET_OK as i32);
+
+        // Try to create timer with uninitialized clock (this should fail)
+        let mut timer = rcl_get_zero_initialized_timer();
+        let ret = rcl_timer_init2(
+            &mut timer,
+            &mut clock,
+            &mut context,
+            0,
+            None,
+            allocator,
+            true,
         );
         assert_eq!(ret, RCL_RET_ERROR as i32);
 

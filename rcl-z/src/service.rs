@@ -21,6 +21,7 @@ pub struct ClientImpl {
     pub(crate) ts: ServiceTypeSupport,
     pub(crate) notifier: Arc<Notifier>,
     pub(crate) service_name: String,
+    pub(crate) options: rcl_client_options_t,
 }
 
 pub struct ServiceImpl {
@@ -141,6 +142,27 @@ pub unsafe extern "C" fn rcl_client_init(
         return RCL_RET_INVALID_ARGUMENT as _;
     }
 
+    // Check allocator
+    if unsafe { (*_options).allocator.allocate.is_none() || (*_options).allocator.deallocate.is_none() } {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    // Validate service name
+    unsafe {
+        let mut validation_result: i32 = 0;
+        let ret = crate::validate_topic_name::rcl_validate_topic_name(
+            service_name,
+            &mut validation_result,
+            std::ptr::null_mut(),
+        );
+        if ret != RCL_RET_OK as i32 {
+            return ret;
+        }
+        if validation_result != crate::validate_topic_name::RCL_TOPIC_NAME_VALID {
+            return RCL_RET_SERVICE_NAME_INVALID as _;
+        }
+    }
+
     let x = move || {
         let cli_impl = unsafe {
             node.borrow_impl()?
@@ -202,7 +224,7 @@ pub unsafe extern "C" fn rcl_send_request(
     sequence_number: *mut i64,
 ) -> rcl_ret_t {
     if client.is_null() {
-        return RCL_RET_CLIENT_INVALID as _;
+        return RCL_RET_INVALID_ARGUMENT as _;
     }
     if sequence_number.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
@@ -229,19 +251,21 @@ pub unsafe extern "C" fn rcl_take_response(
     ros_response: *mut c_void,
 ) -> rcl_ret_t {
     if client.is_null() {
-        return RCL_RET_CLIENT_INVALID as _;
+        return RCL_RET_INVALID_ARGUMENT as _;
     }
+
+    // Check if client is valid before checking other arguments
+    let client_impl = match client.borrow_impl() {
+        Ok(impl_) => impl_,
+        Err(_) => return RCL_RET_CLIENT_INVALID as _,
+    };
+
     if request_header.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
     }
     if ros_response.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
     }
-
-    let client_impl = match client.borrow_impl() {
-        Ok(impl_) => impl_,
-        Err(_) => return RCL_RET_CLIENT_INVALID as _,
-    };
 
     let request_id = match unsafe { client_impl.take_response(ros_response) } {
         Ok(id) => id,
@@ -263,19 +287,21 @@ pub unsafe extern "C" fn rcl_take_response_with_info(
     ros_response: *mut c_void,
 ) -> rcl_ret_t {
     if client.is_null() {
-        return RCL_RET_CLIENT_INVALID as _;
+        return RCL_RET_INVALID_ARGUMENT as _;
     }
+
+    // Check if client is valid before checking other arguments
+    let client_impl = match client.borrow_impl() {
+        Ok(impl_) => impl_,
+        Err(_) => return RCL_RET_CLIENT_INVALID as _,
+    };
+
     if request_header.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
     }
     if ros_response.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
     }
-
-    let client_impl = match client.borrow_impl() {
-        Ok(impl_) => impl_,
-        Err(_) => return RCL_RET_CLIENT_INVALID as _,
-    };
 
     let request_id = match unsafe { client_impl.take_response(ros_response) } {
         Ok(id) => id,
@@ -392,6 +418,27 @@ pub unsafe extern "C" fn rcl_service_init(
 
     if type_support.is_null() || service_name.is_null() || _options.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    // Check allocator
+    if unsafe { (*_options).allocator.allocate.is_none() || (*_options).allocator.deallocate.is_none() } {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    // Validate service name
+    unsafe {
+        let mut validation_result: i32 = 0;
+        let ret = crate::validate_topic_name::rcl_validate_topic_name(
+            service_name,
+            &mut validation_result,
+            std::ptr::null_mut(),
+        );
+        if ret != RCL_RET_OK as i32 {
+            return ret;
+        }
+        if validation_result != crate::validate_topic_name::RCL_TOPIC_NAME_VALID {
+            return RCL_RET_SERVICE_NAME_INVALID as _;
+        }
     }
 
     let x = move || {
@@ -539,8 +586,10 @@ pub extern "C" fn rcl_service_get_service_name(
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_client_get_default_options() -> rcl_client_options_t {
-    // TODO: Implement proper default options
-    unsafe { std::mem::zeroed() }
+    rcl_client_options_t {
+        qos: rmw_qos_profile_t::default(),
+        allocator: crate::init::rcl_get_default_allocator(),
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -555,7 +604,10 @@ pub extern "C" fn rcl_get_zero_initialized_service() -> rcl_service_t {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_service_get_default_options() -> rcl_service_options_t {
-    unsafe { std::mem::zeroed() }
+    rcl_service_options_t {
+        qos: rmw_qos_profile_t::default(),
+        allocator: crate::init::rcl_get_default_allocator(),
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -628,9 +680,10 @@ pub extern "C" fn rcl_client_get_options(
     if _client.is_null() {
         return std::ptr::null();
     }
-    // In the current implementation, options are not stored in the client
-    // Return null for now to indicate options are not available
-    std::ptr::null()
+    match _client.borrow_impl() {
+        Ok(impl_) => &impl_.options,
+        Err(_) => std::ptr::null(),
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -671,11 +724,7 @@ pub extern "C" fn rcl_client_request_publisher_get_actual_qos(
         return std::ptr::null();
     }
     match _client.borrow_impl() {
-        Ok(_) => {
-            // In the current implementation, we don't store QoS profiles
-            // Return null for now
-            std::ptr::null()
-        }
+        Ok(impl_) => &impl_.options.qos,
         Err(_) => std::ptr::null(),
     }
 }
@@ -688,11 +737,7 @@ pub extern "C" fn rcl_client_response_subscription_get_actual_qos(
         return std::ptr::null();
     }
     match _client.borrow_impl() {
-        Ok(_) => {
-            // In the current implementation, we don't store QoS profiles
-            // Return null for now
-            std::ptr::null()
-        }
+        Ok(impl_) => &impl_.options.qos,
         Err(_) => std::ptr::null(),
     }
 }

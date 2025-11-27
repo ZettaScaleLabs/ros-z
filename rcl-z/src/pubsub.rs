@@ -6,6 +6,7 @@ use crate::msg::RosMessage;
 use crate::node::NodeImpl;
 use crate::rclz_try;
 use crate::ros::*;
+use std::ffi::c_char;
 use crate::traits::Waitable;
 use crate::traits::{BorrowImpl, OwnImpl};
 use crate::type_support::MessageTypeSupport;
@@ -357,11 +358,60 @@ pub unsafe extern "C" fn rcl_take_serialized_message(
 ) -> rcl_ret_t {
     tracing::trace!("rcl_take_serialized_message");
 
-    if subscription.is_null() || serialized_message.is_null() {
+    if subscription.is_null() {
+        return RCL_RET_SUBSCRIPTION_INVALID as _;
+    }
+    if serialized_message.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
     }
 
-    // For now, return unsupported as serialized message taking is not implemented
+    match subscription.borrow_impl() {
+        Ok(_) => {
+            // Content filtering is not implemented
+            RCL_RET_UNSUPPORTED as _
+        }
+        Err(_) => RCL_RET_SUBSCRIPTION_INVALID as _,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_subscription_get_rmw_handle(
+    subscription: *const rcl_subscription_t,
+) -> *mut rmw_subscription_t {
+    if subscription.is_null() {
+        return ptr::null_mut();
+    }
+    // Since the struct is opaque, return null for now
+    ptr::null_mut()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_subscription_is_cft_enabled(subscription: *const rcl_subscription_t) -> bool {
+    if subscription.is_null() {
+        return false;
+    }
+    // Content filtering is not implemented
+    false
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_subscription_content_filter_options_init(
+    _subscription: *const rcl_subscription_t,
+    _filter_expression: *const c_char,
+    _expression_parameters_count: usize,
+    _expression_parameters: *const *const c_char,
+    _options: *mut rcl_subscription_content_filter_options_t,
+) -> rcl_ret_t {
+    // Content filtering is not implemented
+    RCL_RET_UNSUPPORTED as _
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_subscription_content_filter_options_fini(
+    _subscription: *const rcl_subscription_t,
+    _options: *mut rcl_subscription_content_filter_options_t,
+) -> rcl_ret_t {
+    // Content filtering is not implemented
     RCL_RET_UNSUPPORTED as _
 }
 
@@ -504,12 +554,17 @@ pub extern "C" fn rcl_subscription_get_publisher_count(
     if count.is_null() {
         return RCL_RET_INVALID_ARGUMENT as i32;
     }
-    // For Zenoh RMW implementation, we don't track matched publishers
-    // in the traditional sense, so return 0
-    unsafe {
-        *count = 0;
+    match subscription.borrow_impl() {
+        Ok(_) => {
+            // For Zenoh RMW implementation, we don't track matched publishers
+            // in the traditional sense, so return 0
+            unsafe {
+                *count = 0;
+            }
+            RCL_RET_OK as i32
+        }
+        Err(_) => RCL_RET_SUBSCRIPTION_INVALID as i32,
     }
-    RCL_RET_OK as i32
 }
 
 #[unsafe(no_mangle)]
@@ -584,11 +639,17 @@ pub extern "C" fn rcl_get_zero_initialized_subscription() -> rcl_subscription_t 
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_subscription_get_default_options() -> rcl_subscription_options_t {
-    // TODO: Implement proper default options
     let mut options = unsafe { std::mem::zeroed::<rcl_subscription_options_t>() };
 
     // Set default allocator
     options.allocator = rcl_get_default_allocator();
+
+    // Check ROS_DISABLE_LOANED_MESSAGES environment variable
+    // Default is to disable loaned messages (true)
+    options.disable_loaned_message = match std::env::var("ROS_DISABLE_LOANED_MESSAGES") {
+        Ok(val) if val == "0" => false,
+        _ => true, // Default to true for any other value or if not set
+    };
 
     options
 }

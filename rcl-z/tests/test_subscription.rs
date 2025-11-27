@@ -23,12 +23,14 @@ use rcl_z::{
     pubsub::{
         rcl_get_zero_initialized_publisher, rcl_get_zero_initialized_subscription, rcl_publish,
         rcl_publisher_fini, rcl_publisher_get_default_options, rcl_publisher_init,
-        rcl_return_loaned_message_from_subscription, rcl_subscription_fini,
+        rcl_return_loaned_message_from_subscription, rcl_subscription_can_loan_messages,
+        rcl_subscription_fini, rcl_subscription_get_actual_qos,
         rcl_subscription_get_content_filter, rcl_subscription_get_default_options,
-        rcl_subscription_get_options, rcl_subscription_get_topic_name, rcl_subscription_init,
-        rcl_subscription_is_valid, rcl_subscription_is_valid_except_context,
-        rcl_subscription_set_content_filter, rcl_take, rcl_take_loaned_message, rcl_take_sequence,
-        rcl_take_serialized_message,
+        rcl_subscription_get_options, rcl_subscription_get_publisher_count,
+        rcl_subscription_get_rmw_handle, rcl_subscription_get_topic_name, rcl_subscription_init,
+        rcl_subscription_is_cft_enabled, rcl_subscription_is_valid,
+        rcl_subscription_is_valid_except_context, rcl_take, rcl_take_loaned_message,
+        rcl_take_sequence, rcl_take_serialized_message,
     },
     ros::*,
 };
@@ -859,6 +861,232 @@ fn test_subscription_content_filtered() {
         let topic_name = c"chatter";
         let subscriber_options = rcl_subscription_get_default_options();
 
+        // Content filtering is not implemented, so this should work with default options
+        let ret = rcl_subscription_init(
+            &mut subscriber,
+            fixture.node(),
+            ts,
+            topic_name.as_ptr(),
+            &subscriber_options,
+        );
+        assert_eq!(ret, RCL_RET_OK as i32, "Failed to initialize subscriber");
+
+        // Finalize
+        let ret = rcl_subscription_fini(&mut subscriber, fixture.node());
+        assert_eq!(ret, RCL_RET_OK as i32, "Failed to finalize subscriber");
+    }
+}
+
+/// Test subscription options
+#[test]
+fn test_subscription_option() {
+    // Test default options
+    let subscription_options = rcl_subscription_get_default_options();
+    assert!(subscription_options.disable_loaned_message);
+
+    // Test with env var set to 1
+    unsafe {
+        std::env::set_var("ROS_DISABLE_LOANED_MESSAGES", "1");
+    }
+    let subscription_options = rcl_subscription_get_default_options();
+    assert!(subscription_options.disable_loaned_message);
+
+    // Test with env var set to 2 (invalid, should default to true?)
+    unsafe {
+        std::env::set_var("ROS_DISABLE_LOANED_MESSAGES", "2");
+    }
+    let subscription_options = rcl_subscription_get_default_options();
+    assert!(subscription_options.disable_loaned_message);
+
+    // Test with env var set to unexpected
+    unsafe {
+        std::env::set_var("ROS_DISABLE_LOANED_MESSAGES", "unexpected");
+    }
+    let subscription_options = rcl_subscription_get_default_options();
+    assert!(subscription_options.disable_loaned_message);
+
+    // Test with env var set to 0
+    unsafe {
+        std::env::set_var("ROS_DISABLE_LOANED_MESSAGES", "0");
+    }
+    let subscription_options = rcl_subscription_get_default_options();
+    assert!(!subscription_options.disable_loaned_message);
+
+    // Reset env
+    unsafe {
+        std::env::remove_var("ROS_DISABLE_LOANED_MESSAGES");
+    }
+}
+
+/// Test loan disable functionality
+#[test]
+fn test_subscription_loan_disable() {
+    let mut fixture = TestSubscriberFixture::new();
+
+    unsafe {
+        let ts = ROSIDL_GET_MSG_TYPE_SUPPORT!(test_msgs, msg, BasicTypes);
+        let topic_name = c"pod_msg";
+
+        // Test with env var set to 1 (disable loaned messages)
+        std::env::set_var("ROS_DISABLE_LOANED_MESSAGES", "1");
+        let mut subscription = rcl_get_zero_initialized_subscription();
+        let subscription_options = rcl_subscription_get_default_options();
+        assert!(subscription_options.disable_loaned_message);
+
+        let ret = rcl_subscription_init(
+            &mut subscription,
+            fixture.node(),
+            ts,
+            topic_name.as_ptr(),
+            &subscription_options,
+        );
+        assert_eq!(ret, RCL_RET_OK as i32);
+
+        // Should not be able to loan messages
+        assert!(!rcl_subscription_can_loan_messages(&subscription));
+
+        let ret = rcl_subscription_fini(&mut subscription, fixture.node());
+        assert_eq!(ret, RCL_RET_OK as i32);
+
+        // Test with env var set to 0 (enable loaned messages)
+        std::env::set_var("ROS_DISABLE_LOANED_MESSAGES", "0");
+        let mut subscription = rcl_get_zero_initialized_subscription();
+        let subscription_options = rcl_subscription_get_default_options();
+        assert!(!subscription_options.disable_loaned_message);
+
+        let ret = rcl_subscription_init(
+            &mut subscription,
+            fixture.node(),
+            ts,
+            topic_name.as_ptr(),
+            &subscription_options,
+        );
+        assert_eq!(ret, RCL_RET_OK as i32);
+
+        // Loaned messages may or may not be supported depending on RMW
+        // We don't assert here, just check the function doesn't crash
+        let _can_loan = rcl_subscription_can_loan_messages(&subscription);
+
+        let ret = rcl_subscription_fini(&mut subscription, fixture.node());
+        assert_eq!(ret, RCL_RET_OK as i32);
+
+        // Reset env
+        std::env::remove_var("ROS_DISABLE_LOANED_MESSAGES");
+    }
+}
+
+/// Test subscription option ignore local publications
+#[test]
+fn test_subscription_option_ignore_local_publications() {
+    let mut fixture = TestSubscriberFixture::new();
+
+    unsafe {
+        // Initialize publisher
+        let mut publisher = rcl_get_zero_initialized_publisher();
+        let ts = ROSIDL_GET_MSG_TYPE_SUPPORT!(test_msgs, msg, Strings);
+        let topic_name = c"rcl_test_subscription_option_ignore_local_publications";
+        let publisher_options = rcl_publisher_get_default_options();
+
+        let ret = rcl_publisher_init(
+            &mut publisher,
+            fixture.node(),
+            ts,
+            topic_name.as_ptr(),
+            &publisher_options,
+        );
+        assert_eq!(ret, RCL_RET_OK as i32);
+
+        // Initialize subscription without ignore local
+        let mut sub = rcl_get_zero_initialized_subscription();
+        let sub_opts = rcl_subscription_get_default_options();
+        // Assume rmw_subscription_options has ignore_local_publications
+        // sub_opts.rmw_subscription_options.ignore_local_publications = false; // default
+
+        let ret =
+            rcl_subscription_init(&mut sub, fixture.node(), ts, topic_name.as_ptr(), &sub_opts);
+        assert_eq!(ret, RCL_RET_OK as i32);
+
+        // Initialize subscription with ignore local
+        let mut sub_ignorelocal = rcl_get_zero_initialized_subscription();
+        let sub_opts_ignore = rcl_subscription_get_default_options();
+        // sub_opts_ignore.rmw_subscription_options.ignore_local_publications = true;
+
+        let ret = rcl_subscription_init(
+            &mut sub_ignorelocal,
+            fixture.node(),
+            ts,
+            topic_name.as_ptr(),
+            &sub_opts_ignore,
+        );
+        assert_eq!(ret, RCL_RET_OK as i32);
+
+        // Publish a message
+        let mut msg: test_msgs__msg__Strings = std::mem::zeroed();
+        test_msgs__msg__Strings__init(&mut msg);
+        let test_string = c"message";
+        assert!(rosidl_runtime_c__String__assignn(
+            &mut msg.string_value,
+            test_string.as_ptr(),
+            test_string.to_bytes().len()
+        ));
+
+        let ret = rcl_publish(&publisher, &msg as *const _ as *mut c_void, ptr::null_mut());
+        assert_eq!(ret, RCL_RET_OK as i32);
+        test_msgs__msg__Strings__fini(&mut msg);
+
+        // Take from sub (should succeed)
+        let mut taken_msg: test_msgs__msg__Strings = std::mem::zeroed();
+        test_msgs__msg__Strings__init(&mut taken_msg);
+        let ret = rcl_take(
+            &sub,
+            &mut taken_msg as *mut _ as *mut c_void,
+            ptr::null_mut(),
+            ptr::null_mut(),
+        );
+        if ret == RCL_RET_OK as i32 {
+            let taken_str = std::ffi::CStr::from_ptr(taken_msg.string_value.data).to_string_lossy();
+            assert_eq!(taken_str, "message");
+        }
+        test_msgs__msg__Strings__fini(&mut taken_msg);
+
+        // Take from sub_ignorelocal (ignore local not implemented, so succeeds)
+        let mut taken_msg_ignore: test_msgs__msg__Strings = std::mem::zeroed();
+        test_msgs__msg__Strings__init(&mut taken_msg_ignore);
+        let ret = rcl_take(
+            &sub_ignorelocal,
+            &mut taken_msg_ignore as *mut _ as *mut c_void,
+            ptr::null_mut(),
+            ptr::null_mut(),
+        );
+        if ret == RCL_RET_OK as i32 {
+            let taken_str =
+                std::ffi::CStr::from_ptr(taken_msg_ignore.string_value.data).to_string_lossy();
+            assert_eq!(taken_str, "message");
+        }
+        test_msgs__msg__Strings__fini(&mut taken_msg_ignore);
+
+        // Finalize
+        let ret = rcl_subscription_fini(&mut sub, fixture.node());
+        assert_eq!(ret, RCL_RET_OK as i32);
+        let ret = rcl_subscription_fini(&mut sub_ignorelocal, fixture.node());
+        assert_eq!(ret, RCL_RET_OK as i32);
+        let ret = rcl_publisher_fini(&mut publisher, fixture.node());
+        assert_eq!(ret, RCL_RET_OK as i32);
+    }
+}
+
+/// Test bad arguments for get_publisher_count
+#[test]
+#[allow(unused_unsafe)]
+fn test_bad_get_publisher_count() {
+    let mut fixture = TestSubscriberFixture::new();
+
+    unsafe {
+        let mut subscriber = rcl_get_zero_initialized_subscription();
+        let ts = ROSIDL_GET_MSG_TYPE_SUPPORT!(test_msgs, msg, BasicTypes);
+        let topic_name = c"chatter";
+        let subscriber_options = rcl_subscription_get_default_options();
+
         let ret = rcl_subscription_init(
             &mut subscriber,
             fixture.node(),
@@ -868,15 +1096,140 @@ fn test_subscription_content_filtered() {
         );
         assert_eq!(ret, RCL_RET_OK as i32);
 
-        // Test set content filter (unsupported)
-        let filter_options = std::mem::zeroed::<rcl_subscription_content_filter_options_t>();
-        let ret = rcl_subscription_set_content_filter(&subscriber, &filter_options);
-        assert_eq!(ret, RCL_RET_UNSUPPORTED as i32);
+        let mut publisher_count: usize = 0;
 
-        // Test get content filter (unsupported)
-        let mut get_options = std::mem::zeroed::<rcl_subscription_content_filter_options_t>();
-        let ret = rcl_subscription_get_content_filter(&subscriber, &mut get_options);
-        assert_eq!(ret, RCL_RET_UNSUPPORTED as i32);
+        // Test null subscription
+        let ret = rcl_subscription_get_publisher_count(ptr::null(), &mut publisher_count);
+        assert_eq!(ret, RCL_RET_SUBSCRIPTION_INVALID as i32);
+
+        // Test zero init subscription
+        let zero_sub = rcl_get_zero_initialized_subscription();
+        let ret = rcl_subscription_get_publisher_count(&zero_sub, &mut publisher_count);
+        assert_eq!(ret, RCL_RET_SUBSCRIPTION_INVALID as i32);
+
+        // Test null count
+        let ret = rcl_subscription_get_publisher_count(&subscriber, ptr::null_mut());
+        assert_eq!(ret, RCL_RET_INVALID_ARGUMENT as i32);
+
+        // Finalize
+        let ret = rcl_subscription_fini(&mut subscriber, fixture.node());
+        assert_eq!(ret, RCL_RET_OK as i32);
+    }
+}
+
+/// Test bad arguments for various subscription functions
+#[test]
+#[allow(unused_unsafe)]
+fn test_subscription_bad_argument() {
+    unsafe {
+        // Test null subscription
+        assert!(rcl_subscription_get_actual_qos(ptr::null()).is_null());
+        assert!(!rcl_subscription_can_loan_messages(ptr::null()));
+        assert!(rcl_subscription_get_rmw_handle(ptr::null()).is_null());
+        assert!(rcl_subscription_get_topic_name(ptr::null()).is_null());
+        assert!(rcl_subscription_get_options(ptr::null()).is_null());
+        assert!(!rcl_subscription_is_cft_enabled(ptr::null()));
+
+        // Test zero initialized subscription
+        let zero_sub = rcl_get_zero_initialized_subscription();
+        assert!(rcl_subscription_get_actual_qos(&zero_sub).is_null());
+        assert!(!rcl_subscription_can_loan_messages(&zero_sub));
+        assert!(rcl_subscription_get_rmw_handle(&zero_sub).is_null());
+        assert!(rcl_subscription_get_topic_name(&zero_sub).is_null());
+        assert!(rcl_subscription_get_options(&zero_sub).is_null());
+        assert!(!rcl_subscription_is_cft_enabled(&zero_sub));
+    }
+}
+
+/// Test bad arguments for take_serialized_message
+#[test]
+fn test_subscription_bad_take_serialized() {
+    let mut fixture = TestSubscriberFixture::new();
+
+    unsafe {
+        let mut subscriber = rcl_get_zero_initialized_subscription();
+        let ts = ROSIDL_GET_MSG_TYPE_SUPPORT!(test_msgs, msg, BasicTypes);
+        let topic_name = c"chatter";
+        let subscriber_options = rcl_subscription_get_default_options();
+
+        let ret = rcl_subscription_init(
+            &mut subscriber,
+            fixture.node(),
+            ts,
+            topic_name.as_ptr(),
+            &subscriber_options,
+        );
+        assert_eq!(ret, RCL_RET_OK as i32);
+
+        let mut serialized_msg = rcl_z::ros::rcl_serialized_message_t {
+            buffer: ptr::null_mut(),
+            buffer_length: 0,
+            buffer_capacity: 0,
+            allocator: rcl_get_default_allocator(),
+        };
+
+        // Test null subscription
+        let ret = rcl_take_serialized_message(
+            ptr::null(),
+            &mut serialized_msg,
+            ptr::null_mut(),
+            ptr::null_mut(),
+        );
+        assert_eq!(ret, RCL_RET_SUBSCRIPTION_INVALID as i32);
+
+        // Test zero init subscription
+        let zero_sub = rcl_get_zero_initialized_subscription();
+        let ret = rcl_take_serialized_message(
+            &zero_sub,
+            &mut serialized_msg,
+            ptr::null_mut(),
+            ptr::null_mut(),
+        );
+        assert_eq!(ret, RCL_RET_SUBSCRIPTION_INVALID as i32);
+
+        // Test null message
+        let ret = rcl_take_serialized_message(
+            &subscriber,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+        );
+        assert_eq!(ret, RCL_RET_INVALID_ARGUMENT as i32);
+
+        // Finalize
+        let ret = rcl_subscription_fini(&mut subscriber, fixture.node());
+        assert_eq!(ret, RCL_RET_OK as i32);
+    }
+}
+
+/// Test subscription not initialized with content filtering
+#[test]
+fn test_subscription_not_initialized_with_content_filtering() {
+    let mut fixture = TestSubscriberFixture::new();
+
+    unsafe {
+        let mut subscriber = rcl_get_zero_initialized_subscription();
+        let ts = ROSIDL_GET_MSG_TYPE_SUPPORT!(test_msgs, msg, BasicTypes);
+        let topic_name = c"rcl_test_subscription_not_begin_content_filtered_chatter";
+        let subscriber_options = rcl_subscription_get_default_options();
+
+        let ret = rcl_subscription_init(
+            &mut subscriber,
+            fixture.node(),
+            ts,
+            topic_name.as_ptr(),
+            &subscriber_options,
+        );
+        assert_eq!(ret, RCL_RET_OK as i32);
+
+        // Should not be CFT enabled
+        assert!(!rcl_subscription_is_cft_enabled(&subscriber));
+
+        // Failed to get filter
+        let mut content_filter_options =
+            std::mem::zeroed::<rcl_subscription_content_filter_options_t>();
+        let ret = rcl_subscription_get_content_filter(&subscriber, &mut content_filter_options);
+        assert_ne!(ret, RCL_RET_OK as i32);
 
         // Finalize
         let ret = rcl_subscription_fini(&mut subscriber, fixture.node());

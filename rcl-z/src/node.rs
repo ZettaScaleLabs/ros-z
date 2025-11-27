@@ -179,6 +179,7 @@ impl NodeImpl {
             ts,
             notifier: self.notifier.clone(),
             service_name: topic.to_string(),
+            options: unsafe { std::ptr::read(_options) },
         })
     }
 
