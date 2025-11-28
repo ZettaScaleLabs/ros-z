@@ -93,6 +93,7 @@ impl ZNode {
         ZPubBuilder {
             entity,
             session: self.session.clone(),
+            with_attachment: true,
             _phantom_data: Default::default(),
         }
     }
