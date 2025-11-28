@@ -21,6 +21,7 @@ pub struct ZPub<T: ZMessage, S: ZSerializer> {
     gid: GidArray,
     inner: zenoh::pubsub::Publisher<'static>,
     _lv_token: LivelinessToken,
+    with_attachment: bool,
     _phantom_data: PhantomData<(T, S)>,
 }
 
@@ -28,6 +29,7 @@ pub struct ZPub<T: ZMessage, S: ZSerializer> {
 pub struct ZPubBuilder<T, S = CdrSerdes<T>> {
     pub entity: EndpointEntity,
     pub session: Arc<Session>,
+    pub with_attachment: bool,
     pub _phantom_data: PhantomData<(T, S)>,
 }
 
@@ -40,10 +42,16 @@ impl<T, S> ZPubBuilder<T, S> {
         self
     }
 
+    pub fn with_attachment(mut self, with_attachment: bool) -> Self {
+        self.with_attachment = with_attachment;
+        self
+    }
+
     pub fn with_serdes<S2>(self) -> ZPubBuilder<T, S2> {
         ZPubBuilder {
             entity: self.entity,
             session: self.session,
+            with_attachment: self.with_attachment,
             _phantom_data: PhantomData,
         }
     }
@@ -94,6 +102,7 @@ where
             inner,
             _lv_token: lv_token,
             gid: self.entity.gid(),
+            with_attachment: self.with_attachment,
             _phantom_data: Default::default(),
         })
     }
@@ -109,22 +118,35 @@ where
     }
 
     pub fn publish(&self, msg: &T) -> Result<()> {
-        self.inner
-            .put(S::serialize(msg))
-            .attachment(self.new_attchment())
-            .wait()
+        let mut put_builder = self.inner.put(S::serialize(msg));
+        if self.with_attachment {
+            put_builder = put_builder.attachment(self.new_attchment());
+        }
+        put_builder.wait()
     }
 
     pub async fn async_publish(&self, msg: &T) -> Result<()> {
-        self.inner.put(S::serialize(msg)).await
+        let mut put_builder = self.inner.put(S::serialize(msg));
+        if self.with_attachment {
+            put_builder = put_builder.attachment(self.new_attchment());
+        }
+        put_builder.await
     }
 
     pub fn publish_serialized_message(&self, msg: &[u8]) -> Result<()> {
-        self.inner.put(msg).wait()
+        let mut put_builder = self.inner.put(msg);
+        if self.with_attachment {
+            put_builder = put_builder.attachment(self.new_attchment());
+        }
+        put_builder.wait()
     }
 
     pub fn publish_sample(&self, msg: &Sample) -> Result<()> {
-        self.inner.put(msg.payload().to_bytes()).wait()
+        let mut put_builder = self.inner.put(msg.payload().to_bytes());
+        if self.with_attachment {
+            put_builder = put_builder.attachment(self.new_attchment());
+        }
+        put_builder.wait()
     }
 }
 
