@@ -9,8 +9,8 @@ use crate::{
 
 #[derive(Debug, Default)]
 pub struct GuardConditionImpl {
-    notifier: Option<Arc<Notifier>>,
-    triggered: bool,
+    pub(crate) notifier: Option<Arc<Notifier>>,
+    pub(crate) triggered: bool,
 }
 
 impl Waitable for GuardConditionImpl {
@@ -20,7 +20,7 @@ impl Waitable for GuardConditionImpl {
 }
 
 impl GuardConditionImpl {
-    fn trigger(&mut self) -> Result<(), ()> {
+    pub(crate) fn trigger(&mut self) -> Result<(), ()> {
         let notifier = self
             .notifier
             .as_ref()

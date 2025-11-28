@@ -9,14 +9,27 @@ use crate::ros::*;
 use crate::traits::BorrowImpl;
 use crate::traits::OwnImpl;
 use crate::traits::Waitable;
+use crate::guard_condition::GuardConditionImpl;
+use crate::init::rcl_get_default_allocator;
+
+// Define callback types that might not be in bindings
+#[allow(non_camel_case_types)]
+pub type rcl_timer_on_reset_callback_t = unsafe extern "C" fn(*const std::os::raw::c_void, usize);
 use std::time::{Duration, SystemTime};
 
 #[derive(Debug)]
 pub struct TimerImpl {
     period: Duration,
-    last_call_time: SystemTime,
-    next_call_time: SystemTime,
+    last_call_time: i64, // nanoseconds
+    next_call_time: i64, // nanoseconds
     callback: rcl_timer_callback_t,
+    canceled: bool,
+    allocator: rcl_allocator_t,
+    guard_condition: Option<rcl_guard_condition_t>,
+    on_reset_callback: Option<rcl_timer_on_reset_callback_t>,
+    on_reset_user_data: *mut std::os::raw::c_void,
+    clock: *mut rcl_clock_t,
+    reset_counter: usize,
 }
 
 // Internal data structure for ROS clock
@@ -26,31 +39,45 @@ struct RosClockData {
     ros_time_override_enabled: bool,
 }
 
-fn signed_duration_to_nanos(dur: Result<Duration, SystemTimeError>) -> rcl_time_point_value_t {
-    match dur {
-        Ok(d) => d.as_nanos() as _,
-        Err(e) => -(e.duration().as_nanos() as i64),
-    }
-}
-
 fn system_time_to_timestamp(time: SystemTime) -> i64 {
     time.duration_since(UNIX_EPOCH).unwrap().as_nanos() as _
 }
 
-impl TimerImpl {
-    pub fn get_time_until_next_call(&self) -> Result<Duration, SystemTimeError> {
-        self.next_call_time.duration_since(SystemTime::now())
+// Get current time from clock in nanoseconds
+unsafe fn get_clock_now(clock: *mut rcl_clock_t) -> i64 {
+    if clock.is_null() {
+        return system_time_to_timestamp(SystemTime::now());
     }
 
-    pub fn update(&mut self, now: SystemTime) {
+    let mut now: i64 = 0;
+    let ret = unsafe { rcl_clock_get_now(clock, &mut now) };
+    if ret != RCL_RET_OK as i32 {
+        return system_time_to_timestamp(SystemTime::now());
+    }
+    now
+}
+
+impl TimerImpl {
+    pub fn get_time_until_next_call(&self, now: i64) -> i64 {
+        self.next_call_time - now
+    }
+
+    pub fn get_clock(&self) -> *mut rcl_clock_t {
+        self.clock
+    }
+
+    pub fn update(&mut self, now: i64) {
         self.last_call_time = now;
         if self.period.is_zero() {
             self.next_call_time = now;
         } else {
-            self.next_call_time += self.period;
-            if let Ok(ahead) = now.duration_since(self.next_call_time) {
-                self.next_call_time += self.period
-                    * (1 + (ahead.as_nanos() as f64 / self.period.as_nanos() as f64) as u32);
+            self.next_call_time += self.period.as_nanos() as i64;
+            if now > self.next_call_time {
+                let ahead = now - self.next_call_time;
+                let period_nanos = self.period.as_nanos() as i64;
+                if period_nanos > 0 {
+                    self.next_call_time += period_nanos * (1 + ahead / period_nanos);
+                }
             }
         }
     }
@@ -58,19 +85,32 @@ impl TimerImpl {
 
 impl Default for TimerImpl {
     fn default() -> Self {
-        let now = SystemTime::now();
+        let now = system_time_to_timestamp(SystemTime::now());
         Self {
             period: std::time::Duration::ZERO,
             last_call_time: now,
             next_call_time: now,
             callback: None,
+            canceled: false,
+            allocator: rcl_get_default_allocator(),
+            guard_condition: None,
+            on_reset_callback: None,
+            on_reset_user_data: std::ptr::null_mut(),
+            clock: std::ptr::null_mut(),
+            reset_counter: 0,
         }
     }
 }
 
 impl Waitable for TimerImpl {
     fn is_ready(&self) -> bool {
-        self.next_call_time <= SystemTime::now()
+        if self.canceled {
+            return false;
+        }
+        unsafe {
+            let now = get_clock_now(self.clock);
+            self.next_call_time <= now
+        }
     }
 }
 
@@ -179,13 +219,34 @@ pub extern "C" fn rcl_timer_init2(
         }
     }
 
-    let now = SystemTime::now();
+    let now = unsafe { get_clock_now(clock) };
     match timer.borrow_mut_impl() {
         Ok(x) => {
+            // Check if timer is already initialized
+            if x.guard_condition.is_some() {
+                return RCL_RET_ALREADY_INIT as _;
+            }
+
+            x.clock = clock;
             x.period = Duration::from_nanos(period as _);
             x.last_call_time = now;
-            x.next_call_time = now + x.period;
+            x.next_call_time = now + period;
             x.callback = callback;
+            x.allocator = allocator;
+            x.canceled = !autostart;
+            x.reset_counter = 0;
+
+            // Initialize guard condition
+            let guard_impl = Box::new(crate::guard_condition::GuardConditionImpl {
+                notifier: context.borrow_impl().ok().map(|ctx| ctx.share_notifier()),
+                triggered: false,
+            });
+            let guard_condition = rcl_guard_condition_t {
+                impl_: Box::into_raw(guard_impl) as *mut _,
+                ..Default::default()
+            };
+            x.guard_condition = Some(guard_condition);
+
             RCL_RET_OK as _
         }
         Err(_) => RCL_RET_ERROR as _,
@@ -197,7 +258,7 @@ pub extern "C" fn rcl_timer_fini(timer: *mut rcl_timer_t) -> rcl_ret_t {
     tracing::trace!("rcl_timer_fini");
 
     if timer.is_null() {
-        return RCL_RET_INVALID_ARGUMENT as _;
+        return RCL_RET_OK as _;
     }
 
     if let Ok(impl_) = timer.own_impl() {
@@ -259,16 +320,31 @@ pub unsafe extern "C" fn rcl_timer_is_ready(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn rcl_timer_call(timer: *mut rcl_timer_t) -> rcl_ret_t {
     tracing::trace!("rcl_timer_call");
-    let x = timer.borrow_mut_impl().unwrap();
-    let now = SystemTime::now();
-    let since_last_call = signed_duration_to_nanos(x.last_call_time.elapsed());
-    x.update(now);
-    if let Some(cb) = x.callback {
-        unsafe {
-            cb(timer, since_last_call);
-        }
+
+    if timer.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
     }
-    RCL_RET_OK as _
+
+    match timer.borrow_mut_impl() {
+        Ok(mut x) => {
+            if x.canceled {
+                return RCL_RET_TIMER_CANCELED as _;
+            }
+            let now = unsafe { get_clock_now(x.clock) };
+            if now < 0 {
+                return RCL_RET_ERROR as _;
+            }
+            let since_last_call = now - x.last_call_time;
+            x.update(now);
+            if let Some(cb) = x.callback {
+                unsafe {
+                    cb(timer, since_last_call);
+                }
+            }
+            RCL_RET_OK as _
+        }
+        Err(_) => RCL_RET_ERROR as _,
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -277,20 +353,288 @@ pub unsafe extern "C" fn rcl_timer_call_with_info(
     call_info: *mut rcl_timer_call_info_t,
 ) -> rcl_ret_t {
     tracing::trace!("rcl_timer_call_with_info");
-    let x = timer.borrow_mut_impl().unwrap();
-    let now = SystemTime::now();
-    let since_last_call = signed_duration_to_nanos(x.last_call_time.elapsed());
-    unsafe {
-        (*call_info).expected_call_time = system_time_to_timestamp(x.next_call_time);
-        (*call_info).actual_call_time = system_time_to_timestamp(now);
+
+    if timer.is_null() || call_info.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
     }
-    x.update(now);
-    if let Some(cb) = x.callback {
-        unsafe {
-            cb(timer, since_last_call);
+
+    match timer.borrow_mut_impl() {
+        Ok(mut x) => {
+            if x.canceled {
+                return RCL_RET_TIMER_CANCELED as _;
+            }
+            let now = unsafe { get_clock_now(x.clock) };
+            if now < 0 {
+                return RCL_RET_ERROR as _;
+            }
+            let since_last_call = now - x.last_call_time;
+            unsafe {
+                (*call_info).expected_call_time = x.next_call_time;
+                (*call_info).actual_call_time = now;
+            }
+            x.update(now);
+            if let Some(cb) = x.callback {
+                unsafe {
+                    cb(timer, since_last_call);
+                }
+            }
+            RCL_RET_OK as _
+        }
+        Err(_) => RCL_RET_ERROR as _,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn rcl_timer_cancel(timer: *mut rcl_timer_t) -> rcl_ret_t {
+    tracing::trace!("rcl_timer_cancel");
+
+    if timer.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    match timer.borrow_mut_impl() {
+        Ok(mut x) => {
+            x.canceled = true;
+            RCL_RET_OK as _
+        }
+        Err(_) => RCL_RET_ERROR as _,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn rcl_timer_is_canceled(
+    timer: *const rcl_timer_t,
+    is_canceled: *mut bool,
+) -> rcl_ret_t {
+    tracing::trace!("rcl_timer_is_canceled");
+
+    if timer.is_null() || is_canceled.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    match timer.borrow_impl() {
+        Ok(x) => {
+            unsafe {
+                *is_canceled = x.canceled;
+            }
+            RCL_RET_OK as _
+        }
+        Err(_) => RCL_RET_ERROR as _,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn rcl_timer_reset(timer: *mut rcl_timer_t) -> rcl_ret_t {
+    tracing::trace!("rcl_timer_reset");
+
+    if timer.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    match timer.borrow_mut_impl() {
+        Ok(mut x) => {
+            x.canceled = false;
+            let now = unsafe { get_clock_now(x.clock) };
+            x.last_call_time = now;
+            x.next_call_time = now + x.period.as_nanos() as i64;
+            x.reset_counter += 1;
+
+            // Call on_reset_callback if set
+            if let Some(cb) = x.on_reset_callback {
+                unsafe {
+                    cb(timer as *const _, 1);
+                }
+            }
+
+            RCL_RET_OK as _
+        }
+        Err(_) => RCL_RET_ERROR as _,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn rcl_timer_get_period(
+    timer: *const rcl_timer_t,
+    period: *mut i64,
+) -> rcl_ret_t {
+    tracing::trace!("rcl_timer_get_period");
+
+    if timer.is_null() || period.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    match timer.borrow_impl() {
+        Ok(x) => {
+            unsafe {
+                *period = x.period.as_nanos() as i64;
+            }
+            RCL_RET_OK as _
+        }
+        Err(_) => RCL_RET_ERROR as _,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn rcl_timer_exchange_callback(
+    timer: *mut rcl_timer_t,
+    new_callback: rcl_timer_callback_t,
+) -> rcl_timer_callback_t {
+    tracing::trace!("rcl_timer_exchange_callback");
+
+    if timer.is_null() {
+        return None;
+    }
+
+    match timer.borrow_mut_impl() {
+        Ok(mut x) => {
+            let old_callback = x.callback;
+            x.callback = new_callback;
+            old_callback
+        }
+        Err(_) => None,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn rcl_timer_get_callback(
+    timer: *const rcl_timer_t,
+) -> rcl_timer_callback_t {
+    tracing::trace!("rcl_timer_get_callback");
+
+    if timer.is_null() {
+        return None;
+    }
+
+    match timer.borrow_impl() {
+        Ok(x) => x.callback,
+        Err(_) => None,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn rcl_timer_exchange_period(
+    timer: *mut rcl_timer_t,
+    new_period: i64,
+    old_period: *mut i64,
+) -> rcl_ret_t {
+    tracing::trace!("rcl_timer_exchange_period");
+
+    if timer.is_null() {
+        return RCL_RET_OK as _;
+    }
+
+    if !old_period.is_null() {
+        match timer.borrow_impl() {
+            Ok(x) => {
+                unsafe {
+                    *old_period = x.period.as_nanos() as i64;
+                }
+            }
+            Err(_) => return RCL_RET_ERROR as _,
         }
     }
-    RCL_RET_OK as _
+
+    if new_period < 0 {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    match timer.borrow_mut_impl() {
+        Ok(mut x) => {
+            x.period = Duration::from_nanos(new_period as u64);
+            // Update next call time based on new period
+            let now = unsafe { get_clock_now(x.clock) };
+            x.next_call_time = now + new_period;
+            RCL_RET_OK as _
+        }
+        Err(_) => RCL_RET_OK as _,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn rcl_timer_set_on_reset_callback(
+    timer: *mut rcl_timer_t,
+    callback: Option<rcl_timer_on_reset_callback_t>,
+    user_data: *mut std::os::raw::c_void,
+) -> rcl_ret_t {
+    tracing::trace!("rcl_timer_set_on_reset_callback");
+
+    if timer.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    match timer.borrow_mut_impl() {
+        Ok(mut x) => {
+            // If there's a new callback and we have accumulated resets, call it
+            if let Some(cb) = callback {
+                if x.reset_counter > 0 {
+                    unsafe {
+                        cb(timer as *const _, x.reset_counter);
+                    }
+                    x.reset_counter = 0;
+                }
+            }
+            x.on_reset_callback = callback;
+            x.on_reset_user_data = user_data;
+            RCL_RET_OK as _
+        }
+        Err(_) => RCL_RET_ERROR as _,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn rcl_timer_get_allocator(
+    timer: *const rcl_timer_t,
+) -> *const rcl_allocator_t {
+    tracing::trace!("rcl_timer_get_allocator");
+
+    if timer.is_null() {
+        return std::ptr::null();
+    }
+
+    match timer.borrow_impl() {
+        Ok(x) => &x.allocator as *const _,
+        Err(_) => std::ptr::null(),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn rcl_timer_get_guard_condition(
+    timer: *const rcl_timer_t,
+) -> *const rcl_guard_condition_t {
+    tracing::trace!("rcl_timer_get_guard_condition");
+
+    if timer.is_null() {
+        return std::ptr::null();
+    }
+
+    match timer.borrow_impl() {
+        Ok(x) => x.guard_condition.as_ref().map(|gc| gc as *const _).unwrap_or(std::ptr::null()),
+        Err(_) => std::ptr::null(),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn rcl_timer_get_time_since_last_call(
+    timer: *const rcl_timer_t,
+    time_since_last_call: *mut rcl_time_point_value_t,
+) -> rcl_ret_t {
+    tracing::trace!("rcl_timer_get_time_since_last_call");
+
+    if timer.is_null() || time_since_last_call.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    match timer.borrow_impl() {
+        Ok(x) => {
+            let now = unsafe { get_clock_now(x.clock) };
+            let since_last = now - x.last_call_time;
+            unsafe {
+                *time_since_last_call = since_last;
+            }
+            RCL_RET_OK as _
+        }
+        Err(_) => RCL_RET_ERROR as _,
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -300,11 +644,46 @@ pub unsafe extern "C" fn rcl_timer_get_time_until_next_call(
 ) -> rcl_ret_t {
     tracing::trace!("rcl_timer_get_time_until_next_call");
 
-    let time = signed_duration_to_nanos(timer.borrow_impl().unwrap().get_time_until_next_call());
-    unsafe {
-        *time_until_next_call = time;
+    if timer.is_null() || time_until_next_call.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
     }
-    RCL_RET_OK as _
+
+    match timer.borrow_impl() {
+        Ok(impl_) => {
+            if impl_.canceled {
+                return RCL_RET_TIMER_CANCELED as _;
+            }
+            let now = unsafe { get_clock_now(impl_.clock) };
+            let time = impl_.get_time_until_next_call(now);
+            unsafe {
+                *time_until_next_call = time;
+            }
+            RCL_RET_OK as _
+        }
+        Err(_) => RCL_RET_ERROR as _,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn rcl_timer_clock(
+    timer: *const rcl_timer_t,
+    clock: *mut *mut rcl_clock_t,
+) -> rcl_ret_t {
+    tracing::trace!("rcl_timer_clock");
+
+    if timer.is_null() || clock.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    match timer.borrow_impl() {
+        Ok(impl_) => {
+            unsafe {
+                *clock = impl_.clock;
+            }
+            RCL_RET_OK as _
+        }
+        Err(_) => RCL_RET_ERROR as _,
+    }
 }
 
 #[unsafe(no_mangle)]

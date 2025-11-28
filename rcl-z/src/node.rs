@@ -221,6 +221,33 @@ impl NodeImpl {
     pub fn graph(&self) -> &Arc<Graph> {
         &self.inner.graph
     }
+
+    pub(crate) fn trigger_graph_guard_condition(&mut self) {
+        if !self.graph_guard_condition.impl_.is_null() {
+            if let Ok(guard_impl) = (&mut self.graph_guard_condition as *mut rcl_guard_condition_t).borrow_mut_impl() {
+                let _ = guard_impl.trigger();
+            }
+        }
+    }
+}
+
+impl Drop for NodeImpl {
+    fn drop(&mut self) {
+        // Clean up the graph guard condition
+        if !self.graph_guard_condition.impl_.is_null() {
+            unsafe {
+                let _ = Box::from_raw(self.graph_guard_condition.impl_ as *mut crate::guard_condition::GuardConditionImpl);
+            }
+            self.graph_guard_condition.impl_ = std::ptr::null_mut();
+        }
+
+        // Clean up rmw_handle
+        if !self.rmw_handle.is_null() {
+            unsafe {
+                let _ = Box::from_raw(self.rmw_handle);
+            }
+        }
+    }
 }
 
 impl_has_impl_ptr!(rcl_node_t, rcl_node_impl_t, NodeImpl);
@@ -290,6 +317,11 @@ pub unsafe extern "C" fn rcl_node_init(
             .borrow_impl()?
             .new_node(name, namespace_, context, options)?;
         node.assign_impl(node_impl)?;
+
+        // Note: We don't trigger the guard condition on node init for the node itself,
+        // because a node shouldn't wake itself up when it's created. Other nodes in the
+        // same context should be notified (TODO: implement cross-node notification).
+
         zenoh::Result::Ok(())
     };
 
@@ -307,6 +339,11 @@ pub extern "C" fn rcl_node_fini(node: *mut rcl_node_t) -> rcl_ret_t {
             return RCL_RET_OK as _;
         }
     }
+
+    // Note: We don't trigger the guard condition on node fini for the node itself,
+    // because the node is being destroyed. Other nodes in the same context should
+    // be notified (TODO: implement cross-node notification).
+
     rclz_try! {
         std::mem::drop(node.own_impl()?);
     }

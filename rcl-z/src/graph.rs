@@ -212,6 +212,13 @@ pub unsafe extern "C" fn rcl_get_topic_names_and_types(
         return RCL_RET_INVALID_ARGUMENT as _;
     }
 
+    // Check if names_and_types is already initialized
+    unsafe {
+        if (*topic_names_and_types).names.size > 0 {
+            return RCL_RET_INVALID_ARGUMENT as _;
+        }
+    }
+
     if !crate::node::rcl_node_is_valid(node) {
         return RCL_RET_NODE_INVALID as _;
     }
@@ -624,6 +631,13 @@ pub unsafe extern "C" fn rcl_get_node_names(
         return RCL_RET_INVALID_ARGUMENT as _;
     }
 
+    // Check if arrays are already initialized
+    unsafe {
+        if (*node_names).size > 0 {
+            return RCL_RET_INVALID_ARGUMENT as _;
+        }
+    }
+
     let node_impl = match node.borrow_impl() {
         Ok(impl_) => impl_,
         Err(_) => return RCL_RET_NODE_INVALID as _,
@@ -662,6 +676,13 @@ pub unsafe extern "C" fn rcl_get_node_names_with_enclaves(
     }
     if node_names.is_null() || node_namespaces.is_null() || enclaves.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    // Check if arrays are already initialized
+    unsafe {
+        if (*node_names).size > 0 {
+            return RCL_RET_INVALID_ARGUMENT as _;
+        }
     }
 
     let node_impl = match node.borrow_impl() {

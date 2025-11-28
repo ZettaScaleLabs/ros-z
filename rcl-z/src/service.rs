@@ -193,7 +193,13 @@ pub unsafe extern "C" fn rcl_client_init(
 
     // Then assign it, checking for already initialized
     match client.assign_impl(cli_impl) {
-        Ok(_) => RCL_RET_OK as _,
+        Ok(_) => {
+            // Trigger graph guard condition for this node
+            if let Ok(node_impl) = (node as *mut rcl_node_t).borrow_mut_impl() {
+                node_impl.trigger_graph_guard_condition();
+            }
+            RCL_RET_OK as _
+        }
         Err(crate::traits::ImplAccessError::NonNullImplPtr) => RCL_RET_ALREADY_INIT as _,
         Err(e) => {
             tracing::error!("{e}");
@@ -214,6 +220,12 @@ pub extern "C" fn rcl_client_fini(client: *mut rcl_client_t, node: *mut rcl_node
     }
     // Drop the data regardless of the pointer's condition.
     drop(client.own_impl());
+
+    // Trigger graph guard condition for this node
+    if let Ok(node_impl) = node.borrow_mut_impl() {
+        node_impl.trigger_graph_guard_condition();
+    }
+
     RCL_RET_OK as _
 }
 
@@ -367,14 +379,17 @@ pub unsafe extern "C" fn rcl_service_server_is_available(
     is_available: *mut bool,
 ) -> rcl_ret_t {
     tracing::trace!("rcl_service_server_is_available");
-    if node.is_null() || client.is_null() || is_available.is_null() {
+    if node.is_null() {
+        return RCL_RET_NODE_INVALID as _;
+    }
+    if client.is_null() || is_available.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
     }
     // SAFETY: is_available is checked to be non-null above
     unsafe { *is_available = false; }
     let node_impl = match node.borrow_impl() {
         Ok(n) => n,
-        Err(_) => return RCL_RET_ERROR as _,
+        Err(_) => return RCL_RET_NODE_INVALID as _,
     };
     if let Ok(client_impl) = client.borrow_impl() {
         let service_names = node_impl.graph().get_service_names_and_types();
@@ -471,7 +486,13 @@ pub unsafe extern "C" fn rcl_service_init(
 
     // Then assign it, checking for already initialized
     match service.assign_impl(srv_impl) {
-        Ok(_) => RCL_RET_OK as _,
+        Ok(_) => {
+            // Trigger graph guard condition for this node
+            if let Ok(node_impl) = (node as *mut rcl_node_t).borrow_mut_impl() {
+                node_impl.trigger_graph_guard_condition();
+            }
+            RCL_RET_OK as _
+        }
         Err(crate::traits::ImplAccessError::NonNullImplPtr) => RCL_RET_ALREADY_INIT as _,
         Err(e) => {
             tracing::error!("{e}");
@@ -494,6 +515,12 @@ pub extern "C" fn rcl_service_fini(
     }
     // Drop the data regardless of the pointer's condition.
     drop(service.own_impl());
+
+    // Trigger graph guard condition for this node
+    if let Ok(node_impl) = _node.borrow_mut_impl() {
+        node_impl.trigger_graph_guard_condition();
+    }
+
     RCL_RET_OK as _
 }
 

@@ -219,13 +219,19 @@ impl WaitSetImpl {
 
         if let Some(queue) = self.hmap.get(&WaitSetKind::Timer) {
             for &timer in queue {
-                match (timer as *const rcl_timer_t)
-                    .borrow_impl()
-                    .unwrap()
-                    .get_time_until_next_call()
-                {
-                    Ok(diff) => timeout = timeout.min(diff),
-                    Err(_) => return Duration::ZERO,
+                let impl_ = (timer as *const rcl_timer_t).borrow_impl().unwrap();
+                unsafe {
+                    let mut now: i64 = 0;
+                    let ret = crate::timer::rcl_clock_get_now(impl_.get_clock(), &mut now);
+                    if ret != crate::ros::RCL_RET_OK as i32 {
+                        return Duration::ZERO;
+                    }
+                    let diff = impl_.get_time_until_next_call(now);
+                    if diff > 0 {
+                        timeout = timeout.min(Duration::from_nanos(diff as u64));
+                    } else {
+                        return Duration::ZERO;
+                    }
                 }
             }
         }

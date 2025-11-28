@@ -124,8 +124,13 @@ impl ContextImpl {
         // Create a dummy rmw_handle (non-null pointer for compatibility)
         let rmw_handle = Box::into_raw(Box::new(rmw_node_t::default()));
 
-        // Create a zero-initialized guard condition (for now)
-        let graph_guard_condition = rcl_guard_condition_t::default();
+        // Create and initialize the graph guard condition
+        let mut graph_guard_condition = rcl_guard_condition_t::default();
+        let guard_impl = Box::new(crate::guard_condition::GuardConditionImpl {
+            notifier: Some(self.notifier.clone()),
+            triggered: false,
+        });
+        graph_guard_condition.impl_ = Box::into_raw(guard_impl) as *mut _;
 
         Ok(NodeImpl {
             inner: znode,

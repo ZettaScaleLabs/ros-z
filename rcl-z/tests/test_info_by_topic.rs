@@ -8,8 +8,7 @@
 
 mod test_msgs_support;
 
-use std::ffi::CStr;
-use std::ptr;
+use std::{ffi::CStr, ptr};
 
 use rcl_z::{
     context::{
@@ -381,8 +380,6 @@ fn test_rcl_get_subscriptions_info_by_topic_invalid_participants() {
     }
 }
 
-
-
 impl TestInfoByTopicFixture {
     fn assert_qos_equality(
         &self,
@@ -566,9 +563,13 @@ fn test_rcl_get_publishers_subscription_info_by_topic() {
     );
 
     // Clean up
-    let ret = unsafe { rmw_topic_endpoint_info_array_fini(&mut topic_endpoint_info_array_pub, &mut allocator) };
+    let ret = unsafe {
+        rmw_topic_endpoint_info_array_fini(&mut topic_endpoint_info_array_pub, &mut allocator)
+    };
     assert_eq!(ret, RMW_RET_OK as i32);
-    let ret = unsafe { rmw_topic_endpoint_info_array_fini(&mut topic_endpoint_info_array_sub, &mut allocator) };
+    let ret = unsafe {
+        rmw_topic_endpoint_info_array_fini(&mut topic_endpoint_info_array_sub, &mut allocator)
+    };
     assert_eq!(ret, RMW_RET_OK as i32);
     let ret = rcl_subscription_fini(&mut subscription, fixture.node());
     assert_eq!(ret, RCL_RET_OK as i32);

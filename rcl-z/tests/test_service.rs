@@ -744,7 +744,7 @@ fn test_client_bad_arguments() {
         let mut is_available = false;
         let ret = rcl_service_server_is_available(ptr::null_mut(), &client, &mut is_available);
         assert_eq!(
-            ret, RCL_RET_INVALID_ARGUMENT as i32,
+            ret, RCL_RET_NODE_INVALID as i32,
             "Null node should return RCL_RET_NODE_INVALID"
         );
 

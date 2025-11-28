@@ -117,6 +117,12 @@ pub unsafe extern "C" fn rcl_publisher_init(
             .borrow_impl()?
             .new_pub(type_support, topic_name, _options)?;
         publisher.assign_impl(pub_impl)?;
+
+        // Trigger graph guard condition for this node
+        if let Ok(node_impl) = (node as *mut rcl_node_t).borrow_mut_impl() {
+            node_impl.trigger_graph_guard_condition();
+        }
+
         Result::Ok(())
     };
     rclz_try! { x()?; }
@@ -227,6 +233,12 @@ pub unsafe extern "C" fn rcl_subscription_init(
             .borrow_impl()?
             .new_sub(type_support, topic_name, options)?;
         subscription.assign_impl(sub_impl)?;
+
+        // Trigger graph guard condition for this node
+        if let Ok(node_impl) = (node as *mut rcl_node_t).borrow_mut_impl() {
+            node_impl.trigger_graph_guard_condition();
+        }
+
         Result::Ok(())
     };
     rclz_try! { x()?; }
@@ -249,6 +261,12 @@ pub extern "C" fn rcl_publisher_fini(
 
     // Drop the data regardless of the pointer's condition.
     drop(publisher.own_impl());
+
+    // Trigger graph guard condition for this node
+    if let Ok(node_impl) = _node.borrow_mut_impl() {
+        node_impl.trigger_graph_guard_condition();
+    }
+
     RCL_RET_OK as _
 }
 
@@ -269,6 +287,12 @@ pub extern "C" fn rcl_subscription_fini(
 
     // Drop the data regardless of the pointer's condition.
     drop(subscription.own_impl());
+
+    // Trigger graph guard condition for this node
+    if let Ok(node_impl) = _node.borrow_mut_impl() {
+        node_impl.trigger_graph_guard_condition();
+    }
+
     RCL_RET_OK as _
 }
 
@@ -340,6 +364,13 @@ pub unsafe extern "C" fn rcl_take_loaned_message(
 
     if subscription.is_null() || loaned_message.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    // Check if loaned_message is already non-null (invalid state)
+    unsafe {
+        if !(*loaned_message).is_null() {
+            return RCL_RET_INVALID_ARGUMENT as _;
+        }
     }
 
     // For now, return unsupported as loaned messages are not implemented
@@ -417,10 +448,19 @@ pub extern "C" fn rcl_subscription_content_filter_options_fini(
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn rcl_return_loaned_message_from_subscription(
-    _subscription: *const rcl_subscription_t,
-    _loaned_message: *mut crate::c_void,
+    subscription: *const rcl_subscription_t,
+    loaned_message: *mut crate::c_void,
 ) -> rcl_ret_t {
     tracing::trace!("rcl_return_loaned_message_from_subscription");
+
+    if subscription.is_null() || subscription.borrow_impl().is_err() {
+        return RCL_RET_SUBSCRIPTION_INVALID as _;
+    }
+
+    if loaned_message.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
     // TODO: Implement loaned message return
     RCL_RET_OK as _
 }
@@ -733,7 +773,11 @@ pub unsafe extern "C" fn rcl_subscription_set_content_filter(
 ) -> rcl_ret_t {
     tracing::trace!("rcl_subscription_set_content_filter");
 
-    if subscription.is_null() || options.is_null() {
+    if subscription.is_null() || subscription.borrow_impl().is_err() {
+        return RCL_RET_SUBSCRIPTION_INVALID as _;
+    }
+
+    if options.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
     }
 
@@ -748,7 +792,11 @@ pub unsafe extern "C" fn rcl_subscription_get_content_filter(
 ) -> rcl_ret_t {
     tracing::trace!("rcl_subscription_get_content_filter");
 
-    if subscription.is_null() || options.is_null() {
+    if subscription.is_null() || subscription.borrow_impl().is_err() {
+        return RCL_RET_SUBSCRIPTION_INVALID as _;
+    }
+
+    if options.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
     }
 

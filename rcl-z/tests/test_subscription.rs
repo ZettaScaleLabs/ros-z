@@ -30,8 +30,8 @@ use rcl_z::{
         rcl_subscription_get_options, rcl_subscription_get_publisher_count,
         rcl_subscription_get_rmw_handle, rcl_subscription_get_topic_name, rcl_subscription_init,
         rcl_subscription_is_cft_enabled, rcl_subscription_is_valid,
-        rcl_subscription_is_valid_except_context, rcl_take, rcl_take_loaned_message,
-        rcl_take_sequence, rcl_take_serialized_message,
+        rcl_subscription_is_valid_except_context, rcl_subscription_set_content_filter, rcl_take,
+        rcl_take_loaned_message, rcl_take_sequence, rcl_take_serialized_message,
     },
     ros::*,
 };
@@ -1203,6 +1203,173 @@ fn test_subscription_bad_take_serialized() {
     }
 }
 
+/// Test subscription with take_sequence for nominal string messages
+#[test]
+fn test_subscription_nominal_string_sequence() {
+    let mut fixture = TestSubscriberFixture::new();
+
+    unsafe {
+        // Initialize publisher
+        let mut publisher = rcl_get_zero_initialized_publisher();
+        let ts = ROSIDL_GET_MSG_TYPE_SUPPORT!(test_msgs, msg, Strings);
+        let topic_name = c"rcl_test_subscription_nominal_string_sequence_chatter";
+        let publisher_options = rcl_publisher_get_default_options();
+
+        let ret = rcl_publisher_init(
+            &mut publisher,
+            fixture.node(),
+            ts,
+            topic_name.as_ptr(),
+            &publisher_options,
+        );
+        assert_eq!(ret, RCL_RET_OK as i32, "Failed to initialize publisher");
+
+        // Initialize subscriber
+        let mut subscriber = rcl_get_zero_initialized_subscription();
+        let subscriber_options = rcl_subscription_get_default_options();
+
+        let ret = rcl_subscription_init(
+            &mut subscriber,
+            fixture.node(),
+            ts,
+            topic_name.as_ptr(),
+            &subscriber_options,
+        );
+        assert_eq!(ret, RCL_RET_OK as i32, "Failed to initialize subscriber");
+
+        // Test take_sequence with null messages array - should fail
+        let ret = rcl_take_sequence(
+            &subscriber,
+            1,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+        );
+        assert_eq!(ret, RCL_RET_INVALID_ARGUMENT as i32);
+
+        // Test take_sequence with count 0 - should fail as unsupported
+        let mut messages: [*mut c_void; 1] = [ptr::null_mut()];
+        let ret = rcl_take_sequence(
+            &subscriber,
+            0,
+            messages.as_mut_ptr(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+        );
+        assert_eq!(ret, RCL_RET_UNSUPPORTED as i32);
+
+        // Finalize
+        let ret = rcl_subscription_fini(&mut subscriber, fixture.node());
+        assert_eq!(ret, RCL_RET_OK as i32, "Failed to finalize subscriber");
+
+        let ret = rcl_publisher_fini(&mut publisher, fixture.node());
+        assert_eq!(ret, RCL_RET_OK as i32, "Failed to finalize publisher");
+    }
+}
+
+/// Test bad arguments for take_loaned_message (non-mock portions)
+#[test]
+fn test_bad_take_loaned_message() {
+    let mut fixture = TestSubscriberFixture::new();
+
+    unsafe {
+        let topic_name = c"rcl_loan";
+        let ts = ROSIDL_GET_MSG_TYPE_SUPPORT!(test_msgs, msg, Strings);
+        let subscriber_options = rcl_subscription_get_default_options();
+
+        let mut subscriber = rcl_get_zero_initialized_subscription();
+        let ret = rcl_subscription_init(
+            &mut subscriber,
+            fixture.node(),
+            ts,
+            topic_name.as_ptr(),
+            &subscriber_options,
+        );
+        assert_eq!(ret, RCL_RET_OK as i32);
+
+        let mut loaned_message: *mut c_void = ptr::null_mut();
+
+        // Test null subscription - returns INVALID_ARGUMENT in our implementation
+        let ret = rcl_take_loaned_message(
+            ptr::null(),
+            &mut loaned_message,
+            ptr::null_mut(),
+            ptr::null_mut(),
+        );
+        assert_eq!(ret, RCL_RET_INVALID_ARGUMENT as i32);
+
+        // Test null loaned_message pointer
+        let ret = rcl_take_loaned_message(
+            &subscriber,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+        );
+        assert_eq!(ret, RCL_RET_INVALID_ARGUMENT as i32);
+
+        // Test with non-null loaned_message (should fail with invalid argument)
+        let mut dummy_msg: test_msgs__msg__Strings = std::mem::zeroed();
+        test_msgs__msg__Strings__init(&mut dummy_msg);
+        loaned_message = &mut dummy_msg as *mut _ as *mut c_void;
+        let ret = rcl_take_loaned_message(
+            &subscriber,
+            &mut loaned_message,
+            ptr::null_mut(),
+            ptr::null_mut(),
+        );
+        assert_eq!(ret, RCL_RET_INVALID_ARGUMENT as i32);
+        test_msgs__msg__Strings__fini(&mut dummy_msg);
+
+        // Finalize
+        let ret = rcl_subscription_fini(&mut subscriber, fixture.node());
+        assert_eq!(ret, RCL_RET_OK as i32);
+    }
+}
+
+/// Test bad arguments for return_loaned_message (non-mock portions)
+#[test]
+fn test_bad_return_loaned_message() {
+    let mut fixture = TestSubscriberFixture::new();
+
+    unsafe {
+        let topic_name = c"rcl_loan";
+        let ts = ROSIDL_GET_MSG_TYPE_SUPPORT!(test_msgs, msg, Strings);
+        let subscriber_options = rcl_subscription_get_default_options();
+
+        let mut subscriber = rcl_get_zero_initialized_subscription();
+        let mut dummy_msg: test_msgs__msg__Strings = std::mem::zeroed();
+        test_msgs__msg__Strings__init(&mut dummy_msg);
+        let loaned_message = &mut dummy_msg as *mut _ as *mut c_void;
+
+        // Test null subscription
+        let ret = rcl_return_loaned_message_from_subscription(ptr::null(), loaned_message);
+        assert_eq!(ret, RCL_RET_SUBSCRIPTION_INVALID as i32);
+
+        // Test zero-initialized subscription
+        let ret = rcl_return_loaned_message_from_subscription(&subscriber, loaned_message);
+        assert_eq!(ret, RCL_RET_SUBSCRIPTION_INVALID as i32);
+
+        // Initialize subscription
+        let ret = rcl_subscription_init(
+            &mut subscriber,
+            fixture.node(),
+            ts,
+            topic_name.as_ptr(),
+            &subscriber_options,
+        );
+        assert_eq!(ret, RCL_RET_OK as i32);
+
+        // Test null loaned_message
+        let ret = rcl_return_loaned_message_from_subscription(&subscriber, ptr::null_mut());
+        assert_eq!(ret, RCL_RET_INVALID_ARGUMENT as i32);
+
+        // Finalize
+        test_msgs__msg__Strings__fini(&mut dummy_msg);
+        let ret = rcl_subscription_fini(&mut subscriber, fixture.node());
+        assert_eq!(ret, RCL_RET_OK as i32);
+    }
+}
+
 /// Test subscription not initialized with content filtering
 #[test]
 fn test_subscription_not_initialized_with_content_filtering() {
@@ -1231,6 +1398,92 @@ fn test_subscription_not_initialized_with_content_filtering() {
             std::mem::zeroed::<rcl_subscription_content_filter_options_t>();
         let ret = rcl_subscription_get_content_filter(&subscriber, &mut content_filter_options);
         assert_ne!(ret, RCL_RET_OK as i32);
+
+        // Finalize
+        let ret = rcl_subscription_fini(&mut subscriber, fixture.node());
+        assert_eq!(ret, RCL_RET_OK as i32);
+    }
+}
+
+/// Test bad arguments for rcl_subscription_set_content_filter (non-mock portions)
+#[test]
+fn test_bad_rcl_subscription_set_content_filter() {
+    let mut fixture = TestSubscriberFixture::new();
+
+    unsafe {
+        let ts = ROSIDL_GET_MSG_TYPE_SUPPORT!(test_msgs, msg, BasicTypes);
+        let topic_name = c"chatter";
+        let subscriber_options = rcl_subscription_get_default_options();
+
+        let mut subscriber = rcl_get_zero_initialized_subscription();
+        let ret = rcl_subscription_init(
+            &mut subscriber,
+            fixture.node(),
+            ts,
+            topic_name.as_ptr(),
+            &subscriber_options,
+        );
+        assert_eq!(ret, RCL_RET_OK as i32);
+
+        let zero_sub = rcl_get_zero_initialized_subscription();
+
+        // Test null subscription
+        let ret = rcl_subscription_set_content_filter(ptr::null(), ptr::null());
+        assert_eq!(ret, RCL_RET_SUBSCRIPTION_INVALID as i32);
+
+        // Test zero-initialized subscription
+        let ret = rcl_subscription_set_content_filter(&zero_sub, ptr::null());
+        assert_eq!(ret, RCL_RET_SUBSCRIPTION_INVALID as i32);
+
+        // Test null options with valid subscription
+        let ret = rcl_subscription_set_content_filter(&subscriber, ptr::null());
+        assert_eq!(ret, RCL_RET_INVALID_ARGUMENT as i32);
+
+        // Note: Content filter options init/fini/set/get return UNSUPPORTED since
+        // content filtering is not implemented. Mock tests for RMW_RET_UNSUPPORTED
+        // and RMW_RET_ERROR are skipped as we don't have mocking support in Rust tests.
+
+        let ret = rcl_subscription_fini(&mut subscriber, fixture.node());
+        assert_eq!(ret, RCL_RET_OK as i32);
+    }
+}
+
+/// Test bad arguments for rcl_subscription_get_content_filter (non-mock portions)
+#[test]
+fn test_bad_rcl_subscription_get_content_filter() {
+    let mut fixture = TestSubscriberFixture::new();
+
+    unsafe {
+        let ts = ROSIDL_GET_MSG_TYPE_SUPPORT!(test_msgs, msg, BasicTypes);
+        let topic_name = c"chatter";
+        let subscriber_options = rcl_subscription_get_default_options();
+
+        let mut subscriber = rcl_get_zero_initialized_subscription();
+        let ret = rcl_subscription_init(
+            &mut subscriber,
+            fixture.node(),
+            ts,
+            topic_name.as_ptr(),
+            &subscriber_options,
+        );
+        assert_eq!(ret, RCL_RET_OK as i32);
+
+        let zero_sub = rcl_get_zero_initialized_subscription();
+
+        // Test null subscription
+        let ret = rcl_subscription_get_content_filter(ptr::null(), ptr::null_mut());
+        assert_eq!(ret, RCL_RET_SUBSCRIPTION_INVALID as i32);
+
+        // Test zero-initialized subscription
+        let ret = rcl_subscription_get_content_filter(&zero_sub, ptr::null_mut());
+        assert_eq!(ret, RCL_RET_SUBSCRIPTION_INVALID as i32);
+
+        // Test null options with valid subscription
+        let ret = rcl_subscription_get_content_filter(&subscriber, ptr::null_mut());
+        assert_eq!(ret, RCL_RET_INVALID_ARGUMENT as i32);
+
+        // Note: Mock tests for RMW_RET_UNSUPPORTED and RMW_RET_ERROR are skipped
+        // as we don't have mocking support in Rust tests
 
         // Finalize
         let ret = rcl_subscription_fini(&mut subscriber, fixture.node());
