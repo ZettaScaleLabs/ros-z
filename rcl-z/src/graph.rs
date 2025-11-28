@@ -795,3 +795,23 @@ pub unsafe extern "C" fn rcl_wait_for_subscribers(
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
 }
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn rmw_topic_endpoint_info_array_fini(
+    topic_endpoint_info_array: *mut rmw_topic_endpoint_info_array_t,
+    allocator: *mut rcl_allocator_t,
+) -> rmw_ret_t {
+    if topic_endpoint_info_array.is_null() {
+        return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    unsafe {
+        if !(*topic_endpoint_info_array).info_array.is_null() {
+            let _ = Box::from_raw((*topic_endpoint_info_array).info_array);
+        }
+        (*topic_endpoint_info_array).info_array = ptr::null_mut();
+        (*topic_endpoint_info_array).size = 0;
+    }
+
+    RMW_RET_OK as _
+}

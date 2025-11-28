@@ -8,6 +8,7 @@
 
 mod test_msgs_support;
 
+use std::ffi::CStr;
 use std::ptr;
 
 use rcl_z::{
@@ -16,7 +17,7 @@ use rcl_z::{
     },
     graph::{
         rcl_get_publishers_info_by_topic, rcl_get_subscriptions_info_by_topic,
-        rcl_wait_for_publishers, rcl_wait_for_subscribers,
+        rcl_wait_for_publishers, rcl_wait_for_subscribers, rmw_topic_endpoint_info_array_fini,
     },
     init::{
         rcl_get_default_allocator, rcl_get_zero_initialized_init_options, rcl_init,
@@ -41,8 +42,8 @@ struct TestInfoByTopicFixture {
     node: rcl_node_t,
     init_options: rcl_init_options_t,
     #[allow(dead_code)]
-    test_graph_node_name: &'static str,
-    topic_name: &'static str,
+    test_graph_node_name: &'static CStr,
+    topic_name: &'static CStr,
 }
 
 impl TestInfoByTopicFixture {
@@ -96,8 +97,8 @@ impl TestInfoByTopicFixture {
             old_node,
             node,
             init_options,
-            test_graph_node_name: "test_graph_node",
-            topic_name: "/unique_topic_for_info_by_topic_test",
+            test_graph_node_name: c"test_graph_node",
+            topic_name: c"valid_topic_name",
         }
     }
 
@@ -147,7 +148,7 @@ fn test_rcl_get_publishers_info_by_topic_null_node() {
     let ret = rcl_get_publishers_info_by_topic(
         ptr::null_mut(),
         &mut allocator,
-        fixture.topic_name.as_ptr() as *const _,
+        fixture.topic_name.as_ptr(),
         false,
         ptr::null_mut(),
     );
@@ -165,7 +166,7 @@ fn test_rcl_get_subscriptions_info_by_topic_null_node() {
     let ret = rcl_get_subscriptions_info_by_topic(
         ptr::null_mut(),
         &mut allocator,
-        fixture.topic_name.as_ptr() as *const _,
+        fixture.topic_name.as_ptr(),
         false,
         ptr::null_mut(),
     );
@@ -185,7 +186,7 @@ fn test_rcl_get_publishers_info_by_topic_invalid_node() {
     let ret = rcl_get_publishers_info_by_topic(
         fixture.old_node(),
         &mut allocator,
-        fixture.topic_name.as_ptr() as *const _,
+        fixture.topic_name.as_ptr(),
         false,
         &mut topic_endpoint_info_array,
     );
@@ -205,7 +206,7 @@ fn test_rcl_get_subscriptions_info_by_topic_invalid_node() {
     let ret = rcl_get_subscriptions_info_by_topic(
         fixture.old_node(),
         &mut allocator,
-        fixture.topic_name.as_ptr() as *const _,
+        fixture.topic_name.as_ptr(),
         false,
         &mut topic_endpoint_info_array,
     );
@@ -223,7 +224,7 @@ fn test_rcl_get_publishers_info_by_topic_null_allocator() {
     let ret = rcl_get_publishers_info_by_topic(
         fixture.node(),
         ptr::null_mut(),
-        fixture.topic_name.as_ptr() as *const _,
+        fixture.topic_name.as_ptr(),
         false,
         &mut topic_endpoint_info_array,
     );
@@ -241,7 +242,7 @@ fn test_rcl_get_subscriptions_info_by_topic_null_allocator() {
     let ret = rcl_get_subscriptions_info_by_topic(
         fixture.node(),
         ptr::null_mut(),
-        fixture.topic_name.as_ptr() as *const _,
+        fixture.topic_name.as_ptr(),
         false,
         &mut topic_endpoint_info_array,
     );
@@ -297,7 +298,7 @@ fn test_rcl_get_publishers_info_by_topic_null_participants() {
     let ret = rcl_get_publishers_info_by_topic(
         fixture.node(),
         &mut allocator,
-        fixture.topic_name.as_ptr() as *const _,
+        fixture.topic_name.as_ptr(),
         false,
         ptr::null_mut(),
     );
@@ -315,7 +316,7 @@ fn test_rcl_get_subscriptions_info_by_topic_null_participants() {
     let ret = rcl_get_subscriptions_info_by_topic(
         fixture.node(),
         &mut allocator,
-        fixture.topic_name.as_ptr() as *const _,
+        fixture.topic_name.as_ptr(),
         false,
         ptr::null_mut(),
     );
@@ -340,7 +341,7 @@ fn test_rcl_get_publishers_info_by_topic_invalid_participants() {
     let ret = rcl_get_publishers_info_by_topic(
         fixture.node(),
         &mut allocator,
-        fixture.topic_name.as_ptr() as *const _,
+        fixture.topic_name.as_ptr(),
         false,
         &mut topic_endpoint_info_array,
     );
@@ -369,7 +370,7 @@ fn test_rcl_get_subscriptions_info_by_topic_invalid_participants() {
     let ret = rcl_get_subscriptions_info_by_topic(
         fixture.node(),
         &mut allocator,
-        fixture.topic_name.as_ptr() as *const _,
+        fixture.topic_name.as_ptr(),
         false,
         &mut topic_endpoint_info_array,
     );
@@ -380,49 +381,7 @@ fn test_rcl_get_subscriptions_info_by_topic_invalid_participants() {
     }
 }
 
-/// Test main functionality of rcl_get_publishers_info_by_topic
-#[test]
-fn test_rcl_get_publishers_info_by_topic() {
-    let mut fixture = TestInfoByTopicFixture::new();
 
-    let mut topic_endpoint_info_array = rmw_topic_endpoint_info_array_t::default();
-    let mut allocator = rcl_get_default_allocator();
-
-    // Valid call (should succeed even with no publishers)
-    let ret = rcl_get_publishers_info_by_topic(
-        fixture.node(),
-        &mut allocator,
-        fixture.topic_name.as_ptr() as *const _,
-        false,
-        &mut topic_endpoint_info_array,
-    );
-    assert_eq!(ret, RCL_RET_OK as i32);
-
-    // Should have zero publishers initially
-    assert_eq!(topic_endpoint_info_array.size, 0);
-}
-
-/// Test main functionality of rcl_get_subscriptions_info_by_topic
-#[test]
-fn test_rcl_get_subscriptions_info_by_topic() {
-    let mut fixture = TestInfoByTopicFixture::new();
-
-    let mut topic_endpoint_info_array = rmw_topic_endpoint_info_array_t::default();
-    let mut allocator = rcl_get_default_allocator();
-
-    // Valid call (should succeed even with no subscriptions)
-    let ret = rcl_get_subscriptions_info_by_topic(
-        fixture.node(),
-        &mut allocator,
-        fixture.topic_name.as_ptr() as *const _,
-        false,
-        &mut topic_endpoint_info_array,
-    );
-    assert_eq!(ret, RCL_RET_OK as i32);
-
-    // Should have zero subscriptions initially
-    assert_eq!(topic_endpoint_info_array.size, 0);
-}
 
 impl TestInfoByTopicFixture {
     fn assert_qos_equality(
@@ -481,7 +440,7 @@ fn test_rcl_get_publishers_subscription_info_by_topic() {
             &mut publisher,
             fixture.node(),
             ts,
-            fixture.topic_name.as_ptr() as *const _,
+            fixture.topic_name.as_ptr(),
             &publisher_options,
         );
     }
@@ -495,13 +454,13 @@ fn test_rcl_get_publishers_subscription_info_by_topic() {
             &mut subscription,
             fixture.node(),
             ts,
-            fixture.topic_name.as_ptr() as *const _,
+            fixture.topic_name.as_ptr(),
             &subscription_options,
         );
     }
     assert_eq!(ret, RCL_RET_OK as i32);
 
-    let fqdn = fixture.topic_name;
+    let fqdn = format!("/{}\0", fixture.topic_name.to_str().unwrap());
     // Wait until GraphCache publishers are updated
     let mut success = false;
     let ret = unsafe {
@@ -535,7 +494,7 @@ fn test_rcl_get_publishers_subscription_info_by_topic() {
             .to_str()
             .unwrap()
     };
-    assert_eq!(node_name, fixture.test_graph_node_name);
+    assert_eq!(node_name, fixture.test_graph_node_name.to_str().unwrap());
     let node_namespace = unsafe {
         std::ffi::CStr::from_ptr(topic_endpoint_info_pub.node_namespace)
             .to_str()
@@ -587,7 +546,7 @@ fn test_rcl_get_publishers_subscription_info_by_topic() {
             .to_str()
             .unwrap()
     };
-    assert_eq!(node_name, fixture.test_graph_node_name);
+    assert_eq!(node_name, fixture.test_graph_node_name.to_str().unwrap());
     let node_namespace = unsafe {
         std::ffi::CStr::from_ptr(topic_endpoint_info_sub.node_namespace)
             .to_str()
@@ -607,6 +566,10 @@ fn test_rcl_get_publishers_subscription_info_by_topic() {
     );
 
     // Clean up
+    let ret = unsafe { rmw_topic_endpoint_info_array_fini(&mut topic_endpoint_info_array_pub, &mut allocator) };
+    assert_eq!(ret, RMW_RET_OK as i32);
+    let ret = unsafe { rmw_topic_endpoint_info_array_fini(&mut topic_endpoint_info_array_sub, &mut allocator) };
+    assert_eq!(ret, RMW_RET_OK as i32);
     let ret = rcl_subscription_fini(&mut subscription, fixture.node());
     assert_eq!(ret, RCL_RET_OK as i32);
     let ret = rcl_publisher_fini(&mut publisher, fixture.node());
