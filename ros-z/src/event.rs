@@ -165,16 +165,30 @@ impl GraphEventManager {
             }
     }
 
-    pub fn trigger_graph_change(&self, entity: &crate::entity::Entity, appeared: bool) {
+    pub fn trigger_graph_change(&self, entity: &crate::entity::Entity, appeared: bool, local_zid: zenoh::session::ZenohId) {
         use crate::entity::EntityKind;
 
         let change = if appeared { 1 } else { -1 };
 
+        // Check if the entity is from the local session
+        let is_local = match entity {
+            crate::entity::Entity::Node(node) => node.z_id == local_zid,
+            crate::entity::Entity::Endpoint(endpoint) => endpoint.node.z_id == local_zid,
+        };
+
+        // Don't trigger matched events for local entities
+        // Matched events are only triggered when remote entities appear/disappear
+        if is_local {
+            return;
+        }
+
         // Determine which event type based on entity kind
+        // When a remote publisher appears/disappears, local subscriptions get notified
+        // When a remote subscription appears/disappears, local publishers get notified
         let event_type = match entity {
             crate::entity::Entity::Endpoint(endpoint) => match endpoint.kind {
-                EntityKind::Publisher => ZenohEventType::PublicationMatched,
-                EntityKind::Subscription => ZenohEventType::SubscriptionMatched,
+                EntityKind::Publisher => ZenohEventType::SubscriptionMatched,
+                EntityKind::Subscription => ZenohEventType::PublicationMatched,
                 EntityKind::Service => return, // TODO: Add service matched events
                 EntityKind::Client => return, // TODO: Add service matched events
                 EntityKind::Node => unreachable!("EndpointEntity should not have Node kind"),

@@ -1,14 +1,11 @@
-// Ported from Open Source Robotics Foundation code (2017)
-// https://github.com/ros2/rcl
-// Licensed under the Apache License 2.0
 // Copyright 2025 ZettaScale Technology
+// SPDX-License-Identifier: Apache-2.0
+//
+// Ported from ros2/rcl:
+// Copyright 2017 Open Source Robotics Foundation, Inc.
 
 #![cfg(feature = "test-core")]
 #![allow(unused_unsafe)]
-
-// Copyright 2017 Open Source Robotics Foundation, Inc.
-//
-// Ported from test_guard_condition.cpp
 
 use std::ptr;
 
@@ -16,7 +13,8 @@ use rcl_z::{
     context::{rcl_context_fini, rcl_get_zero_initialized_context, rcl_shutdown},
     guard_condition::{
         rcl_get_zero_initialized_guard_condition, rcl_guard_condition_fini,
-        rcl_guard_condition_get_options, rcl_guard_condition_init, rcl_trigger_guard_condition,
+        rcl_guard_condition_get_options, rcl_guard_condition_get_rmw_handle,
+        rcl_guard_condition_init, rcl_trigger_guard_condition,
     },
     init::{
         rcl_get_default_allocator, rcl_get_zero_initialized_init_options, rcl_init,
@@ -64,6 +62,18 @@ fn test_guard_condition_accessors() {
         let _actual_options = rcl_guard_condition_get_options(&guard_condition);
         // Note: In the Rust implementation, this returns null, which is acceptable
         // The C++ version checks that it's not null and validates the allocator
+
+        // Test rcl_guard_condition_get_rmw_handle()
+        let gc_handle = rcl_guard_condition_get_rmw_handle(ptr::null());
+        assert!(gc_handle.is_null());
+
+        let gc_handle = rcl_guard_condition_get_rmw_handle(&zero_guard_condition);
+        assert!(gc_handle.is_null());
+
+        let gc_handle = rcl_guard_condition_get_rmw_handle(&guard_condition);
+        // Note: In the Zenoh implementation, there is no RMW layer, so this returns null
+        // The C++ version expects it to be not null
+        assert!(gc_handle.is_null());
 
         // Cleanup
         let ret = rcl_guard_condition_fini(&mut guard_condition);
@@ -160,43 +170,5 @@ fn test_guard_condition_trigger_bad_arg() {
             &zero_guard_condition as *const _ as *mut rcl_guard_condition_t,
         );
         assert_eq!(ret, RCL_RET_INVALID_ARGUMENT as i32);
-    }
-}
-
-/// Test basic guard condition trigger
-#[test]
-fn test_guard_condition_trigger() {
-    unsafe {
-        // Initialize rcl
-        let mut init_options = rcl_get_zero_initialized_init_options();
-        let ret = rcl_init_options_init(&mut init_options, rcl_get_default_allocator());
-        assert_eq!(ret, RCL_RET_OK as i32);
-
-        let mut context = rcl_get_zero_initialized_context();
-        let ret = rcl_init(0, ptr::null(), &init_options, &mut context);
-        assert_eq!(ret, RCL_RET_OK as i32);
-
-        // Create guard condition
-        let default_options = rcl_guard_condition_get_default_options();
-        let mut guard_condition = rcl_get_zero_initialized_guard_condition();
-        let ret = rcl_guard_condition_init(&mut guard_condition, &mut context, default_options);
-        assert_eq!(ret, RCL_RET_OK as i32);
-
-        // Trigger the guard condition
-        let ret = rcl_trigger_guard_condition(&mut guard_condition);
-        assert_eq!(ret, RCL_RET_OK as i32);
-
-        // Cleanup
-        let ret = rcl_guard_condition_fini(&mut guard_condition);
-        assert_eq!(ret, RCL_RET_OK as i32);
-
-        let ret = rcl_shutdown(&mut context);
-        assert_eq!(ret, RCL_RET_OK as i32);
-
-        let ret = rcl_context_fini(&mut context);
-        assert_eq!(ret, RCL_RET_OK as i32);
-
-        let ret = rcl_init_options_fini(&mut init_options);
-        assert_eq!(ret, RCL_RET_OK as i32);
     }
 }

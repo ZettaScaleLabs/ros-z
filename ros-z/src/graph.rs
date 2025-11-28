@@ -9,7 +9,7 @@ use crate::entity::{
     ADMIN_SPACE, EndpointEntity, Entity, EntityKind, LivelinessKE, NodeKey, Topic,
 };
 use crate::event::GraphEventManager;
-use zenoh::{Result, Session, Wait, pubsub::Subscriber, sample::SampleKind};
+use zenoh::{Result, Session, Wait, pubsub::Subscriber, sample::SampleKind, session::ZenohId};
 
 const DEFAULT_SLAB_CAPACITY: usize = 128;
 
@@ -187,15 +187,18 @@ impl GraphData {
 pub struct Graph {
     pub data: Arc<Mutex<GraphData>>,
     pub event_manager: Arc<GraphEventManager>,
+    pub zid: ZenohId,
     _subscriber: Subscriber<()>,
 }
 
 impl Graph {
     pub fn new(session: &Session, domain_id: usize) -> Result<Self> {
+        let zid = session.zid();
         let graph_data = Arc::new(Mutex::new(GraphData::new()));
         let event_manager = Arc::new(GraphEventManager::new());
         let c_graph_data = graph_data.clone();
         let c_event_manager = event_manager.clone();
+        let c_zid = zid;
         let sub = session
             .liveliness()
             .declare_subscriber(format!("{ADMIN_SPACE}/{domain_id}/**"))
@@ -209,13 +212,13 @@ impl Graph {
                         graph_data_guard.insert(ke.clone());
                         // Trigger graph change events
                         if let Ok(entity) = Entity::try_from(&ke) {
-                            c_event_manager.trigger_graph_change(&entity, true);
+                            c_event_manager.trigger_graph_change(&entity, true, c_zid);
                         }
                     }
                     SampleKind::Delete => {
                         // Trigger graph change events before removal
                         if let Ok(entity) = Entity::try_from(&ke) {
-                            c_event_manager.trigger_graph_change(&entity, false);
+                            c_event_manager.trigger_graph_change(&entity, false, c_zid);
                         }
                         graph_data_guard.remove(&ke);
                     }
@@ -226,7 +229,16 @@ impl Graph {
             _subscriber: sub,
             data: graph_data,
             event_manager,
+            zid,
         })
+    }
+
+    /// Check if an entity belongs to the current session
+    pub fn is_entity_local(&self, entity: &Entity) -> bool {
+        match entity {
+            Entity::Node(node) => node.z_id == self.zid,
+            Entity::Endpoint(endpoint) => endpoint.node.z_id == self.zid,
+        }
     }
 
     pub fn count(&self, kind: EntityKind, topic: impl AsRef<str>) -> usize {

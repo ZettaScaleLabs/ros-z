@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use crate::ros::*;
-use ros_z::qos::{QosDurability, QosHistory, QosProfile, QosReliability};
+use ros_z::qos::{Duration, QosDurability, QosHistory, QosLiveliness, QosProfile, QosReliability};
 
 /// Convert RMW QoS profile to ros-z QoS profile
 pub fn rmw_qos_to_ros_z_qos(rmw_qos: &rmw_qos_profile_t) -> QosProfile {
@@ -23,10 +23,36 @@ pub fn rmw_qos_to_ros_z_qos(rmw_qos: &rmw_qos_profile_t) -> QosProfile {
         _ => QosHistory::default(),
     };
 
+    let deadline = Duration {
+        sec: rmw_qos.deadline.sec,
+        nsec: rmw_qos.deadline.nsec,
+    };
+
+    let lifespan = Duration {
+        sec: rmw_qos.lifespan.sec,
+        nsec: rmw_qos.lifespan.nsec,
+    };
+
+    let liveliness = match rmw_qos.liveliness {
+        rmw_qos_liveliness_policy_e::AUTOMATIC => QosLiveliness::Automatic,
+        rmw_qos_liveliness_policy_e::MANUAL_BY_NODE => QosLiveliness::ManualByNode,
+        rmw_qos_liveliness_policy_e::MANUAL_BY_TOPIC => QosLiveliness::ManualByTopic,
+        _ => QosLiveliness::default(),
+    };
+
+    let liveliness_lease_duration = Duration {
+        sec: rmw_qos.liveliness_lease_duration.sec,
+        nsec: rmw_qos.liveliness_lease_duration.nsec,
+    };
+
     QosProfile {
         reliability,
         durability,
         history,
+        deadline,
+        lifespan,
+        liveliness,
+        liveliness_lease_duration,
     }
 }
 
@@ -191,9 +217,25 @@ impl From<&QosProfile> for rmw_qos_profile_t {
             QosHistory::KeepAll => (rmw_qos_history_policy_e::KEEP_ALL, 0),
         };
 
-        let infinite_time = rmw_time_s {
-            sec: 9223372036,
-            nsec: 854775807,
+        let deadline = rmw_time_s {
+            sec: qos.deadline.sec,
+            nsec: qos.deadline.nsec,
+        };
+
+        let lifespan = rmw_time_s {
+            sec: qos.lifespan.sec,
+            nsec: qos.lifespan.nsec,
+        };
+
+        let liveliness = match qos.liveliness {
+            QosLiveliness::Automatic => rmw_qos_liveliness_policy_e::AUTOMATIC,
+            QosLiveliness::ManualByNode => rmw_qos_liveliness_policy_e::MANUAL_BY_NODE,
+            QosLiveliness::ManualByTopic => rmw_qos_liveliness_policy_e::MANUAL_BY_TOPIC,
+        };
+
+        let liveliness_lease_duration = rmw_time_s {
+            sec: qos.liveliness_lease_duration.sec,
+            nsec: qos.liveliness_lease_duration.nsec,
         };
 
         rmw_qos_profile_s {
@@ -201,10 +243,10 @@ impl From<&QosProfile> for rmw_qos_profile_t {
             depth,
             reliability,
             durability,
-            deadline: infinite_time,
-            lifespan: infinite_time,
-            liveliness: rmw_qos_liveliness_policy_e::AUTOMATIC,
-            liveliness_lease_duration: infinite_time,
+            deadline,
+            lifespan,
+            liveliness,
+            liveliness_lease_duration,
             avoid_ros_namespace_conventions: false,
         }
     }

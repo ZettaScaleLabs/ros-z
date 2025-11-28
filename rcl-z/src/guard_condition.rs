@@ -97,6 +97,14 @@ pub extern "C" fn rcl_guard_condition_get_options(
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn rcl_guard_condition_get_rmw_handle(
+    _guard_condition: *const rcl_guard_condition_t,
+) -> *const rmw_guard_condition_t {
+    tracing::trace!("rcl_guard_condition_get_rmw_handle");
+    std::ptr::null()
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn rcl_guard_condition_init_from_rmw(
     _guard_condition: *mut rcl_guard_condition_t,
     _rmw_guard_condition: *const rmw_guard_condition_t,

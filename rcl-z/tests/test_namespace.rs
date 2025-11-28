@@ -1,8 +1,10 @@
-#![cfg(feature = "test-msgs")]
-
-// Copyright 2017 Open Source Robotics Foundation, Inc.
+// Copyright 2025 ZettaScale Technology
+// SPDX-License-Identifier: Apache-2.0
 //
-// Ported from test_namespace.cpp
+// Ported from ros2/rcl:
+// Copyright 2017 Open Source Robotics Foundation, Inc.
+
+#![cfg(feature = "test-msgs")]
 
 use std::{ptr, thread, time::Duration};
 

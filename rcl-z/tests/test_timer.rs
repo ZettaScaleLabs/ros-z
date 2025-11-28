@@ -1,7 +1,8 @@
-// Ported from Open Source Robotics Foundation code (2017)
-// https://github.com/ros2/rcl
-// Licensed under the Apache License 2.0
 // Copyright 2025 ZettaScale Technology
+// SPDX-License-Identifier: Apache-2.0
+//
+// Ported from ros2/rcl:
+// Copyright 2017 Open Source Robotics Foundation, Inc.
 
 #![cfg(feature = "test-core")]
 #![allow(unused_unsafe)]

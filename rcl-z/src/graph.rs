@@ -16,13 +16,25 @@ impl TryFrom<EndpointEntity> for rmw_topic_endpoint_info_t {
     type Error = NulError;
     fn try_from(value: EndpointEntity) -> Result<Self, Self::Error> {
         let node_name = CString::from_str(&value.node.name)?.into_raw();
+        // Use "/" as default namespace if empty
         let node_namespace = if value.node.namespace.is_empty() {
-            std::ptr::null()
+            CString::from_str("/")?.into_raw()
         } else {
             CString::from_str(&value.node.namespace)?.into_raw()
         };
+        // Convert DDS type name (e.g., "test_msgs::msg::dds_::Strings_") to ROS format ("test_msgs/msg/Strings")
         let topic_type = match &value.type_info {
-            Some(info) => CString::from_str(&info.name)?.into_raw(),
+            Some(info) => {
+                let dds_name = &info.name;
+                // Convert :: to / and remove "dds_::" and trailing "_"
+                let ros_name = dds_name
+                    .replace("::msg::dds_::", "/msg/")
+                    .replace("::srv::dds_::", "/srv/")
+                    .replace("::action::dds_::", "/action/")
+                    .trim_end_matches('_')
+                    .to_string();
+                CString::from_str(&ros_name)?.into_raw()
+            }
             None => std::ptr::null(),
         };
 
@@ -456,9 +468,11 @@ fn rcl_get_entities_info_by_topic(
         }
     }
 
-    // Check if node is valid
-    if !crate::node::rcl_node_is_valid(node) {
-        return RCL_RET_NODE_INVALID as _;
+    // Check if context is valid
+    unsafe {
+        if !crate::context::rcl_context_is_valid((*node).context as *const _) {
+            return RCL_RET_NODE_INVALID as _;
+        }
     }
 
     let node_impl = node.borrow_impl().unwrap();
@@ -636,7 +650,7 @@ pub unsafe extern "C" fn rcl_get_node_names(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_get_node_names_with_enclaves(
+pub unsafe extern "C" fn rcl_get_node_names_with_enclaves(
     node: *const rcl_node_t,
     allocator: rcl_allocator_t,
     node_names: *mut rcutils_string_array_t,
@@ -646,11 +660,38 @@ pub extern "C" fn rcl_get_node_names_with_enclaves(
     if node.is_null() {
         return RCL_RET_NODE_INVALID as _;
     }
-    if node_names.is_null()
-        || node_namespaces.is_null()
-        || enclaves.is_null()
-    {
+    if node_names.is_null() || node_namespaces.is_null() || enclaves.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    let node_impl = match node.borrow_impl() {
+        Ok(impl_) => impl_,
+        Err(_) => return RCL_RET_NODE_INVALID as _,
+    };
+
+    // Get all nodes from the graph
+    let nodes = node_impl.graph().get_node_names();
+
+    // Separate names, namespaces, and enclaves
+    let mut names = Vec::new();
+    let mut namespaces = Vec::new();
+    let mut enclave_vec = Vec::new();
+
+    for (name, namespace) in nodes {
+        names.push(CString::from_str(&name).unwrap());
+        namespaces.push(CString::from_str(&namespace).unwrap());
+        // For Zenoh implementation, we use a default enclave
+        // In a full ROS2 implementation, this would come from node metadata
+        enclave_vec.push(CString::from_str("/").unwrap());
+    }
+
+    unsafe {
+        *node_names = rcutils_string_array_t::from(names);
+        *node_namespaces = rcutils_string_array_t::from(namespaces);
+        *enclaves = rcutils_string_array_t::from(enclave_vec);
+    }
+
+    RCL_RET_OK as _
 }
 
 #[unsafe(no_mangle)]
@@ -753,32 +794,4 @@ pub unsafe extern "C" fn rcl_wait_for_subscribers(
         // Sleep for a short time before checking again
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
-}
-
-    let node_impl = match node.borrow_impl() {
-        Ok(impl_) => impl_,
-        Err(_) => return RCL_RET_INVALID_ARGUMENT as _,
-    };
-
-    // Get all nodes with enclaves from the graph
-    let nodes = node_impl.graph().get_node_names_with_enclaves();
-
-    // Separate names, namespaces, and enclaves
-    let mut names = Vec::new();
-    let mut namespaces = Vec::new();
-    let mut enclave_vec = Vec::new();
-
-    for (name, namespace, enclave) in nodes {
-        names.push(CString::from_str(&name).unwrap());
-        namespaces.push(CString::from_str(&namespace).unwrap());
-        enclave_vec.push(CString::from_str(&enclave).unwrap());
-    }
-
-    unsafe {
-        *node_names = rcutils_string_array_t::from(names);
-        *node_namespaces = rcutils_string_array_t::from(namespaces);
-        *enclaves = rcutils_string_array_t::from(enclave_vec);
-    }
-
-    RCL_RET_OK as _
 }
