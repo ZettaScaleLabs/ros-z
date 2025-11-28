@@ -102,40 +102,6 @@ pub unsafe extern "C" fn rcl_names_and_types_init(
     RCL_RET_OK as _
 }
 
-// impl TryFrom<EndpointEntity> for rcl_names_and_types_t {
-//     type Error = NulError;
-//     fn try_from(value: EndpointEntity) -> Result<Self, Self::Error> {
-//     pub names: rcutils_string_array_t,
-//     pub types: *mut rcutils_string_array_t,
-//     }
-// }
-
-// impl<S> From<Vec<S>> for rcutils_string_array_t
-// where
-//     S: AsRef<str>,
-// {
-//     fn from(strings: Vec<S>) -> Self {
-//         let mut c_strings: Vec<*mut c_char> = strings
-//             .into_iter()
-//             .map(|s| {
-//                 CString::new(s.as_ref())
-//                     .expect("CString::new failed")
-//                     .into_raw()
-//             })
-//             .collect();
-//
-//         let len = c_strings.len();
-//         let ptr = c_strings.as_mut_ptr();
-//         std::mem::forget(c_strings);
-//
-//         Self {
-//             data: ptr,
-//             size: len,
-//             allocator: rcutils_allocator_t::default(),
-//         }
-//     }
-// }
-
 impl From<Vec<CString>> for rcutils_string_array_t {
     fn from(strings: Vec<CString>) -> Self {
         let mut c_strings: Vec<*mut c_char> = strings.into_iter().map(|s| s.into_raw()).collect();

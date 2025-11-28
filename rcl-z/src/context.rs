@@ -163,14 +163,12 @@ pub extern "C" fn rcl_logging_configure_with_output_handler(
     RCL_RET_OK as _
 }
 
-// TODO: Not implemented yet
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_logging_rosout_enabled() -> bool {
     // Rosout logging is always enabled in our implementation
     true
 }
 
-// TODO: Not implemented yet
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_logging_rosout_init_publisher_for_node(
     _node: *mut rcl_node_t,
@@ -181,7 +179,6 @@ pub extern "C" fn rcl_logging_rosout_init_publisher_for_node(
     RCL_RET_OK as _
 }
 
-// TODO: Not implemented yet
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_logging_rosout_fini_publisher_for_node(
     _node: *mut rcl_node_t,

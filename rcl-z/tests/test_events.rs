@@ -9,7 +9,7 @@ mod test_msgs_support;
 
 use std::ptr;
 
-// Dummy status structs since rcl-z doesn't support events
+// Status structs for event testing
 #[repr(C)]
 #[derive(Debug, Default, Clone)]
 pub struct rmw_offered_deadline_missed_status_t {
