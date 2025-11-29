@@ -31,9 +31,7 @@ impl ZSerializer for RosSerdes {
     type Input<'a> = &'a RosMessage;
     fn serialize(input: &RosMessage) -> Vec<u8> {
         let RosMessage { msg, ts } = input;
-        let mut bytes = vec![0; unsafe { ts.get_serialized_size(*msg) }];
-        unsafe { ts.serialize_message(*msg, &mut bytes) };
-        bytes
+        unsafe { ts.serialize_message(*msg) }
     }
 }
 

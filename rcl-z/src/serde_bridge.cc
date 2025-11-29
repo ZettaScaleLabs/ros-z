@@ -3,11 +3,8 @@
 #include <fastcdr/Cdr.h>
 #include <fastcdr/FastBuffer.h>
 #include <rosidl_typesupport_fastrtps_c/identifier.h>
-#include <rosidl_typesupport_fastrtps_cpp/message_type_support.h>
-#include <rosidl_typesupport_fastrtps_cpp/service_type_support.h>
-#include <rosidl_typesupport_interface/macros.h>
-
 #include <rosidl_typesupport_fastrtps_cpp/identifier.hpp>
+#include <rosidl_typesupport_interface/macros.h>
 
 namespace serde_bridge {
 

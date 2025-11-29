@@ -9,12 +9,16 @@ use zenoh::{Result, Session, Wait, sample::Sample};
 use crate::Builder;
 use crate::attachment::{Attachment, GidArray};
 use crate::entity::EndpointEntity;
+use crate::event::EventsManager;
 use crate::impl_with_type_info;
+use crate::topic_name;
 
 use crate::msg::{CdrSerdes, ZDeserializer, ZMessage, ZSerializer};
 use crate::qos::{QosDurability, QosHistory, QosProfile, QosReliability};
+use std::sync::Mutex;
 
 pub struct ZPub<T: ZMessage, S: ZSerializer> {
+    pub entity: EndpointEntity,
     // TODO: replace this with the sample sn
     sn: AtomicUsize,
     // TODO: replace this with zenoh's global entity id
@@ -22,6 +26,7 @@ pub struct ZPub<T: ZMessage, S: ZSerializer> {
     inner: zenoh::pubsub::Publisher<'static>,
     _lv_token: LivelinessToken,
     with_attachment: bool,
+    events_mgr: Arc<Mutex<EventsManager>>,
     _phantom_data: PhantomData<(T, S)>,
 }
 
@@ -64,7 +69,17 @@ where
 {
     type Output = ZPub<T, S>;
 
-    fn build(self) -> Result<Self::Output> {
+    fn build(mut self) -> Result<Self::Output> {
+        // Qualify the topic name according to ROS 2 rules
+        let qualified_topic = topic_name::qualify_topic_name(
+            &self.entity.topic,
+            &self.entity.node.namespace,
+            &self.entity.node.name,
+        )
+        .map_err(|e| zenoh::Error::from(format!("Failed to qualify topic: {}", e)))?;
+
+        self.entity.topic = qualified_topic;
+
         let key_expr = self.entity.topic_key_expr()?;
         tracing::debug!("[PUB] KE: {key_expr}");
 
@@ -97,11 +112,14 @@ where
             .liveliness()
             .declare_token(self.entity.lv_token_key_expr()?)
             .wait()?;
+        let gid = self.entity.gid();
         Ok(ZPub {
+            entity: self.entity,
             sn: AtomicUsize::new(0),
             inner,
             _lv_token: lv_token,
-            gid: self.entity.gid(),
+            gid,
+            events_mgr: Arc::new(Mutex::new(EventsManager::new(gid))),
             with_attachment: self.with_attachment,
             _phantom_data: Default::default(),
         })
@@ -148,6 +166,10 @@ where
         }
         put_builder.wait()
     }
+
+    pub fn events_mgr(&self) -> &Arc<Mutex<EventsManager>> {
+        &self.events_mgr
+    }
 }
 
 pub struct ZSubBuilder<T, S = CdrSerdes<T>> {
@@ -174,11 +196,21 @@ where
     }
 
     #[cfg(feature = "rcl-z")]
-    pub fn build_with_notifier<F>(self, notify: F) -> Result<ZSub<T, Sample, S>>
+    pub fn build_with_notifier<F>(mut self, notify: F) -> Result<ZSub<T, Sample, S>>
     where
         F: Fn() + Send + Sync + 'static,
         S: ZDeserializer,
     {
+        // Qualify the topic name according to ROS 2 rules
+        let qualified_topic = topic_name::qualify_topic_name(
+            &self.entity.topic,
+            &self.entity.node.namespace,
+            &self.entity.node.name,
+        )
+        .map_err(|e| zenoh::Error::from(format!("Failed to qualify topic: {}", e)))?;
+
+        self.entity.topic = qualified_topic;
+
         // Map QoS history to queue size
         let queue_size = match self.entity.qos.history {
             QosHistory::KeepLast(depth) => depth,
@@ -194,6 +226,7 @@ where
                 notify();
             })
             .wait()?;
+        let gid = self.entity.gid();
         let lv_token = self
             .session
             .liveliness()
@@ -204,6 +237,7 @@ where
             _inner: inner,
             _lv_token: lv_token,
             queue: rx,
+            events_mgr: Arc::new(Mutex::new(EventsManager::new(gid))),
             _phantom_data: Default::default(),
         })
     }
@@ -216,7 +250,17 @@ where
 {
     type Output = ZSub<T, Sample, S>;
 
-    fn build(self) -> Result<Self::Output> {
+    fn build(mut self) -> Result<Self::Output> {
+        // Qualify the topic name according to ROS 2 rules
+        let qualified_topic = topic_name::qualify_topic_name(
+            &self.entity.topic,
+            &self.entity.node.namespace,
+            &self.entity.node.name,
+        )
+        .map_err(|e| zenoh::Error::from(format!("Failed to qualify topic: {}", e)))?;
+
+        self.entity.topic = qualified_topic;
+
         // Map QoS history to queue size
         let queue_size = match self.entity.qos.history {
             QosHistory::KeepLast(depth) => depth,
@@ -231,6 +275,7 @@ where
                 let _ = tx.send(sample);
             })
             .wait()?;
+        let gid = self.entity.gid();
         let lv_token = self
             .session
             .liveliness()
@@ -241,6 +286,7 @@ where
             _inner: inner,
             _lv_token: lv_token,
             queue: rx,
+            events_mgr: Arc::new(Mutex::new(EventsManager::new(gid))),
             _phantom_data: Default::default(),
         })
     }
@@ -251,6 +297,7 @@ pub struct ZSub<T: ZMessage, Q, S: ZDeserializer> {
     pub queue: flume::Receiver<Q>,
     _inner: zenoh::pubsub::Subscriber<()>,
     _lv_token: LivelinessToken,
+    events_mgr: Arc<Mutex<EventsManager>>,
     _phantom_data: PhantomData<(T, S)>,
 }
 
@@ -269,6 +316,10 @@ where
     pub async fn async_recv_serialized(&self) -> Result<Sample> {
         let msg = self.queue.recv_async().await?;
         Ok(msg)
+    }
+
+    pub fn events_mgr(&self) -> &Arc<Mutex<EventsManager>> {
+        &self.events_mgr
     }
 }
 

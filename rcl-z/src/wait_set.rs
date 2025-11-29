@@ -4,6 +4,7 @@ use std::collections::{HashMap, VecDeque};
 use std::ptr::null;
 use std::sync::Arc;
 
+use crate::init::rcl_get_default_allocator;
 use crate::pubsub::SubscriptionImpl;
 use crate::service::{ClientImpl, ServiceImpl};
 use crate::traits::HasImplPtr;
@@ -37,6 +38,7 @@ pub struct WaitSetImpl {
     hmap: HashMap<WaitSetKind, WaitSetQueue>,
     mirror: Option<HashMap<WaitSetKind, Box<[*const c_void]>>>,
     notifier: Option<Arc<Notifier>>,
+    allocator: rcl_allocator_t,
 }
 
 impl WaitSetImpl {
@@ -47,6 +49,7 @@ impl WaitSetImpl {
                 .collect(),
             mirror: None,
             notifier: None,
+            allocator: rcl_get_default_allocator(),
         }
     }
 
@@ -105,6 +108,34 @@ impl WaitSetImpl {
         }
     }
 
+    fn is_event_ready(&self) -> bool {
+        use crate::event::EVENT_MAP;
+        match self.hmap.get(&WaitSetKind::Event) {
+            Some(queue) => queue.iter().any(|&ptr| {
+                if ptr.is_null() {
+                    return false;
+                }
+                let event_ptr = ptr as usize;
+                if let Some(map) = EVENT_MAP.get() {
+                    if let Ok(map) = map.lock() {
+                        if let Some(event_impl) = map.get(&event_ptr) {
+                            // Check if the event has unread status
+                            let rmw_handle = &*event_impl.rmw_handle;
+                            rmw_handle.is_ready()
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }),
+            None => false,
+        }
+    }
+
     fn wait(&self, notifier: &Arc<Notifier>, timeout: Duration) {
         let is_ready = || {
             self.is_ready::<rcl_subscription_t>(WaitSetKind::Subscription)
@@ -112,6 +143,7 @@ impl WaitSetImpl {
                 || self.is_ready::<rcl_service_t>(WaitSetKind::Service)
                 || self.is_ready::<rcl_guard_condition_t>(WaitSetKind::GuradCondition)
                 || self.is_ready::<rcl_timer_t>(WaitSetKind::Timer)
+                || self.is_event_ready()
         };
 
         let (mutex, cv) = {
@@ -154,6 +186,12 @@ impl WaitSetImpl {
                 }
             }
         }
+
+        // Check events separately
+        if self.is_event_ready() {
+            ready = true;
+        }
+
         Ok(ready)
     }
 
@@ -181,13 +219,19 @@ impl WaitSetImpl {
 
         if let Some(queue) = self.hmap.get(&WaitSetKind::Timer) {
             for &timer in queue {
-                match (timer as *const rcl_timer_t)
-                    .borrow_impl()
-                    .unwrap()
-                    .get_time_until_next_call()
-                {
-                    Ok(diff) => timeout = timeout.min(diff),
-                    Err(_) => return Duration::ZERO,
+                let impl_ = (timer as *const rcl_timer_t).borrow_impl().unwrap();
+                unsafe {
+                    let mut now: i64 = 0;
+                    let ret = crate::timer::rcl_clock_get_now(impl_.get_clock(), &mut now);
+                    if ret != crate::ros::RCL_RET_OK as i32 {
+                        return Duration::ZERO;
+                    }
+                    let diff = impl_.get_time_until_next_call(now);
+                    if diff > 0 {
+                        timeout = timeout.min(Duration::from_nanos(diff as u64));
+                    } else {
+                        return Duration::ZERO;
+                    }
                 }
             }
         }
@@ -438,7 +482,7 @@ impl rcl_wait_set_t {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rcl_wait_set_init(
+pub unsafe extern "C" fn rcl_wait_set_init(
     wait_set: *mut rcl_wait_set_t,
     number_of_subscriptions: usize,
     number_of_guard_conditions: usize,
@@ -451,8 +495,31 @@ pub extern "C" fn rcl_wait_set_init(
 ) -> rcl_ret_t {
     tracing::trace!("rcl_wait_set_init");
 
-    wait_set.borrow_mut_impl().unwrap().notifier =
-        Some(context.borrow_impl().unwrap().share_notifier());
+    if wait_set.is_null() || context.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    // Check if context is initialized
+    if !unsafe { crate::context::rcl_context_is_valid(context) } {
+        return RCL_RET_NOT_INIT as _;
+    }
+
+    // Check if wait set is already initialized
+    if !unsafe { (*wait_set).impl_.is_null() } {
+        return RCL_RET_ALREADY_INIT as _;
+    }
+
+    // Initialize impl_
+    unsafe {
+        (*wait_set).impl_ = Box::into_raw(Box::new(WaitSetImpl::new())) as _;
+    }
+
+    if let (Ok(ws_impl), Ok(ctx_impl)) = (wait_set.borrow_mut_impl(), context.borrow_impl()) {
+        ws_impl.notifier = Some(ctx_impl.share_notifier());
+        ws_impl.allocator = _allocator;
+    } else {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
 
     // FIXME: we lost the length information in WaitSetImpl
     // let x = wait_set.borrow_mut_impl().unwrap();
@@ -479,7 +546,12 @@ pub extern "C" fn rcl_wait_set_init(
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_wait_set_fini(wait_set: *mut rcl_wait_set_t) -> rcl_ret_t {
     tracing::trace!("rcl_wait_set_fini");
-    wait_set.borrow_mut_impl().unwrap().reset_all();
+    if wait_set.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+    if let Ok(impl_) = wait_set.own_impl() {
+        drop(impl_);
+    }
     RCL_RET_OK as _
 }
 
@@ -495,6 +567,23 @@ pub extern "C" fn rcl_wait(wait_set: *mut rcl_wait_set_t, timeout: i64) -> rcl_r
     tracing::trace!("rcl_wait, timeout={timeout}");
     if wait_set.is_null() {
         return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    if !rcl_wait_set_is_valid(wait_set) {
+        return RCL_RET_WAIT_SET_INVALID as _;
+    }
+
+    // Check if wait set is empty (initialized with zero capacity for all types)
+    let is_empty = unsafe {
+        (*wait_set).size_of_subscriptions == 0
+            && (*wait_set).size_of_guard_conditions == 0
+            && (*wait_set).size_of_timers == 0
+            && (*wait_set).size_of_clients == 0
+            && (*wait_set).size_of_services == 0
+            && (*wait_set).size_of_events == 0
+    };
+    if is_empty {
+        return RCL_RET_WAIT_SET_EMPTY as _;
     }
 
     let ws_impl = wait_set.borrow_mut_impl().unwrap();
@@ -527,9 +616,15 @@ pub extern "C" fn rcl_wait(wait_set: *mut rcl_wait_set_t, timeout: i64) -> rcl_r
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn rcl_wait_set_is_valid(wait_set: *const rcl_wait_set_t) -> bool {
+    tracing::trace!("rcl_wait_set_is_valid");
+    !wait_set.is_null() && unsafe { !(*wait_set).impl_.is_null() }
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn rcl_get_zero_initialized_wait_set() -> rcl_wait_set_t {
     tracing::trace!("rcl_get_zero_initialized_wait_set");
-    rcl_wait_set_t::new()
+    unsafe { std::mem::zeroed() }
 }
 
 #[unsafe(no_mangle)]
@@ -551,6 +646,10 @@ pub extern "C" fn rcl_wait_set_resize(
         events_size,
         "rcl_wait_set_resize called with sizes"
     );
+
+    if wait_set.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
 
     unsafe {
         (*wait_set).size_of_subscriptions = subscriptions_size;
@@ -631,3 +730,20 @@ impl_wait_set_add!(
     WaitSetKind::Event,
     null
 );
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_wait_set_get_allocator(
+    wait_set: *const rcl_wait_set_t,
+    allocator: *mut rcl_allocator_t,
+) -> rcl_ret_t {
+    if wait_set.is_null() || allocator.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+    if !rcl_wait_set_is_valid(wait_set) {
+        return RCL_RET_WAIT_SET_INVALID as _;
+    }
+    unsafe {
+        *allocator = wait_set.borrow_impl().unwrap().allocator;
+    }
+    RCL_RET_OK as _
+}

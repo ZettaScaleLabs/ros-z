@@ -25,10 +25,42 @@ pub enum QosDurability {
 }
 
 #[derive(Debug, Default, Hash, PartialEq, Eq, Clone, Copy)]
+pub enum QosLiveliness {
+    #[default]
+    Automatic,
+    ManualByNode,
+    ManualByTopic,
+}
+
+/// Represents a duration in seconds and nanoseconds
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+pub struct Duration {
+    pub sec: u64,
+    pub nsec: u64,
+}
+
+impl Duration {
+    pub const INFINITE: Duration = Duration {
+        sec: 9223372036,
+        nsec: 854775807,
+    };
+}
+
+impl Default for Duration {
+    fn default() -> Self {
+        Self::INFINITE
+    }
+}
+
+#[derive(Debug, Default, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct QosProfile {
     pub reliability: QosReliability,
     pub durability: QosDurability,
     pub history: QosHistory,
+    pub deadline: Duration,
+    pub lifespan: Duration,
+    pub liveliness: QosLiveliness,
+    pub liveliness_lease_duration: Duration,
 }
 
 const QOS_DELIMITER: &str = ":";
@@ -83,10 +115,38 @@ impl QosProfile {
             QosHistory::KeepAll => "2,".to_string(),
         };
 
-        // Deadline, lifespan, liveliness (all empty for now)
-        let deadline = ",";
-        let lifespan = ",";
-        let liveliness = ",,";
+        // Deadline - empty if default (infinite)
+        let deadline = if self.deadline != default_qos.deadline {
+            format!("{},{}", self.deadline.sec, self.deadline.nsec)
+        } else {
+            ",".to_string()
+        };
+
+        // Lifespan - empty if default (infinite)
+        let lifespan = if self.lifespan != default_qos.lifespan {
+            format!("{},{}", self.lifespan.sec, self.lifespan.nsec)
+        } else {
+            ",".to_string()
+        };
+
+        // Liveliness - format: <liveliness_kind>,<lease_sec>,<lease_nsec>
+        let liveliness = if self.liveliness != default_qos.liveliness
+            || self.liveliness_lease_duration != default_qos.liveliness_lease_duration
+        {
+            let kind = match self.liveliness {
+                QosLiveliness::Automatic => "1",
+                QosLiveliness::ManualByNode => "2",
+                QosLiveliness::ManualByTopic => "3",
+            };
+            format!(
+                "{},{},{}",
+                kind,
+                self.liveliness_lease_duration.sec,
+                self.liveliness_lease_duration.nsec
+            )
+        } else {
+            ",,".to_string()
+        };
 
         format!(
             "{}:{}:{}:{}:{}:{}",
@@ -140,10 +200,57 @@ impl QosProfile {
             },
             None => return Err(QosDecodeError::IncompleteQos),
         };
+
+        // Deadline - format: <sec>,<nsec>
+        let deadline = match fields.next() {
+            Some(x) if x.is_empty() || x == "," => Duration::default(),
+            Some(x) => {
+                let mut iter = x.split(",");
+                let sec = iter.next().unwrap_or("").parse().unwrap_or(Duration::INFINITE.sec);
+                let nsec = iter.next().unwrap_or("").parse().unwrap_or(Duration::INFINITE.nsec);
+                Duration { sec, nsec }
+            }
+            None => Duration::default(),
+        };
+
+        // Lifespan - format: <sec>,<nsec>
+        let lifespan = match fields.next() {
+            Some(x) if x.is_empty() || x == "," => Duration::default(),
+            Some(x) => {
+                let mut iter = x.split(",");
+                let sec = iter.next().unwrap_or("").parse().unwrap_or(Duration::INFINITE.sec);
+                let nsec = iter.next().unwrap_or("").parse().unwrap_or(Duration::INFINITE.nsec);
+                Duration { sec, nsec }
+            }
+            None => Duration::default(),
+        };
+
+        // Liveliness - format: <kind>,<lease_sec>,<lease_nsec>
+        let (liveliness, liveliness_lease_duration) = match fields.next() {
+            Some(x) if x.is_empty() || x == ",," => (QosLiveliness::default(), Duration::default()),
+            Some(x) => {
+                let mut iter = x.split(",");
+                let kind = match iter.next().unwrap_or("") {
+                    "" | "0" | "1" => QosLiveliness::Automatic,
+                    "2" => QosLiveliness::ManualByNode,
+                    "3" => QosLiveliness::ManualByTopic,
+                    _ => QosLiveliness::default(),
+                };
+                let sec = iter.next().unwrap_or("").parse().unwrap_or(Duration::INFINITE.sec);
+                let nsec = iter.next().unwrap_or("").parse().unwrap_or(Duration::INFINITE.nsec);
+                (kind, Duration { sec, nsec })
+            }
+            None => (QosLiveliness::default(), Duration::default()),
+        };
+
         Ok(Self {
             reliability,
             durability,
             history,
+            deadline,
+            lifespan,
+            liveliness,
+            liveliness_lease_duration,
         })
     }
 }

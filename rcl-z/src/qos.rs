@@ -1,7 +1,60 @@
 use std::str::FromStr;
 
 use crate::ros::*;
-use ros_z::qos::{QosDurability, QosHistory, QosProfile, QosReliability};
+use ros_z::qos::{Duration, QosDurability, QosHistory, QosLiveliness, QosProfile, QosReliability};
+
+/// Convert RMW QoS profile to ros-z QoS profile
+pub fn rmw_qos_to_ros_z_qos(rmw_qos: &rmw_qos_profile_t) -> QosProfile {
+    let reliability = match rmw_qos.reliability {
+        rmw_qos_reliability_policy_e::RELIABLE => QosReliability::Reliable,
+        rmw_qos_reliability_policy_e::BEST_EFFORT => QosReliability::BestEffort,
+        _ => QosReliability::default(),
+    };
+
+    let durability = match rmw_qos.durability {
+        rmw_qos_durability_policy_e::TRANSIENT_LOCAL => QosDurability::TransientLocal,
+        rmw_qos_durability_policy_e::VOLATILE => QosDurability::Volatile,
+        _ => QosDurability::default(),
+    };
+
+    let history = match rmw_qos.history {
+        rmw_qos_history_policy_e::KEEP_LAST => QosHistory::KeepLast(rmw_qos.depth),
+        rmw_qos_history_policy_e::KEEP_ALL => QosHistory::KeepAll,
+        _ => QosHistory::default(),
+    };
+
+    let deadline = Duration {
+        sec: rmw_qos.deadline.sec,
+        nsec: rmw_qos.deadline.nsec,
+    };
+
+    let lifespan = Duration {
+        sec: rmw_qos.lifespan.sec,
+        nsec: rmw_qos.lifespan.nsec,
+    };
+
+    let liveliness = match rmw_qos.liveliness {
+        rmw_qos_liveliness_policy_e::AUTOMATIC => QosLiveliness::Automatic,
+        rmw_qos_liveliness_policy_e::MANUAL_BY_NODE => QosLiveliness::ManualByNode,
+        rmw_qos_liveliness_policy_e::MANUAL_BY_TOPIC => QosLiveliness::ManualByTopic,
+        _ => QosLiveliness::default(),
+    };
+
+    let liveliness_lease_duration = Duration {
+        sec: rmw_qos.liveliness_lease_duration.sec,
+        nsec: rmw_qos.liveliness_lease_duration.nsec,
+    };
+
+    QosProfile {
+        reliability,
+        durability,
+        history,
+        deadline,
+        lifespan,
+        liveliness,
+        liveliness_lease_duration,
+    }
+}
 
 const QOS_COMPONENT_DELIMITER: &str = ",";
 const QOS_DELIMITER: &str = ":";
@@ -164,9 +217,25 @@ impl From<&QosProfile> for rmw_qos_profile_t {
             QosHistory::KeepAll => (rmw_qos_history_policy_e::KEEP_ALL, 0),
         };
 
-        let infinite_time = rmw_time_s {
-            sec: 9223372036,
-            nsec: 854775807,
+        let deadline = rmw_time_s {
+            sec: qos.deadline.sec,
+            nsec: qos.deadline.nsec,
+        };
+
+        let lifespan = rmw_time_s {
+            sec: qos.lifespan.sec,
+            nsec: qos.lifespan.nsec,
+        };
+
+        let liveliness = match qos.liveliness {
+            QosLiveliness::Automatic => rmw_qos_liveliness_policy_e::AUTOMATIC,
+            QosLiveliness::ManualByNode => rmw_qos_liveliness_policy_e::MANUAL_BY_NODE,
+            QosLiveliness::ManualByTopic => rmw_qos_liveliness_policy_e::MANUAL_BY_TOPIC,
+        };
+
+        let liveliness_lease_duration = rmw_time_s {
+            sec: qos.liveliness_lease_duration.sec,
+            nsec: qos.liveliness_lease_duration.nsec,
         };
 
         rmw_qos_profile_s {
@@ -174,10 +243,10 @@ impl From<&QosProfile> for rmw_qos_profile_t {
             depth,
             reliability,
             durability,
-            deadline: infinite_time,
-            lifespan: infinite_time,
-            liveliness: rmw_qos_liveliness_policy_e::AUTOMATIC,
-            liveliness_lease_duration: infinite_time,
+            deadline,
+            lifespan,
+            liveliness,
+            liveliness_lease_duration,
             avoid_ros_namespace_conventions: false,
         }
     }

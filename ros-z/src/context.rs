@@ -167,7 +167,10 @@ impl Builder for ZContextBuilder {
             zenoh::Config::from_file(path)?
         } else {
             // Use default config
-            zenoh::Config::default()
+            let mut config = zenoh::Config::default();
+            // Disable multicast scouting to avoid conflicts between parallel tests
+            config.insert_json5("scouting/multicast/enabled", "false")?;
+            config
         };
 
         // Apply environment variable overrides first

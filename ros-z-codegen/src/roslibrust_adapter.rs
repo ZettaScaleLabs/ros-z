@@ -26,6 +26,33 @@ impl Default for CodegenConfig {
     }
 }
 
+/// Recursively deduplicate struct definitions by name, keeping the first occurrence
+fn dedup_structs_recursive(items: &mut Vec<syn::Item>) {
+    let mut struct_map: std::collections::BTreeMap<String, syn::ItemStruct> = std::collections::BTreeMap::new();
+    let mut new_items = vec![];
+
+    for item in items.drain(..) {
+        match item {
+            syn::Item::Struct(struct_item) => {
+                let name = struct_item.ident.to_string();
+                if !struct_map.contains_key(&name) {
+                    struct_map.insert(name.clone(), struct_item.clone());
+                    new_items.push(syn::Item::Struct(struct_item));
+                }
+            }
+            syn::Item::Mod(mut mod_item) => {
+                if let Some((_, ref mut content)) = mod_item.content {
+                    dedup_structs_recursive(content);
+                }
+                new_items.push(syn::Item::Mod(mod_item));
+            }
+            other => new_items.push(other),
+        }
+    }
+
+    *items = new_items;
+}
+
 /// Generate ROS messages using roslibrust with ros-z trait implementations
 pub fn generate_ros_messages(
     package_paths: Vec<&Path>,
@@ -60,8 +87,21 @@ pub fn generate_ros_messages_with_config(
         .filter(|msg| {
             let full_name = msg.get_full_name();
 
-            // Filter out actionlib
-            if full_name.starts_with("actionlib_msgs/") || full_name.contains("Action") {
+            // Filter out actionlib_msgs package
+            if full_name.starts_with("actionlib_msgs/") {
+                return false;
+            }
+
+            // Filter out old-style ROS1 Action messages (deprecated in ROS2)
+            // These have suffixes like Action, ActionGoal, ActionResult, ActionFeedback
+            // and depend on actionlib_msgs which causes resolution failures
+            // Note: ROS2 uses the new action system with .action files, not these msg files
+            let is_old_action_msg = full_name.ends_with("Action")
+                || full_name.ends_with("ActionGoal")
+                || full_name.ends_with("ActionResult")
+                || full_name.ends_with("ActionFeedback");
+
+            if is_old_action_msg {
                 return false;
             }
 
@@ -88,7 +128,11 @@ pub fn generate_ros_messages_with_config(
         .collect();
 
     // Resolve dependencies to calculate hashes
-    let (resolved_msgs, resolved_srvs) = roslibrust_codegen::resolve_dependency_graph(messages, services)?;
+    let (mut resolved_msgs, resolved_srvs) = roslibrust_codegen::resolve_dependency_graph(messages, services)?;
+
+    // Filter out duplicate messages by full name to avoid conflicts
+    let mut seen = std::collections::HashSet::new();
+    resolved_msgs.retain(|msg| seen.insert(msg.parsed.get_full_name()));
 
     // Create roslibrust codegen options
     let roslibrust_options = roslibrust_codegen::CodegenOptions {
@@ -122,16 +166,108 @@ pub fn generate_ros_messages_with_config(
         }
     }
 
+    // Deduplicate duplicate struct definitions (e.g., Arrays, BasicTypes, Empty)
+    // that may be generated multiple times when multiple packages are enabled
+    let mut syntax_tree = syn::parse2::<syn::File>(token_stream)
+        .context("Failed to parse generated token stream for deduplication")?;
+
+    dedup_structs_recursive(&mut syntax_tree.items);
+
+    token_stream = quote::quote! { #syntax_tree };
+
+    // Wrap the generated code in a ros mod to namespace it
+    // Add allow attributes for clippy lints that are triggered by generated code
+    let namespaced_token_stream = quote! {
+        #[allow(clippy::approx_constant)]
+        pub mod ros {
+            #token_stream
+        }
+    };
+
     // Convert TokenStream to string (formatted or compact)
-    let generated_code = if config.format_code {
+    let mut generated_code = if config.format_code {
         // Parse and format using prettyplease for readable output
-        let syntax_tree = syn::parse2(token_stream)
+        let syntax_tree = syn::parse2(namespaced_token_stream)
             .context("Failed to parse generated token stream")?;
         prettyplease::unparse(&syntax_tree)
     } else {
         // Compact output
-        token_stream.to_string()
+        namespaced_token_stream.to_string()
     };
+
+    // Post-process to fix incorrect default code for arrays and vecs
+    // roslibrust generates vec![] for both array and Vec fields, but:
+    // - For array fields [T; N], we need plain array syntax: [values]
+    // - For Vec fields ::std::vec::Vec<T>, we need vec syntax: [values].to_vec()
+
+    // We need to process line by line to check the field type
+    let lines: Vec<&str> = generated_code.lines().collect();
+    let mut processed_lines = Vec::new();
+
+    for (i, line) in lines.iter().enumerate() {
+        let mut processed_line = line.to_string();
+
+        // Check if this line has a default attribute with vec![]
+        if line.contains("#[default(_code = \"vec![") {
+            // Look ahead up to 5 lines to find the field declaration
+            // (there might be other attributes like #[serde(...)] in between)
+            let mut field_type_line = None;
+            for offset in 1..=5 {
+                if i + offset < lines.len() {
+                    let next_line = lines[i + offset];
+                    if next_line.contains("pub r#") {
+                        field_type_line = Some(next_line);
+                        break;
+                    }
+                }
+            }
+
+            if let Some(field_line) = field_type_line {
+                // Check if the field is a fixed-size array [T; N]
+                if field_line.contains(": [") && !field_line.contains("::std::vec::Vec") {
+                    // It's a fixed-size array - convert vec![] to []
+                    processed_line = processed_line.replace("#[default(_code = \"vec![", "#[default(_code = \"[");
+                } else if field_line.contains("::std::vec::Vec") {
+                    // It's a Vec - convert vec![] to [].to_vec()
+                    processed_line = processed_line
+                        .replace("#[default(_code = \"vec![", "#[default(_code = \"[")
+                        .replace("]\")]", "].to_vec()\")]");
+                }
+            }
+        }
+
+        // Also handle iter().map().collect() pattern for string arrays
+        // This pattern is: [\"\", \"max value\", \"min value\"].iter().map(|x| x.to_string()).collect()
+        // Need to check if the field type (looking forward) is an array
+        if line.contains(".iter().map(|x| x.to_string()).collect()") {
+            let mut field_type_line = None;
+            for offset in 1..=5 {
+                if i + offset < lines.len() {
+                    let next_line = lines[i + offset];
+                    if next_line.contains("pub r#") {
+                        field_type_line = Some(next_line);
+                        break;
+                    }
+                }
+            }
+
+            if let Some(field_line) = field_type_line {
+                // Check if it's a fixed-size array [String; N]
+                if field_line.contains(": [") && field_line.contains("::std::string::String") && !field_line.contains("::std::vec::Vec") {
+                    // Replace .iter().map().collect() with explicit array
+                    // Note: The quotes are escaped as \" in the generated code
+                    processed_line = processed_line.replace(
+                        r#"[\"\", \"max value\", \"min value\"].iter().map(|x| x.to_string()).collect()"#,
+                        r#"[\"\".to_string(), \"max value\".to_string(), \"min value\".to_string()]"#
+                    );
+                }
+            }
+        }
+
+        processed_lines.push(processed_line);
+    }
+
+    generated_code = processed_lines.join("\n");
 
     // Write to output file
     let output_file = output_dir.join("generated.rs");
@@ -169,7 +305,7 @@ fn generate_message_type_info_tokens(
                 }
 
                 fn type_info() -> ::ros_z::entity::TypeInfo {
-                    ::ros_z::entity::TypeInfo::new(Self::type_name(), Self::type_hash())
+                    ::ros_z::TypeInfo::new(Self::type_name(), Self::type_hash())
                 }
             }
 
@@ -212,7 +348,7 @@ fn generate_service_type_info_tokens(services: &[ServiceFile]) -> Result<TokenSt
                 }
 
                 fn type_info() -> ::ros_z::entity::TypeInfo {
-                    ::ros_z::entity::TypeInfo::new(Self::type_name(), Self::type_hash())
+                    ::ros_z::TypeInfo::new(Self::type_name(), Self::type_hash())
                 }
             }
 
@@ -229,7 +365,7 @@ fn generate_service_type_info_tokens(services: &[ServiceFile]) -> Result<TokenSt
                 }
 
                 fn type_info() -> ::ros_z::entity::TypeInfo {
-                    ::ros_z::entity::TypeInfo::new(Self::type_name(), Self::type_hash())
+                    ::ros_z::TypeInfo::new(Self::type_name(), Self::type_hash())
                 }
             }
 
