@@ -48,23 +48,6 @@ impl Notifier {
     }
 }
 
-// pub struct DebugCStr(pub *const c_char);
-//
-// impl std::fmt::Debug for DebugCStr {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         unsafe {
-//             if self.0.is_null() {
-//                 write!(f, "null")
-//             } else {
-//                 match CStr::from_ptr(self.0).to_str() {
-//                     Ok(s) => write!(f, "{:?}", s),
-//                     Err(_) => write!(f, "invalid utf-8"),
-//                 }
-//             }
-//         }
-//     }
-// }
-
 #[macro_export]
 macro_rules! impl_has_impl_ptr {
     ($ctype:ty, $cimpl_type:ty, $impl_type:ty) => {

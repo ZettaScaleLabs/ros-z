@@ -4,6 +4,9 @@
 // Include the CDR-compatible generated code (serde-based)
 include!(concat!(env!("OUT_DIR"), "/generated.rs"));
 
+// Re-export the namespaced modules for compatibility
+pub use self::ros::*;
+
 // Include the protobuf-compatible generated code (prost-based) if feature is enabled
 #[cfg(feature = "protobuf")]
 pub mod proto {

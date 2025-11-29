@@ -11,10 +11,7 @@ fn main() -> Result<()> {
     if !ros_packages.is_empty() {
         let config = ros_z_codegen::GeneratorConfig {
             generate_cdr: true, // Always generate for ROS2 compatibility
-            #[cfg(feature = "protobuf")]
-            generate_protobuf: true,
-            #[cfg(not(feature = "protobuf"))]
-            generate_protobuf: false,
+            generate_protobuf: cfg!(feature = "protobuf"),
             generate_type_info: true,
             output_dir: out_dir.clone(),
         };
@@ -98,11 +95,12 @@ fn get_bundled_packages() -> Vec<&'static str> {
 /// Get list of external package names based on enabled features
 /// These packages require a ROS 2 installation and are not bundled
 fn get_external_packages() -> Vec<&'static str> {
-    #[cfg(feature = "example_interfaces")]
-    return vec!["example_interfaces"];
-
-    #[cfg(not(feature = "example_interfaces"))]
-    Vec::new()
+    vec![
+        #[cfg(feature = "example_interfaces")]
+        "example_interfaces",
+        #[cfg(feature = "test_msgs")]
+        "test_msgs",
+    ]
 }
 
 /// Try to discover packages from system ROS 2 installation

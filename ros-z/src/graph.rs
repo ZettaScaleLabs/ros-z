@@ -8,7 +8,8 @@ use std::{
 use crate::entity::{
     ADMIN_SPACE, EndpointEntity, Entity, EntityKind, LivelinessKE, NodeKey, Topic,
 };
-use zenoh::{Result, Session, Wait, pubsub::Subscriber, sample::SampleKind};
+use crate::event::GraphEventManager;
+use zenoh::{Result, Session, Wait, pubsub::Subscriber, sample::SampleKind, session::ZenohId};
 
 const DEFAULT_SLAB_CAPACITY: usize = 128;
 
@@ -185,30 +186,59 @@ impl GraphData {
 
 pub struct Graph {
     pub data: Arc<Mutex<GraphData>>,
+    pub event_manager: Arc<GraphEventManager>,
+    pub zid: ZenohId,
     _subscriber: Subscriber<()>,
 }
 
 impl Graph {
     pub fn new(session: &Session, domain_id: usize) -> Result<Self> {
+        let zid = session.zid();
         let graph_data = Arc::new(Mutex::new(GraphData::new()));
+        let event_manager = Arc::new(GraphEventManager::new());
         let c_graph_data = graph_data.clone();
+        let c_event_manager = event_manager.clone();
+        let c_zid = zid;
         let sub = session
             .liveliness()
             .declare_subscriber(format!("{ADMIN_SPACE}/{domain_id}/**"))
             .history(true)
             .callback(move |sample| {
                 let mut graph_data_guard = c_graph_data.lock();
-                let ke = LivelinessKE(sample.key_expr().to_owned());
+                let key_expr = sample.key_expr().to_owned();
+                let ke = LivelinessKE(key_expr);
                 match sample.kind() {
-                    SampleKind::Put => graph_data_guard.insert(ke),
-                    SampleKind::Delete => graph_data_guard.remove(&ke),
+                    SampleKind::Put => {
+                        graph_data_guard.insert(ke.clone());
+                        // Trigger graph change events
+                        if let Ok(entity) = Entity::try_from(&ke) {
+                            c_event_manager.trigger_graph_change(&entity, true, c_zid);
+                        }
+                    }
+                    SampleKind::Delete => {
+                        // Trigger graph change events before removal
+                        if let Ok(entity) = Entity::try_from(&ke) {
+                            c_event_manager.trigger_graph_change(&entity, false, c_zid);
+                        }
+                        graph_data_guard.remove(&ke);
+                    }
                 }
             })
             .wait()?;
         Ok(Self {
             _subscriber: sub,
             data: graph_data,
+            event_manager,
+            zid,
         })
+    }
+
+    /// Check if an entity belongs to the current session
+    pub fn is_entity_local(&self, entity: &Entity) -> bool {
+        match entity {
+            Entity::Node(node) => node.z_id == self.zid,
+            Entity::Endpoint(endpoint) => endpoint.node.z_id == self.zid,
+        }
     }
 
     pub fn count(&self, kind: EntityKind, topic: impl AsRef<str>) -> usize {
@@ -290,13 +320,8 @@ impl Graph {
             slab.retain(|_, weak| {
                 if let Some(ent) = weak.upgrade() {
                     // Skip expensive get_endpoint() if we already found the type
-                    if found_type.is_none()
-                        && let Some(enp) = ent.get_endpoint()
-                    {
-                        // Include both services and clients
-                        if matches!(enp.kind, EntityKind::Service | EntityKind::Client) {
-                            found_type = Some(enp.type_info.as_ref().unwrap().name.clone());
-                        }
+                    if let Some(enp) = ent.get_endpoint() && found_type.is_none() && enp.kind == EntityKind::Service {
+                        found_type = enp.type_info.as_ref().map(|x| x.name.clone());
                     }
                     true
                 } else {
@@ -373,5 +398,61 @@ impl Graph {
         });
 
         res
+    }
+
+    /// Get all node names and namespaces discovered in the graph
+    ///
+    /// Returns a vector of tuples (node_name, node_namespace)
+    pub fn get_node_names(&self) -> Vec<(String, String)> {
+        let mut data = self.data.lock();
+
+        if !data.cached.is_empty() {
+            data.parse();
+        }
+
+        // Extract all node keys from by_node HashMap
+        // Denormalize namespace: empty string becomes "/"
+        data.by_node
+            .keys()
+            .map(|(namespace, name)| {
+                let denormalized_ns = if namespace.is_empty() {
+                    "/".to_string()
+                } else if !namespace.starts_with('/') {
+                    format!("/{}", namespace)
+                } else {
+                    namespace.clone()
+                };
+                (name.clone(), denormalized_ns)
+            })
+            .collect()
+    }
+
+    /// Get all node names, namespaces, and enclaves discovered in the graph
+    ///
+    /// Returns a vector of tuples (node_name, node_namespace, enclave)
+    /// Note: Enclave information is not currently tracked, so empty string is returned
+    pub fn get_node_names_with_enclaves(&self) -> Vec<(String, String, String)> {
+        let mut data = self.data.lock();
+
+        if !data.cached.is_empty() {
+            data.parse();
+        }
+
+        // Extract all node keys from by_node HashMap
+        // Denormalize namespace: empty string becomes "/"
+        // For now, enclave is always empty string as we don't track this yet
+        data.by_node
+            .keys()
+            .map(|(namespace, name)| {
+                let denormalized_ns = if namespace.is_empty() {
+                    "/".to_string()
+                } else if !namespace.starts_with('/') {
+                    format!("/{}", namespace)
+                } else {
+                    namespace.clone()
+                };
+                (name.clone(), denormalized_ns, String::new())
+            })
+            .collect()
     }
 }

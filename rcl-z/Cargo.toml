@@ -22,8 +22,21 @@ strum = { workspace = true, features = ["derive"] }
 
 [lib]
 name = "rcl_z"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [build-dependencies]
 bindgen = { workspace = true }
 cxx-build = { workspace = true }
+
+[features]
+# Tests that don't need any message packages
+test-core = []
+
+# Tests that need test_msgs package
+test-msgs = []
+
+# Run all tests
+test-all = ["test-core", "test-msgs"]
+
+# Legacy compatibility
+test-rcl = ["test-all"]

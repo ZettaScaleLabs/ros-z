@@ -19,6 +19,7 @@ use zenoh::{
 use std::sync::atomic::Ordering::AcqRel;
 
 use crate::entity::TopicKE;
+use crate::topic_name;
 
 use crate::{
     Builder,
@@ -56,7 +57,17 @@ where
 {
     type Output = ZClient<T>;
 
-    fn build(self) -> Result<Self::Output> {
+    fn build(mut self) -> Result<Self::Output> {
+        // Qualify the service name according to ROS 2 rules
+        let qualified_service = topic_name::qualify_service_name(
+            &self.entity.topic,
+            &self.entity.node.namespace,
+            &self.entity.node.name,
+        )
+        .map_err(|e| zenoh::Error::from(format!("Failed to qualify service: {}", e)))?;
+
+        self.entity.topic = qualified_service;
+
         let key_expr = self.entity.topic_key_expr()?;
         tracing::debug!("[CLN] KE: {key_expr}");
 
@@ -68,7 +79,7 @@ where
             .wait()?;
         let (tx, rx) = flume::unbounded();
         Ok(ZClient {
-            sn: AtomicUsize::new(0),
+            sn: AtomicUsize::new(1), // Start at 1 for ROS compatibility
             inner,
             lv_token,
             gid: self.entity.gid(),
@@ -88,7 +99,11 @@ where
     }
 
     pub fn take_sample(&self) -> Result<Sample> {
-        Ok(self.rx.recv()?)
+        match self.rx.try_recv() {
+            Ok(sample) => Ok(sample),
+            Err(flume::TryRecvError::Empty) => Err("No sample available".into()),
+            Err(flume::TryRecvError::Disconnected) => Err("Channel disconnected".into()),
+        }
     }
 
     pub fn take_sample_timeout(&self, timeout: Duration) -> Result<Sample> {
@@ -157,9 +172,17 @@ where
             .payload(msg.serialize())
             .attachment(attachment)
             .callback(move |reply| {
-                let sample = reply.into_result().unwrap();
-                tx.send(sample);
-                notify()
+                match reply.into_result() {
+                    Ok(sample) => {
+                        tx.send(sample);
+                        notify()
+                    }
+                    Err(err) => {
+                        // Handle timeout and other reply errors gracefully
+                        // This can happen when a service is not available or times out
+                        tracing::debug!("Reply error in rcl_send_request: {:?}", err);
+                    }
+                }
             })
             .wait()?;
         Ok(sn)
@@ -194,7 +217,17 @@ where
 {
     type Output = ZServer<T>;
 
-    fn build(self) -> Result<Self::Output> {
+    fn build(mut self) -> Result<Self::Output> {
+        // Qualify the service name according to ROS 2 rules
+        let qualified_service = topic_name::qualify_service_name(
+            &self.entity.topic,
+            &self.entity.node.namespace,
+            &self.entity.node.name,
+        )
+        .map_err(|e| zenoh::Error::from(format!("Failed to qualify service: {}", e)))?;
+
+        self.entity.topic = qualified_service;
+
         let key_expr = self.entity.topic_key_expr()?;
         tracing::debug!("[SRV] KE: {key_expr}");
 
@@ -216,7 +249,7 @@ where
             .wait()?;
         Ok(ZServer {
             key_expr,
-            sn: AtomicUsize::new(0),
+            sn: AtomicUsize::new(1), // Start at 1 for ROS compatibility
             inner,
             lv_token,
             gid: self.entity.gid(),
@@ -232,10 +265,20 @@ where
     T: ZService,
 {
     #[cfg(feature = "rcl-z")]
-    pub fn build_with_notifier<F>(self, notify: F) -> Result<ZServer<T>>
+    pub fn build_with_notifier<F>(mut self, notify: F) -> Result<ZServer<T>>
     where
         F: Fn() + Send + Sync + 'static,
     {
+        // Qualify the service name according to ROS 2 rules
+        let qualified_service = topic_name::qualify_service_name(
+            &self.entity.topic,
+            &self.entity.node.namespace,
+            &self.entity.node.name,
+        )
+        .map_err(|e| zenoh::Error::from(format!("Failed to qualify service: {}", e)))?;
+
+        self.entity.topic = qualified_service;
+
         let key_expr = self.entity.topic_key_expr()?;
         tracing::debug!("[SRV] KE: {key_expr}");
 
@@ -256,7 +299,7 @@ where
             .wait()?;
         Ok(ZServer {
             key_expr,
-            sn: AtomicUsize::new(0),
+            sn: AtomicUsize::new(1), // Start at 1 for ROS compatibility
             inner,
             lv_token,
             gid: self.entity.gid(),
@@ -294,7 +337,11 @@ where
     ///
     /// This method is useful when custom deserialization logic is needed.
     pub fn take_query(&self) -> Result<Query> {
-        Ok(self.rx.recv()?)
+        match self.rx.try_recv() {
+            Ok(query) => Ok(query),
+            Err(flume::TryRecvError::Empty) => Err("No query available".into()),
+            Err(flume::TryRecvError::Disconnected) => Err("Channel disconnected".into()),
+        }
     }
 
     /// Blocks waiting to receive the next request on the service and then deserializes the payload.

@@ -67,6 +67,11 @@ impl Builder for ZNodeBuilder {
 impl ZNode {
     /// Create a publisher for the given topic
     /// If T implements WithTypeInfo, type information will be automatically populated
+    ///
+    /// The topic name will be qualified according to ROS 2 rules:
+    /// - Absolute topics (starting with '/') are used as-is
+    /// - Private topics (starting with '~') are expanded to /<namespace>/<node_name>/<topic>
+    /// - Relative topics are expanded to /<namespace>/<topic>
     pub fn create_pub<T>(&self, topic: &str) -> ZPubBuilder<T>
     where
         T: ZMessage + WithTypeInfo,
@@ -82,6 +87,8 @@ impl ZNode {
     where
         T: ZMessage,
     {
+        // Note: Topic qualification happens in ZPubBuilder::build()
+        // to allow error handling in the Result type
         let entity = EndpointEntity {
             id: self.counter.increment(),
             node: self.entity.clone(),
@@ -100,6 +107,11 @@ impl ZNode {
 
     /// Create a subscriber for the given topic
     /// If T implements WithTypeInfo, type information will be automatically populated
+    ///
+    /// The topic name will be qualified according to ROS 2 rules:
+    /// - Absolute topics (starting with '/') are used as-is
+    /// - Private topics (starting with '~') are expanded to /<namespace>/<node_name>/<topic>
+    /// - Relative topics are expanded to /<namespace>/<topic>
     pub fn create_sub<T>(&self, topic: &str) -> ZSubBuilder<T>
     where
         T: WithTypeInfo,
@@ -112,6 +124,8 @@ impl ZNode {
         topic: &str,
         type_info: Option<crate::entity::TypeInfo>,
     ) -> ZSubBuilder<T> {
+        // Note: Topic qualification happens in ZSubBuilder::build()
+        // to allow error handling in the Result type
         let entity = EndpointEntity {
             id: self.counter.increment(),
             node: self.entity.clone(),
@@ -127,8 +141,13 @@ impl ZNode {
         }
     }
 
-    /// Create a service for the given topic
+    /// Create a service for the given service name
     /// If T is a tuple (Req, Resp) where both implement WithTypeInfo, type information will be automatically populated
+    ///
+    /// The service name will be qualified according to ROS 2 rules:
+    /// - Absolute service names (starting with '/') are used as-is
+    /// - Private service names (starting with '~') are expanded to /<namespace>/<node_name>/<service>
+    /// - Relative service names are expanded to /<namespace>/<service>
     pub fn create_service<T>(&self, topic: &str) -> ZServerBuilder<T>
     where
         T: ZService + ros_msg::ServiceTypeInfo,
@@ -141,6 +160,8 @@ impl ZNode {
         topic: &str,
         type_info: Option<crate::entity::TypeInfo>,
     ) -> ZServerBuilder<T> {
+        // Note: Service name qualification happens in ZServerBuilder::build()
+        // to allow error handling in the Result type
         let entity = EndpointEntity {
             id: self.counter.increment(),
             node: self.entity.clone(),
@@ -156,8 +177,13 @@ impl ZNode {
         }
     }
 
-    /// Create a client for the given topic
+    /// Create a client for the given service name
     /// If T is a tuple (Req, Resp) where both implement WithTypeInfo, type information will be automatically populated
+    ///
+    /// The service name will be qualified according to ROS 2 rules:
+    /// - Absolute service names (starting with '/') are used as-is
+    /// - Private service names (starting with '~') are expanded to /<namespace>/<node_name>/<service>
+    /// - Relative service names are expanded to /<namespace>/<service>
     pub fn create_client<T>(&self, topic: &str) -> ZClientBuilder<T>
     where
         T: ZService + ros_msg::ServiceTypeInfo,
@@ -170,6 +196,8 @@ impl ZNode {
         topic: &str,
         type_info: Option<crate::entity::TypeInfo>,
     ) -> ZClientBuilder<T> {
+        // Note: Service name qualification happens in ZClientBuilder::build()
+        // to allow error handling in the Result type
         let entity = EndpointEntity {
             id: self.counter.increment(),
             node: self.entity.clone(),

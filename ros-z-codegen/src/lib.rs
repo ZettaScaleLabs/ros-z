@@ -46,6 +46,41 @@ impl MessageGenerator {
             let package_paths: Vec<PathBuf> = packages.iter().map(|p| p.to_path_buf()).collect();
             let (messages, services, _actions) =
                 roslibrust_codegen::find_and_parse_ros_messages(&package_paths)?;
+
+            // Filter out old-style actionlib messages and wstring messages (same as in roslibrust_adapter)
+            let messages: Vec<_> = messages
+                .into_iter()
+                .filter(|msg| {
+                    let full_name = msg.get_full_name();
+
+                    // Filter out actionlib_msgs and old-style Action messages
+                    if full_name.starts_with("actionlib_msgs/")
+                        || full_name.ends_with("Action")
+                        || full_name.ends_with("ActionGoal")
+                        || full_name.ends_with("ActionResult")
+                        || full_name.ends_with("ActionFeedback")
+                    {
+                        return false;
+                    }
+
+                    // Filter out messages with wstring fields
+                    let has_wstring = msg
+                        .fields
+                        .iter()
+                        .any(|field| field.field_type.to_string().contains("wstring"));
+
+                    !has_wstring
+                })
+                .collect();
+
+            let services: Vec<_> = services
+                .into_iter()
+                .filter(|srv| {
+                    let full_name = format!("{}/{}", srv.package, srv.name);
+                    !full_name.starts_with("actionlib_msgs/")
+                })
+                .collect();
+
             let (resolved_msgs, _resolved_srvs) =
                 roslibrust_codegen::resolve_dependency_graph(messages, services)?;
 

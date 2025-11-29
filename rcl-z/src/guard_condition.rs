@@ -9,8 +9,8 @@ use crate::{
 
 #[derive(Debug, Default)]
 pub struct GuardConditionImpl {
-    notifier: Option<Arc<Notifier>>,
-    triggered: bool,
+    pub(crate) notifier: Option<Arc<Notifier>>,
+    pub(crate) triggered: bool,
 }
 
 impl Waitable for GuardConditionImpl {
@@ -20,14 +20,15 @@ impl Waitable for GuardConditionImpl {
 }
 
 impl GuardConditionImpl {
-    fn trigger(&mut self) {
+    pub(crate) fn trigger(&mut self) -> Result<(), ()> {
         let notifier = self
             .notifier
             .as_ref()
-            .expect("GuardConditionImpl has no Notifier");
+            .ok_or(())?;
         std::mem::drop(notifier.mutex.lock());
         self.triggered = true;
         notifier.cv.notify_all();
+        Ok(())
     }
 
     pub fn reset(&mut self) {
@@ -41,20 +42,11 @@ impl_has_impl_ptr!(
     GuardConditionImpl
 );
 
-impl rcl_guard_condition_t {
-    fn new() -> Self {
-        let gc_impl = GuardConditionImpl::default();
-        Self {
-            impl_: Box::into_raw(Box::new(gc_impl)) as _,
-            ..Default::default()
-        }
-    }
-}
-
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_get_zero_initialized_guard_condition() -> rcl_guard_condition_t {
     tracing::trace!("rcl_get_zero_initialized_guard_condition");
-    rcl_guard_condition_t::new()
+    // Return a zero-initialized guard condition (impl_ should be null)
+    unsafe { std::mem::zeroed() }
 }
 
 #[unsafe(no_mangle)]
@@ -64,9 +56,34 @@ pub unsafe extern "C" fn rcl_guard_condition_init(
     _options: rcl_guard_condition_options_t,
 ) -> rcl_ret_t {
     tracing::trace!("rcl_guard_condition_init");
+
+    // Check for null arguments
+    if guard_condition.is_null() || context.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
     unsafe {
-        let x = &mut *((*guard_condition).impl_ as *mut GuardConditionImpl);
-        x.notifier = Some(context.borrow_impl().unwrap().share_notifier());
+        // Check if context is valid
+        if (*context).impl_.is_null() {
+            return RCL_RET_NOT_INIT as _;
+        }
+
+        // Check if guard_condition is already initialized
+        if !(*guard_condition).impl_.is_null() {
+            return RCL_RET_ALREADY_INIT as _;
+        }
+
+        // Create the GuardConditionImpl
+        let notifier = match context.borrow_impl() {
+            Ok(ctx) => Some(ctx.share_notifier()),
+            Err(_) => return RCL_RET_ERROR as _,
+        };
+
+        let impl_ = Box::new(GuardConditionImpl {
+            notifier,
+            triggered: false,
+        });
+        (*guard_condition).impl_ = Box::into_raw(impl_) as *mut _;
     }
     RCL_RET_OK as _
 }
@@ -76,6 +93,14 @@ pub extern "C" fn rcl_guard_condition_get_options(
     _guard_condition: *const rcl_guard_condition_t,
 ) -> *const rcl_guard_condition_options_t {
     tracing::trace!("rcl_guard_condition_get_options");
+    std::ptr::null()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rcl_guard_condition_get_rmw_handle(
+    _guard_condition: *const rcl_guard_condition_t,
+) -> *const rmw_guard_condition_t {
+    tracing::trace!("rcl_guard_condition_get_rmw_handle");
     std::ptr::null()
 }
 
@@ -96,7 +121,15 @@ pub extern "C" fn rcl_guard_condition_fini(
 ) -> rcl_ret_t {
     // FIXME: TLS issue
     // tracing::trace!("rcl_guard_condition_fini");
-    std::mem::drop(guard_condition.own_impl().unwrap());
+
+    if guard_condition.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    // It's OK to call fini on an uninitialized guard condition
+    if let Ok(impl_) = guard_condition.own_impl() {
+        std::mem::drop(impl_);
+    }
     RCL_RET_OK as _
 }
 
@@ -105,6 +138,18 @@ pub extern "C" fn rcl_trigger_guard_condition(
     guard_condition: *mut rcl_guard_condition_t,
 ) -> rcl_ret_t {
     tracing::trace!("rcl_trigger_guard_condition");
-    guard_condition.borrow_mut_impl().unwrap().trigger();
+
+    if guard_condition.is_null() {
+        return RCL_RET_INVALID_ARGUMENT as _;
+    }
+
+    match guard_condition.borrow_mut_impl() {
+        Ok(impl_) => {
+            if impl_.trigger().is_err() {
+                return RCL_RET_INVALID_ARGUMENT as _;
+            }
+        }
+        Err(_) => return RCL_RET_INVALID_ARGUMENT as _,
+    }
     RCL_RET_OK as _
 }

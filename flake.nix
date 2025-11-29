@@ -70,6 +70,13 @@
                 rosidl-default-generators
                 rosidl-default-runtime
                 rosidl-adapter
+                rosidl-typesupport-fastrtps-c
+                rosidl-typesupport-fastrtps-cpp
+              ];
+
+              # Test-only message packages
+              testMessages = with pkgs.rosPackages.${rosDistro}; [
+                test-msgs
               ];
 
               devExtras = with pkgs.rosPackages.${rosDistro}; [
@@ -92,17 +99,34 @@
             };
           in
           {
+            # Development environment with all dependencies including test messages
             dev = pkgs.rosPackages.${rosDistro}.buildEnv {
-              paths = rosDeps.rcl ++ rosDeps.messages ++ rosDeps.devExtras;
+              paths = rosDeps.rcl ++ rosDeps.messages ++ rosDeps.testMessages ++ rosDeps.devExtras;
             };
+
+            # Core RCL only (for minimal builds)
             rcl = pkgs.rosPackages.${rosDistro}.buildEnv {
               paths = rosDeps.rcl;
             };
+
+            # Runtime messages only
             msgs = pkgs.rosPackages.${rosDistro}.buildEnv {
               paths = rosDeps.messages;
             };
+
+            # Build environment with runtime messages but NO test messages
             build = pkgs.rosPackages.${rosDistro}.buildEnv {
               paths = rosDeps.rcl ++ rosDeps.messages;
+            };
+
+            # Test environment for core tests only (no test_msgs)
+            testCore = pkgs.rosPackages.${rosDistro}.buildEnv {
+              paths = rosDeps.rcl ++ rosDeps.messages;
+            };
+
+            # Test environment with test messages (for all tests)
+            testFull = pkgs.rosPackages.${rosDistro}.buildEnv {
+              paths = rosDeps.rcl ++ rosDeps.messages ++ rosDeps.testMessages;
             };
           };
 
@@ -135,10 +159,13 @@
         ];
 
         # Environment variables for Rust/C++ interop
-        commonEnvVars = {
+        commonEnvVars = rec {
           LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
           CLANG_PATH = "${pkgs.llvmPackages.clang}/bin/clang";
-          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ];
+          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
+            pkgs.stdenv.cc.cc.lib
+            # ROS libraries will be added by the ROS environment packages
+          ];
           RUST_BACKTRACE = "1";
           RMW_IMPLEMENTATION = "rmw_zenoh_cpp";
           RUSTC_WRAPPER = "${pkgs.sccache}/bin/sccache";
@@ -194,7 +221,7 @@
 
             ci = mkDevShell {
               name = "ros-z-ci-${rosDistro}";
-              packages = commonBuildInputs ++ [ rosEnv.build ];
+              packages = commonBuildInputs ++ testTools ++ [ rosEnv.testFull ];
             };
           };
 
