@@ -94,16 +94,16 @@ pre-configured:
 nix develop
 
 # Specific ROS distros
-nix develop .#jazzy      # ROS 2 Jazzy
-nix develop .#rolling    # ROS 2 Rolling
+nix develop .#ros-jazzy      # ROS 2 Jazzy
+nix develop .#ros-rolling    # ROS 2 Rolling
 
-# Without ROS dependencies
-nix develop .#noRos
+# Pure-Rust
+nix develop .#pureRust
 
 # CI environments (minimal, no dev tools)
-nix develop .#jazzy-ci
-nix develop .#rolling-ci
-nix develop .#noRos-ci
+nix develop .#ros-jazzy-ci
+nix develop .#ros-rolling-ci
+nix develop .#pureRust-ci
 ```
 
 **Note on `ros-z-msgs`:** This package can build without ROS installed! When

@@ -254,8 +254,8 @@
           default = allDistroShells.${builtins.head distros}.default;
 
           # Without ROS
-          noRos = mkDevShell {
-            name = "ros-z-no-ros";
+          pureRust = mkDevShell {
+            name = "ros-z-pure-rust";
             packages = [
               rustfmt-nightly-bin
             ]
@@ -265,28 +265,28 @@
             ++ pre-commit-check.enabledPackages;
             extraShellHook = pre-commit-check.shellHook;
             banner = ''
-              echo "🦀 ros-z development environment (without ROS)"
+              echo "🦀 ros-z development environment (pure Rust)"
               echo "Rust: $(rustc --version)"
             '';
           };
 
           # CI without ROS
-          noRos-ci = mkDevShell {
-            name = "ros-z-ci-no-ros";
+          pureRust-ci = mkDevShell {
+            name = "ros-z-ci-pure-rust";
             packages = commonBuildInputs ++ testTools;
           };
         }
-        # Add per-distro dev shells (jazzy, rolling, ...)
+        # Add per-distro dev shells (ros-jazzy, ros-rolling, ...)
         // (builtins.listToAttrs (
           builtins.map (distro: {
-            name = distro;
+            name = "ros-${distro}";
             value = allDistroShells.${distro}.default;
           }) distros
         ))
-        # Add per-distro CI shells (jazzy-ci, rolling-ci, ...)
+        # Add per-distro CI shells (ros-jazzy-ci, ros-rolling-ci, ...)
         // (builtins.listToAttrs (
           builtins.map (distro: {
-            name = "${distro}-ci";
+            name = "ros-${distro}-ci";
             value = allDistroShells.${distro}.ci;
           }) distros
         ));
