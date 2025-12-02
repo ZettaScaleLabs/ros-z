@@ -17,6 +17,8 @@ ros-z-msgs = { path = "../ros-z-msgs", optional = true }
 tokio = { workspace = true, features = ["full"] }
 once_cell = { workspace = true }                  # For lazy static zenohd daemon
 serial_test = "3.0"                               # For sequential test execution
+nix = { version = "0.29" , features = ["signal"] }# Used to send ctrl_c to child proccesses
+rand = "0.8"                                      # Used for test fuzzing
 
 [features]
 default = []
