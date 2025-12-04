@@ -2,16 +2,18 @@ use crate::msg::ZMessage;
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 
+pub mod client;
 pub mod messages;
+pub mod server;
 
 #[cfg(test)]
 mod tests;
 
 /// Core trait for ROS 2 actions
 pub trait ZAction: Send + Sync + 'static {
-    type Goal: ZMessage + serde::Serialize + for<'de> serde::Deserialize<'de>;
-    type Result: ZMessage + serde::Serialize + for<'de> serde::Deserialize<'de>;
-    type Feedback: ZMessage + serde::Serialize + for<'de> serde::Deserialize<'de>;
+    type Goal: ZMessage + Clone + serde::Serialize + for<'de> serde::Deserialize<'de>;
+    type Result: ZMessage + Clone + serde::Serialize + for<'de> serde::Deserialize<'de>;
+    type Feedback: ZMessage + Clone + serde::Serialize + for<'de> serde::Deserialize<'de>;
 
     fn name() -> &'static str;
 }
@@ -25,6 +27,16 @@ impl GoalId {
         let mut uuid = [0u8; 16];
         uuid.copy_from_slice(&uuid::Uuid::new_v4().as_bytes()[..]);
         Self(uuid)
+    }
+
+    pub const fn from_bytes(bytes: [u8; 16]) -> Self {
+        Self(bytes)
+    }
+}
+
+impl Default for GoalId {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

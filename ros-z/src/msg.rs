@@ -18,7 +18,7 @@ pub trait ZDeserializer {
 }
 
 // Core Z-Message trait
-pub trait ZMessage: Sized {
+pub trait ZMessage: Send + Sync + Sized + 'static {
     type Serdes: for<'a> ZSerializer<Input<'a> = &'a Self> + ZDeserializer;
 
     fn serialize(&self) -> Vec<u8> {
@@ -36,7 +36,7 @@ pub trait ZMessage: Sized {
 // Blanket implementation for serde-compatible types using CDR
 impl<T> ZMessage for T
 where
-    T: Serialize + for<'a> Deserialize<'a> + 'static,
+    T: Send + Sync + Serialize + for<'a> Deserialize<'a> + 'static,
 {
     type Serdes = CdrSerdes<T>;
 }

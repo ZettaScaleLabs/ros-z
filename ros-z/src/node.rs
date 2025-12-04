@@ -5,6 +5,7 @@ use zenoh::liveliness::LivelinessToken;
 use zenoh::{Result, Session, Wait};
 
 use crate::{
+    action::{client::ZActionClientBuilder, server::ZActionServerBuilder},
     Builder,
     context::GlobalCounter,
     entity::*,
@@ -211,5 +212,21 @@ impl ZNode {
             session: self.session.clone(),
             _phantom_data: Default::default(),
         }
+    }
+
+    /// Create an action client for the given action name
+    pub fn create_action_client<A>(&self, action_name: &str) -> ZActionClientBuilder<A>
+    where
+        A: crate::action::ZAction,
+    {
+        ZActionClientBuilder::new(action_name, self.entity.clone(), self.session.clone())
+    }
+
+    /// Create an action server for the given action name
+    pub fn create_action_server<A>(&self, action_name: &str) -> ZActionServerBuilder<A>
+    where
+        A: crate::action::ZAction,
+    {
+        ZActionServerBuilder::new(action_name, self.entity.clone(), self.session.clone())
     }
 }

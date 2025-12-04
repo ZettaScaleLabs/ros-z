@@ -174,21 +174,13 @@ pub struct GoalStatusInfo {
 
 // Internal service type wrappers
 pub struct GoalService<A: ZAction>(PhantomData<A>);
-impl<A: ZAction> crate::msg::ZService for GoalService<A>
-where
-    A: 'static,
-    A::Goal: serde::Serialize + for<'de> serde::Deserialize<'de> + 'static,
-{
+impl<A: ZAction> crate::msg::ZService for GoalService<A> {
     type Request = GoalRequest<A>;
     type Response = GoalResponse;
 }
 
 pub struct ResultService<A: ZAction>(PhantomData<A>);
-impl<A: ZAction> crate::msg::ZService for ResultService<A>
-where
-    A: 'static,
-    A::Result: serde::Serialize + for<'de> serde::Deserialize<'de> + 'static,
-{
+impl<A: ZAction> crate::msg::ZService for ResultService<A> {
     type Request = ResultRequest;
     type Response = ResultResponse<A>;
 }
