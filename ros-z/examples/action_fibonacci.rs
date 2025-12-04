@@ -1,10 +1,9 @@
 // ros-z/examples/action_fibonacci.rs
-use std::sync::Arc;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use ros_z::{
     Builder, Result,
-    action::{server::ExecutingGoal, ZAction},
+    action::{ZAction, server::ExecutingGoal},
     context::ZContextBuilder,
 };
 use serde::{Deserialize, Serialize};
@@ -62,7 +61,8 @@ async fn run_server() -> Result<()> {
     let server = node
         .create_action_server::<Fibonacci>("fibonacci")
         .build()?;
-    let _server = Arc::try_unwrap(server).ok().unwrap()        .with_handler(|executing: ExecutingGoal<Fibonacci>| async move {
+    let _server = Arc::try_unwrap(server).ok().unwrap().with_handler(
+        |executing: ExecutingGoal<Fibonacci>| async move {
             let order = executing.goal.order;
             let mut sequence = vec![0, 1];
 
@@ -94,14 +94,17 @@ async fn run_server() -> Result<()> {
             }
 
             if canceled {
-                executing.canceled(FibonacciResult {
-                    sequence: cancel_sequence.unwrap(),
-                }).unwrap();
+                executing
+                    .canceled(FibonacciResult {
+                        sequence: cancel_sequence.unwrap(),
+                    })
+                    .unwrap();
             } else {
                 println!("Goal succeeded!");
                 executing.succeed(FibonacciResult { sequence }).unwrap();
             }
-        });
+        },
+    );
 
     println!("Fibonacci action server started");
     tokio::signal::ctrl_c().await?;
