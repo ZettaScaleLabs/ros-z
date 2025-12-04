@@ -37,6 +37,35 @@ impl<A: ZAction> ZActionServerBuilder<A> {
     }
 }
 
+// Helper function to handle result requests
+async fn handle_result_requests<A: ZAction>(
+    result_server: Arc<crate::service::ZServer<ResultService<A>>>,
+    goal_manager: Arc<Mutex<GoalManager<A>>>,
+) {
+    loop {
+        if let Ok(query) = result_server.rx.recv_async().await {
+            let payload = query.payload().unwrap().to_bytes();
+            let request = crate::msg::CdrSerdes::<ResultRequest>::deserialize(&payload);
+
+            // Look up goal result
+            let manager = goal_manager.lock().unwrap();
+            if let Some(ServerGoalState::Terminated { result, status, .. }) = manager.goals.get(&request.goal_id) {
+                let result_clone = result.clone();
+                let status_clone = *status;
+                drop(manager);
+
+                // Send result response
+                let response = ResultResponse::<A> {
+                    status: status_clone,
+                    result: result_clone,
+                };
+                let response_bytes = crate::msg::CdrSerdes::<ResultResponse<A>>::serialize(&response);
+                let _ = query.reply(query.key_expr().clone(), response_bytes).wait();
+            }
+        }
+    }
+}
+
 impl<A: ZAction> Builder for ZActionServerBuilder<A> {
     type Output = Arc<ZActionServer<A>>;
 
@@ -130,9 +159,15 @@ impl<A: ZAction> Builder for ZActionServerBuilder<A> {
             result_timeout: self.result_timeout,
         }));
 
+        // Spawn background task to handle result requests
+        let result_server_arc = Arc::new(result_server);
+        let result_server_clone = result_server_arc.clone();
+        let goal_manager_clone = goal_manager.clone();
+        tokio::spawn(handle_result_requests::<A>(result_server_clone, goal_manager_clone));
+
         Ok(Arc::new(ZActionServer {
             goal_server: Arc::new(goal_server),
-            result_server: Arc::new(result_server),
+            result_server: result_server_arc,
             cancel_server: Arc::new(cancel_server),
             feedback_pub: Arc::new(feedback_pub),
             status_pub: Arc::new(status_pub),
@@ -186,12 +221,12 @@ impl<A: ZAction> ZActionServer<A> {
     pub async fn recv_goal(&self) -> Result<RequestedGoal<A>> {
         let query = self.goal_server.rx.recv_async().await?;
         let payload = query.payload().unwrap().to_bytes();
-        let request: GoalRequest<A> = crate::msg::CdrSerdes::<GoalRequest<A>>::deserialize(&payload);
+        let request = crate::msg::CdrSerdes::<GoalRequest<A>>::deserialize(&payload);
 
         Ok(RequestedGoal {
             goal: request.goal,
             info: GoalInfo::new(request.goal_id),
-            server: Arc::new(self.clone()),  // Need Clone derive for ZActionServer!
+            server: Arc::new(self.clone()),
             query,
         })
     }
@@ -199,24 +234,56 @@ impl<A: ZAction> ZActionServer<A> {
     pub async fn recv_cancel(&self) -> Result<(CancelGoalRequest, zenoh::query::Query)> {
         let query = self.cancel_server.rx.recv_async().await?;
         let payload = query.payload().unwrap().to_bytes();
-        let request: CancelGoalRequest = crate::msg::CdrSerdes::<CancelGoalRequest>::deserialize(&payload);
+        let request = crate::msg::CdrSerdes::<CancelGoalRequest>::deserialize(&payload);
         Ok((request, query))
     }
 
     pub async fn recv_result_request(&self) -> Result<(GoalId, zenoh::query::Query)> {
         let query = self.result_server.rx.recv_async().await?;
         let payload = query.payload().unwrap().to_bytes();
-        let request: ResultRequest = crate::msg::CdrSerdes::<ResultRequest>::deserialize(&payload);
+        let request = crate::msg::CdrSerdes::<ResultRequest>::deserialize(&payload);
         Ok((request.goal_id, query))
     }
 
-    pub fn with_handler<F, Fut>(self, handler: F) -> Arc<Self>
+    // Low-level methods for testing
+    pub async fn recv_goal_request_low(&self) -> Result<(super::messages::GoalRequest<A>, zenoh::query::Query)> {
+        let query = self.goal_server.rx.recv_async().await?;
+        let payload = query.payload().unwrap().to_bytes();
+        let request = crate::msg::CdrSerdes::<super::messages::GoalRequest<A>>::deserialize(&payload);
+        Ok((request, query))
+    }
+
+    pub fn send_goal_response_low(&self, query: &zenoh::query::Query, response: &super::messages::GoalResponse) -> Result<()> {
+        let response_bytes = crate::msg::CdrSerdes::<super::messages::GoalResponse>::serialize(response);
+        query.reply(query.key_expr().clone(), response_bytes).wait();
+        Ok(())
+    }
+
+    pub async fn recv_cancel_request_low(&self) -> Result<(super::messages::CancelGoalRequest, zenoh::query::Query)> {
+        let query = self.cancel_server.rx.recv_async().await?;
+        let payload = query.payload().unwrap().to_bytes();
+        let request = crate::msg::CdrSerdes::<super::messages::CancelGoalRequest>::deserialize(&payload);
+        Ok((request, query))
+    }
+
+    pub fn send_cancel_response_low(&self, query: &zenoh::query::Query, response: &super::messages::CancelGoalResponse) -> Result<()> {
+        let response_bytes = crate::msg::CdrSerdes::<super::messages::CancelGoalResponse>::serialize(response);
+        query.reply(query.key_expr().clone(), response_bytes).wait();
+        Ok(())
+    }
+
+    pub fn send_result_response_low(&self, query: &zenoh::query::Query, response: &super::messages::ResultResponse<A>) -> Result<()> {
+        let response_bytes = crate::msg::CdrSerdes::<super::messages::ResultResponse<A>>::serialize(response);
+        query.reply(query.key_expr().clone(), response_bytes).wait();
+        Ok(())
+    }
+
+    pub fn with_handler<F, Fut>(self: Arc<Self>, handler: F) -> Arc<Self>
     where
         F: Fn(ExecutingGoal<A>) -> Fut + Send + Sync + 'static,
         Fut: std::future::Future<Output = ()> + Send + 'static,
     {
-        let server = Arc::new(self);
-        let server_clone = server.clone();
+        let server_clone = self.clone();
         tokio::spawn(async move {
             loop {
                 if let Ok(requested) = server_clone.recv_goal().await {
@@ -226,7 +293,7 @@ impl<A: ZAction> ZActionServer<A> {
                 }
             }
         });
-        server
+        self
     }
 }
 
@@ -359,15 +426,17 @@ impl<A: ZAction> ExecutingGoal<A> {
     }
 
     fn terminate(self, result: A::Result, status: GoalStatus) -> Result<()> {
-        let mut manager = self.server.goal_manager.lock().unwrap();
-        manager.goals.insert(
-            self.info.goal_id,
-            ServerGoalState::Terminated {
-                result,
-                status,
-                timestamp: Instant::now(),
-            },
-        );
+        {
+            let mut manager = self.server.goal_manager.lock().unwrap();
+            manager.goals.insert(
+                self.info.goal_id,
+                ServerGoalState::Terminated {
+                    result,
+                    status,
+                    timestamp: Instant::now(),
+                },
+            );
+        } // Drop the lock before publishing status
         self.server.publish_status();
         Ok(())
     }

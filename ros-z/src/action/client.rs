@@ -130,6 +130,7 @@ impl<A: ZAction> Builder for ZActionClientBuilder<A> {
             while let Ok(sample) = feedback_sub_task.queue.recv_async().await {
                 let payload = sample.payload().to_bytes();
                 let msg = crate::msg::CdrSerdes::<FeedbackMessage<A>>::deserialize(&payload);
+                // msg is FeedbackMessage<A>, use it directly
                 if let Some(channels) = goal_board_clone.lock().unwrap().active_goals.get(&msg.goal_id) {
                     let _ = channels.feedback_tx.send(msg.feedback);
                 }
@@ -144,6 +145,7 @@ impl<A: ZAction> Builder for ZActionClientBuilder<A> {
             while let Ok(sample) = status_sub_task.queue.recv_async().await {
                 let payload = sample.payload().to_bytes();
                 let msg = crate::msg::CdrSerdes::<StatusMessage>::deserialize(&payload);
+                // msg is StatusMessage, use it directly
                 for status_info in msg.status_list {
                     if let Some(channels) = goal_board_clone2.lock().unwrap().active_goals.get(&status_info.goal_info.goal_id) {
                         let _ = channels.status_tx.send(status_info.status);
@@ -211,7 +213,7 @@ impl<A: ZAction> ZActionClient<A> {
         // 4. Wait for response
         let sample = self.goal_client.rx.recv_async().await?;
         let payload = sample.payload().to_bytes();
-        let response: GoalResponse = crate::msg::CdrSerdes::<GoalResponse>::deserialize(&payload);
+        let response = crate::msg::CdrSerdes::<GoalResponse>::deserialize(&payload);
 
         // 5. Check if accepted
         if !response.accepted {
@@ -237,7 +239,8 @@ impl<A: ZAction> ZActionClient<A> {
         self.cancel_client.send_request(&request)?;
         let sample = self.cancel_client.rx.recv_async().await?;
         let payload = sample.payload().to_bytes();
-        Ok(crate::msg::CdrSerdes::<CancelGoalResponse>::deserialize(&payload))
+        let response = crate::msg::CdrSerdes::<CancelGoalResponse>::deserialize(&payload);
+        Ok(response)
     }
 
     pub async fn cancel_all_goals(&self) -> Result<CancelGoalResponse> {
@@ -249,7 +252,8 @@ impl<A: ZAction> ZActionClient<A> {
         self.cancel_client.send_request(&request)?;
         let sample = self.cancel_client.rx.recv_async().await?;
         let payload = sample.payload().to_bytes();
-        Ok(crate::msg::CdrSerdes::<CancelGoalResponse>::deserialize(&payload))
+        let response = crate::msg::CdrSerdes::<CancelGoalResponse>::deserialize(&payload);
+        Ok(response)
     }
 
     pub fn feedback_stream(&self, goal_id: GoalId) -> Option<mpsc::UnboundedReceiver<A::Feedback>> {
@@ -275,9 +279,40 @@ impl<A: ZAction> ZActionClient<A> {
         self.result_client.send_request(&request)?;
         let sample = self.result_client.rx.recv_async().await?;
         let payload = sample.payload().to_bytes();
-        let response: ResultResponse<A> = crate::msg::CdrSerdes::<ResultResponse<A>>::deserialize(&payload);
+        let response = crate::msg::CdrSerdes::<ResultResponse<A>>::deserialize(&payload);
 
         Ok(response.result)
+    }
+
+    // Low-level methods for testing
+    pub fn send_goal_request_low(&self, request: &super::messages::GoalRequest<A>) -> Result<()> {
+        self.goal_client.send_request(request)
+    }
+
+    pub async fn recv_goal_response_low(&self) -> Result<super::messages::GoalResponse> {
+        let sample = self.goal_client.rx.recv_async().await?;
+        let payload = sample.payload().to_bytes();
+        Ok(crate::msg::CdrSerdes::<super::messages::GoalResponse>::deserialize(&payload))
+    }
+
+    pub fn send_cancel_request_low(&self, request: &super::messages::CancelGoalRequest) -> Result<()> {
+        self.cancel_client.send_request(request)
+    }
+
+    pub async fn recv_cancel_response_low(&self) -> Result<super::messages::CancelGoalResponse> {
+        let sample = self.cancel_client.rx.recv_async().await?;
+        let payload = sample.payload().to_bytes();
+        Ok(crate::msg::CdrSerdes::<super::messages::CancelGoalResponse>::deserialize(&payload))
+    }
+
+    pub fn send_result_request_low(&self, request: &super::messages::ResultRequest) -> Result<()> {
+        self.result_client.send_request(request)
+    }
+
+    pub async fn recv_result_response_low(&self) -> Result<super::messages::ResultResponse<A>> {
+        let sample = self.result_client.rx.recv_async().await?;
+        let payload = sample.payload().to_bytes();
+        Ok(crate::msg::CdrSerdes::<super::messages::ResultResponse<A>>::deserialize(&payload))
     }
 }
 
@@ -316,11 +351,8 @@ impl<A: ZAction> GoalHandle<A> {
     }
 
     pub async fn result(&mut self) -> Result<A::Result> {
-        if let Some(rx) = self.result_rx.take() {
-            rx.await.map_err(|_| zenoh::Error::from("Result channel closed".to_string()))
-        } else {
-            Err(zenoh::Error::from("Result already taken".to_string()))
-        }
+        // Request the result from the server
+        self.client.get_result(self.id).await
     }
 
     pub async fn cancel(&self) -> Result<CancelGoalResponse> {
