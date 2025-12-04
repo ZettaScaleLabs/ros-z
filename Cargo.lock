@@ -2355,6 +2355,7 @@ dependencies = [
  "strum",
  "tokio",
  "tracing",
+ "uuid",
  "zenoh",
  "zenoh-ext",
 ]

@@ -191,6 +191,8 @@ impl GraphEventManager {
                 EntityKind::Subscription => ZenohEventType::PublicationMatched,
                 EntityKind::Service => return, // TODO: Add service matched events
                 EntityKind::Client => return, // TODO: Add service matched events
+                EntityKind::ActionServer => return, // TODO: Add action matched events
+                EntityKind::ActionClient => return, // TODO: Add action matched events
                 EntityKind::Node => unreachable!("EndpointEntity should not have Node kind"),
             },
             crate::entity::Entity::Node(_) => return, // Node changes don't trigger matched events
