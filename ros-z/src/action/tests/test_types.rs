@@ -5,7 +5,7 @@ mod tests {
     #[test]
     fn test_goal_info_initialization() {
         let goal_id = GoalId::new();
-        let goal_info = GoalInfo::new(goal_id.clone());
+        let goal_info = GoalInfo::new(goal_id);
         assert_eq!(goal_info.goal_id, goal_id);
         assert!(goal_info.stamp > 0); // stamp should be set to current time
     }

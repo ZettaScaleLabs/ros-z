@@ -10,7 +10,7 @@ use crate::{Builder};
 
 use super::ZAction;
 use super::messages::*;
-use super::{GoalId, GoalInfo, GoalStatus, transition_goal_state};
+use super::{GoalId, GoalInfo, GoalStatus};
 
 pub struct ZActionServerBuilder<A: ZAction> {
     pub action_name: String,
@@ -230,11 +230,13 @@ impl<A: ZAction> ZActionServer<A> {
     }
 }
 
+#[allow(dead_code)]
 struct GoalManager<A: ZAction> {
     goals: HashMap<GoalId, ServerGoalState<A>>,
     result_timeout: Duration,
 }
 
+#[allow(dead_code)]
 enum ServerGoalState<A: ZAction> {
     Accepted { goal: A::Goal, timestamp: Instant },
     Executing { goal: A::Goal, cancel_requested: bool },
@@ -255,7 +257,7 @@ impl<A: ZAction> RequestedGoal<A> {
         // Send acceptance response
         let response = GoalResponse { accepted: true, stamp: self.info.stamp };
         let response_bytes = crate::msg::CdrSerdes::<GoalResponse>::serialize(&response);
-        self.query.reply(self.query.key_expr().clone(), response_bytes).wait();
+        let _ = self.query.reply(self.query.key_expr().clone(), response_bytes).wait();
 
         // Update server state to ACCEPTED
         {
@@ -283,7 +285,7 @@ impl<A: ZAction> RequestedGoal<A> {
         // Send rejection response
         let response = GoalResponse { accepted: false, stamp: 0 };
         let response_bytes = crate::msg::CdrSerdes::<GoalResponse>::serialize(&response);
-        self.query.reply(self.query.key_expr().clone(), response_bytes).wait();
+        let _ = self.query.reply(self.query.key_expr().clone(), response_bytes).wait();
         Ok(())
     }
 }

@@ -5,7 +5,7 @@ use tokio::sync::{mpsc, oneshot, watch};
 use zenoh::{Result, Session, sample::Sample};
 
 use crate::entity::{EndpointEntity, EntityKind};
-use crate::msg::{CdrSerdes, ZDeserializer, ZMessage};
+use crate::msg::{CdrSerdes, ZDeserializer};
 use crate::{Builder};
 
 use super::ZAction;
@@ -254,11 +254,11 @@ impl<A: ZAction> ZActionClient<A> {
 
     pub fn feedback_stream(&self, goal_id: GoalId) -> Option<mpsc::UnboundedReceiver<A::Feedback>> {
         let mut board = self.goal_board.lock().unwrap();
-        board.active_goals.get_mut(&goal_id).and_then(|channels| {
+        board.active_goals.get_mut(&goal_id).map(|channels| {
             // Create new receiver (old one already taken via GoalHandle)
             let (tx, rx) = mpsc::unbounded_channel();
             channels.feedback_tx = tx;
-            Some(rx)
+            rx
         })
     }
 
@@ -281,11 +281,13 @@ impl<A: ZAction> ZActionClient<A> {
     }
 }
 
+#[allow(dead_code)]
 struct GoalBoard<A: ZAction> {
     active_goals: HashMap<GoalId, GoalChannels<A>>,
     pending_goals: HashMap<i64, oneshot::Sender<GoalResponse>>,
 }
 
+#[allow(dead_code)]
 struct GoalChannels<A: ZAction> {
     feedback_tx: mpsc::UnboundedSender<A::Feedback>,
     status_tx: watch::Sender<GoalStatus>,

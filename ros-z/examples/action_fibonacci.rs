@@ -1,9 +1,10 @@
 // ros-z/examples/action_fibonacci.rs
+use std::sync::Arc;
 use std::time::Duration;
 
 use ros_z::{
     Builder, Result,
-    action::{ExecutingGoal, ZAction},
+    action::{server::ExecutingGoal, ZAction},
     context::ZContextBuilder,
 };
 use serde::{Deserialize, Serialize};
@@ -58,22 +59,25 @@ async fn run_server() -> Result<()> {
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("fibonacci_server").build()?;
 
-    let _server = node
+    let server = node
         .create_action_server::<Fibonacci>("fibonacci")
-        .build()?
-        .with_handler(|mut executing: ExecutingGoal<Fibonacci>| async move {
+        .build()?;
+    let _server = Arc::try_unwrap(server).ok().unwrap()        .with_handler(|executing: ExecutingGoal<Fibonacci>| async move {
             let order = executing.goal.order;
             let mut sequence = vec![0, 1];
 
             println!("Executing Fibonacci goal with order {}", order);
 
+            let mut canceled = false;
+            let mut cancel_sequence = None;
+
             for i in 2..=order {
                 // Check for cancellation
                 if executing.is_cancel_requested() {
                     println!("Goal canceled!");
-                    return executing.canceled(FibonacciResult {
-                        sequence: sequence.clone(),
-                    });
+                    canceled = true;
+                    cancel_sequence = Some(sequence.clone());
+                    break;
                 }
 
                 let next = sequence[i as usize - 1] + sequence[i as usize - 2];
@@ -84,13 +88,19 @@ async fn run_server() -> Result<()> {
                     .publish_feedback(FibonacciFeedback {
                         partial_sequence: sequence.clone(),
                     })
-                    .await?;
+                    .expect("Failed to publish feedback");
 
                 tokio::time::sleep(Duration::from_millis(500)).await;
             }
 
-            println!("Goal succeeded!");
-            executing.succeed(FibonacciResult { sequence })
+            if canceled {
+                executing.canceled(FibonacciResult {
+                    sequence: cancel_sequence.unwrap(),
+                }).unwrap();
+            } else {
+                println!("Goal succeeded!");
+                executing.succeed(FibonacciResult { sequence }).unwrap();
+            }
         });
 
     println!("Fibonacci action server started");
@@ -107,15 +117,16 @@ async fn run_client(order: i32) -> Result<()> {
         .build()?;
 
     println!("Sending goal: order={}", order);
-    let goal_handle = client.send_goal(FibonacciGoal { order }).await?;
+    let mut goal_handle = client.send_goal(FibonacciGoal { order }).await?;
 
     // Spawn task to monitor feedback
-    let mut feedback_stream = goal_handle.feedback_stream();
-    tokio::spawn(async move {
-        while let Some(fb) = feedback_stream.recv().await {
-            println!("Feedback: {:?}", fb.partial_sequence);
-        }
-    });
+    if let Some(mut feedback_stream) = goal_handle.feedback_stream() {
+        tokio::spawn(async move {
+            while let Some(fb) = feedback_stream.recv().await {
+                println!("Feedback: {:?}", fb.partial_sequence);
+            }
+        });
+    }
 
     // Wait for result
     let result = goal_handle.result().await?;
