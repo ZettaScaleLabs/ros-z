@@ -32,6 +32,14 @@ impl GoalId {
     pub const fn from_bytes(bytes: [u8; 16]) -> Self {
         Self(bytes)
     }
+
+    pub fn is_valid(&self) -> bool {
+        self.0.iter().any(|&x| x != 0)
+    }
+
+    pub fn as_bytes(&self) -> &[u8; 16] {
+        &self.0
+    }
 }
 
 impl Default for GoalId {

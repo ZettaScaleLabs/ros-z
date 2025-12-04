@@ -1,4 +1,5 @@
 use std::sync::{Arc, atomic::AtomicUsize};
+use std::collections::HashMap;
 
 use zenoh::{Result, Session, Wait};
 
@@ -16,11 +17,53 @@ impl GlobalCounter {
 use serde_json::json;
 use std::path::PathBuf;
 
+/// Remapping rules for ROS names
+#[derive(Debug, Clone, Default)]
+pub struct RemapRules {
+    rules: HashMap<String, String>,
+}
+
+impl RemapRules {
+    /// Create a new empty remap rules set
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Add a remapping rule
+    /// Format: "from:=to"
+    pub fn add_rule(&mut self, rule: &str) -> Result<()> {
+        if let Some((from, to)) = rule.split_once(":=") {
+            if from.is_empty() || to.is_empty() {
+                return Err("Invalid remap rule: both sides must be non-empty".into());
+            }
+            self.rules.insert(from.to_string(), to.to_string());
+            Ok(())
+        } else {
+            Err("Invalid remap rule format: expected 'from:=to'".into())
+        }
+    }
+
+    /// Apply remapping to a name
+    pub fn apply(&self, name: &str) -> String {
+        if let Some(remapped) = self.rules.get(name) {
+            remapped.clone()
+        } else {
+            name.to_string()
+        }
+    }
+
+    /// Check if any rules are defined
+    pub fn is_empty(&self) -> bool {
+        self.rules.is_empty()
+    }
+}
+
 #[derive(Default)]
 pub struct ZContextBuilder {
     domain_id: usize,
     config_file: Option<PathBuf>,
     config_overrides: Vec<(String, serde_json::Value)>,
+    remap_rules: RemapRules,
 }
 
 impl ZContextBuilder {
@@ -92,6 +135,42 @@ impl ZContextBuilder {
     /// Convenience method: set mode (peer, client, router)
     pub fn with_mode<S: Into<String>>(self, mode: S) -> Self {
         self.with_json("mode", json!(mode.into()))
+    }
+
+    /// Add a name remapping rule
+    ///
+    /// # Arguments
+    /// * `rule` - Remapping rule in format "from:=to"
+    ///
+    /// # Example
+    /// ```
+    /// use ros_z::context::ZContextBuilder;
+    /// use ros_z::Builder;
+    ///
+    /// let ctx = ZContextBuilder::default()
+    ///     .with_remap_rule("/foo:=/bar")
+    ///     .with_remap_rule("__node:=my_node")
+    ///     .build()
+    ///     .expect("Failed to build context");
+    /// ```
+    pub fn with_remap_rule<S: Into<String>>(mut self, rule: S) -> Result<Self> {
+        self.remap_rules.add_rule(&rule.into())?;
+        Ok(self)
+    }
+
+    /// Add multiple remapping rules
+    ///
+    /// # Arguments
+    /// * `rules` - Iterator of remapping rules in format "from:=to"
+    pub fn with_remap_rules<I, S>(mut self, rules: I) -> Result<Self>
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        for rule in rules {
+            self.remap_rules.add_rule(&rule.into())?;
+        }
+        Ok(self)
     }
 
     /// Parse and apply overrides from environment variable
@@ -200,6 +279,7 @@ impl Builder for ZContextBuilder {
             counter: Arc::new(GlobalCounter::default()),
             domain_id,
             graph,
+            remap_rules: self.remap_rules,
         })
     }
 }
@@ -210,6 +290,7 @@ pub struct ZContext {
     counter: Arc<GlobalCounter>,
     domain_id: usize,
     graph: Arc<Graph>,
+    remap_rules: RemapRules,
 }
 
 impl ZContext {
@@ -221,6 +302,7 @@ impl ZContext {
             session: self.session.clone(),
             counter: self.counter.clone(),
             graph: self.graph.clone(),
+            remap_rules: self.remap_rules.clone(),
         }
     }
 

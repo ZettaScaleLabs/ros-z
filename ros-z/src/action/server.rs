@@ -12,27 +12,67 @@ use super::ZAction;
 use super::messages::*;
 use super::{GoalId, GoalInfo, GoalStatus};
 
-pub struct ZActionServerBuilder<A: ZAction> {
+pub struct ZActionServerBuilder<'a, A: ZAction> {
     pub action_name: String,
-    pub node: crate::entity::NodeEntity,
-    pub session: Arc<Session>,
+    pub node: &'a crate::node::ZNode,
     pub result_timeout: Duration,
+    pub goal_timeout: Option<Duration>,
+    pub goal_service_qos: Option<crate::qos::QosProfile>,
+    pub result_service_qos: Option<crate::qos::QosProfile>,
+    pub cancel_service_qos: Option<crate::qos::QosProfile>,
+    pub feedback_topic_qos: Option<crate::qos::QosProfile>,
+    pub status_topic_qos: Option<crate::qos::QosProfile>,
     pub _phantom: std::marker::PhantomData<A>,
 }
 
-impl<A: ZAction> ZActionServerBuilder<A> {
-    pub fn new(action_name: &str, node: crate::entity::NodeEntity, session: Arc<Session>) -> Self {
+impl<'a, A: ZAction> ZActionServerBuilder<'a, A> {
+    pub fn new(action_name: &str, node: &'a crate::node::ZNode) -> Self {
         Self {
             action_name: action_name.to_string(),
             node,
-            session,
             result_timeout: Duration::from_secs(10),
+            goal_timeout: None,
+            goal_service_qos: None,
+            result_service_qos: None,
+            cancel_service_qos: None,
+            feedback_topic_qos: None,
+            status_topic_qos: None,
             _phantom: std::marker::PhantomData,
         }
     }
 
     pub fn result_timeout(mut self, timeout: Duration) -> Self {
         self.result_timeout = timeout;
+        self
+    }
+
+    pub fn goal_timeout(mut self, timeout: Duration) -> Self {
+        self.goal_timeout = Some(timeout);
+        self
+    }
+
+    pub fn with_goal_service_qos(mut self, qos: crate::qos::QosProfile) -> Self {
+        self.goal_service_qos = Some(qos);
+        self
+    }
+
+    pub fn with_result_service_qos(mut self, qos: crate::qos::QosProfile) -> Self {
+        self.result_service_qos = Some(qos);
+        self
+    }
+
+    pub fn with_cancel_service_qos(mut self, qos: crate::qos::QosProfile) -> Self {
+        self.cancel_service_qos = Some(qos);
+        self
+    }
+
+    pub fn with_feedback_topic_qos(mut self, qos: crate::qos::QosProfile) -> Self {
+        self.feedback_topic_qos = Some(qos);
+        self
+    }
+
+    pub fn with_status_topic_qos(mut self, qos: crate::qos::QosProfile) -> Self {
+        self.status_topic_qos = Some(qos);
         self
     }
 }
@@ -66,74 +106,77 @@ async fn handle_result_requests<A: ZAction>(
     }
 }
 
-impl<A: ZAction> Builder for ZActionServerBuilder<A> {
+impl<'a, A: ZAction> Builder for ZActionServerBuilder<'a, A> {
     type Output = Arc<ZActionServer<A>>;
 
     fn build(self) -> Result<Self::Output> {
+        // Apply remapping to action name
+        let action_name = self.node.remap_rules.apply(&self.action_name);
+
         // ROS 2 action naming conventions
-        let goal_service_name = format!("{}/_action/send_goal", self.action_name);
-        let result_service_name = format!("{}/_action/get_result", self.action_name);
-        let cancel_service_name = format!("{}/_action/cancel_goal", self.action_name);
-        let feedback_topic_name = format!("{}/_action/feedback", self.action_name);
-        let status_topic_name = format!("{}/_action/status", self.action_name);
+        let goal_service_name = format!("{}/_action/send_goal", action_name);
+        let result_service_name = format!("{}/_action/get_result", action_name);
+        let cancel_service_name = format!("{}/_action/cancel_goal", action_name);
+        let feedback_topic_name = format!("{}/_action/feedback", action_name);
+        let status_topic_name = format!("{}/_action/status", action_name);
 
         // Create goal server
         let goal_entity = EndpointEntity {
             id: 0,
-            node: self.node.clone(),
+            node: self.node.entity.clone(),
             kind: EntityKind::Service,
             topic: goal_service_name,
             type_info: None,
-            qos: Default::default(),
+            qos: self.goal_service_qos.unwrap_or_default(),
         };
         let goal_server = crate::service::ZServerBuilder::<GoalService<A>> {
             entity: goal_entity,
-            session: self.session.clone(),
+            session: self.node.session.clone(),
             _phantom_data: std::marker::PhantomData,
         }.build()?;
 
         // Create result server
         let result_entity = EndpointEntity {
             id: 0,
-            node: self.node.clone(),
+            node: self.node.entity.clone(),
             kind: EntityKind::Service,
             topic: result_service_name,
             type_info: None,
-            qos: Default::default(),
+            qos: self.result_service_qos.unwrap_or_default(),
         };
         let result_server = crate::service::ZServerBuilder::<ResultService<A>> {
             entity: result_entity,
-            session: self.session.clone(),
+            session: self.node.session.clone(),
             _phantom_data: std::marker::PhantomData,
         }.build()?;
 
         // Create cancel server
         let cancel_entity = EndpointEntity {
             id: 0,
-            node: self.node.clone(),
+            node: self.node.entity.clone(),
             kind: EntityKind::Service,
             topic: cancel_service_name,
             type_info: None,
-            qos: Default::default(),
+            qos: self.cancel_service_qos.unwrap_or_default(),
         };
         let cancel_server = crate::service::ZServerBuilder::<CancelService> {
             entity: cancel_entity,
-            session: self.session.clone(),
+            session: self.node.session.clone(),
             _phantom_data: std::marker::PhantomData,
         }.build()?;
 
         // Create feedback publisher
         let feedback_entity = EndpointEntity {
             id: 0,
-            node: self.node.clone(),
+            node: self.node.entity.clone(),
             kind: EntityKind::Publisher,
             topic: feedback_topic_name,
             type_info: None,
-            qos: Default::default(),
+            qos: self.feedback_topic_qos.unwrap_or_default(),
         };
         let feedback_pub = crate::pubsub::ZPubBuilder::<FeedbackMessage<A>> {
             entity: feedback_entity,
-            session: self.session.clone(),
+            session: self.node.session.clone(),
             with_attachment: false,
             _phantom_data: std::marker::PhantomData,
         }.build()?;
@@ -141,15 +184,15 @@ impl<A: ZAction> Builder for ZActionServerBuilder<A> {
         // Create status publisher
         let status_entity = EndpointEntity {
             id: 0,
-            node: self.node.clone(),
+            node: self.node.entity.clone(),
             kind: EntityKind::Publisher,
             topic: status_topic_name,
             type_info: None,
-            qos: Default::default(),
+            qos: self.status_topic_qos.unwrap_or_default(),
         };
         let status_pub = crate::pubsub::ZPubBuilder::<StatusMessage> {
             entity: status_entity,
-            session: self.session.clone(),
+            session: self.node.session.clone(),
             with_attachment: false,
             _phantom_data: std::marker::PhantomData,
         }.build()?;
@@ -157,6 +200,7 @@ impl<A: ZAction> Builder for ZActionServerBuilder<A> {
         let goal_manager = Arc::new(Mutex::new(GoalManager {
             goals: HashMap::new(),
             result_timeout: self.result_timeout,
+            goal_timeout: self.goal_timeout,
         }));
 
         // Spawn background task to handle result requests
@@ -164,6 +208,8 @@ impl<A: ZAction> Builder for ZActionServerBuilder<A> {
         let result_server_clone = result_server_arc.clone();
         let goal_manager_clone = goal_manager.clone();
         tokio::spawn(handle_result_requests::<A>(result_server_clone, goal_manager_clone));
+
+        // TODO: Add background task for goal expiration checking
 
         Ok(Arc::new(ZActionServer {
             goal_server: Arc::new(goal_server),
@@ -301,12 +347,13 @@ impl<A: ZAction> ZActionServer<A> {
 struct GoalManager<A: ZAction> {
     goals: HashMap<GoalId, ServerGoalState<A>>,
     result_timeout: Duration,
+    goal_timeout: Option<Duration>,
 }
 
 #[allow(dead_code)]
 enum ServerGoalState<A: ZAction> {
-    Accepted { goal: A::Goal, timestamp: Instant },
-    Executing { goal: A::Goal, cancel_requested: bool },
+    Accepted { goal: A::Goal, timestamp: Instant, expires_at: Option<Instant> },
+    Executing { goal: A::Goal, cancel_requested: bool, expires_at: Option<Instant> },
     Canceling { goal: A::Goal },
     Terminated { result: A::Result, status: GoalStatus, timestamp: Instant },
 }
@@ -329,11 +376,13 @@ impl<A: ZAction> RequestedGoal<A> {
         // Update server state to ACCEPTED
         {
             let mut manager = self.server.goal_manager.lock().unwrap();
+            let expires_at = manager.goal_timeout.map(|timeout| Instant::now() + timeout);
             manager.goals.insert(
                 self.info.goal_id,
                 ServerGoalState::Accepted {
                     goal: self.goal.clone(),
                     timestamp: Instant::now(),
+                    expires_at,
                 },
             );
         }
@@ -368,11 +417,13 @@ impl<A: ZAction> AcceptedGoal<A> {
         // Transition to EXECUTING
         {
             let mut manager = self.server.goal_manager.lock().unwrap();
+            let expires_at = manager.goal_timeout.map(|timeout| Instant::now() + timeout);
             manager.goals.insert(
                 self.info.goal_id,
                 ServerGoalState::Executing {
                     goal: self.goal.clone(),
                     cancel_requested: false,
+                    expires_at,
                 },
             );
         }

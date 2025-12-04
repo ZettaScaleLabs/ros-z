@@ -455,4 +455,62 @@ impl Graph {
             })
             .collect()
     }
+
+    /// Get action client names and types by node
+    ///
+    /// Returns a vector of tuples (action_name, action_type) for action clients on the specified node
+    pub fn get_action_client_names_and_types_by_node(
+        &self,
+        node_key: NodeKey,
+    ) -> Vec<(String, String)> {
+        self.get_names_and_types_by_node(node_key, EntityKind::ActionClient)
+    }
+
+    /// Get action server names and types by node
+    ///
+    /// Returns a vector of tuples (action_name, action_type) for action servers on the specified node
+    pub fn get_action_server_names_and_types_by_node(
+        &self,
+        node_key: NodeKey,
+    ) -> Vec<(String, String)> {
+        self.get_names_and_types_by_node(node_key, EntityKind::ActionServer)
+    }
+
+    /// Get all action names and types discovered in the graph
+    ///
+    /// Returns a vector of tuples (action_name, action_type) for all action clients and servers
+    pub fn get_action_names_and_types(&self) -> Vec<(String, String)> {
+        let mut res = Vec::new();
+        let mut data = self.data.lock();
+
+        if !data.cached.is_empty() {
+            data.parse();
+        }
+
+        // Collect from all nodes
+        for (node_key, slab) in &mut data.by_node {
+            slab.retain(|_, weak| {
+                if let Some(ent) = weak.upgrade() {
+                    if let Some(enp) = ent.get_endpoint()
+                        && matches!(enp.kind, EntityKind::ActionClient | EntityKind::ActionServer)
+                    {
+                        if let Some(type_info) = &enp.type_info {
+                            res.push((
+                                enp.topic.clone(),
+                                type_info.name.clone(),
+                            ));
+                        }
+                    }
+                    true
+                } else {
+                    false
+                }
+            });
+        }
+
+        // Remove duplicates (same action name/type may appear on multiple nodes)
+        res.sort();
+        res.dedup();
+        res
+    }
 }

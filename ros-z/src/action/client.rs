@@ -13,107 +13,143 @@ use super::ZAction;
 use super::messages::*;
 use super::{GoalId, GoalInfo, GoalStatus};
 
-pub struct ZActionClientBuilder<A: ZAction> {
+pub struct ZActionClientBuilder<'a, A: ZAction> {
     pub action_name: String,
-    pub node: crate::entity::NodeEntity,
-    pub session: Arc<Session>,
+    pub node: &'a crate::node::ZNode,
+    pub goal_service_qos: Option<crate::qos::QosProfile>,
+    pub result_service_qos: Option<crate::qos::QosProfile>,
+    pub cancel_service_qos: Option<crate::qos::QosProfile>,
+    pub feedback_topic_qos: Option<crate::qos::QosProfile>,
+    pub status_topic_qos: Option<crate::qos::QosProfile>,
     pub _phantom: std::marker::PhantomData<A>,
 }
 
-impl<A: ZAction> ZActionClientBuilder<A> {
-    pub fn new(action_name: &str, node: crate::entity::NodeEntity, session: Arc<Session>) -> Self {
+impl<'a, A: ZAction> ZActionClientBuilder<'a, A> {
+    pub fn new(action_name: &str, node: &'a crate::node::ZNode) -> Self {
         Self {
             action_name: action_name.to_string(),
             node,
-            session,
+            goal_service_qos: None,
+            result_service_qos: None,
+            cancel_service_qos: None,
+            feedback_topic_qos: None,
+            status_topic_qos: None,
             _phantom: std::marker::PhantomData,
         }
     }
+
+    pub fn with_goal_service_qos(mut self, qos: crate::qos::QosProfile) -> Self {
+        self.goal_service_qos = Some(qos);
+        self
+    }
+
+    pub fn with_result_service_qos(mut self, qos: crate::qos::QosProfile) -> Self {
+        self.result_service_qos = Some(qos);
+        self
+    }
+
+    pub fn with_cancel_service_qos(mut self, qos: crate::qos::QosProfile) -> Self {
+        self.cancel_service_qos = Some(qos);
+        self
+    }
+
+    pub fn with_feedback_topic_qos(mut self, qos: crate::qos::QosProfile) -> Self {
+        self.feedback_topic_qos = Some(qos);
+        self
+    }
+
+    pub fn with_status_topic_qos(mut self, qos: crate::qos::QosProfile) -> Self {
+        self.status_topic_qos = Some(qos);
+        self
+    }
 }
 
-impl<A: ZAction> Builder for ZActionClientBuilder<A> {
+impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
     type Output = ZActionClient<A>;
 
     fn build(self) -> Result<Self::Output> {
+        // Apply remapping to action name
+        let action_name = self.node.remap_rules.apply(&self.action_name);
+
         // ROS 2 action naming conventions
-        let goal_service_name = format!("{}/_action/send_goal", self.action_name);
-        let result_service_name = format!("{}/_action/get_result", self.action_name);
-        let cancel_service_name = format!("{}/_action/cancel_goal", self.action_name);
-        let feedback_topic_name = format!("{}/_action/feedback", self.action_name);
-        let status_topic_name = format!("{}/_action/status", self.action_name);
+        let goal_service_name = format!("{}/_action/send_goal", action_name);
+        let result_service_name = format!("{}/_action/get_result", action_name);
+        let cancel_service_name = format!("{}/_action/cancel_goal", action_name);
+        let feedback_topic_name = format!("{}/_action/feedback", action_name);
+        let status_topic_name = format!("{}/_action/status", action_name);
 
         // Create goal client
         let goal_entity = EndpointEntity {
             id: 0,
-            node: self.node.clone(),
+            node: self.node.entity.clone(),
             kind: EntityKind::Client,
             topic: goal_service_name,
             type_info: None,
-            qos: Default::default(),
+            qos: self.goal_service_qos.unwrap_or_default(),
         };
         let goal_client = crate::service::ZClientBuilder::<GoalService<A>> {
             entity: goal_entity,
-            session: self.session.clone(),
+            session: self.node.session.clone(),
             _phantom_data: std::marker::PhantomData,
         }.build()?;
 
         // Create result client
         let result_entity = EndpointEntity {
             id: 0,
-            node: self.node.clone(),
+            node: self.node.entity.clone(),
             kind: EntityKind::Client,
             topic: result_service_name,
             type_info: None,
-            qos: Default::default(),
+            qos: self.result_service_qos.unwrap_or_default(),
         };
         let result_client = crate::service::ZClientBuilder::<ResultService<A>> {
             entity: result_entity,
-            session: self.session.clone(),
+            session: self.node.session.clone(),
             _phantom_data: std::marker::PhantomData,
         }.build()?;
 
         // Create cancel client
         let cancel_entity = EndpointEntity {
             id: 0,
-            node: self.node.clone(),
+            node: self.node.entity.clone(),
             kind: EntityKind::Client,
             topic: cancel_service_name,
             type_info: None,
-            qos: Default::default(),
+            qos: self.cancel_service_qos.unwrap_or_default(),
         };
         let cancel_client = crate::service::ZClientBuilder::<CancelService> {
             entity: cancel_entity,
-            session: self.session.clone(),
+            session: self.node.session.clone(),
             _phantom_data: std::marker::PhantomData,
         }.build()?;
 
         // Create feedback subscriber
         let feedback_entity = EndpointEntity {
             id: 0,
-            node: self.node.clone(),
+            node: self.node.entity.clone(),
             kind: EntityKind::Subscription,
             topic: feedback_topic_name,
             type_info: None,
-            qos: Default::default(),
+            qos: self.feedback_topic_qos.unwrap_or_default(),
         };
         let feedback_sub = crate::pubsub::ZSubBuilder::<FeedbackMessage<A>> {
             entity: feedback_entity,
-            session: self.session.clone(),
+            session: self.node.session.clone(),
             _phantom_data: std::marker::PhantomData,
         }.build()?;
 
         // Create status subscriber
         let status_entity = EndpointEntity {
             id: 0,
-            node: self.node.clone(),
+            node: self.node.entity.clone(),
             kind: EntityKind::Subscription,
             topic: status_topic_name,
             type_info: None,
-            qos: Default::default(),
+            qos: self.status_topic_qos.unwrap_or_default(),
         };
         let status_sub = crate::pubsub::ZSubBuilder::<StatusMessage> {
             entity: status_entity,
-            session: self.session.clone(),
+            session: self.node.session.clone(),
             _phantom_data: std::marker::PhantomData,
         }.build()?;
 
