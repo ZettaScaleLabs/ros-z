@@ -183,3 +183,125 @@ fn test_ros_z_talker_to_rcl_listener() {
 
     println!("✅ Test passed: ros-z talker published messages to RCL listener");
 }
+
+#[serial_test::serial]
+#[test]
+fn test_ros_z_add_two_ints_server_to_ros_z_client() {
+    ensure_zenohd_running();
+
+    println!("\n=== Test: ros-z add_two_ints server -> ros-z client ===");
+
+    // Start ros-z server in a thread using the example code
+    let server_handle = thread::spawn(|| {
+        let ctx = create_ros_z_context().expect("Failed to create ros-z context");
+
+        // Use the actual server example code (handle one request)
+        demo_nodes::run_add_two_ints_server(ctx, Some(1)).expect("Server failed");
+    });
+
+    wait_for_ready(Duration::from_secs(2));
+
+    // Run ros-z client in the main thread using the example code
+    let ctx = create_ros_z_context().expect("Failed to create ros-z context");
+    let result = demo_nodes::run_add_two_ints_client(ctx, 2, 3, false).expect("Client failed");
+
+    assert_eq!(result, 5, "Expected 2 + 3 = 5");
+
+    // Stop the server (it will stop after handling one request)
+    server_handle.join().expect("Server thread panicked");
+
+    println!(
+        "✅ Test passed: ros-z client received {} from ros-z server",
+        result
+    );
+}
+
+#[serial_test::serial]
+#[test]
+fn test_rcl_add_two_ints_server_to_ros_z_client() {
+    if !check_ros2_available() {
+        panic!("ros2 CLI not available - ensure ROS 2 is installed");
+    }
+
+    if !check_demo_nodes_cpp_available() {
+        panic!("demo_nodes_cpp package not found - ensure it is installed");
+    }
+
+    ensure_zenohd_running();
+
+    println!("\n=== Test: RCL demo_nodes_cpp add_two_ints server -> ros-z client ===");
+
+    // Start RCL server
+    let server = Command::new("ros2")
+        .args(["run", "demo_nodes_cpp", "add_two_ints_server"])
+        .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("Failed to start RCL server");
+
+    let _server_guard = ProcessGuard::new(server, "RCL add_two_ints server");
+
+    wait_for_ready(Duration::from_secs(2));
+
+    // Start ros-z client in a thread using the example code
+    let client_handle = thread::spawn(|| -> i64 {
+        let ctx = create_ros_z_context().expect("Failed to create ros-z context");
+
+        // Use the actual client example code
+        demo_nodes::run_add_two_ints_client(ctx, 4, 7, false).expect("Client failed")
+    });
+
+    let result = client_handle.join().expect("Client thread panicked");
+    assert_eq!(result, 11, "Expected 4 + 7 = 11");
+
+    println!(
+        "✅ Test passed: ros-z client received {} from RCL server",
+        result
+    );
+}
+
+#[serial_test::serial]
+#[test]
+fn test_ros_z_add_two_ints_server_to_rcl_client() {
+    if !check_ros2_available() {
+        panic!("ros2 CLI not available - ensure ROS 2 is installed");
+    }
+
+    if !check_demo_nodes_cpp_available() {
+        panic!("demo_nodes_cpp package not found - ensure it is installed");
+    }
+
+    ensure_zenohd_running();
+
+    println!("\n=== Test: ros-z add_two_ints server -> RCL demo_nodes_cpp client ===");
+
+    // Start ros-z server in a thread using the example code
+    let server_handle = thread::spawn(|| {
+        let ctx = create_ros_z_context().expect("Failed to create ros-z context");
+
+        // Use the actual server example code (handle one request)
+        demo_nodes::run_add_two_ints_server(ctx, Some(1)).expect("Server failed");
+    });
+
+    wait_for_ready(Duration::from_secs(2));
+
+    // Start RCL client
+    let client = Command::new("ros2")
+        .args(["run", "demo_nodes_cpp", "add_two_ints_client"])
+        .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("Failed to start RCL client");
+
+    let _client_guard = ProcessGuard::new(client, "RCL add_two_ints client");
+
+    // Wait for the client to complete
+    wait_for_ready(Duration::from_secs(5));
+
+    // Stop the server
+    server_handle.join().expect("Server thread panicked");
+
+    println!("✅ Test passed: RCL client called ros-z server");
+}

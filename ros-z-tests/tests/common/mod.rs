@@ -22,8 +22,52 @@ impl Drop for ProcessGuard {
     fn drop(&mut self) {
         if let Some(mut child) = self.child.take() {
             println!("Stopping process: {}", self.name);
-            let _ = child.kill();
-            let _ = child.wait();
+            // NOTE(Carter12s): cannot directly kill a `ros2` command line command
+            // As that will kill the commandline process without giving it time to shutdown whatever
+            // child processes it spawns.
+            let pid = child.id();
+
+            // Send Ctrl-C to trigger graceful shutdown
+            if let Err(e) = nix::sys::signal::kill(
+                nix::unistd::Pid::from_raw(pid as _),
+                nix::sys::signal::SIGINT,
+            ) {
+                eprintln!("Failed to send SIGINT to process {}: {}", self.name, e);
+                let _ = child.kill();
+                let _ = child.wait();
+                return;
+            }
+
+            // Wait for graceful shutdown with a timeout
+            let start = std::time::Instant::now();
+            let timeout = Duration::from_secs(5);
+
+            loop {
+                match child.try_wait() {
+                    Ok(Some(status)) => {
+                        println!("Process {} exited with status: {:?}", self.name, status);
+                        break;
+                    }
+                    Ok(None) => {
+                        if start.elapsed() > timeout {
+                            eprintln!(
+                                "Process {} did not exit gracefully, sending SIGKILL",
+                                self.name
+                            );
+                            let _ = child.kill();
+                            let _ = child.wait();
+                            break;
+                        }
+                        thread::sleep(Duration::from_millis(100));
+                    }
+                    Err(e) => {
+                        eprintln!("Error waiting for process {}: {}", self.name, e);
+                        let _ = child.kill();
+                        let _ = child.wait();
+                        break;
+                    }
+                }
+            }
         }
     }
 }
