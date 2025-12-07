@@ -9,6 +9,7 @@ use std::time::Duration;
 use ros_z::{Builder, Result, action::ZAction, context::ZContextBuilder, msg::ZSerializer};
 use serde::{Deserialize, Serialize};
 use tokio::time::timeout;
+use zenoh::Wait;
 
 // Test action messages (equivalent to test_msgs/action/Fibonacci)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -95,9 +96,12 @@ mod tests {
 
         // Create and send goal request
         let outgoing_goal = TestGoal { order: 10 };
-        let goal_handle = timeout(Duration::from_secs(5), client.send_goal(outgoing_goal.clone()))
-            .await
-            .expect("timeout sending goal")?;
+        let goal_handle = timeout(
+            Duration::from_secs(5),
+            client.send_goal(outgoing_goal.clone()),
+        )
+        .await
+        .expect("timeout sending goal")?;
 
         // Wait for server to process
         let (goal_order, goal_id) = server_task.await.expect("server task failed")?;
@@ -137,9 +141,10 @@ mod tests {
             let _executing = accepted.execute();
 
             // Server should receive cancel request
-            let (cancel_request, response_tx) = timeout(Duration::from_secs(5), server_clone.recv_cancel())
-                .await
-                .expect("timeout receiving cancel")?;
+            let (cancel_request, response_tx) =
+                timeout(Duration::from_secs(5), server_clone.recv_cancel())
+                    .await
+                    .expect("timeout receiving cancel")?;
 
             // Verify cancel request has correct goal ID
             assert_eq!(cancel_request.goal_info.goal_id, goal_id);
@@ -154,8 +159,13 @@ mod tests {
             };
 
             // Respond to the cancel request
-            let response_bytes = ros_z::msg::CdrSerdes::<ros_z::action::messages::CancelGoalResponse>::serialize(&cancel_resp);
-            let _ = response_tx.reply(response_tx.key_expr().clone(), response_bytes);
+            let response_bytes =
+                ros_z::msg::CdrSerdes::<ros_z::action::messages::CancelGoalResponse>::serialize(
+                    &cancel_resp,
+                );
+            response_tx
+                .reply(response_tx.key_expr().clone(), response_bytes)
+                .wait()?;
 
             Ok::<_, zenoh::Error>(())
         });

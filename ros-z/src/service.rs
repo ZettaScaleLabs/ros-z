@@ -150,8 +150,16 @@ where
             .payload(msg.serialize())
             .attachment(self.new_attchment())
             .callback(move |reply| {
-                let sample = reply.into_result().unwrap();
-                tx.send(sample);
+                tracing::trace!("🔵 ZClient received reply in callback");
+                match reply.into_result() {
+                    Ok(sample) => {
+                        tracing::trace!("✅ ZClient reply OK, sending to channel");
+                        tx.send(sample);
+                    }
+                    Err(e) => {
+                        tracing::error!("❌ ZClient reply error: {:?}", e);
+                    }
+                }
                 // let msg = <T::Response as ZMessage>::deserialize(&sample.payload().to_bytes());
                 // tx.send(msg);
             })
