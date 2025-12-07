@@ -244,7 +244,7 @@ impl<A: ZAction> ZActionClient<A> {
 
         // 3. Send goal request via service client
         let request = GoalRequest { goal_id, goal };
-        self.goal_client.send_request(&request)?;
+        self.goal_client.send_request(&request).await?;
 
         // 4. Wait for response
         let sample = self.goal_client.rx.recv_async().await?;
@@ -272,7 +272,7 @@ impl<A: ZAction> ZActionClient<A> {
         let goal_info = GoalInfo::new(goal_id);
         let request = CancelGoalRequest { goal_info };
 
-        self.cancel_client.send_request(&request)?;
+        self.cancel_client.send_request(&request).await?;
         let sample = self.cancel_client.rx.recv_async().await?;
         let payload = sample.payload().to_bytes();
         let response = crate::msg::CdrSerdes::<CancelGoalResponse>::deserialize(&payload);
@@ -285,7 +285,7 @@ impl<A: ZAction> ZActionClient<A> {
         let goal_info = GoalInfo { goal_id: zero_goal_id, stamp: 0 };
         let request = CancelGoalRequest { goal_info };
 
-        self.cancel_client.send_request(&request)?;
+        self.cancel_client.send_request(&request).await?;
         let sample = self.cancel_client.rx.recv_async().await?;
         let payload = sample.payload().to_bytes();
         let response = crate::msg::CdrSerdes::<CancelGoalResponse>::deserialize(&payload);
@@ -312,7 +312,7 @@ impl<A: ZAction> ZActionClient<A> {
     pub async fn get_result(&self, goal_id: GoalId) -> Result<A::Result> {
         let request = ResultRequest { goal_id };
 
-        self.result_client.send_request(&request)?;
+        self.result_client.send_request(&request).await?;
         let sample = self.result_client.rx.recv_async().await?;
         let payload = sample.payload().to_bytes();
         let response = crate::msg::CdrSerdes::<ResultResponse<A>>::deserialize(&payload);
@@ -321,8 +321,8 @@ impl<A: ZAction> ZActionClient<A> {
     }
 
     // Low-level methods for testing
-    pub fn send_goal_request_low(&self, request: &super::messages::GoalRequest<A>) -> Result<()> {
-        self.goal_client.send_request(request)
+    pub async fn send_goal_request_low(&self, request: &super::messages::GoalRequest<A>) -> Result<()> {
+        self.goal_client.send_request(request).await
     }
 
     pub async fn recv_goal_response_low(&self) -> Result<super::messages::GoalResponse> {
@@ -331,8 +331,8 @@ impl<A: ZAction> ZActionClient<A> {
         Ok(crate::msg::CdrSerdes::<super::messages::GoalResponse>::deserialize(&payload))
     }
 
-    pub fn send_cancel_request_low(&self, request: &super::messages::CancelGoalRequest) -> Result<()> {
-        self.cancel_client.send_request(request)
+    pub async fn send_cancel_request_low(&self, request: &super::messages::CancelGoalRequest) -> Result<()> {
+        self.cancel_client.send_request(request).await
     }
 
     pub async fn recv_cancel_response_low(&self) -> Result<super::messages::CancelGoalResponse> {
@@ -341,8 +341,8 @@ impl<A: ZAction> ZActionClient<A> {
         Ok(crate::msg::CdrSerdes::<super::messages::CancelGoalResponse>::deserialize(&payload))
     }
 
-    pub fn send_result_request_low(&self, request: &super::messages::ResultRequest) -> Result<()> {
-        self.result_client.send_request(request)
+    pub async fn send_result_request_low(&self, request: &super::messages::ResultRequest) -> Result<()> {
+        self.result_client.send_request(request).await
     }
 
     pub async fn recv_result_response_low(&self) -> Result<super::messages::ResultResponse<A>> {

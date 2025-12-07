@@ -1,24 +1,29 @@
+//! Action communication tests - ported from rcl_action/test/rcl_action/test_action_communication.cpp
+//!
+//! These tests verify the low-level protocol communication between action clients and servers.
+//! The C++ tests use rcl_action_send_goal_request/rcl_action_take_goal_request primitives,
+//! but our Rust API is higher-level (send_goal/recv_goal), so we test equivalent behavior.
+
 use std::time::Duration;
 
-use ros_z::{Builder, Result, action::ZAction, context::ZContextBuilder};
+use ros_z::{Builder, Result, action::ZAction, context::ZContextBuilder, msg::ZSerializer};
 use serde::{Deserialize, Serialize};
+use tokio::time::timeout;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+// Test action messages (equivalent to test_msgs/action/Fibonacci)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TestGoal {
     pub order: i32,
-    pub sequence_id: i32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TestResult {
     pub value: i32,
-    pub sequence_id: i32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TestFeedback {
-    pub progress: i32,
-    pub sequence_id: i32,
+    pub sequence: Vec<i32>,
 }
 
 pub struct TestAction;
@@ -29,477 +34,380 @@ impl ZAction for TestAction {
     type Feedback = TestFeedback;
 
     fn name() -> &'static str {
-        "test_action"
+        "test_action_comm"
     }
+}
+
+/// Helper to setup test fixtures
+async fn setup_test() -> Result<(
+    ros_z::context::ZContext,
+    ros_z::node::ZNode,
+    ros_z::action::client::ZActionClient<TestAction>,
+    std::sync::Arc<ros_z::action::server::ZActionServer<TestAction>>,
+)> {
+    let ctx = ZContextBuilder::default().build()?;
+    let node = ctx.create_node("test_action_comm_node").build()?;
+
+    let server = node
+        .create_action_server::<TestAction>("test_action_comm")
+        .build()?;
+
+    let client = node
+        .create_action_client::<TestAction>("test_action_comm")
+        .build()?;
+
+    // Longer delay to allow Zenoh discovery
+    // Server needs to be fully initialized before client can connect
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    Ok((ctx, node, client, server))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
-    async fn test_message_ordering_guarantee() -> Result<()> {
-        // Test that messages are processed in the correct order
-        let ctx = ZContextBuilder::default().build()?;
-        let client_node = ctx.create_node("test_order_client").build()?;
-        let server_node = ctx.create_node("test_order_server").build()?;
+    /// Test: test_valid_goal_comm
+    ///
+    /// C++ equivalent: test_action_communication.cpp:182
+    /// Tests basic goal request/response communication
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_valid_goal_comm() -> Result<()> {
+        let (_ctx, _node, client, server) = setup_test().await?;
 
-        let client = client_node
-            .create_action_client::<TestAction>("test_order_action")
-            .build()?;
-
-        let server = server_node
-            .create_action_server::<TestAction>("test_order_action")
-            .build()?;
-
-        // Send goals with sequence IDs
-        let mut goal_handles = vec![];
-        for seq_id in 0..10 {
-            let goal = TestGoal {
-                order: seq_id * 10,
-                sequence_id: seq_id,
-            };
-            let handle = client.send_goal(goal).await?;
-            goal_handles.push((handle, seq_id));
-        }
-
-        // Process goals and collect results
-        let mut results = vec![];
+        // Spawn server processing task
         let server_clone = server.clone();
+        let server_task = tokio::spawn(async move {
+            // Server should receive the goal request
+            let requested = timeout(Duration::from_secs(5), server_clone.recv_goal())
+                .await
+                .expect("timeout receiving goal")?;
 
-        for _ in 0..10 {
-            if let Ok(requested) = server_clone.recv_goal().await {
-                let accepted = requested.accept();
-                let goal_info = accepted.goal.clone();
-                let executing = accepted.execute();
+            // Extract values before accepting (which moves requested)
+            let goal_order = requested.goal.order;
+            let goal_id = requested.info.goal_id;
 
-                // Simulate processing time
-                tokio::time::sleep(Duration::from_millis(5)).await;
+            // Accept the goal (sends goal response)
+            let _accepted = requested.accept();
 
-                let result = TestResult {
-                    value: goal_info.order * 2,
-                    sequence_id: goal_info.sequence_id,
-                };
-
-                let _ = executing.succeed(result.clone());
-                results.push(result);
-            }
-        }
-
-        // Sort results by sequence ID
-        results.sort_by_key(|r| r.sequence_id);
-
-        // Verify ordering
-        for (i, result) in results.iter().enumerate() {
-            assert_eq!(result.sequence_id, i as i32);
-            assert_eq!(result.value, i as i32 * 10 * 2);
-        }
-
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
-    async fn test_feedback_stream_ordering() -> Result<()> {
-        // Test that feedback messages maintain ordering
-        let ctx = ZContextBuilder::default().build()?;
-        let client_node = ctx.create_node("test_feedback_client").build()?;
-        let server_node = ctx.create_node("test_feedback_server").build()?;
-
-        let client = client_node
-            .create_action_client::<TestAction>("test_feedback_action")
-            .build()?;
-
-        let server = server_node
-            .create_action_server::<TestAction>("test_feedback_action")
-            .build()?;
-
-        // Send goal
-        let goal = TestGoal {
-            order: 100,
-            sequence_id: 1,
-        };
-        let mut goal_handle = client.send_goal(goal).await?;
-
-        // Start server processing with ordered feedback
-        let server_clone = server.clone();
-        let processing_task = tokio::spawn(async move {
-            if let Ok(requested) = server_clone.recv_goal().await {
-                let accepted = requested.accept();
-                let executing = accepted.execute();
-
-                // Send feedback in order
-                for progress in [10, 25, 50, 75, 100] {
-                    let feedback = TestFeedback {
-                        progress,
-                        sequence_id: 1,
-                    };
-                    let _ = executing.publish_feedback(feedback);
-                    tokio::time::sleep(Duration::from_millis(2)).await;
-                }
-
-                let result = TestResult {
-                    value: 200,
-                    sequence_id: 1,
-                };
-                let _ = executing.succeed(result);
-            }
+            Ok::<_, zenoh::Error>((goal_order, goal_id))
         });
 
-        // Collect feedback
-        let mut feedback_rx = goal_handle.feedback_stream().unwrap();
-        let mut received_feedback = vec![];
+        // Create and send goal request
+        let outgoing_goal = TestGoal { order: 10 };
+        let goal_handle = timeout(Duration::from_secs(5), client.send_goal(outgoing_goal.clone()))
+            .await
+            .expect("timeout sending goal")?;
 
-        // Collect all feedback messages
-        while let Ok(feedback) =
-            tokio::time::timeout(Duration::from_millis(50), feedback_rx.recv()).await
-        {
-            if let Some(fb) = feedback {
-                let progress = fb.progress;
-                received_feedback.push(fb);
-                if progress >= 100 {
-                    break;
-                }
-            }
-        }
+        // Wait for server to process
+        let (goal_order, goal_id) = server_task.await.expect("server task failed")?;
 
-        // Wait for processing to complete
-        let _ = processing_task.await;
+        // Verify goal data matches
+        assert_eq!(goal_order, outgoing_goal.order);
+        assert_eq!(goal_id, goal_handle.id());
 
-        // Verify feedback ordering
-        assert_eq!(received_feedback.len(), 5);
-        let expected_progress = [10, 25, 50, 75, 100];
-        for (i, feedback) in received_feedback.iter().enumerate() {
-            assert_eq!(feedback.progress, expected_progress[i]);
-            assert_eq!(feedback.sequence_id, 1);
-        }
+        // Client should receive the acceptance response
+        // This happens automatically in send_goal, but we can verify the goal is valid
+        assert_ne!(goal_handle.id(), ros_z::action::GoalId::default());
+
+        // Clean shutdown
+        drop(server);
+        drop(client);
+        tokio::time::sleep(Duration::from_millis(50)).await;
 
         Ok(())
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
-    async fn test_concurrent_goal_processing() -> Result<()> {
-        // Test processing multiple goals concurrently
-        let ctx = ZContextBuilder::default().build()?;
-        let client_node = ctx.create_node("test_concurrent_proc_client").build()?;
-        let server_node = ctx.create_node("test_concurrent_proc_server").build()?;
+    /// Test: test_valid_cancel_comm
+    ///
+    /// C++ equivalent: test_action_communication.cpp:288
+    /// Tests cancel request/response communication
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_valid_cancel_comm() -> Result<()> {
+        let (_ctx, _node, client, server) = setup_test().await?;
 
-        let client = client_node
-            .create_action_client::<TestAction>("test_concurrent_proc_action")
-            .build()?;
+        // Spawn both goal and cancel handling together
+        let server_clone = server.clone();
+        let server_task = tokio::spawn(async move {
+            let requested = timeout(Duration::from_secs(5), server_clone.recv_goal())
+                .await
+                .expect("timeout receiving goal")?;
+            let goal_id = requested.info.goal_id;
+            let accepted = requested.accept();
+            let _executing = accepted.execute();
 
-        let server = server_node
-            .create_action_server::<TestAction>("test_concurrent_proc_action")
-            .build()?;
+            // Server should receive cancel request
+            let (cancel_request, response_tx) = timeout(Duration::from_secs(5), server_clone.recv_cancel())
+                .await
+                .expect("timeout receiving cancel")?;
+
+            // Verify cancel request has correct goal ID
+            assert_eq!(cancel_request.goal_info.goal_id, goal_id);
+
+            // Send cancel response
+            let cancel_resp = ros_z::action::messages::CancelGoalResponse {
+                return_code: 0, // ERROR_NONE
+                goals_canceling: vec![ros_z::action::GoalInfo {
+                    goal_id,
+                    stamp: 0, // Current time in nanoseconds
+                }],
+            };
+
+            // Respond to the cancel request
+            let response_bytes = ros_z::msg::CdrSerdes::<ros_z::action::messages::CancelGoalResponse>::serialize(&cancel_resp);
+            let _ = response_tx.reply(response_tx.key_expr().clone(), response_bytes);
+
+            Ok::<_, zenoh::Error>(())
+        });
+
+        // Send and accept a goal first
+        let goal = TestGoal { order: 10 };
+        let goal_handle = timeout(Duration::from_secs(5), client.send_goal(goal))
+            .await
+            .expect("timeout sending goal")?;
+
+        // Send cancel request
+        let cancel_response = timeout(Duration::from_secs(5), goal_handle.cancel())
+            .await
+            .expect("timeout sending cancel")?;
+
+        // Wait for server to process everything
+        server_task.await.expect("server task failed")?;
+
+        // Verify client received response
+        assert_eq!(cancel_response.return_code, 0); // ERROR_NONE
+
+        // Clean shutdown
+        drop(server);
+        drop(client);
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        Ok(())
+    }
+
+    /// Test: test_valid_result_comm
+    ///
+    /// C++ equivalent: test_action_communication.cpp:415
+    /// Tests result request/response communication
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_valid_result_comm() -> Result<()> {
+        let (_ctx, _node, client, server) = setup_test().await?;
+
+        // Spawn server processing
+        let server_clone = server.clone();
+        let server_task = tokio::spawn(async move {
+            let requested = timeout(Duration::from_secs(5), server_clone.recv_goal())
+                .await
+                .expect("timeout receiving goal")?;
+            let accepted = requested.accept();
+            let executing = accepted.execute();
+
+            // Complete the goal with result
+            let outgoing_result = TestResult { value: 42 };
+            executing.succeed(outgoing_result.clone())?;
+
+            Ok::<_, zenoh::Error>(outgoing_result)
+        });
+
+        // Send goal
+        let goal = TestGoal { order: 10 };
+        let mut goal_handle = timeout(Duration::from_secs(5), client.send_goal(goal))
+            .await
+            .expect("timeout sending goal")?;
+
+        let outgoing_result = server_task.await.expect("server task failed")?;
+
+        // Client requests result
+        let incoming_result = timeout(Duration::from_secs(5), goal_handle.result())
+            .await
+            .expect("timeout getting result")?;
+
+        // Verify result data matches
+        assert_eq!(incoming_result.value, outgoing_result.value);
+
+        // Clean shutdown
+        drop(server);
+        drop(client);
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        Ok(())
+    }
+
+    /// Test: test_valid_feedback_comm
+    ///
+    /// C++ equivalent: test_action_communication.cpp:606
+    /// Tests feedback publishing/subscription
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_valid_feedback_comm() -> Result<()> {
+        let (_ctx, _node, client, server) = setup_test().await?;
+
+        // Spawn server processing first
+        let server_clone = server.clone();
+        let server_task = tokio::spawn(async move {
+            let requested = timeout(Duration::from_secs(5), server_clone.recv_goal())
+                .await
+                .expect("timeout receiving goal")?;
+            let accepted = requested.accept();
+            let executing = accepted.execute();
+
+            // Publish feedback
+            let outgoing_feedback = TestFeedback {
+                sequence: vec![0, 1, 1, 2, 3, 5, 8, 13],
+            };
+            executing.publish_feedback(outgoing_feedback.clone())?;
+
+            // Wait a bit for client to receive feedback
+            tokio::time::sleep(Duration::from_millis(100)).await;
+
+            // Complete goal
+            executing.succeed(TestResult { value: 13 })?;
+
+            Ok::<_, zenoh::Error>(outgoing_feedback)
+        });
+
+        // Send goal
+        let goal = TestGoal { order: 10 };
+        let mut goal_handle = timeout(Duration::from_secs(5), client.send_goal(goal))
+            .await
+            .expect("timeout sending goal")?;
+
+        // Get feedback stream after goal is sent
+        let mut feedback_rx = goal_handle
+            .feedback_stream()
+            .expect("failed to get feedback stream");
+
+        // Client receives feedback
+        let incoming_feedback = timeout(Duration::from_secs(5), feedback_rx.recv())
+            .await
+            .expect("timeout receiving feedback")
+            .expect("feedback channel closed");
+
+        let outgoing_feedback = server_task.await.expect("server task failed")?;
+
+        // Verify feedback data matches
+        assert_eq!(incoming_feedback.sequence, outgoing_feedback.sequence);
+
+        // Clean shutdown
+        drop(server);
+        drop(client);
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        Ok(())
+    }
+
+    /// Test: test_valid_status_comm
+    ///
+    /// C++ equivalent: test_action_communication.cpp:530
+    /// Tests status publishing/subscription
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_valid_status_comm() -> Result<()> {
+        let (_ctx, _node, client, server) = setup_test().await?;
+
+        // Spawn server processing
+        let server_clone = server.clone();
+        let server_task = tokio::spawn(async move {
+            // Accept and execute goal on server
+            let requested = timeout(Duration::from_secs(2), server_clone.recv_goal())
+                .await
+                .expect("timeout receiving goal")?;
+            let accepted = requested.accept();
+            let executing = accepted.execute();
+
+            // Wait a bit for client to observe EXECUTING status
+            tokio::time::sleep(Duration::from_millis(100)).await;
+
+            // Complete the goal
+            executing.succeed(TestResult { value: 42 })?;
+
+            Ok::<_, zenoh::Error>(())
+        });
+
+        // Send goal
+        let goal = TestGoal { order: 10 };
+        let goal_handle = timeout(Duration::from_secs(2), client.send_goal(goal))
+            .await
+            .expect("timeout sending goal")?;
+
+        // Watch status for this goal
+        let mut status_watch = client
+            .status_watch(goal_handle.id())
+            .expect("failed to watch status");
+
+        // Status should update to EXECUTING
+        timeout(Duration::from_secs(2), status_watch.changed())
+            .await
+            .expect("timeout waiting for status change")?;
+        let status = *status_watch.borrow();
+        assert_eq!(status, ros_z::action::GoalStatus::Executing);
+
+        // Status should update to SUCCEEDED
+        timeout(Duration::from_secs(2), status_watch.changed())
+            .await
+            .expect("timeout waiting for status change")?;
+        let status = *status_watch.borrow();
+        assert_eq!(status, ros_z::action::GoalStatus::Succeeded);
+
+        // Wait for server task to complete
+        server_task.await.expect("server task failed")?;
+
+        // Clean shutdown
+        drop(server);
+        drop(client);
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        Ok(())
+    }
+
+    /// Test: Multiple goals communication
+    ///
+    /// Tests handling multiple concurrent goals
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_multiple_goals_comm() -> Result<()> {
+        let (_ctx, _node, client, server) = setup_test().await?;
+
+        // Spawn server processing
+        let server_clone = server.clone();
+        let server_task = tokio::spawn(async move {
+            // Server processes all goals
+            for i in 0..3 {
+                let requested = timeout(Duration::from_secs(2), server_clone.recv_goal())
+                    .await
+                    .expect("timeout receiving goal")?;
+                assert_eq!(requested.goal.order, i * 10);
+
+                let accepted = requested.accept();
+                let executing = accepted.execute();
+                executing.succeed(TestResult { value: i * 100 })?;
+            }
+
+            Ok::<_, zenoh::Error>(())
+        });
 
         // Send multiple goals
         let mut goal_handles = vec![];
-        for i in 0..5 {
-            let goal = TestGoal {
-                order: i * 20,
-                sequence_id: i,
-            };
-            let handle = client.send_goal(goal).await?;
+        for i in 0..3 {
+            let goal = TestGoal { order: i * 10 };
+            let handle = timeout(Duration::from_secs(2), client.send_goal(goal))
+                .await
+                .expect("timeout sending goal")?;
             goal_handles.push(handle);
         }
 
-        // Process goals concurrently
-        let mut processing_tasks = vec![];
-        for _ in 0..5 {
-            let server_clone = server.clone();
-            let task = tokio::spawn(async move {
-                if let Ok(requested) = server_clone.recv_goal().await {
-                    let accepted = requested.accept();
-                    let goal_info = accepted.goal.clone();
-                    let executing = accepted.execute();
+        // Wait for server to process all goals
+        server_task.await.expect("server task failed")?;
 
-                    // Variable processing time based on goal order
-                    let delay = Duration::from_millis((goal_info.order / 10) as u64 + 5);
-                    tokio::time::sleep(delay).await;
-
-                    let result = TestResult {
-                        value: goal_info.order * 3,
-                        sequence_id: goal_info.sequence_id,
-                    };
-
-                    let _ = executing.succeed(result);
-                }
-            });
-            processing_tasks.push(task);
+        // Verify all results
+        for (i, mut handle) in goal_handles.into_iter().enumerate() {
+            let result = timeout(Duration::from_secs(2), handle.result())
+                .await
+                .expect("timeout getting result")?;
+            assert_eq!(result.value, i as i32 * 100);
         }
 
-        // Wait for all processing to complete
-        for task in processing_tasks {
-            let _ = task.await;
-        }
-
-        // Collect results
-        let mut results = vec![];
-        for mut handle in goal_handles {
-            let result_future = tokio::time::timeout(Duration::from_millis(500), handle.result());
-            if let Ok(Ok(result)) = result_future.await {
-                results.push(result);
-            }
-        }
-
-        // Should have processed all goals
-        assert_eq!(results.len(), 5);
-
-        // Results should be correct
-        for result in results {
-            assert_eq!(result.value, result.sequence_id * 20 * 3);
-        }
-
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
-    async fn test_goal_timeout_and_recovery() -> Result<()> {
-        // Test timeout handling and recovery
-        let ctx = ZContextBuilder::default().build()?;
-        let client_node = ctx.create_node("test_timeout_client").build()?;
-        let server_node = ctx.create_node("test_timeout_server").build()?;
-
-        let client = client_node
-            .create_action_client::<TestAction>("test_timeout_action")
-            .build()?;
-
-        let server = server_node
-            .create_action_server::<TestAction>("test_timeout_action")
-            .goal_timeout(Duration::from_millis(100)) // Short timeout
-            .build()?;
-
-        // Send goal
-        let goal = TestGoal {
-            order: 50,
-            sequence_id: 1,
-        };
-        let mut goal_handle = client.send_goal(goal).await?;
-
-        // Server takes too long to respond
-        let server_clone = server.clone();
-        let processing_task = tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_millis(150)).await; // Longer than timeout
-
-            if let Ok(requested) = server_clone.recv_goal().await {
-                let accepted = requested.accept();
-                let executing = accepted.execute();
-                let result = TestResult {
-                    value: 100,
-                    sequence_id: 1,
-                };
-                let _ = executing.succeed(result);
-            }
-        });
-
-        // Client should timeout
-        let result_future = tokio::time::timeout(Duration::from_millis(200), goal_handle.result());
-        let result = result_future.await;
-
-        // Should timeout or fail
-        assert!(result.is_err() || result.unwrap().is_err());
-
-        // Wait for server task
-        let _ = processing_task.await;
-
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
-    async fn test_status_update_consistency() -> Result<()> {
-        // Test that status updates are consistent and ordered
-        let ctx = ZContextBuilder::default().build()?;
-        let client_node = ctx.create_node("test_status_client").build()?;
-        let server_node = ctx.create_node("test_status_server").build()?;
-
-        let client = client_node
-            .create_action_client::<TestAction>("test_status_action")
-            .build()?;
-
-        let server = server_node
-            .create_action_server::<TestAction>("test_status_action")
-            .build()?;
-
-        // Send goal
-        let goal = TestGoal {
-            order: 75,
-            sequence_id: 2,
-        };
-        let goal_handle = client.send_goal(goal).await?;
-
-        // Monitor status changes
-        let status_watch = client.status_watch(goal_handle.id()).unwrap();
-
-        // Start status monitoring task
-        let status_task = tokio::spawn(async move {
-            let mut changes = vec![];
-            let mut receiver = status_watch;
-
-            // Collect status changes with timeout
-            for _ in 0..10 {
-                match tokio::time::timeout(Duration::from_millis(50), receiver.changed()).await {
-                    Ok(Ok(_)) => {
-                        let status = *receiver.borrow();
-                        changes.push(status);
-                    }
-                    _ => break,
-                }
-            }
-
-            changes
-        });
-
-        // Wait a bit for status updates
-        tokio::time::sleep(Duration::from_millis(100)).await;
-
-        // Collect status changes
-        let status_changes = status_task.await?;
-
-        // Should have at least some status changes
-        assert!(status_changes.len() > 0);
-
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
-    async fn test_large_message_handling() -> Result<()> {
-        // Test handling of larger messages
-        #[derive(Debug, Clone, Serialize, Deserialize)]
-        struct LargeGoal {
-            pub data: Vec<i32>,
-            pub sequence_id: i32,
-        }
-
-        #[derive(Debug, Clone, Serialize, Deserialize)]
-        struct LargeResult {
-            pub processed_data: Vec<i32>,
-            pub sequence_id: i32,
-        }
-
-        #[derive(Debug, Clone, Serialize, Deserialize)]
-        struct LargeFeedback {
-            pub progress_data: Vec<i32>,
-            pub sequence_id: i32,
-        }
-
-        // For this test, we'll use the standard action but with larger data
-        let ctx = ZContextBuilder::default().build()?;
-        let client_node = ctx.create_node("test_large_client").build()?;
-        let server_node = ctx.create_node("test_large_server").build()?;
-
-        let client = client_node
-            .create_action_client::<TestAction>("test_large_action")
-            .build()?;
-
-        let server = server_node
-            .create_action_server::<TestAction>("test_large_action")
-            .build()?;
-
-        // Create goal with larger data (simulate large message)
-        let large_data = (0..1000).collect::<Vec<i32>>();
-        let goal = TestGoal {
-            order: large_data.iter().sum(),
-            sequence_id: 3,
-        };
-
-        let mut goal_handle = client.send_goal(goal).await?;
-
-        // Process large goal
-        let server_clone = server.clone();
-        let processing_task = tokio::spawn(async move {
-            if let Ok(requested) = server_clone.recv_goal().await {
-                let accepted = requested.accept();
-                let goal_info = accepted.goal.clone();
-                let executing = accepted.execute();
-
-                // Simulate processing of large data
-                tokio::time::sleep(Duration::from_millis(10)).await;
-
-                let result = TestResult {
-                    value: goal_info.order * 2,
-                    sequence_id: goal_info.sequence_id,
-                };
-
-                let _ = executing.succeed(result);
-            }
-        });
-
-        // Get result
-        let result_future = tokio::time::timeout(Duration::from_millis(500), goal_handle.result());
-        let result = result_future.await?;
-
-        let _ = processing_task.await;
-
-        // Verify result
-        assert!(result.is_ok());
-        let result_data = result.unwrap();
-        assert_eq!(result_data.sequence_id, 3);
-
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
-    async fn test_network_partition_simulation() -> Result<()> {
-        // Test behavior during simulated network issues
-        let ctx = ZContextBuilder::default().build()?;
-        let client_node = ctx.create_node("test_partition_client").build()?;
-        let server_node = ctx.create_node("test_partition_server").build()?;
-
-        let client = client_node
-            .create_action_client::<TestAction>("test_partition_action")
-            .build()?;
-
-        let server = server_node
-            .create_action_server::<TestAction>("test_partition_action")
-            .build()?;
-
-        // Send goal
-        let goal = TestGoal {
-            order: 25,
-            sequence_id: 4,
-        };
-        let mut goal_handle = client.send_goal(goal).await?;
-
-        // Simulate network delay/server unavailability
-        let server_clone = server.clone();
-        let processing_task = tokio::spawn(async move {
-            // Delay before processing (simulate network issue)
-            tokio::time::sleep(Duration::from_millis(200)).await;
-
-            if let Ok(requested) = server_clone.recv_goal().await {
-                let accepted = requested.accept();
-                let executing = accepted.execute();
-
-                let result = TestResult {
-                    value: 50,
-                    sequence_id: 4,
-                };
-                let _ = executing.succeed(result);
-            }
-        });
-
-        // Client tries to get result with shorter timeout
-        let result_future = tokio::time::timeout(Duration::from_millis(100), goal_handle.result());
-        let early_result = result_future.await;
-
-        // Should timeout initially
-        assert!(early_result.is_err());
-
-        // Now wait for the actual result
-        let result_future = tokio::time::timeout(Duration::from_millis(300), goal_handle.result());
-        let final_result = result_future.await;
-
-        let _ = processing_task.await;
-
-        // Should eventually succeed
-        assert!(final_result.is_ok());
-        assert!(final_result.unwrap().is_ok());
+        // Clean shutdown
+        drop(server);
+        drop(client);
+        tokio::time::sleep(Duration::from_millis(50)).await;
 
         Ok(())
     }

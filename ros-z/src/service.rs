@@ -143,7 +143,7 @@ impl<T> ZClient<T>
 where
     T: ZService,
 {
-    pub fn send_request(&self, msg: &T::Request) -> Result<()> {
+    pub async fn send_request(&self, msg: &T::Request) -> Result<()> {
         let tx = self.tx.clone();
         self.inner
             .get()
@@ -155,7 +155,7 @@ where
                 // let msg = <T::Response as ZMessage>::deserialize(&sample.payload().to_bytes());
                 // tx.send(msg);
             })
-            .wait()?;
+            .await?;
         Ok(())
     }
 
