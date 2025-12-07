@@ -45,9 +45,10 @@ external_msgs = ["ros-z-msgs/external_msgs"]
 # since ros-z-msgs depends on ros-z (circular dependency prevents direct dependency)
 
 # Examples that work without ros-z-msgs (using custom Rust-defined messages)
-[[example]]
-name = "z_custom_message"
-required-features = []
+# Note: z_custom_message temporarily disabled due to async API migration
+# [[example]]
+# name = "z_custom_message"
+# required-features = []
 
 # Examples using ros-z-msgs with bundled messages (no ROS installation required)
 # These use messages from roslibrust assets: std_msgs, geometry_msgs, sensor_msgs
@@ -69,6 +70,14 @@ required-features = []
 
 [[example]]
 name = "laser_scan"
+required-features = []
+
+[[example]]
+name = "action_fibonacci"
+required-features = []
+
+[[example]]
+name = "action_navigation"
 required-features = []
 
 [[example]]
