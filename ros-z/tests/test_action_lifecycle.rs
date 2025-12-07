@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use ros_z::{Builder, Result, action::ZAction, context::ZContextBuilder};
 use serde::{Deserialize, Serialize};
@@ -255,7 +255,7 @@ mod tests {
         let mut goal_handles = vec![];
         for i in 0..3 {
             let client_clone = client.clone();
-            let goal = TestGoal { order: i as i32 };
+            let goal = TestGoal { order: i };
             let handle = client_clone.send_goal(goal).await?;
             goal_handles.push(handle);
         }
@@ -305,7 +305,7 @@ mod tests {
                 .build()?;
 
             // Send a goal
-            let goal = TestGoal { order: i as i32 };
+            let goal = TestGoal { order: i };
             let goal_handle = client.send_goal(goal).await?;
 
             // Start server processing
@@ -315,9 +315,7 @@ mod tests {
                     let accepted = requested.accept();
                     let executing = accepted.execute();
                     tokio::time::sleep(Duration::from_millis(5)).await;
-                    let _ = executing.succeed(TestResult {
-                        value: i as i32 * 2,
-                    });
+                    let _ = executing.succeed(TestResult { value: i * 2 });
                 }
             });
 
@@ -364,7 +362,7 @@ mod tests {
             for _ in 0..5 {
                 if let Ok(requested) = server_clone.recv_goal().await {
                     let accepted = requested.accept();
-                    let mut executing = accepted.execute();
+                    let executing = accepted.execute();
 
                     // Send some feedback
                     let _ = executing.publish_feedback(TestFeedback { progress: 50 });

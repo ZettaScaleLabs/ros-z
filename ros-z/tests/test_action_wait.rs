@@ -34,6 +34,7 @@ impl ZAction for TestAction {
 }
 
 // Helper function to create test setup
+#[allow(dead_code)]
 async fn setup_test_base() -> Result<(ros_z::node::ZNode,)> {
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("test_action_wait_node").build()?;
@@ -207,11 +208,11 @@ mod tests {
 
         // Initial status should be unknown or accepted
         let _ = status_watch.changed().await;
-        let initial_status = *status_watch.borrow();
+        let _initial_status = *status_watch.borrow();
 
         // Wait for completion status
         let _ = status_watch.changed().await;
-        let final_status = *status_watch.borrow();
+        let _final_status = *status_watch.borrow();
 
         Ok(())
     }

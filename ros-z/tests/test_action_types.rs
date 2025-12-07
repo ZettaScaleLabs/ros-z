@@ -5,6 +5,6 @@ mod tests {
         // Basic test for action types
         // In Rust, types are handled differently than in C++
         // We test that the basic functionality works
-        assert!(true);
+        // If this compiles, the types are correct
     }
 }

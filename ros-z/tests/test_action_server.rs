@@ -37,8 +37,6 @@ impl ZAction for TestAction {
 
 #[cfg(test)]
 mod tests {
-    use tokio;
-
     use super::*;
 
     // Helper function to create test setup
@@ -71,7 +69,7 @@ mod tests {
         let _server = node
             .create_action_server::<TestAction>("test_action_server_name")
             .build()?;
-        assert!(true); // If we reach here, initialization succeeded
+        // If we reach here, initialization succeeded
 
         // Note: Action name validation is not yet implemented in Rust version
         // In C++ it validates empty names and invalid characters, but here we allow them for now
@@ -85,8 +83,6 @@ mod tests {
         let (_node, _client, _server) = setup_test().await?;
 
         // Test valid server - if we can create it, it's valid
-        assert!(true);
-
         Ok(())
     }
 
@@ -107,8 +103,6 @@ mod tests {
 
         // Verify the goal was accepted by checking we can get the result later
         // (This is a basic smoke test - full validation would require more complex setup)
-        assert!(true);
-
         Ok(())
     }
 
@@ -125,8 +119,6 @@ mod tests {
         let _accepted = requested.accept();
 
         // The goal should exist (we can't directly check internal state, but acceptance implies it)
-        assert!(true);
-
         Ok(())
     }
 
@@ -162,8 +154,6 @@ mod tests {
         let _accepted = requested.accept();
 
         // Status should be available (basic smoke test)
-        assert!(true);
-
         Ok(())
     }
 
@@ -186,8 +176,6 @@ mod tests {
         assert_eq!(cancel_request.goal_info.goal_id, goal_handle.id());
 
         // Basic verification that cancel was received
-        assert!(true);
-
         Ok(())
     }
 
@@ -200,15 +188,13 @@ mod tests {
         let node = ctx.create_node("test_timeout_node").build()?;
 
         // Create server with goal timeout
-        let server = node
+        let _server = node
             .create_action_server::<TestAction>("test_timeout_action")
             .goal_timeout(Duration::from_secs(30))
             .build()?;
 
         // Verify that the server was created successfully
         // The timeout is stored internally and would be used when goals are accepted/executed
-        assert!(true);
-
         Ok(())
     }
 
@@ -226,16 +212,14 @@ mod tests {
         };
 
         // Create server with QoS configuration
-        let server = node
+        let _server = node
             .create_action_server::<TestAction>("test_qos_action")
-            .with_goal_service_qos(custom_qos.clone())
-            .with_feedback_topic_qos(custom_qos.clone())
+            .with_goal_service_qos(custom_qos)
+            .with_feedback_topic_qos(custom_qos)
             .build()?;
 
         // Verify that the server was created successfully
         // The QoS settings are applied to the underlying entities
-        assert!(true);
-
         Ok(())
     }
 }

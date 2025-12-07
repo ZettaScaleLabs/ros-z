@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use zenoh::{Result, Session, Wait};
+use zenoh::{Result, Wait};
 
 use crate::entity::{EndpointEntity, EntityKind};
 use crate::msg::{ZDeserializer, ZSerializer};
@@ -332,7 +332,7 @@ impl<A: ZAction> ZActionServer<A> {
 
     pub fn send_goal_response_low(&self, query: &zenoh::query::Query, response: &super::messages::GoalResponse) -> Result<()> {
         let response_bytes = crate::msg::CdrSerdes::<super::messages::GoalResponse>::serialize(response);
-        query.reply(query.key_expr().clone(), response_bytes).wait();
+        let _ = query.reply(query.key_expr().clone(), response_bytes).wait();
         Ok(())
     }
 
@@ -345,13 +345,13 @@ impl<A: ZAction> ZActionServer<A> {
 
     pub fn send_cancel_response_low(&self, query: &zenoh::query::Query, response: &super::messages::CancelGoalResponse) -> Result<()> {
         let response_bytes = crate::msg::CdrSerdes::<super::messages::CancelGoalResponse>::serialize(response);
-        query.reply(query.key_expr().clone(), response_bytes).wait();
+        let _ = query.reply(query.key_expr().clone(), response_bytes).wait();
         Ok(())
     }
 
     pub fn send_result_response_low(&self, query: &zenoh::query::Query, response: &super::messages::ResultResponse<A>) -> Result<()> {
         let response_bytes = crate::msg::CdrSerdes::<super::messages::ResultResponse<A>>::serialize(response);
-        query.reply(query.key_expr().clone(), response_bytes).wait();
+        let _ = query.reply(query.key_expr().clone(), response_bytes).wait();
         Ok(())
     }
 
@@ -404,12 +404,11 @@ impl<A: ZAction> ZActionServer<A> {
 
         // Find terminated goals older than max_age
         manager.goals.retain(|goal_id, state| {
-            if let ServerGoalState::Terminated { timestamp, .. } = state {
-                if now.duration_since(*timestamp) > max_age {
+            if let ServerGoalState::Terminated { timestamp, .. } = state
+                && now.duration_since(*timestamp) > max_age {
                     expired.push(*goal_id);
                     return false; // Remove this goal
                 }
-            }
             true // Keep this goal
         });
 

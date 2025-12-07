@@ -57,7 +57,7 @@ mod tests {
 
         // Test server naming
         let server_builder = node.create_action_server::<TestAction>(action_name);
-        let server = server_builder.build()?;
+        let _server = server_builder.build()?;
 
         // Basic validation that construction works
         assert!(client.send_goal(TestGoal { order: 1 }).await.is_ok());

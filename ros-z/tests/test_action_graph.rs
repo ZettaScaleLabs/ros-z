@@ -33,6 +33,7 @@ impl ZAction for TestAction {
 }
 
 // Helper function to create test setup
+#[allow(dead_code)]
 async fn setup_test_base() -> Result<(ros_z::node::ZNode,)> {
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("test_action_graph_node").build()?;
@@ -68,6 +69,21 @@ async fn setup_test_with_client_server() -> Result<(
         .create_action_server::<TestAction>("/test_action_graph_name")
         .build()?;
 
+    // Wait for graph discovery of action topics
+    tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+
+    // Debug: check what entities exist in the graph
+    let client_topics = client_node.graph.get_topic_names_and_types();
+    let server_topics = server_node.graph.get_topic_names_and_types();
+    eprintln!("Client node has {} topics", client_topics.len());
+    eprintln!("Server node has {} topics", server_topics.len());
+    for (name, typ) in &client_topics {
+        eprintln!("  Client topic: {} ({})", name, typ);
+    }
+    for (name, typ) in &server_topics {
+        eprintln!("  Server topic: {} ({})", name, typ);
+    }
+
     Ok((client_node, server_node, client, server))
 }
 
@@ -84,8 +100,6 @@ mod tests {
         // Test that nodes can be discovered in the graph
         // In ROS-Z, this uses the graph discovery mechanism
         // For now, just verify that the nodes were created successfully
-        assert!(true);
-
         Ok(())
     }
 
@@ -117,7 +131,36 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    async fn test_basic_graph_discovery() -> Result<()> {
+        // Use a standard message type
+        use ros_z_msgs::std_msgs::String as StringMsg;
+
+        let ctx = ZContextBuilder::default().build()?;
+        let node1 = ctx.create_node("node1").build()?;
+        let node2 = ctx.create_node("node2").build()?;
+
+        // Create a publisher on node1
+        let _pub = node1.create_pub::<StringMsg>("/test_topic").build()?;
+
+        // Wait for discovery
+        tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
+
+        // Check if node2's graph can see it
+        let topics = node2.graph.get_topic_names_and_types();
+        eprintln!("Node2 discovered {} topics:", topics.len());
+        for (name, typ) in &topics {
+            eprintln!("  - {} ({})", name, typ);
+        }
+
+        assert!(
+            !topics.is_empty(),
+            "Graph discovery not working for regular topics either!"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_action_graph_introspection_by_node() -> Result<()> {
         let (_client_node, _server_node, _client, _server) =
             setup_test_with_client_server().await?;
@@ -129,7 +172,7 @@ mod tests {
         );
         let client_names_types = _client_node
             .graph
-            .get_action_client_names_and_types_by_node(client_node_key);
+            .get_action_client_names_and_types_by_node(client_node_key.clone());
 
         // Should find the action client we created
         assert!(!client_names_types.is_empty());
@@ -159,7 +202,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    #[ignore] // Ignore: Action internal topics/services are not registered in the graph for discovery (see test above)
     async fn test_action_graph_introspection_all() -> Result<()> {
         let (_client_node, _server_node, _client, _server) =
             setup_test_with_client_server().await?;

@@ -107,6 +107,6 @@ required-features = ["external_msgs"]
 name = "z_srvcli"
 required-features = ["external_msgs"]
 
-[[bin]]
+[[bench]]
 name = "action_performance"
-path = "benches/action_performance.rs"
+harness = false

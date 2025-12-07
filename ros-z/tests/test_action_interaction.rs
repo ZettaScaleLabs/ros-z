@@ -116,8 +116,7 @@ mod tests {
                     .send_goal(TestGoal { order: goal_order })
                     .await
                     .unwrap();
-                let result = goal_handle.result().await.unwrap();
-                result
+                goal_handle.result().await.unwrap()
             });
             handles.push(handle);
         }
@@ -128,8 +127,6 @@ mod tests {
         }
 
         // Basic verification that multiple clients can interact with single server
-        assert!(true);
-
         Ok(())
     }
 
@@ -154,8 +151,6 @@ mod tests {
 
         // Send goals to different servers (this would require different action names in practice)
         // For now, just test the setup
-        assert!(true);
-
         Ok(())
     }
 
@@ -184,8 +179,7 @@ mod tests {
                 .send_goal(TestGoal { order: 100 })
                 .await
                 .unwrap();
-            let result = goal_handle.result().await.unwrap();
-            result
+            goal_handle.result().await.unwrap()
         });
 
         let low_priority_handle = tokio::spawn(async move {
@@ -193,16 +187,13 @@ mod tests {
                 .send_goal(TestGoal { order: 10 })
                 .await
                 .unwrap();
-            let result = goal_handle.result().await.unwrap();
-            result
+            goal_handle.result().await.unwrap()
         });
 
         let _high_result = high_priority_handle.await.unwrap();
         let _low_result = low_priority_handle.await.unwrap();
 
         // Basic verification that concurrent goals are handled
-        assert!(true);
-
         Ok(())
     }
 

@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, oneshot, watch};
 
-use zenoh::{Result, Session, sample::Sample};
+use zenoh::{Result, sample::Sample};
 
 use crate::entity::{EndpointEntity, EntityKind};
 use crate::msg::{CdrSerdes, ZDeserializer};
@@ -527,6 +527,7 @@ pub struct GoalHandle<A: ZAction> {
     /// Receiver for status updates.
     status_rx: Option<watch::Receiver<GoalStatus>>,
     /// Receiver for the final result.
+    #[allow(dead_code)]
     result_rx: Option<oneshot::Receiver<A::Result>>,
 }
 

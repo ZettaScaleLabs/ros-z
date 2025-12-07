@@ -92,7 +92,7 @@ mod tests {
             .build()?;
 
         // Create server with very short timeout
-        let server = server_node
+        let _server = server_node
             .create_action_server::<TestAction>("test_timeout_action")
             .goal_timeout(Duration::from_millis(50)) // Very short timeout
             .build()?;

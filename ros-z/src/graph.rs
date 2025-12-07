@@ -356,9 +356,10 @@ impl Graph {
                         && let Some(enp) = ent.get_endpoint()
                     {
                         // Include both publishers and subscribers
-                        if matches!(enp.kind, EntityKind::Publisher | EntityKind::Subscription) {
-                            found_type = Some(enp.type_info.as_ref().unwrap().name.clone());
-                        }
+                        if matches!(enp.kind, EntityKind::Publisher | EntityKind::Subscription)
+                            && let Some(type_info) = &enp.type_info {
+                                found_type = Some(type_info.name.clone());
+                            }
                     }
                     true
                 } else {
@@ -389,12 +390,12 @@ impl Graph {
         data.visit_by_node(node_key, |ent| {
             if let Some(enp) = ent.get_endpoint()
                 && enp.kind == kind
-            {
-                res.push((
-                    enp.topic.clone(),
-                    enp.type_info.as_ref().unwrap().name.clone(),
-                ));
-            }
+                && let Some(type_info) = &enp.type_info {
+                    res.push((
+                        enp.topic.clone(),
+                        type_info.name.clone(),
+                    ));
+                }
         });
 
         res
@@ -459,54 +460,84 @@ impl Graph {
     /// Get action client names and types by node
     ///
     /// Returns a vector of tuples (action_name, action_type) for action clients on the specified node
+    ///
+    /// This follows the ROS 2 approach: action clients subscribe to feedback topics,
+    /// so we query subscribers and filter for topics with the "/_action/feedback" suffix.
     pub fn get_action_client_names_and_types_by_node(
         &self,
         node_key: NodeKey,
     ) -> Vec<(String, String)> {
-        self.get_names_and_types_by_node(node_key, EntityKind::ActionClient)
+        // Get all subscribers for this node
+        let subscribers = self.get_names_and_types_by_node(node_key, EntityKind::Subscription);
+
+        // Filter for action feedback topics and extract action name/type
+        self.filter_action_names_and_types(subscribers)
     }
 
     /// Get action server names and types by node
     ///
     /// Returns a vector of tuples (action_name, action_type) for action servers on the specified node
+    ///
+    /// This follows the ROS 2 approach: action servers publish feedback topics,
+    /// so we query publishers and filter for topics with the "/_action/feedback" suffix.
     pub fn get_action_server_names_and_types_by_node(
         &self,
         node_key: NodeKey,
     ) -> Vec<(String, String)> {
-        self.get_names_and_types_by_node(node_key, EntityKind::ActionServer)
+        // Get all publishers for this node
+        let publishers = self.get_names_and_types_by_node(node_key, EntityKind::Publisher);
+
+        // Filter for action feedback topics and extract action name/type
+        self.filter_action_names_and_types(publishers)
+    }
+
+    /// Filter topic names and types to extract action names and types
+    ///
+    /// This helper method implements the ROS 2 filtering logic:
+    /// - Looks for topics with the "/_action/feedback" suffix
+    /// - Extracts the action name by removing the suffix
+    /// - Extracts the action type by removing the "_FeedbackMessage" suffix from the type
+    fn filter_action_names_and_types(&self, topics: Vec<(String, String)>) -> Vec<(String, String)> {
+        const ACTION_NAME_SUFFIX: &str = "/_action/feedback";
+        const ACTION_TYPE_SUFFIX: &str = "_FeedbackMessage";
+
+        topics
+            .into_iter()
+            .filter_map(|(topic_name, type_name)| {
+                // Check if topic name ends with "/_action/feedback"
+                if topic_name.ends_with(ACTION_NAME_SUFFIX) {
+                    // Extract action name by removing the suffix
+                    let action_name = topic_name
+                        .strip_suffix(ACTION_NAME_SUFFIX)
+                        .unwrap()
+                        .to_string();
+
+                    // Extract action type by removing "_FeedbackMessage" suffix if present
+                    let action_type = type_name
+                        .strip_suffix(ACTION_TYPE_SUFFIX)
+                        .unwrap_or(&type_name)
+                        .to_string();
+
+                    Some((action_name, action_type))
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
     /// Get all action names and types discovered in the graph
     ///
     /// Returns a vector of tuples (action_name, action_type) for all action clients and servers
+    ///
+    /// This follows the ROS 2 approach: we query all topics and filter for
+    /// topics with the "/_action/feedback" suffix.
     pub fn get_action_names_and_types(&self) -> Vec<(String, String)> {
-        let mut res = Vec::new();
-        let mut data = self.data.lock();
+        // Get all topics
+        let topics = self.get_topic_names_and_types();
 
-        if !data.cached.is_empty() {
-            data.parse();
-        }
-
-        // Collect from all nodes
-        for (node_key, slab) in &mut data.by_node {
-            slab.retain(|_, weak| {
-                if let Some(ent) = weak.upgrade() {
-                    if let Some(enp) = ent.get_endpoint()
-                        && matches!(enp.kind, EntityKind::ActionClient | EntityKind::ActionServer)
-                    {
-                        if let Some(type_info) = &enp.type_info {
-                            res.push((
-                                enp.topic.clone(),
-                                type_info.name.clone(),
-                            ));
-                        }
-                    }
-                    true
-                } else {
-                    false
-                }
-            });
-        }
+        // Filter for action feedback topics and extract action name/type
+        let mut res = self.filter_action_names_and_types(topics);
 
         // Remove duplicates (same action name/type may appear on multiple nodes)
         res.sort();

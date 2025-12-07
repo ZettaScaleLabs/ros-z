@@ -33,6 +33,7 @@ impl ZAction for TestAction {
 }
 
 // Helper function to create test setup
+#[allow(dead_code)]
 async fn setup_test_base() -> Result<(ros_z::node::ZNode,)> {
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("test_action_remapping_node").build()?;

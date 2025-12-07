@@ -46,30 +46,35 @@ fn test_ros_z_server_ros_z_client() {
 
     // Run client
     let client_handle = thread::spawn(|| {
-        let ctx = create_ros_z_context().expect("Failed to create context");
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let ctx = create_ros_z_context().expect("Failed to create context");
 
-        let node = ctx
-            .create_node("test_client")
-            .build()
-            .expect("Failed to create node");
+            let node = ctx
+                .create_node("test_client")
+                .build()
+                .expect("Failed to create node");
 
-        let zcli = node
-            .create_client::<AddTwoInts>("add_two_ints")
-            .build()
-            .expect("Failed to create client");
+            let zcli = node
+                .create_client::<AddTwoInts>("add_two_ints")
+                .build()
+                .expect("Failed to create client");
 
-        println!("Client ready, sending request...");
+            println!("Client ready, sending request...");
 
-        let req = AddTwoIntsRequest { a: 5, b: 3 };
-        zcli.send_request(&req).expect("Failed to send request");
+            let req = AddTwoIntsRequest { a: 5, b: 3 };
+            zcli.send_request(&req)
+                .await
+                .expect("Failed to send request");
 
-        let resp = zcli
-            .take_response_timeout(Duration::from_secs(5))
-            .expect("Failed to receive response");
-        println!("Received response: {}", resp.sum);
+            let resp = zcli
+                .take_response_timeout(Duration::from_secs(5))
+                .expect("Failed to receive response");
+            println!("Received response: {}", resp.sum);
 
-        assert_eq!(resp.sum, 8, "Expected 5 + 3 = 8");
-        resp
+            assert_eq!(resp.sum, 8, "Expected 5 + 3 = 8");
+            resp
+        })
     });
 
     let result = client_handle.join().expect("Client thread panicked");
@@ -172,29 +177,34 @@ fn test_ros2_server_ros_z_client() {
 
     // Call from ros-z client
     let result = thread::spawn(|| {
-        let ctx = create_ros_z_context().expect("Failed to create context");
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let ctx = create_ros_z_context().expect("Failed to create context");
 
-        let node = ctx
-            .create_node("rosz_client")
-            .build()
-            .expect("Failed to create node");
+            let node = ctx
+                .create_node("rosz_client")
+                .build()
+                .expect("Failed to create node");
 
-        let zcli = node
-            .create_client::<AddTwoInts>("add_two_ints")
-            .build()
-            .expect("Failed to create client");
+            let zcli = node
+                .create_client::<AddTwoInts>("add_two_ints")
+                .build()
+                .expect("Failed to create client");
 
-        println!("Client ready, calling ROS2 server...");
+            println!("Client ready, calling ROS2 server...");
 
-        let req = AddTwoIntsRequest { a: 15, b: 9 };
-        zcli.send_request(&req).expect("Failed to send request");
+            let req = AddTwoIntsRequest { a: 15, b: 9 };
+            zcli.send_request(&req)
+                .await
+                .expect("Failed to send request");
 
-        let resp = zcli
-            .take_response_timeout(std::time::Duration::from_secs(5))
-            .expect("Failed to receive response");
-        println!("Received response from ROS2: {}", resp.sum);
+            let resp = zcli
+                .take_response_timeout(std::time::Duration::from_secs(5))
+                .expect("Failed to receive response");
+            println!("Received response from ROS2: {}", resp.sum);
 
-        resp
+            resp
+        })
     })
     .join()
     .expect("Client thread panicked");

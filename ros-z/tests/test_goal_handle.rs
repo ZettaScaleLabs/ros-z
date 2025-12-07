@@ -1,6 +1,6 @@
 use ros_z::{
     Builder, Result,
-    action::{GoalId, GoalStatus, ZAction},
+    action::{GoalStatus, ZAction},
     context::ZContextBuilder,
 };
 use serde::{Deserialize, Serialize};
@@ -105,7 +105,7 @@ mod tests {
 
         // Check initial status
         if let Some(status_watch) = goal_handle.status_watch() {
-            let initial_status = status_watch.borrow().clone();
+            let initial_status = *status_watch.borrow();
             // Status should be accepted or executing
             assert!(
                 initial_status == GoalStatus::Accepted || initial_status == GoalStatus::Executing
@@ -157,9 +157,8 @@ mod tests {
         // Give feedback collection time
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
-        // Basic verification that feedback was received
-        assert!(true); // In a real test, we'd check feedback_values
-
+        // In a real test, we'd check feedback_values
+        // For now, we just verify the result was received
         Ok(())
     }
 

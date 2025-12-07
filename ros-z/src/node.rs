@@ -219,7 +219,7 @@ impl ZNode {
     }
 
     /// Create an action client for the given action name
-    pub fn create_action_client<A>(&self, action_name: &str) -> ZActionClientBuilder<A>
+    pub fn create_action_client<A>(&self, action_name: &str) -> ZActionClientBuilder<'_, A>
     where
         A: crate::action::ZAction,
     {
@@ -227,7 +227,7 @@ impl ZNode {
     }
 
     /// Create an action server for the given action name
-    pub fn create_action_server<A>(&self, action_name: &str) -> ZActionServerBuilder<A>
+    pub fn create_action_server<A>(&self, action_name: &str) -> ZActionServerBuilder<'_, A>
     where
         A: crate::action::ZAction,
     {

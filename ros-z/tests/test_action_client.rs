@@ -68,10 +68,10 @@ mod tests {
         let (node,) = setup_test_base().await?;
 
         // Test successful initialization with valid arguments
-        let client = node
+        let _client = node
             .create_action_client::<TestAction>("/test_action_client_name")
             .build()?;
-        assert!(true); // If we reach here, initialization succeeded
+        // If we reach here, the test passes
 
         // Note: Client initialization validation is handled by the builder pattern
         // In Rust, invalid arguments would cause compile-time errors or builder method failures
@@ -83,10 +83,10 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[ignore] // Ignore by default due to cleanup issues with background tasks
     async fn test_action_client_is_valid() -> Result<()> {
-        let (_node, client) = setup_test_with_client().await?;
+        let (_node, _client) = setup_test_with_client().await?;
 
         // Test valid client - if we can create it, it's valid
-        assert!(true);
+        // If we reach here, the test passes
 
         Ok(())
     }
@@ -94,11 +94,11 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[ignore] // Ignore by default due to cleanup issues with background tasks
     async fn test_action_server_is_available() -> Result<()> {
-        let (_node, client) = setup_test_with_client().await?;
+        let (_node, _client) = setup_test_with_client().await?;
 
         // Test server availability - in a real scenario we'd check if a server is available
         // For now, just test that the client can be queried for server availability
-        assert!(true);
+        // If we reach here, the test passes
 
         Ok(())
     }
@@ -106,11 +106,11 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[ignore] // Ignore by default due to cleanup issues with background tasks
     async fn test_action_client_get_action_name() -> Result<()> {
-        let (_node, client) = setup_test_with_client().await?;
+        let (_node, _client) = setup_test_with_client().await?;
 
         // Test getting action name - in Rust, this would be part of the client struct
         // For now, just verify the client was created successfully
-        assert!(true);
+        // If we reach here, the test passes
 
         Ok(())
     }
@@ -118,11 +118,11 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[ignore] // Ignore by default due to cleanup issues with background tasks
     async fn test_action_client_get_options() -> Result<()> {
-        let (_node, client) = setup_test_with_client().await?;
+        let (_node, _client) = setup_test_with_client().await?;
 
         // Test getting client options - in Rust, options are set during builder
         // For now, just verify the client was created successfully
-        assert!(true);
+        // If we reach here, the test passes
 
         Ok(())
     }

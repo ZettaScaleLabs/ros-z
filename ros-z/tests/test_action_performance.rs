@@ -82,9 +82,9 @@ mod tests {
             // Get result with timeout
             let mut handle = handle;
             let result_future = tokio::time::timeout(Duration::from_millis(500), handle.result());
-            match result_future.await {
-                Ok(Ok(result)) => results.push(result.value),
-                _ => {} // Timeout or error - skip for performance test
+            // Timeout or error - skip for performance test
+            if let Ok(Ok(result)) = result_future.await {
+                results.push(result.value)
             }
         }
 
@@ -96,7 +96,7 @@ mod tests {
         );
 
         // Basic validation - we should have processed some goals
-        assert!(results.len() > 0);
+        assert!(!results.is_empty());
 
         Ok(())
     }
@@ -141,9 +141,7 @@ mod tests {
                         let accepted = requested.accept();
                         let executing = accepted.execute();
                         tokio::time::sleep(Duration::from_millis(50)).await; // Simulate processing
-                        let _ = executing.succeed(TestResult {
-                            value: goal_index as i32,
-                        });
+                        let _ = executing.succeed(TestResult { value: goal_index });
                     }
                 });
             }
@@ -193,7 +191,7 @@ mod tests {
 
             let handle = tokio::spawn(async move {
                 let ctx = ZContextBuilder::default().build()?;
-                let client_node = ctx.create_node(&format!("client_{}", client_id)).build()?;
+                let client_node = ctx.create_node(format!("client_{}", client_id)).build()?;
                 let client = client_node
                     .create_action_client::<TestAction>("test_concurrent_action")
                     .build()?;
@@ -223,9 +221,9 @@ mod tests {
                     let result_future =
                         tokio::time::timeout(Duration::from_millis(200), goal_handle.result());
 
-                    match result_future.await {
-                        Ok(Ok(result)) => results.push(result.value),
-                        _ => {} // Skip timeouts for this test
+                    // Skip timeouts for this test
+                    if let Ok(Ok(result)) = result_future.await {
+                        results.push(result.value)
                     }
                 }
 
@@ -273,9 +271,9 @@ mod tests {
         let mut goal_handles = vec![];
         for i in 0..50 {
             let goal = TestGoal { order: i };
-            match client.send_goal(goal).await {
-                Ok(handle) => goal_handles.push(handle),
-                Err(_) => {} // Skip failed sends for capacity test
+            // Skip failed sends for capacity test
+            if let Ok(handle) = client.send_goal(goal).await {
+                goal_handles.push(handle)
             }
         }
 
@@ -307,7 +305,7 @@ mod tests {
         println!("Burst test completed in {:?}", total_time);
 
         // Basic validation - should have sent some goals
-        assert!(goal_handles.len() > 0);
+        assert!(!goal_handles.is_empty());
 
         Ok(())
     }
