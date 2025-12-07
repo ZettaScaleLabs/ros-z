@@ -372,6 +372,88 @@ impl<A: ZAction> ZActionServer<A> {
         });
         self
     }
+
+    /// Expires terminated goals that are older than the specified maximum age.
+    ///
+    /// This method removes terminated goals (succeeded, aborted, or canceled)
+    /// from the goal manager if they have been in a terminal state longer
+    /// than `max_age`. This prevents memory leaks in long-running servers.
+    ///
+    /// # Arguments
+    ///
+    /// * `max_age` - The maximum age for terminated goals before expiration
+    ///
+    /// # Returns
+    ///
+    /// Returns a vector of `GoalId`s that were expired.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use ros_z::action::*;
+    /// # use std::time::Duration;
+    /// # let server: ros_z::action::server::ZActionServer<MyAction> = todo!();
+    /// // Expire goals older than 10 seconds
+    /// let expired = server.expire_goals(Duration::from_secs(10));
+    /// println!("Expired {} goals", expired.len());
+    /// ```
+    pub fn expire_goals(&self, max_age: Duration) -> Vec<GoalId> {
+        let mut manager = self.goal_manager.lock().unwrap();
+        let now = Instant::now();
+        let mut expired = Vec::new();
+
+        // Find terminated goals older than max_age
+        manager.goals.retain(|goal_id, state| {
+            if let ServerGoalState::Terminated { timestamp, .. } = state {
+                if now.duration_since(*timestamp) > max_age {
+                    expired.push(*goal_id);
+                    return false; // Remove this goal
+                }
+            }
+            true // Keep this goal
+        });
+
+        // Publish updated status if any goals were expired
+        if !expired.is_empty() {
+            drop(manager); // Release lock before publishing
+            self.publish_status();
+        }
+
+        expired
+    }
+
+    /// Sets the result timeout for this server.
+    ///
+    /// This configures how long the server will keep terminated goals
+    /// before they can be expired. Note: This does not automatically
+    /// expire goals - you must call `expire_goals()` periodically.
+    ///
+    /// # Arguments
+    ///
+    /// * `timeout` - The result timeout duration
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use ros_z::action::*;
+    /// # use std::time::Duration;
+    /// # let mut server: ros_z::action::server::ZActionServer<MyAction> = todo!();
+    /// server.set_result_timeout(Duration::from_secs(30));
+    /// ```
+    pub fn set_result_timeout(&self, timeout: Duration) {
+        let mut manager = self.goal_manager.lock().unwrap();
+        manager.result_timeout = timeout;
+    }
+
+    /// Gets the current result timeout for this server.
+    ///
+    /// # Returns
+    ///
+    /// The result timeout duration
+    pub fn result_timeout(&self) -> Duration {
+        let manager = self.goal_manager.lock().unwrap();
+        manager.result_timeout
+    }
 }
 
 #[allow(dead_code)]
