@@ -92,7 +92,7 @@ mod tests {
     use super::*;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_action_graph_node_discovery() -> Result<()> {
         let (_client_node, _server_node, _client, _server) =
             setup_test_with_client_server().await?;
@@ -104,7 +104,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_action_client_server_discovery() -> Result<()> {
         let (_client_node, _server_node, client, server) = setup_test_with_client_server().await?;
 

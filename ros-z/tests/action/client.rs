@@ -63,7 +63,7 @@ mod tests {
     use super::*;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_action_client_init_fini() -> Result<()> {
         let (node,) = setup_test_base().await?;
 
@@ -81,7 +81,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_action_client_is_valid() -> Result<()> {
         let (_node, _client) = setup_test_with_client().await?;
 
@@ -92,7 +92,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_action_server_is_available() -> Result<()> {
         let (_node, _client) = setup_test_with_client().await?;
 
@@ -104,7 +104,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_action_client_get_action_name() -> Result<()> {
         let (_node, _client) = setup_test_with_client().await?;
 
@@ -116,7 +116,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_action_client_get_options() -> Result<()> {
         let (_node, _client) = setup_test_with_client().await?;
 

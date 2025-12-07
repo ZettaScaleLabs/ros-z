@@ -41,7 +41,7 @@ mod tests {
     use super::*;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore]
+    #[ignore = "Empty action name validation not implemented - currently allows empty names"]
     async fn test_action_client_init_fini() -> Result<()> {
         let node = setup_test_base().await?;
 

@@ -39,7 +39,7 @@ mod tests {
     use super::*;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_ros2_action_naming_conventions() -> Result<()> {
         // Test that our action naming follows ROS 2 conventions
         let ctx = ZContextBuilder::default().build()?;
@@ -257,7 +257,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_action_protocol_compliance() -> Result<()> {
         // Test that our action protocol follows ROS 2 action specification
         let ctx = ZContextBuilder::default().build()?;

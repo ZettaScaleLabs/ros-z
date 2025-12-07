@@ -35,7 +35,7 @@ mod tests {
     use super::*;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_high_frequency_goals() -> Result<()> {
         // Test handling of high-frequency goal submissions
         let ctx = ZContextBuilder::default().build()?;
@@ -102,7 +102,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_memory_usage_under_load() -> Result<()> {
         // Test memory usage with sustained load
         let ctx = ZContextBuilder::default().build()?;
@@ -173,7 +173,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_concurrent_clients() -> Result<()> {
         // Test multiple clients sending goals simultaneously
         let ctx = ZContextBuilder::default().build()?;
@@ -250,7 +250,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_goal_burst_capacity() -> Result<()> {
         // Test system capacity with goal bursts
         let ctx = ZContextBuilder::default().build()?;

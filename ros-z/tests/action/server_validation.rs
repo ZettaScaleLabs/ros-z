@@ -41,7 +41,7 @@ mod tests {
     use super::*;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore]
+    #[ignore = "Empty action name validation not implemented - currently allows empty names"]
     async fn test_action_server_init_fini() -> Result<()> {
         let node = setup_test_base().await?;
 
@@ -65,7 +65,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_action_expire_goals() -> Result<()> {
         use std::{sync::Arc, time::Duration};
 
@@ -130,7 +130,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_action_result_timeout_config() -> Result<()> {
         use std::time::Duration;
 

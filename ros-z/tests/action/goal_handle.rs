@@ -62,7 +62,7 @@ mod tests {
     use super::*;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_goal_handle_creation() -> Result<()> {
         let (_node, client, server) = setup_test().await?;
 
@@ -88,7 +88,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_goal_handle_status() -> Result<()> {
         let (_node, client, server) = setup_test().await?;
 
@@ -120,7 +120,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_goal_handle_feedback() -> Result<()> {
         let (_node, client, server) = setup_test().await?;
 
@@ -163,7 +163,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_goal_handle_cancellation() -> Result<()> {
         let (_node, client, server) = setup_test().await?;
 
@@ -193,7 +193,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_goal_handle_unique_ids() -> Result<()> {
         let (_node, client, server) = setup_test().await?;
 

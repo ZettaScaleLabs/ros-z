@@ -37,7 +37,7 @@ mod tests {
     use super::*;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_invalid_goal_parameters() -> Result<()> {
         // Test handling of invalid goal parameters
         let ctx = ZContextBuilder::default().build()?;
@@ -58,7 +58,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_server_unavailable() -> Result<()> {
         // Test client behavior when server is not available
         let ctx = ZContextBuilder::default().build()?;
@@ -79,7 +79,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_goal_timeout_expiration() -> Result<()> {
         // Test that goals actually expire when timeout is reached
         let ctx = ZContextBuilder::default().build()?;
@@ -111,7 +111,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_invalid_qos_configuration() -> Result<()> {
         // Test handling of invalid QoS configurations
         let ctx = ZContextBuilder::default().build()?;
@@ -137,7 +137,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_concurrent_goal_modification() -> Result<()> {
         // Test handling of concurrent modifications to goals
         let ctx = ZContextBuilder::default().build()?;
@@ -193,7 +193,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_resource_exhaustion() -> Result<()> {
         // Test behavior under resource exhaustion
         let ctx = ZContextBuilder::default().build()?;
@@ -232,7 +232,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_server_shutdown_during_operation() -> Result<()> {
         // Test server shutdown while goals are active
         let ctx = ZContextBuilder::default().build()?;
@@ -278,7 +278,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    #[ignore] // Ignore by default due to cleanup issues with background tasks
+    
     async fn test_network_failure_simulation() -> Result<()> {
         // Test handling of simulated network failures
         let ctx = ZContextBuilder::default().build()?;
