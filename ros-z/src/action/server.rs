@@ -1,3 +1,9 @@
+//! Action server implementation for ROS 2 actions.
+//!
+//! This module provides the server-side functionality for ROS 2 actions,
+//! allowing nodes to accept goals from action clients, execute them,
+//! provide feedback, and return results.
+
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -12,15 +18,40 @@ use super::ZAction;
 use super::messages::*;
 use super::{GoalId, GoalInfo, GoalStatus};
 
+/// Builder for creating an action server.
+///
+/// The `ZActionServerBuilder` allows you to configure timeouts and QoS settings
+/// for different action communication channels before building the server.
+///
+/// # Examples
+///
+/// ```no_run
+/// # use ros_z::action::*;
+/// # use std::time::Duration;
+/// # let node = todo!();
+/// let server = node.create_action_server::<MyAction>("my_action")
+///     .with_result_timeout(Duration::from_secs(30))
+///     .build()?;
+/// # Ok::<(), zenoh::Error>(())
+/// ```
 pub struct ZActionServerBuilder<'a, A: ZAction> {
+    /// The name of the action.
     pub action_name: String,
+    /// Reference to the node that will own this server.
     pub node: &'a crate::node::ZNode,
+    /// Timeout for result requests.
     pub result_timeout: Duration,
+    /// Optional timeout for goal execution.
     pub goal_timeout: Option<Duration>,
+    /// QoS profile for the goal service.
     pub goal_service_qos: Option<crate::qos::QosProfile>,
+    /// QoS profile for the result service.
     pub result_service_qos: Option<crate::qos::QosProfile>,
+    /// QoS profile for the cancel service.
     pub cancel_service_qos: Option<crate::qos::QosProfile>,
+    /// QoS profile for the feedback topic.
     pub feedback_topic_qos: Option<crate::qos::QosProfile>,
+    /// QoS profile for the status topic.
     pub status_topic_qos: Option<crate::qos::QosProfile>,
     pub _phantom: std::marker::PhantomData<A>,
 }

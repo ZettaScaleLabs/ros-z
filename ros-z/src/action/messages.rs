@@ -3,21 +3,38 @@ use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 // Standard ROS 2 cancel messages
+
+/// Request to cancel one or more goals.
+///
+/// Used to request cancellation of specific goals or all goals.
+/// A zero UUID in `goal_info.goal_id` cancels all goals.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CancelGoalRequest {
+    /// Information about the goal(s) to cancel.
     pub goal_info: GoalInfo,
 }
 
+/// Response to a cancel goal request.
+///
+/// Contains the result code and list of goals that are being canceled.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CancelGoalResponse {
+    /// Return code indicating success or failure.
     pub return_code: i8,
+    /// List of goals that are being canceled.
     pub goals_canceling: Vec<GoalInfo>,
 }
 
 // Internal service/topic message types
+
+/// Request to send a goal to an action server.
+///
+/// Contains the goal ID and the actual goal data.
 #[derive(Debug, Clone)]
 pub struct GoalRequest<A: ZAction> {
+    /// Unique identifier for this goal.
     pub goal_id: GoalId,
+    /// The goal data to be executed.
     pub goal: A::Goal,
 }
 
@@ -60,20 +77,34 @@ where
     }
 }
 
+/// Response to a goal request.
+///
+/// Indicates whether the goal was accepted and includes a timestamp.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GoalResponse {
+    /// Whether the goal was accepted by the server.
     pub accepted: bool,
+    /// Timestamp of the response.
     pub stamp: i64,
 }
 
+/// Request to get the result of a completed goal.
+///
+/// Contains the goal ID for which to retrieve the result.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResultRequest {
+    /// The ID of the goal whose result is requested.
     pub goal_id: GoalId,
 }
 
+/// Response containing the result of a completed goal.
+///
+/// Includes the final status and the result data.
 #[derive(Debug, Clone)]
 pub struct ResultResponse<A: ZAction> {
+    /// The final status of the goal.
     pub status: GoalStatus,
+    /// The result data returned by the action server.
     pub result: A::Result,
 }
 
@@ -116,9 +147,15 @@ where
     }
 }
 
+/// Message containing feedback from an executing goal.
+///
+/// Feedback messages are published periodically during goal execution
+/// to provide progress updates to clients.
 #[derive(Debug, Clone)]
 pub struct FeedbackMessage<A: ZAction> {
+    /// The ID of the goal providing feedback.
     pub goal_id: GoalId,
+    /// The feedback data from the executing goal.
     pub feedback: A::Feedback,
 }
 
@@ -161,14 +198,24 @@ where
     }
 }
 
+/// Message containing status updates for multiple goals.
+///
+/// Published periodically to inform clients about the current status
+/// of all goals known to the action server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StatusMessage {
+    /// List of status information for all goals.
     pub status_list: Vec<GoalStatusInfo>,
 }
 
+/// Status information for a single goal.
+///
+/// Contains the goal info and current status.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GoalStatusInfo {
+    /// Information about the goal (ID and timestamp).
     pub goal_info: GoalInfo,
+    /// Current status of the goal.
     pub status: GoalStatus,
 }
 

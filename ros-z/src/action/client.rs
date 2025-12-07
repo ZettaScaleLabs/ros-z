@@ -1,3 +1,9 @@
+//! Action client implementation for ROS 2 actions.
+//!
+//! This module provides the client-side functionality for ROS 2 actions,
+//! allowing nodes to send goals to action servers, receive feedback,
+//! monitor goal status, and retrieve results.
+
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, oneshot, watch};
@@ -13,14 +19,38 @@ use super::ZAction;
 use super::messages::*;
 use super::{GoalId, GoalInfo, GoalStatus};
 
+/// Builder for creating an action client.
+///
+/// The `ZActionClientBuilder` allows you to configure QoS settings for different
+/// action communication channels before building the client.
+///
+/// # Examples
+///
+/// ```no_run
+/// # use ros_z::action::*;
+/// # use ros_z::qos::QosProfile;
+/// # let node = todo!();
+/// let client = node.create_action_client::<MyAction>("my_action")
+///     .with_goal_service_qos(QosProfile::default())
+///     .build()?;
+/// # Ok::<(), zenoh::Error>(())
+/// ```
 pub struct ZActionClientBuilder<'a, A: ZAction> {
+    /// The name of the action.
     pub action_name: String,
+    /// Reference to the node that will own this client.
     pub node: &'a crate::node::ZNode,
+    /// QoS profile for the goal service.
     pub goal_service_qos: Option<crate::qos::QosProfile>,
+    /// QoS profile for the result service.
     pub result_service_qos: Option<crate::qos::QosProfile>,
+    /// QoS profile for the cancel service.
     pub cancel_service_qos: Option<crate::qos::QosProfile>,
+    /// QoS profile for the feedback topic.
     pub feedback_topic_qos: Option<crate::qos::QosProfile>,
+    /// QoS profile for the status topic.
     pub status_topic_qos: Option<crate::qos::QosProfile>,
+    /// Phantom data for the action type.
     pub _phantom: std::marker::PhantomData<A>,
 }
 
@@ -201,6 +231,70 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
     }
 }
 
+/// An action client for sending goals to an action server.
+///
+/// The `ZActionClient` allows you to send goals, receive feedback,
+/// monitor status, and request results from an action server.
+///
+/// # Simple Goal Send/Receive
+///
+/// ```no_run
+/// # use ros_z::action::*;
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
+/// # let node = todo!();
+/// // Create a client for an action
+/// let client = node.create_action_client::<MyAction>("my_action").build()?;
+///
+/// // Send a goal
+/// let goal_handle = client.send_goal(MyGoal { value: 42 }).await?;
+///
+/// // Wait for the result
+/// let result = goal_handle.result().await?;
+/// println!("Result: {:?}", result);
+/// # Ok(())
+/// # }
+/// ```
+///
+/// # Feedback Streaming
+///
+/// ```no_run
+/// # use ros_z::action::*;
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
+/// # let node = todo!();
+/// # let client = todo!();
+/// # let goal_handle = todo!();
+/// // Get feedback stream
+/// let mut feedback_rx = goal_handle.feedback_stream().unwrap();
+///
+/// // Process feedback in a separate task
+/// tokio::spawn(async move {
+///     while let Some(feedback) = feedback_rx.recv().await {
+///         println!("Progress: {:.1}%", feedback.progress * 100.0);
+///     }
+/// });
+/// # Ok(())
+/// # }
+/// ```
+///
+/// # Cancellation
+///
+/// ```no_run
+/// # use ros_z::action::*;
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
+/// # let node = todo!();
+/// # let client = todo!();
+/// # let goal_handle = todo!();
+/// // Cancel a specific goal
+/// client.cancel_goal(goal_handle.id()).await?;
+///
+/// // Or cancel all goals
+/// client.cancel_all_goals().await?;
+/// # Ok(())
+/// # }
+/// ```
 pub struct ZActionClient<A: ZAction> {
     goal_client: Arc<crate::service::ZClient<GoalService<A>>>,
     result_client: Arc<crate::service::ZClient<ResultService<A>>>,
@@ -224,6 +318,37 @@ impl<A: ZAction> Clone for ZActionClient<A> {
 }
 
 impl<A: ZAction> ZActionClient<A> {
+    /// Sends a goal to the action server.
+    ///
+    /// This method sends a goal to the action server and returns a `GoalHandle`
+    /// that can be used to monitor the goal's progress, receive feedback,
+    /// and retrieve the result.
+    ///
+    /// # Arguments
+    ///
+    /// * `goal` - The goal to send to the server.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `GoalHandle` if the goal is accepted, or an error if rejected.
+    ///
+    /// # Examples
+    ///
+/// ```no_run
+/// # use ros_z::action::*;
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
+/// # let node = todo!();
+/// // Create an action client
+/// let client = node.create_action_client::<MyAction>("my_action").build()?;
+///
+/// // Send a goal and get a handle to monitor it
+/// let goal_handle = client.send_goal(MyGoal { target: 42.0 }).await?;
+///
+/// // The handle can be used to monitor progress, get feedback, and retrieve results
+/// # Ok(())
+/// # }
+/// ```
     pub async fn send_goal(&self, goal: A::Goal) -> Result<GoalHandle<A>> {
         let goal_id = GoalId::new();
 
@@ -272,8 +397,11 @@ impl<A: ZAction> ZActionClient<A> {
         let goal_info = GoalInfo::new(goal_id);
         let request = CancelGoalRequest { goal_info };
 
+        tracing::trace!("🟡 Sending cancel request for goal {:?}", goal_id);
         self.cancel_client.send_request(&request).await?;
+        tracing::trace!("🟡 Waiting for cancel response...");
         let sample = self.cancel_client.rx.recv_async().await?;
+        tracing::trace!("🟢 Received cancel response");
         let payload = sample.payload().to_bytes();
         let response = crate::msg::CdrSerdes::<CancelGoalResponse>::deserialize(&payload);
         Ok(response)
@@ -365,15 +493,49 @@ struct GoalChannels<A: ZAction> {
     result_tx: Option<oneshot::Sender<A::Result>>,
 }
 
+/// Handle for monitoring and controlling an active goal.
+///
+/// A `GoalHandle` is returned when a goal is successfully sent to an action server.
+/// It provides methods to monitor the goal's status, receive feedback, retrieve results,
+/// and cancel the goal.
+///
+/// # Examples
+///
+/// ```no_run
+/// # use ros_z::action::*;
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
+/// # let goal_handle = todo!();
+/// // Monitor status
+/// let mut status_watch = goal_handle.status_watch().unwrap();
+/// while let Ok(()) = status_watch.changed().await {
+///     println!("Status: {:?}", *status_watch.borrow());
+/// }
+///
+/// // Get result
+/// let result = goal_handle.result().await?;
+/// # Ok(())
+/// # }
+/// ```
 pub struct GoalHandle<A: ZAction> {
+    /// Unique identifier for this goal.
     id: GoalId,
+    /// Reference to the client that sent this goal.
     client: Arc<ZActionClient<A>>,
+    /// Receiver for feedback messages.
     feedback_rx: Option<mpsc::UnboundedReceiver<A::Feedback>>,
+    /// Receiver for status updates.
     status_rx: Option<watch::Receiver<GoalStatus>>,
+    /// Receiver for the final result.
     result_rx: Option<oneshot::Receiver<A::Result>>,
 }
 
 impl<A: ZAction> GoalHandle<A> {
+    /// Returns the unique identifier for this goal.
+    ///
+    /// # Returns
+    ///
+    /// The `GoalId` assigned to this goal when it was sent.
     pub fn id(&self) -> GoalId {
         self.id
     }
