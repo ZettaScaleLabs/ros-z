@@ -241,14 +241,26 @@ impl Graph {
         }
     }
 
-    pub fn count(&self, kind: EntityKind, topic: impl AsRef<str>) -> usize {
+    pub fn count(&self, kind: EntityKind, name: impl AsRef<str>) -> usize {
         assert!(kind != EntityKind::Node);
         let mut total = 0;
-        self.data.lock().visit_by_topic(topic, |ent| {
-            if ent.kind() == kind {
-                total += 1;
+        match kind {
+            EntityKind::Publisher | EntityKind::Subscription => {
+                self.data.lock().visit_by_topic(name, |ent| {
+                    if ent.kind() == kind {
+                        total += 1;
+                    }
+                });
             }
-        });
+            EntityKind::Service | EntityKind::Client => {
+                self.data.lock().visit_by_service(name, |ent| {
+                    if ent.kind() == kind {
+                        total += 1;
+                    }
+                });
+            }
+            _ => unreachable!(),
+        }
         total
     }
 
