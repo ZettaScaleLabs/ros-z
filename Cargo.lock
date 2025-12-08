@@ -2569,6 +2569,7 @@ dependencies = [
  "ros-z-msgs",
  "serial_test",
  "tokio",
+ "zenoh",
 ]
 
 [[package]]
