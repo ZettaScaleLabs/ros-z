@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 
 use zenoh::{Result, Wait};
 
-use crate::msg::{ZDeserializer, ZSerializer};
+use crate::msg::ZMessage;
 use crate::{Builder};
 
 use super::ZAction;
@@ -115,7 +115,7 @@ async fn handle_result_requests<A: ZAction>(
     loop {
         if let Ok(query) = result_server.rx.recv_async().await {
             let payload = query.payload().unwrap().to_bytes();
-            let request = crate::msg::CdrSerdes::<ResultRequest>::deserialize(&payload);
+            let request = <ResultRequest as ZMessage>::deserialize(&payload);
 
             // Look up goal result
             let manager = goal_manager.lock().unwrap();
@@ -129,7 +129,7 @@ async fn handle_result_requests<A: ZAction>(
                     status: status_clone,
                     result: result_clone,
                 };
-                let response_bytes = crate::msg::CdrSerdes::<ResultResponse<A>>::serialize(&response);
+                let response_bytes = <ResultResponse<A> as ZMessage>::serialize(&response);
                 let _ = query.reply(query.key_expr().clone(), response_bytes).wait();
             }
         }
@@ -216,8 +216,8 @@ pub struct ZActionServer<A: ZAction> {
     goal_server: Arc<crate::service::ZServer<GoalService<A>>>,
     result_server: Arc<crate::service::ZServer<ResultService<A>>>,
     cancel_server: Arc<crate::service::ZServer<CancelService>>,
-    feedback_pub: Arc<crate::pubsub::ZPub<FeedbackMessage<A>, crate::msg::CdrSerdes<FeedbackMessage<A>>>>,
-    status_pub: Arc<crate::pubsub::ZPub<StatusMessage, crate::msg::CdrSerdes<StatusMessage>>>,
+    feedback_pub: Arc<crate::pubsub::ZPub<FeedbackMessage<A>, <FeedbackMessage<A> as ZMessage>::Serdes>>,
+    status_pub: Arc<crate::pubsub::ZPub<StatusMessage, <StatusMessage as ZMessage>::Serdes>>,
     goal_manager: Arc<Mutex<GoalManager<A>>>,
 }
 
@@ -257,7 +257,7 @@ impl<A: ZAction> ZActionServer<A> {
     pub async fn recv_goal(&self) -> Result<RequestedGoal<A>> {
         let query = self.goal_server.rx.recv_async().await?;
         let payload = query.payload().unwrap().to_bytes();
-        let request = crate::msg::CdrSerdes::<GoalRequest<A>>::deserialize(&payload);
+        let request = <GoalRequest<A> as ZMessage>::deserialize(&payload);
 
         Ok(RequestedGoal {
             goal: request.goal,
@@ -270,14 +270,14 @@ impl<A: ZAction> ZActionServer<A> {
     pub async fn recv_cancel(&self) -> Result<(CancelGoalRequest, zenoh::query::Query)> {
         let query = self.cancel_server.rx.recv_async().await?;
         let payload = query.payload().unwrap().to_bytes();
-        let request = crate::msg::CdrSerdes::<CancelGoalRequest>::deserialize(&payload);
+        let request = <CancelGoalRequest as ZMessage>::deserialize(&payload);
         Ok((request, query))
     }
 
     pub async fn recv_result_request(&self) -> Result<(GoalId, zenoh::query::Query)> {
         let query = self.result_server.rx.recv_async().await?;
         let payload = query.payload().unwrap().to_bytes();
-        let request = crate::msg::CdrSerdes::<ResultRequest>::deserialize(&payload);
+        let request = <ResultRequest as ZMessage>::deserialize(&payload);
         Ok((request.goal_id, query))
     }
 
@@ -285,12 +285,12 @@ impl<A: ZAction> ZActionServer<A> {
     pub async fn recv_goal_request_low(&self) -> Result<(super::messages::GoalRequest<A>, zenoh::query::Query)> {
         let query = self.goal_server.rx.recv_async().await?;
         let payload = query.payload().unwrap().to_bytes();
-        let request = crate::msg::CdrSerdes::<super::messages::GoalRequest<A>>::deserialize(&payload);
+        let request = <super::messages::GoalRequest<A> as ZMessage>::deserialize(&payload);
         Ok((request, query))
     }
 
     pub fn send_goal_response_low(&self, query: &zenoh::query::Query, response: &super::messages::GoalResponse) -> Result<()> {
-        let response_bytes = crate::msg::CdrSerdes::<super::messages::GoalResponse>::serialize(response);
+        let response_bytes = <super::messages::GoalResponse as ZMessage>::serialize(response);
         let _ = query.reply(query.key_expr().clone(), response_bytes).wait();
         Ok(())
     }
@@ -298,18 +298,18 @@ impl<A: ZAction> ZActionServer<A> {
     pub async fn recv_cancel_request_low(&self) -> Result<(super::messages::CancelGoalRequest, zenoh::query::Query)> {
         let query = self.cancel_server.rx.recv_async().await?;
         let payload = query.payload().unwrap().to_bytes();
-        let request = crate::msg::CdrSerdes::<super::messages::CancelGoalRequest>::deserialize(&payload);
+        let request = <super::messages::CancelGoalRequest as ZMessage>::deserialize(&payload);
         Ok((request, query))
     }
 
     pub fn send_cancel_response_low(&self, query: &zenoh::query::Query, response: &super::messages::CancelGoalResponse) -> Result<()> {
-        let response_bytes = crate::msg::CdrSerdes::<super::messages::CancelGoalResponse>::serialize(response);
+        let response_bytes = <super::messages::CancelGoalResponse as ZMessage>::serialize(response);
         let _ = query.reply(query.key_expr().clone(), response_bytes).wait();
         Ok(())
     }
 
     pub fn send_result_response_low(&self, query: &zenoh::query::Query, response: &super::messages::ResultResponse<A>) -> Result<()> {
-        let response_bytes = crate::msg::CdrSerdes::<super::messages::ResultResponse<A>>::serialize(response);
+        let response_bytes = <super::messages::ResultResponse<A> as ZMessage>::serialize(response);
         let _ = query.reply(query.key_expr().clone(), response_bytes).wait();
         Ok(())
     }
@@ -414,13 +414,13 @@ impl<A: ZAction> ZActionServer<A> {
     }
 }
 
-#[allow(dead_code)]
 struct GoalManager<A: ZAction> {
     goals: HashMap<GoalId, ServerGoalState<A>>,
     result_timeout: Duration,
     goal_timeout: Option<Duration>,
 }
 
+// TODO: check this dead_code
 #[allow(dead_code)]
 enum ServerGoalState<A: ZAction> {
     Accepted { goal: A::Goal, timestamp: Instant, expires_at: Option<Instant> },
@@ -441,7 +441,7 @@ impl<A: ZAction> RequestedGoal<A> {
     pub fn accept(self) -> AcceptedGoal<A> {
         // Send acceptance response
         let response = GoalResponse { accepted: true, stamp: self.info.stamp };
-        let response_bytes = crate::msg::CdrSerdes::<GoalResponse>::serialize(&response);
+        let response_bytes = <GoalResponse as ZMessage>::serialize(&response);
         let _ = self.query.reply(self.query.key_expr().clone(), response_bytes).wait();
 
         // Update server state to ACCEPTED
@@ -471,7 +471,7 @@ impl<A: ZAction> RequestedGoal<A> {
     pub fn reject(self) -> Result<()> {
         // Send rejection response
         let response = GoalResponse { accepted: false, stamp: 0 };
-        let response_bytes = crate::msg::CdrSerdes::<GoalResponse>::serialize(&response);
+        let response_bytes = <GoalResponse as ZMessage>::serialize(&response);
         let _ = self.query.reply(self.query.key_expr().clone(), response_bytes).wait();
         Ok(())
     }

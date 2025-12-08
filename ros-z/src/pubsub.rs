@@ -195,6 +195,64 @@ where
         }
     }
 
+    /// Build a subscriber with a callback that processes deserialized messages directly.
+    ///
+    /// This method creates a subscriber that invokes the provided callback for each
+    /// received message, bypassing the internal queue. The callback receives the
+    /// deserialized message directly. Liveliness tokens and event management are
+    /// preserved.
+    ///
+    /// # Arguments
+    ///
+    /// * `callback` - A function that will be called with each deserialized message
+    ///
+    /// # Returns
+    ///
+    /// A `ZSub` with no internal queue (callback-only mode)
+    pub fn build_with_callback<F>(mut self, callback: F) -> Result<ZSub<T, (), S>>
+    where
+        F: Fn(S::Output) + Send + Sync + 'static,
+        S: for<'a> ZDeserializer<Input<'a> = &'a [u8]> + 'static,
+    {
+        // Qualify the topic name according to ROS 2 rules
+        let qualified_topic = topic_name::qualify_topic_name(
+            &self.entity.topic,
+            &self.entity.node.namespace,
+            &self.entity.node.name,
+        )
+        .map_err(|e| zenoh::Error::from(format!("Failed to qualify topic: {}", e)))?;
+
+        self.entity.topic = qualified_topic;
+
+        // Create Zenoh subscriber with inline callback that deserializes
+        let inner = self
+            .session
+            .declare_subscriber(self.entity.topic_key_expr()?)
+            .callback(move |sample| {
+                let payload = sample.payload().to_bytes();
+                let msg = S::deserialize(&payload);
+                callback(msg);
+            })
+            .wait()?;
+
+        // Declare liveliness token to preserve graph presence
+        let gid = self.entity.gid();
+        let lv_token = self
+            .session
+            .liveliness()
+            .declare_token(self.entity.lv_token_key_expr()?)
+            .wait()?;
+
+        Ok(ZSub {
+            entity: self.entity,
+            queue: None,
+            _inner: inner,
+            _lv_token: lv_token,
+            events_mgr: Arc::new(Mutex::new(EventsManager::new(gid))),
+            _phantom_data: Default::default(),
+        })
+    }
+
     #[cfg(feature = "rcl-z")]
     pub fn build_with_notifier<F>(mut self, notify: F) -> Result<ZSub<T, Sample, S>>
     where
@@ -236,7 +294,7 @@ where
             entity: self.entity,
             _inner: inner,
             _lv_token: lv_token,
-            queue: rx,
+            queue: Some(rx),
             events_mgr: Arc::new(Mutex::new(EventsManager::new(gid))),
             _phantom_data: Default::default(),
         })
@@ -285,7 +343,7 @@ where
             entity: self.entity,
             _inner: inner,
             _lv_token: lv_token,
-            queue: rx,
+            queue: Some(rx),
             events_mgr: Arc::new(Mutex::new(EventsManager::new(gid))),
             _phantom_data: Default::default(),
         })
@@ -294,7 +352,7 @@ where
 
 pub struct ZSub<T: ZMessage, Q, S: ZDeserializer> {
     pub entity: EndpointEntity,
-    pub queue: flume::Receiver<Q>,
+    pub queue: Option<flume::Receiver<Q>>,
     _inner: zenoh::pubsub::Subscriber<()>,
     _lv_token: LivelinessToken,
     events_mgr: Arc<Mutex<EventsManager>>,
@@ -308,13 +366,17 @@ where
 {
     /// Receive the next serialized message (raw sample)
     pub fn recv_serialized(&self) -> Result<Sample> {
-        let msg = self.queue.recv()?;
+        let queue = self.queue.as_ref()
+            .ok_or_else(|| zenoh::Error::from("Subscriber was built with callback, no queue available"))?;
+        let msg = queue.recv()?;
         Ok(msg)
     }
 
     /// Async receive the next serialized message (raw sample)
     pub async fn async_recv_serialized(&self) -> Result<Sample> {
-        let msg = self.queue.recv_async().await?;
+        let queue = self.queue.as_ref()
+            .ok_or_else(|| zenoh::Error::from("Subscriber was built with callback, no queue available"))?;
+        let msg = queue.recv_async().await?;
         Ok(msg)
     }
 
@@ -330,20 +392,26 @@ where
 {
     /// Receive and deserialize the next message (aligned with ROS behavior)
     pub fn recv(&self) -> Result<S::Output> {
-        let sample = self.queue.recv()?;
+        let queue = self.queue.as_ref()
+            .ok_or_else(|| zenoh::Error::from("Subscriber was built with callback, no queue available"))?;
+        let sample = queue.recv()?;
         let payload = sample.payload().to_bytes();
         Ok(S::deserialize(&payload))
     }
 
     pub fn recv_timeout(&self, timeout: Duration) -> Result<S::Output> {
-        let sample = self.queue.recv_timeout(timeout)?;
+        let queue = self.queue.as_ref()
+            .ok_or_else(|| zenoh::Error::from("Subscriber was built with callback, no queue available"))?;
+        let sample = queue.recv_timeout(timeout)?;
         let payload = sample.payload().to_bytes();
         Ok(S::deserialize(&payload))
     }
 
     /// Async receive and deserialize the next message
     pub async fn async_recv(&self) -> Result<S::Output> {
-        let sample = self.queue.recv_async().await?;
+        let queue = self.queue.as_ref()
+            .ok_or_else(|| zenoh::Error::from("Subscriber was built with callback, no queue available"))?;
+        let sample = queue.recv_async().await?;
         let payload = sample.payload().to_bytes();
         Ok(S::deserialize(&payload))
     }

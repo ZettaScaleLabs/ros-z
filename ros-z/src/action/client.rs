@@ -8,9 +8,10 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, oneshot, watch};
 
-use zenoh::{Result, sample::Sample};
+use zenoh::Result;
 
-use crate::msg::{CdrSerdes, ZDeserializer};
+use crate::msg::ZMessage;
+use crate::qos::QosProfile;
 use crate::{Builder};
 
 use super::ZAction;
@@ -40,15 +41,15 @@ pub struct ZActionClientBuilder<'a, A: ZAction> {
     /// Reference to the node that will own this client.
     pub node: &'a crate::node::ZNode,
     /// QoS profile for the goal service.
-    pub goal_service_qos: Option<crate::qos::QosProfile>,
+    pub goal_service_qos: Option<QosProfile>,
     /// QoS profile for the result service.
-    pub result_service_qos: Option<crate::qos::QosProfile>,
+    pub result_service_qos: Option<QosProfile>,
     /// QoS profile for the cancel service.
-    pub cancel_service_qos: Option<crate::qos::QosProfile>,
+    pub cancel_service_qos: Option<QosProfile>,
     /// QoS profile for the feedback topic.
-    pub feedback_topic_qos: Option<crate::qos::QosProfile>,
+    pub feedback_topic_qos: Option<QosProfile>,
     /// QoS profile for the status topic.
-    pub status_topic_qos: Option<crate::qos::QosProfile>,
+    pub status_topic_qos: Option<QosProfile>,
     /// Phantom data for the action type.
     pub _phantom: std::marker::PhantomData<A>,
 }
@@ -67,27 +68,27 @@ impl<'a, A: ZAction> ZActionClientBuilder<'a, A> {
         }
     }
 
-    pub fn with_goal_service_qos(mut self, qos: crate::qos::QosProfile) -> Self {
+    pub fn with_goal_service_qos(mut self, qos: QosProfile) -> Self {
         self.goal_service_qos = Some(qos);
         self
     }
 
-    pub fn with_result_service_qos(mut self, qos: crate::qos::QosProfile) -> Self {
+    pub fn with_result_service_qos(mut self, qos: QosProfile) -> Self {
         self.result_service_qos = Some(qos);
         self
     }
 
-    pub fn with_cancel_service_qos(mut self, qos: crate::qos::QosProfile) -> Self {
+    pub fn with_cancel_service_qos(mut self, qos: QosProfile) -> Self {
         self.cancel_service_qos = Some(qos);
         self
     }
 
-    pub fn with_feedback_topic_qos(mut self, qos: crate::qos::QosProfile) -> Self {
+    pub fn with_feedback_topic_qos(mut self, qos: QosProfile) -> Self {
         self.feedback_topic_qos = Some(qos);
         self
     }
 
-    pub fn with_status_topic_qos(mut self, qos: crate::qos::QosProfile) -> Self {
+    pub fn with_status_topic_qos(mut self, qos: QosProfile) -> Self {
         self.status_topic_qos = Some(qos);
         self
     }
@@ -128,63 +129,53 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
         }
         let cancel_client = cancel_client_builder.build()?;
 
-        // Create feedback subscriber using node API for proper graph registration
-        let mut feedback_sub_builder = self.node.create_sub_impl::<FeedbackMessage<A>>(&feedback_topic_name, None);
-        if let Some(qos) = self.feedback_topic_qos {
-            feedback_sub_builder.entity.qos = qos;
-        }
-        let feedback_sub = feedback_sub_builder.build()?;
-
-        // Create status subscriber using node API for proper graph registration
-        let mut status_sub_builder = self.node.create_sub_impl::<StatusMessage>(&status_topic_name, None);
-        if let Some(qos) = self.status_topic_qos {
-            status_sub_builder.entity.qos = qos;
-        }
-        let status_sub = status_sub_builder.build()?;
-
         let goal_board = Arc::new(Mutex::new(GoalBoard {
             active_goals: HashMap::new(),
             pending_goals: HashMap::new(),
         }));
 
-        // Spawn background task for feedback routing
-        let goal_board_clone = goal_board.clone();
-        let feedback_sub_arc = Arc::new(feedback_sub);
-        let feedback_sub_task = feedback_sub_arc.clone();
-        tokio::spawn(async move {
-            while let Ok(sample) = feedback_sub_task.queue.recv_async().await {
-                let payload = sample.payload().to_bytes();
-                let msg = crate::msg::CdrSerdes::<FeedbackMessage<A>>::deserialize(&payload);
-                // msg is FeedbackMessage<A>, use it directly
-                if let Some(channels) = goal_board_clone.lock().unwrap().active_goals.get(&msg.goal_id) {
-                    let _ = channels.feedback_tx.send(msg.feedback);
-                }
+        // Create feedback subscriber with callback for direct message routing
+        let mut feedback_sub_builder = self.node.create_sub_impl::<FeedbackMessage<A>>(&feedback_topic_name, None);
+        if let Some(qos) = self.feedback_topic_qos {
+            feedback_sub_builder.entity.qos = qos;
+        }
+        tracing::debug!("📡 Creating feedback subscriber with callback for {}", feedback_topic_name);
+        let goal_board_feedback = goal_board.clone();
+        let feedback_sub = feedback_sub_builder.build_with_callback(move |msg: FeedbackMessage<A>| {
+            tracing::trace!("📥 Feedback callback received for goal {:?}", msg.goal_id);
+            if let Some(channels) = goal_board_feedback.lock().unwrap().active_goals.get(&msg.goal_id) {
+                tracing::trace!("✅ Routing feedback to goal {:?}", msg.goal_id);
+                let _ = channels.feedback_tx.send(msg.feedback);
+            } else {
+                tracing::warn!("⚠️ No active goal found for feedback {:?}", msg.goal_id);
             }
-        });
+        })?;
+        tracing::debug!("✅ Feedback subscriber created successfully");
 
-        // Spawn background task for status routing
-        let goal_board_clone2 = goal_board.clone();
-        let status_sub_arc = Arc::new(status_sub);
-        let status_sub_task = status_sub_arc.clone();
-        tokio::spawn(async move {
-            while let Ok(sample) = status_sub_task.queue.recv_async().await {
-                let payload = sample.payload().to_bytes();
-                let msg = crate::msg::CdrSerdes::<StatusMessage>::deserialize(&payload);
-                // msg is StatusMessage, use it directly
-                for status_info in msg.status_list {
-                    if let Some(channels) = goal_board_clone2.lock().unwrap().active_goals.get(&status_info.goal_info.goal_id) {
-                        let _ = channels.status_tx.send(status_info.status);
-                    }
+        // Create status subscriber with callback for direct message routing
+        let mut status_sub_builder = self.node.create_sub_impl::<StatusMessage>(&status_topic_name, None);
+        if let Some(qos) = self.status_topic_qos {
+            status_sub_builder.entity.qos = qos;
+        }
+        let goal_board_status = goal_board.clone();
+        let status_sub = status_sub_builder.build_with_callback(move |msg: StatusMessage| {
+            tracing::trace!("📥 Status callback received with {} statuses", msg.status_list.len());
+            for status_info in msg.status_list {
+                if let Some(channels) = goal_board_status.lock().unwrap().active_goals.get(&status_info.goal_info.goal_id) {
+                    tracing::trace!("✅ Routing status {:?} to goal {:?}", status_info.status, status_info.goal_info.goal_id);
+                    let _ = channels.status_tx.send(status_info.status);
+                } else {
+                    tracing::trace!("⚠️ No active goal found for status {:?}", status_info.goal_info.goal_id);
                 }
             }
-        });
+        })?;
 
         Ok(ZActionClient {
             goal_client: Arc::new(goal_client),
             result_client: Arc::new(result_client),
             cancel_client: Arc::new(cancel_client),
-            feedback_sub: feedback_sub_arc,
-            status_sub: status_sub_arc,
+            feedback_sub: Arc::new(feedback_sub),
+            status_sub: Arc::new(status_sub),
             goal_board,
         })
     }
@@ -258,8 +249,8 @@ pub struct ZActionClient<A: ZAction> {
     goal_client: Arc<crate::service::ZClient<GoalService<A>>>,
     result_client: Arc<crate::service::ZClient<ResultService<A>>>,
     cancel_client: Arc<crate::service::ZClient<CancelService>>,
-    feedback_sub: Arc<crate::pubsub::ZSub<FeedbackMessage<A>, Sample, CdrSerdes<FeedbackMessage<A>>>>,
-    status_sub: Arc<crate::pubsub::ZSub<StatusMessage, Sample, CdrSerdes<StatusMessage>>>,
+    feedback_sub: Arc<crate::pubsub::ZSub<FeedbackMessage<A>, (), <FeedbackMessage<A> as ZMessage>::Serdes>>,
+    status_sub: Arc<crate::pubsub::ZSub<StatusMessage, (), <StatusMessage as ZMessage>::Serdes>>,
     goal_board: Arc<Mutex<GoalBoard<A>>>,
 }
 
@@ -293,21 +284,21 @@ impl<A: ZAction> ZActionClient<A> {
     ///
     /// # Examples
     ///
-/// ```no_run
-/// # use ros_z::action::*;
-/// # #[tokio::main]
-/// # async fn main() -> Result<()> {
-/// # let node = todo!();
-/// // Create an action client
-/// let client = node.create_action_client::<MyAction>("my_action").build()?;
-///
-/// // Send a goal and get a handle to monitor it
-/// let goal_handle = client.send_goal(MyGoal { target: 42.0 }).await?;
-///
-/// // The handle can be used to monitor progress, get feedback, and retrieve results
-/// # Ok(())
-/// # }
-/// ```
+    /// ```no_run
+    /// # use ros_z::action::*;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let node = todo!();
+    /// // Create an action client
+    /// let client = node.create_action_client::<MyAction>("my_action").build()?;
+    ///
+    /// // Send a goal and get a handle to monitor it
+    /// let goal_handle = client.send_goal(MyGoal { target: 42.0 }).await?;
+    ///
+    /// // The handle can be used to monitor progress, get feedback, and retrieve results
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn send_goal(&self, goal: A::Goal) -> Result<GoalHandle<A>> {
         let goal_id = GoalId::new();
 
@@ -333,7 +324,7 @@ impl<A: ZAction> ZActionClient<A> {
         // 4. Wait for response
         let sample = self.goal_client.rx.recv_async().await?;
         let payload = sample.payload().to_bytes();
-        let response = crate::msg::CdrSerdes::<GoalResponse>::deserialize(&payload);
+        let response = <GoalResponse as ZMessage>::deserialize(&payload);
 
         // 5. Check if accepted
         if !response.accepted {
@@ -362,7 +353,7 @@ impl<A: ZAction> ZActionClient<A> {
         let sample = self.cancel_client.rx.recv_async().await?;
         tracing::trace!("🟢 Received cancel response");
         let payload = sample.payload().to_bytes();
-        let response = crate::msg::CdrSerdes::<CancelGoalResponse>::deserialize(&payload);
+        let response = <CancelGoalResponse as ZMessage>::deserialize(&payload);
         Ok(response)
     }
 
@@ -375,7 +366,7 @@ impl<A: ZAction> ZActionClient<A> {
         self.cancel_client.send_request(&request).await?;
         let sample = self.cancel_client.rx.recv_async().await?;
         let payload = sample.payload().to_bytes();
-        let response = crate::msg::CdrSerdes::<CancelGoalResponse>::deserialize(&payload);
+        let response = <CancelGoalResponse as ZMessage>::deserialize(&payload);
         Ok(response)
     }
 
@@ -402,7 +393,7 @@ impl<A: ZAction> ZActionClient<A> {
         self.result_client.send_request(&request).await?;
         let sample = self.result_client.rx.recv_async().await?;
         let payload = sample.payload().to_bytes();
-        let response = crate::msg::CdrSerdes::<ResultResponse<A>>::deserialize(&payload);
+        let response = <ResultResponse<A> as ZMessage>::deserialize(&payload);
 
         Ok(response.result)
     }
@@ -415,7 +406,7 @@ impl<A: ZAction> ZActionClient<A> {
     pub async fn recv_goal_response_low(&self) -> Result<super::messages::GoalResponse> {
         let sample = self.goal_client.rx.recv_async().await?;
         let payload = sample.payload().to_bytes();
-        Ok(crate::msg::CdrSerdes::<super::messages::GoalResponse>::deserialize(&payload))
+        Ok(<super::messages::GoalResponse as ZMessage>::deserialize(&payload))
     }
 
     pub async fn send_cancel_request_low(&self, request: &super::messages::CancelGoalRequest) -> Result<()> {
@@ -425,7 +416,7 @@ impl<A: ZAction> ZActionClient<A> {
     pub async fn recv_cancel_response_low(&self) -> Result<super::messages::CancelGoalResponse> {
         let sample = self.cancel_client.rx.recv_async().await?;
         let payload = sample.payload().to_bytes();
-        Ok(crate::msg::CdrSerdes::<super::messages::CancelGoalResponse>::deserialize(&payload))
+        Ok(<super::messages::CancelGoalResponse as ZMessage>::deserialize(&payload))
     }
 
     pub async fn send_result_request_low(&self, request: &super::messages::ResultRequest) -> Result<()> {
@@ -435,7 +426,7 @@ impl<A: ZAction> ZActionClient<A> {
     pub async fn recv_result_response_low(&self) -> Result<super::messages::ResultResponse<A>> {
         let sample = self.result_client.rx.recv_async().await?;
         let payload = sample.payload().to_bytes();
-        Ok(crate::msg::CdrSerdes::<super::messages::ResultResponse<A>>::deserialize(&payload))
+        Ok(<super::messages::ResultResponse<A> as ZMessage>::deserialize(&payload))
     }
 }
 
