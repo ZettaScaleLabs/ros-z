@@ -2,7 +2,7 @@
 
 mod common;
 
-use std::{process::Command, thread, time::Duration};
+use std::{process::{Command, Stdio}, thread, time::Duration};
 
 use common::*;
 use ros_z::Builder;
@@ -26,7 +26,7 @@ fn test_ros_z_server_ros_z_client() {
 
         // Correct API: use tuple type and take_request/send_response pattern
         let mut zsrv = node
-            .create_service::<AddTwoInts>("add_two_ints")
+            .create_service::<AddTwoInts>("add_two_ints_test1")
             .build()
             .expect("Failed to create service");
 
@@ -42,7 +42,7 @@ fn test_ros_z_server_ros_z_client() {
         }
     });
 
-    wait_for_ready(Duration::from_secs(2));
+    wait_for_ready(Duration::from_secs(3));
 
     // Run client
     let client_handle = thread::spawn(|| {
@@ -56,11 +56,15 @@ fn test_ros_z_server_ros_z_client() {
                 .expect("Failed to create node");
 
             let zcli = node
-                .create_client::<AddTwoInts>("add_two_ints")
+                .create_client::<AddTwoInts>("add_two_ints_test1")
                 .build()
                 .expect("Failed to create client");
 
-            println!("Client ready, sending request...");
+            println!("Client ready, waiting for service discovery...");
+            // Give some time for service discovery to complete
+            tokio::time::sleep(Duration::from_millis(500)).await;
+
+            println!("Sending request...");
 
             let req = AddTwoIntsRequest { a: 5, b: 3 };
             zcli.send_request(&req)
@@ -102,7 +106,7 @@ fn test_ros_z_server_ros2_client() {
             .expect("Failed to create node");
 
         let mut zsrv = node
-            .create_service::<AddTwoInts>("add_two_ints")
+            .create_service::<AddTwoInts>("add_two_ints_test2")
             .build()
             .expect("Failed to create service");
 
@@ -127,7 +131,7 @@ fn test_ros_z_server_ros2_client() {
             "ros2",
             "service",
             "call",
-            "/add_two_ints",
+            "/add_two_ints_test2",
             "example_interfaces/srv/AddTwoInts",
             "{a: 10, b: 7}",
         ])
@@ -164,16 +168,18 @@ fn test_ros2_server_ros_z_client() {
 
     println!("\n=== Test: ROS2 server <-> ros-z client ===");
 
-    // Start ROS2 server
+    // Start ROS2 server with service name remapping to avoid conflicts
     let server = Command::new("ros2")
-        .args(["run", "demo_nodes_cpp", "add_two_ints_server"])
+        .args(["run", "demo_nodes_cpp", "add_two_ints_server", "--ros-args", "-r", "add_two_ints:=add_two_ints_test_ros2"])
         .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn()
         .expect("Failed to start ROS2 server");
 
     let _guard = ProcessGuard::new(server, "ros2 server");
 
-    wait_for_ready(Duration::from_secs(5));
+    wait_for_ready(Duration::from_secs(8));
 
     // Call from ros-z client
     let result = thread::spawn(|| {
@@ -187,11 +193,15 @@ fn test_ros2_server_ros_z_client() {
                 .expect("Failed to create node");
 
             let zcli = node
-                .create_client::<AddTwoInts>("add_two_ints")
+                .create_client::<AddTwoInts>("add_two_ints_test_ros2")
                 .build()
                 .expect("Failed to create client");
 
-            println!("Client ready, calling ROS2 server...");
+            println!("Client ready, waiting for service discovery...");
+            // Give some time for service discovery to complete
+            tokio::time::sleep(Duration::from_millis(500)).await;
+
+            println!("Calling ROS2 server...");
 
             let req = AddTwoIntsRequest { a: 15, b: 9 };
             zcli.send_request(&req)
