@@ -1,0 +1,3 @@
+# Nextest configuration for ros-z
+[profile.default]
+slow-timeout = { period = "30s", terminate-after = 2 }
