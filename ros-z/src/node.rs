@@ -84,7 +84,7 @@ impl ZNode {
         self.create_pub_impl(topic, Some(T::type_info()))
     }
 
-    fn create_pub_impl<T>(
+    pub(crate) fn create_pub_impl<T>(
         &self,
         topic: &str,
         type_info: Option<crate::entity::TypeInfo>,
@@ -124,7 +124,7 @@ impl ZNode {
         self.create_sub_impl(topic, Some(T::type_info()))
     }
 
-    fn create_sub_impl<T>(
+    pub(crate) fn create_sub_impl<T>(
         &self,
         topic: &str,
         type_info: Option<crate::entity::TypeInfo>,
@@ -160,7 +160,7 @@ impl ZNode {
         self.create_service_impl(topic, Some(T::service_type_info()))
     }
 
-    fn create_service_impl<T>(
+    pub(crate) fn create_service_impl<T>(
         &self,
         topic: &str,
         type_info: Option<crate::entity::TypeInfo>,
@@ -196,7 +196,7 @@ impl ZNode {
         self.create_client_impl(topic, Some(T::service_type_info()))
     }
 
-    fn create_client_impl<T>(
+    pub(crate) fn create_client_impl<T>(
         &self,
         topic: &str,
         type_info: Option<crate::entity::TypeInfo>,

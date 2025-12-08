@@ -10,7 +10,6 @@ use std::time::{Duration, Instant};
 
 use zenoh::{Result, Wait};
 
-use crate::entity::{EndpointEntity, EntityKind};
 use crate::msg::{ZDeserializer, ZSerializer};
 use crate::{Builder};
 
@@ -151,82 +150,42 @@ impl<'a, A: ZAction> Builder for ZActionServerBuilder<'a, A> {
         let feedback_topic_name = format!("{}/_action/feedback", action_name);
         let status_topic_name = format!("{}/_action/status", action_name);
 
-        // Create goal server
-        let goal_entity = EndpointEntity {
-            id: 0,
-            node: self.node.entity.clone(),
-            kind: EntityKind::Service,
-            topic: goal_service_name,
-            type_info: None,
-            qos: self.goal_service_qos.unwrap_or_default(),
-        };
-        let goal_server = crate::service::ZServerBuilder::<GoalService<A>> {
-            entity: goal_entity,
-            session: self.node.session.clone(),
-            _phantom_data: std::marker::PhantomData,
-        }.build()?;
+        // Create goal server using node API for proper graph registration
+        let mut goal_server_builder = self.node.create_service_impl::<GoalService<A>>(&goal_service_name, None);
+        if let Some(qos) = self.goal_service_qos {
+            goal_server_builder.entity.qos = qos;
+        }
+        let goal_server = goal_server_builder.build()?;
 
-        // Create result server
-        let result_entity = EndpointEntity {
-            id: 0,
-            node: self.node.entity.clone(),
-            kind: EntityKind::Service,
-            topic: result_service_name,
-            type_info: None,
-            qos: self.result_service_qos.unwrap_or_default(),
-        };
-        let result_server = crate::service::ZServerBuilder::<ResultService<A>> {
-            entity: result_entity,
-            session: self.node.session.clone(),
-            _phantom_data: std::marker::PhantomData,
-        }.build()?;
+        // Create result server using node API for proper graph registration
+        let mut result_server_builder = self.node.create_service_impl::<ResultService<A>>(&result_service_name, None);
+        if let Some(qos) = self.result_service_qos {
+            result_server_builder.entity.qos = qos;
+        }
+        let result_server = result_server_builder.build()?;
 
-        // Create cancel server
-        let cancel_entity = EndpointEntity {
-            id: 0,
-            node: self.node.entity.clone(),
-            kind: EntityKind::Service,
-            topic: cancel_service_name,
-            type_info: None,
-            qos: self.cancel_service_qos.unwrap_or_default(),
-        };
-        let cancel_server = crate::service::ZServerBuilder::<CancelService> {
-            entity: cancel_entity,
-            session: self.node.session.clone(),
-            _phantom_data: std::marker::PhantomData,
-        }.build()?;
+        // Create cancel server using node API for proper graph registration
+        let mut cancel_server_builder = self.node.create_service_impl::<CancelService>(&cancel_service_name, None);
+        if let Some(qos) = self.cancel_service_qos {
+            cancel_server_builder.entity.qos = qos;
+        }
+        let cancel_server = cancel_server_builder.build()?;
 
-        // Create feedback publisher
-        let feedback_entity = EndpointEntity {
-            id: 0,
-            node: self.node.entity.clone(),
-            kind: EntityKind::Publisher,
-            topic: feedback_topic_name,
-            type_info: None,
-            qos: self.feedback_topic_qos.unwrap_or_default(),
-        };
-        let feedback_pub = crate::pubsub::ZPubBuilder::<FeedbackMessage<A>> {
-            entity: feedback_entity,
-            session: self.node.session.clone(),
-            with_attachment: false,
-            _phantom_data: std::marker::PhantomData,
-        }.build()?;
+        // Create feedback publisher using node API for proper graph registration
+        let mut feedback_pub_builder = self.node.create_pub_impl::<FeedbackMessage<A>>(&feedback_topic_name, None);
+        if let Some(qos) = self.feedback_topic_qos {
+            feedback_pub_builder.entity.qos = qos;
+        }
+        feedback_pub_builder.with_attachment = false;
+        let feedback_pub = feedback_pub_builder.build()?;
 
-        // Create status publisher
-        let status_entity = EndpointEntity {
-            id: 0,
-            node: self.node.entity.clone(),
-            kind: EntityKind::Publisher,
-            topic: status_topic_name,
-            type_info: None,
-            qos: self.status_topic_qos.unwrap_or_default(),
-        };
-        let status_pub = crate::pubsub::ZPubBuilder::<StatusMessage> {
-            entity: status_entity,
-            session: self.node.session.clone(),
-            with_attachment: false,
-            _phantom_data: std::marker::PhantomData,
-        }.build()?;
+        // Create status publisher using node API for proper graph registration
+        let mut status_pub_builder = self.node.create_pub_impl::<StatusMessage>(&status_topic_name, None);
+        if let Some(qos) = self.status_topic_qos {
+            status_pub_builder.entity.qos = qos;
+        }
+        status_pub_builder.with_attachment = false;
+        let status_pub = status_pub_builder.build()?;
 
         let goal_manager = Arc::new(Mutex::new(GoalManager {
             goals: HashMap::new(),
