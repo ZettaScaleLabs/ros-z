@@ -169,8 +169,8 @@ fn test_ros_z_talker_to_rcl_listener() {
         tokio::runtime::Runtime::new().unwrap().block_on(async {
             let ctx = create_ros_z_context().expect("Failed to create ros-z context");
 
-            // Use the actual talker example code with max 10 messages
-            demo_nodes::run_talker(ctx, "chatter", Duration::from_secs(1), Some(10))
+            // Use the actual talker example code with faster publishing (100ms intervals)
+            demo_nodes::run_talker(ctx, "chatter", Duration::from_millis(100), Some(10))
                 .await
                 .expect("Talker failed");
         });
@@ -179,7 +179,7 @@ fn test_ros_z_talker_to_rcl_listener() {
     talker_handle.join().expect("Talker thread panicked");
 
     // Give some time for RCL listener to process
-    wait_for_ready(Duration::from_secs(2));
+    wait_for_ready(Duration::from_secs(1));
 
     println!("✅ Test passed: ros-z talker published messages to RCL listener");
 }
