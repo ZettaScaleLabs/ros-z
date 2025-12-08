@@ -79,6 +79,16 @@ name = "demo_nodes_listener"
 path = "examples/demo_nodes/listener.rs"
 required-features = []
 
+[[example]]
+name = "demo_nodes_add_two_ints_server"
+path = "examples/demo_nodes/add_two_ints_server.rs"
+required-features = ["external_msgs"]
+
+[[example]]
+name = "demo_nodes_add_two_ints_client"
+path = "examples/demo_nodes/add_two_ints_client.rs"
+required-features = ["external_msgs"]
+
 # Examples using external messages (requires ROS 2 installation)
 # Note: z_srvcli uses example_interfaces which requires ROS 2.
 # Build with: cargo build --example z_srvcli --features external_msgs

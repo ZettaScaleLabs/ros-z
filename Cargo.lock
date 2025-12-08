@@ -2394,6 +2394,7 @@ dependencies = [
 name = "ros-z-tests"
 version = "0.1.0"
 dependencies = [
+ "nix 0.29.0",
  "once_cell",
  "ros-z",
  "ros-z-msgs",
