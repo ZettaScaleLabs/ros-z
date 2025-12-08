@@ -15,8 +15,11 @@ ros-z-msgs = { path = "../ros-z-msgs", optional = true }
 
 # Test runtime dependencies
 tokio = { workspace = true, features = ["full"] }
-once_cell = { workspace = true }                  # For lazy static zenohd daemon
-serial_test = "3.0"                               # For sequential test execution
+once_cell = { workspace = true } # For lazy static zenohd daemon
+serial_test = "3.0" # For sequential test execution
+nix = { version = "0.29", features = [
+  "signal",
+] } # For graceful process shutdown
 
 [features]
 default = []
