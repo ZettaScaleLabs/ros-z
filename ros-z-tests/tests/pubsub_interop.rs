@@ -13,14 +13,13 @@ use common::*;
 use ros_z::Builder;
 use ros_z_msgs::std_msgs::String as RosString;
 
-#[serial_test::serial]
 #[test]
 fn test_ros_z_pub_to_ros2_sub() {
     if !check_ros2_available() {
         panic!("ros2 CLI not available - ensure ROS 2 is installed");
     }
 
-    ensure_zenohd_running();
+    let router = TestRouter::new();
 
     println!("\n=== Test: ros-z publisher -> ROS2 subscriber ===");
 
@@ -28,6 +27,7 @@ fn test_ros_z_pub_to_ros2_sub() {
     let subscriber = Command::new("ros2")
         .args(["topic", "echo", "/chatter", "std_msgs/msg/String", "--once"])
         .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
+        .env("ZENOH_CONFIG_OVERRIDE", router.rmw_zenoh_env())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -38,8 +38,9 @@ fn test_ros_z_pub_to_ros2_sub() {
     wait_for_ready(Duration::from_secs(2));
 
     // Start ros-z publisher
-    let publisher_handle = thread::spawn(|| {
-        let ctx = create_ros_z_context().expect("Failed to create ros-z context");
+    let publisher_handle = thread::spawn(move || {
+        let ctx =
+            create_ros_z_context_with_router(&router).expect("Failed to create ros-z context");
 
         let node = ctx
             .create_node("test_publisher")
@@ -67,22 +68,23 @@ fn test_ros_z_pub_to_ros2_sub() {
     println!("✅ Test passed: ROS2 subscriber received message");
 }
 
-#[serial_test::serial]
 #[test]
 fn test_ros2_pub_to_ros_z_sub() {
     if !check_ros2_available() {
         panic!("ros2 CLI not available - ensure ROS 2 is installed");
     }
 
-    ensure_zenohd_running();
+    let router = TestRouter::new();
 
     println!("\n=== Test: ROS2 publisher -> ros-z subscriber ===");
 
     let received = Arc::new(Mutex::new(false));
     let received_clone = received.clone();
 
+    let router_endpoint = router.endpoint().to_string();
     let subscriber_handle = thread::spawn(move || {
-        let ctx = create_ros_z_context().expect("Failed to create ros-z context");
+        let ctx = create_ros_z_context_with_endpoint(&router_endpoint)
+            .expect("Failed to create ros-z context");
 
         let node = ctx
             .create_node("test_subscriber")
@@ -129,6 +131,7 @@ fn test_ros2_pub_to_ros_z_sub() {
             "5",
         ])
         .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
+        .env("ZENOH_CONFIG_OVERRIDE", router.rmw_zenoh_env())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()

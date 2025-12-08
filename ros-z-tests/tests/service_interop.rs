@@ -2,22 +2,27 @@
 
 mod common;
 
-use std::{process::{Command, Stdio}, thread, time::Duration};
+use std::{
+    process::{Command, Stdio},
+    thread,
+    time::Duration,
+};
 
 use common::*;
 use ros_z::Builder;
 use ros_z_msgs::example_interfaces::{AddTwoInts, AddTwoIntsRequest, AddTwoIntsResponse};
 
-#[serial_test::serial]
 #[test]
 fn test_ros_z_server_ros_z_client() {
-    ensure_zenohd_running();
+    let router = TestRouter::new();
 
     println!("\n=== Test: ros-z server <-> ros-z client ===");
 
     // Start server in background thread
-    let _server_handle = thread::spawn(|| {
-        let ctx = create_ros_z_context().expect("Failed to create context");
+    let router_endpoint = router.endpoint().to_string();
+    let _server_handle = thread::spawn(move || {
+        let ctx =
+            create_ros_z_context_with_endpoint(&router_endpoint).expect("Failed to create context");
 
         let node = ctx
             .create_node("test_server")
@@ -45,10 +50,10 @@ fn test_ros_z_server_ros_z_client() {
     wait_for_ready(Duration::from_secs(3));
 
     // Run client
-    let client_handle = thread::spawn(|| {
+    let client_handle = thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
-            let ctx = create_ros_z_context().expect("Failed to create context");
+            let ctx = create_ros_z_context_with_router(&router).expect("Failed to create context");
 
             let node = ctx
                 .create_node("test_client")
@@ -92,13 +97,15 @@ fn test_ros_z_server_ros2_client() {
         panic!("ros2 CLI not available");
     }
 
-    ensure_zenohd_running();
+    let router = TestRouter::new();
 
     println!("\n=== Test: ros-z server <-> ROS2 client ===");
 
     // Start ros-z server
-    let _server = thread::spawn(|| {
-        let ctx = create_ros_z_context().expect("Failed to create context");
+    let router_endpoint = router.endpoint().to_string();
+    let _server = thread::spawn(move || {
+        let ctx =
+            create_ros_z_context_with_endpoint(&router_endpoint).expect("Failed to create context");
 
         let node = ctx
             .create_node("rosz_server")
@@ -136,6 +143,7 @@ fn test_ros_z_server_ros2_client() {
             "{a: 10, b: 7}",
         ])
         .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
+        .env("ZENOH_CONFIG_OVERRIDE", router.rmw_zenoh_env())
         .output()
         .expect("Failed to call service");
 
@@ -164,14 +172,22 @@ fn test_ros2_server_ros_z_client() {
         );
     }
 
-    ensure_zenohd_running();
+    let router = TestRouter::new();
 
     println!("\n=== Test: ROS2 server <-> ros-z client ===");
 
     // Start ROS2 server with service name remapping to avoid conflicts
     let server = Command::new("ros2")
-        .args(["run", "demo_nodes_cpp", "add_two_ints_server", "--ros-args", "-r", "add_two_ints:=add_two_ints_test_ros2"])
+        .args([
+            "run",
+            "demo_nodes_cpp",
+            "add_two_ints_server",
+            "--ros-args",
+            "-r",
+            "add_two_ints:=add_two_ints_test_ros2",
+        ])
         .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
+        .env("ZENOH_CONFIG_OVERRIDE", router.rmw_zenoh_env())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -182,10 +198,10 @@ fn test_ros2_server_ros_z_client() {
     wait_for_ready(Duration::from_secs(8));
 
     // Call from ros-z client
-    let result = thread::spawn(|| {
+    let result = thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
-            let ctx = create_ros_z_context().expect("Failed to create context");
+            let ctx = create_ros_z_context_with_router(&router).expect("Failed to create context");
 
             let node = ctx
                 .create_node("rosz_client")
