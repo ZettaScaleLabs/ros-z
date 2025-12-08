@@ -74,10 +74,27 @@ required-features = []
 
 [[example]]
 name = "action_fibonacci"
+path = "examples/action/fibonacci.rs"
 required-features = []
 
 [[example]]
 name = "action_navigation"
+path = "examples/action/navigation.rs"
+required-features = []
+
+[[example]]
+name = "action_cancelable_task"
+path = "examples/action/cancelable_task.rs"
+required-features = []
+
+[[example]]
+name = "action_concurrent_goals"
+path = "examples/action/concurrent_goals.rs"
+required-features = []
+
+[[example]]
+name = "action_manual_control"
+path = "examples/action/manual_control.rs"
 required-features = []
 
 [[example]]
