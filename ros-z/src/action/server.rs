@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use tokio_util::sync::CancellationToken;
 use zenoh::{Result, Wait};
 
 use crate::msg::ZMessage;
@@ -193,11 +194,19 @@ impl<'a, A: ZAction> Builder for ZActionServerBuilder<'a, A> {
             goal_timeout: self.goal_timeout,
         }));
 
+        let cancellation_token = CancellationToken::new();
+
         // Spawn background task to handle result requests
         let result_server_arc = Arc::new(result_server);
         let result_server_clone = result_server_arc.clone();
         let goal_manager_clone = goal_manager.clone();
-        tokio::spawn(handle_result_requests::<A>(result_server_clone, goal_manager_clone));
+        let token_clone = cancellation_token.clone();
+        tokio::spawn(async move {
+            tokio::select! {
+                _ = token_clone.cancelled() => {},
+                _ = handle_result_requests::<A>(result_server_clone, goal_manager_clone) => {},
+            }
+        });
 
         // TODO: Add background task for goal expiration checking
 
@@ -208,6 +217,7 @@ impl<'a, A: ZAction> Builder for ZActionServerBuilder<'a, A> {
             feedback_pub: Arc::new(feedback_pub),
             status_pub: Arc::new(status_pub),
             goal_manager,
+            _cancellation_token: cancellation_token,
         }))
     }
 }
@@ -219,6 +229,7 @@ pub struct ZActionServer<A: ZAction> {
     feedback_pub: Arc<crate::pubsub::ZPub<FeedbackMessage<A>, <FeedbackMessage<A> as ZMessage>::Serdes>>,
     status_pub: Arc<crate::pubsub::ZPub<StatusMessage, <StatusMessage as ZMessage>::Serdes>>,
     goal_manager: Arc<Mutex<GoalManager<A>>>,
+    _cancellation_token: CancellationToken,
 }
 
 impl<A: ZAction> Clone for ZActionServer<A> {
@@ -230,7 +241,14 @@ impl<A: ZAction> Clone for ZActionServer<A> {
             feedback_pub: self.feedback_pub.clone(),
             status_pub: self.status_pub.clone(),
             goal_manager: self.goal_manager.clone(),
+            _cancellation_token: self._cancellation_token.clone(),
         }
+    }
+}
+
+impl<A: ZAction> Drop for ZActionServer<A> {
+    fn drop(&mut self) {
+        self._cancellation_token.cancel();
     }
 }
 
@@ -272,6 +290,10 @@ impl<A: ZAction> ZActionServer<A> {
         let payload = query.payload().unwrap().to_bytes();
         let request = <CancelGoalRequest as ZMessage>::deserialize(&payload);
         Ok((request, query))
+    }
+
+    pub fn is_cancel_request_ready(&self) -> bool {
+        !self.cancel_server.rx.is_empty()
     }
 
     pub async fn recv_result_request(&self) -> Result<(GoalId, zenoh::query::Query)> {
