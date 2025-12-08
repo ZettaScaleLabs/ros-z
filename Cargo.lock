@@ -2521,6 +2521,7 @@ dependencies = [
  "slab",
  "strum",
  "tokio",
+ "tokio-util",
  "tracing",
  "uuid",
  "zenoh",
