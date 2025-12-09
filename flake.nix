@@ -84,6 +84,7 @@
                 ros-core
                 demo-nodes-cpp
                 demo-nodes-py
+                action-tutorials-cpp
                 rclpy
                 rmw
                 rmw-implementation
