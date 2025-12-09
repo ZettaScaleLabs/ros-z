@@ -171,3 +171,15 @@ pub fn check_demo_nodes_cpp_available() -> bool {
         .map(|status| status.success())
         .unwrap_or(false)
 }
+
+/// Check if action_tutorials_cpp package is available
+#[allow(dead_code)]
+pub fn check_action_tutorials_cpp_available() -> bool {
+    Command::new("ros2")
+        .args(["pkg", "prefix", "action_tutorials_cpp"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
+}

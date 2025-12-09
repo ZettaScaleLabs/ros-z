@@ -328,3 +328,170 @@ fn test_ros_z_add_two_ints_server_to_rcl_client() {
 
     println!("✅ Test passed: RCL client called ros-z server");
 }
+
+#[test]
+fn test_rcl_fibonacci_action_server_to_ros_z_client() {
+    if !check_ros2_available() {
+        panic!("ros2 CLI not available - ensure ROS 2 is installed");
+    }
+
+    if !check_action_tutorials_cpp_available() {
+        panic!("action_tutorials_cpp package not found - ensure it is installed");
+    }
+
+    let router = TestRouter::new();
+
+    println!("\n=== Test: RCL demo_nodes_cpp fibonacci action server -> ros-z client ===");
+
+    // Start RCL server
+    let server = Command::new("ros2")
+        .args(["run", "action_tutorials_cpp", "fibonacci_action_server"])
+        .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
+        .env("ZENOH_CONFIG_OVERRIDE", router.rmw_zenoh_env())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("Failed to start RCL fibonacci action server");
+
+    let _server_guard = ProcessGuard::new(server, "RCL fibonacci action server");
+
+    wait_for_ready(Duration::from_secs(5));
+
+    // Start ros-z client in a thread
+    let client_handle = thread::spawn(move || -> Vec<i32> {
+        let ctx =
+            create_ros_z_context_with_router(&router).expect("Failed to create ros-z context");
+
+        // Use the actual client example code
+        tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(async { demo_nodes::run_fibonacci_action_client(ctx, 5).await })
+            .expect("Client failed")
+    });
+
+    let result = client_handle.join().expect("Client thread panicked");
+
+    // Check that we got the correct Fibonacci sequence for order 5
+    let expected = vec![0, 1, 1, 2, 3, 5];
+    assert_eq!(
+        result, expected,
+        "Expected Fibonacci sequence {:?}",
+        expected
+    );
+
+    println!(
+        "✅ Test passed: ros-z client received Fibonacci sequence {:?} from RCL server",
+        result
+    );
+}
+
+#[test]
+fn test_ros_z_fibonacci_action_server_to_rcl_client() {
+    if !check_ros2_available() {
+        panic!("ros2 CLI not available - ensure ROS 2 is installed");
+    }
+
+    if !check_action_tutorials_cpp_available() {
+        panic!("action_tutorials_cpp package not found - ensure it is installed");
+    }
+
+    let router = TestRouter::new();
+
+    println!("\n=== Test: ros-z fibonacci action server -> RCL demo_nodes_cpp client ===");
+
+    // Start ros-z server in a thread
+    let router_endpoint = router.endpoint().to_string();
+    let server_handle = thread::spawn(move || {
+        let ctx = create_ros_z_context_with_endpoint(&router_endpoint)
+            .expect("Failed to create ros-z context");
+
+        // Use the actual server example code
+        let result = tokio::runtime::Runtime::new().unwrap().block_on(async {
+            demo_nodes::run_fibonacci_action_server(ctx, Some(Duration::from_secs(10))).await
+        });
+        result.expect("Server failed");
+    });
+
+    wait_for_ready(Duration::from_secs(2));
+
+    // Start RCL client
+    let client = Command::new("ros2")
+        .args(["run", "action_tutorials_cpp", "fibonacci_action_client"])
+        .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
+        .env("ZENOH_CONFIG_OVERRIDE", router.rmw_zenoh_env())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("Failed to start RCL fibonacci action client");
+
+    let _client_guard = ProcessGuard::new(client, "RCL fibonacci action client");
+
+    // Wait for the client to complete
+    wait_for_ready(Duration::from_secs(10));
+
+    // Stop the server
+    server_handle.join().expect("Server thread panicked");
+
+    println!("✅ Test passed: RCL client called ros-z fibonacci action server");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_ros_z_fibonacci_action_server_to_ros_z_client() {
+    zenoh::init_log_from_env_or("error");
+    let router = TestRouter::new();
+
+    println!("\n=== Test: ros-z fibonacci action server -> ros-z client ===");
+
+    let (fib_tx, fib_rx) = std::sync::mpsc::channel();
+
+    // Start ros-z server in a thread using the example code
+    let router_endpoint = router.endpoint().to_string();
+    let fib_server_handle = tokio::task::spawn(async move {
+        let ctx = create_ros_z_context_with_endpoint(&router_endpoint)
+            .expect("Failed to create ros-z context");
+        let result =
+            demo_nodes::run_fibonacci_action_server(ctx, Some(Duration::from_secs(30))).await;
+        let _ = fib_tx.send(()); // Signal completion
+        result.expect("Server failed");
+    });
+
+    wait_for_ready(Duration::from_secs(2));
+
+    dbg!();
+    // Run ros-z client in the main thread
+    let ctx = create_ros_z_context_with_router(&router).expect("Failed to create ros-z context");
+    let result = demo_nodes::run_fibonacci_action_client(ctx, 5)
+        .await
+        .expect("Client failed");
+    dbg!();
+
+    // Check that we got the correct Fibonacci sequence for order 5
+    let expected = vec![0, 1, 1, 2, 3, 5];
+    assert_eq!(
+        result, expected,
+        "Expected Fibonacci sequence {:?}",
+        expected
+    );
+    dbg!();
+
+    // Wait for server to signal completion (with timeout)
+    match fib_rx.recv_timeout(Duration::from_secs(5)) {
+        Ok(_) => {
+            dbg!();
+            fib_server_handle.await.expect("Server thread panicked");
+            dbg!();
+            println!(
+                "✅ Test passed: ros-z client received Fibonacci sequence {:?} from ros-z server",
+                result
+            );
+        }
+        Err(_) => {
+            println!(
+                "✅ Test passed: ros-z client received Fibonacci sequence {:?} from ros-z server (server still cleaning up)",
+                result
+            );
+            // Don't wait for server join if it's taking too long
+        }
+    }
+    dbg!();
+}
