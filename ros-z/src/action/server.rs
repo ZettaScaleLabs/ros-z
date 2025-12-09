@@ -11,7 +11,9 @@ use std::time::{Duration, Instant};
 use tokio_util::sync::CancellationToken;
 use zenoh::{Result, Wait};
 
+use crate::attachment::Attachment;
 use crate::msg::ZMessage;
+use crate::topic_name::qualify_topic_name;
 use crate::{Builder};
 
 use super::ZAction;
@@ -115,12 +117,14 @@ async fn handle_result_requests<A: ZAction>(
 ) {
     loop {
         if let Ok(query) = result_server.rx.recv_async().await {
+            tracing::debug!("Received result request");
             let payload = query.payload().unwrap().to_bytes();
             let request = <ResultRequest as ZMessage>::deserialize(&payload);
 
             // Look up goal result
             let manager = goal_manager.lock().unwrap();
             if let Some(ServerGoalState::Terminated { result, status, .. }) = manager.goals.get(&request.goal_id) {
+                tracing::debug!("Goal {:?} is terminated with status {:?}", request.goal_id, status);
                 let result_clone = result.clone();
                 let status_clone = *status;
                 drop(manager);
@@ -131,7 +135,15 @@ async fn handle_result_requests<A: ZAction>(
                     result: result_clone,
                 };
                 let response_bytes = <ResultResponse<A> as ZMessage>::serialize(&response);
-                let _ = query.reply(query.key_expr().clone(), response_bytes).wait();
+                let attachment: Attachment = query.attachment().unwrap().try_into().unwrap();
+                let _ = query.reply(query.key_expr().clone(), response_bytes)
+                    .attachment(attachment)
+                    .wait();
+                tracing::debug!("Sent result response");
+            } else {
+                tracing::warn!("Goal {:?} not found or not terminated yet", request.goal_id);
+                drop(manager);
+                // Server doesn't reply if goal is not ready yet
             }
         }
     }
@@ -144,12 +156,20 @@ impl<'a, A: ZAction> Builder for ZActionServerBuilder<'a, A> {
         // Apply remapping to action name
         let action_name = self.node.remap_rules.apply(&self.action_name);
 
+        // Validate action name
+        if action_name.is_empty() {
+            return Err(zenoh::Error::from("Action name cannot be empty"));
+        }
+
+        // Qualify action name like a topic name
+        let qualified_action_name = qualify_topic_name(&action_name, &self.node.entity.namespace, &self.node.entity.name)?;
+
         // ROS 2 action naming conventions
-        let goal_service_name = format!("{}/_action/send_goal", action_name);
-        let result_service_name = format!("{}/_action/get_result", action_name);
-        let cancel_service_name = format!("{}/_action/cancel_goal", action_name);
-        let feedback_topic_name = format!("{}/_action/feedback", action_name);
-        let status_topic_name = format!("{}/_action/status", action_name);
+        let goal_service_name = format!("{}/_action/send_goal", qualified_action_name);
+        let result_service_name = format!("{}/_action/get_result", qualified_action_name);
+        let cancel_service_name = format!("{}/_action/cancel_goal", qualified_action_name);
+        let feedback_topic_name = format!("{}/_action/feedback", qualified_action_name);
+        let status_topic_name = format!("{}/_action/status", qualified_action_name);
 
         // Create goal server using node API for proper graph registration
         let mut goal_server_builder = self.node.create_service_impl::<GoalService<A>>(&goal_service_name, None);
@@ -164,6 +184,7 @@ impl<'a, A: ZAction> Builder for ZActionServerBuilder<'a, A> {
             result_server_builder.entity.qos = qos;
         }
         let result_server = result_server_builder.build()?;
+        tracing::debug!("📡 Created result server for: {}", result_service_name);
 
         // Create cancel server using node API for proper graph registration
         let mut cancel_server_builder = self.node.create_service_impl::<CancelService>(&cancel_service_name, None);
@@ -272,7 +293,7 @@ impl<A: ZAction> ZActionServer<A> {
         let _ = self.status_pub.publish(&msg);
     }
 
-    pub async fn recv_goal(&self) -> Result<RequestedGoal<A>> {
+    pub async fn recv_goal(self: &Arc<Self>) -> Result<RequestedGoal<A>> {
         let query = self.goal_server.rx.recv_async().await?;
         let payload = query.payload().unwrap().to_bytes();
         let request = <GoalRequest<A> as ZMessage>::deserialize(&payload);
@@ -280,7 +301,7 @@ impl<A: ZAction> ZActionServer<A> {
         Ok(RequestedGoal {
             goal: request.goal,
             info: GoalInfo::new(request.goal_id),
-            server: Arc::new(self.clone()),
+            server: Arc::clone(self),
             query,
         })
     }
@@ -313,7 +334,10 @@ impl<A: ZAction> ZActionServer<A> {
 
     pub fn send_goal_response_low(&self, query: &zenoh::query::Query, response: &super::messages::GoalResponse) -> Result<()> {
         let response_bytes = <super::messages::GoalResponse as ZMessage>::serialize(response);
-        let _ = query.reply(query.key_expr().clone(), response_bytes).wait();
+        let attachment: Attachment = query.attachment().unwrap().try_into().unwrap();
+        let _ = query.reply(query.key_expr().clone(), response_bytes)
+            .attachment(attachment)
+            .wait();
         Ok(())
     }
 
@@ -326,13 +350,19 @@ impl<A: ZAction> ZActionServer<A> {
 
     pub fn send_cancel_response_low(&self, query: &zenoh::query::Query, response: &super::messages::CancelGoalResponse) -> Result<()> {
         let response_bytes = <super::messages::CancelGoalResponse as ZMessage>::serialize(response);
-        let _ = query.reply(query.key_expr().clone(), response_bytes).wait();
+        let attachment: Attachment = query.attachment().unwrap().try_into().unwrap();
+        let _ = query.reply(query.key_expr().clone(), response_bytes)
+            .attachment(attachment)
+            .wait();
         Ok(())
     }
 
     pub fn send_result_response_low(&self, query: &zenoh::query::Query, response: &super::messages::ResultResponse<A>) -> Result<()> {
         let response_bytes = <super::messages::ResultResponse<A> as ZMessage>::serialize(response);
-        let _ = query.reply(query.key_expr().clone(), response_bytes).wait();
+        let attachment: Attachment = query.attachment().unwrap().try_into().unwrap();
+        let _ = query.reply(query.key_expr().clone(), response_bytes)
+            .attachment(attachment)
+            .wait();
         Ok(())
     }
 
@@ -464,7 +494,10 @@ impl<A: ZAction> RequestedGoal<A> {
         // Send acceptance response
         let response = GoalResponse { accepted: true, stamp: self.info.stamp };
         let response_bytes = <GoalResponse as ZMessage>::serialize(&response);
-        let _ = self.query.reply(self.query.key_expr().clone(), response_bytes).wait();
+        let attachment: Attachment = self.query.attachment().unwrap().try_into().unwrap();
+        let _ = self.query.reply(self.query.key_expr().clone(), response_bytes)
+            .attachment(attachment)
+            .wait();
 
         // Update server state to ACCEPTED
         {
@@ -494,7 +527,10 @@ impl<A: ZAction> RequestedGoal<A> {
         // Send rejection response
         let response = GoalResponse { accepted: false, stamp: 0 };
         let response_bytes = <GoalResponse as ZMessage>::serialize(&response);
-        let _ = self.query.reply(self.query.key_expr().clone(), response_bytes).wait();
+        let attachment: Attachment = self.query.attachment().unwrap().try_into().unwrap();
+        let _ = self.query.reply(self.query.key_expr().clone(), response_bytes)
+            .attachment(attachment)
+            .wait();
         Ok(())
     }
 }
