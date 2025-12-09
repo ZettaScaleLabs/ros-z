@@ -12,6 +12,7 @@ use zenoh::Result;
 
 use crate::msg::ZMessage;
 use crate::qos::QosProfile;
+use crate::topic_name::qualify_topic_name;
 use crate::{Builder};
 
 use super::ZAction;
@@ -101,12 +102,20 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
         // Apply remapping to action name
         let action_name = self.node.remap_rules.apply(&self.action_name);
 
+        // Validate action name is not empty
+        if action_name.is_empty() {
+            return Err(zenoh::Error::from("Action name cannot be empty"));
+        }
+
+        // Qualify action name like a topic name
+        let qualified_action_name = qualify_topic_name(&action_name, &self.node.entity.namespace, &self.node.entity.name)?;
+
         // ROS 2 action naming conventions
-        let goal_service_name = format!("{}/_action/send_goal", action_name);
-        let result_service_name = format!("{}/_action/get_result", action_name);
-        let cancel_service_name = format!("{}/_action/cancel_goal", action_name);
-        let feedback_topic_name = format!("{}/_action/feedback", action_name);
-        let status_topic_name = format!("{}/_action/status", action_name);
+        let goal_service_name = format!("{}/_action/send_goal", qualified_action_name);
+        let result_service_name = format!("{}/_action/get_result", qualified_action_name);
+        let cancel_service_name = format!("{}/_action/cancel_goal", qualified_action_name);
+        let feedback_topic_name = format!("{}/_action/feedback", qualified_action_name);
+        let status_topic_name = format!("{}/_action/status", qualified_action_name);
 
         // Create goal client using node API for proper graph registration
         let mut goal_client_builder = self.node.create_client_impl::<GoalService<A>>(&goal_service_name, None);
@@ -121,6 +130,7 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
             result_client_builder.entity.qos = qos;
         }
         let result_client = result_client_builder.build()?;
+        tracing::debug!("📞 Created result client for: {}", result_service_name);
 
         // Create cancel client using node API for proper graph registration
         let mut cancel_client_builder = self.node.create_client_impl::<CancelService>(&cancel_service_name, None);
@@ -305,7 +315,6 @@ impl<A: ZAction> ZActionClient<A> {
         // 1. Create channels for this goal
         let (feedback_tx, feedback_rx) = mpsc::unbounded_channel();
         let (status_tx, status_rx) = watch::channel(GoalStatus::Unknown);
-        let (result_tx, result_rx) = oneshot::channel();
 
         // 2. Store channels in goal board
         {
@@ -313,7 +322,6 @@ impl<A: ZAction> ZActionClient<A> {
             board.active_goals.insert(goal_id, GoalChannels {
                 feedback_tx,
                 status_tx,
-                result_tx: Some(result_tx),
             });
         }
 
@@ -339,7 +347,6 @@ impl<A: ZAction> ZActionClient<A> {
             client: Arc::new(self.clone()),
             feedback_rx: Some(feedback_rx),
             status_rx: Some(status_rx),
-            result_rx: Some(result_rx),
         })
     }
 
@@ -347,11 +354,8 @@ impl<A: ZAction> ZActionClient<A> {
         let goal_info = GoalInfo::new(goal_id);
         let request = CancelGoalRequest { goal_info };
 
-        tracing::trace!("🟡 Sending cancel request for goal {:?}", goal_id);
         self.cancel_client.send_request(&request).await?;
-        tracing::trace!("🟡 Waiting for cancel response...");
         let sample = self.cancel_client.rx.recv_async().await?;
-        tracing::trace!("🟢 Received cancel response");
         let payload = sample.payload().to_bytes();
         let response = <CancelGoalResponse as ZMessage>::deserialize(&payload);
         Ok(response)
@@ -440,7 +444,6 @@ struct GoalBoard<A: ZAction> {
 struct GoalChannels<A: ZAction> {
     feedback_tx: mpsc::UnboundedSender<A::Feedback>,
     status_tx: watch::Sender<GoalStatus>,
-    result_tx: Option<oneshot::Sender<A::Result>>,
 }
 
 /// Handle for monitoring and controlling an active goal.
@@ -476,9 +479,6 @@ pub struct GoalHandle<A: ZAction> {
     feedback_rx: Option<mpsc::UnboundedReceiver<A::Feedback>>,
     /// Receiver for status updates.
     status_rx: Option<watch::Receiver<GoalStatus>>,
-    /// Receiver for the final result.
-    #[allow(dead_code)]
-    result_rx: Option<oneshot::Receiver<A::Result>>,
 }
 
 impl<A: ZAction> GoalHandle<A> {
@@ -500,7 +500,25 @@ impl<A: ZAction> GoalHandle<A> {
     }
 
     pub async fn result(&mut self) -> Result<A::Result> {
-        // Request the result from the server
+        // First, wait for the goal to reach a terminal state
+        if let Some(mut status_rx) = self.status_rx.take() {
+            loop {
+                let status = *status_rx.borrow_and_update();
+
+                // Check if we're in a terminal state
+                if status.is_terminal() {
+                    break;
+                }
+
+                // Wait for status change
+                if status_rx.changed().await.is_err() {
+                    tracing::warn!("Status channel closed before reaching terminal state");
+                    break;
+                }
+            }
+        }
+
+        // Now request the result
         self.client.get_result(self.id).await
     }
 
