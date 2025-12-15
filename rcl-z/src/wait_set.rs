@@ -292,33 +292,6 @@ impl rcl_wait_set_t {
         self.events = std::ptr::null_mut();
     }
 
-    // fn write_ptr(&mut self, kind: &WaitSetKind, box_ptr: &Box<[*const c_void]>) {
-    //     match kind {
-    //         WaitSetKind::Subscription => {
-    //             self.subscriptions = box_ptr.as_ptr() as _;
-    //             self.size_of_subscriptions = box_ptr.len();
-    //         }
-    //         WaitSetKind::Client => {
-    //             self.clients = box_ptr.as_ptr() as _;
-    //             self.size_of_clients = box_ptr.len();
-    //         }
-    //         WaitSetKind::Service => {
-    //             self.services = box_ptr.as_ptr() as _;
-    //             self.size_of_services = box_ptr.len();
-    //
-    //             dbg!(self.services);
-    //             unsafe {
-    //                 let x = std::slice::from_raw_parts_mut(self.services, self.size_of_services);
-    //                 dbg!(x);
-    //             }
-    //         }
-    //         WaitSetKind::GuradCondition => {
-    //             self.guard_conditions = box_ptr.as_ptr() as _;
-    //             self.size_of_guard_conditions = box_ptr.len();
-    //         }
-    //     }
-    // }
-
     fn write(&mut self, kind: WaitSetKind, ptr: *mut *const c_void, len: usize) {
         match kind {
             WaitSetKind::Subscription => {
@@ -422,63 +395,6 @@ impl rcl_wait_set_t {
             self.drop_pointer(x);
         });
     }
-
-    // fn assign_pointers(&mut self) {
-    //     dbg!(
-    //         self.borrow_impl()
-    //             .mirror
-    //             .clone()
-    //             .as_ref()
-    //             .unwrap()
-    //             .get(&WaitSetKind::Service)
-    //             .unwrap()
-    //             .as_ptr()
-    //     );
-    //     if let Some(mirror) = self.borrow_impl().mirror.clone() {
-    //         mirror.iter().for_each(|(kind, box_ptr)| {
-    //             tracing::error!("Assign {kind:?}: {box_ptr:?}");
-    //             self.write_ptr(kind, box_ptr);
-    //         });
-    //     }
-    //     unsafe {
-    //         let x = std::slice::from_raw_parts_mut(self.services, self.size_of_services);
-    //         dbg!("finished", x);
-    //         dbg!(
-    //             self.borrow_impl()
-    //                 .mirror
-    //                 .as_ref()
-    //                 .unwrap()
-    //                 .get(&WaitSetKind::Service)
-    //                 .unwrap()
-    //                 .as_ptr()
-    //         );
-    //     }
-    // }
-
-    // fn debug(&self) {
-    //     WaitSetKind::iter().for_each(|kind| match kind {
-    //         WaitSetKind::Subscription => unsafe {
-    //             let x =
-    //                 std::slice::from_raw_parts_mut(self.subscriptions, self.size_of_subscriptions);
-    //             dbg!(kind, x);
-    //         },
-    //         WaitSetKind::Client => unsafe {
-    //             let x = std::slice::from_raw_parts_mut(self.clients, self.size_of_clients);
-    //             dbg!(kind, x);
-    //         },
-    //         WaitSetKind::Service => unsafe {
-    //             let x = std::slice::from_raw_parts_mut(self.services, self.size_of_services);
-    //             dbg!(kind, x);
-    //         },
-    //         WaitSetKind::GuradCondition => unsafe {
-    //             let x = std::slice::from_raw_parts_mut(
-    //                 self.guard_conditions,
-    //                 self.size_of_guard_conditions,
-    //             );
-    //             dbg!(kind, x);
-    //         },
-    //     });
-    // }
 }
 
 #[unsafe(no_mangle)]

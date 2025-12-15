@@ -26,6 +26,148 @@ impl Default for CodegenConfig {
     }
 }
 
+/// Inject action wrapper structs into their corresponding package modules
+fn inject_action_structs_into_modules(
+    items: &mut [syn::Item],
+    actions: &[roslibrust_codegen::ActionWithHashes],
+) -> Result<()> {
+    use std::collections::HashMap;
+
+    // Group actions by package
+    let mut actions_by_package: HashMap<String, Vec<&roslibrust_codegen::ActionWithHashes>> = HashMap::new();
+    for action in actions {
+        actions_by_package
+            .entry(action.get_package_name().to_string())
+            .or_default()
+            .push(action);
+    }
+
+    // Find and modify package modules
+    for item in items.iter_mut() {
+        if let syn::Item::Mod(mod_item) = item {
+            let mod_name = mod_item.ident.to_string();
+
+            if let Some(package_actions) = actions_by_package.get(&mod_name)
+                && let Some((_, ref mut content)) = mod_item.content
+            {
+                // Create an action submodule to hold all action definitions
+                let mut action_mod_content = Vec::new();
+
+                // Generate action structs for this package
+                for action in package_actions {
+                    let action_name = action.get_short_name();
+                    let action_struct_name = syn::Ident::new(&action_name, proc_macro2::Span::call_site());
+
+                    let goal_ident = syn::Ident::new(&format!("{}Goal", action_name), proc_macro2::Span::call_site());
+                    let result_ident = syn::Ident::new(&format!("{}Result", action_name), proc_macro2::Span::call_site());
+                    let feedback_ident = syn::Ident::new(&format!("{}Feedback", action_name), proc_macro2::Span::call_site());
+
+                    // Convert package name to PascalCase for helper struct names
+                    let package_pascal = mod_name
+                        .split('_')
+                        .map(|word| {
+                            let mut c = word.chars();
+                            match c.next() {
+                                None => String::new(),
+                                Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+                            }
+                        })
+                        .collect::<String>();
+
+                    let send_goal_name = syn::Ident::new(&format!("{}{}SendGoal", package_pascal, action_name), proc_macro2::Span::call_site());
+                    let get_result_name = syn::Ident::new(&format!("{}{}GetResult", package_pascal, action_name), proc_macro2::Span::call_site());
+                    let feedback_msg_name = syn::Ident::new(&format!("{}{}FeedbackMessage", package_pascal, action_name), proc_macro2::Span::call_site());
+
+                    // Action name as lowercase snake_case
+                    let action_name_lower = action_name
+                        .chars()
+                        .enumerate()
+                        .flat_map(|(i, c)| {
+                            if c.is_uppercase() && i > 0 {
+                                vec!['_', c.to_ascii_lowercase()]
+                            } else {
+                                vec![c.to_ascii_lowercase()]
+                            }
+                        })
+                        .collect::<String>();
+
+                    // Create documentation
+                    let doc_comment = format!(
+                        "Action type for {}\n\n\
+                         This struct can be used directly with ros-z action clients and servers\n\
+                         without needing to manually implement the ZAction trait.\n\n\
+                         # Example\n\
+                         ```no_run\n\
+                         use ros_z_msgs::{}::action::{};\n\n\
+                         // Create an action server\n\
+                         let server = node\n\
+                             .create_action_server::<{}>(\"{}\")\n\
+                             .build()?;\n\
+                         ```",
+                        action_name, mod_name, action_name, action_name, action_name_lower
+                    );
+
+                    // Generate the action struct and impl
+                    let action_tokens = quote! {
+                        #[doc = #doc_comment]
+                        pub struct #action_struct_name;
+
+                        impl ::ros_z::action::ZAction for #action_struct_name {
+                            type Goal = super::#goal_ident;
+                            type Result = super::#result_ident;
+                            type Feedback = super::#feedback_ident;
+
+                            fn name() -> &'static str {
+                                #action_name_lower
+                            }
+
+                            fn send_goal_type_info() -> ::ros_z::entity::TypeInfo {
+                                <super::super::#send_goal_name as ::ros_z::ServiceTypeInfo>::service_type_info()
+                            }
+
+                            fn get_result_type_info() -> ::ros_z::entity::TypeInfo {
+                                <super::super::#get_result_name as ::ros_z::ServiceTypeInfo>::service_type_info()
+                            }
+
+                            fn cancel_goal_type_info() -> ::ros_z::entity::TypeInfo {
+                                <super::super::action_msgs::CancelGoal as ::ros_z::ServiceTypeInfo>::service_type_info()
+                            }
+
+                            fn feedback_type_info() -> ::ros_z::entity::TypeInfo {
+                                <super::super::#feedback_msg_name as ::ros_z::MessageTypeInfo>::type_info()
+                            }
+
+                            fn status_type_info() -> ::ros_z::entity::TypeInfo {
+                                <super::super::action_msgs::GoalStatusArray as ::ros_z::MessageTypeInfo>::type_info()
+                            }
+                        }
+                    };
+
+                    // Parse and add to action module content
+                    let parsed: syn::File = syn::parse2(action_tokens)
+                        .context("Failed to parse action struct tokens")?;
+                    action_mod_content.extend(parsed.items);
+                }
+
+                // Create the action submodule and add it to the package module
+                let action_module = syn::ItemMod {
+                    attrs: vec![],
+                    vis: syn::Visibility::Public(syn::token::Pub::default()),
+                    unsafety: None,
+                    mod_token: syn::token::Mod::default(),
+                    ident: syn::Ident::new("action", proc_macro2::Span::call_site()),
+                    content: Some((syn::token::Brace::default(), action_mod_content)),
+                    semi: None,
+                };
+
+                content.push(syn::Item::Mod(action_module));
+            }
+        }
+    }
+
+    Ok(())
+}
+
 /// Recursively deduplicate struct definitions by name, keeping the first occurrence
 fn dedup_structs_recursive(items: &mut Vec<syn::Item>) {
     let mut struct_map: std::collections::BTreeMap<String, syn::ItemStruct> = std::collections::BTreeMap::new();
@@ -77,7 +219,10 @@ pub fn generate_ros_messages_with_config(
     let package_paths_vec: Vec<PathBuf> = package_paths.into_iter().map(|p| p.to_path_buf()).collect();
 
     // Parse all messages to get their metadata
-    let (messages, services, _actions) = roslibrust_codegen::find_and_parse_ros_messages(&package_paths_vec)?;
+    let (messages, services, parsed_actions) = roslibrust_codegen::find_and_parse_ros_messages(&package_paths_vec)?;
+
+    // Resolve action hashes from JSON metadata
+    let actions = roslibrust_codegen::resolve_action_hashes(parsed_actions);
 
     // Filter out deprecated actionlib messages and unsupported wstring messages
     // actionlib_msgs was deprecated in ROS 2 and causes dependency resolution issues
@@ -164,6 +309,12 @@ pub fn generate_ros_messages_with_config(
             let service_info_tokens = generate_service_type_info_tokens(&resolved_srvs)?;
             token_stream.extend(service_info_tokens);
         }
+
+        // Generate trait implementations for actions
+        if !actions.is_empty() {
+            let action_info_tokens = generate_action_type_info_tokens(&actions)?;
+            token_stream.extend(action_info_tokens);
+        }
     }
 
     // Deduplicate duplicate struct definitions (e.g., Arrays, BasicTypes, Empty)
@@ -172,6 +323,11 @@ pub fn generate_ros_messages_with_config(
         .context("Failed to parse generated token stream for deduplication")?;
 
     dedup_structs_recursive(&mut syntax_tree.items);
+
+    // Inject action structs into package modules if we have actions
+    if !actions.is_empty() {
+        inject_action_structs_into_modules(&mut syntax_tree.items, &actions)?;
+    }
 
     token_stream = quote::quote! { #syntax_tree };
 
@@ -388,6 +544,98 @@ fn generate_service_type_info_tokens(services: &[ServiceFile]) -> Result<TokenSt
         };
 
         tokens.extend(impl_block);
+    }
+
+    Ok(tokens)
+}
+
+/// Generate type info implementations for action helper types (SendGoal, GetResult, FeedbackMessage)
+/// Note: The main action structs are injected directly into package modules by inject_action_structs_into_modules
+fn generate_action_type_info_tokens(actions: &[roslibrust_codegen::ActionWithHashes]) -> Result<TokenStream> {
+    let mut tokens = TokenStream::new();
+
+    for action in actions {
+        let package_name = action.get_package_name();
+        let action_name = action.get_short_name();
+
+        // Convert package name to PascalCase
+        let package_pascal = package_name
+            .split('_')
+            .map(|word| {
+                let mut c = word.chars();
+                match c.next() {
+                    None => String::new(),
+                    Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+                }
+            })
+            .collect::<String>();
+
+        // Generate flat struct names at root level for helper types
+        let send_goal_name = syn::Ident::new(&format!("{}{}SendGoal", package_pascal, action_name), proc_macro2::Span::call_site());
+        let send_goal_hash = action.send_goal_hash.to_hash_string();
+        let send_goal_ros_type = format!("{}::action::dds_::{}_{}", package_name, action_name, "SendGoal_");
+
+        let get_result_name = syn::Ident::new(&format!("{}{}GetResult", package_pascal, action_name), proc_macro2::Span::call_site());
+        let get_result_hash = action.get_result_hash.to_hash_string();
+        let get_result_ros_type = format!("{}::action::dds_::{}_{}", package_name, action_name, "GetResult_");
+
+        let feedback_msg_name = syn::Ident::new(&format!("{}{}FeedbackMessage", package_pascal, action_name), proc_macro2::Span::call_site());
+        let feedback_msg_hash = action.feedback_message_hash.to_hash_string();
+        let feedback_msg_ros_type = format!("{}::action::dds_::{}_{}", package_name, action_name, "FeedbackMessage_");
+
+        // Generate helper struct definitions at root level (not the main action struct)
+        let struct_defs = quote! {
+            // SendGoal service wrapper (empty struct for type info only)
+            pub struct #send_goal_name {}
+
+            // GetResult service wrapper (empty struct for type info only)
+            pub struct #get_result_name {}
+
+            // FeedbackMessage (empty struct for type info only)
+            pub struct #feedback_msg_name {}
+        };
+
+        let impl_blocks = quote! {
+            impl ::ros_z::ServiceTypeInfo for #send_goal_name {
+                fn service_type_info() -> ::ros_z::TypeInfo {
+                    ::ros_z::TypeInfo::new(
+                        #send_goal_ros_type,
+                        ::ros_z::TypeHash::from_rihs_string(#send_goal_hash)
+                            .expect("Invalid RIHS01 hash")
+                    )
+                }
+            }
+
+            impl ::ros_z::ServiceTypeInfo for #get_result_name {
+                fn service_type_info() -> ::ros_z::TypeInfo {
+                    ::ros_z::TypeInfo::new(
+                        #get_result_ros_type,
+                        ::ros_z::TypeHash::from_rihs_string(#get_result_hash)
+                            .expect("Invalid RIHS01 hash")
+                    )
+                }
+            }
+
+            impl ::ros_z::MessageTypeInfo for #feedback_msg_name {
+                fn type_name() -> &'static str {
+                    #feedback_msg_ros_type
+                }
+
+                fn type_hash() -> ::ros_z::entity::TypeHash {
+                    ::ros_z::entity::TypeHash::from_rihs_string(#feedback_msg_hash)
+                        .expect("Invalid RIHS hash string")
+                }
+
+                fn type_info() -> ::ros_z::entity::TypeInfo {
+                    ::ros_z::TypeInfo::new(Self::type_name(), Self::type_hash())
+                }
+            }
+
+            impl ::ros_z::ros_msg::WithTypeInfo for #feedback_msg_name {}
+        };
+
+        tokens.extend(struct_defs);
+        tokens.extend(impl_blocks);
     }
 
     Ok(tokens)

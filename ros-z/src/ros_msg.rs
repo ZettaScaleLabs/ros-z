@@ -98,6 +98,26 @@ pub trait ServiceTypeInfo {
     }
 }
 
+/// Trait for ROS action types that provides action-level type information
+/// This trait supports compile-time (static) type information.
+///
+/// For actions, the type name should be based on the action name and the hash should be
+/// the composite action hash.
+///
+/// ## Static Methods (Compile-time)
+/// For generated Rust action types where type info is known at compile time (e.g., ros-z-msgs).
+pub trait ActionTypeInfo {
+    /// Returns the action type info (type name and hash for the action)
+    /// Static method for compile-time known types
+    fn action_type_info() -> TypeInfo;
+
+    /// Returns the action type info at runtime
+    /// Override this for types that need to query type info dynamically
+    fn action_type_info_dyn(&self) -> TypeInfo {
+        Self::action_type_info()
+    }
+}
+
 pub mod srv {
 
     use crate::msg::{ZMessage, ZService};

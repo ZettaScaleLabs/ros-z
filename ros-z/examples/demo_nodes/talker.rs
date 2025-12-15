@@ -24,7 +24,6 @@ pub async fn run_talker(
     let node = ctx.create_node("talker").build()?;
 
     // Create a publisher with a custom Quality of Service profile
-    // Using history depth of 7 to match the C++ example (KeepLast(7))
     let qos = QosProfile {
         history: QosHistory::KeepLast(7),
         ..Default::default()

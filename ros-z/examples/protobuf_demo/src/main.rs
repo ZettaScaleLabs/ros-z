@@ -85,7 +85,7 @@ fn main() -> Result<()> {
         std::thread::sleep(Duration::from_millis(500));
     }
 
-    println!("\n✅ Successfully demonstrated both protobuf approaches!");
+    println!("\nSuccessfully demonstrated both protobuf approaches!");
     println!("\nKey points:");
     println!("1. ROS messages (Vector3Proto): Auto-generated from ros-z-msgs with MessageTypeInfo");
     println!("2. Custom messages (SensorData): Generated from your own .proto files");

@@ -1,6 +1,12 @@
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicU16, Ordering};
 use std::thread;
 use std::time::Duration;
+
+use nix::sys::signal::{self, Signal};
+use nix::unistd::Pid;
+use zenoh::config::WhatAmI;
+use zenoh::Wait;
 
 /// Helper to manage background processes with automatic cleanup
 pub struct ProcessGuard {
@@ -21,48 +27,46 @@ impl ProcessGuard {
 impl Drop for ProcessGuard {
     fn drop(&mut self) {
         if let Some(mut child) = self.child.take() {
-            println!("Stopping process: {}", self.name);
-            // NOTE(Carter12s): cannot directly kill a `ros2` command line command
-            // As that will kill the commandline process without giving it time to shutdown whatever
-            // child processes it spawns.
-            let pid = child.id();
+            let pid = child.id() as i32;
+            // Negative PID targets the process group
+            let pgid = Pid::from_raw(-pid);
 
-            // Send Ctrl-C to trigger graceful shutdown
-            if let Err(e) = nix::sys::signal::kill(
-                nix::unistd::Pid::from_raw(pid as _),
-                nix::sys::signal::SIGINT,
-            ) {
-                eprintln!("Failed to send SIGINT to process {}: {}", self.name, e);
+            println!("Stopping process group: {}", self.name);
+
+            // 1. Send SIGINT to the whole process group
+            // This ensures both the ros2 CLI wrapper and the actual node receive the signal
+            if let Err(e) = signal::kill(pgid, Signal::SIGINT) {
+                eprintln!("Failed to send SIGINT to group {}: {}", self.name, e);
+                // Fallback: try killing just the parent handle we have
                 let _ = child.kill();
-                let _ = child.wait();
-                return;
             }
 
-            // Wait for graceful shutdown with a timeout
+            // 2. Wait for graceful shutdown with a timeout
             let start = std::time::Instant::now();
             let timeout = Duration::from_secs(5);
 
             loop {
                 match child.try_wait() {
                     Ok(Some(status)) => {
-                        println!("Process {} exited with status: {:?}", self.name, status);
-                        break;
+                        println!("Process {} exited gracefully with status: {:?}", self.name, status);
+                        return;
                     }
                     Ok(None) => {
                         if start.elapsed() > timeout {
                             eprintln!(
-                                "Process {} did not exit gracefully, sending SIGKILL",
+                                "Timeout reached for {}, sending SIGKILL to group",
                                 self.name
                             );
-                            let _ = child.kill();
-                            let _ = child.wait();
+                            // 3. Force kill the group if it's still running
+                            let _ = signal::kill(pgid, Signal::SIGKILL);
+                            let _ = child.wait(); // Clean up zombie
                             break;
                         }
                         thread::sleep(Duration::from_millis(100));
                     }
                     Err(e) => {
                         eprintln!("Error waiting for process {}: {}", self.name, e);
-                        let _ = child.kill();
+                        let _ = signal::kill(pgid, Signal::SIGKILL);
                         let _ = child.wait();
                         break;
                     }
@@ -72,47 +76,77 @@ impl Drop for ProcessGuard {
     }
 }
 
-/// Global zenohd daemon shared across ALL tests
-pub static ZENOHD: once_cell::sync::Lazy<ProcessGuard> = once_cell::sync::Lazy::new(|| {
-    println!("🚀 Starting shared rmw_zenohd daemon...");
+/// Port counter for generating unique Zenoh router ports per test
+/// Use process ID to ensure unique ports across test binaries running in parallel
+static NEXT_PORT: once_cell::sync::Lazy<AtomicU16> = once_cell::sync::Lazy::new(|| {
+    let pid = std::process::id();
+    // Start from a port derived from PID to avoid collisions
+    // Use higher ports (30000-60000) to avoid common service ports
+    let base_port = 30000 + ((pid % 10000) as u16);
+    println!("Test process {} using base port {}", pid, base_port);
 
-    // Check if rmw_zenoh_cpp is available
-    if !check_rmw_zenoh_available() {
-        panic!(
-            "rmw_zenoh_cpp package not found!\n\
-             Please install it with: apt install ros-$ROS_DISTRO-rmw-zenoh-cpp\n\
-             Or ensure ROS environment is sourced: source /opt/ros/$ROS_DISTRO/setup.bash"
-        );
-    }
-
-    let child = Command::new("ros2")
-        .args(["run", "rmw_zenoh_cpp", "rmw_zenohd"])
-        .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("Failed to start rmw_zenohd - ensure rmw_zenoh_cpp is installed");
-
-    // Wait for zenohd to be ready
-    thread::sleep(Duration::from_secs(2));
-    println!("✅ rmw_zenohd daemon ready on tcp/127.0.0.1:7447");
-
-    ProcessGuard::new(child, "rmw_zenohd")
+    AtomicU16::new(base_port)
 });
 
-/// Ensure zenohd is running (call this at the start of each test)
-pub fn ensure_zenohd_running() {
-    // Force lazy initialization
-    let _ = &*ZENOHD;
+/// Per-test Zenoh router configuration
+pub struct TestRouter {
+    pub port: u16,
+    pub endpoint: String,
+    _session: zenoh::Session,
 }
 
-/// Create a ros-z context configured to connect to local zenohd
-pub fn create_ros_z_context() -> ros_z::Result<ros_z::context::ZContext> {
+impl TestRouter {
+    /// Start a new Zenoh router session on a unique port for this test
+    pub fn new() -> Self {
+        let port = NEXT_PORT.fetch_add(1, Ordering::SeqCst);
+        let endpoint = format!("tcp/127.0.0.1:{}", port);
+
+        println!("Starting Zenoh router on port {}...", port);
+
+        // Create Zenoh router session programmatically
+        let mut config = zenoh::Config::default();
+        config.set_mode(Some(WhatAmI::Router)).unwrap();
+        config.insert_json5("listen/endpoints", &format!("[\"{}\"]", endpoint)).unwrap();
+        config.insert_json5("scouting/multicast/enabled", "false").unwrap();
+
+        let session = zenoh::open(config)
+            .wait()
+            .expect("Failed to open Zenoh router session");
+
+        // Wait for router to be ready
+        thread::sleep(Duration::from_millis(500));
+        println!("Zenoh router ready on {}", endpoint);
+
+        Self {
+            port,
+            endpoint: endpoint.clone(),
+            _session: session,
+        }
+    }
+
+    /// Get the endpoint string for this router
+    pub fn endpoint(&self) -> &str {
+        &self.endpoint
+    }
+
+    /// Get environment variable override for RMW Zenoh
+    pub fn rmw_zenoh_env(&self) -> String {
+        format!("connect/endpoints=[\"tcp/127.0.0.1:{}\"]", self.port)
+    }
+}
+
+/// Create a ros-z context configured to connect to a specific Zenoh router
+pub fn create_ros_z_context_with_router(router: &TestRouter) -> ros_z::Result<ros_z::context::ZContext> {
+    create_ros_z_context_with_endpoint(router.endpoint())
+}
+
+/// Create a ros-z context configured to connect to a specific endpoint
+pub fn create_ros_z_context_with_endpoint(endpoint: &str) -> ros_z::Result<ros_z::context::ZContext> {
     use ros_z::{Builder, context::ZContextBuilder};
 
     ZContextBuilder::default()
         .disable_multicast_scouting()
-        .connect_to_local_zenohd()
+        .with_connect_endpoints([endpoint])
         .build()
 }
 
@@ -126,10 +160,11 @@ pub fn check_ros2_available() -> bool {
     Command::new("ros2").arg("--version").output().is_ok()
 }
 
-/// Check if rmw_zenoh_cpp package is available
-pub fn check_rmw_zenoh_available() -> bool {
+/// Check if demo_nodes_cpp package is available
+#[allow(dead_code)]
+pub fn check_demo_nodes_cpp_available() -> bool {
     Command::new("ros2")
-        .args(["pkg", "prefix", "rmw_zenoh_cpp"])
+        .args(["pkg", "prefix", "demo_nodes_cpp"])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()
@@ -137,11 +172,11 @@ pub fn check_rmw_zenoh_available() -> bool {
         .unwrap_or(false)
 }
 
-/// Check if demo_nodes_cpp package is available
+/// Check if action_tutorials_cpp package is available
 #[allow(dead_code)]
-pub fn check_demo_nodes_cpp_available() -> bool {
+pub fn check_action_tutorials_cpp_available() -> bool {
     Command::new("ros2")
-        .args(["pkg", "prefix", "demo_nodes_cpp"])
+        .args(["pkg", "prefix", "action_tutorials_cpp"])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()

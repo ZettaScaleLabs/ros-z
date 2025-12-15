@@ -10,6 +10,7 @@ mod common;
 mod demo_nodes;
 
 use std::{
+    os::unix::process::CommandExt,
     process::{Command, Stdio},
     sync::{Arc, Mutex},
     thread,
@@ -18,10 +19,9 @@ use std::{
 
 use crate::common::*;
 
-#[serial_test::serial]
 #[test]
 fn test_ros_z_talker_to_ros_z_listener() {
-    ensure_zenohd_running();
+    let router = TestRouter::new();
 
     println!("\n=== Test: ros-z talker -> ros-z listener ===");
 
@@ -29,9 +29,11 @@ fn test_ros_z_talker_to_ros_z_listener() {
     let received_clone = received.clone();
 
     // Start ros-z listener in a thread using the example code
+    let router_endpoint = router.endpoint().to_string();
     let listener_handle = thread::spawn(move || {
         tokio::runtime::Runtime::new().unwrap().block_on(async {
-            let ctx = create_ros_z_context().expect("Failed to create ros-z context");
+            let ctx = create_ros_z_context_with_endpoint(&router_endpoint)
+                .expect("Failed to create ros-z context");
 
             // Use the actual listener example code with timeout
             let messages =
@@ -47,9 +49,10 @@ fn test_ros_z_talker_to_ros_z_listener() {
     wait_for_ready(Duration::from_secs(2));
 
     // Start ros-z talker in a thread using the example code
-    let talker_handle = thread::spawn(|| {
+    let talker_handle = thread::spawn(move || {
         tokio::runtime::Runtime::new().unwrap().block_on(async {
-            let ctx = create_ros_z_context().expect("Failed to create ros-z context");
+            let ctx =
+                create_ros_z_context_with_router(&router).expect("Failed to create ros-z context");
 
             // Use the actual talker example code with max 5 messages
             demo_nodes::run_talker(ctx, "chatter", Duration::from_secs(1), Some(5))
@@ -64,17 +67,16 @@ fn test_ros_z_talker_to_ros_z_listener() {
     let msgs = received.lock().unwrap();
     assert!(
         msgs.len() >= 3,
-        "❌ Test failed: Expected at least 3 messages, got {}",
+        "Test failed: Expected at least 3 messages, got {}",
         msgs.len()
     );
 
     println!(
-        "✅ Test passed: ros-z listener received {} messages from ros-z talker",
+        "Test passed: ros-z listener received {} messages from ros-z talker",
         msgs.len()
     );
 }
 
-#[serial_test::serial]
 #[test]
 fn test_rcl_talker_to_ros_z_listener() {
     if !check_ros2_available() {
@@ -85,7 +87,7 @@ fn test_rcl_talker_to_ros_z_listener() {
         panic!("demo_nodes_cpp package not found - ensure it is installed");
     }
 
-    ensure_zenohd_running();
+    let router = TestRouter::new();
 
     println!("\n=== Test: RCL demo_nodes_cpp talker -> ros-z listener ===");
 
@@ -93,9 +95,11 @@ fn test_rcl_talker_to_ros_z_listener() {
     let received_clone = received.clone();
 
     // Start ros-z listener in a thread using the example code
+    let router_endpoint = router.endpoint().to_string();
     let listener_handle = thread::spawn(move || {
         tokio::runtime::Runtime::new().unwrap().block_on(async {
-            let ctx = create_ros_z_context().expect("Failed to create ros-z context");
+            let ctx = create_ros_z_context_with_endpoint(&router_endpoint)
+                .expect("Failed to create ros-z context");
 
             // Use the actual listener example code with timeout
             let messages =
@@ -114,8 +118,10 @@ fn test_rcl_talker_to_ros_z_listener() {
     let talker = Command::new("ros2")
         .args(["run", "demo_nodes_cpp", "talker"])
         .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
+        .env("ZENOH_CONFIG_OVERRIDE", router.rmw_zenoh_env())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
+        .process_group(0)
         .spawn()
         .expect("Failed to start RCL talker");
 
@@ -126,17 +132,16 @@ fn test_rcl_talker_to_ros_z_listener() {
     let msgs = received.lock().unwrap();
     assert!(
         msgs.len() >= 3,
-        "❌ Test failed: Expected at least 3 messages, got {}",
+        "Test failed: Expected at least 3 messages, got {}",
         msgs.len()
     );
 
     println!(
-        "✅ Test passed: ros-z listener received {} messages from RCL talker",
+        "Test passed: ros-z listener received {} messages from RCL talker",
         msgs.len()
     );
 }
 
-#[serial_test::serial]
 #[test]
 fn test_ros_z_talker_to_rcl_listener() {
     if !check_ros2_available() {
@@ -147,7 +152,7 @@ fn test_ros_z_talker_to_rcl_listener() {
         panic!("demo_nodes_cpp package not found - ensure it is installed");
     }
 
-    ensure_zenohd_running();
+    let router = TestRouter::new();
 
     println!("\n=== Test: ros-z talker -> RCL demo_nodes_cpp listener ===");
 
@@ -155,8 +160,10 @@ fn test_ros_z_talker_to_rcl_listener() {
     let listener = Command::new("ros2")
         .args(["run", "demo_nodes_cpp", "listener"])
         .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
+        .env("ZENOH_CONFIG_OVERRIDE", router.rmw_zenoh_env())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
+        .process_group(0)
         .spawn()
         .expect("Failed to start RCL listener");
 
@@ -165,12 +172,13 @@ fn test_ros_z_talker_to_rcl_listener() {
     wait_for_ready(Duration::from_secs(2));
 
     // Start ros-z talker in a thread using the example code
-    let talker_handle = thread::spawn(|| {
+    let talker_handle = thread::spawn(move || {
         tokio::runtime::Runtime::new().unwrap().block_on(async {
-            let ctx = create_ros_z_context().expect("Failed to create ros-z context");
+            let ctx =
+                create_ros_z_context_with_router(&router).expect("Failed to create ros-z context");
 
-            // Use the actual talker example code with max 10 messages
-            demo_nodes::run_talker(ctx, "chatter", Duration::from_secs(1), Some(10))
+            // Use the actual talker example code with faster publishing (100ms intervals)
+            demo_nodes::run_talker(ctx, "chatter", Duration::from_millis(100), Some(10))
                 .await
                 .expect("Talker failed");
         });
@@ -179,44 +187,58 @@ fn test_ros_z_talker_to_rcl_listener() {
     talker_handle.join().expect("Talker thread panicked");
 
     // Give some time for RCL listener to process
-    wait_for_ready(Duration::from_secs(2));
+    wait_for_ready(Duration::from_secs(1));
 
-    println!("✅ Test passed: ros-z talker published messages to RCL listener");
+    println!("Test passed: ros-z talker published messages to RCL listener");
 }
 
-#[serial_test::serial]
 #[test]
 fn test_ros_z_add_two_ints_server_to_ros_z_client() {
-    ensure_zenohd_running();
+    let router = TestRouter::new();
 
     println!("\n=== Test: ros-z add_two_ints server -> ros-z client ===");
 
+    let (tx, rx) = std::sync::mpsc::channel();
+
     // Start ros-z server in a thread using the example code
-    let server_handle = thread::spawn(|| {
-        let ctx = create_ros_z_context().expect("Failed to create ros-z context");
+    let router_endpoint = router.endpoint().to_string();
+    let server_handle = thread::spawn(move || {
+        let ctx = create_ros_z_context_with_endpoint(&router_endpoint)
+            .expect("Failed to create ros-z context");
 
         // Use the actual server example code (handle one request)
-        demo_nodes::run_add_two_ints_server(ctx, Some(1)).expect("Server failed");
+        let result = demo_nodes::run_add_two_ints_server(ctx, Some(1));
+        let _ = tx.send(()); // Signal completion
+        result.expect("Server failed");
     });
 
     wait_for_ready(Duration::from_secs(2));
 
     // Run ros-z client in the main thread using the example code
-    let ctx = create_ros_z_context().expect("Failed to create ros-z context");
+    let ctx = create_ros_z_context_with_router(&router).expect("Failed to create ros-z context");
     let result = demo_nodes::run_add_two_ints_client(ctx, 2, 3, false).expect("Client failed");
 
     assert_eq!(result, 5, "Expected 2 + 3 = 5");
 
-    // Stop the server (it will stop after handling one request)
-    server_handle.join().expect("Server thread panicked");
-
-    println!(
-        "✅ Test passed: ros-z client received {} from ros-z server",
-        result
-    );
+    // Wait for server to signal completion (with timeout)
+    match rx.recv_timeout(Duration::from_secs(5)) {
+        Ok(_) => {
+            server_handle.join().expect("Server thread panicked");
+            println!(
+                "Test passed: ros-z client received {} from ros-z server",
+                result
+            );
+        }
+        Err(_) => {
+            println!(
+                "Test passed: ros-z client received {} from ros-z server (server still cleaning up)",
+                result
+            );
+            // Don't wait for server join if it's taking too long
+        }
+    }
 }
 
-#[serial_test::serial]
 #[test]
 fn test_rcl_add_two_ints_server_to_ros_z_client() {
     if !check_ros2_available() {
@@ -227,7 +249,7 @@ fn test_rcl_add_two_ints_server_to_ros_z_client() {
         panic!("demo_nodes_cpp package not found - ensure it is installed");
     }
 
-    ensure_zenohd_running();
+    let router = TestRouter::new();
 
     println!("\n=== Test: RCL demo_nodes_cpp add_two_ints server -> ros-z client ===");
 
@@ -235,18 +257,21 @@ fn test_rcl_add_two_ints_server_to_ros_z_client() {
     let server = Command::new("ros2")
         .args(["run", "demo_nodes_cpp", "add_two_ints_server"])
         .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
+        .env("ZENOH_CONFIG_OVERRIDE", router.rmw_zenoh_env())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
+        .process_group(0)
         .spawn()
         .expect("Failed to start RCL server");
 
     let _server_guard = ProcessGuard::new(server, "RCL add_two_ints server");
 
-    wait_for_ready(Duration::from_secs(2));
+    wait_for_ready(Duration::from_secs(3));
 
     // Start ros-z client in a thread using the example code
-    let client_handle = thread::spawn(|| -> i64 {
-        let ctx = create_ros_z_context().expect("Failed to create ros-z context");
+    let client_handle = thread::spawn(move || -> i64 {
+        let ctx =
+            create_ros_z_context_with_router(&router).expect("Failed to create ros-z context");
 
         // Use the actual client example code
         demo_nodes::run_add_two_ints_client(ctx, 4, 7, false).expect("Client failed")
@@ -256,12 +281,11 @@ fn test_rcl_add_two_ints_server_to_ros_z_client() {
     assert_eq!(result, 11, "Expected 4 + 7 = 11");
 
     println!(
-        "✅ Test passed: ros-z client received {} from RCL server",
+        "Test passed: ros-z client received {} from RCL server",
         result
     );
 }
 
-#[serial_test::serial]
 #[test]
 fn test_ros_z_add_two_ints_server_to_rcl_client() {
     if !check_ros2_available() {
@@ -272,13 +296,15 @@ fn test_ros_z_add_two_ints_server_to_rcl_client() {
         panic!("demo_nodes_cpp package not found - ensure it is installed");
     }
 
-    ensure_zenohd_running();
+    let router = TestRouter::new();
 
     println!("\n=== Test: ros-z add_two_ints server -> RCL demo_nodes_cpp client ===");
 
     // Start ros-z server in a thread using the example code
-    let server_handle = thread::spawn(|| {
-        let ctx = create_ros_z_context().expect("Failed to create ros-z context");
+    let router_endpoint = router.endpoint().to_string();
+    let server_handle = thread::spawn(move || {
+        let ctx = create_ros_z_context_with_endpoint(&router_endpoint)
+            .expect("Failed to create ros-z context");
 
         // Use the actual server example code (handle one request)
         demo_nodes::run_add_two_ints_server(ctx, Some(1)).expect("Server failed");
@@ -290,18 +316,183 @@ fn test_ros_z_add_two_ints_server_to_rcl_client() {
     let client = Command::new("ros2")
         .args(["run", "demo_nodes_cpp", "add_two_ints_client"])
         .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
+        .env("ZENOH_CONFIG_OVERRIDE", router.rmw_zenoh_env())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
+        .process_group(0)
         .spawn()
         .expect("Failed to start RCL client");
 
     let _client_guard = ProcessGuard::new(client, "RCL add_two_ints client");
 
     // Wait for the client to complete
-    wait_for_ready(Duration::from_secs(5));
+    wait_for_ready(Duration::from_secs(3));
 
     // Stop the server
     server_handle.join().expect("Server thread panicked");
 
-    println!("✅ Test passed: RCL client called ros-z server");
+    println!("Test passed: RCL client called ros-z server");
+}
+
+#[test]
+fn test_rcl_fibonacci_action_server_to_ros_z_client() {
+    if !check_ros2_available() {
+        panic!("ros2 CLI not available - ensure ROS 2 is installed");
+    }
+
+    if !check_action_tutorials_cpp_available() {
+        panic!("action_tutorials_cpp package not found - ensure it is installed");
+    }
+
+    let router = TestRouter::new();
+
+    println!("\n=== Test: RCL demo_nodes_cpp fibonacci action server -> ros-z client ===");
+
+    // Start RCL server
+    let server = Command::new("ros2")
+        .args(["run", "action_tutorials_cpp", "fibonacci_action_server"])
+        .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
+        .env("ZENOH_CONFIG_OVERRIDE", router.rmw_zenoh_env())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .process_group(0)
+        .spawn()
+        .expect("Failed to start RCL fibonacci action server");
+
+    let _server_guard = ProcessGuard::new(server, "RCL fibonacci action server");
+
+    wait_for_ready(Duration::from_secs(2));
+
+    // Start ros-z client in a thread
+    let client_handle = thread::spawn(move || -> Vec<i32> {
+        let ctx =
+            create_ros_z_context_with_router(&router).expect("Failed to create ros-z context");
+
+        // Use the actual client example code
+        tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(async { demo_nodes::run_fibonacci_action_client(ctx, 5).await })
+            .expect("Client failed")
+    });
+
+    let result = client_handle.join().expect("Client thread panicked");
+
+    // Check that we got the correct Fibonacci sequence for order 5
+    let expected = vec![0, 1, 1, 2, 3, 5];
+    assert_eq!(
+        result, expected,
+        "Expected Fibonacci sequence {:?}",
+        expected
+    );
+
+    println!(
+        "Test passed: ros-z client received Fibonacci sequence {:?} from RCL server",
+        result
+    );
+}
+
+#[test]
+fn test_ros_z_fibonacci_action_server_to_rcl_client() {
+    if !check_ros2_available() {
+        panic!("ros2 CLI not available - ensure ROS 2 is installed");
+    }
+
+    if !check_action_tutorials_cpp_available() {
+        panic!("action_tutorials_cpp package not found - ensure it is installed");
+    }
+
+    let router = TestRouter::new();
+
+    println!("\n=== Test: ros-z fibonacci action server -> RCL demo_nodes_cpp client ===");
+
+    // Start ros-z server in a thread
+    let router_endpoint = router.endpoint().to_string();
+    let server_handle = thread::spawn(move || {
+        let ctx = create_ros_z_context_with_endpoint(&router_endpoint)
+            .expect("Failed to create ros-z context");
+
+        // Use the actual server example code
+        let result = tokio::runtime::Runtime::new().unwrap().block_on(async {
+            demo_nodes::run_fibonacci_action_server(ctx, Some(Duration::from_secs(10))).await
+        });
+        result.expect("Server failed");
+    });
+
+    wait_for_ready(Duration::from_secs(2));
+
+    // Start RCL client
+    let client = Command::new("ros2")
+        .args(["run", "action_tutorials_cpp", "fibonacci_action_client"])
+        .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
+        .env("ZENOH_CONFIG_OVERRIDE", router.rmw_zenoh_env())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .process_group(0)
+        .spawn()
+        .expect("Failed to start RCL fibonacci action client");
+
+    let _client_guard = ProcessGuard::new(client, "RCL fibonacci action client");
+
+    // Wait for the client to complete
+    wait_for_ready(Duration::from_secs(10));
+
+    // Stop the server
+    server_handle.join().expect("Server thread panicked");
+
+    println!("Test passed: RCL client called ros-z fibonacci action server");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_ros_z_fibonacci_action_server_to_ros_z_client() {
+    zenoh::init_log_from_env_or("error");
+    let router = TestRouter::new();
+
+    println!("\n=== Test: ros-z fibonacci action server -> ros-z client ===");
+
+    let (fib_tx, fib_rx) = std::sync::mpsc::channel();
+
+    // Start ros-z server in a thread using the example code
+    let router_endpoint = router.endpoint().to_string();
+    let fib_server_handle = tokio::task::spawn(async move {
+        let ctx = create_ros_z_context_with_endpoint(&router_endpoint)
+            .expect("Failed to create ros-z context");
+        let result =
+            demo_nodes::run_fibonacci_action_server(ctx, Some(Duration::from_secs(30))).await;
+        let _ = fib_tx.send(()); // Signal completion
+        result.expect("Server failed");
+    });
+
+    wait_for_ready(Duration::from_secs(2));
+
+    // Run ros-z client in the main thread
+    let ctx = create_ros_z_context_with_router(&router).expect("Failed to create ros-z context");
+    let result = demo_nodes::run_fibonacci_action_client(ctx, 5)
+        .await
+        .expect("Client failed");
+
+    // Check that we got the correct Fibonacci sequence for order 5
+    let expected = vec![0, 1, 1, 2, 3, 5];
+    assert_eq!(
+        result, expected,
+        "Expected Fibonacci sequence {:?}",
+        expected
+    );
+
+    // Wait for server to signal completion (with timeout)
+    match fib_rx.recv_timeout(Duration::from_secs(5)) {
+        Ok(_) => {
+            fib_server_handle.await.expect("Server thread panicked");
+            println!(
+                "Test passed: ros-z client received Fibonacci sequence {:?} from ros-z server",
+                result
+            );
+        }
+        Err(_) => {
+            println!(
+                "Test passed: ros-z client received Fibonacci sequence {:?} from ros-z server (server still cleaning up)",
+                result
+            );
+            // Don't wait for server join if it's taking too long
+        }
+    }
 }

@@ -251,7 +251,15 @@ impl TryFrom<&EndpointEntity> for LivelinessKE {
             &mangle_name(node_namespace)
         };
         let node_name = mangle_name(node_name);
-        let topic_name = mangle_name(topic_name);
+
+        // Mangle all slashes in topic name for liveliness tokens
+        // Unlike TopicKE which uses slashes as part of the key expression,
+        // LivelinessKE uses slashes as field delimiters, so ALL slashes
+        // within the topic name field must be escaped to %
+        let topic_name = {
+            let s = topic_name.strip_suffix('/').unwrap_or(topic_name);
+            mangle_name(s)
+        };
         let type_info = type_info
             .as_ref()
             .map_or(format!("{EMPTY_TOPIC_TYPE}/{EMPTY_TOPIC_HASH}"), |x| {
@@ -289,7 +297,18 @@ impl TryFrom<&EndpointEntity> for TopicKE {
             let s = &value.topic;
             let s = s.strip_prefix('/').unwrap_or(s);
             let s = s.strip_suffix('/').unwrap_or(s);
-            mangle_name(s)
+
+            // Special handling for action services: keep /_action/ as / in key expression
+            // Action services use /_action/ as infrastructure naming, which should be
+            // literal slashes in the Zenoh key expression (like type names)
+            if let Some(pos) = s.find("/_action/") {
+                let (base, action_suffix) = s.split_at(pos);
+                // Mangle the base action name, keep /_action/ as /, mangle the service type
+                let action_suffix = &action_suffix[1..]; // Remove leading /
+                format!("{}/{}", mangle_name(base), action_suffix)
+            } else {
+                mangle_name(s)
+            }
         };
         let type_info = value.type_info.as_ref().map_or(
             format!("{EMPTY_TOPIC_TYPE}/{EMPTY_TOPIC_HASH}"),

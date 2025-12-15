@@ -23,8 +23,8 @@ ros-z = { version = "*", path = "ros-z" }
 rcl-z = { version = "*", path = "rcl-z" }
 
 # Local roslibrust dependencies
-roslibrust = { git = "https://github.com/YuanYuYuan/roslibrust", branch = "feat/codegen-options" }
-roslibrust_codegen = { git = "https://github.com/YuanYuYuan/roslibrust", branch = "feat/codegen-options" }
+roslibrust = { git = "https://github.com/YuanYuYuan/roslibrust", branch = "feat/ros2-action-hash" }
+roslibrust_codegen = { git = "https://github.com/YuanYuYuan/roslibrust", branch = "feat/ros2-action-hash" }
 
 # Serialization
 cdr = "0.2.4"
@@ -47,6 +47,7 @@ clap = "4.5.45"
 flume = "0.11.1"
 parking_lot = "0.12.4"
 tokio = "1.47.1"
+tokio-util = "0.7"
 
 # Utilities
 tracing = "0.1.41"

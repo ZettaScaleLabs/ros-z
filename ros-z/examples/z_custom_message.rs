@@ -110,10 +110,11 @@ struct Args {
     max_speed: f64,
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     match Args::parse().mode.as_str() {
-        "status-pub" => run_status_publisher(Args::parse().robot_id),
-        "status-sub" => run_status_subscriber(),
+        "status-pub" => run_status_publisher(Args::parse().robot_id).await,
+        "status-sub" => run_status_subscriber().await,
         "nav-server" => run_navigation_server(),
         "nav-client" => {
             let args = Args::parse();
@@ -128,7 +129,7 @@ fn main() -> Result<()> {
     }
 }
 
-fn run_status_publisher(robot_id: String) -> Result<()> {
+async fn run_status_publisher(robot_id: String) -> Result<()> {
     println!("Starting robot status publisher for robot: {robot_id}");
 
     let ctx = ZContextBuilder::default().build()?;
@@ -149,7 +150,7 @@ fn run_status_publisher(robot_id: String) -> Result<()> {
 
             if battery < 20.0 {
                 moving = false;
-                println!("⚠️  Low battery! Robot stopped.");
+                println!("Low battery! Robot stopped.");
             }
         }
 
@@ -162,24 +163,24 @@ fn run_status_publisher(robot_id: String) -> Result<()> {
         };
 
         println!(
-            "📡 Publishing status: pos=({:.1}, {:.1}), battery={:.1}%, moving={}",
+            "Publishing status: pos=({:.1}, {:.1}), battery={:.1}%, moving={}",
             status.position_x, status.position_y, status.battery_percentage, status.is_moving
         );
 
-        zpub.publish(&status)?;
+        zpub.async_publish(&status).await?;
 
-        std::thread::sleep(Duration::from_secs(1));
+        tokio::time::sleep(Duration::from_secs(1)).await;
 
         // Reset simulation when battery too low
         if battery < 10.0 {
             battery = 100.0;
             moving = true;
-            println!("🔋 Battery recharged! Resuming movement.");
+            println!("Battery recharged! Resuming movement.");
         }
     }
 }
 
-fn run_status_subscriber() -> Result<()> {
+async fn run_status_subscriber() -> Result<()> {
     println!("Starting robot status subscriber...");
 
     let ctx = ZContextBuilder::default().build()?;
@@ -189,7 +190,7 @@ fn run_status_subscriber() -> Result<()> {
     loop {
         if let Ok(status) = zsub.recv() {
             println!(
-                "📨 Received status from {}: pos=({:.1}, {:.1}), battery={:.1}%, moving={}",
+                "Received status from {}: pos=({:.1}, {:.1}), battery={:.1}%, moving={}",
                 status.robot_id,
                 status.position_x,
                 status.position_y,
@@ -198,10 +199,10 @@ fn run_status_subscriber() -> Result<()> {
             );
 
             if status.battery_percentage < 20.0 {
-                println!("⚠️  WARNING: {} has low battery!", status.robot_id);
+                println!("WARNING: {} has low battery!", status.robot_id);
             }
         }
-        std::thread::sleep(Duration::from_millis(100));
+        tokio::time::sleep(Duration::from_millis(100)).await;
     }
 }
 
@@ -212,12 +213,12 @@ fn run_navigation_server() -> Result<()> {
     let node = ctx.create_node("navigation_server").build()?;
     let mut zsrv = node.create_service::<NavigateTo>("/navigate_to").build()?;
 
-    println!("🛰️  Navigation server ready, waiting for requests...");
+    println!("Navigation server ready, waiting for requests...");
 
     loop {
         if let Ok((request_id, request)) = zsrv.take_request() {
             println!(
-                "📥 Received navigation request: target=({:.1}, {:.1}), max_speed={:.1}",
+                "Received navigation request: target=({:.1}, {:.1}), max_speed={:.1}",
                 request.target_x, request.target_y, request.max_speed
             );
 
@@ -244,7 +245,7 @@ fn run_navigation_server() -> Result<()> {
                 }
             };
 
-            println!("📤 Sending response: {:?}", response);
+            println!("Sending response: {:?}", response);
             zsrv.send_response(&response, &request_id)?;
         }
 
@@ -266,24 +267,21 @@ fn run_navigation_client(target_x: f64, target_y: f64, max_speed: f64) -> Result
     };
 
     println!(
-        "📤 Sending navigation request: target=({:.1}, {:.1}), max_speed={:.1}",
+        "Sending navigation request: target=({:.1}, {:.1}), max_speed={:.1}",
         request.target_x, request.target_y, request.max_speed
     );
 
-    zcli.send_request(&request)?;
+    tokio::runtime::Runtime::new()
+        .unwrap()
+        .block_on(async { zcli.send_request(&request).await })?;
 
-    println!("⏳ Waiting for response...");
+    println!("Waiting for response...");
 
-    loop {
-        if let Ok(response) = zcli.take_response() {
-            println!("📥 Received response:");
-            println!("   Success: {}", response.success);
-            println!("   Duration: {:.2}s", response.estimated_duration);
-            println!("   Message: {}", response.message);
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(100));
-    }
+    let response = zcli.take_response_timeout(Duration::from_secs(5))?;
+    println!("Received response:");
+    println!("   Success: {}", response.success);
+    println!("   Duration: {:.2}s", response.estimated_duration);
+    println!("   Message: {}", response.message);
 
     Ok(())
 }
