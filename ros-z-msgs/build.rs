@@ -75,7 +75,11 @@ fn discover_ros_packages() -> Result<Vec<PathBuf>> {
 /// Get list of bundled package names based on enabled features
 /// These packages are available in roslibrust assets and don't require ROS installation
 fn get_bundled_packages() -> Vec<&'static str> {
-    let mut names = vec!["builtin_interfaces"]; // Always required
+    let mut names = vec![
+        "builtin_interfaces",     // Always required
+        "action_msgs",            // Required for ROS 2 actions
+        "unique_identifier_msgs", // Required by action_msgs
+    ];
 
     #[cfg(feature = "std_msgs")]
     names.push("std_msgs");
@@ -98,6 +102,8 @@ fn get_external_packages() -> Vec<&'static str> {
     vec![
         #[cfg(feature = "example_interfaces")]
         "example_interfaces",
+        #[cfg(feature = "external_msgs")]
+        "action_tutorials_interfaces",
         #[cfg(feature = "test_msgs")]
         "test_msgs",
     ]
@@ -179,14 +185,30 @@ fn discover_bundled_packages(bundled_packages: &[&str]) -> Result<Vec<PathBuf>> 
     let mut ros_packages = Vec::new();
     let roslibrust_assets = find_roslibrust_assets();
 
-    // builtin_interfaces is in ros2_required_msgs
-    if bundled_packages.contains(&"builtin_interfaces") {
-        let builtin_interfaces =
-            roslibrust_assets.join("ros2_required_msgs/rcl_interfaces/builtin_interfaces");
-        if builtin_interfaces.exists() {
-            ros_packages.push(builtin_interfaces);
+    // Packages in ros2_required_msgs/rcl_interfaces
+    let rcl_interfaces = roslibrust_assets.join("ros2_required_msgs/rcl_interfaces");
+    for package_name in &["builtin_interfaces", "action_msgs"] {
+        if bundled_packages.contains(package_name) {
+            let package_path = rcl_interfaces.join(package_name);
+            if package_path.exists() {
+                ros_packages.push(package_path);
+            } else {
+                println!(
+                    "cargo:warning={} not found in roslibrust assets",
+                    package_name
+                );
+            }
+        }
+    }
+
+    // unique_identifier_msgs is directly in ros2_required_msgs
+    let ros2_required = roslibrust_assets.join("ros2_required_msgs");
+    if bundled_packages.contains(&"unique_identifier_msgs") {
+        let package_path = ros2_required.join("unique_identifier_msgs");
+        if package_path.exists() {
+            ros_packages.push(package_path);
         } else {
-            println!("cargo:warning=builtin_interfaces not found in roslibrust assets");
+            println!("cargo:warning=unique_identifier_msgs not found in roslibrust assets");
         }
     }
 
@@ -194,8 +216,12 @@ fn discover_bundled_packages(bundled_packages: &[&str]) -> Result<Vec<PathBuf>> 
     let common_interfaces = roslibrust_assets.join("ros2_common_interfaces");
 
     for package_name in bundled_packages {
-        if *package_name == "builtin_interfaces" {
-            continue; // Already handled above
+        // Skip packages already handled above
+        if *package_name == "builtin_interfaces"
+            || *package_name == "action_msgs"
+            || *package_name == "unique_identifier_msgs"
+        {
+            continue;
         }
 
         let package_path = common_interfaces.join(package_name);

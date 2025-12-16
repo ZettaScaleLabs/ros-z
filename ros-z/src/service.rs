@@ -71,7 +71,11 @@ where
         let key_expr = self.entity.topic_key_expr()?;
         tracing::debug!("[CLN] KE: {key_expr}");
 
-        let inner = self.session.declare_querier(key_expr).wait()?;
+        let inner = self.session.declare_querier(key_expr)
+            .target(zenoh::query::QueryTarget::AllComplete)
+            .consolidation(zenoh::query::ConsolidationMode::None)
+            .timeout(Duration::from_secs(10))
+            .wait()?;
         let lv_token = self
             .session
             .liveliness()
@@ -143,19 +147,25 @@ impl<T> ZClient<T>
 where
     T: ZService,
 {
-    pub fn send_request(&self, msg: &T::Request) -> Result<()> {
+    pub async fn send_request(&self, msg: &T::Request) -> Result<()> {
         let tx = self.tx.clone();
         self.inner
             .get()
             .payload(msg.serialize())
             .attachment(self.new_attchment())
             .callback(move |reply| {
-                let sample = reply.into_result().unwrap();
-                tx.send(sample);
-                // let msg = <T::Response as ZMessage>::deserialize(&sample.payload().to_bytes());
-                // tx.send(msg);
+                tracing::trace!("ZClient received reply in callback");
+                match reply.into_result() {
+                    Ok(sample) => {
+                        tracing::trace!("ZClient reply OK, sending to channel");
+                        tx.send(sample);
+                    }
+                    Err(e) => {
+                        tracing::error!("ZClient reply error: {:?}", e);
+                    }
+                }
             })
-            .wait()?;
+            .await?;
         Ok(())
     }
 
@@ -237,8 +247,8 @@ where
             .declare_queryable(&key_expr)
             .complete(true)
             .callback(move |query| {
-                tracing::error!("🔥 RECEIVED QUERY: {}", &query.key_expr());
-                tracing::error!("   Selector: {}", &query.selector());
+                tracing::error!("RECEIVED QUERY: {}", &query.key_expr());
+                tracing::error!("Selector: {}", &query.selector());
                 assert!(tx.send(query).is_ok());
             })
             .wait()?;

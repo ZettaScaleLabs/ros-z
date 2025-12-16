@@ -322,6 +322,7 @@ impl ::ros_z::msg::ZMessage for {proto_type} {{
         match name {
             "MultiDOFJointState" => "MultiDofJointState".to_string(),
             "ColorRGBA" => "ColorRgba".to_string(),
+            "UUID" => "Uuid".to_string(),
             // Add more mappings as needed
             _ => name.to_string(),
         }

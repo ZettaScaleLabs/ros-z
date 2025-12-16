@@ -5,20 +5,23 @@ use zenoh::liveliness::LivelinessToken;
 use zenoh::{Result, Session, Wait};
 
 use crate::{
+    action::{client::ZActionClientBuilder, server::ZActionServerBuilder},
     Builder,
-    context::GlobalCounter,
+    context::{GlobalCounter, RemapRules},
     entity::*,
     msg::{ZMessage, ZService},
     pubsub::{ZPubBuilder, ZSubBuilder},
-    ros_msg::{self, WithTypeInfo},
     service::{ZClientBuilder, ZServerBuilder},
+    ServiceTypeInfo,
+    WithTypeInfo,
 };
 
 pub struct ZNode {
     pub entity: NodeEntity,
-    session: Arc<Session>,
+    pub session: Arc<Session>,
     counter: Arc<GlobalCounter>,
     pub graph: Arc<Graph>,
+    pub remap_rules: RemapRules,
     _lv_token: LivelinessToken,
 }
 
@@ -29,6 +32,7 @@ pub struct ZNodeBuilder {
     pub session: Arc<Session>,
     pub counter: Arc<GlobalCounter>,
     pub graph: Arc<Graph>,
+    pub remap_rules: RemapRules,
 }
 
 impl ZNodeBuilder {
@@ -60,6 +64,7 @@ impl Builder for ZNodeBuilder {
             counter: self.counter,
             _lv_token: lv_token,
             graph: self.graph,
+            remap_rules: self.remap_rules,
         })
     }
 }
@@ -79,7 +84,7 @@ impl ZNode {
         self.create_pub_impl(topic, Some(T::type_info()))
     }
 
-    fn create_pub_impl<T>(
+    pub(crate) fn create_pub_impl<T>(
         &self,
         topic: &str,
         type_info: Option<crate::entity::TypeInfo>,
@@ -119,7 +124,7 @@ impl ZNode {
         self.create_sub_impl(topic, Some(T::type_info()))
     }
 
-    fn create_sub_impl<T>(
+    pub(crate) fn create_sub_impl<T>(
         &self,
         topic: &str,
         type_info: Option<crate::entity::TypeInfo>,
@@ -150,12 +155,12 @@ impl ZNode {
     /// - Relative service names are expanded to /<namespace>/<service>
     pub fn create_service<T>(&self, topic: &str) -> ZServerBuilder<T>
     where
-        T: ZService + ros_msg::ServiceTypeInfo,
+        T: ZService + ServiceTypeInfo,
     {
         self.create_service_impl(topic, Some(T::service_type_info()))
     }
 
-    fn create_service_impl<T>(
+    pub(crate) fn create_service_impl<T>(
         &self,
         topic: &str,
         type_info: Option<crate::entity::TypeInfo>,
@@ -186,12 +191,12 @@ impl ZNode {
     /// - Relative service names are expanded to /<namespace>/<service>
     pub fn create_client<T>(&self, topic: &str) -> ZClientBuilder<T>
     where
-        T: ZService + ros_msg::ServiceTypeInfo,
+        T: ZService + ServiceTypeInfo,
     {
         self.create_client_impl(topic, Some(T::service_type_info()))
     }
 
-    fn create_client_impl<T>(
+    pub(crate) fn create_client_impl<T>(
         &self,
         topic: &str,
         type_info: Option<crate::entity::TypeInfo>,
@@ -211,5 +216,21 @@ impl ZNode {
             session: self.session.clone(),
             _phantom_data: Default::default(),
         }
+    }
+
+    /// Create an action client for the given action name
+    pub fn create_action_client<A>(&self, action_name: &str) -> ZActionClientBuilder<'_, A>
+    where
+        A: crate::action::ZAction,
+    {
+        ZActionClientBuilder::new(action_name, self)
+    }
+
+    /// Create an action server for the given action name
+    pub fn create_action_server<A>(&self, action_name: &str) -> ZActionServerBuilder<'_, A>
+    where
+        A: crate::action::ZAction,
+    {
+        ZActionServerBuilder::new(action_name, self)
     }
 }

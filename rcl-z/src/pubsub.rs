@@ -54,7 +54,7 @@ pub struct SubscriptionImpl {
 
 impl Waitable for SubscriptionImpl {
     fn is_ready(&self) -> bool {
-        !self.inner.queue.is_empty()
+        self.inner.queue.as_ref().map(|q| !q.is_empty()).unwrap_or(false)
     }
 }
 

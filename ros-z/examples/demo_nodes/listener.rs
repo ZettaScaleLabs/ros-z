@@ -27,7 +27,6 @@ pub async fn run_listener(
     let node = ctx.create_node("listener").build()?;
 
     // Create a subscription to the "chatter" topic
-    // Using history depth of 10 to match the C++ example
     let qos = QosProfile {
         history: QosHistory::KeepLast(10),
         ..Default::default()

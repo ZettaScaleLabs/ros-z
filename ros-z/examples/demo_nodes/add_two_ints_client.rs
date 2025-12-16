@@ -26,15 +26,16 @@ pub fn run_add_two_ints_client(ctx: ZContext, a: i64, b: i64, async_mode: bool) 
     let req = AddTwoIntsRequest { a, b };
     println!("Sending request: {} + {}", req.a, req.b);
 
-    // Send the request
-    client.send_request(&req)?;
-
     // Wait for the response
     let resp = if async_mode {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            client.send_request(&req).await?;
+            client.take_response_async().await
+        })?
+    } else {
         tokio::runtime::Runtime::new()
             .unwrap()
-            .block_on(async { client.take_response_async().await })?
-    } else {
+            .block_on(async { client.send_request(&req).await })?;
         client.take_response_timeout(Duration::from_secs(5))?
     };
 

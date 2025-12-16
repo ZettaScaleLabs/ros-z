@@ -14,12 +14,13 @@ struct Args {
     b: i64,
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let args = Args::parse();
 
     match args.mode.as_str() {
         "server" => run_server(),
-        "client" => run_client(args.a, args.b),
+        "client" => run_client(args.a, args.b).await,
         _ => {
             eprintln!("Invalid mode: {}. Use 'server' or 'client'", args.mode);
             std::process::exit(1);
@@ -45,7 +46,7 @@ fn run_server() -> Result<()> {
     }
 }
 
-fn run_client(a: i64, b: i64) -> Result<()> {
+async fn run_client(a: i64, b: i64) -> Result<()> {
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("add_two_ints_client").build()?;
     let zcli = node.create_client::<AddTwoInts>("add_two_ints").build()?;
@@ -55,7 +56,7 @@ fn run_client(a: i64, b: i64) -> Result<()> {
     let req = AddTwoIntsRequest { a, b };
     println!("Sending request: {} + {}", req.a, req.b);
 
-    zcli.send_request(&req)?;
+    zcli.send_request(&req).await?;
     let resp = zcli.take_response()?;
 
     println!("Received response: {}", resp.sum);

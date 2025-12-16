@@ -14,6 +14,7 @@ ros-z-msgs = { path = "../ros-z-msgs", optional = true }
 # rcl-z = { path = "../rcl-z" }
 
 # Test runtime dependencies
+zenoh = { workspace = true } # For per-test router sessions
 tokio = { workspace = true, features = ["full"] }
 once_cell = { workspace = true } # For lazy static zenohd daemon
 serial_test = "3.0" # For sequential test execution

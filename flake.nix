@@ -59,6 +59,9 @@
                 rcl-interfaces
                 rclcpp
                 rcutils
+                demo-nodes-py
+                demo-nodes-cpp
+                action-tutorials-cpp
               ];
 
               messages = with pkgs.rosPackages.${rosDistro}; [
@@ -82,8 +85,6 @@
               devExtras = with pkgs.rosPackages.${rosDistro}; [
                 ament-cmake-core
                 ros-core
-                demo-nodes-cpp
-                demo-nodes-py
                 rclpy
                 rmw
                 rmw-implementation
