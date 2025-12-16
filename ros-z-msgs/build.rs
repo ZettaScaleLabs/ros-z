@@ -208,9 +208,7 @@ fn discover_bundled_packages(bundled_packages: &[&str]) -> Result<Vec<PathBuf>> 
         if package_path.exists() {
             ros_packages.push(package_path);
         } else {
-            println!(
-                "cargo:warning=unique_identifier_msgs not found in roslibrust assets"
-            );
+            println!("cargo:warning=unique_identifier_msgs not found in roslibrust assets");
         }
     }
 
