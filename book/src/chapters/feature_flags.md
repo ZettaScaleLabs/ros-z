@@ -1,174 +1,208 @@
 # Feature Flags
 
-ros-z uses Cargo feature flags to enable optional functionality and control dependencies. This allows you to build exactly what you need without unnecessary dependencies.
+**Fine-grained control over dependencies and functionality through Cargo feature flags.** Build exactly what you need, from zero-dependency core to full ROS 2 integration, without carrying unused code.
 
-## Overview
+```admonish success
+Feature flags enable pay-per-use dependencies. Start minimal and enable features incrementally as requirements grow.
+```
 
-Feature flags control three main aspects:
+## Feature Categories
 
-1. **Message packages** - Which ROS message types are available
-2. **Serialization** - Additional serialization formats (protobuf)
-3. **Integration** - RCL bindings and external dependencies
+| Category | Purpose | Example Features |
+|----------|---------|------------------|
+| **Message Packages** | Enable ROS 2 message types | `std_msgs`, `geometry_msgs` |
+| **Serialization** | Additional encoding formats | `protobuf` |
+| **Integration** | External system bindings | `rcl-z`, `external_msgs` |
 
-## ros-z Features
-
-The main `ros-z` crate supports these features:
+## ros-z Core Features
 
 ### `protobuf`
 
-Enables protobuf serialization support using `prost`.
+Enables Protocol Buffers serialization using `prost`.
 
 ```bash
 cargo build -p ros-z --features protobuf
 ```
 
-**Use case:** When you need efficient binary serialization compatible with protobuf ecosystems.
+**Use cases:**
 
-**Dependencies:** Adds `prost` and related protobuf libraries.
+- Schema evolution support
+- Language-agnostic data exchange
+- Efficient binary encoding
+- Familiar protobuf ecosystem
+
+**Dependencies:** `prost`, `prost-types`
+
+```admonish info
+Protobuf is optional. CDR serialization (default) provides full ROS 2 compatibility without additional dependencies.
+```
 
 ### `rcl-z`
 
-Enables RCL integration features for interoperability with C/C++ ROS 2 applications.
+Enables RCL (ROS Client Library) integration for C/C++ interoperability.
 
 ```bash
 cargo build -p ros-z --features rcl-z
 ```
 
-**Use case:** When building applications that need to work with existing RCL-based code.
+**Use cases:**
 
-**Dependencies:** Requires `rcl-z` package and ROS 2 installation.
+- Integrating with existing RCL-based code
+- Leveraging C/C++ ROS 2 libraries
+- Hybrid Rust/C++ applications
+
+**Requirements:** ROS 2 installation with RCL libraries
+
+```admonish warning
+This feature requires ROS 2 to be sourced before building. See [Building Guide](./building.md) for setup instructions.
+```
 
 ### `external_msgs`
 
-Enables examples that require external ROS message packages (propagates to `ros-z-msgs/external_msgs`).
+Propagates to `ros-z-msgs/external_msgs` for examples using external message packages.
 
 ```bash
 cargo build -p ros-z --features external_msgs
+cargo run --example z_srvcli --features external_msgs
 ```
 
-**Use case:** Running examples that use message types not bundled with roslibrust (like `example_interfaces`).
-
-**Dependencies:** Requires ROS 2 installation with the referenced message packages.
+**Enables:** Examples requiring `example_interfaces` and other external packages
 
 ## ros-z-msgs Features
 
-The `ros-z-msgs` crate generates Rust types from ROS message definitions. Features control which messages are generated.
-
 ### Default Features
 
-The default build includes `common_interfaces`:
+The default build includes commonly used message types:
 
 ```bash
 cargo build -p ros-z-msgs
 ```
 
-This enables:
+**Includes:**
 
-- `std_msgs`
-- `geometry_msgs`
-- `sensor_msgs`
+- `common_interfaces` meta-feature
+  - `std_msgs` - Basic types (String, Int32, etc.)
+  - `geometry_msgs` - Spatial types (Point, Pose, Transform)
+  - `sensor_msgs` - Sensor data (LaserScan, Image, Imu)
 
-All of these work without a ROS 2 installation (uses bundled definitions).
+```admonish tip
+Default features require no ROS 2 installation. Message definitions come bundled via roslibrust.
+```
 
 ### Bundled Message Features
 
-These features use message definitions bundled with roslibrust (no ROS required):
+Work without ROS 2 installation:
 
-#### `bundled_msgs`
+```mermaid
+graph LR
+    A[Bundled Features] --> B[std_msgs]
+    A --> C[geometry_msgs]
+    A --> D[sensor_msgs]
+    A --> E[nav_msgs]
 
-Enables all bundled message packages:
+    B --> F[roslibrust assets]
+    C --> F
+    D --> F
+    E --> F
+```
+
+**Individual packages:**
+
+| Feature | Package | Use Case |
+|---------|---------|----------|
+| `std_msgs` | Standard messages | Strings, numbers, arrays |
+| `geometry_msgs` | Geometric primitives | Points, poses, transforms |
+| `sensor_msgs` | Sensor data | Cameras, lidars, IMUs |
+| `nav_msgs` | Navigation | Paths, maps, odometry |
+
+**Usage:**
 
 ```bash
+# Single package
+cargo build -p ros-z-msgs --features std_msgs
+
+# Multiple packages
+cargo build -p ros-z-msgs --features "std_msgs,geometry_msgs"
+
+# All bundled
 cargo build -p ros-z-msgs --features bundled_msgs
 ```
 
-Includes:
+### External Message Features
 
-- `std_msgs`
-- `geometry_msgs`
-- `sensor_msgs`
-- `nav_msgs`
+Require ROS 2 installation:
 
-#### Individual Bundled Packages
-
-Enable specific message packages:
-
-```bash
-# Just std_msgs
-cargo build -p ros-z-msgs --features std_msgs
-
-# Just geometry_msgs
-cargo build -p ros-z-msgs --features geometry_msgs
-
-# Just sensor_msgs
-cargo build -p ros-z-msgs --features sensor_msgs
-
-# Just nav_msgs
-cargo build -p ros-z-msgs --features nav_msgs
+```mermaid
+graph LR
+    A[External Features] --> B[example_interfaces]
+    B --> C[ROS 2 Installation]
+    C --> D[AMENT_PREFIX_PATH]
 ```
 
-#### `common_interfaces` (default)
+**Available packages:**
 
-Convenience feature that enables:
+| Feature | Package | Use Case |
+|---------|---------|----------|
+| `example_interfaces` | Tutorial services | AddTwoInts, Fibonacci |
+| `action_msgs` | Action types | GoalStatus, ActionFeedback |
+| *(custom)* | Your packages | Domain-specific types |
 
-- `std_msgs`
-- `geometry_msgs`
-- `sensor_msgs`
+**Usage:**
+
+```bash
+# Ensure ROS 2 is sourced
+source /opt/ros/jazzy/setup.bash
+
+# Build with external messages
+cargo build -p ros-z-msgs --features external_msgs
+
+# Or specific package
+cargo build -p ros-z-msgs --features example_interfaces
+```
+
+```admonish warning
+External message features fail without ROS 2. Source your ROS 2 installation before building.
+```
+
+### Meta Features
+
+Convenience features that enable multiple packages:
+
+**`common_interfaces` (default):**
 
 ```bash
 cargo build -p ros-z-msgs --features common_interfaces
 ```
 
-### External Message Features
+Enables: `std_msgs`, `geometry_msgs`, `sensor_msgs`
 
-These features require a ROS 2 installation:
-
-#### External Message Packages
-
-Enables all external message packages:
+**`bundled_msgs`:**
 
 ```bash
-cargo build -p ros-z-msgs --features external_msgs
+cargo build -p ros-z-msgs --features bundled_msgs
 ```
 
-Currently includes:
+Enables: `std_msgs`, `geometry_msgs`, `sensor_msgs`, `nav_msgs`
 
-- `example_interfaces`
-
-**Requirements:** ROS 2 must be sourced and packages must be installed.
-
-#### Individual External Packages
-
-```bash
-# Just example_interfaces
-cargo build -p ros-z-msgs --features example_interfaces
-```
-
-#### `all_msgs`
-
-Enables both bundled and external messages:
+**`all_msgs`:**
 
 ```bash
 cargo build -p ros-z-msgs --features all_msgs
 ```
 
-**Requirements:** ROS 2 installation required.
+Enables: All bundled + all external messages
 
-### Other Features
+### Protobuf Types
 
-#### Protobuf Types
-
-Generate protobuf types in addition to ROS message types:
+Generate protobuf types alongside ROS messages:
 
 ```bash
 cargo build -p ros-z-msgs --features protobuf
 ```
 
-**Requirements:** Requires `ros-z/protobuf` feature to be enabled as well.
+**Note:** Requires `ros-z/protobuf` feature enabled as well.
 
 ## ros-z-codegen Features
-
-The `ros-z-codegen` crate provides code generation utilities.
 
 ### Protobuf Code Generation
 
@@ -178,62 +212,69 @@ Enable protobuf code generation support:
 cargo build -p ros-z-codegen --features protobuf
 ```
 
-**Use case:** When developing tools that need to generate protobuf code from ROS messages.
+**Use case:** Building tools that generate protobuf code from ROS messages
 
-## ros-z-tests Features
+## Feature Dependency Graph
 
-The `ros-z-tests` integration test suite supports these features:
+```mermaid
+graph TD
+    A[all_msgs] --> B[bundled_msgs]
+    A --> C[external_msgs]
 
-### `ros-msgs`
+    B --> D[std_msgs]
+    B --> E[geometry_msgs]
+    B --> F[sensor_msgs]
+    B --> G[nav_msgs]
 
-Enable tests with ros-z-msgs dependency:
+    C --> H[example_interfaces]
 
-```bash
-cargo test -p ros-z-tests --features ros-msgs
+    I[common_interfaces] --> D
+    I --> E
+    I --> F
 ```
-
-### `interop-tests`
-
-ROS interoperability tests (requires `ros-msgs`):
-
-```bash
-cargo test -p ros-z-tests --features interop-tests
-```
-
-**Requirements:** ROS 2 installation and `ros-msgs` feature.
 
 ## Common Feature Combinations
 
-### Minimal Build
+### Minimal Development
 
-Just the core library:
+Core library only, no messages:
 
 ```bash
 cargo build -p ros-z
 ```
+
+**Dependencies:** Rust, Cargo
+**Use case:** Custom messages only
 
 ### Standard Development
 
-Core library with common message types:
+Core with common message types:
 
 ```bash
-cargo build -p ros-z-msgs --features common_interfaces
+cargo build -p ros-z-msgs  # Uses default common_interfaces
 cargo build -p ros-z
 ```
 
-### Full ROS Integration
+**Dependencies:** Rust, Cargo
+**Use case:** Most applications
+
+### Full ROS 2 Integration
 
 Everything including external messages:
 
 ```bash
+source /opt/ros/jazzy/setup.bash
 cargo build -p ros-z-msgs --features all_msgs
 cargo build -p ros-z --features external_msgs
 cargo build -p rcl-z
 ```
 
+**Dependencies:** Rust, Cargo, ROS 2
+**Use case:** Complete ROS 2 ecosystem integration
+
 ### Protobuf Development
 
-Core library with protobuf support:
+Core with protobuf serialization:
 
 ```bash
 cargo build -p ros-z-codegen --features protobuf
@@ -241,40 +282,110 @@ cargo build -p ros-z-msgs --features protobuf
 cargo build -p ros-z --features protobuf
 ```
 
-## Feature Dependencies
+**Dependencies:** Rust, Cargo, Protobuf compiler
+**Use case:** Cross-language data exchange
 
-Some features depend on others:
+## Feature Matrix
 
-```text
-external_msgs (ros-z)
-  └─> external_msgs (ros-z-msgs)
-
-all_msgs (ros-z-msgs)
-  ├─> bundled_msgs
-  └─> external_msgs
-
-common_interfaces (ros-z-msgs)
-  ├─> std_msgs
-  ├─> geometry_msgs
-  └─> sensor_msgs
-
-interop-tests (ros-z-tests)
-  └─> ros-msgs
-```
+| Package | Feature | Requires ROS 2 | Adds Dependencies |
+|---------|---------|----------------|-------------------|
+| ros-z | (none) | No | None |
+| ros-z | protobuf | No | prost, prost-types |
+| ros-z | rcl-z | Yes | RCL libraries |
+| ros-z | external_msgs | Yes (propagated) | None |
+| ros-z-msgs | common_interfaces | No | None (bundled) |
+| ros-z-msgs | bundled_msgs | No | None (bundled) |
+| ros-z-msgs | external_msgs | Yes | None (uses system) |
+| ros-z-msgs | protobuf | No | prost, prost-types |
+| ros-z-codegen | protobuf | No | prost-build |
 
 ## Checking Active Features
 
-To see which features are enabled:
+View enabled features for a package:
 
 ```bash
-# Show features for a specific package
+# Show features for ros-z-msgs
 cargo tree -p ros-z-msgs -e features
 
-# Show all features in the workspace
+# Show all workspace features
 cargo tree -e features
+
+# Build with specific features and verify
+cargo build -p ros-z-msgs --features std_msgs,geometry_msgs -v
 ```
 
-## Next Steps
+```admonish tip
+Use `cargo tree` to debug feature resolution issues. It shows exactly which features are active and why.
+```
 
-- Learn how to [build with specific features](./building.md)
-- Explore [examples](./examples_overview.md) that use different features
+## Feature Selection Strategy
+
+```mermaid
+flowchart TD
+    A[Start Project] --> B{Need ROS messages?}
+    B -->|No| C[Zero features<br/>Custom messages]
+    B -->|Yes| D{Which messages?}
+
+    D -->|Common| E{ROS 2 available?}
+    E -->|No| F[bundled_msgs<br/>No ROS required]
+    E -->|Yes| G[bundled_msgs<br/>Or all_msgs]
+
+    D -->|All/External| H[all_msgs<br/>Requires ROS 2]
+
+    C --> I[Minimal dependencies]
+    F --> J[Standard dependencies]
+    G --> K[Standard dependencies]
+    H --> L[Full dependencies]
+```
+
+**Decision guide:**
+
+1. **Prototyping?** → Use bundled_msgs (no ROS 2 required)
+2. **Need external packages?** → Use all_msgs (requires ROS 2)
+3. **Custom messages only?** → No message features
+4. **Cross-language data?** → Add protobuf feature
+5. **C++ integration?** → Add rcl-z feature
+
+## Performance Considerations
+
+| Feature Set | Build Time | Runtime Overhead | Dependency Count |
+|-------------|------------|------------------|------------------|
+| Minimal | Fast | None | ~50 crates |
+| Standard | Medium | None | ~75 crates |
+| Full ROS | Slow (first build) | Minimal | ~100+ crates |
+| With Protobuf | Medium | Minimal | +10 crates |
+
+```admonish info
+First build with message generation is slow. Incremental builds are fast. Choose the minimal feature set that meets your needs.
+```
+
+## Examples by Feature
+
+### Bundled Messages Only
+
+```bash
+cargo run --example z_pubsub          # std_msgs
+cargo run --example twist_pub         # geometry_msgs
+cargo run --example battery_state_sub # sensor_msgs
+cargo run --example z_pingpong        # std_msgs
+```
+
+### External Messages Required
+
+```bash
+cargo run --example z_srvcli --features external_msgs  # example_interfaces
+```
+
+### Custom Messages
+
+```bash
+cargo run --example z_custom_message  # No features needed
+```
+
+## Resources
+
+- **[Building Guide](./building.md)** - Build procedures for each scenario
+- **[Message Generation](./message_generation.md)** - How messages are generated
+- **[Examples Overview](./examples_overview.md)** - What each example requires
+
+**Start with default features and add more as your project evolves. Feature flags provide flexibility without forcing early architectural decisions.**

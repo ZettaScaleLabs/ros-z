@@ -1,72 +1,52 @@
 # Custom Messages
 
-This section demonstrates how to manually implement custom messages in ros-z by defining Rust structs and implementing the required traits.
+**Define domain-specific message types by implementing required traits on Rust structs.** Custom messages give you full control over data structures while maintaining ROS 2 compatibility for ros-z-to-ros-z communication.
+
+```admonish tip
+Use custom messages for rapid prototyping and standalone applications. For production systems requiring ROS 2 interoperability, use auto-generated messages from `.msg` definitions.
+```
+
+## Implementation Workflow
+
+```mermaid
+graph LR
+    A[Define Struct] --> B[Impl MessageTypeInfo]
+    B --> C[Add Serde Traits]
+    C --> D[Impl WithTypeInfo]
+    D --> E[Use in Pub/Sub]
+```
 
 ## Complete Example
 
-The `z_custom_message` example shows a full implementation with both custom messages and services:
+The `z_custom_message` example demonstrates both custom messages and services:
 
 ```rust,ignore
 {{#include ../../../ros-z/examples/z_custom_message.rs}}
 ```
 
-## What This Example Demonstrates
+## Required Traits
 
-This example includes:
+| Trait | Purpose | Key Method |
+|-------|---------|------------|
+| **MessageTypeInfo** | Type identification | `type_name()`, `type_hash()` |
+| **WithTypeInfo** | ros-z integration | Automatic with `#[derive]` |
+| **Serialize/Deserialize** | Data encoding | From `serde` |
 
-1. **Custom Message Type** (`RobotStatus`)
-   - Implements `MessageTypeInfo` for type identification
-   - Implements `WithTypeInfo` for ros-z integration
-   - Uses `serde` for serialization
-   - Demonstrates pub/sub pattern
+## Message Implementation
 
-2. **Custom Service Types** (`NavigateTo`)
-   - Request type (`NavigateToRequest`)
-   - Response type (`NavigateToResponse`)
-   - Service definition implementing `ServiceTypeInfo` and `ZService`
-   - Demonstrates request/response pattern
+**Step 1 - Define the Struct:**
 
-3. **Four Operating Modes**
-   - `status-pub`: Publishes robot status messages
-   - `status-sub`: Subscribes to robot status messages
-   - `nav-server`: Runs navigation service server
-   - `nav-client`: Sends navigation requests
-
-## Running the Example
-
-### Publisher/Subscriber
-
-Terminal 1 (subscriber):
-
-```bash
-cargo run --example z_custom_message -- --mode status-sub
+```rust,ignore
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RobotStatus {
+    battery_level: f32,
+    position_x: f32,
+    position_y: f32,
+    is_moving: bool,
+}
 ```
 
-Terminal 2 (publisher):
-
-```bash
-cargo run --example z_custom_message -- --mode status-pub
-```
-
-### Service Client/Server
-
-Terminal 1 (server):
-
-```bash
-cargo run --example z_custom_message -- --mode nav-server
-```
-
-Terminal 2 (client):
-
-```bash
-cargo run --example z_custom_message -- --mode nav-client --target_x 10.0 --target_y 20.0 --max_speed 1.5
-```
-
-## Key Traits
-
-### MessageTypeInfo
-
-Required for all message types:
+**Step 2 - Implement MessageTypeInfo:**
 
 ```rust,ignore
 impl MessageTypeInfo for RobotStatus {
@@ -75,19 +55,55 @@ impl MessageTypeInfo for RobotStatus {
     }
 
     fn type_hash() -> TypeHash {
-        TypeHash::zero()  // For ros-z-to-ros-z communication
+        TypeHash::zero()  // For ros-z-to-ros-z only
     }
 }
 ```
 
-### ServiceTypeInfo and ZService
-
-Required for services:
+**Step 3 - Add WithTypeInfo:**
 
 ```rust,ignore
+impl WithTypeInfo for RobotStatus {
+    fn type_info() -> TypeInfo {
+        TypeInfo::new(Self::type_name(), Self::type_hash())
+    }
+}
+```
+
+```admonish note
+`TypeHash::zero()` works for ros-z-to-ros-z communication. For full ROS 2 compatibility, generate proper type hashes from message definitions.
+```
+
+## Service Implementation
+
+**Define Request and Response:**
+
+```rust,ignore
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct NavigateToRequest {
+    target_x: f32,
+    target_y: f32,
+    max_speed: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct NavigateToResponse {
+    success: bool,
+    distance_traveled: f32,
+}
+```
+
+**Implement Service Traits:**
+
+```rust,ignore
+struct NavigateTo;
+
 impl ServiceTypeInfo for NavigateTo {
     fn service_type_info() -> TypeInfo {
-        TypeInfo::new("custom_msgs::srv::dds_::NavigateTo_", TypeHash::zero())
+        TypeInfo::new(
+            "custom_msgs::srv::dds_::NavigateTo_",
+            TypeHash::zero()
+        )
     }
 }
 
@@ -97,25 +113,82 @@ impl ZService for NavigateTo {
 }
 ```
 
-## When to Use Manual Messages
+## Running the Example
 
-**Use manual custom messages when:**
+**Publisher/Subscriber Mode:**
 
-- Prototyping new message types
-- Building standalone ros-z applications
-- You don't need interoperability with other ROS 2 nodes
-- Testing and experimentation
+Terminal 1 - Start Subscriber:
 
-**Use generated messages when:**
+```bash
+cargo run --example z_custom_message -- --mode status-sub
+```
 
-- Interoperating with existing ROS 2 systems
-- Using standard ROS message types
-- You need proper type hashing for ROS 2 compatibility
-- Working with existing `.msg` and `.srv` definitions
+Terminal 2 - Start Publisher:
 
-## Next Steps
+```bash
+cargo run --example z_custom_message -- --mode status-pub
+```
 
-- Review the parent [Message Generation](./message_generation.md) chapter for the full architecture
-- See [Publishers and Subscribers](./pubsub.md) for using messages with ros-z
-- Check [Services](./services.md) for service patterns
-- Explore [Feature Flags](./feature_flags.md) for available pre-generated message packages
+**Service Client/Server Mode:**
+
+Terminal 1 - Start Server:
+
+```bash
+cargo run --example z_custom_message -- --mode nav-server
+```
+
+Terminal 2 - Send Requests:
+
+```bash
+cargo run --example z_custom_message -- --mode nav-client \
+  --target_x 10.0 --target_y 20.0 --max_speed 1.5
+```
+
+```admonish success
+You should see the server processing navigation requests and returning results with calculated distances.
+```
+
+## Decision Guide
+
+```mermaid
+flowchart TD
+    A[Need Custom Messages?] -->|Yes| B{Production or Prototype?}
+    B -->|Prototype| C[Manual Implementation]
+    B -->|Production| D{ROS 2 Interop?}
+    D -->|Yes| E[Generate from .msg]
+    D -->|No| C
+    A -->|No| F[Use Standard Messages]
+```
+
+| Approach | Use When | Benefits | Limitations |
+|----------|----------|----------|-------------|
+| **Manual Custom** | Prototyping, standalone apps | Fast iteration, full control | No ROS 2 interop |
+| **Generated** | Production, ROS 2 systems | Proper type hashing, interop | Build complexity |
+| **Standard** | Common data types | Zero setup, universal | Limited to ROS 2 standard types |
+
+```admonish warning
+Manual custom messages work only between ros-z nodes. They won't interoperate with ROS 2 C++/Python nodes due to missing type hashes and metadata.
+```
+
+## Type Naming Convention
+
+Follow ROS 2 DDS naming conventions for consistency:
+
+```rust,ignore
+// Pattern: package::msg::dds_::MessageName_
+"custom_msgs::msg::dds_::RobotStatus_"
+
+// Pattern: package::srv::dds_::ServiceName_
+"custom_msgs::srv::dds_::NavigateTo_"
+```
+
+The trailing underscore and `dds_` infix match ROS 2's internal naming scheme used by DDS middleware.
+
+## Resources
+
+- **[Message Generation](./message_generation.md)** - Understanding message architecture
+- **[Publishers & Subscribers](./pubsub.md)** - Using messages in pub-sub
+- **[Services](./services.md)** - Using messages in services
+- **[Feature Flags](./feature_flags.md)** - Pre-generated message packages
+
+**Start experimenting with custom messages, then transition to generated messages when you need ROS 2 interoperability.**

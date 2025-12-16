@@ -1,16 +1,54 @@
 # Troubleshooting
 
-This guide covers common issues you might encounter when building or using ros-z, along with their solutions.
+**Comprehensive solutions to common ros-z build and runtime issues.** This guide provides diagnostic steps, root cause analysis, and proven fixes for the most frequent problems.
+
+```admonish tip
+Most issues fall into three categories: build configuration, runtime connectivity, or ROS 2 integration. Use the diagnostic flowcharts to quickly identify your issue type.
+```
+
+## Issue Categories
+
+```mermaid
+graph TD
+    A[ros-z Issue] --> B{When does it occur?}
+    B -->|During Build| C[Build Issues]
+    B -->|During Runtime| D[Runtime Issues]
+    B -->|ROS 2 Interaction| E[Interop Issues]
+
+    C --> C1[Package Not Found]
+    C --> C2[Linker Errors]
+    C --> C3[Slow Builds]
+
+    D --> D1[No Messages]
+    D --> D2[Service Hangs]
+    D --> D3[Serialization Errors]
+
+    E --> E1[Can't Discover Nodes]
+    E --> E2[Message Format Errors]
+```
 
 ## Build Issues
 
 ### Cannot Find ROS Packages
 
-**Problem:** Build with `external_msgs` fails with "Cannot find ROS packages" or similar error.
+**Symptom:** Build fails with "Cannot find ROS packages" or package discovery errors
+
+**Diagnostic Steps:**
+
+```mermaid
+flowchart TD
+    A[Package Not Found] --> B{Is ROS 2 sourced?}
+    B -->|No| C[Source ROS 2]
+    B -->|Yes| D{Package installed?}
+    D -->|No| E[Install package]
+    D -->|Yes| F{Environment set?}
+    F -->|No| G[Check env vars]
+    F -->|Yes| H[Clear cache & rebuild]
+```
 
 **Solutions:**
 
-1. Ensure ROS 2 is sourced:
+1. **Source ROS 2 environment:**
 
    ```bash
    source /opt/ros/jazzy/setup.bash
@@ -18,523 +56,544 @@ This guide covers common issues you might encounter when building or using ros-z
    source /opt/ros/rolling/setup.bash
    ```
 
-2. Check environment variables:
+2. **Verify environment variables:**
 
    ```bash
    echo $AMENT_PREFIX_PATH
    echo $CMAKE_PREFIX_PATH
    ```
 
-   These should show paths to your ROS installation.
-
-3. Verify the package exists:
+3. **Check package installation:**
 
    ```bash
    ros2 pkg prefix example_interfaces
-   ```
-
-   If this fails, install the package:
-
-   ```bash
+   # If fails, install:
    sudo apt install ros-jazzy-example-interfaces
    ```
 
-4. Clear cargo cache and rebuild:
+4. **Clean and rebuild:**
 
    ```bash
-   cargo clean
+   cargo clean -p ros-z-msgs
    cargo build -p ros-z-msgs --features external_msgs
    ```
 
+```admonish warning
+Always source ROS 2 before building with `external_msgs`. The build system reads environment variables at build time, not runtime.
+```
+
+| Error Message | Root Cause | Solution |
+|---------------|------------|----------|
+| "Package X not found" | Not in search path | Source ROS 2 environment |
+| "Cannot find ament_index" | ROS 2 not installed | Install ROS 2 or use bundled msgs |
+| "AMENT_PREFIX_PATH not set" | Environment not sourced | Run `source /opt/ros/jazzy/setup.bash` |
+
 ### Cannot Find Crate `ros_z_msgs`
 
-**Problem:** Error message like "cannot find crate `ros_z_msgs`" when building examples.
+**Symptom:** Compiler error "cannot find crate `ros_z_msgs`"
+
+**Root Cause:** `ros-z-msgs` is not part of default workspace members
 
 **Solution:**
 
-The `ros-z-msgs` package is not part of the default workspace. Build it explicitly:
-
 ```bash
+# Build ros-z-msgs explicitly
 cargo build -p ros-z-msgs
+
+# For external messages
+cargo build -p ros-z-msgs --features external_msgs
+
+# Then build your example
+cargo build --example z_srvcli --features external_msgs
 ```
 
-For examples using external messages:
-
-```bash
-cargo build -p ros-z-msgs --features external_msgs
-cargo build --example z_srvcli --features external_msgs
+```admonish info
+`ros-z-msgs` is excluded from default builds to avoid requiring ROS 2 for core development. Build it explicitly when needed.
 ```
 
 ### Linker Errors with RCL
 
-**Problem:** Linker errors when building `rcl-z` like "undefined reference to `rcl_init`".
+**Symptom:** Undefined reference errors like `undefined reference to rcl_init`
+
+**Diagnostic Flow:**
+
+```mermaid
+sequenceDiagram
+    participant C as Cargo
+    participant L as Linker
+    participant R as RCL Libraries
+
+    C->>L: Link rcl-z
+    L->>R: Find librcl.so
+    alt ROS 2 Sourced
+        R-->>L: Library found
+        L-->>C: Link success
+    else Not Sourced
+        R-->>L: Library not found
+        L-->>C: Undefined reference
+    end
+```
 
 **Solutions:**
 
-1. Ensure ROS 2 is sourced before building:
+1. **Source before building:**
 
    ```bash
    source /opt/ros/jazzy/setup.bash
    cargo build -p rcl-z
    ```
 
-2. Check that RCL libraries are installed:
+2. **Verify RCL installation:**
 
    ```bash
    dpkg -l | grep ros-jazzy-rcl
+   # Should show: ros-jazzy-rcl, ros-jazzy-rcutils, etc.
    ```
 
-3. If using a custom ROS installation, set `CMAKE_PREFIX_PATH`:
+3. **Custom ROS installation:**
 
    ```bash
    export CMAKE_PREFIX_PATH=/path/to/ros/install:$CMAKE_PREFIX_PATH
+   cargo clean -p rcl-z
+   cargo build -p rcl-z
    ```
 
 ### Build Takes Too Long
 
-**Problem:** Compilation is very slow, especially for message generation.
+**Symptom:** Compilation is very slow, especially message generation
 
-**Solutions:**
+**Optimization Strategies:**
 
-1. Use parallel builds (usually automatic):
+| Strategy | Command | Speedup |
+|----------|---------|---------|
+| **Parallel builds** | `cargo build -j $(nproc)` | 2-4x |
+| **Selective features** | `cargo build --features std_msgs` | 5-10x |
+| **Incremental compilation** | `export CARGO_INCREMENTAL=1` | 2-3x |
+| **Optimized profile** | `cargo build --profile opt` | Varies |
 
-   ```bash
-   cargo build -j $(nproc)
-   ```
+**Recommended approach:**
 
-2. Build only what you need:
+```bash
+# Build only what you need
+cargo build -p ros-z-msgs --features std_msgs,geometry_msgs
 
-   ```bash
-   # Instead of building all messages:
-   cargo build -p ros-z-msgs --features bundled_msgs
+# Enable sccache if available
+export RUSTC_WRAPPER=sccache
+cargo build
+```
 
-   # Build only specific packages:
-   cargo build -p ros-z-msgs --features std_msgs,geometry_msgs
-   ```
-
-3. Use the optimized profile for faster runtime with reasonable compile time:
-
-   ```bash
-   cargo build --profile opt
-   ```
-
-4. Enable incremental compilation (should be on by default):
-
-   ```bash
-   export CARGO_INCREMENTAL=1
-   ```
-
-### Nix Build Failures
-
-**Problem:** Build fails inside `nix develop` shell.
-
-**Solutions:**
-
-1. Ensure you're using the correct shell:
-
-   ```bash
-   # For pure Rust development:
-   nix develop .#pureRust
-
-   # For ROS 2 Jazzy:
-   nix develop .#ros-jazzy
-   ```
-
-2. Clean and rebuild:
-
-   ```bash
-   cargo clean
-   nix develop .#ros-jazzy --command cargo build
-   ```
-
-3. Update flake inputs:
-
-   ```bash
-   nix flake update
-   ```
+```admonish tip
+First build is always slow due to message generation. Subsequent builds are much faster with incremental compilation.
+```
 
 ## Runtime Issues
 
 ### No Messages Received
 
-**Problem:** Subscriber doesn't receive messages from publisher.
+**Symptom:** Subscriber doesn't receive messages from publisher
 
-**Diagnostics:**
+**Diagnostic Checklist:**
 
-1. Check if both nodes are running:
+```mermaid
+flowchart TD
+    A[No Messages] --> B{Both nodes running?}
+    B -->|No| C[Start both nodes]
+    B -->|Yes| D{Same topic name?}
+    D -->|No| E[Fix topic names]
+    D -->|Yes| F{QoS compatible?}
+    F -->|No| G[Align QoS settings]
+    F -->|Yes| H{Network reachable?}
+    H -->|No| I[Check firewall/routing]
+    H -->|Yes| J{Enable debug logs}
+```
 
-   ```bash
-   # In one terminal:
-   cargo run --example demo_nodes_talker
+**Common Causes & Fixes:**
 
-   # In another:
-   cargo run --example demo_nodes_listener
-   ```
+| Issue | Diagnostic | Fix |
+|-------|------------|-----|
+| **Different topics** | Compare topic names | Use `--topic` flag consistently |
+| **QoS mismatch** | Check QoS profiles in code | Align reliability & durability |
+| **Late subscription** | Check timing | Use transient_local durability |
+| **Network isolation** | Try localhost first | Add explicit `--endpoint` |
 
-2. Verify topic names match:
+**Debug process:**
 
-   ```bash
-   # Add logging to see what's happening:
-   RUST_LOG=debug cargo run --example demo_nodes_listener
-   ```
+```bash
+# Terminal 1: Subscriber with debug logging
+RUST_LOG=debug cargo run --example demo_nodes_listener
 
-3. Check Zenoh connectivity:
+# Terminal 2: Publisher with debug logging
+RUST_LOG=debug cargo run --example demo_nodes_talker
 
-   ```bash
-   # Enable Zenoh session tracing:
-   RUST_LOG=zenoh::api::session=trace cargo run --example demo_nodes_listener
-   ```
+# Terminal 3: Zenoh session tracing
+RUST_LOG=zenoh::api::session=trace cargo run --example demo_nodes_listener
+```
 
-**Common causes:**
+**Ensure matching configuration:**
 
-- **Different topic names**: Ensure publisher and subscriber use the same topic
-- **QoS mismatch**: Check that QoS profiles are compatible
-- **Network issues**: Verify Zenoh can discover peers (check firewall)
-- **Late subscription**: Subscriber started after messages were sent with transient_local
+```rust,ignore
+// Publisher QoS
+let qos = QosProfile::default()
+    .reliability(ReliabilityPolicy::Reliable)
+    .durability(DurabilityPolicy::TransientLocal);
 
-**Solutions:**
+// Subscriber must match
+let qos = QosProfile::default()
+    .reliability(ReliabilityPolicy::Reliable)  // Must match
+    .durability(DurabilityPolicy::TransientLocal);  // Must match
+```
 
-1. Use consistent topic names:
-
-   ```bash
-   cargo run --example demo_nodes_talker -- --topic /test
-   cargo run --example demo_nodes_listener -- --topic /test
-   ```
-
-2. Check QoS settings in code:
-
-   ```rust,ignore
-   // Ensure compatible QoS
-   let qos = QosProfile::default()
-       .history(HistoryPolicy::KeepLast(10))
-       .reliability(ReliabilityPolicy::Reliable);
-   ```
-
-3. Add endpoint for explicit connectivity:
-
-   ```bash
-   cargo run --example demo_nodes_talker -- --endpoint tcp/localhost:7447
-   cargo run --example demo_nodes_listener -- --endpoint tcp/localhost:7447
-   ```
+```admonish success
+Start both nodes on the same machine with default settings first. Add complexity incrementally once basic communication works.
+```
 
 ### Service Call Hangs
 
-**Problem:** Service client hangs waiting for response.
+**Symptom:** Client blocks indefinitely waiting for response
 
-**Diagnostics:**
+**Diagnostic Sequence:**
 
-1. Verify server is running:
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant N as Network
+    participant S as Server
+
+    C->>N: Send request
+    Note over C: Waiting...
+
+    alt Server Running
+        N->>S: Deliver request
+        S->>N: Send response
+        N->>C: Deliver response
+        Note over C: Success
+    else Server Not Running
+        Note over C: Timeout/Hang
+    end
+```
+
+**Checklist:**
+
+1. **Verify server is running:**
 
    ```bash
    cargo run --example demo_nodes_add_two_ints_server
+   # Should print: "Waiting for requests..."
    ```
 
-2. Check service name:
+2. **Check service names match:**
 
    ```bash
-   RUST_LOG=debug cargo run --example demo_nodes_add_two_ints_client
+   # Enable debug logging
+   RUST_LOG=debug cargo run --example demo_nodes_add_two_ints_client -- --a 5 --b 3
    ```
 
-3. Test with ROS 2 CLI if available:
+3. **Add timeout to prevent infinite blocking:**
 
-   ```bash
-   ros2 service list
-   ros2 service call /add_two_ints example_interfaces/srv/AddTwoInts "{a: 5, b: 3}"
+   ```rust,ignore
+   // Instead of:
+   let response = client.take_response()?;
+
+   // Use:
+   let response = client.take_response_timeout(Duration::from_secs(5))?;
    ```
 
-**Solutions:**
+4. **Test with ROS 2 CLI if available:**
 
-- Ensure server is running before client sends request
-- Verify service names match exactly
-- Check that request/response types match
-- Add timeout to client calls to avoid infinite blocking
+```bash
+ros2 service list
+ros2 service call /add_two_ints example_interfaces/srv/AddTwoInts "{a: 5, b: 3}"
+```
+
+```admonish warning
+Always implement timeouts for service calls. Production systems should retry with exponential backoff on timeout.
+```
 
 ### Message Serialization Errors
 
-**Problem:** Errors like "failed to serialize message" or "failed to deserialize message".
+**Symptom:** "Failed to serialize/deserialize message" errors
 
-**Common causes:**
+**Root Causes:**
 
-- Incompatible message versions between publisher and subscriber
-- Corrupted message data
-- Wrong message type used
+| Error | Cause | Solution |
+|-------|-------|----------|
+| **Version mismatch** | Different message versions | Rebuild all with same ros-z-msgs |
+| **Type mismatch** | Wrong message type used | Verify type annotations |
+| **Corrupted data** | Network or memory issue | Check network, update dependencies |
 
-**Solutions:**
+**Resolution steps:**
 
-1. Ensure all nodes use the same message definitions:
+```bash
+# Clean rebuild with consistent versions
+cargo clean
+cargo build -p ros-z-msgs
+cargo build --examples
 
-   ```bash
-   # Rebuild all with consistent versions:
-   cargo clean
-   cargo build -p ros-z-msgs
-   cargo build --examples
-   ```
+# Verify message types match
+RUST_LOG=ros_z=trace cargo run --example demo_nodes_listener
+```
 
-2. Verify message types match:
+```admonish note
+CDR serialization is deterministic. If you see serialization errors, the most likely cause is type mismatches or version inconsistencies.
+```
 
-   ```rust,ignore
-   // Publisher and subscriber must use the same type:
-   pub.publish(&msg)?;  // RosString
-   sub.recv()?;         // Must expect RosString, not String
-   ```
-
-3. Enable detailed error logging:
-
-   ```bash
-   RUST_LOG=ros_z=trace cargo run --example demo_nodes_listener
-   ```
-
-## ROS Interoperability Issues
+## ROS 2 Interoperability Issues
 
 ### Cannot Communicate with ROS 2 Nodes
 
-**Problem:** ros-z nodes can't communicate with standard ROS 2 nodes.
+**Symptom:** ros-z and ROS 2 nodes can't see each other
 
-**Prerequisites:**
+**Architecture Requirements:**
 
-Ensure both systems use Zenoh:
+```mermaid
+graph LR
+    A[ros-z Node<br/>Zenoh Native] <-->|Zenoh| B[Zenoh Bridge]
+    B <-->|DDS| C[ROS 2 Node<br/>DDS]
 
-- ros-z uses Zenoh natively
-- ROS 2 needs `rmw_zenoh` or Zenoh bridge
+    A <-->|Zenoh| D[ROS 2 Node<br/>rmw_zenoh]
+```
 
-**Solutions:**
+**Solution paths:**
 
-1. If using ROS 2 with DDS (default), you need the Zenoh-DDS bridge:
+#### Option 1: Zenoh-DDS Bridge
 
-   ```bash
-   # Install zenoh-bridge-dds
-   cargo install zenoh-bridge-dds
+```bash
+# Install bridge
+cargo install zenoh-bridge-dds
 
-   # Run the bridge:
-   zenoh-bridge-dds
-   ```
+# Run bridge
+zenoh-bridge-dds
 
-2. Or use ROS 2 with rmw_zenoh:
+# In another terminal, run ROS 2 node
+ros2 run demo_nodes_cpp talker
 
-   ```bash
-   # Install rmw_zenoh
-   sudo apt install ros-jazzy-rmw-zenoh-cpp
+# In another terminal, run ros-z node
+cargo run --example demo_nodes_listener
+```
 
-   # Run ROS 2 node with Zenoh:
-   RMW_IMPLEMENTATION=rmw_zenoh_cpp ros2 run demo_nodes_cpp talker
-   ```
+#### Option 2: ROS 2 with rmw_zenoh
 
-3. Verify both can see each other:
+```bash
+# Install rmw_zenoh
+sudo apt install ros-jazzy-rmw-zenoh-cpp
 
-   ```bash
-   # From ROS 2 side:
-   ros2 topic list
+# Set RMW implementation
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
 
-   # From ros-z side with debug logging:
-   RUST_LOG=debug cargo run --example demo_nodes_listener
-   ```
+# Run ROS 2 node with Zenoh
+ros2 run demo_nodes_cpp talker
 
-### Wrong Message Format Between ROS 2 and ros-z
+# Run ros-z node (no bridge needed)
+cargo run --example demo_nodes_listener
+```
 
-**Problem:** Messages received are corrupted or malformed when communicating with ROS 2.
+```admonish info
+ros-z uses Zenoh natively. ROS 2 needs either rmw_zenoh or a Zenoh-DDS bridge to communicate with ros-z nodes.
+```
 
-**Solutions:**
+### Wrong Message Format Between Systems
 
-1. Ensure message definitions match:
+**Symptom:** Messages corrupted when crossing ROS 2/ros-z boundary
 
-   ```bash
-   # Compare message definitions:
-   ros2 interface show std_msgs/msg/String
-   ```
+**Verification:**
 
-2. Verify CDR serialization compatibility:
-   - ros-z uses CDR serialization by default (compatible with ROS 2)
-   - Check that custom messages follow ROS 2 conventions
+```bash
+# Test with standard messages first
+cargo run --example demo_nodes_talker  # Uses std_msgs::String
+ros2 topic echo /chatter               # Should display correctly
 
-3. Test with standard messages first:
+# Compare message definitions
+ros2 interface show std_msgs/msg/String
+```
 
-   ```bash
-   # Use std_msgs which are well-defined:
-   cargo run --example demo_nodes_talker  # Uses std_msgs::String
-   ros2 topic echo /chatter               # Should work
-   ```
+**Ensure CDR compatibility:**
 
-## Message Generation Issues
-
-### Message Generation Fails
-
-**Problem:** `ros-z-msgs` build fails during message generation.
-
-**Solutions:**
-
-1. Check message definition syntax:
-
-   ```bash
-   # Validate message files:
-   ros2 interface show geometry_msgs/msg/Twist
-   ```
-
-2. Clear generated code and regenerate:
-
-   ```bash
-   cargo clean -p ros-z-msgs
-   cargo build -p ros-z-msgs
-   ```
-
-3. If using external messages, ensure packages are installed:
-
-   ```bash
-   ros2 pkg prefix geometry_msgs
-   ros2 pkg prefix sensor_msgs
-   ```
-
-4. Check for conflicting message definitions:
-
-   ```bash
-   # Remove old generated files:
-   find target -name "*_msgs" -type d -exec rm -rf {} +
-   cargo build -p ros-z-msgs
-   ```
-
-### Custom Message Not Found
-
-**Problem:** Custom message type not available after generation.
-
-**Solution:**
-
-1. Ensure feature is enabled:
-
-   ```bash
-   cargo build -p ros-z-msgs --features my_custom_msgs
-   ```
-
-2. Check `Cargo.toml` includes your custom package:
-
-   ```toml
-   [features]
-   my_custom_msgs = []
-   ```
-
-3. Verify message is in correct location:
-
-   ```text
-   ros-z-msgs/
-   └── src/
-       └── my_custom_msgs/
-           └── msg/
-               └── MyMessage.msg
-   ```
+- ros-z uses CDR serialization by default (ROS 2 compatible)
+- Custom messages must follow ROS 2 conventions
+- Type hashes must match for interoperability
 
 ## Zenoh Configuration Issues
 
 ### Zenoh Discovery Not Working
 
-**Problem:** Nodes on different machines can't discover each other.
+**Symptom:** Nodes on different machines can't discover each other
 
-**Solutions:**
+**Network Topology Options:**
 
-1. Use explicit endpoints:
+```mermaid
+graph TD
+    subgraph "Multicast Discovery"
+        A1[Node A] -.Multicast.-> A2[Node B]
+    end
+
+    subgraph "Router-Based"
+        B1[Node A] -->|TCP| B3[Router]
+        B2[Node B] -->|TCP| B3
+    end
+
+    subgraph "Peer-to-Peer"
+        C1[Node A] -->|Direct TCP| C2[Node B]
+    end
+```
+
+**Solutions by scenario:**
+
+1. **Same machine (should work automatically):**
 
    ```bash
-   # On machine 1:
-   cargo run --example demo_nodes_talker -- --endpoint tcp/192.168.1.100:7447
-
-   # On machine 2:
-   cargo run --example demo_nodes_listener -- --endpoint tcp/192.168.1.100:7447
+   # No configuration needed
+   cargo run --example demo_nodes_talker
+   cargo run --example demo_nodes_listener
    ```
 
-2. Check firewall settings:
+2. **Different machines with multicast:**
 
    ```bash
-   # Allow Zenoh default port (7447):
-   sudo ufw allow 7447/tcp
-   ```
+   # Check firewall allows UDP multicast
+   sudo ufw allow proto udp from any to 224.0.0.0/4
 
-3. Use multicast if available:
-
-   ```bash
-   # Enable multicast scouting (default):
+   # Enable multicast explicitly
    ZENOH_SCOUTING=multicast cargo run --example demo_nodes_talker
    ```
 
-4. Use a Zenoh router for complex networks:
+3. **Direct peer-to-peer:**
 
    ```bash
-   # Install and run zenoh router:
+   # Machine A
+   cargo run --example demo_nodes_talker -- --endpoint tcp/192.168.1.100:7447
+
+   # Machine B
+   cargo run --example demo_nodes_listener -- --endpoint tcp/192.168.1.100:7447
+   ```
+
+4. **Using Zenoh router:**
+
+   ```bash
+   # Install router
    cargo install zenohd
+
+   # Run router (on dedicated machine or one of the endpoints)
    zenohd
 
-   # Connect nodes to router:
+   # Connect nodes to router
    cargo run --example demo_nodes_talker -- --endpoint tcp/router-ip:7447
+   cargo run --example demo_nodes_listener -- --endpoint tcp/router-ip:7447
    ```
+
+```admonish tip
+Start with same-machine testing, then add network complexity. Zenoh router is recommended for multi-machine deployments.
+```
 
 ### High Latency Between Nodes
 
-**Problem:** Messages take too long to arrive.
+**Symptom:** Excessive message delivery delays
 
-**Solutions:**
+**Performance Analysis:**
 
-1. Check network configuration:
+```bash
+# Measure baseline latency
+cargo run --example z_pingpong -- --mode pong
+cargo run --example z_pingpong -- --mode ping
+```
 
-   ```bash
-   # Test network latency:
-   ping other-machine
-   ```
+**Optimization strategies:**
 
-2. Use direct connection instead of router:
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| **Network latency** | Physical distance | Use direct connection, optimize routing |
+| **Router overhead** | Extra hop | Connect peers directly |
+| **QoS buffering** | Large history depth | Use `KeepLast(1)` for real-time data |
+| **Reliability overhead** | Reliable delivery | Use `BestEffort` for sensor data |
 
-   ```bash
-   cargo run --example demo_nodes_listener -- --endpoint tcp/peer-ip:7447
-   ```
+**Optimized QoS for low latency:**
 
-3. Optimize QoS settings:
-
-   ```rust,ignore
-   let qos = QosProfile::default()
-       .reliability(ReliabilityPolicy::BestEffort)  // Faster than Reliable
-       .history(HistoryPolicy::KeepLast(1));        // Minimize buffering
-   ```
-
-4. Use the z_pingpong example to measure latency:
-
-   ```bash
-   # Terminal 1:
-   cargo run --example z_pingpong -- --mode pong
-
-   # Terminal 2:
-   cargo run --example z_pingpong -- --mode ping
-   ```
+```rust,ignore
+let qos = QosProfile::default()
+    .reliability(ReliabilityPolicy::BestEffort)  // Skip retransmissions
+    .history(HistoryPolicy::KeepLast(1))         // No buffering
+    .durability(DurabilityPolicy::Volatile);     // No persistence
+```
 
 ## Getting Help
 
-If you're still experiencing issues:
+### Diagnostic Information Collection
 
-1. **Check the logs**: Use `RUST_LOG=debug` or `RUST_LOG=trace` for detailed output
-2. **Search issues**: Check [GitHub Issues](https://github.com/ZettaScaleLabs/ros-z/issues)
-3. **Ask for help**: Open a new issue with:
-   - Your environment (OS, ROS version, Rust version)
-   - Complete error messages
-   - Steps to reproduce
-   - What you've already tried
-
-### Useful Debug Commands
+When reporting issues, include:
 
 ```bash
-# Full debug output:
-RUST_LOG=trace cargo run --example demo_nodes_talker 2>&1 | tee debug.log
-
-# Check versions:
-cargo --version
+# System information
+uname -a
 rustc --version
-ros2 --version  # if using ROS 2
+cargo --version
+ros2 --version  # if applicable
 
-# Environment info:
+# Environment
 env | grep ROS
 env | grep AMENT
 env | grep CMAKE
 
-# Cargo tree to check dependencies:
+# Dependency tree
 cargo tree -p ros-z-msgs
+
+# Full debug logs
+RUST_LOG=trace cargo run --example demo_nodes_talker 2>&1 | tee debug.log
 ```
 
-## Next Steps
+### Issue Reporting Checklist
 
-- Review [Building](./building.md) for correct build procedures
-- Check [Feature Flags](./feature_flags.md) for feature requirements
-- See [Examples](./examples_overview.md) for working code
-- Open an issue on [GitHub](https://github.com/ZettaScaleLabs/ros-z/issues) to report bugs or contribute fixes
+- [ ] ros-z version or commit hash
+- [ ] Operating system and version
+- [ ] ROS 2 distribution (if applicable)
+- [ ] Complete error message
+- [ ] Minimal reproduction steps
+- [ ] Expected vs actual behavior
+- [ ] What you've already tried
+
+```admonish success
+Well-documented issues get resolved faster. Include logs, versions, and reproduction steps in your GitHub issue.
+```
+
+## Quick Reference
+
+### Essential Debug Commands
+
+```bash
+# Full trace logging
+RUST_LOG=trace cargo run --example demo_nodes_talker
+
+# Zenoh session details
+RUST_LOG=zenoh::api::session=trace cargo run --example demo_nodes_listener
+
+# Package information
+cargo tree -p ros-z-msgs
+ros2 pkg list | grep interfaces
+
+# Environment check
+printenv | grep -E '(ROS|AMENT|CMAKE)'
+```
+
+### Common Fix Patterns
+
+```bash
+# Pattern 1: Package not found
+source /opt/ros/jazzy/setup.bash
+cargo clean -p ros-z-msgs
+cargo build -p ros-z-msgs --features external_msgs
+
+# Pattern 2: Connectivity issues
+cargo run --example demo_nodes_talker -- --endpoint tcp/localhost:7447
+cargo run --example demo_nodes_listener -- --endpoint tcp/localhost:7447
+
+# Pattern 3: Performance problems
+cargo build --release
+RUST_LOG=warn cargo run --release --example demo_nodes_talker
+```
+
+## Resources
+
+- **[Building Guide](./building.md)** - Correct build procedures
+- **[Feature Flags](./feature_flags.md)** - Available features
+- **[Examples Overview](./examples_overview.md)** - Working examples
+- **[GitHub Issues](https://github.com/ZettaScaleLabs/ros-z/issues)** - Report bugs
+
+**Most issues are environmental. Verify your setup matches the build scenario requirements before diving deeper.**

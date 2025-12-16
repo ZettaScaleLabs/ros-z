@@ -152,7 +152,13 @@
           rust-analyzer
           nixfmt-rfc-style
           gdb
+        ];
+
+        # Documentation tools
+        docTools = with pkgs; [
           mdbook
+          mdbook-admonish
+          mdbook-mermaid
         ];
 
         # Test tools
@@ -210,10 +216,15 @@
               ]
               ++ commonBuildInputs
               ++ devTools
+              ++ docTools
               ++ testTools
               ++ [ rosEnv.dev ]
               ++ pre-commit-check.enabledPackages;
-              extraShellHook = pre-commit-check.shellHook;
+              extraShellHook = ''
+                ${pre-commit-check.shellHook}
+                mdbook-mermaid install book/ 2>/dev/null || true
+                mdbook-admonish install book/ 2>/dev/null || true
+              '';
               banner = ''
                 echo "🦀 ros-z development environment (with ROS)"
                 echo "ROS 2 Distribution: ${rosDistro}"
@@ -223,7 +234,11 @@
 
             ci = mkDevShell {
               name = "ros-z-ci-${rosDistro}";
-              packages = commonBuildInputs ++ testTools ++ [ rosEnv.testFull ];
+              packages = commonBuildInputs ++ docTools ++ testTools ++ [ rosEnv.testFull ];
+              extraShellHook = ''
+                mdbook-mermaid install book/ 2>/dev/null || true
+                mdbook-admonish install book/ 2>/dev/null || true
+              '';
             };
           };
 
@@ -263,9 +278,14 @@
             ]
             ++ commonBuildInputs
             ++ devTools
+            ++ docTools
             ++ testTools
             ++ pre-commit-check.enabledPackages;
-            extraShellHook = pre-commit-check.shellHook;
+            extraShellHook = ''
+              ${pre-commit-check.shellHook}
+              mdbook-mermaid install book/ 2>/dev/null || true
+              mdbook-admonish install book/ 2>/dev/null || true
+            '';
             banner = ''
               echo "🦀 ros-z development environment (pure Rust)"
               echo "Rust: $(rustc --version)"
@@ -275,7 +295,11 @@
           # CI without ROS
           pureRust-ci = mkDevShell {
             name = "ros-z-ci-pure-rust";
-            packages = commonBuildInputs ++ testTools;
+            packages = commonBuildInputs ++ docTools ++ testTools;
+            extraShellHook = ''
+              mdbook-mermaid install book/ 2>/dev/null || true
+              mdbook-admonish install book/ 2>/dev/null || true
+            '';
           };
         }
         # Add per-distro dev shells (ros-jazzy, ros-rolling, ...)

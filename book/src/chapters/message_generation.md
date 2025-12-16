@@ -1,192 +1,295 @@
 # Message Generation
 
-ros-z provides a powerful code generation system that automatically creates Rust types from ROS 2 message definitions. This chapter explains how message generation works and how to use it effectively.
+**Automatic Rust type generation from ROS 2 message definitions at build time.** The code generation system converts `.msg`, `.srv`, and `.action` files into type-safe Rust structs with full serialization support and ROS 2 compatibility.
 
-## Overview
+```admonish success
+Message generation happens automatically during builds. You write ROS 2 message definitions, ros-z generates idiomatic Rust code.
+```
 
-Message generation in ros-z converts `.msg`, `.srv`, and `.action` files into Rust structs with proper serialization support and type information. The system is designed to work both with and without a ROS 2 installation.
+## System Architecture
 
-**Key features:**
+```mermaid
+graph LR
+    A[.msg/.srv files] --> B[roslibrust_codegen]
+    B --> C[Parse & Resolve]
+    C --> D[Type Hashing]
+    D --> E[ros-z-codegen]
+    E --> F[CDR Adapter]
+    E --> G[Protobuf Adapter]
+    F --> H[Rust Structs + Traits]
+    G --> I[Proto Files + Rust]
+    H --> J[ros-z-msgs]
+    I --> J
+```
 
-- Automatic code generation at build time
-- Support for both bundled and system ROS messages
-- CDR serialization compatible with ROS 2 DDS
-- Optional protobuf serialization
-- Proper type hashing for ROS 2 interoperability
+## Key Features
 
-## Architecture
+| Feature | Description | Benefit |
+|---------|-------------|---------|
+| **Build-time generation** | Runs during `cargo build` | No manual steps |
+| **Bundled definitions** | Includes common ROS types | Works without ROS 2 |
+| **Type safety** | Full Rust type system | Compile-time validation |
+| **CDR compatible** | ROS 2 DDS serialization | Full interoperability |
+| **Optional protobuf** | Additional serialization | Cross-language support |
 
-The message generation system consists of several components:
+## Component Stack
 
-### Components
+### roslibrust_codegen
 
-#### roslibrust_codegen
+Third-party foundation for ROS message parsing:
 
-- Third-party library for parsing `.msg` and `.srv` files
-- Resolves message dependencies and calculates ROS 2 type hashes
-- Generates base Rust structs with serde support
-- Bundled message definitions available without ROS installation
+- Parses `.msg` and `.srv` file syntax
+- Resolves message dependencies across packages
+- Calculates ROS 2 type hashes (RIHS algorithm)
+- Generates base Rust structs with serde
+- Bundles common message definitions
 
-#### ros-z-codegen
+```admonish info
+roslibrust provides bundled messages for `std_msgs`, `geometry_msgs`, `sensor_msgs`, and `nav_msgs`. These work without ROS 2 installation.
+```
 
-- ros-z's code generation orchestrator
-- Coordinates message discovery and generation
-- Provides adapters for different serialization formats
-- Generates ros-z-specific trait implementations
+### ros-z-codegen
 
-#### Adapters
+ros-z's orchestration layer:
 
-- `roslibrust_adapter`: Generates CDR-compatible types (default)
-- `protobuf_adapter`: Generates protobuf types (optional)
+- Coordinates message discovery across sources
+- Manages build-time code generation
+- Provides serialization adapters
+- Generates ros-z-specific traits
 
-### Generated Traits
+**Discovery workflow:**
 
-For each message type, ros-z generates:
+```mermaid
+sequenceDiagram
+    participant B as build.rs
+    participant D as Discovery
+    participant S as Sources
+
+    B->>D: Find packages
+    D->>S: Check AMENT_PREFIX_PATH
+    alt Found in system
+        S-->>D: System messages
+    else Not found
+        D->>S: Check /opt/ros/*
+        alt Found in standard path
+            S-->>D: System messages
+        else Not found
+            D->>S: Check roslibrust assets
+            S-->>D: Bundled messages
+        end
+    end
+    D-->>B: Package paths
+    B->>B: Generate Rust code
+```
+
+### Serialization Adapters
+
+**CDR Adapter (default):**
+
+- Generates structs with serde
+- CDR-compatible serialization
+- Full ROS 2 DDS interoperability
+- No additional dependencies
+
+**Protobuf Adapter (optional):**
+
+- Generates `.proto` files
+- Protobuf-compatible types
+- Cross-language data exchange
+- Requires protobuf feature
+
+## Generated Code
+
+For each ROS 2 message, ros-z generates:
+
+### Message Struct
 
 ```rust,ignore
-impl MessageTypeInfo for PackageName::MessageName {
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct String {
+    pub data: std::string::String,
+}
+```
+
+### Type Information Traits
+
+```rust,ignore
+impl MessageTypeInfo for std_msgs::String {
     fn type_name() -> &'static str {
-        "package_name::msg::dds_::MessageName_"
+        "std_msgs::msg::dds_::String_"
     }
 
     fn type_hash() -> TypeHash {
-        TypeHash::from_rihs_string("RIHS01_...")
-            .expect("Invalid RIHS hash string")
+        TypeHash::from_rihs_string("RIHS01_abc123...")
+            .expect("Invalid hash")
     }
+}
 
+impl WithTypeInfo for std_msgs::String {
     fn type_info() -> TypeInfo {
         TypeInfo::new(Self::type_name(), Self::type_hash())
     }
 }
-
-impl WithTypeInfo for PackageName::MessageName {}
 ```
 
-These traits enable ros-z to:
+**These traits enable:**
 
-- Identify message types at runtime
-- Validate type compatibility with other ROS 2 nodes
-- Generate proper DDS topic names
+- Runtime type identification
+- ROS 2 compatibility validation
+- Proper DDS topic naming
+- Type-safe message passing
 
-## Build-Time Generation
-
-Message generation happens during the build process via `build.rs` scripts.
-
-### The ros-z-msgs Build Process
-
-The `ros-z-msgs` crate's build script:
-
-1. **Discovers packages** based on enabled features
-2. **Searches for message definitions** in this order:
-   - System ROS installation (`AMENT_PREFIX_PATH`, `CMAKE_PREFIX_PATH`)
-   - Common ROS paths (`/opt/ros/{rolling,jazzy,iron,humble}`)
-   - Roslibrust bundled assets (`~/.cargo/git/checkouts/roslibrust-*/assets/`)
-3. **Generates Rust code** with proper trait implementations
-4. **Outputs to** `$OUT_DIR/generated.rs`
-
-### Package Discovery
-
-```rust,ignore
-// Simplified build.rs flow
-fn discover_ros_packages() -> Vec<PathBuf> {
-    let bundled = get_bundled_packages();  // std_msgs, geometry_msgs, etc.
-    let external = get_external_packages(); // example_interfaces, etc.
-
-    // Try system installation first
-    if let Some(packages) = discover_system_packages(&bundled, &external) {
-        return packages;
-    }
-
-    // Fallback to bundled roslibrust assets
-    discover_bundled_packages(&bundled)
-}
+```admonish note
+Type hashes are critical for ROS 2 interoperability. They ensure nodes agree on message structure before exchanging data.
 ```
 
-### Configuration
+## Build Process
 
-The generator is configured via `GeneratorConfig`:
+### ros-z-msgs Build Script
+
+The generation happens in `build.rs`:
+
+```mermaid
+flowchart TD
+    A[Start build.rs] --> B[Read enabled features]
+    B --> C[Discover package paths]
+    C --> D{Messages found?}
+    D -->|Yes| E[Parse message definitions]
+    D -->|No| F[Build error]
+    E --> G[Resolve dependencies]
+    G --> H[Generate Rust code]
+    H --> I[Write to OUT_DIR]
+    I --> J[Compile completes]
+```
+
+**Configuration:**
 
 ```rust,ignore
 let config = GeneratorConfig {
-    generate_cdr: true,        // CDR-compatible types (default)
-    generate_protobuf: false,  // Protobuf types (optional)
-    generate_type_info: true,  // MessageTypeInfo traits
+    generate_cdr: true,        // CDR-compatible types
+    generate_protobuf: false,  // Optional protobuf
+    generate_type_info: true,  // Trait implementations
     output_dir: out_dir,
 };
 ```
 
-## Using ros-z-msgs
+### Package Discovery Order
 
-The `ros-z-msgs` crate provides pre-generated message types.
+```mermaid
+flowchart LR
+    A[Feature Flags] --> B{System ROS?}
+    B -->|Found| C[AMENT_PREFIX_PATH]
+    B -->|Not Found| D{/opt/ros/distro?}
+    D -->|Found| E[Standard paths]
+    D -->|Not Found| F[roslibrust assets]
 
-### Basic Usage
-
-```rust,ignore
-use ros_z::context::ZContextBuilder;
-use ros_z_msgs::ros::std_msgs::String as RosString;
-
-let ctx = ZContextBuilder::default().build()?;
-let node = ctx.create_node("my_node").build()?;
-let pub = node.create_pub::<RosString>("/topic").build()?;
-
-let msg = RosString {
-    data: "Hello, ROS!".to_string(),
-};
-pub.publish(&msg)?;
+    C --> G[Generate from system]
+    E --> G
+    F --> H[Generate from bundled]
 ```
 
-### Available Message Packages
+1. **System ROS:** `$AMENT_PREFIX_PATH`, `$CMAKE_PREFIX_PATH`
+2. **Standard paths:** `/opt/ros/{rolling,jazzy,iron,humble}`
+3. **Bundled assets:** `~/.cargo/git/checkouts/roslibrust-*/assets/`
 
-See [Feature Flags](./feature_flags.md) for the complete list of available packages.
+This fallback enables development without ROS 2 installation.
 
-**Bundled packages** (no ROS required):
+## Using Generated Messages
 
-- `std_msgs` - Standard message types
-- `geometry_msgs` - Geometry primitives
-- `sensor_msgs` - Sensor data types
-- `nav_msgs` - Navigation messages
+### Import Pattern
 
-**External packages** (requires ROS 2):
-
-- `example_interfaces` - Example services and actions
-- Custom packages from your ROS installation
+```rust,ignore
+use ros_z_msgs::ros::std_msgs::String as RosString;
+use ros_z_msgs::ros::geometry_msgs::Twist;
+use ros_z_msgs::ros::sensor_msgs::LaserScan;
+```
 
 ### Namespace Structure
 
-Generated messages are organized by package:
-
-```rust,ignore
-ros_z_msgs::ros::std_msgs::String
-ros_z_msgs::ros::geometry_msgs::Twist
-ros_z_msgs::ros::sensor_msgs::LaserScan
+```text
+ros_z_msgs::ros::{package}::{MessageName}
 ```
 
-Services follow a similar pattern:
+**Examples:**
+
+- `ros_z_msgs::ros::std_msgs::String`
+- `ros_z_msgs::ros::geometry_msgs::Point`
+- `ros_z_msgs::ros::sensor_msgs::Image`
+
+### Service Types
+
+Services generate three types:
 
 ```rust,ignore
-ros_z_msgs::ros::example_interfaces::AddTwoInts
-ros_z_msgs::ros::example_interfaces::AddTwoIntsRequest
-ros_z_msgs::ros::example_interfaces::AddTwoIntsResponse
+// Service definition
+use ros_z_msgs::ros::example_interfaces::AddTwoInts;
+
+// Request type
+use ros_z_msgs::ros::example_interfaces::AddTwoIntsRequest;
+
+// Response type
+use ros_z_msgs::ros::example_interfaces::AddTwoIntsResponse;
+```
+
+```admonish tip
+Import the service type for creation, then use the request/response types when handling calls.
+```
+
+## Message Packages
+
+### Bundled Packages
+
+Available without ROS 2:
+
+| Package | Messages | Use Cases |
+|---------|----------|-----------|
+| **std_msgs** | String, Int32, Float64, etc. | Basic data types |
+| **geometry_msgs** | Point, Pose, Twist, Transform | Spatial data |
+| **sensor_msgs** | LaserScan, Image, Imu, PointCloud2 | Sensor readings |
+| **nav_msgs** | Path, Odometry, OccupancyGrid | Navigation |
+
+```bash
+# Build with bundled messages
+cargo build -p ros-z-msgs --features bundled_msgs
+```
+
+### External Packages
+
+Require ROS 2 installation:
+
+| Package | Messages | Use Cases |
+|---------|----------|-----------|
+| **example_interfaces** | AddTwoInts, Fibonacci | Tutorials |
+| **action_msgs** | GoalStatus, GoalInfo | Action support |
+| **(custom)** | Your messages | Domain-specific |
+
+```bash
+source /opt/ros/jazzy/setup.bash
+cargo build -p ros-z-msgs --features external_msgs
 ```
 
 ## Manual Custom Messages
 
-For custom message types without generating from `.msg` files, you can manually implement the required traits.
+For rapid prototyping without `.msg` files:
 
-### Defining a Custom Message
+### Define the Struct
 
 ```rust,ignore
 use serde::{Deserialize, Serialize};
-use ros_z::{MessageTypeInfo, WithTypeInfo, entity::TypeHash};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RobotStatus {
     pub robot_id: String,
     pub battery_percentage: f64,
-    pub position_x: f64,
-    pub position_y: f64,
+    pub position: [f64; 2],
     pub is_moving: bool,
 }
+```
+
+### Implement Required Traits
+
+```rust,ignore
+use ros_z::{MessageTypeInfo, WithTypeInfo, entity::TypeHash};
 
 impl MessageTypeInfo for RobotStatus {
     fn type_name() -> &'static str {
@@ -194,8 +297,7 @@ impl MessageTypeInfo for RobotStatus {
     }
 
     fn type_hash() -> TypeHash {
-        // Use zero hash for custom messages
-        // Or generate proper hash if interoperating with ROS 2
+        // For ros-z-to-ros-z only
         TypeHash::zero()
     }
 }
@@ -203,47 +305,41 @@ impl MessageTypeInfo for RobotStatus {
 impl WithTypeInfo for RobotStatus {}
 ```
 
-### When to Use Manual Messages
+```admonish warning
+Manual messages with `TypeHash::zero()` work only between ros-z nodes. For ROS 2 interoperability, use generated messages with proper type hashes.
+```
 
-**Use manual messages when:**
+### When to Use Each Approach
 
-- Prototyping new message types
-- Building standalone applications
-- You don't need ROS 2 type compatibility
+```mermaid
+flowchart TD
+    A[Need Custom Message?] --> B{Prototyping?}
+    B -->|Yes| C[Manual Implementation]
+    B -->|No| D{ROS 2 Interop?}
+    D -->|Required| E[Generate from .msg]
+    D -->|Not Required| F{Want Type Safety?}
+    F -->|Yes| E
+    F -->|No| C
+```
 
-**Use generated messages when:**
-
-- Interoperating with existing ROS 2 systems
-- Using standard ROS message types
-- You need proper type hashing
-
-### Type Hash Considerations
-
-The `type_hash()` is critical for ROS 2 interoperability:
-
-- **`TypeHash::zero()`**: Works for ros-z-to-ros-z communication
-- **Proper RIHS hash**: Required for interoperability with other ROS 2 nodes
-- Generated messages automatically have correct hashes
-
-For a complete working example with custom messages and services, see the [Custom Messages](./custom_messages.md) section.
+| Approach | Pros | Cons | Use When |
+|----------|------|------|----------|
+| **Manual** | Fast, flexible | No ROS 2 interop | Prototyping, internal only |
+| **Generated** | Type hashes, portable | Requires .msg files | Production, ROS 2 systems |
 
 ## Serialization Formats
 
-ros-z supports multiple serialization formats.
-
 ### CDR (Default)
 
-Common Data Representation is the standard ROS 2 serialization format:
+Common Data Representation - ROS 2 standard:
 
-- Full compatibility with ROS 2 DDS
-- Efficient binary serialization
+- Full DDS compatibility
+- Efficient binary encoding
 - Used by all ROS 2 implementations
-- Enabled by default
-
-Generated types use standard Rust `serde` with CDR encoding:
+- Automatic via serde
 
 ```rust,ignore
-// Generated code uses serde
+// Generated with CDR support
 #[derive(Serialize, Deserialize)]
 pub struct String {
     pub data: std::string::String,
@@ -252,35 +348,33 @@ pub struct String {
 
 ### Protobuf (Optional)
 
-Protocol Buffers support is available as an optional feature:
+Protocol Buffers alternative:
 
 ```bash
 cargo build -p ros-z-msgs --features protobuf
+cargo build -p ros-z --features protobuf
 ```
 
 **Benefits:**
 
-- Schema evolution support
-- Efficient binary encoding
-- Language-agnostic format
-- Familiar to many developers
+- Schema evolution
+- Cross-language compatibility
+- Familiar ecosystem
+- Efficient encoding
 
 **Tradeoffs:**
 
-- Not standard ROS 2 format
-- Requires feature flag
+- Not ROS 2 standard format
 - Additional dependencies
+- Requires feature flag
 
-The protobuf adapter generates `.proto` files and corresponding Rust types:
-
-```rust,ignore
-// Generated protobuf types have the same traits
-impl MessageTypeInfo for proto::std_msgs::String { ... }
+```admonish info
+Use protobuf when you need schema evolution or cross-language data exchange beyond ROS 2 ecosystem.
 ```
 
-## Extending ros-z-msgs
+## Extending Message Packages
 
-To add new message packages to ros-z-msgs:
+Add new packages to ros-z-msgs:
 
 ### 1. Add Feature Flag
 
@@ -288,7 +382,6 @@ Edit `ros-z-msgs/Cargo.toml`:
 
 ```toml
 [features]
-# Add your package to bundled or external
 bundled_msgs = ["std_msgs", "geometry_msgs", "your_package"]
 your_package = []
 ```
@@ -297,7 +390,7 @@ your_package = []
 
 Edit `ros-z-msgs/build.rs`:
 
-```rust,no_run
+```rust,ignore
 fn get_bundled_packages() -> Vec<&'static str> {
     let mut names = vec!["builtin_interfaces"];
 
@@ -314,26 +407,53 @@ fn get_bundled_packages() -> Vec<&'static str> {
 cargo build -p ros-z-msgs --features your_package
 ```
 
-The build system will:
+The build system automatically:
 
-- Search for the package in ROS installation or roslibrust assets
-- Parse all message definitions
-- Generate Rust types with proper traits
-- Output to the generated module
+- Searches for the package
+- Parses all message definitions
+- Generates Rust types with traits
+- Outputs to generated module
 
 ## Advanced Topics
 
-### Filtering Messages
+### Message Filtering
 
-The code generator automatically filters:
+The generator automatically filters:
 
-- **Deprecated actionlib messages** - Old ROS 1 action format
+- **Deprecated actionlib messages** - Old ROS 1 format
 - **wstring fields** - Poor Rust support
 - **Duplicate definitions** - Keeps first occurrence
 
+### Type Hash Calculation
+
+ros-z uses the RIHS (ROS IDL Hash) algorithm:
+
+```mermaid
+flowchart LR
+    A[Message Definition] --> B[Parse Structure]
+    B --> C[Include Dependencies]
+    C --> D[Calculate Hash]
+    D --> E[RIHS String]
+    E --> F[TypeHash Object]
+```
+
+**Properties:**
+
+- Includes message structure and field types
+- Incorporates dependency hashes
+- Changes when definition changes
+- Ensures type safety across network
+
+**In generated code:**
+
+```rust,ignore
+TypeHash::from_rihs_string("RIHS01_1234567890abcdef...")
+    .expect("Invalid RIHS hash string")
+```
+
 ### Custom Code Generation
 
-For custom build scripts, use `ros-z-codegen` directly:
+For custom build scripts:
 
 ```rust,ignore
 use ros_z_codegen::{MessageGenerator, GeneratorConfig};
@@ -349,53 +469,60 @@ let generator = MessageGenerator::new(config);
 generator.generate_from_msg_files(&package_paths)?;
 ```
 
-### Type Hash Calculation
-
-ros-z uses the RIHS (ROS IDL Hash) algorithm for type hashing:
-
-- Hashes include message structure and dependencies
-- Changes to message definitions change the hash
-- Ensures type safety across ROS 2 network
-- Automatically calculated during code generation
-
-The hash appears in generated code:
-
-```rust,ignore
-TypeHash::from_rihs_string("RIHS01_1234567890abcdef...")
-```
-
 ## Troubleshooting
 
 ### Package Not Found
 
-If a package isn't found during generation:
+```bash
+# Check ROS 2 is sourced
+echo $AMENT_PREFIX_PATH
 
-1. Check ROS 2 is sourced: `echo $AMENT_PREFIX_PATH`
-2. Verify package is installed: `ros2 pkg list | grep your_package`
-3. For bundled packages, ensure roslibrust git dependency is present
+# Verify package exists
+ros2 pkg list | grep your_package
+
+# Install if missing
+sudo apt install ros-jazzy-your-package
+
+# For bundled packages, check roslibrust
+ls ~/.cargo/git/checkouts/roslibrust-*/assets/
+```
 
 ### Build Failures
 
-Common issues:
+| Error | Cause | Solution |
+|-------|-------|----------|
+| "Cannot find package" | Missing dependency | Enable feature or install ROS 2 package |
+| "Type conflict" | Duplicate definition | Remove manual implementation |
+| "Hash error" | Version mismatch | Update roslibrust dependency |
 
-- **Missing dependencies**: Enable required feature flags
-- **Type conflicts**: Check for duplicate manual message definitions
-- **Hash errors**: Usually indicates roslibrust version mismatch
+See [Troubleshooting Guide](./troubleshooting.md) for detailed solutions.
 
-See [Troubleshooting](./troubleshooting.md) for more solutions.
+## Performance
 
-## Examples
+### Build Times
 
-### Using Generated Messages
+| Operation | First Build | Incremental Build |
+|-----------|-------------|-------------------|
+| Core only | ~30s | ~5s |
+| With std_msgs | ~60s | ~10s |
+| All bundled | ~120s | ~15s |
+| With external | ~180s | ~20s |
 
-The [demo_talker](./demo_talker.md) example demonstrates generated message usage:
-
-```rust,ignore
-{{#include ../../../ros-z/examples/demo_nodes/talker.rs}}
+```admonish tip
+First build is slow due to message parsing and code generation. Subsequent builds are fast with cargo's incremental compilation.
 ```
 
-## Next Steps
+### Runtime Overhead
 
-- Review [Feature Flags](./feature_flags.md) for available message packages
-- Explore [Building](./building.md) for build configuration options
-- Check [Publishers and Subscribers](./pubsub.md) for using messages in your applications
+- **Zero runtime cost** - All generation happens at build time
+- **Efficient serialization** - serde with optimized CDR encoding
+- **Type erasure avoided** - Concrete types throughout
+
+## Resources
+
+- **[Feature Flags](./feature_flags.md)** - Available message packages
+- **[Building](./building.md)** - Build configuration
+- **[Custom Messages](./custom_messages.md)** - Manual implementation
+- **[Demo Talker](./demo_talker.md)** - Using generated messages
+
+**Message generation is transparent. Focus on writing ROS 2 message definitions and let ros-z handle the Rust code generation.**

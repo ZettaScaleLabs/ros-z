@@ -10,3 +10,5 @@ result*
 
 # mdBook build output
 /book/book/
+/book/*.js
+/book/*.css
