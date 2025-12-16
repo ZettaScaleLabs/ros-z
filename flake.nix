@@ -152,6 +152,7 @@
           rust-analyzer
           nixfmt-rfc-style
           gdb
+          mdbook
         ];
 
         # Test tools

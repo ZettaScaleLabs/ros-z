@@ -30,6 +30,22 @@ better.
 be interoperable with ROS 2 Rolling, but we make no guarantees with respect to
 official distributions.
 
+## Documentation
+
+Comprehensive documentation with examples is available:
+
+- **Online**: [ros-z Documentation](https://zettascalelabs.github.io/ros-z/) (GitHub Pages)
+- **Local**: Build and view locally with `mdbook serve book` (see [book/README.md](book/README.md))
+
+The documentation includes:
+- Getting started guide
+- Publisher/subscriber examples
+- Service examples
+- Demo nodes compatible with ROS 2
+- API reference
+
+For contributing to the documentation, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Building
 
 ROS-Z is designed to work without ROS dependencies by default.

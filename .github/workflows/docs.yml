@@ -1,0 +1,34 @@
+name: Docs
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - run: cargo build
+    - run: cargo test
+    - uses: peaceiris/actions-mdbook@v1
+      with:
+        mdbook-version: '0.4.40'
+    - run: mdbook test book -L ./target/debug/deps
+
+  publish:
+    if: github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - run: cargo build
+    - uses: peaceiris/actions-mdbook@v1
+      with:
+        mdbook-version: '0.4.40'
+    - run: mdbook build book
+    - uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./book/book
