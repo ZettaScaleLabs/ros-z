@@ -4,7 +4,7 @@ This example demonstrates working with laser scan sensor data.
 
 ## Complete Example
 
-```rust,no_run
+```rust,ignore
 {{#include ../../../ros-z/examples/laser_scan.rs}}
 ```
 

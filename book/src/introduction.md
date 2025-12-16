@@ -23,12 +23,11 @@ ros-z is a high-performance, native Rust implementation of ROS 2 that leverages 
 
 - [GitHub Repository](https://github.com/ZettaScaleLabs/ros-z)
 - [Quick Start Guide](./chapters/quick_start.md)
-- [API Documentation](./chapters/api_reference.md)
 
 ## Getting Help
 
 If you encounter issues or have questions:
 
 - Check the [examples](./chapters/demo_nodes.md) for common patterns
-- Review the [API documentation](./chapters/api_reference.md)
+- Review the [troubleshooting guide](./chapters/troubleshooting.md) for common issues
 - Open an issue on [GitHub](https://github.com/ZettaScaleLabs/ros-z/issues)

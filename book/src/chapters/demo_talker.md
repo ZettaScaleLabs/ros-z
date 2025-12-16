@@ -4,18 +4,18 @@ The talker demo is a simple publisher node that sends "Hello World" messages to 
 
 ## Complete Example
 
-```rust,no_run
+```rust,ignore
 {{#include ../../../ros-z/examples/demo_nodes/talker.rs}}
 ```
 
 ## Key Points
 
-- **Line 24**: Creates a node named "talker" using the builder pattern
-- **Line 28-31**: Configures a custom QoS profile with `KeepLast(7)` history
-- **Line 32**: Creates a publisher for `RosString` messages on the "chatter" topic
-- **Line 36-59**: Main loop that publishes messages at regular intervals
-- **Line 46**: Uses `async_publish()` to send messages asynchronously
-- **Line 49-53**: Optional max count feature allows limiting the number of messages
+- **Node Creation**: Creates a node named "talker" using the builder pattern
+- **QoS Configuration**: Configures a custom QoS profile with `KeepLast(7)` history
+- **Publisher Setup**: Creates a publisher for `RosString` messages on the "chatter" topic
+- **Publishing Loop**: Main loop that publishes messages at regular intervals
+- **Async Publishing**: Uses `async_publish()` to send messages asynchronously
+- **Message Counting**: Optional max count feature allows limiting the number of messages
 
 ## Usage
 

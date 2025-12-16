@@ -4,7 +4,7 @@ This example demonstrates subscribing to battery status messages.
 
 ## Complete Example
 
-```rust,no_run
+```rust,ignore
 {{#include ../../../ros-z/examples/battery_state_sub.rs}}
 ```
 

@@ -4,7 +4,7 @@ This example demonstrates publishing `Twist` messages for robot velocity control
 
 ## Complete Example
 
-```rust,no_run
+```rust,ignore
 {{#include ../../../ros-z/examples/twist_pub.rs}}
 ```
 

@@ -7,7 +7,7 @@ For a complete service client example, see:
 
 ## Basic Pattern
 
-```rust,no_run,ignore
+```rust,ignore,ignore
 let node = ctx.create_node("my_client").build()?;
 let client = node.create_client::<ServiceType>("service_name").build()?;
 

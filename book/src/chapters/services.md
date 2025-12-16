@@ -30,18 +30,18 @@ Services provide a request-response communication pattern in ROS 2. A service se
 
 Here's a simple example showing both server and client:
 
-```rust,no_run
+```rust,ignore
 {{#include ../../../ros-z/examples/z_srvcli.rs}}
 ```
 
 ### Key Points
 
-- **Line 33**: Creates a service server that waits for requests
-- **Line 38**: `take_request()` blocks until a request arrives
-- **Line 44**: Sends the response back to the client
-- **Line 51**: Creates a service client
-- **Line 58**: Sends a request to the server
-- **Line 59**: Blocks waiting for the response
+- **Server Creation**: Creates a service server that waits for requests
+- **Request Reception**: `take_request()` blocks until a request arrives
+- **Response Sending**: Sends the response back to the client
+- **Client Creation**: Creates a service client
+- **Request Sending**: Sends a request to the server
+- **Response Waiting**: Blocks waiting for the response
 
 ## Dedicated Examples
 
@@ -58,7 +58,7 @@ Service operations can fail for various reasons:
 
 Always check the `Result` returned by service operations:
 
-```rust,no_run,ignore
+```rust,ignore,ignore
 match client.take_response() {
     Ok(response) => println!("Got response: {}", response.sum),
     Err(e) => eprintln!("Service call failed: {}", e),

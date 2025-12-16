@@ -2,33 +2,34 @@ name: Docs
 on: [push, pull_request]
 
 jobs:
-  test:
+  test_doc:
+    name: Test documentation
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@stable
-    - run: cargo build
-    - run: cargo test
-    - uses: peaceiris/actions-mdbook@v1
-      with:
-        mdbook-version: '0.4.40'
-    - run: mdbook test book -L ./target/debug/deps
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build
+      - uses: peaceiris/actions-mdbook@v1
+        with:
+          mdbook-version: '0.4.40'
+      - run: mdbook test book -L ./target/debug/deps
 
-  publish:
+  publish_doc:
+    name: Publish to GitHub Pages
     if: github.ref == 'refs/heads/main'
-    needs: test
+    needs: test_doc
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@stable
-    - run: cargo build
-    - uses: peaceiris/actions-mdbook@v1
-      with:
-        mdbook-version: '0.4.40'
-    - run: mdbook build book
-    - uses: peaceiris/actions-gh-pages@v4
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./book/book
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build
+      - uses: peaceiris/actions-mdbook@v1
+        with:
+          mdbook-version: '0.4.40'
+      - run: mdbook build book
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./book/book

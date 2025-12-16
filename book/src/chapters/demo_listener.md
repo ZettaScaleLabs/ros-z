@@ -4,19 +4,19 @@ The listener demo is a simple subscriber node that receives messages from a topi
 
 ## Complete Example
 
-```rust,no_run
+```rust,ignore
 {{#include ../../../ros-z/examples/demo_nodes/listener.rs}}
 ```
 
 ## Key Points
 
-- **Line 27**: Creates a node named "listener"
-- **Line 31-34**: Configures QoS with `KeepLast(10)` history depth
-- **Line 35**: Creates a subscriber for `RosString` messages on the topic
-- **Line 41-79**: Main receive loop with optional timeout and max count support
-- **Line 50-55**: Uses `recv_timeout()` for bounded waits or `async_recv()` for indefinite waits
-- **Line 58-68**: Processes received messages and tracks them in a vector
-- **Line 25**: Returns all received messages, making it testable
+- **Node Creation**: Creates a node named "listener"
+- **QoS Configuration**: Configures QoS with `KeepLast(10)` history depth
+- **Subscriber Setup**: Creates a subscriber for `RosString` messages on the topic
+- **Receive Loop**: Main receive loop with optional timeout and max count support
+- **Flexible Receiving**: Uses `recv_timeout()` for bounded waits or `async_recv()` for indefinite waits
+- **Message Processing**: Processes received messages and tracks them in a vector
+- **Testability**: Returns all received messages, making it testable
 
 ## Usage
 

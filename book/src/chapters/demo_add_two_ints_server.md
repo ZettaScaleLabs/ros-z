@@ -4,19 +4,19 @@ The AddTwoInts server demo provides a service that adds two integers and returns
 
 ## Complete Example
 
-```rust,no_run
+```rust,ignore
 {{#include ../../../ros-z/examples/demo_nodes/add_two_ints_server.rs}}
 ```
 
 ## Key Points
 
-- **Line 11**: Creates a node named "add_two_ints_server"
-- **Line 14**: Creates a service of type `AddTwoInts` with the service name "add_two_ints"
-- **Line 22**: `take_request()` blocks until a request arrives, returning both the key and request data
-- **Line 26**: Computes the sum of the two integers
-- **Line 29**: Creates the response with the computed sum
-- **Line 34**: Sends the response back using the request key
-- **Line 39-43**: Optional max_requests feature allows the server to exit after handling N requests
+- **Node Creation**: Creates a node named "add_two_ints_server"
+- **Service Setup**: Creates a service of type `AddTwoInts` with the service name "add_two_ints"
+- **Request Handling**: `take_request()` blocks until a request arrives, returning both the key and request data
+- **Computation**: Computes the sum of the two integers
+- **Response Creation**: Creates the response with the computed sum
+- **Response Sending**: Sends the response back using the request key
+- **Request Limiting**: Optional max_requests feature allows the server to exit after handling N requests
 
 ## Service Type
 

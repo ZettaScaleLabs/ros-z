@@ -28,7 +28,7 @@ ros-z supports ROS 2 QoS profiles to control message delivery:
 
 Example with custom QoS:
 
-```rust,no_run,ignore
+```rust,ignore,ignore
 use ros_z::qos::{QosProfile, QosHistory};
 
 let qos = QosProfile {

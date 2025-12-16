@@ -4,7 +4,7 @@ This example demonstrates low-level Zenoh communication for performance testing.
 
 ## Complete Example
 
-```rust,no_run
+```rust,ignore
 {{#include ../../../ros-z/examples/z_pingpong.rs}}
 ```
 

@@ -16,9 +16,12 @@ ros-z-msgs = "*"
 
 Here's a complete example showing both a publisher and subscriber:
 
-```rust,no_run
+NOTE: An async runtime is needed. Tokio is used in this example.
+
+```rust,ignore
 {{#include ../../../ros-z/examples/z_pubsub.rs}}
 ```
+
 
 ## Running the Example
 

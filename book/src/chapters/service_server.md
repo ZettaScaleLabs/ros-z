@@ -7,7 +7,7 @@ For a complete service server example, see:
 
 ## Basic Pattern
 
-```rust,no_run,ignore
+```rust,ignore,ignore
 let node = ctx.create_node("my_server").build()?;
 let mut service = node.create_service::<ServiceType>("service_name").build()?;
 

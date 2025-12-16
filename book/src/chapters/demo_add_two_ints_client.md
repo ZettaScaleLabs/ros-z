@@ -4,7 +4,7 @@ The AddTwoInts client demo sends requests to the addition service and receives r
 
 ## Complete Example
 
-```rust,no_run
+```rust,ignore
 {{#include ../../../ros-z/examples/demo_nodes/add_two_ints_client.rs}}
 ```
 

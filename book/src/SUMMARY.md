@@ -5,20 +5,23 @@
 # Getting Started
 
 - [Quick Start](./chapters/quick_start.md)
+- [Building](./chapters/building.md)
 
 # Core Concepts
 
 - [Publishers and Subscribers](./chapters/pubsub.md)
   - [Simple Publisher](./chapters/simple_pub.md)
   - [Simple Subscriber](./chapters/simple_sub.md)
-  - [Custom Messages](./chapters/custom_messages.md)
 - [Services](./chapters/services.md)
   - [Service Server](./chapters/service_server.md)
   - [Service Client](./chapters/service_client.md)
 - [Actions](./chapters/actions.md)
+- [Message Generation](./chapters/message_generation.md)
+  - [Custom Messages](./chapters/custom_messages.md)
 
 # Examples
 
+- [Overview](./chapters/examples_overview.md)
 - [Demo Nodes](./chapters/demo_nodes.md)
   - [Talker](./chapters/demo_talker.md)
   - [Listener](./chapters/demo_listener.md)
@@ -30,7 +33,5 @@
   - [Laser Scan](./chapters/laser_scan.md)
   - [Zenoh PingPong](./chapters/z_pingpong.md)
 
-# Reference
-
-- [API Documentation](./chapters/api_reference.md)
-- [Contributing](./chapters/contributing.md)
+- [Feature Flags](./chapters/feature_flags.md)
+- [Troubleshooting](./chapters/troubleshooting.md)
