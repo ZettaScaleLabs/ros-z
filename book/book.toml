@@ -7,7 +7,7 @@ multilingual = false
 src = "src"
 
 [rust]
-edition = "2024"
+edition = "2021"
 
 [build]
 build-dir = "book"
