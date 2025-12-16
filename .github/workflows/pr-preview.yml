@@ -29,7 +29,7 @@ jobs:
         if: github.event.action != 'closed'
         uses: peaceiris/actions-mdbook@v1
         with:
-          mdbook-version: '0.4.40'
+          mdbook-version: '0.4.52'
 
       - name: Install mdbook-admonish
         if: github.event.action != 'closed'
