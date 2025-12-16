@@ -38,6 +38,7 @@ Comprehensive documentation with examples is available:
 - **Local**: Build and view locally with `mdbook serve book` (see [book/README.md](book/README.md))
 
 The documentation includes:
+
 - Getting started guide
 - Publisher/subscriber examples
 - Service examples

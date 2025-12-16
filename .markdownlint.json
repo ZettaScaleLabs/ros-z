@@ -1,5 +1,6 @@
 {
   "MD013": false,
+  "MD025": false,
   "MD033": {
     "allowed_elements": ["div", "h1", "p", "strong", "a", "sub"]
   },

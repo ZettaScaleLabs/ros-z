@@ -24,6 +24,7 @@ The `mdbook test` command tests **every Rust code block** in your markdown files
 ```
 
 This code block will be:
+
 1. Extracted by mdbook
 2. Compiled with rustc
 3. Linked against `libros_z.rlib` (from `target/debug/deps`)
@@ -93,7 +94,8 @@ mdbook test book -L ./target/debug/deps
 ```
 
 Without `-L ./target/debug/deps`, the test will fail with:
-```
+
+```text
 error[E0463]: can't find crate for `ros_z`
 ```
 
@@ -125,12 +127,15 @@ Runs automatically on every push and pull request.
 1. Create `ros-z/examples/my_feature.rs`
 2. Add chapter `book/src/chapters/my_feature.md`
 3. Include the example:
+
    ```markdown
    \`\`\`rust,no_run
    {{#include ../../../ros-z/examples/my_feature.rs}}
    \`\`\`
    ```
+
 4. Test it:
+
    ```bash
    cargo build --example my_feature  # Verify example compiles
    mdbook test book -L ./target/debug/deps  # Verify book sees it

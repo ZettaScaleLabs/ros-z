@@ -10,6 +10,7 @@ The demo nodes examples showcase common ROS 2 patterns in ros-z. These examples 
 - **[Listener](./demo_listener.md)**: Subscribes to the `chatter` topic and prints received messages
 
 These demonstrate the basic pub/sub pattern with:
+
 - Custom QoS profiles
 - Configurable publish rates
 - Optional message count limits (useful for testing)
@@ -20,6 +21,7 @@ These demonstrate the basic pub/sub pattern with:
 - **[Add Two Ints Client](./demo_add_two_ints_client.md)**: Calls the addition service
 
 These demonstrate the request-response service pattern with:
+
 - Synchronous service calls
 - Request/response handling
 - Error management

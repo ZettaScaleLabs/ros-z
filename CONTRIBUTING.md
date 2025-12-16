@@ -116,6 +116,7 @@ When adding a new ros-z feature:
    - Use `{{#include ../../ros-z/examples/your_example.rs}}` to reference the example
    - Update `book/src/SUMMARY.md` if adding a new chapter
 4. **Test everything**:
+
    ```bash
    cargo build
    cargo test
@@ -240,7 +241,7 @@ Follow conventional commit format:
 
 ## Project Structure
 
-```
+```text
 ros-z/
 ├── ros-z/                  # Core library
 │   ├── src/               # Production code
@@ -260,16 +261,19 @@ ros-z/
 ### If-Then Flows
 
 **IF adding new ros-z feature:**
+
 - ADD `examples/new_feature.rs`
 - ADD/UPDATE book chapter with `{{#include}}`
 - RUN `cargo build && mdbook test book -L ./target/debug/deps`
 
 **IF making API breaking change:**
+
 - UPDATE `examples/*.rs` files
 - UPDATE book text references
 - Single commit: "feat: new API + examples + docs"
 
 **IF mdbook test fails:**
+
 - RUN `cargo clean && cargo build`
 - CHECK `target/debug/deps` contains `libros_z-*.rlib`
 - RE-RUN `mdbook test book -L ./target/debug/deps`

@@ -6,7 +6,7 @@ The suggested two-Cargo.toml approach is **NOT needed**. The current structure a
 
 ## Current Structure (Already Optimal)
 
-```
+```text
 ros-z/                          # Workspace root
 ├── Cargo.toml                  # Workspace definition
 ├── ros-z/                      # Library crate
@@ -81,8 +81,8 @@ required-features = ["external_msgs"]
 ### ✅ 4. mdBook Can Test Examples
 
 ```bash
-$ cargo build
-$ mdbook test book -L ./target/debug/deps
+cargo build
+mdbook test book -L ./target/debug/deps
 ```
 
 The `-L ./target/debug/deps` flag links examples against the compiled library.
@@ -149,6 +149,7 @@ jobs:
 **✅ Keep the current structure** - it's optimal and follows Rust best practices.
 
 **❌ Don't implement the two-Cargo.toml approach** - it would:
+
 - Add unnecessary complexity
 - Break existing include paths (20+ files to update)
 - Create a non-standard project structure
@@ -166,16 +167,19 @@ jobs:
 ## Next Steps
 
 1. **Reload nix environment** to get mdbook:
+
    ```bash
    direnv allow
    ```
 
 2. **Run the full workflow**:
+
    ```bash
    ./test-docs.sh
    ```
 
 3. **Preview the book**:
+
    ```bash
    mdbook serve book
    ```

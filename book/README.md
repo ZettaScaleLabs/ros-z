@@ -51,6 +51,7 @@ mdbook test book -L ./target/debug/deps
 ```
 
 This command:
+
 - Tests all Rust code blocks in the book chapters
 - Uses `-L ./target/debug/deps` to link against the compiled ros-z library
 - Validates that all `{{#include}}` directives work correctly
@@ -79,7 +80,7 @@ See [TESTING.md](TESTING.md) for detailed information about testing.
 
 The current structure follows **standard Rust practices**:
 
-```
+```text
 ros-z/                     # Workspace root
 ├── ros-z/                # Library crate
 │   ├── Cargo.toml       # Has ALL dependencies (clap, tokio, etc.)
@@ -91,6 +92,7 @@ ros-z/                     # Workspace root
 ```
 
 **Why this works:**
+
 - ✅ Examples in `ros-z/examples/` have access to all dependencies
 - ✅ `cargo run --example name` works out of the box
 - ✅ `mdbook test` finds examples via `{{#include ../../../ros-z/examples/...}}`
@@ -110,7 +112,7 @@ The output will be in `book/book/` directory.
 
 ## Book Structure
 
-```
+```text
 book/
 ├── book.toml           # mdBook configuration
 └── src/

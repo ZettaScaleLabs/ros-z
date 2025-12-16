@@ -4,7 +4,7 @@ This document verifies that the complete workflow works as intended.
 
 ## Current Structure (Optimal)
 
-```
+```text
 ros-z/                          # Workspace root
 ├── Cargo.toml                  # Workspace definition
 ├── ros-z/                      # Library crate
@@ -71,6 +71,7 @@ mdbook test book -L ./target/debug/deps
 ```
 
 **How it works:**
+
 1. `cargo build` creates `libros_z-*.rlib` in `target/debug/deps/`
 2. `mdbook test` extracts code blocks from markdown
 3. `-L ./target/debug/deps` tells rustc where to find the library
@@ -81,6 +82,7 @@ mdbook test book -L ./target/debug/deps
 ### Step 4: Include Paths Work
 
 Book chapters use:
+
 ```markdown
 \`\`\`rust,no_run
 {{#include ../../../ros-z/examples/demo_nodes/talker.rs}}
@@ -88,7 +90,8 @@ Book chapters use:
 ```
 
 **Path resolution:**
-```
+
+```text
 book/src/chapters/demo_talker.md
                   ↓ ../
 book/src/
@@ -133,6 +136,7 @@ path = "examples/demo_nodes/talker.rs"
 ```
 
 Benefits:
+
 - ✅ Examples automatically have access to all dependencies
 - ✅ `cargo build` builds everything
 - ✅ `cargo run --example` works out of the box
@@ -143,13 +147,14 @@ Benefits:
 
 Some suggest making examples a separate workspace member:
 
-```
+```text
 examples/
 ├── Cargo.toml  # Separate package
 └── *.rs
 ```
 
 Problems:
+
 - ❌ Non-standard structure
 - ❌ Breaks `{{#include}}` paths (need to update 20+ files)
 - ❌ More complex `cargo` commands
@@ -169,6 +174,7 @@ GitHub Actions (`.github/workflows/docs.yml`) runs:
 ```
 
 This ensures:
+
 1. Library compiles
 2. Tests pass
 3. **All documentation examples compile and work**
@@ -195,6 +201,7 @@ X = "version"
 ```
 
 Then rebuild:
+
 ```bash
 cargo build
 mdbook test book -L ./target/debug/deps
@@ -210,6 +217,7 @@ cargo build --example demo_nodes_talker
 ```
 
 Or add the feature:
+
 ```bash
 cargo build --example z_srvcli --features external_msgs
 ```

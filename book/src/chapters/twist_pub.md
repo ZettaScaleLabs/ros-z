@@ -16,6 +16,7 @@ The `Twist` message type (from `geometry_msgs`) represents velocity in 3D space:
 - **Angular**: x, y, z components of angular velocity
 
 It's commonly used for:
+
 - Mobile robot control (typically linear.x and angular.z)
 - Drone control
 - Manipulator end-effector control

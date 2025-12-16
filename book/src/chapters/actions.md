@@ -10,11 +10,13 @@ Actions provide a mechanism for long-running tasks in ROS 2, with the ability to
 ## Overview
 
 Actions are useful for tasks that:
+
 - Take a long time to complete
 - Need to provide progress updates
 - May need to be cancelled
 
 Common examples include:
+
 - Navigation to a goal
 - Gripper control
 - Long computations

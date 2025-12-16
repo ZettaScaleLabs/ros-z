@@ -62,7 +62,7 @@ cargo run --example demo_nodes_add_two_ints_client -- --a 10 --b 20
 
 Expected output:
 
-```
+```text
 # Server output:
 Incoming request
 a: 10 b: 20

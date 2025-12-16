@@ -5,6 +5,7 @@ This document explains how to test that all code examples in the book compile an
 ## The `mdbook test` Command
 
 mdBook has a built-in test command that:
+
 1. Extracts all Rust code blocks from markdown files
 2. Compiles them as mini test programs
 3. Links them against your library
@@ -29,6 +30,7 @@ mdbook test book -L ./target/debug/deps
 ```
 
 **Explanation:**
+
 - `mdbook test book` - Test all code blocks in the book
 - `-L ./target/debug/deps` - Tell the Rust compiler where to find the compiled `ros-z` library
 
@@ -36,7 +38,7 @@ mdbook test book -L ./target/debug/deps
 
 On success, you'll see:
 
-```
+```text
 2025-12-16 [INFO] (mdbook::book): Book building has started
 2025-12-16 [INFO] (mdbook::book): Running the html backend
 2025-12-16 [INFO] (mdbook::renderer::html_handlebars::search): Index built in ...
@@ -52,14 +54,14 @@ test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 
 If an example fails to compile, you'll see detailed error messages:
 
-```
+```text
 test book/src/chapters/example.md - example::rust_1 (line 5) ... FAILED
 
 error[E0425]: cannot find value `xyz` in this scope
  --> /tmp/.tmpXYZ/main.rs:5:10
   |
 5 |     let x = xyz;
-  |             ^^^ not found in this scope
+     |             ^^^ not found in this scope
 ```
 
 ## Code Block Annotations
@@ -209,18 +211,20 @@ Or use the Nix pre-commit hooks (already configured in the development shell).
 2. **Use `no_run` for full programs**: Examples with `main()` that run indefinitely
 3. **Use `ignore` sparingly**: Only for pseudo-code or intentionally incomplete examples
 4. **Test locally before pushing**: Run the full workflow:
+
    ```bash
    cargo build
    cargo test
    mdbook test book -L ./target/debug/deps
    ```
+
 5. **Keep examples simple**: Complex examples are harder to test in documentation
 
 ## Understanding Test Output
 
 Each test corresponds to a code block:
 
-```
+```text
 test book/src/chapters/demo_talker.md - demo_talker::rust_1 (line 11) ... ok
      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^   ^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^
      File path                           Test name             Line number
@@ -235,6 +239,7 @@ When a test fails:
 1. **Check the file and line number** in the error message
 2. **Extract the code block** from the markdown
 3. **Try compiling manually**:
+
    ```bash
    # Create a test file
    cat > test.rs << 'EOF'
@@ -247,6 +252,7 @@ When a test fails:
    # Compile it
    rustc --edition 2021 -L target/debug/deps --extern ros_z test.rs
    ```
+
 4. **Fix the issue** in the example file (not the markdown!)
 5. **Update the markdown** if needed (should auto-update if using `{{#include}}`)
 6. **Re-run**: `mdbook test book -L ./target/debug/deps`
