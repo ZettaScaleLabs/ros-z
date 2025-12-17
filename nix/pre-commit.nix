@@ -21,9 +21,12 @@ let
 
   # markdownlint configuration
   markdownlintConfig = {
-    MD013 = false; # Line length
-    MD033 = {
-      # Inline HTML
+    # Line length
+    "MD013" = false;
+    # Multiple top-level headings in same document
+    "MD025" = false;
+    # Inline HTML
+    "MD033" = {
       allowed_elements = [
         "div"
         "h1"
@@ -33,7 +36,8 @@ let
         "sub"
       ];
     };
-    MD041 = false; # First line in file should be a top-level heading
+    # First line in file should be a top-level heading
+    "MD041" = false;
   };
 in
 git-hooks.lib.${system}.run {
@@ -42,25 +46,16 @@ git-hooks.lib.${system}.run {
     rustfmt = rustfmtNightly;
   };
   hooks = {
-    # Rust formatter (using nightly for unstable features)
     rustfmt.enable = true;
-
-    # TOML formatter
     taplo.enable = true;
-
-    # YAML linter with relaxed rules
     yamllint = {
       enable = true;
       settings.configPath = "${yamllintConfig}";
     };
-
-    # Markdown linter
     markdownlint = {
       enable = true;
       settings.configuration = markdownlintConfig;
     };
-
-    # Nix formatter
     nixfmt-rfc-style.enable = true;
   };
 }
