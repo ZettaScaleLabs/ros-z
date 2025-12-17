@@ -1,0 +1,448 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Zenoh PingPong - ros-z Documentation</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Native Rust ROS 2 implementation using Zenoh">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../mdbook-admonish.css">
+        <link rel="stylesheet" href="../book/mdbook-admonish.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ros-z Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/ZettaScaleLabs/ros-z" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/ZettaScaleLabs/ros-z/edit/main/src/chapters/z_pingpong.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="zenoh-pingpong-example"><a class="header" href="#zenoh-pingpong-example">Zenoh PingPong Example</a></h1>
+<p>This example demonstrates low-level Zenoh communication for performance testing.</p>
+<h2 id="complete-example"><a class="header" href="#complete-example">Complete Example</a></h2>
+<pre><code class="language-rust ignore">use std::{
+    fs::File,
+    path::PathBuf,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering::SeqCst},
+    },
+    time::{Duration, Instant},
+};
+
+use clap::Parser;
+use csv::Writer;
+use ros_z::{Builder, Result, context::ZContextBuilder};
+use ros_z_msgs::std_msgs::ByteMultiArray;
+
+#[derive(Debug, Parser)]
+struct Args {
+    #[arg(short, long, default_value = "ping", help = "Mode: ping or pong")]
+    mode: String,
+    #[arg(short, long, default_value = "64", help = "Payload size in bytes")]
+    payload: usize,
+    #[arg(short, long, default_value = "10", help = "Frequency in Hz")]
+    frequency: usize,
+    #[arg(short, long, default_value = "100", help = "Number of samples")]
+    sample: usize,
+    #[arg(short, long, default_value = "", help = "Log file path")]
+    log: String,
+}
+
+fn get_percentile(data: &amp;[u64], percentile: f64) -&gt; u64 {
+    if data.is_empty() {
+        return 0;
+    }
+    let idx = ((percentile * data.len() as f64).round() as usize).min(data.len() - 1);
+    data[idx]
+}
+
+fn print_statistics(mut rtts: Vec&lt;u64&gt;) {
+    rtts.sort();
+    println!("\nRTT stats (nanoseconds):");
+    println!("Min : {}", rtts.first().unwrap());
+    println!("p05 : {}", get_percentile(&amp;rtts, 0.05));
+    println!("p25 : {}", get_percentile(&amp;rtts, 0.25));
+    println!("p50 : {}", get_percentile(&amp;rtts, 0.50));
+    println!("p75 : {}", get_percentile(&amp;rtts, 0.75));
+    println!("p95 : {}", get_percentile(&amp;rtts, 0.95));
+    println!("Max : {}", rtts.last().unwrap());
+}
+
+#[derive(Debug)]
+struct DataLogger {
+    payload: usize,
+    frequency: usize,
+    path: PathBuf,
+}
+
+impl DataLogger {
+    fn write(&amp;self, data: Vec&lt;u64&gt;) -&gt; Result&lt;()&gt; {
+        let file = File::create(&amp;self.path)?;
+        let mut wtr = Writer::from_writer(file);
+        wtr.write_record(
+            ["Frequency", "Payload", "RTT"]
+                .iter()
+                .map(|x| x.to_string()),
+        )?;
+
+        for val in data {
+            wtr.write_record(
+                [self.frequency, self.payload, val as _]
+                    .iter()
+                    .map(|x| x.to_string()),
+            )?;
+            wtr.flush()?;
+        }
+        Ok(())
+    }
+}
+
+fn run_ping(args: &amp;Args) -&gt; Result&lt;()&gt; {
+    let ctx = ZContextBuilder::default().build()?;
+    let node = ctx.create_node("ping_node").build()?;
+    let zpub = node.create_pub::&lt;ByteMultiArray&gt;("ping").build()?;
+    let zsub = node.create_sub::&lt;ByteMultiArray&gt;("pong").build()?;
+    let period = Duration::from_secs_f64(1.0 / args.frequency as f64);
+    let finished = Arc::new(AtomicBool::new(false));
+    let c_finished = finished.clone();
+
+    println!(
+        "Freq: {} Hz, Payload: {} bytes, Samples: {}",
+        &amp;args.frequency, &amp;args.payload, &amp;args.sample
+    );
+
+    let logger = if args.log.is_empty() {
+        None
+    } else {
+        Some(DataLogger {
+            frequency: args.frequency,
+            payload: args.payload,
+            path: PathBuf::from(args.log.clone()),
+        })
+    };
+
+    let start = Instant::now();
+    let sample_count = args.sample;
+    std::thread::spawn(move || {
+        let mut rtts = Vec::with_capacity(sample_count);
+        while rtts.len() &lt; sample_count {
+            if let Ok(msg) = zsub.recv() {
+                let sent_time = u64::from_le_bytes(msg.data[0..8].try_into().unwrap());
+                let rtt = start.elapsed().as_nanos() as u64 - sent_time;
+                rtts.push(rtt);
+            }
+        }
+        if let Some(logger) = logger {
+            logger.write(rtts.clone()).expect("Failed to write the log");
+        }
+        print_statistics(rtts);
+        c_finished.store(true, SeqCst);
+    });
+
+    let mut msg = ByteMultiArray {
+        data: vec![0xAA; args.payload],
+        ..Default::default()
+    };
+    while !finished.load(SeqCst) {
+        let now = start.elapsed().as_nanos() as u64;
+        msg.data[0..8].copy_from_slice(&amp;now.to_le_bytes());
+        zpub.publish(&amp;msg)?;
+        std::thread::sleep(period);
+    }
+    Ok(())
+}
+
+fn run_pong() -&gt; Result&lt;()&gt; {
+    let ctx = ZContextBuilder::default().build()?;
+    let node = ctx.create_node("pong_node").build()?;
+    let zsub = node.create_sub::&lt;ByteMultiArray&gt;("ping").build()?;
+    let zpub = node.create_pub::&lt;ByteMultiArray&gt;("pong").build()?;
+
+    println!("Pong begin looping...");
+
+    let mut message_count = 0u64;
+    let mut last_print_time = Instant::now();
+    let mut last_timestamp = 0u64;
+    let mut last_payload_size = 0usize;
+
+    loop {
+        if let Ok(msg) = zsub.recv() {
+            message_count += 1;
+
+            last_timestamp = u64::from_le_bytes(msg.data[0..8].try_into().unwrap());
+            last_payload_size = msg.data.len();
+
+            zpub.publish(&amp;msg)?;
+        }
+
+        let current_time = Instant::now();
+        if current_time.duration_since(last_print_time) &gt;= Duration::from_secs(2) {
+            println!(
+                "Pong status: received {} messages (last payload: {} bytes, last timestamp: {} ns)",
+                message_count, last_payload_size, last_timestamp
+            );
+            last_print_time = current_time;
+        }
+    }
+}
+
+fn main() -&gt; Result&lt;()&gt; {
+    let args = Args::parse();
+
+    if args.mode != "ping" &amp;&amp; args.mode != "pong" {
+        eprintln!("Invalid mode: {}. Must be 'ping' or 'pong'", args.mode);
+        std::process::exit(1);
+    }
+
+    match args.mode.as_str() {
+        "ping" =&gt; run_ping(&amp;args),
+        "pong" =&gt; run_pong(),
+        _ =&gt; unreachable!(),
+    }
+}</code></pre>
+<h2 id="purpose"><a class="header" href="#purpose">Purpose</a></h2>
+<p>The ping-pong example is useful for:</p>
+<ul>
+<li>Performance benchmarking</li>
+<li>Latency measurement</li>
+<li>Understanding the underlying Zenoh layer</li>
+<li>Network configuration testing</li>
+</ul>
+<h2 id="usage"><a class="header" href="#usage">Usage</a></h2>
+<pre><code class="language-bash"># Run as pong (server)
+cargo run --example z_pingpong -- --mode pong
+
+# In another terminal, run as ping (client)
+cargo run --example z_pingpong -- --mode ping
+</code></pre>
+<h2 id="performance-testing"><a class="header" href="#performance-testing">Performance Testing</a></h2>
+<p>This example helps you:</p>
+<ul>
+<li>Measure round-trip latency</li>
+<li>Test different Zenoh configurations</li>
+<li>Verify network connectivity</li>
+<li>Benchmark message throughput</li>
+</ul>
+<p>For application development, prefer the higher-level ros-z APIs shown in other examples.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../chapters/laser_scan.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../chapters/feature_flags.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../chapters/laser_scan.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../chapters/feature_flags.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../mermaid.min.js"></script>
+        <script src="../mermaid-init.js"></script>
+
+
+
+    </div>
+    </body>
+</html>
