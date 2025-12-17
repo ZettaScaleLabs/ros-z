@@ -5,14 +5,23 @@ jobs:
   test_doc:
     name: Test documentation
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo build
-      - uses: peaceiris/actions-mdbook@v1
-        with:
-          mdbook-version: '0.4.52'
-      - run: mdbook test book -L ./target/debug/deps
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Determinate Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
+
+      - name: FlakeHub / Magic cache
+        uses: DeterminateSystems/flakehub-cache-action@main
+
+      - name: Test mdbook in flake shell
+        run: |
+          nix develop '.#pureRust-ci' -c mdbook test book -L ./target/debug/deps
 
   publish_doc:
     name: Publish to GitHub Pages
@@ -20,16 +29,25 @@ jobs:
     needs: test_doc
     runs-on: ubuntu-latest
     permissions:
+      id-token: write
       contents: write
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo build
-      - uses: peaceiris/actions-mdbook@v1
-        with:
-          mdbook-version: '0.4.52'
-      - run: mdbook build book
-      - uses: peaceiris/actions-gh-pages@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Determinate Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
+
+      - name: FlakeHub / Magic cache
+        uses: DeterminateSystems/flakehub-cache-action@main
+
+      - name: Build mdbook in flake shell
+        run: |
+          nix develop '.#pureRust-ci' -c mdbook build book
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./book/book
