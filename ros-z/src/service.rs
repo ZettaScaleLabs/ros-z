@@ -120,7 +120,8 @@ where
         for<'c> T::Response: ZMessage<Serdes = CdrSerdes<T::Response>> + Deserialize<'c>,
     {
         let sample = self.take_sample()?;
-        let msg = <T::Response as ZMessage>::deserialize(&sample.payload().to_bytes());
+        let msg = <T::Response as ZMessage>::deserialize(&sample.payload().to_bytes())
+            .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok(msg)
     }
 
@@ -129,7 +130,8 @@ where
         for<'c> T::Response: ZMessage<Serdes = CdrSerdes<T::Response>> + Deserialize<'c>,
     {
         let sample = self.take_sample_timeout(timeout)?;
-        let msg = <T::Response as ZMessage>::deserialize(&sample.payload().to_bytes());
+        let msg = <T::Response as ZMessage>::deserialize(&sample.payload().to_bytes())
+            .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok(msg)
     }
 
@@ -138,7 +140,8 @@ where
         for<'c> T::Response: ZMessage<Serdes = CdrSerdes<T::Response>> + Deserialize<'c>,
     {
         let sample = self.rx.recv_async().await?;
-        let msg = <T::Response as ZMessage>::deserialize(&sample.payload().to_bytes());
+        let msg = <T::Response as ZMessage>::deserialize(&sample.payload().to_bytes())
+            .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok(msg)
     }
 }
@@ -368,7 +371,8 @@ where
         if self.map.contains_key(&key) {
             return Err("Existing query detected".into());
         }
-        let msg = <T::Request as ZMessage>::deserialize(&query.payload().unwrap().to_bytes());
+        let msg = <T::Request as ZMessage>::deserialize(&query.payload().unwrap().to_bytes())
+            .map_err(|e| zenoh::Error::from(e.to_string()))?;
         self.map.insert(key.clone(), query);
 
         Ok((key, msg))
@@ -388,7 +392,8 @@ where
         if self.map.contains_key(&key) {
             return Err("Existing query detected".into());
         }
-        let msg = <T::Request as ZMessage>::deserialize(&query.payload().unwrap().to_bytes());
+        let msg = <T::Request as ZMessage>::deserialize(&query.payload().unwrap().to_bytes())
+            .map_err(|e| zenoh::Error::from(e.to_string()))?;
         self.map.insert(key.clone(), query);
 
         Ok((key, msg))

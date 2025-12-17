@@ -144,7 +144,13 @@ async fn handle_result_requests_legacy_inner<A: ZAction>(
 ) {
     tracing::debug!("Received result request");
     let payload = query.payload().unwrap().to_bytes();
-    let request = <ResultRequest as ZMessage>::deserialize(&payload);
+    let request = match <ResultRequest as ZMessage>::deserialize(&payload) {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::error!("Failed to deserialize result request: {}", e);
+            return;
+        }
+    };
 
     // Look up goal result - extract data while holding lock, then release
     let result_data = inner.goal_manager.read(|manager| {
@@ -398,7 +404,8 @@ impl<A: ZAction> ZActionServer<A> {
     pub async fn recv_goal(&self) -> Result<GoalHandle<A, Requested>> {
         let query = self.goal_server().rx.recv_async().await?;
         let payload = query.payload().unwrap().to_bytes();
-        let request = <GoalRequest<A> as ZMessage>::deserialize(&payload);
+        let request = <GoalRequest<A> as ZMessage>::deserialize(&payload)
+            .map_err(|e| zenoh::Error::from(e.to_string()))?;
 
         Ok(GoalHandle {
             goal: request.goal,
@@ -413,7 +420,8 @@ impl<A: ZAction> ZActionServer<A> {
     pub async fn recv_cancel(&self) -> Result<(CancelGoalRequest, zenoh::query::Query)> {
         let query = self.cancel_server().rx.recv_async().await?;
         let payload = query.payload().unwrap().to_bytes();
-        let request = <CancelGoalRequest as ZMessage>::deserialize(&payload);
+        let request = <CancelGoalRequest as ZMessage>::deserialize(&payload)
+            .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok((request, query))
     }
 
@@ -437,7 +445,8 @@ impl<A: ZAction> ZActionServer<A> {
     pub async fn recv_result_request(&self) -> Result<(GoalId, zenoh::query::Query)> {
         let query = self.result_server().rx.recv_async().await?;
         let payload = query.payload().unwrap().to_bytes();
-        let request = <ResultRequest as ZMessage>::deserialize(&payload);
+        let request = <ResultRequest as ZMessage>::deserialize(&payload)
+            .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok((request.goal_id, query))
     }
 
@@ -455,7 +464,8 @@ impl<A: ZAction> ZActionServer<A> {
     pub async fn recv_cancel_request_low(&self) -> Result<(CancelGoalRequest, zenoh::query::Query)> {
         let query = self.cancel_server().rx.recv_async().await?;
         let payload = query.payload().unwrap().to_bytes();
-        let request = <CancelGoalRequest as ZMessage>::deserialize(&payload);
+        let request = <CancelGoalRequest as ZMessage>::deserialize(&payload)
+            .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok((request, query))
     }
 

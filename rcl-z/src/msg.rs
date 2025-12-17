@@ -17,13 +17,26 @@ impl RosMessage {
 
 pub struct RosSerdes;
 
+#[derive(Debug)]
+pub struct RosSerdesError(String);
+
+impl std::fmt::Display for RosSerdesError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ROS deserialization error: {}", self.0)
+    }
+}
+
+impl std::error::Error for RosSerdesError {}
+
 impl ZDeserializer for RosSerdes {
     type Input<'a> = (&'a Vec<u8>, &'a mut RosMessage);
     type Output = bool;
-    fn deserialize<'a>(input: Self::Input<'a>) -> Self::Output {
+    type Error = RosSerdesError;
+
+    fn deserialize<'a>(input: Self::Input<'a>) -> Result<Self::Output, Self::Error> {
         let (bytes, msg) = input;
         unsafe { msg.ts.deserialize_message(bytes, msg.msg as *mut _) };
-        true
+        Ok(true)
     }
 }
 

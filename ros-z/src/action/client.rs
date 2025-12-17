@@ -358,7 +358,8 @@ impl<A: ZAction> ZActionClient<A> {
         let sample = self.goal_client.rx.recv_async().await?;
         let payload = sample.payload().to_bytes();
         tracing::debug!("Received goal response payload: {} bytes: {:?}", payload.len(), payload);
-        let response = <GoalResponse as ZMessage>::deserialize(&payload);
+        let response = <GoalResponse as ZMessage>::deserialize(&payload)
+            .map_err(|e| zenoh::Error::from(e.to_string()))?;
 
         // 5. Check if accepted
         if !response.accepted {
@@ -384,7 +385,8 @@ impl<A: ZAction> ZActionClient<A> {
         self.cancel_client.send_request(&request).await?;
         let sample = self.cancel_client.rx.recv_async().await?;
         let payload = sample.payload().to_bytes();
-        let response = <CancelGoalResponse as ZMessage>::deserialize(&payload);
+        let response = <CancelGoalResponse as ZMessage>::deserialize(&payload)
+            .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok(response)
     }
 
@@ -397,7 +399,8 @@ impl<A: ZAction> ZActionClient<A> {
         self.cancel_client.send_request(&request).await?;
         let sample = self.cancel_client.rx.recv_async().await?;
         let payload = sample.payload().to_bytes();
-        let response = <CancelGoalResponse as ZMessage>::deserialize(&payload);
+        let response = <CancelGoalResponse as ZMessage>::deserialize(&payload)
+            .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok(response)
     }
 
@@ -422,7 +425,8 @@ impl<A: ZAction> ZActionClient<A> {
         self.result_client.send_request(&request).await?;
         let sample = self.result_client.rx.recv_async().await?;
         let payload = sample.payload().to_bytes();
-        let response = <ResultResponse<A> as ZMessage>::deserialize(&payload);
+        let response = <ResultResponse<A> as ZMessage>::deserialize(&payload)
+            .map_err(|e| zenoh::Error::from(e.to_string()))?;
 
         Ok(response.result)
     }
@@ -437,7 +441,8 @@ impl<A: ZAction> ZActionClient<A> {
     pub async fn recv_goal_response_low(&self) -> Result<GoalResponse> {
         let sample = self.goal_client.rx.recv_async().await?;
         let payload = sample.payload().to_bytes();
-        Ok(<GoalResponse as ZMessage>::deserialize(&payload))
+        <GoalResponse as ZMessage>::deserialize(&payload)
+            .map_err(|e| zenoh::Error::from(e.to_string()))
     }
 
     // FIXME: Check the necessity
@@ -449,7 +454,8 @@ impl<A: ZAction> ZActionClient<A> {
     pub async fn recv_cancel_response_low(&self) -> Result<CancelGoalResponse> {
         let sample = self.cancel_client.rx.recv_async().await?;
         let payload = sample.payload().to_bytes();
-        Ok(<CancelGoalResponse as ZMessage>::deserialize(&payload))
+        <CancelGoalResponse as ZMessage>::deserialize(&payload)
+            .map_err(|e| zenoh::Error::from(e.to_string()))
     }
 
     // FIXME: Check the necessity
@@ -461,7 +467,8 @@ impl<A: ZAction> ZActionClient<A> {
     pub async fn recv_result_response_low(&self) -> Result<ResultResponse<A>> {
         let sample = self.result_client.rx.recv_async().await?;
         let payload = sample.payload().to_bytes();
-        Ok(<ResultResponse<A> as ZMessage>::deserialize(&payload))
+        <ResultResponse<A> as ZMessage>::deserialize(&payload)
+            .map_err(|e| zenoh::Error::from(e.to_string()))
     }
 }
 

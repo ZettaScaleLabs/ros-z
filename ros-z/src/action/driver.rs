@@ -138,7 +138,13 @@ async fn handle_goal_request<A, F, Fut>(
 {
     tracing::debug!("Received goal request");
     let payload = query.payload().unwrap().to_bytes();
-    let request = <GoalRequest<A> as ZMessage>::deserialize(&payload);
+    let request = match <GoalRequest<A> as ZMessage>::deserialize(&payload) {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::error!("Failed to deserialize goal request: {}", e);
+            return;
+        }
+    };
 
     // Create a temporary ZActionServer handle for the goal handle
     // This is safe because we're just passing it to the goal handler
@@ -169,7 +175,13 @@ async fn handle_cancel_request<A: ZAction>(
 ) {
     tracing::debug!("Received cancel request");
     let payload = query.payload().unwrap().to_bytes();
-    let request = <CancelGoalRequest as ZMessage>::deserialize(&payload);
+    let request = match <CancelGoalRequest as ZMessage>::deserialize(&payload) {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::error!("Failed to deserialize cancel request: {}", e);
+            return;
+        }
+    };
 
     // Mark goal as canceling using the atomic flag
     let cancelled = inner.goal_manager.read(|manager| {
@@ -208,7 +220,13 @@ async fn handle_result_request<A: ZAction>(
 ) {
     tracing::debug!("Received result request");
     let payload = query.payload().unwrap().to_bytes();
-    let request = <ResultRequest as ZMessage>::deserialize(&payload);
+    let request = match <ResultRequest as ZMessage>::deserialize(&payload) {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::error!("Failed to deserialize result request: {}", e);
+            return;
+        }
+    };
 
     // Check if goal is already terminated, or register a waiter
     let (tx, rx) = tokio::sync::oneshot::channel();

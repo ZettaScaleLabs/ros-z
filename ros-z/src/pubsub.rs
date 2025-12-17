@@ -230,8 +230,10 @@ where
             .declare_subscriber(self.entity.topic_key_expr()?)
             .callback(move |sample| {
                 let payload = sample.payload().to_bytes();
-                let msg = S::deserialize(&payload);
-                callback(msg);
+                match S::deserialize(&payload) {
+                    Ok(msg) => callback(msg),
+                    Err(e) => tracing::error!("Failed to deserialize message: {}", e),
+                }
             })
             .wait()?;
 
@@ -396,7 +398,7 @@ where
             .ok_or_else(|| zenoh::Error::from("Subscriber was built with callback, no queue available"))?;
         let sample = queue.recv()?;
         let payload = sample.payload().to_bytes();
-        Ok(S::deserialize(&payload))
+        S::deserialize(&payload).map_err(|e| zenoh::Error::from(e.to_string()))
     }
 
     pub fn recv_timeout(&self, timeout: Duration) -> Result<S::Output> {
@@ -404,7 +406,7 @@ where
             .ok_or_else(|| zenoh::Error::from("Subscriber was built with callback, no queue available"))?;
         let sample = queue.recv_timeout(timeout)?;
         let payload = sample.payload().to_bytes();
-        Ok(S::deserialize(&payload))
+        S::deserialize(&payload).map_err(|e| zenoh::Error::from(e.to_string()))
     }
 
     /// Async receive and deserialize the next message
@@ -413,6 +415,6 @@ where
             .ok_or_else(|| zenoh::Error::from("Subscriber was built with callback, no queue available"))?;
         let sample = queue.recv_async().await?;
         let payload = sample.payload().to_bytes();
-        Ok(S::deserialize(&payload))
+        S::deserialize(&payload).map_err(|e| zenoh::Error::from(e.to_string()))
     }
 }
