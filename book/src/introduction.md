@@ -6,17 +6,6 @@
 ros-z combines Rust's safety guarantees with Zenoh's efficient networking to create a modern, performant alternative to traditional ROS 2 middleware. Perfect for production robotics applications.
 ```
 
-## Architecture Overview
-
-```mermaid
-graph LR
-    A[Your Rust App] -->|ros-z API| B[ros-z Core]
-    B -->|Zenoh Protocol| C[Network Layer]
-    C -->|ROS 2 Compatible| D[Other ROS 2 Nodes]
-    B -->|Native Types| E[ROS 2 Messages]
-    E -->|Code Generation| F[Rust Structs]
-```
-
 ## Core Capabilities
 
 | Feature | Description | Benefit |
@@ -49,7 +38,8 @@ let client = node.create_client::<AddTwoInts>("add").build()?;
 
 ```rust,ignore
 // Long-running tasks with feedback and cancellation
-let action_client = node.create_action_client::<Fibonacci>("fibonacci")?;
+let action_server = node.create_action_server::<Fibonacci>("fibonacci").build()?;
+let action_client = node.create_action_client::<Fibonacci>("fibonacci").build()?;
 ```
 
 ```admonish tip
@@ -57,8 +47,6 @@ Start with pub-sub for data streaming, use services for request-response operati
 ```
 
 ## Why ros-z?
-
-**Performance:** Zenoh's peer-to-peer architecture reduces latency compared to traditional DDS middleware. Rust's zero-cost abstractions mean no runtime overhead.
 
 **Safety:** Rust's ownership model prevents common robotics bugs like data races, null pointer dereferences, and buffer overflows at compile time.
 

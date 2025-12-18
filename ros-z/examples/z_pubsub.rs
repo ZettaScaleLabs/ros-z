@@ -6,40 +6,66 @@ use ros_z::{
 };
 use ros_z_msgs::std_msgs::String as RosString;
 
+/// Subscriber function that continuously receives messages from a topic
 async fn run_subscriber(ctx: ZContext, topic: String) -> Result<()> {
+    // Create a ROS 2 node - the fundamental unit of computation
+    // Nodes are logical groupings of publishers, subscribers, services, etc.
     let node = ctx.create_node("Sub").build()?;
+
+    // Create a subscriber for the specified topic
+    // The type parameter RosString determines what message type we'll receive
     let zsub = node.create_sub::<RosString>(&topic).build()?;
+
+    // Continuously receive messages asynchronously
+    // This loop will block waiting for messages on the topic
     while let Ok(msg) = zsub.async_recv().await {
         println!("Hearing:>> {}", msg.data);
     }
     Ok(())
 }
 
+/// Publisher function that continuously publishes messages to a topic
 async fn run_publisher(
     ctx: ZContext,
     topic: String,
     period: Duration,
     payload: String,
 ) -> Result<()> {
+    // Create a ROS 2 node for publishing
     let node = ctx.create_node("Pub").build()?;
+
+    // Create a publisher for the specified topic
+    // The type parameter RosString determines what message type we'll send
     let zpub = node.create_pub::<RosString>(&topic).build()?;
 
     let mut count = 0;
     loop {
+        // Create a new message with incrementing counter
         let str = RosString {
             data: format!("{payload} - #{count}"),
         };
         println!("Telling:>> {}", str.data);
 
+        // Publish the message asynchronously to all subscribers on this topic
         zpub.async_publish(&str).await?;
+
+        // Wait for the specified period before publishing again
         let _ = tokio::time::sleep(period).await;
         count += 1;
     }
 }
 
+// The #[tokio::main] attribute sets up the async runtime
+// ros-z requires an async runtime (Tokio is the most common choice)
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
+
+    // Create a ZContext - the entry point for ros-z applications
+    // ZContext manages the connection to the Zenoh network and coordinates
+    // communication between nodes. It can be configured with different modes:
+    // - "peer" mode: nodes discover each other via multicast scouting
+    // - "client" mode: nodes connect to a Zenoh router
     let ctx = if let Some(e) = args.endpoint {
         ZContextBuilder::default()
             .with_mode(args.mode)
@@ -51,6 +77,9 @@ async fn main() -> Result<()> {
 
     let period = std::time::Duration::from_secs_f64(args.period);
     zenoh::init_log_from_env_or("error");
+
+    // Run as either a publisher (talker) or subscriber (listener)
+    // Both share the same ZContext but perform different roles
     if args.role == "listener" {
         run_subscriber(ctx, args.topic).await?;
     } else if args.role == "talker" {

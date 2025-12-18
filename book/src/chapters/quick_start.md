@@ -59,6 +59,12 @@ cargo run --example z_pubsub -- -r talker
 You should see the listener receiving messages published by the talker in real-time. Press Ctrl+C to stop either process.
 ```
 
+```admonish note title="Why no Zenoh router?"
+By default, ros-z uses peer mode with multicast scouting enabled, allowing nodes to discover each other automatically on the same network without requiring a Zenoh router. This makes getting started simple and quick.
+
+However, this default will change to router mode (matching `rmw_zenoh` behavior) once [issue #42](https://github.com/ZettaScaleLabs/ros-z/issues/42) is resolved. For production deployments or distributed setups across different networks, using a Zenoh router is recommended.
+```
+
 ## What's Happening?
 
 ```mermaid
