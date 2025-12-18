@@ -4,6 +4,17 @@ use prost::Message as ProstMessage;
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
+#[derive(Debug)]
+pub struct CdrError(String);
+
+impl std::fmt::Display for CdrError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "CDR deserialization error: {}", self.0)
+    }
+}
+
+impl std::error::Error for CdrError {}
+
 pub trait ZSerializer {
     type Input<'a>
     where
@@ -14,7 +25,8 @@ pub trait ZSerializer {
 pub trait ZDeserializer {
     type Input<'a>;
     type Output;
-    fn deserialize(input: Self::Input<'_>) -> Self::Output;
+    type Error: std::error::Error + Send + Sync + 'static;
+    fn deserialize(input: Self::Input<'_>) -> Result<Self::Output, Self::Error>;
 }
 
 // Core Z-Message trait
@@ -25,7 +37,7 @@ pub trait ZMessage: Send + Sync + Sized + 'static {
         Self::Serdes::serialize(self)
     }
 
-    fn deserialize(input: <Self::Serdes as ZDeserializer>::Input<'_>) -> Self
+    fn deserialize(input: <Self::Serdes as ZDeserializer>::Input<'_>) -> Result<Self, <Self::Serdes as ZDeserializer>::Error>
     where
         Self::Serdes: ZDeserializer<Output = Self>,
     {
@@ -69,10 +81,13 @@ where
 {
     type Input<'b> = &'b [u8];
     type Output = T;
-    fn deserialize(input: Self::Input<'_>) -> Self::Output {
-        // Skip the first four bytes
-        let x = cdr_encoding::from_bytes::<T, byteorder::LittleEndian>(&input[4..]).unwrap();
-        x.0
+    type Error = CdrError;
+
+    fn deserialize(input: Self::Input<'_>) -> Result<Self::Output, Self::Error> {
+        // Skip the first four bytes (CDR encapsulation header)
+        let x = cdr_encoding::from_bytes::<T, byteorder::LittleEndian>(&input[4..])
+            .map_err(|e| CdrError(e.to_string()))?;
+        Ok(x.0)
     }
 }
 
@@ -92,14 +107,8 @@ where
         T: 'a;
 
     fn serialize(input: &T) -> Vec<u8> {
-        // Allocate with enough space: 4 bytes header + payload
-        let mut buffer = Vec::with_capacity(std::mem::size_of_val(input) * 2 + 4);
-        // Write the encapsulation header (CDR LE = 0x00 01 00 00)
-        buffer.extend_from_slice(&[0x00, 0x01, 0x00, 0x00]);
-        // Serialize directly into the same buffer (appends after the header)
-        input.encode(&mut buffer).unwrap();
-
-        buffer
+        // Use prost's builtin encode_to_vec for direct serialization
+        input.encode_to_vec()
     }
 }
 
@@ -110,9 +119,10 @@ where
 {
     type Input<'a> = &'a [u8];
     type Output = T;
+    type Error = prost::DecodeError;
 
-    fn deserialize(input: &[u8]) -> T {
-        T::decode(input).unwrap_or_default()
+    fn deserialize(input: &[u8]) -> Result<T, prost::DecodeError> {
+        T::decode(input)
     }
 }
 
