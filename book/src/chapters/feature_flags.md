@@ -346,15 +346,6 @@ flowchart TD
 4. **Cross-language data?** → Add protobuf feature
 5. **C++ integration?** → Add rcl-z feature
 
-## Performance Considerations
-
-| Feature Set | Build Time | Runtime Overhead | Dependency Count |
-|-------------|------------|------------------|------------------|
-| Minimal | Fast | None | ~50 crates |
-| Standard | Medium | None | ~75 crates |
-| Full ROS | Slow (first build) | Minimal | ~100+ crates |
-| With Protobuf | Medium | Minimal | +10 crates |
-
 ```admonish info
 First build with message generation is slow. Incremental builds are fast. Choose the minimal feature set that meets your needs.
 ```
@@ -386,6 +377,5 @@ cargo run --example z_custom_message  # No features needed
 
 - **[Building Guide](./building.md)** - Build procedures for each scenario
 - **[Message Generation](./message_generation.md)** - How messages are generated
-- **[Examples Overview](./examples_overview.md)** - What each example requires
 
 **Start with default features and add more as your project evolves. Feature flags provide flexibility without forcing early architectural decisions.**

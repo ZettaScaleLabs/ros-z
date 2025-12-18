@@ -95,6 +95,5 @@ Now that you understand the basics:
 - **[Publishers & Subscribers](./pubsub.md)** - Deep dive into pub-sub patterns and QoS
 - **[Services](./services.md)** - Learn request-response communication
 - **[Custom Messages](./custom_messages.md)** - Define domain-specific message types
-- **[Examples Overview](./examples_overview.md)** - Explore production patterns
 
 **Experiment by modifying the example: change the topic name, message content, or publishing rate to see how the system responds.**

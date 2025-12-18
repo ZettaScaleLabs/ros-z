@@ -2,10 +2,6 @@
 
 **ros-z is a native Rust ROS 2 implementation powered by Zenoh, delivering high-performance robotics communication with type safety and zero-cost abstractions.** Build reliable robot applications using modern Rust idioms while maintaining full ROS 2 compatibility.
 
-```admonish success
-ros-z combines Rust's safety guarantees with Zenoh's efficient networking to create a modern, performant alternative to traditional ROS 2 middleware. Perfect for production robotics applications.
-```
-
 ## Core Capabilities
 
 | Feature | Description | Benefit |
@@ -61,7 +57,6 @@ ros-z is designed for both new projects and gradual migration. Deploy ros-z node
 - **[Quick Start](./chapters/quick_start.md)** - Get running in 5 minutes
 - **[Publishers & Subscribers](./chapters/pubsub.md)** - Master the fundamental pattern
 - **[Services](./chapters/services.md)** - Request-response communication
-- **[Examples](./chapters/examples_overview.md)** - Production-ready code samples
 - **[Troubleshooting](./chapters/troubleshooting.md)** - Common issues and solutions
 
 **Ready to build safer, faster robotics applications? Start with the [Quick Start Guide](./chapters/quick_start.md).**

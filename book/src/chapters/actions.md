@@ -77,12 +77,6 @@ sequenceDiagram
 Actions excel when operations take more than a few seconds and users need visibility into progress. For sub-second operations, prefer services for simplicity.
 ```
 
-## Implementation Status
-
-```admonish note
-Action support in ros-z is under active development. The core infrastructure is in place, and examples are available in the repository. Check the latest API documentation for implementation details.
-```
-
 ## Example Patterns
 
 **Action Server:**

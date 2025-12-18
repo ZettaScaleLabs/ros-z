@@ -497,27 +497,6 @@ ls ~/.cargo/git/checkouts/roslibrust-*/assets/
 
 See [Troubleshooting Guide](./troubleshooting.md) for detailed solutions.
 
-## Performance
-
-### Build Times
-
-| Operation | First Build | Incremental Build |
-|-----------|-------------|-------------------|
-| Core only | ~30s | ~5s |
-| With std_msgs | ~60s | ~10s |
-| All bundled | ~120s | ~15s |
-| With external | ~180s | ~20s |
-
-```admonish tip
-First build is slow due to message parsing and code generation. Subsequent builds are fast with cargo's incremental compilation.
-```
-
-### Runtime Overhead
-
-- **Zero runtime cost** - All generation happens at build time
-- **Efficient serialization** - serde with optimized CDR encoding
-- **Type erasure avoided** - Concrete types throughout
-
 ## Resources
 
 - **[Feature Flags](./feature_flags.md)** - Available message packages
