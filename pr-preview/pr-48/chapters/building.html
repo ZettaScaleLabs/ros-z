@@ -204,17 +204,59 @@
 <li>Opt-in to ROS 2 integration when needed</li>
 <li>Pay only for what you use</li>
 </ul>
-<h2 id="quick-start"><a class="header" href="#quick-start">Quick Start</a></h2>
-<p>Get running in 30 seconds:</p>
-<pre><code class="language-bash"># Build core library
-cargo build
-
-# Run tests
-cargo test
-
-# Try an example
-cargo run --example z_pubsub
+<h2 id="adding-ros-z-to-your-project"><a class="header" href="#adding-ros-z-to-your-project">Adding ros-z to Your Project</a></h2>
+<p>Get started by adding ros-z to your <code>Cargo.toml</code>. Choose the dependency setup that matches your needs:</p>
+<h3 id="scenario-1-pure-rust-with-custom-messages"><a class="header" href="#scenario-1-pure-rust-with-custom-messages">Scenario 1: Pure Rust with Custom Messages</a></h3>
+<p><strong>Use when:</strong> You want to define your own message types without ROS 2 dependencies</p>
+<p><strong>Add to your <code>Cargo.toml</code>:</strong></p>
+<pre><code class="language-toml">[dependencies]
+ros-z = "0.x"
+tokio = { version = "1", features = ["full"] }  # Async runtime required
 </code></pre>
+<p><strong>What you get:</strong></p>
+<ul>
+<li>Full ros-z functionality</li>
+<li>Custom message support via derive macros</li>
+<li>Zero external dependencies</li>
+<li>Fast build times</li>
+</ul>
+<h3 id="scenario-2-using-bundled-ros-messages"><a class="header" href="#scenario-2-using-bundled-ros-messages">Scenario 2: Using Bundled ROS Messages</a></h3>
+<p><strong>Use when:</strong> You need standard ROS 2 message types but don't have ROS 2 installed</p>
+<p><strong>Add to your <code>Cargo.toml</code>:</strong></p>
+<pre><code class="language-toml">[dependencies]
+ros-z = "0.x"
+ros-z-msgs = "0.x"  # Includes std_msgs, geometry_msgs, sensor_msgs, nav_msgs
+tokio = { version = "1", features = ["full"] }
+</code></pre>
+<p><strong>Bundled message packages:</strong></p>
+<ul>
+<li><code>std_msgs</code> - Primitive types (String, Int32, Float64, etc.)</li>
+<li><code>geometry_msgs</code> - Spatial data (Point, Pose, Transform, Twist)</li>
+<li><code>sensor_msgs</code> - Sensor data (LaserScan, Image, Imu, PointCloud2)</li>
+<li><code>nav_msgs</code> - Navigation (Path, OccupancyGrid, Odometry)</li>
+</ul>
+<h3 id="scenario-3-full-ros-2-integration"><a class="header" href="#scenario-3-full-ros-2-integration">Scenario 3: Full ROS 2 Integration</a></h3>
+<p><strong>Use when:</strong> You need all ROS 2 message types or custom packages from your workspace</p>
+<p><strong>Requirements:</strong> ROS 2 installation (Jazzy, Rolling, Iron, or Humble)</p>
+<p><strong>Add to your <code>Cargo.toml</code>:</strong></p>
+<pre><code class="language-toml">[dependencies]
+ros-z = "0.x"
+ros-z-msgs = { version = "0.x", features = ["external_msgs"] }
+tokio = { version = "1", features = ["full"] }
+</code></pre>
+<p><strong>Build your project:</strong></p>
+<pre><code class="language-bash"># Ensure ROS 2 is sourced
+source /opt/ros/jazzy/setup.bash
+
+# Build your project
+cargo build
+</code></pre>
+<p><strong>Additional packages available:</strong></p>
+<ul>
+<li><code>example_interfaces</code> - Tutorial services and actions</li>
+<li><code>action_msgs</code> - Action communication types</li>
+<li>Any custom messages from your ROS 2 workspace</li>
+</ul>
 <div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
 <div class="admonition-title">
 <div id="admonition-tip-title">
@@ -223,114 +265,49 @@ cargo run --example z_pubsub
 <a class="admonition-anchor-link" href="#admonition-tip"></a>
 </div>
 <div>
-<p>The default build requires only Rust and Cargo. No ROS 2, no external dependencies, no configuration files.</p>
+<p>Start with Scenario 1 or 2 for development, then move to Scenario 3 when you need full ROS 2 interoperability.</p>
 </div>
 </div>
-<h2 id="build-scenarios"><a class="header" href="#build-scenarios">Build Scenarios</a></h2>
-<pre class="mermaid">flowchart TD
-    A[Your Project] --&gt; B{Need ROS Messages?}
-    B --&gt;|No| C[Pure Rust&lt;br/&gt;Custom Messages]
-    B --&gt;|Yes| D{Which Messages?}
-    D --&gt;|Common Types| E[Bundled Messages&lt;br/&gt;No ROS Required]
-    D --&gt;|All Types| F[Full ROS Integration&lt;br/&gt;ROS 2 Required]
-
-    C --&gt; C1[cargo build]
-    E --&gt; E1[cargo build -p ros-z-msgs]
-    F --&gt; F1[cargo build --features external_msgs]
-</pre>
-<h3 id="scenario-1-pure-rust-development"><a class="header" href="#scenario-1-pure-rust-development">Scenario 1: Pure Rust Development</a></h3>
-<p><strong>Use when:</strong> Prototyping, standalone apps, custom messages only</p>
-<p><strong>Requirements:</strong> Rust + Cargo</p>
-<pre><code class="language-bash"># Build workspace (ros-z + ros-z-codegen)
-cargo build
-
-# Run tests
-cargo test
-
-# Build example with custom messages
-cargo build -p ros-z --example z_custom_message
+<h2 id="running-examples"><a class="header" href="#running-examples">Running Examples</a></h2>
+<p>Once you've added ros-z to your project, you can run the included examples to see it in action:</p>
+<pre><code class="language-bash"># Pure Rust example with custom messages (no ros-z-msgs needed)
 cargo run --example z_custom_message -- --mode status-pub
+
+# Examples using bundled messages (requires ros-z-msgs)
+cargo run --example z_pubsub          # Publisher/Subscriber with std_msgs
+cargo run --example twist_pub         # Publishing geometry_msgs
+cargo run --example battery_state_sub # Receiving sensor_msgs
+
+# Examples requiring ROS 2 (requires external_msgs feature)
+cargo run --example z_srvcli --features external_msgs
 </code></pre>
-<p><strong>What you get:</strong></p>
-<ul>
-<li>Full ros-z functionality</li>
-<li>Custom message support</li>
-<li>Zero external dependencies</li>
-<li>Fast build times</li>
-</ul>
-<div id="admonition-info" class="admonition admonish-info" role="note" aria-labelledby="admonition-info-title">
+<h2 id="using-nix-optional"><a class="header" href="#using-nix-optional">Using Nix (Optional)</a></h2>
+<p>Pre-configured development environments with all dependencies:</p>
+<pre><code class="language-bash"># Default: ROS 2 Jazzy with full tooling
+nix develop
+
+# Specific ROS distros
+nix develop .#ros-jazzy      # ROS 2 Jazzy
+nix develop .#ros-rolling    # ROS 2 Rolling
+
+# Pure Rust (no ROS)
+nix develop .#pureRust
+</code></pre>
+<div id="admonition-tip-1" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-1-title">
 <div class="admonition-title">
-<div id="admonition-info-title">
-<p>Info</p>
+<div id="admonition-tip-1-title">
+<p>Tip</p>
 </div>
-<a class="admonition-anchor-link" href="#admonition-info"></a>
+<a class="admonition-anchor-link" href="#admonition-tip-1"></a>
 </div>
 <div>
-<p>Perfect for initial development and MVP builds. Add message packages incrementally as needs grow.</p>
+<p>Use Nix for consistent development environments across team members and CI/CD pipelines.</p>
 </div>
 </div>
-<h3 id="scenario-2-using-bundled-messages"><a class="header" href="#scenario-2-using-bundled-messages">Scenario 2: Using Bundled Messages</a></h3>
-<p><strong>Use when:</strong> Need standard ROS types, no ROS 2 installation available</p>
-<p><strong>Requirements:</strong> Rust + Cargo (still no ROS 2!)</p>
-<pre><code class="language-bash"># Build with bundled messages
-cargo build -p ros-z-msgs
-
-# Build examples using standard types
-cargo build -p ros-z --example z_pubsub        # std_msgs
-cargo build -p ros-z --example twist_pub       # geometry_msgs
-cargo build -p ros-z --example laser_scan      # sensor_msgs
-</code></pre>
-<p><strong>Bundled packages</strong> (via roslibrust):</p>
-<ul>
-<li><code>std_msgs</code> - Strings, integers, arrays</li>
-<li><code>geometry_msgs</code> - Points, poses, transforms</li>
-<li><code>sensor_msgs</code> - LaserScan, Image, Imu</li>
-<li><code>nav_msgs</code> - Path, occupancy grids</li>
-</ul>
-<div id="admonition-success-1" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-1-title">
-<div class="admonition-title">
-<div id="admonition-success-1-title">
-<p>Success</p>
-</div>
-<a class="admonition-anchor-link" href="#admonition-success-1"></a>
-</div>
-<div>
-<p>Bundled messages provide ROS 2 compatibility without requiring ROS 2 installation. Perfect for development machines.</p>
-</div>
-</div>
-<h3 id="scenario-3-full-ros-2-integration"><a class="header" href="#scenario-3-full-ros-2-integration">Scenario 3: Full ROS 2 Integration</a></h3>
-<p><strong>Use when:</strong> Need all message types, ROS 2 interoperability required</p>
-<p><strong>Requirements:</strong> Rust + Cargo + ROS 2 installation</p>
-<pre><code class="language-bash"># Ensure ROS 2 is sourced
-source /opt/ros/jazzy/setup.bash
-
-# Build with external messages
-cargo build -p ros-z-msgs --features external_msgs
-
-# Build RCL bindings
-cargo build -p rcl-z
-
-# Build service examples
-cargo build --example z_srvcli --features external_msgs
-</code></pre>
-<p><strong>Additional packages:</strong></p>
-<ul>
-<li><code>example_interfaces</code> - Tutorial services</li>
-<li><code>action_msgs</code> - Action types</li>
-<li>Custom packages from your workspace</li>
-</ul>
-<h2 id="workspace-structure"><a class="header" href="#workspace-structure">Workspace Structure</a></h2>
-<pre class="mermaid">graph TD
-    W[Workspace] --&gt; D[Default Members]
-    W --&gt; O[Optional Packages]
-
-    D --&gt; RZ[ros-z&lt;br/&gt;Core Library]
-    D --&gt; CG[ros-z-codegen&lt;br/&gt;Message Generation]
-
-    O --&gt; RM[ros-z-msgs&lt;br/&gt;Message Types]
-    O --&gt; RT[ros-z-tests&lt;br/&gt;Integration Tests]
-    O --&gt; RC[rcl-z&lt;br/&gt;RCL Bindings]
-</pre>
+<h2 id="development"><a class="header" href="#development">Development</a></h2>
+<p>This section is for contributors working on ros-z itself. If you're using ros-z in your project, you can skip this section.</p>
+<h3 id="package-organization"><a class="header" href="#package-organization">Package Organization</a></h3>
+<p>The ros-z repository is organized as a Cargo workspace with multiple packages:</p>
 <div class="table-wrapper"><table><thead><tr><th>Package</th><th>Default Build</th><th>Purpose</th><th>Dependencies</th></tr></thead><tbody>
 <tr><td><strong>ros-z</strong></td><td>Yes</td><td>Core Zenoh-native ROS 2 library</td><td>None</td></tr>
 <tr><td><strong>ros-z-codegen</strong></td><td>Yes</td><td>Message generation utilities</td><td>None</td></tr>
@@ -346,20 +323,26 @@ cargo build --example z_srvcli --features external_msgs
 <a class="admonition-anchor-link" href="#admonition-note"></a>
 </div>
 <div>
-<p>Only <code>ros-z</code> and <code>ros-z-codegen</code> build by default. Add other packages as needed for your use case.</p>
+<p>Only <code>ros-z</code> and <code>ros-z-codegen</code> build by default. Other packages are optional for development, testing, and running examples.</p>
 </div>
 </div>
-<h2 id="message-package-resolution"><a class="header" href="#message-package-resolution">Message Package Resolution</a></h2>
+<h3 id="building-the-repository"><a class="header" href="#building-the-repository">Building the Repository</a></h3>
+<p>When contributing to ros-z, you can build different parts of the workspace:</p>
+<pre><code class="language-bash"># Build core library
+cargo build
+
+# Run tests
+cargo test
+
+# Build with bundled messages for examples
+cargo build -p ros-z-msgs
+
+# Build all packages (requires ROS 2)
+source /opt/ros/jazzy/setup.bash
+cargo build --all
+</code></pre>
+<h3 id="message-package-resolution"><a class="header" href="#message-package-resolution">Message Package Resolution</a></h3>
 <p>The build system automatically locates ROS message definitions:</p>
-<pre class="mermaid">flowchart LR
-    A[build.rs] --&gt; B{Check AMENT_PREFIX_PATH}
-    B --&gt;|Found| C[Use System ROS]
-    B --&gt;|Not Found| D{Check /opt/ros/}
-    D --&gt;|Found| C
-    D --&gt;|Not Found| E{Check roslibrust assets}
-    E --&gt;|Found| F[Use Bundled]
-    E --&gt;|Not Found| G[Build Error]
-</pre>
 <p><strong>Search order:</strong></p>
 <ol>
 <li>System ROS installation (<code>AMENT_PREFIX_PATH</code>, <code>CMAKE_PREFIX_PATH</code>)</li>
@@ -367,94 +350,17 @@ cargo build --example z_srvcli --features external_msgs
 <li>Roslibrust git checkout (<code>~/.cargo/git/checkouts/roslibrust-*/assets/</code>)</li>
 </ol>
 <p>This fallback mechanism enables builds without ROS 2 installed.</p>
-<h2 id="using-nix-optional"><a class="header" href="#using-nix-optional">Using Nix (Optional)</a></h2>
-<p>Pre-configured development environments with all dependencies:</p>
-<pre><code class="language-bash"># Default: ROS 2 Jazzy with full tooling
-nix develop
-
-# Specific ROS distros
-nix develop .#ros-jazzy      # ROS 2 Jazzy
-nix develop .#ros-rolling    # ROS 2 Rolling
-
-# Pure Rust (no ROS)
-nix develop .#pureRust
-
-# CI environments (minimal)
-nix develop .#ros-jazzy-ci
-nix develop .#pureRust-ci
-</code></pre>
-<p><strong>Nix shells provide:</strong></p>
-<ul>
-<li>Correct environment variables</li>
-<li>All build dependencies</li>
-<li>Development tools (rust-analyzer, clippy)</li>
-<li>Reproducible builds</li>
-</ul>
-<div id="admonition-tip-1" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-1-title">
-<div class="admonition-title">
-<div id="admonition-tip-1-title">
-<p>Tip</p>
-</div>
-<a class="admonition-anchor-link" href="#admonition-tip-1"></a>
-</div>
-<div>
-<p>Use Nix for consistent development environments across team members and CI/CD pipelines.</p>
-</div>
-</div>
-<h2 id="examples-by-dependency-level"><a class="header" href="#examples-by-dependency-level">Examples by Dependency Level</a></h2>
-<h3 id="level-1-zero-dependencies"><a class="header" href="#level-1-zero-dependencies">Level 1: Zero Dependencies</a></h3>
-<pre><code class="language-bash"># Custom messages only
-cargo run --example z_custom_message -- --mode status-pub
-</code></pre>
-<h3 id="level-2-bundled-messages"><a class="header" href="#level-2-bundled-messages">Level 2: Bundled Messages</a></h3>
-<pre><code class="language-bash"># Standard message types (no ROS required)
-cargo run --example z_pubsub          # std_msgs
-cargo run --example twist_pub         # geometry_msgs
-cargo run --example battery_state_sub # sensor_msgs
-cargo run --example z_pingpong        # Performance test
-</code></pre>
-<h3 id="level-3-external-messages"><a class="header" href="#level-3-external-messages">Level 3: External Messages</a></h3>
-<pre><code class="language-bash"># Requires ROS 2 installation
-cargo run --example z_srvcli --features external_msgs
-</code></pre>
-<h3 id="level-4-advanced-features"><a class="header" href="#level-4-advanced-features">Level 4: Advanced Features</a></h3>
-<pre><code class="language-bash"># Protobuf serialization
-cargo build -p protobuf_demo
-</code></pre>
-<h2 id="build-options"><a class="header" href="#build-options">Build Options</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Command</th><th>Purpose</th><th>Dependencies</th></tr></thead><tbody>
-<tr><td><code>cargo build</code></td><td>Core library only</td><td>Rust + Cargo</td></tr>
-<tr><td><code>cargo build -p ros-z-msgs</code></td><td>+ Bundled messages</td><td>Rust + Cargo</td></tr>
-<tr><td><code>cargo build --features external_msgs</code></td><td>+ External messages</td><td>+ ROS 2</td></tr>
-<tr><td><code>cargo build -p rcl-z</code></td><td>+ RCL bindings</td><td>+ ROS 2</td></tr>
-<tr><td><code>cargo build --all</code></td><td>Everything</td><td>+ ROS 2</td></tr>
-</tbody></table>
-</div>
-<h2 id="common-build-commands"><a class="header" href="#common-build-commands">Common Build Commands</a></h2>
-<p><strong>Development:</strong></p>
+<h3 id="common-development-commands"><a class="header" href="#common-development-commands">Common Development Commands</a></h3>
 <pre><code class="language-bash"># Fast iterative development
 cargo check                # Quick compile check
 cargo build                # Debug build
 cargo build --release      # Optimized build
 cargo test                 # Run tests
 cargo clippy              # Lint checks
-</code></pre>
-<p><strong>Examples:</strong></p>
-<pre><code class="language-bash"># Build all examples
-cargo build --examples
 
-# Build specific example
-cargo build --example demo_nodes_talker
-
-# Run example directly
-cargo run --example demo_nodes_talker
-</code></pre>
-<p><strong>Clean builds:</strong></p>
-<pre><code class="language-bash"># Remove all build artifacts
-cargo clean
-
-# Clean specific package
-cargo clean -p ros-z-msgs
+# Clean builds
+cargo clean                # Remove all build artifacts
+cargo clean -p ros-z-msgs  # Clean specific package
 </code></pre>
 <div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
 <div class="admonition-title">
@@ -496,7 +402,6 @@ cargo build -p rcl-z
 <ul>
 <li><strong><a href="./feature_flags.html">Feature Flags</a></strong> - Detailed feature documentation</li>
 <li><strong><a href="./troubleshooting.html">Troubleshooting</a></strong> - Common build issues</li>
-<li><strong><a href="./examples_overview.html">Examples Overview</a></strong> - What you can build</li>
 <li><strong><a href="./message_generation.html">Message Generation</a></strong> - How messages work</li>
 </ul>
 <p><strong>Start with the simplest build and add dependencies incrementally as your project grows.</strong></p>

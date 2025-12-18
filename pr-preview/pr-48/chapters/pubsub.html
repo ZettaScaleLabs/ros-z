@@ -214,16 +214,215 @@
 <tr><td><strong>Async/Blocking</strong></td><td>Dual API for both paradigms</td><td>Flexible integration patterns</td></tr>
 </tbody></table>
 </div>
-<h2 id="code-patterns"><a class="header" href="#code-patterns">Code Patterns</a></h2>
-<p><strong>Creating a Publisher:</strong></p>
-<pre><code class="language-rust ignore">let publisher = node
-    .create_pub::&lt;RosString&gt;("topic_name")
-    .build()?;
+<h2 id="publisher-example"><a class="header" href="#publisher-example">Publisher Example</a></h2>
+<p>This example demonstrates publishing "Hello World" messages to a topic. The publisher sends messages periodically, showcasing the fundamental publishing pattern.</p>
+<pre><code class="language-rust ignore">use std::time::Duration;
 
-publisher.publish(RosString {
-    data: "Hello".into()
-})?;</code></pre>
-<p><strong>Creating a Subscriber:</strong></p>
+use ros_z::{
+    Builder, Result,
+    context::ZContext,
+    qos::{QosHistory, QosProfile},
+};
+use ros_z_msgs::std_msgs::String as RosString;
+
+/// Talker node that publishes "Hello World" messages to a topic
+///
+/// # Arguments
+/// * `ctx` - The ROS-Z context
+/// * `topic` - The topic name to publish to
+/// * `period` - Duration between messages
+/// * `max_count` - Optional maximum number of messages to publish. If None, publishes indefinitely.
+pub async fn run_talker(
+    ctx: ZContext,
+    topic: &amp;str,
+    period: Duration,
+    max_count: Option&lt;usize&gt;,
+) -&gt; Result&lt;()&gt; {
+    // Create a node named "talker"
+    let node = ctx.create_node("talker").build()?;
+
+    // Create a publisher with a custom Quality of Service profile
+    let qos = QosProfile {
+        history: QosHistory::KeepLast(7),
+        ..Default::default()
+    };
+    let publisher = node.create_pub::&lt;RosString&gt;(topic).with_qos(qos).build()?;
+
+    let mut count = 1;
+
+    loop {
+        // Create the message
+        let msg = RosString {
+            data: format!("Hello World: {}", count),
+        };
+
+        // Log the message being published
+        println!("Publishing: '{}'", msg.data);
+
+        // Publish the message (non-blocking)
+        publisher.async_publish(&amp;msg).await?;
+
+        // Check if we've reached the max count
+        if let Some(max) = max_count
+            &amp;&amp; count &gt;= max
+        {
+            break;
+        }
+
+        // Wait for the next publish cycle
+        tokio::time::sleep(period).await;
+
+        count += 1;
+    }
+
+    Ok(())
+}</code></pre>
+<p><strong>Key points:</strong></p>
+<ul>
+<li><strong>QoS Configuration</strong>: Uses <code>KeepLast(7)</code> to buffer the last 7 messages</li>
+<li><strong>Async Publishing</strong>: Non-blocking <code>async_publish()</code> for efficient I/O</li>
+<li><strong>Rate Control</strong>: Uses <code>tokio::time::sleep()</code> to control publishing frequency</li>
+<li><strong>Bounded Operation</strong>: Optional <code>max_count</code> for testing scenarios</li>
+</ul>
+<p><strong>Running the publisher:</strong></p>
+<pre><code class="language-bash"># Basic usage
+cargo run --example demo_nodes_talker
+
+# Custom topic and rate
+cargo run --example demo_nodes_talker -- --topic /my_topic --period 0.5
+
+# Publish 10 messages then exit
+cargo run --example demo_nodes_talker -- --max-count 10
+</code></pre>
+<h2 id="subscriber-example"><a class="header" href="#subscriber-example">Subscriber Example</a></h2>
+<p>This example demonstrates subscribing to messages from a topic. The subscriber receives and displays messages, showing both timeout-based and async reception patterns.</p>
+<pre><code class="language-rust ignore">use std::time::Duration;
+
+use ros_z::{
+    Builder, Result,
+    context::ZContext,
+    qos::{QosHistory, QosProfile},
+};
+use ros_z_msgs::std_msgs::String as RosString;
+
+/// Listener node that subscribes to a topic
+///
+/// # Arguments
+/// * `ctx` - The ROS-Z context
+/// * `topic` - The topic name to subscribe to
+/// * `max_count` - Optional maximum number of messages to receive. If None, listens indefinitely.
+/// * `timeout` - Optional timeout duration. If None, waits indefinitely.
+///
+/// # Returns
+/// A vector of received messages
+pub async fn run_listener(
+    ctx: ZContext,
+    topic: &amp;str,
+    max_count: Option&lt;usize&gt;,
+    timeout: Option&lt;Duration&gt;,
+) -&gt; Result&lt;Vec&lt;String&gt;&gt; {
+    // Create a node named "listener"
+    let node = ctx.create_node("listener").build()?;
+
+    // Create a subscription to the "chatter" topic
+    let qos = QosProfile {
+        history: QosHistory::KeepLast(10),
+        ..Default::default()
+    };
+    let subscriber = node.create_sub::&lt;RosString&gt;(topic).with_qos(qos).build()?;
+
+    let mut received_messages = Vec::new();
+    let start = std::time::Instant::now();
+
+    // Receive messages in a loop
+    loop {
+        // Check timeout
+        if let Some(t) = timeout
+            &amp;&amp; start.elapsed() &gt; t
+        {
+            break;
+        }
+
+        // Try to receive with a small timeout to allow checking other conditions
+        let recv_result = if timeout.is_some() || max_count.is_some() {
+            subscriber.recv_timeout(Duration::from_millis(100))
+        } else {
+            // If no limits, use async_recv
+            subscriber.async_recv().await
+        };
+
+        match recv_result {
+            Ok(msg) =&gt; {
+                // Log the received message
+                println!("I heard: [{}]", msg.data);
+                received_messages.push(msg.data.clone());
+
+                // Check if we've received enough messages
+                if let Some(max) = max_count
+                    &amp;&amp; received_messages.len() &gt;= max
+                {
+                    break;
+                }
+            }
+            Err(_) =&gt; {
+                // Continue if timeout on recv_timeout
+                if timeout.is_some() || max_count.is_some() {
+                    continue;
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+
+    Ok(received_messages)
+}</code></pre>
+<p><strong>Key points:</strong></p>
+<ul>
+<li><strong>Flexible Reception</strong>: Supports timeout-based and indefinite blocking</li>
+<li><strong>Testable Design</strong>: Returns received messages for verification</li>
+<li><strong>Bounded Operation</strong>: Optional <code>max_count</code> and <code>timeout</code> parameters</li>
+<li><strong>QoS Configuration</strong>: Uses <code>KeepLast(10)</code> for message buffering</li>
+</ul>
+<p><strong>Running the subscriber:</strong></p>
+<pre><code class="language-bash"># Basic usage
+cargo run --example demo_nodes_listener
+
+# Custom topic
+cargo run --example demo_nodes_listener -- --topic /my_topic
+
+# Receive 5 messages then exit
+cargo run --example demo_nodes_listener -- --max-count 5
+</code></pre>
+<h2 id="complete-pub-sub-workflow"><a class="header" href="#complete-pub-sub-workflow">Complete Pub-Sub Workflow</a></h2>
+<p>To see publishers and subscribers in action together:</p>
+<p><strong>Terminal 1 - Start Subscriber:</strong></p>
+<pre><code class="language-bash">cargo run --example demo_nodes_listener
+</code></pre>
+<p><strong>Terminal 2 - Start Publisher:</strong></p>
+<pre><code class="language-bash">cargo run --example demo_nodes_talker
+</code></pre>
+<p><strong>Expected output in Terminal 1:</strong></p>
+<pre><code class="language-text">I heard: [Hello World: 1]
+I heard: [Hello World: 2]
+I heard: [Hello World: 3]
+...
+</code></pre>
+<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
+<div class="admonition-title">
+<div id="admonition-success-title">
+<p>Success</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-success"></a>
+</div>
+<div>
+<p>The subscriber receives messages in real-time as the publisher sends them, demonstrating ros-z's efficient pub-sub implementation over Zenoh.</p>
+</div>
+</div>
+<h2 id="subscriber-patterns"><a class="header" href="#subscriber-patterns">Subscriber Patterns</a></h2>
+<p>ros-z provides three patterns for receiving messages, each suited for different use cases:</p>
+<h3 id="pattern-1-blocking-receive-pull-model"><a class="header" href="#pattern-1-blocking-receive-pull-model">Pattern 1: Blocking Receive (Pull Model)</a></h3>
+<p>Best for: Simple sequential processing, scripting</p>
 <pre><code class="language-rust ignore">let subscriber = node
     .create_sub::&lt;RosString&gt;("topic_name")
     .build()?;
@@ -231,7 +430,47 @@ publisher.publish(RosString {
 while let Ok(msg) = subscriber.recv() {
     println!("Received: {}", msg.data);
 }</code></pre>
-<p><strong>With Custom QoS:</strong></p>
+<h3 id="pattern-2-async-receive-pull-model"><a class="header" href="#pattern-2-async-receive-pull-model">Pattern 2: Async Receive (Pull Model)</a></h3>
+<p>Best for: Integration with async codebases, handling multiple streams</p>
+<pre><code class="language-rust ignore">let subscriber = node
+    .create_sub::&lt;RosString&gt;("topic_name")
+    .build()?;
+
+while let Ok(msg) = subscriber.async_recv().await {
+    println!("Received: {}", msg.data);
+}</code></pre>
+<h3 id="pattern-3-callback-push-model"><a class="header" href="#pattern-3-callback-push-model">Pattern 3: Callback (Push Model)</a></h3>
+<p>Best for: Event-driven architectures, low-latency response</p>
+<pre><code class="language-rust ignore">let subscriber = node
+    .create_sub::&lt;RosString&gt;("topic_name")
+    .build_with_callback(|msg| {
+        println!("Received: {}", msg.data);
+    })?;
+
+// No need to call recv() - callback handles messages automatically
+// Your code continues while messages are processed in the background</code></pre>
+<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
+<div class="admonition-title">
+<div id="admonition-tip-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-tip"></a>
+</div>
+<div>
+<p>Use callbacks for low-latency event-driven processing. Use blocking/async receive when you need explicit control over when messages are processed.</p>
+</div>
+</div>
+<h3 id="pattern-comparison"><a class="header" href="#pattern-comparison">Pattern Comparison</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Aspect</th><th>Blocking Receive</th><th>Async Receive</th><th>Callback</th></tr></thead><tbody>
+<tr><td><strong>Control Flow</strong></td><td>Sequential</td><td>Sequential</td><td>Event-driven</td></tr>
+<tr><td><strong>Latency</strong></td><td>Medium (poll-based)</td><td>Medium (poll-based)</td><td>Low (immediate)</td></tr>
+<tr><td><strong>Memory</strong></td><td>Queue size × message</td><td>Queue size × message</td><td>No queue</td></tr>
+<tr><td><strong>Backpressure</strong></td><td>Built-in (queue full)</td><td>Built-in (queue full)</td><td>None (drops if slow)</td></tr>
+<tr><td><strong>Use Case</strong></td><td>Simple scripts</td><td>Async applications</td><td>Real-time response</td></tr>
+</tbody></table>
+</div>
+<h2 id="quality-of-service-qos"><a class="header" href="#quality-of-service-qos">Quality of Service (QoS)</a></h2>
+<p>QoS profiles control message delivery behavior:</p>
 <pre><code class="language-rust ignore">use ros_z::qos::{QosProfile, QosHistory, Reliability};
 
 let qos = QosProfile {
@@ -244,44 +483,49 @@ let publisher = node
     .create_pub::&lt;RosString&gt;("topic")
     .with_qos(qos)
     .build()?;</code></pre>
-<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
+<div id="admonition-tip-1" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-1-title">
 <div class="admonition-title">
-<div id="admonition-tip-title">
+<div id="admonition-tip-1-title">
 <p>Tip</p>
 </div>
-<a class="admonition-anchor-link" href="#admonition-tip"></a>
+<a class="admonition-anchor-link" href="#admonition-tip-1"></a>
 </div>
 <div>
 <p>Use <code>QosHistory::KeepLast(1)</code> for sensor data and <code>Reliability::Reliable</code> for critical commands. Match QoS profiles between publishers and subscribers for optimal message delivery.</p>
 </div>
 </div>
-<h2 id="api-modes"><a class="header" href="#api-modes">API Modes</a></h2>
-<p>ros-z provides both asynchronous and blocking APIs to match your application architecture.</p>
-<p><strong>Async Pattern:</strong></p>
-<pre><code class="language-rust ignore">publisher.async_publish(msg).await?;
-let msg = subscriber.async_recv().await?;</code></pre>
-<p><strong>Blocking Pattern:</strong></p>
-<pre><code class="language-rust ignore">publisher.publish(msg)?;
-let msg = subscriber.recv_timeout(Duration::from_secs(1))?;</code></pre>
-<div id="admonition-info" class="admonition admonish-info" role="note" aria-labelledby="admonition-info-title">
+<h2 id="ros-2-interoperability"><a class="header" href="#ros-2-interoperability">ROS 2 Interoperability</a></h2>
+<p>ros-z publishers and subscribers work seamlessly with ROS 2 C++ and Python nodes:</p>
+<pre><code class="language-bash"># List active topics
+ros2 topic list
+
+# Echo messages from ros-z publisher
+ros2 topic echo /chatter
+
+# Publish to ros-z subscriber from ROS 2
+ros2 topic pub /chatter std_msgs/msg/String "data: 'Hello from ROS 2'"
+
+# Check topic info
+ros2 topic info /chatter
+</code></pre>
+<div id="admonition-success-1" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-1-title">
 <div class="admonition-title">
-<div id="admonition-info-title">
-<p>Info</p>
+<div id="admonition-success-1-title">
+<p>Success</p>
 </div>
-<a class="admonition-anchor-link" href="#admonition-info"></a>
+<a class="admonition-anchor-link" href="#admonition-success-1"></a>
 </div>
 <div>
-<p>Async APIs integrate with <code>tokio</code> and other async runtimes. Blocking APIs are simpler for single-threaded applications or quick prototypes.</p>
+<p>ros-z provides full ROS 2 compatibility via Zenoh bridge or rmw_zenoh, enabling cross-language communication.</p>
 </div>
 </div>
 <h2 id="resources"><a class="header" href="#resources">Resources</a></h2>
 <ul>
-<li><strong><a href="./simple_pub.html">Simple Publisher/Subscriber</a></strong> - Combined talker/listener example</li>
-<li><strong><a href="./demo_talker.html">Demo Talker</a></strong> - Standalone publisher implementation</li>
-<li><strong><a href="./demo_listener.html">Demo Listener</a></strong> - Standalone subscriber implementation</li>
 <li><strong><a href="./custom_messages.html">Custom Messages</a></strong> - Defining and using custom message types</li>
+<li><strong><a href="./message_generation.html">Message Generation</a></strong> - Generating Rust types from ROS 2 messages</li>
+<li><strong><a href="./quick_start.html">Quick Start</a></strong> - Getting started guide</li>
 </ul>
-<p><strong>Start with the simple example to understand the basic pub-sub workflow, then explore custom messages for domain-specific communication.</strong></p>
+<p><strong>Start with the examples above to understand the basic pub-sub workflow, then explore custom messages for domain-specific communication.</strong></p>
 
                     </main>
 
@@ -291,7 +535,7 @@ let msg = subscriber.recv_timeout(Duration::from_secs(1))?;</code></pre>
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next prefetch" href="../chapters/simple_pub.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../chapters/services.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -305,7 +549,7 @@ let msg = subscriber.recv_timeout(Duration::from_secs(1))?;</code></pre>
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next prefetch" href="../chapters/simple_pub.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../chapters/services.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>

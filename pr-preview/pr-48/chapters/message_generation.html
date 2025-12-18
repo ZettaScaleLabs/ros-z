@@ -610,31 +610,6 @@ ls ~/.cargo/git/checkouts/roslibrust-*/assets/
 </tbody></table>
 </div>
 <p>See <a href="./troubleshooting.html">Troubleshooting Guide</a> for detailed solutions.</p>
-<h2 id="performance"><a class="header" href="#performance">Performance</a></h2>
-<h3 id="build-times"><a class="header" href="#build-times">Build Times</a></h3>
-<div class="table-wrapper"><table><thead><tr><th>Operation</th><th>First Build</th><th>Incremental Build</th></tr></thead><tbody>
-<tr><td>Core only</td><td>~30s</td><td>~5s</td></tr>
-<tr><td>With std_msgs</td><td>~60s</td><td>~10s</td></tr>
-<tr><td>All bundled</td><td>~120s</td><td>~15s</td></tr>
-<tr><td>With external</td><td>~180s</td><td>~20s</td></tr>
-</tbody></table>
-</div><div id="admonition-tip-1" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-1-title">
-<div class="admonition-title">
-<div id="admonition-tip-1-title">
-<p>Tip</p>
-</div>
-<a class="admonition-anchor-link" href="#admonition-tip-1"></a>
-</div>
-<div>
-<p>First build is slow due to message parsing and code generation. Subsequent builds are fast with cargo's incremental compilation.</p>
-</div>
-</div>
-<h3 id="runtime-overhead"><a class="header" href="#runtime-overhead">Runtime Overhead</a></h3>
-<ul>
-<li><strong>Zero runtime cost</strong> - All generation happens at build time</li>
-<li><strong>Efficient serialization</strong> - serde with optimized CDR encoding</li>
-<li><strong>Type erasure avoided</strong> - Concrete types throughout</li>
-</ul>
 <h2 id="resources"><a class="header" href="#resources">Resources</a></h2>
 <ul>
 <li><strong><a href="./feature_flags.html">Feature Flags</a></strong> - Available message packages</li>

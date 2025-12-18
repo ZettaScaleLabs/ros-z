@@ -479,14 +479,7 @@ cargo build -p ros-z-msgs --features std_msgs,geometry_msgs -v
 <li><strong>Cross-language data?</strong> → Add protobuf feature</li>
 <li><strong>C++ integration?</strong> → Add rcl-z feature</li>
 </ol>
-<h2 id="performance-considerations"><a class="header" href="#performance-considerations">Performance Considerations</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Feature Set</th><th>Build Time</th><th>Runtime Overhead</th><th>Dependency Count</th></tr></thead><tbody>
-<tr><td>Minimal</td><td>Fast</td><td>None</td><td>~50 crates</td></tr>
-<tr><td>Standard</td><td>Medium</td><td>None</td><td>~75 crates</td></tr>
-<tr><td>Full ROS</td><td>Slow (first build)</td><td>Minimal</td><td>~100+ crates</td></tr>
-<tr><td>With Protobuf</td><td>Medium</td><td>Minimal</td><td>+10 crates</td></tr>
-</tbody></table>
-</div><div id="admonition-info-1" class="admonition admonish-info" role="note" aria-labelledby="admonition-info-1-title">
+<div id="admonition-info-1" class="admonition admonish-info" role="note" aria-labelledby="admonition-info-1-title">
 <div class="admonition-title">
 <div id="admonition-info-1-title">
 <p>Info</p>
@@ -514,7 +507,6 @@ cargo run --example z_pingpong        # std_msgs
 <ul>
 <li><strong><a href="./building.html">Building Guide</a></strong> - Build procedures for each scenario</li>
 <li><strong><a href="./message_generation.html">Message Generation</a></strong> - How messages are generated</li>
-<li><strong><a href="./examples_overview.html">Examples Overview</a></strong> - What each example requires</li>
 </ul>
 <p><strong>Start with default features and add more as your project evolves. Feature flags provide flexibility without forcing early architectural decisions.</strong></p>
 
@@ -522,7 +514,7 @@ cargo run --example z_pingpong        # std_msgs
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../chapters/z_pingpong.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../chapters/custom_messages.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
@@ -536,7 +528,7 @@ cargo run --example z_pingpong        # std_msgs
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../chapters/z_pingpong.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../chapters/custom_messages.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 

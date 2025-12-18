@@ -185,25 +185,6 @@
                     <main>
                         <h1 id="introduction"><a class="header" href="#introduction">Introduction</a></h1>
 <p><strong>ros-z is a native Rust ROS 2 implementation powered by Zenoh, delivering high-performance robotics communication with type safety and zero-cost abstractions.</strong> Build reliable robot applications using modern Rust idioms while maintaining full ROS 2 compatibility.</p>
-<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
-<div class="admonition-title">
-<div id="admonition-success-title">
-<p>Success</p>
-</div>
-<a class="admonition-anchor-link" href="#admonition-success"></a>
-</div>
-<div>
-<p>ros-z combines Rust's safety guarantees with Zenoh's efficient networking to create a modern, performant alternative to traditional ROS 2 middleware. Perfect for production robotics applications.</p>
-</div>
-</div>
-<h2 id="architecture-overview"><a class="header" href="#architecture-overview">Architecture Overview</a></h2>
-<pre class="mermaid">graph LR
-    A[Your Rust App] --&gt;|ros-z API| B[ros-z Core]
-    B --&gt;|Zenoh Protocol| C[Network Layer]
-    C --&gt;|ROS 2 Compatible| D[Other ROS 2 Nodes]
-    B --&gt;|Native Types| E[ROS 2 Messages]
-    E --&gt;|Code Generation| F[Rust Structs]
-</pre>
 <h2 id="core-capabilities"><a class="header" href="#core-capabilities">Core Capabilities</a></h2>
 <div class="table-wrapper"><table><thead><tr><th>Feature</th><th>Description</th><th>Benefit</th></tr></thead><tbody>
 <tr><td><strong>Native Rust</strong></td><td>Pure Rust implementation with no C/C++ dependencies</td><td>Memory safety, concurrency without data races</td></tr>
@@ -223,7 +204,8 @@ let sub = node.create_sub::&lt;String&gt;("topic").build()?;</code></pre>
 let client = node.create_client::&lt;AddTwoInts&gt;("add").build()?;</code></pre>
 <p><strong>Actions:</strong></p>
 <pre><code class="language-rust ignore">// Long-running tasks with feedback and cancellation
-let action_client = node.create_action_client::&lt;Fibonacci&gt;("fibonacci")?;</code></pre>
+let action_server = node.create_action_server::&lt;Fibonacci&gt;("fibonacci").build()?;
+let action_client = node.create_action_client::&lt;Fibonacci&gt;("fibonacci").build()?;</code></pre>
 <div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
 <div class="admonition-title">
 <div id="admonition-tip-title">
@@ -236,7 +218,6 @@ let action_client = node.create_action_client::&lt;Fibonacci&gt;("fibonacci")?;<
 </div>
 </div>
 <h2 id="why-ros-z"><a class="header" href="#why-ros-z">Why ros-z?</a></h2>
-<p><strong>Performance:</strong> Zenoh's peer-to-peer architecture reduces latency compared to traditional DDS middleware. Rust's zero-cost abstractions mean no runtime overhead.</p>
 <p><strong>Safety:</strong> Rust's ownership model prevents common robotics bugs like data races, null pointer dereferences, and buffer overflows at compile time.</p>
 <p><strong>Productivity:</strong> Cargo ecosystem integration, excellent tooling, and expressive type system accelerate development without sacrificing reliability.</p>
 <div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
@@ -255,7 +236,6 @@ let action_client = node.create_action_client::&lt;Fibonacci&gt;("fibonacci")?;<
 <li><strong><a href="./chapters/quick_start.html">Quick Start</a></strong> - Get running in 5 minutes</li>
 <li><strong><a href="./chapters/pubsub.html">Publishers &amp; Subscribers</a></strong> - Master the fundamental pattern</li>
 <li><strong><a href="./chapters/services.html">Services</a></strong> - Request-response communication</li>
-<li><strong><a href="./chapters/examples_overview.html">Examples</a></strong> - Production-ready code samples</li>
 <li><strong><a href="./chapters/troubleshooting.html">Troubleshooting</a></strong> - Common issues and solutions</li>
 </ul>
 <p><strong>Ready to build safer, faster robotics applications? Start with the <a href="./chapters/quick_start.html">Quick Start Guide</a>.</strong></p>
