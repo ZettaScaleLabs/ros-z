@@ -277,11 +277,16 @@ fn run_navigation_client(target_x: f64, target_y: f64, max_speed: f64) -> Result
 
     println!("Waiting for response...");
 
-    let response = zcli.take_response_timeout(Duration::from_secs(5))?;
-    println!("Received response:");
-    println!("   Success: {}", response.success);
-    println!("   Duration: {:.2}s", response.estimated_duration);
-    println!("   Message: {}", response.message);
+    loop {
+        if let Ok(response) = zcli.take_response() {
+            println!("Received response:");
+            println!("Success: {}", response.success);
+            println!("Duration: {:.2}s", response.estimated_duration);
+            println!("Message: {}", response.message);
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
 
     Ok(())
 }

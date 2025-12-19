@@ -1,0 +1,41 @@
+name: PR Preview
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+
+concurrency:
+  group: preview-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Determinate Nix
+        if: github.event.action != 'closed'
+        uses: DeterminateSystems/determinate-nix-action@v3
+
+      - name: FlakeHub / Magic cache
+        if: github.event.action != 'closed'
+        uses: DeterminateSystems/flakehub-cache-action@main
+
+      - name: Build docs in flake devShell
+        if: github.event.action != 'closed'
+        run: |
+          nix develop '.#pureRust-ci' -c mdbook build book
+
+      - name: Deploy Preview
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          source-dir: ./book/book
+          preview-branch: gh-pages
+          umbrella-dir: pr-preview
