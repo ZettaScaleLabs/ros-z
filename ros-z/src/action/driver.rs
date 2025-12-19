@@ -92,7 +92,7 @@ pub(crate) async fn run_driver_loop<A, F, Fut>(
             }
 
             // 4. New Goal Requests
-            res = inner.goal_server.rx.recv_async() => {
+            res = inner.goal_server.rx().recv_async() => {
                 if let Ok(query) = res {
                     let inner = inner.clone();
                     let handler = handler.clone();
@@ -106,14 +106,14 @@ pub(crate) async fn run_driver_loop<A, F, Fut>(
             }
 
             // 5. Cancel Requests
-            res = inner.cancel_server.rx.recv_async() => {
+            res = inner.cancel_server.rx().recv_async() => {
                 if let Ok(query) = res {
                     handle_cancel_request(&inner, query).await;
                 }
             }
 
             // 6. Result Requests
-            res = inner.result_server.rx.recv_async() => {
+            res = inner.result_server.rx().recv_async() => {
                 if let Ok(query) = res {
                     handle_result_request(&inner, query).await;
                 }
