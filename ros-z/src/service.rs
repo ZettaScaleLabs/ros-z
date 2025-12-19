@@ -24,6 +24,7 @@ use crate::topic_name;
 use crate::{
     Builder,
     attachment::{self, Attachment, GidArray},
+    common::DataHandler,
     entity::EndpointEntity,
     impl_with_type_info,
     msg::{CdrSerdes, ZMessage, ZService},
@@ -209,7 +210,7 @@ pub struct ZServerBuilder<T> {
     pub _phantom_data: PhantomData<T>,
 }
 
-pub struct ZServer<T: ZService> {
+pub struct ZServer<T: ZService, Q = Query> {
     // NOTE: This is biased toward RMW
     key_expr: KeyExpr<'static>,
     // TODO: replace this with the sample sn
@@ -218,10 +219,98 @@ pub struct ZServer<T: ZService> {
     gid: GidArray,
     inner: zenoh::query::Queryable<()>,
     lv_token: LivelinessToken,
-    // rx: flume::Receiver<T::Request>,
-    pub rx: flume::Receiver<Query>,
+    pub rx: Option<flume::Receiver<Q>>,
     pub map: HashMap<QueryKey, Query>,
     _phantom_data: PhantomData<T>,
+}
+
+impl<T, Q> ZServer<T, Q>
+where
+    T: ZService,
+{
+    /// Access the receiver queue.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the server was built with `build_with_callback()` and has no queue.
+    /// Action servers always have queues and will never panic.
+    pub fn rx(&self) -> &flume::Receiver<Q> {
+        self.rx.as_ref().expect("Server was built with callback mode, no queue available")
+    }
+}
+
+impl<T> ZServerBuilder<T>
+where
+    T: ZService,
+{
+    /// Internal method that all build variants use.
+    fn build_internal<Q>(
+        mut self,
+        handler: DataHandler<Query>,
+        create_queue: impl FnOnce() -> Option<flume::Receiver<Q>>,
+    ) -> Result<ZServer<T, Q>> {
+        let qualified_service = topic_name::qualify_service_name(
+            &self.entity.topic,
+            &self.entity.node.namespace,
+            &self.entity.node.name,
+        )
+        .map_err(|e| zenoh::Error::from(format!("Failed to qualify service: {}", e)))?;
+
+        self.entity.topic = qualified_service;
+
+        let key_expr = self.entity.topic_key_expr()?;
+        tracing::debug!("[SRV] KE: {key_expr}");
+
+        let inner = self
+            .session
+            .declare_queryable(&key_expr)
+            .complete(true)
+            .callback(move |query| {
+                tracing::error!("RECEIVED QUERY: {}", &query.key_expr());
+                tracing::error!("Selector: {}", &query.selector());
+                handler.handle(query);
+            })
+            .wait()?;
+
+        let lv_token = self
+            .session
+            .liveliness()
+            .declare_token(self.entity.lv_token_key_expr()?)
+            .wait()?;
+
+        Ok(ZServer {
+            key_expr,
+            sn: AtomicUsize::new(1), // Start at 1 for ROS compatibility
+            inner,
+            lv_token,
+            gid: self.entity.gid(),
+            rx: create_queue(),
+            map: HashMap::new(),
+            _phantom_data: Default::default(),
+        })
+    }
+
+    pub fn build_with_callback<F>(self, callback: F) -> Result<ZServer<T, ()>>
+    where
+        F: Fn(Query) + Send + Sync + 'static,
+    {
+        self.build_internal(DataHandler::Callback(Arc::new(callback)), || None)
+    }
+
+    #[cfg(feature = "rcl-z")]
+    pub fn build_with_notifier<F>(self, notify: F) -> Result<ZServer<T>>
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        let (tx, rx) = flume::unbounded();
+        self.build_internal(
+            DataHandler::QueueWithNotifier {
+                sender: tx,
+                notifier: Arc::new(notify),
+            },
+            || Some(rx),
+        )
+    }
 }
 
 impl<T> Builder for ZServerBuilder<T>
@@ -230,96 +319,9 @@ where
 {
     type Output = ZServer<T>;
 
-    fn build(mut self) -> Result<Self::Output> {
-        // Qualify the service name according to ROS 2 rules
-        let qualified_service = topic_name::qualify_service_name(
-            &self.entity.topic,
-            &self.entity.node.namespace,
-            &self.entity.node.name,
-        )
-        .map_err(|e| zenoh::Error::from(format!("Failed to qualify service: {}", e)))?;
-
-        self.entity.topic = qualified_service;
-
-        let key_expr = self.entity.topic_key_expr()?;
-        tracing::debug!("[SRV] KE: {key_expr}");
-
+    fn build(self) -> Result<Self::Output> {
         let (tx, rx) = flume::unbounded();
-        let inner = self
-            .session
-            .declare_queryable(&key_expr)
-            .complete(true)
-            .callback(move |query| {
-                tracing::error!("RECEIVED QUERY: {}", &query.key_expr());
-                tracing::error!("Selector: {}", &query.selector());
-                assert!(tx.send(query).is_ok());
-            })
-            .wait()?;
-        let lv_token = self
-            .session
-            .liveliness()
-            .declare_token(self.entity.lv_token_key_expr()?)
-            .wait()?;
-        Ok(ZServer {
-            key_expr,
-            sn: AtomicUsize::new(1), // Start at 1 for ROS compatibility
-            inner,
-            lv_token,
-            gid: self.entity.gid(),
-            rx,
-            map: HashMap::new(),
-            _phantom_data: Default::default(),
-        })
-    }
-}
-
-impl<T> ZServerBuilder<T>
-where
-    T: ZService,
-{
-    #[cfg(feature = "rcl-z")]
-    pub fn build_with_notifier<F>(mut self, notify: F) -> Result<ZServer<T>>
-    where
-        F: Fn() + Send + Sync + 'static,
-    {
-        // Qualify the service name according to ROS 2 rules
-        let qualified_service = topic_name::qualify_service_name(
-            &self.entity.topic,
-            &self.entity.node.namespace,
-            &self.entity.node.name,
-        )
-        .map_err(|e| zenoh::Error::from(format!("Failed to qualify service: {}", e)))?;
-
-        self.entity.topic = qualified_service;
-
-        let key_expr = self.entity.topic_key_expr()?;
-        tracing::debug!("[SRV] KE: {key_expr}");
-
-        let (tx, rx) = flume::unbounded();
-        let inner = self
-            .session
-            .declare_queryable(&key_expr)
-            .complete(true)
-            .callback(move |query| {
-                let _ = tx.send(query);
-                notify();
-            })
-            .wait()?;
-        let lv_token = self
-            .session
-            .liveliness()
-            .declare_token(self.entity.lv_token_key_expr()?)
-            .wait()?;
-        Ok(ZServer {
-            key_expr,
-            sn: AtomicUsize::new(1), // Start at 1 for ROS compatibility
-            inner,
-            lv_token,
-            gid: self.entity.gid(),
-            rx,
-            map: HashMap::new(),
-            _phantom_data: Default::default(),
-        })
+        self.build_internal(DataHandler::Queue(tx), || Some(rx))
     }
 }
 
@@ -338,7 +340,7 @@ impl From<Attachment> for QueryKey {
     }
 }
 
-impl<T> ZServer<T>
+impl<T> ZServer<T, Query>
 where
     T: ZService,
 {
@@ -350,7 +352,9 @@ where
     ///
     /// This method is useful when custom deserialization logic is needed.
     pub fn take_query(&self) -> Result<Query> {
-        match self.rx.try_recv() {
+        let rx = self.rx.as_ref()
+            .ok_or_else(|| zenoh::Error::from("Server was built with callback, no queue available"))?;
+        match rx.try_recv() {
             Ok(query) => Ok(query),
             Err(flume::TryRecvError::Empty) => Err("No query available".into()),
             Err(flume::TryRecvError::Disconnected) => Err("Channel disconnected".into()),
@@ -365,7 +369,9 @@ where
         for<'c> T::Request:
             ZMessage<Serdes = CdrSerdes<T::Request>> + Send + Sync + 'static + Deserialize<'c>,
     {
-        let query = self.rx.recv()?;
+        let rx = self.rx.as_ref()
+            .ok_or_else(|| zenoh::Error::from("Server was built with callback, no queue available"))?;
+        let query = rx.recv()?;
         let attachment: Attachment = query.attachment().unwrap().try_into()?;
         let key: QueryKey = attachment.into();
         if self.map.contains_key(&key) {
@@ -386,7 +392,9 @@ where
         for<'c> T::Request:
             ZMessage<Serdes = CdrSerdes<T::Request>> + Send + Sync + 'static + Deserialize<'c>,
     {
-        let query = self.rx.recv_async().await?;
+        let rx = self.rx.as_ref()
+            .ok_or_else(|| zenoh::Error::from("Server was built with callback, no queue available"))?;
+        let query = rx.recv_async().await?;
         let attachment: Attachment = query.attachment().unwrap().try_into()?;
         let key: QueryKey = attachment.into();
         if self.map.contains_key(&key) {
