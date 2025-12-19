@@ -9,6 +9,7 @@ pub(crate) enum DataHandler<T> {
     Callback(Arc<dyn Fn(T) + Send + Sync>),
 
     /// Queue + notify: store and trigger notification
+    #[allow(dead_code)]
     QueueWithNotifier {
         sender: flume::Sender<T>,
         notifier: Arc<dyn Fn() + Send + Sync>,
