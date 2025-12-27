@@ -62,6 +62,7 @@ jobs:
         run: |
           echo "export SCCACHE_GHA_ENABLED=true" >> /tmp/nix-dev-env.sh
           echo "export SCCACHE_CACHE_SIZE=2G" >> /tmp/nix-dev-env.sh
+          echo "export RUSTC_WRAPPER=sccache" >> /tmp/nix-dev-env.sh
 
       - name: Clippy (default workspace)
         run: |
@@ -153,6 +154,7 @@ jobs:
         run: |
           echo "export SCCACHE_GHA_ENABLED=true" >> /tmp/nix-dev-env.sh
           echo "export SCCACHE_CACHE_SIZE=2G" >> /tmp/nix-dev-env.sh
+          echo "export RUSTC_WRAPPER=sccache" >> /tmp/nix-dev-env.sh
 
       - name: Clippy (all targets, all features)
         run: |
