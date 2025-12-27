@@ -32,6 +32,8 @@ jobs:
         if: github.event.action != 'closed'
         run: |
           nix develop '.#pureRust-ci' -c mdbook build book
+        env:
+          NIX_ACCEPT_FLAKE_CONFIG: 1
 
       - name: Deploy Preview
         uses: rossjrw/pr-preview-action@v1

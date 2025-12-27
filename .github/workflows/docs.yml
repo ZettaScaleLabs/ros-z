@@ -22,6 +22,8 @@ jobs:
       - name: Test mdbook in flake shell
         run: |
           nix develop '.#pureRust-ci' -c mdbook test book -L ./target/debug/deps
+        env:
+          NIX_ACCEPT_FLAKE_CONFIG: 1
 
   publish_doc:
     name: Publish to GitHub Pages
@@ -45,6 +47,8 @@ jobs:
       - name: Build mdbook in flake shell
         run: |
           nix develop '.#pureRust-ci' -c mdbook build book
+        env:
+          NIX_ACCEPT_FLAKE_CONFIG: 1
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
