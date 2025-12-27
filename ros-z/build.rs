@@ -1,3 +1,4 @@
+#[cfg(feature = "generate-configs")]
 use std::path::PathBuf;
 
 // Include config module from src/ to access ConfigOverride pattern
