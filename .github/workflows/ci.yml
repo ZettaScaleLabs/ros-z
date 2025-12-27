@@ -47,9 +47,19 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.9
 
+      - name: Cache nix dev environment
+        id: cache-nix-env
+        uses: actions/cache@v4
+        with:
+          path: /tmp/nix-dev-env.sh
+          key: nix-env-pureRust-ci-${{ hashFiles('flake.lock', 'flake.nix') }}
+
       - name: Setup nix environment
+        if: steps.cache-nix-env.outputs.cache-hit != 'true'
+        run: nix print-dev-env '.#pureRust-ci' --accept-flake-config > /tmp/nix-dev-env.sh
+
+      - name: Configure sccache
         run: |
-          nix print-dev-env '.#pureRust-ci' --accept-flake-config > /tmp/nix-dev-env.sh
           echo "export SCCACHE_GHA_ENABLED=true" >> /tmp/nix-dev-env.sh
           echo "export SCCACHE_CACHE_SIZE=2G" >> /tmp/nix-dev-env.sh
 
@@ -128,9 +138,19 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.9
 
+      - name: Cache nix dev environment
+        id: cache-nix-env
+        uses: actions/cache@v4
+        with:
+          path: /tmp/nix-dev-env.sh
+          key: nix-env-ros-${{ matrix.distro }}-ci-${{ hashFiles('flake.lock', 'flake.nix') }}
+
       - name: Setup nix environment
+        if: steps.cache-nix-env.outputs.cache-hit != 'true'
+        run: nix print-dev-env '.#ros-${{ matrix.distro }}-ci' --accept-flake-config > /tmp/nix-dev-env.sh
+
+      - name: Configure sccache
         run: |
-          nix print-dev-env '.#ros-${{ matrix.distro }}-ci' --accept-flake-config > /tmp/nix-dev-env.sh
           echo "export SCCACHE_GHA_ENABLED=true" >> /tmp/nix-dev-env.sh
           echo "export SCCACHE_CACHE_SIZE=2G" >> /tmp/nix-dev-env.sh
 
