@@ -44,8 +44,14 @@ jobs:
       - name: FlakeHub / Magic cache
         uses: DeterminateSystems/flakehub-cache-action@main
 
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
       - name: Setup nix environment
-        run: nix print-dev-env '.#pureRust-ci' --accept-flake-config > /tmp/nix-dev-env.sh
+        run: |
+          nix print-dev-env '.#pureRust-ci' --accept-flake-config > /tmp/nix-dev-env.sh
+          echo "export SCCACHE_GHA_ENABLED=true" >> /tmp/nix-dev-env.sh
+          echo "export SCCACHE_CACHE_SIZE=2G" >> /tmp/nix-dev-env.sh
 
       - name: Clippy (default workspace)
         run: |
@@ -119,8 +125,14 @@ jobs:
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
           skipPush: true
 
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
       - name: Setup nix environment
-        run: nix print-dev-env '.#ros-${{ matrix.distro }}-ci' --accept-flake-config > /tmp/nix-dev-env.sh
+        run: |
+          nix print-dev-env '.#ros-${{ matrix.distro }}-ci' --accept-flake-config > /tmp/nix-dev-env.sh
+          echo "export SCCACHE_GHA_ENABLED=true" >> /tmp/nix-dev-env.sh
+          echo "export SCCACHE_CACHE_SIZE=2G" >> /tmp/nix-dev-env.sh
 
       - name: Clippy (all targets, all features)
         run: |
