@@ -18,7 +18,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - uses: DeterminateSystems/determinate-nix-action@v3
+      - name: Install Determinate Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
+
+      - name: FlakeHub / Magic cache
+        uses: DeterminateSystems/flakehub-cache-action@main
 
       - name: Check formatting
         run: nix build .#checks.x86_64-linux.pre-commit-check -L
@@ -34,7 +38,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - uses: DeterminateSystems/determinate-nix-action@v3
+      - name: Install Determinate Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
+
+      - name: FlakeHub / Magic cache
+        uses: DeterminateSystems/flakehub-cache-action@main
 
       - name: Clippy (default workspace)
         run: |
@@ -84,11 +92,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - uses: DeterminateSystems/determinate-nix-action@v3
+      - name: Install Determinate Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
         with:
           extra-conf: |
             extra-substituters = https://ros.cachix.org
             extra-trusted-public-keys = ros.cachix.org-1:dSyZxI8geDCJrwgvCOHDoAfOm5sV1wCPjBkKL+38Rvo=
+
+      - name: FlakeHub / Magic cache
+        uses: DeterminateSystems/flakehub-cache-action@main
 
       - name: Setup Cachix
         uses: cachix/cachix-action@v15
