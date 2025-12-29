@@ -18,7 +18,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - uses: DeterminateSystems/determinate-nix-action@v3
+      - name: Install Determinate Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
 
       - name: Check formatting
         run: nix build .#checks.x86_64-linux.pre-commit-check -L
@@ -26,59 +27,73 @@ jobs:
   no-ros:
     name: ROS-independent Test
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Nix
-        uses: cachix/install-nix-action@v27
-        with:
-          nix_path: nixpkgs=channel:nixos-unstable
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            accept-flake-config = true
+      - name: Install Determinate Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
 
       - name: Setup sccache
-        if: env.ACT != 'true'
         uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Setup nix environment
+        run: |
+          nix print-dev-env '.#pureRust-ci' --accept-flake-config > /tmp/nix-dev-env.sh
+          echo "export SCCACHE_GHA_ENABLED=true" >> /tmp/nix-dev-env.sh
+          echo "export SCCACHE_CACHE_SIZE=2G" >> /tmp/nix-dev-env.sh
+          echo "export RUSTC_WRAPPER=sccache" >> /tmp/nix-dev-env.sh
 
       - name: Clippy (default workspace)
         run: |
-          nix develop '.#pureRust-ci' -c cargo clippy --lib --bins --tests -- -D warnings
+          source /tmp/nix-dev-env.sh
+          cargo clippy --lib --bins --tests -- -D warnings
 
       - name: Check default workspace
         run: |
-          nix develop '.#pureRust-ci' -c cargo check
+          source /tmp/nix-dev-env.sh
+          cargo check
 
       - name: Build default workspace
         run: |
-          nix develop '.#pureRust-ci' -c cargo build
+          source /tmp/nix-dev-env.sh
+          cargo build
 
       - name: Build examples without ROS dependencies
         run: |
-          nix develop '.#pureRust-ci' -c cargo build --examples
+          source /tmp/nix-dev-env.sh
+          cargo build --examples
 
       - name: Run tests
         run: |
-          nix develop '.#pureRust-ci' -c cargo nextest run
+          source /tmp/nix-dev-env.sh
+          cargo nextest run
 
       - name: Check ros-z-msgs with bundled messages (no ROS required)
         run: |
-          nix develop '.#pureRust-ci' -c cargo check -p ros-z-msgs
-          nix develop '.#pureRust-ci' -c cargo check -p ros-z-msgs --features bundled_msgs
-          nix develop '.#pureRust-ci' -c cargo check -p ros-z-msgs --features common_interfaces
+          source /tmp/nix-dev-env.sh
+          cargo check -p ros-z-msgs
+          cargo check -p ros-z-msgs --features bundled_msgs
+          cargo check -p ros-z-msgs --features common_interfaces
 
       - name: Build ros-z-msgs with individual bundled packages
         run: |
-          nix develop '.#pureRust-ci' -c cargo build -p ros-z-msgs --no-default-features --features std_msgs
-          nix develop '.#pureRust-ci' -c cargo build -p ros-z-msgs --no-default-features --features geometry_msgs
-          nix develop '.#pureRust-ci' -c cargo build -p ros-z-msgs --no-default-features --features sensor_msgs
-          nix develop '.#pureRust-ci' -c cargo build -p ros-z-msgs --no-default-features --features nav_msgs
+          source /tmp/nix-dev-env.sh
+          cargo build -p ros-z-msgs --no-default-features --features std_msgs
+          cargo build -p ros-z-msgs --no-default-features --features geometry_msgs
+          cargo build -p ros-z-msgs --no-default-features --features sensor_msgs
+          cargo build -p ros-z-msgs --no-default-features --features nav_msgs
 
   with-ros:
     name: ROS-dependent Test (${{ matrix.distro }})
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     strategy:
       matrix:
         distro: [jazzy]
@@ -88,13 +103,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Nix
-        uses: cachix/install-nix-action@v27
+      - name: Install Determinate Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
         with:
-          nix_path: nixpkgs=channel:nixos-unstable
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            accept-flake-config = true
+          extra-conf: |
             extra-substituters = https://ros.cachix.org
             extra-trusted-public-keys = ros.cachix.org-1:dSyZxI8geDCJrwgvCOHDoAfOm5sV1wCPjBkKL+38Rvo=
 
@@ -106,49 +118,62 @@ jobs:
           skipPush: true
 
       - name: Setup sccache
-        if: env.ACT != 'true'
         uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Setup nix environment
+        run: |
+          nix print-dev-env '.#ros-${{ matrix.distro }}-ci' --accept-flake-config > /tmp/nix-dev-env.sh
+          echo "export SCCACHE_GHA_ENABLED=true" >> /tmp/nix-dev-env.sh
+          echo "export SCCACHE_CACHE_SIZE=2G" >> /tmp/nix-dev-env.sh
+          echo "export RUSTC_WRAPPER=sccache" >> /tmp/nix-dev-env.sh
 
       - name: Clippy (all targets, all features)
         run: |
-          nix develop '.#ros-${{ matrix.distro }}-ci' -c \
-            cargo clippy --all-targets --all-features --workspace -- -D warnings
+          source /tmp/nix-dev-env.sh
+          cargo clippy --all-targets --all-features --workspace -- -D warnings
 
       - name: Check rcl-z
         run: |
-          nix develop '.#ros-${{ matrix.distro }}-ci' -c cargo check -p rcl-z
+          source /tmp/nix-dev-env.sh
+          cargo check -p rcl-z
 
       - name: Check ros-z-msgs (default bundled features)
         run: |
-          nix develop '.#ros-${{ matrix.distro }}-ci' -c cargo check -p ros-z-msgs
+          source /tmp/nix-dev-env.sh
+          cargo check -p ros-z-msgs
 
       - name: Check ros-z-msgs with external messages
         run: |
-          nix develop '.#ros-${{ matrix.distro }}-ci' -c cargo check -p ros-z-msgs --features external_msgs
-          nix develop '.#ros-${{ matrix.distro }}-ci' -c cargo check -p ros-z-msgs --features example_interfaces
+          source /tmp/nix-dev-env.sh
+          cargo check -p ros-z-msgs --features external_msgs
+          cargo check -p ros-z-msgs --features example_interfaces
 
       - name: Check ros-z-msgs with all messages (bundled + external)
         run: |
-          nix develop '.#ros-${{ matrix.distro }}-ci' -c cargo check -p ros-z-msgs --features all_msgs
+          source /tmp/nix-dev-env.sh
+          cargo check -p ros-z-msgs --features all_msgs
 
       - name: Check with protobuf feature
         run: |
-          nix develop '.#ros-${{ matrix.distro }}-ci' -c cargo check -p ros-z -p ros-z-msgs \
-            --features ros-z/protobuf,ros-z-msgs/protobuf
+          source /tmp/nix-dev-env.sh
+          cargo check -p ros-z -p ros-z-msgs --features ros-z/protobuf,ros-z-msgs/protobuf
 
       - name: Check ros-z (with rcl-z feature)
         run: |
-          nix develop '.#ros-${{ matrix.distro }}-ci' -c cargo check -p ros-z --features rcl-z
+          source /tmp/nix-dev-env.sh
+          cargo check -p ros-z --features rcl-z
 
       - name: Build ROS message examples
         run: |
-          nix develop '.#ros-${{ matrix.distro }}-ci' -c cargo build -p ros-z-msgs
-          nix develop '.#ros-${{ matrix.distro }}-ci' -c cargo build --examples
-          nix develop '.#ros-${{ matrix.distro }}-ci' -c cargo build --example z_srvcli --features external_msgs
+          source /tmp/nix-dev-env.sh
+          cargo build -p ros-z-msgs
+          cargo build --examples
+          cargo build --example z_srvcli --features external_msgs
 
       - name: Build protobuf demo
         run: |
-          nix develop '.#ros-${{ matrix.distro }}-ci' -c cargo build -p protobuf_demo
+          source /tmp/nix-dev-env.sh
+          cargo build -p protobuf_demo
 
       # FIXME: This requires the installation of rmw_zenoh_cpp triggering a build from source...
       # - name: Run unit tests
