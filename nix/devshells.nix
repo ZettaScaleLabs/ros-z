@@ -56,6 +56,8 @@ let
     CLANG_PATH = "${pkgs.llvmPackages.clang}/bin/clang";
     LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
       pkgs.stdenv.cc.cc.lib
+      pkgs.llvmPackages.libclang.lib
+      pkgs.libffi
     ];
     RUST_BACKTRACE = "1";
     RMW_IMPLEMENTATION = "rmw_zenoh_cpp";
