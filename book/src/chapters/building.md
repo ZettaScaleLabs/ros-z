@@ -120,7 +120,7 @@ cargo run --example battery_state_sub # Receiving sensor_msgs
 cargo run --example z_srvcli --features external_msgs
 ```
 
-See the [Zenoh Configuration](./zenoh_config.md) chapter for router setup details and alternative configurations.
+See the [Zenoh Configuration](./config.md) chapter for router setup details and alternative configurations.
 
 ## Using Nix (Optional)
 

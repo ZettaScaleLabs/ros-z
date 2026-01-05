@@ -6,7 +6,7 @@
 
 - [Quick Start](./chapters/quick_start.md)
 - [Building](./chapters/building.md)
-- [Zenoh Configuration](./chapters/zenoh_config.md)
+- [Zenoh Configuration](./chapters/config.md)
 
 # Core Concepts
 

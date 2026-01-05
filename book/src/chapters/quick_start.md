@@ -73,7 +73,7 @@ ros-z now uses router-based discovery by default, aligning with ROS 2's official
 - **Lower network overhead** compared to multicast discovery
 - **Production-ready** architecture used in real ROS 2 systems
 
-See the [Zenoh Configuration](./zenoh_config.md) chapter for customization options, including how to revert to multicast scouting mode if needed.
+See the [Zenoh Configuration](./config.md) chapter for customization options, including how to revert to multicast scouting mode if needed.
 ```
 
 ## What's Happening?
