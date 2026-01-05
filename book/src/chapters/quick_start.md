@@ -41,28 +41,39 @@ Here's a complete publisher and subscriber in one application:
 
 ## Running the Application
 
-Open two terminal windows and run:
+ros-z uses a router-based architecture (matching ROS 2's `rmw_zenoh`), so you'll need to start a Zenoh router first.
 
-**Terminal 1 - Start the Listener:**
+Open three terminal windows and run:
+
+**Terminal 1 - Start the Zenoh Router:**
+
+```bash
+cargo run --example zenoh_router
+```
+
+**Terminal 2 - Start the Listener:**
 
 ```bash
 cargo run --example z_pubsub -- -r listener
 ```
 
-**Terminal 2 - Start the Talker:**
+**Terminal 3 - Start the Talker:**
 
 ```bash
 cargo run --example z_pubsub -- -r talker
 ```
 
 ```admonish success
-You should see the listener receiving messages published by the talker in real-time. Press Ctrl+C to stop either process.
+You should see the listener receiving messages published by the talker in real-time. Press Ctrl+C to stop any process.
 ```
 
-```admonish note title="Why no Zenoh router?"
-By default, ros-z uses peer mode with multicast scouting enabled, allowing nodes to discover each other automatically on the same network without requiring a Zenoh router. This makes getting started simple and quick.
+```admonish tip title="Why a Zenoh router?"
+ros-z now uses router-based discovery by default, aligning with ROS 2's official Zenoh middleware (`rmw_zenoh_cpp`). This provides:
+- **Better scalability** for large deployments with many nodes
+- **Lower network overhead** compared to multicast discovery
+- **Production-ready** architecture used in real ROS 2 systems
 
-However, this default will change to router mode (matching `rmw_zenoh` behavior) once [issue #42](https://github.com/ZettaScaleLabs/ros-z/issues/42) is resolved. For production deployments or distributed setups across different networks, using a Zenoh router is recommended.
+See the [Zenoh Configuration](./zenoh_config.md) chapter for customization options, including how to revert to multicast scouting mode if needed.
 ```
 
 ## What's Happening?

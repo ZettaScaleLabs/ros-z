@@ -95,7 +95,17 @@ Start with Scenario 1 or 2 for development, then move to Scenario 3 when you nee
 
 ## Running Examples
 
-Once you've added ros-z to your project, you can run the included examples to see it in action:
+Once you've added ros-z to your project, you can run the included examples to see it in action.
+
+```admonish important
+**All examples require a Zenoh router to be running first:**
+```bash
+cargo run --example zenoh_router
+```
+
+Leave this running in a separate terminal, then run any example in another terminal.
+
+**Available examples:**
 
 ```bash
 # Pure Rust example with custom messages (no ros-z-msgs needed)
@@ -109,6 +119,8 @@ cargo run --example battery_state_sub # Receiving sensor_msgs
 # Examples requiring ROS 2 (requires external_msgs feature)
 cargo run --example z_srvcli --features external_msgs
 ```
+
+See the [Zenoh Configuration](./zenoh_config.md) chapter for router setup details and alternative configurations.
 
 ## Using Nix (Optional)
 

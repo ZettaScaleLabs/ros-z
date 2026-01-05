@@ -90,15 +90,21 @@ cargo run --example demo_nodes_add_two_ints_client -- --a 100 --b 200 --endpoint
 
 ## Complete Service Workflow
 
-To see services in action:
+To see services in action, you'll need to start a Zenoh router first:
 
-**Terminal 1 - Start Server:**
+**Terminal 1 - Start Zenoh Router:**
+
+```bash
+cargo run --example zenoh_router
+```
+
+**Terminal 2 - Start Server:**
 
 ```bash
 cargo run --example demo_nodes_add_two_ints_server
 ```
 
-**Terminal 2 - Send Client Requests:**
+**Terminal 3 - Send Client Requests:**
 
 ```bash
 # Request 1
@@ -111,7 +117,7 @@ cargo run --example demo_nodes_add_two_ints_client -- --a 100 --b 200
 cargo run --example demo_nodes_add_two_ints_client -- --a -5 --b 15
 ```
 
-**Expected output in Terminal 1 (Server):**
+**Expected output in Terminal 2 (Server):**
 
 ```text
 AddTwoInts service server started, waiting for requests...
@@ -128,7 +134,7 @@ a: -5 b: 15
 Sending response: 10
 ```
 
-**Expected output in Terminal 2 (Client):**
+**Expected output in Terminal 3 (Client):**
 
 ```text
 AddTwoInts service client started (mode: sync)
