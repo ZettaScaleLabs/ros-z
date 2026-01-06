@@ -337,11 +337,15 @@ struct Args {
 </tbody></table>
 </div>
 <h2 id="running-the-application"><a class="header" href="#running-the-application">Running the Application</a></h2>
-<p>Open two terminal windows and run:</p>
-<p><strong>Terminal 1 - Start the Listener:</strong></p>
+<p>ros-z uses a router-based architecture (matching ROS 2's <code>rmw_zenoh</code>), so you'll need to start a Zenoh router first.</p>
+<p>Open three terminal windows and run:</p>
+<p><strong>Terminal 1 - Start the Zenoh Router:</strong></p>
+<pre><code class="language-bash">cargo run --example zenoh_router
+</code></pre>
+<p><strong>Terminal 2 - Start the Listener:</strong></p>
 <pre><code class="language-bash">cargo run --example z_pubsub -- -r listener
 </code></pre>
-<p><strong>Terminal 2 - Start the Talker:</strong></p>
+<p><strong>Terminal 3 - Start the Talker:</strong></p>
 <pre><code class="language-bash">cargo run --example z_pubsub -- -r talker
 </code></pre>
 <div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
@@ -352,19 +356,24 @@ struct Args {
 <a class="admonition-anchor-link" href="#admonition-success"></a>
 </div>
 <div>
-<p>You should see the listener receiving messages published by the talker in real-time. Press Ctrl+C to stop either process.</p>
+<p>You should see the listener receiving messages published by the talker in real-time. Press Ctrl+C to stop any process.</p>
 </div>
 </div>
-<div id="admonition-why-no-zenoh-router" class="admonition admonish-note" role="note" aria-labelledby="admonition-why-no-zenoh-router-title">
+<div id="admonition-why-a-zenoh-router" class="admonition admonish-tip" role="note" aria-labelledby="admonition-why-a-zenoh-router-title">
 <div class="admonition-title">
-<div id="admonition-why-no-zenoh-router-title">
-<p>Why no Zenoh router?</p>
+<div id="admonition-why-a-zenoh-router-title">
+<p>Why a Zenoh router?</p>
 </div>
-<a class="admonition-anchor-link" href="#admonition-why-no-zenoh-router"></a>
+<a class="admonition-anchor-link" href="#admonition-why-a-zenoh-router"></a>
 </div>
 <div>
-<p>By default, ros-z uses peer mode with multicast scouting enabled, allowing nodes to discover each other automatically on the same network without requiring a Zenoh router. This makes getting started simple and quick.</p>
-<p>However, this default will change to router mode (matching <code>rmw_zenoh</code> behavior) once <a href="https://github.com/ZettaScaleLabs/ros-z/issues/42">issue #42</a> is resolved. For production deployments or distributed setups across different networks, using a Zenoh router is recommended.</p>
+<p>ros-z now uses router-based discovery by default, aligning with ROS 2's official Zenoh middleware (<code>rmw_zenoh_cpp</code>). This provides:</p>
+<ul>
+<li><strong>Better scalability</strong> for large deployments with many nodes</li>
+<li><strong>Lower network overhead</strong> compared to multicast discovery</li>
+<li><strong>Production-ready</strong> architecture used in real ROS 2 systems</li>
+</ul>
+<p>See the <a href="./config.html">Zenoh Configuration</a> chapter for customization options, including how to revert to multicast scouting mode if needed.</p>
 </div>
 </div>
 <h2 id="whats-happening"><a class="header" href="#whats-happening">What's Happening?</a></h2>

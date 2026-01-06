@@ -391,11 +391,15 @@ struct Args {
 </tbody></table>
 </div>
 <h2 id="running-the-application"><a class="header" href="#running-the-application">Running the Application</a></h2>
-<p>Open two terminal windows and run:</p>
-<p><strong>Terminal 1 - Start the Listener:</strong></p>
+<p>ros-z uses a router-based architecture (matching ROS 2's <code>rmw_zenoh</code>), so you'll need to start a Zenoh router first.</p>
+<p>Open three terminal windows and run:</p>
+<p><strong>Terminal 1 - Start the Zenoh Router:</strong></p>
+<pre><code class="language-bash">cargo run --example zenoh_router
+</code></pre>
+<p><strong>Terminal 2 - Start the Listener:</strong></p>
 <pre><code class="language-bash">cargo run --example z_pubsub -- -r listener
 </code></pre>
-<p><strong>Terminal 2 - Start the Talker:</strong></p>
+<p><strong>Terminal 3 - Start the Talker:</strong></p>
 <pre><code class="language-bash">cargo run --example z_pubsub -- -r talker
 </code></pre>
 <div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
@@ -406,19 +410,24 @@ struct Args {
 <a class="admonition-anchor-link" href="chapters/quick_start.html#admonition-success"></a>
 </div>
 <div>
-<p>You should see the listener receiving messages published by the talker in real-time. Press Ctrl+C to stop either process.</p>
+<p>You should see the listener receiving messages published by the talker in real-time. Press Ctrl+C to stop any process.</p>
 </div>
 </div>
-<div id="admonition-why-no-zenoh-router" class="admonition admonish-note" role="note" aria-labelledby="admonition-why-no-zenoh-router-title">
+<div id="admonition-why-a-zenoh-router" class="admonition admonish-tip" role="note" aria-labelledby="admonition-why-a-zenoh-router-title">
 <div class="admonition-title">
-<div id="admonition-why-no-zenoh-router-title">
-<p>Why no Zenoh router?</p>
+<div id="admonition-why-a-zenoh-router-title">
+<p>Why a Zenoh router?</p>
 </div>
-<a class="admonition-anchor-link" href="chapters/quick_start.html#admonition-why-no-zenoh-router"></a>
+<a class="admonition-anchor-link" href="chapters/quick_start.html#admonition-why-a-zenoh-router"></a>
 </div>
 <div>
-<p>By default, ros-z uses peer mode with multicast scouting enabled, allowing nodes to discover each other automatically on the same network without requiring a Zenoh router. This makes getting started simple and quick.</p>
-<p>However, this default will change to router mode (matching <code>rmw_zenoh</code> behavior) once <a href="https://github.com/ZettaScaleLabs/ros-z/issues/42">issue #42</a> is resolved. For production deployments or distributed setups across different networks, using a Zenoh router is recommended.</p>
+<p>ros-z now uses router-based discovery by default, aligning with ROS 2's official Zenoh middleware (<code>rmw_zenoh_cpp</code>). This provides:</p>
+<ul>
+<li><strong>Better scalability</strong> for large deployments with many nodes</li>
+<li><strong>Lower network overhead</strong> compared to multicast discovery</li>
+<li><strong>Production-ready</strong> architecture used in real ROS 2 systems</li>
+</ul>
+<p>See the <a href="chapters/./config.html">Zenoh Configuration</a> chapter for customization options, including how to revert to multicast scouting mode if needed.</p>
 </div>
 </div>
 <h2 id="whats-happening"><a class="header" href="#whats-happening">What's Happening?</a></h2>
@@ -541,8 +550,27 @@ cargo build
 </div>
 </div>
 <h2 id="running-examples"><a class="header" href="#running-examples">Running Examples</a></h2>
-<p>Once you've added ros-z to your project, you can run the included examples to see it in action:</p>
-<pre><code class="language-bash"># Pure Rust example with custom messages (no ros-z-msgs needed)
+<p>Once you've added ros-z to your project, you can run the included examples to see it in action.</p>
+<div id="admonition-important" class="admonition admonish-tip" role="note" aria-labelledby="admonition-important-title">
+<div class="admonition-title">
+<div id="admonition-important-title">
+<p>Important</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/building.html#admonition-important"></a>
+</div>
+<div>
+<p><strong>All examples require a Zenoh router to be running first:</strong></p>
+<pre><code class="language-bash">cargo run --example zenoh_router
+
+&lt;/div&gt;
+&lt;/div&gt;
+
+Leave this running in a separate terminal, then run any example in another terminal.
+
+**Available examples:**
+
+```bash
+# Pure Rust example with custom messages (no ros-z-msgs needed)
 cargo run --example z_custom_message -- --mode status-pub
 
 # Examples using bundled messages (requires ros-z-msgs)
@@ -553,6 +581,7 @@ cargo run --example battery_state_sub # Receiving sensor_msgs
 # Examples requiring ROS 2 (requires external_msgs feature)
 cargo run --example z_srvcli --features external_msgs
 </code></pre>
+<p>See the <a href="chapters/./config.html">Zenoh Configuration</a> chapter for router setup details and alternative configurations.</p>
 <h2 id="using-nix-optional"><a class="header" href="#using-nix-optional">Using Nix (Optional)</a></h2>
 <p>Pre-configured development environments with all dependencies:</p>
 <pre><code class="language-bash"># Default: ROS 2 Jazzy with full tooling
@@ -677,6 +706,271 @@ cargo build -p rcl-z
 <li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - How messages work</li>
 </ul>
 <p><strong>Start with the simplest build and add dependencies incrementally as your project grows.</strong></p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="zenoh-configuration"><a class="header" href="#zenoh-configuration">Zenoh Configuration</a></h1>
+<p><strong>Configure ros-z's Zenoh transport layer for optimal performance in your deployment environment.</strong> ros-z uses router-based architecture by default, matching ROS 2's official <code>rmw_zenoh_cpp</code> middleware for production-ready scalability.</p>
+<h2 id="router-based-architecture"><a class="header" href="#router-based-architecture">Router-Based Architecture</a></h2>
+<p>ros-z uses a centralized Zenoh router for node discovery and communication, providing:</p>
+<div class="table-wrapper"><table><thead><tr><th>Benefit</th><th>Description</th></tr></thead><tbody>
+<tr><td><strong>Scalability</strong></td><td>Centralized discovery handles large deployments efficiently</td></tr>
+<tr><td><strong>Lower Network Overhead</strong></td><td>TCP-based discovery instead of multicast broadcasts</td></tr>
+<tr><td><strong>ROS 2 Compatibility</strong></td><td>Matches <code>rmw_zenoh_cpp</code> behavior for seamless interoperability</td></tr>
+<tr><td><strong>Production Ready</strong></td><td>Battle-tested configuration used in real robotics systems</td></tr>
+</tbody></table>
+</div>
+<h2 id="quick-start-1"><a class="header" href="#quick-start-1">Quick Start</a></h2>
+<p>The simplest way to get started is using the built-in router example:</p>
+<p><strong>Terminal 1 - Start the Router:</strong></p>
+<pre><code class="language-bash">cargo run --example zenoh_router
+</code></pre>
+<p><strong>Terminal 2 - Run Your Application:</strong></p>
+<pre><code class="language-rust ignore">use ros_z::context::ZContextBuilder;
+use ros_z::Builder;
+
+// Uses default ROS session config (connects to tcp/localhost:7447)
+let ctx = ZContextBuilder::default().build()?;
+let node = ctx.create_node("my_node").build()?;</code></pre>
+<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
+<div class="admonition-title">
+<div id="admonition-success-title">
+<p>Success</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/config.html#admonition-success"></a>
+</div>
+<div>
+<p>That's it! The default configuration automatically connects to the router on <code>tcp/localhost:7447</code>.</p>
+</div>
+</div>
+<h2 id="configuration-options"><a class="header" href="#configuration-options">Configuration Options</a></h2>
+<p>ros-z provides multiple ways to configure Zenoh, from simple to advanced.</p>
+<h3 id="option-1-default-configuration-recommended"><a class="header" href="#option-1-default-configuration-recommended">Option 1: Default Configuration (Recommended)</a></h3>
+<p>Use the built-in ROS session config for standard deployments:</p>
+<pre><code class="language-rust ignore">let ctx = ZContextBuilder::default().build()?;</code></pre>
+<p><strong>What it does:</strong></p>
+<ul>
+<li>Connects to router at <code>tcp/localhost:7447</code></li>
+<li>Uses ROS-compatible timeouts and buffer sizes</li>
+<li>Disables multicast discovery (uses router instead)</li>
+</ul>
+<h3 id="option-2-custom-router-endpoint"><a class="header" href="#option-2-custom-router-endpoint">Option 2: Custom Router Endpoint</a></h3>
+<p>Connect to a router on a different host or port:</p>
+<pre><code class="language-rust ignore">let ctx = ZContextBuilder::default()
+    .with_router_endpoint("tcp/192.168.1.100:7447")
+    .build()?;</code></pre>
+<p><strong>Use cases:</strong></p>
+<ul>
+<li>Distributed systems with remote router</li>
+<li>Custom port configurations</li>
+<li>Multiple isolated networks</li>
+</ul>
+<h3 id="option-3-environment-variable-overrides"><a class="header" href="#option-3-environment-variable-overrides">Option 3: Environment Variable Overrides</a></h3>
+<p>Override any Zenoh configuration setting using the <code>ROSZ_CONFIG_OVERRIDE</code> environment variable without changing code:</p>
+<pre><code class="language-bash"># Override mode and endpoint
+export ROSZ_CONFIG_OVERRIDE='mode="client";connect/endpoints=["tcp/192.168.1.100:7447"]'
+
+# Run your application
+cargo run --example my_app
+</code></pre>
+<pre><code class="language-rust ignore">// No code changes needed - overrides are applied automatically
+let ctx = ZContextBuilder::default().build()?;</code></pre>
+<p><strong>Format:</strong></p>
+<ul>
+<li>Semicolon-separated <code>key=value</code> pairs</li>
+<li>Values use JSON5 syntax</li>
+<li>Keys use slash-separated paths (e.g., <code>connect/endpoints</code>, <code>scouting/multicast/enabled</code>)</li>
+</ul>
+<p><strong>Common examples:</strong></p>
+<pre><code class="language-bash"># Connect to remote router
+export ROSZ_CONFIG_OVERRIDE='connect/endpoints=["tcp/10.0.0.5:7447"]'
+
+# Enable multicast scouting explicitly
+export ROSZ_CONFIG_OVERRIDE='scouting/multicast/enabled=true'
+
+# Multiple overrides
+export ROSZ_CONFIG_OVERRIDE='mode="client";connect/timeout_ms=5000;scouting/multicast/enabled=false'
+</code></pre>
+<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
+<div class="admonition-title">
+<div id="admonition-tip-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/config.html#admonition-tip"></a>
+</div>
+<div>
+<p>Environment variable overrides have the highest priority and will override any programmatic configuration or config file settings.</p>
+</div>
+</div>
+<h3 id="option-4-advanced-configuration-builders"><a class="header" href="#option-4-advanced-configuration-builders">Option 4: Advanced Configuration Builders</a></h3>
+<p>Fine-tune session or router settings programmatically:</p>
+<pre><code class="language-rust ignore">use ros_z::config::{SessionConfigBuilder, RouterConfigBuilder};
+
+// Customize session config
+let session_config = SessionConfigBuilder::new()
+    .with_router_endpoint("tcp/192.168.1.100:7447")
+    .build()?;
+
+let ctx = ZContextBuilder::default()
+    .with_zenoh_config(session_config)
+    .build()?;
+
+// Or build a custom router config
+let router_config = RouterConfigBuilder::new()
+    .with_listen_port(7448)  // Custom port
+    .build()?;
+
+zenoh::open(router_config).await?;</code></pre>
+<p><strong>Key builder methods:</strong></p>
+<div class="table-wrapper"><table><thead><tr><th>Builder</th><th>Methods</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><code>SessionConfigBuilder</code></td><td><code>with_router_endpoint(endpoint)</code></td><td>Connect to custom router</td></tr>
+<tr><td><code>RouterConfigBuilder</code></td><td><code>with_listen_port(port)</code></td><td>Set custom router port</td></tr>
+</tbody></table>
+</div>
+<h3 id="option-5-peer-mode-using-multicast-discovery-no-router-required"><a class="header" href="#option-5-peer-mode-using-multicast-discovery-no-router-required">Option 5: Peer Mode Using Multicast Discovery (No Router Required)</a></h3>
+<p>Revert to multicast peer discovery for simple setups:</p>
+<pre><code class="language-rust ignore">// Use vanilla Zenoh config (peer mode with multicast)
+let ctx = ZContextBuilder::default()
+    .with_zenoh_config(zenoh::Config::default())
+    .build()?;</code></pre>
+<div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
+<div class="admonition-title">
+<div id="admonition-warning-title">
+<p>Warning</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/config.html#admonition-warning"></a>
+</div>
+<div>
+<p>Multicast scouting discovery is convenient for quick testing but doesn't scale well and won't work with ROS 2 nodes using <code>rmw_zenoh_cpp</code> (which expects a zenoh router).</p>
+</div>
+</div>
+<h3 id="option-6-load-from-config-file"><a class="header" href="#option-6-load-from-config-file">Option 6: Load from Config File</a></h3>
+<p>Use JSON5 config files for complex deployments:</p>
+<pre><code class="language-rust ignore">let ctx = ZContextBuilder::default()
+    .with_config_file("/etc/zenoh/session_config.json5")
+    .build()?;</code></pre>
+<p><strong>When to use:</strong></p>
+<ul>
+<li>Deploying across multiple machines</li>
+<li>Environment-specific configurations</li>
+<li>Version-controlled infrastructure</li>
+</ul>
+<h2 id="advanced-generating-config-files"><a class="header" href="#advanced-generating-config-files">(Advanced) Generating Config Files</a></h2>
+<p>ros-z can generate JSON5 config files matching <code>rmw_zenoh_cpp</code> defaults. This is opt-in via the <code>generate-configs</code> feature flag.</p>
+<h3 id="basic-generation"><a class="header" href="#basic-generation">Basic Generation</a></h3>
+<pre><code class="language-bash">cargo build --features generate-configs
+</code></pre>
+<p><strong>Output location:</strong></p>
+<pre><code class="language-console">target/debug/build/ros-z-*/out/ros_z_config/
+  ├── DEFAULT_ROSZ_ROUTER_CONFIG.json5
+  └── DEFAULT_ROSZ_SESSION_CONFIG.json5
+</code></pre>
+<h3 id="custom-output-directory"><a class="header" href="#custom-output-directory">Custom Output Directory</a></h3>
+<p>Specify a custom directory using the <code>ROS_Z_CONFIG_OUTPUT_DIR</code> environment variable:</p>
+<p><strong>Absolute path:</strong></p>
+<pre><code class="language-bash">ROS_Z_CONFIG_OUTPUT_DIR=/etc/zenoh cargo build --features generate-configs
+</code></pre>
+<p><strong>Relative path (from package root):</strong></p>
+<pre><code class="language-bash">ROS_Z_CONFIG_OUTPUT_DIR=./config cargo build --features generate-configs
+</code></pre>
+<p><strong>From workspace root:</strong></p>
+<pre><code class="language-bash">ROS_Z_CONFIG_OUTPUT_DIR=$PWD/config cargo build -p ros-z --features generate-configs
+</code></pre>
+<div id="admonition-tip-1" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-1-title">
+<div class="admonition-title">
+<div id="admonition-tip-1-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/config.html#admonition-tip-1"></a>
+</div>
+<div>
+<p>Generated files include inline comments explaining each setting, making them perfect documentation references.</p>
+</div>
+</div>
+<h3 id="using-generated-files"><a class="header" href="#using-generated-files">Using Generated Files</a></h3>
+<pre><code class="language-rust ignore">let ctx = ZContextBuilder::default()
+    .with_config_file("./config/DEFAULT_ROSZ_SESSION_CONFIG.json5")
+    .build()?;</code></pre>
+<h2 id="running-the-zenoh-router"><a class="header" href="#running-the-zenoh-router">Running the Zenoh Router</a></h2>
+<h3 id="option-1-default-router"><a class="header" href="#option-1-default-router">Option 1: Default Router</a></h3>
+<p>ros-z provides a built-in router example that's ROS-compatible out of the box.</p>
+<pre><code class="language-bash">cargo run --example zenoh_router
+</code></pre>
+<p>Listens on <code>tcp/[::]:7447</code> (all interfaces, port 7447).</p>
+<h3 id="option-2-official-zenoh-router"><a class="header" href="#option-2-official-zenoh-router">Option 2: Official Zenoh Router</a></h3>
+<p>You can also use the official Zenoh router: <a href="https://zenoh.io/docs/getting-started/installation/#installing-the-zenoh-router">https://zenoh.io/docs/getting-started/installation/#installing-the-zenoh-router</a>.</p>
+<h2 id="configuration-reference"><a class="header" href="#configuration-reference">Configuration Reference</a></h2>
+<h3 id="key-settings-explained"><a class="header" href="#key-settings-explained">Key Settings Explained</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Setting</th><th>Router</th><th>Session</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><strong>Mode</strong></td><td><code>router</code></td><td><code>peer</code></td><td>Router relays messages, peers connect directly</td></tr>
+<tr><td><strong>Listen Endpoint</strong></td><td><code>tcp/[::]:7447</code></td><td>-</td><td>Router accepts connections</td></tr>
+<tr><td><strong>Connect Endpoint</strong></td><td>-</td><td><code>tcp/localhost:7447</code></td><td>Session connects to router</td></tr>
+<tr><td><strong>Multicast</strong></td><td>Disabled</td><td>Disabled</td><td>Uses TCP gossip for discovery</td></tr>
+<tr><td><strong>Unicast Timeout</strong></td><td>60s</td><td>60s</td><td>Handles slow networks/large deployments</td></tr>
+<tr><td><strong>Query Timeout</strong></td><td>10min</td><td>10min</td><td>Long-running service calls</td></tr>
+<tr><td><strong>Max Sessions</strong></td><td>10,000</td><td>-</td><td>Supports concurrent node startup</td></tr>
+<tr><td><strong>Keep-Alive</strong></td><td>2s</td><td>2s</td><td>Optimized for loopback</td></tr>
+</tbody></table>
+</div><div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+<div class="admonition-title">
+<div id="admonition-note-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/config.html#admonition-note"></a>
+</div>
+<div>
+<p>These defaults are tuned for ROS 2 deployments and match <code>rmw_zenoh_cpp</code> exactly. Only modify them if you have specific performance requirements.</p>
+</div>
+</div>
+<h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
+<h3 id="nodes-cant-find-each-other"><a class="header" href="#nodes-cant-find-each-other">Nodes Can't Find Each Other</a></h3>
+<p><strong>Symptom:</strong> Publishers and subscribers on different processes don't communicate.</p>
+<p><strong>Solution:</strong> Ensure the Zenoh router is running and both nodes connect to it:</p>
+<pre><code class="language-bash"># Check router is running
+cargo run --example zenoh_router
+
+# Verify endpoint matches in your code
+let ctx = ZContextBuilder::default()
+    .with_router_endpoint("tcp/localhost:7447")  // Must match router
+    .build()?;
+</code></pre>
+<h3 id="router-port-already-in-use"><a class="header" href="#router-port-already-in-use">Router Port Already in Use</a></h3>
+<p><strong>Symptom:</strong> Router fails to start with "Address already in use" error.</p>
+<p><strong>Solution:</strong> Another process is using port 7447. Either:</p>
+<ul>
+<li>Stop the conflicting process</li>
+<li>Use a custom port for the router and update session configs</li>
+</ul>
+<pre><code class="language-rust ignore">// Custom router port
+let router_config = RouterConfigBuilder::new()
+    .with_listen_port(7448)
+    .build()?;
+
+// Connect sessions to custom port
+let ctx = ZContextBuilder::default()
+    .with_router_endpoint("tcp/localhost:7448")
+    .build()?;</code></pre>
+<h3 id="want-multicast-discovery-back"><a class="header" href="#want-multicast-discovery-back">Want Multicast Discovery Back</a></h3>
+<p><strong>Symptom:</strong> Don't want to manage a router for simple local testing.</p>
+<p><strong>Solution:</strong> Use peer mode:</p>
+<pre><code class="language-rust ignore">let ctx = ZContextBuilder::default()
+    .with_zenoh_config(zenoh::Config::default())
+    .build()?;</code></pre>
+<div id="admonition-warning-1" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-1-title">
+<div class="admonition-title">
+<div id="admonition-warning-1-title">
+<p>Warning</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/config.html#admonition-warning-1"></a>
+</div>
+<div>
+<p>Peer mode won't interoperate with ROS 2 nodes using <code>rmw_zenoh_cpp</code> in router mode.</p>
+</div>
+</div>
+<h2 id="next-steps-1"><a class="header" href="#next-steps-1">Next Steps</a></h2>
+<ul>
+<li><strong><a href="chapters/./pubsub.html">Publishers &amp; Subscribers</a></strong> - Build communication patterns</li>
+<li><strong><a href="chapters/./services.html">Services</a></strong> - Implement request-response</li>
+<li><strong><a href="chapters/./troubleshooting.html">Troubleshooting</a></strong> - Solve common issues</li>
+</ul>
+<p><strong>Ready to optimize your deployment? Experiment with different configurations and measure performance impact.</strong></p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="publishers-and-subscribers"><a class="header" href="#publishers-and-subscribers">Publishers and Subscribers</a></h1>
 <p><strong>ros-z implements ROS 2's publish-subscribe pattern with type-safe, zero-copy messaging over Zenoh.</strong> This enables efficient, decoupled communication between nodes with minimal overhead.</p>
 <div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
@@ -889,14 +1183,17 @@ cargo run --example demo_nodes_listener -- --topic /my_topic
 cargo run --example demo_nodes_listener -- --max-count 5
 </code></pre>
 <h2 id="complete-pub-sub-workflow"><a class="header" href="#complete-pub-sub-workflow">Complete Pub-Sub Workflow</a></h2>
-<p>To see publishers and subscribers in action together:</p>
-<p><strong>Terminal 1 - Start Subscriber:</strong></p>
+<p>To see publishers and subscribers in action together, you'll need to start a Zenoh router first:</p>
+<p><strong>Terminal 1 - Start Zenoh Router:</strong></p>
+<pre><code class="language-bash">cargo run --example zenoh_router
+</code></pre>
+<p><strong>Terminal 2 - Start Subscriber:</strong></p>
 <pre><code class="language-bash">cargo run --example demo_nodes_listener
 </code></pre>
-<p><strong>Terminal 2 - Start Publisher:</strong></p>
+<p><strong>Terminal 3 - Start Publisher:</strong></p>
 <pre><code class="language-bash">cargo run --example demo_nodes_talker
 </code></pre>
-<p><strong>Expected output in Terminal 1:</strong></p>
+<p><strong>Expected output in Terminal 2 (Subscriber):</strong></p>
 <pre><code class="language-text">I heard: [Hello World: 1]
 I heard: [Hello World: 2]
 I heard: [Hello World: 3]
@@ -1186,11 +1483,14 @@ cargo run --example demo_nodes_add_two_ints_client -- --a 5 --b 3 --async-mode
 cargo run --example demo_nodes_add_two_ints_client -- --a 100 --b 200 --endpoint tcp/localhost:7447
 </code></pre>
 <h2 id="complete-service-workflow"><a class="header" href="#complete-service-workflow">Complete Service Workflow</a></h2>
-<p>To see services in action:</p>
-<p><strong>Terminal 1 - Start Server:</strong></p>
+<p>To see services in action, you'll need to start a Zenoh router first:</p>
+<p><strong>Terminal 1 - Start Zenoh Router:</strong></p>
+<pre><code class="language-bash">cargo run --example zenoh_router
+</code></pre>
+<p><strong>Terminal 2 - Start Server:</strong></p>
 <pre><code class="language-bash">cargo run --example demo_nodes_add_two_ints_server
 </code></pre>
-<p><strong>Terminal 2 - Send Client Requests:</strong></p>
+<p><strong>Terminal 3 - Send Client Requests:</strong></p>
 <pre><code class="language-bash"># Request 1
 cargo run --example demo_nodes_add_two_ints_client -- --a 10 --b 20
 
@@ -1200,7 +1500,7 @@ cargo run --example demo_nodes_add_two_ints_client -- --a 100 --b 200
 # Request 3
 cargo run --example demo_nodes_add_two_ints_client -- --a -5 --b 15
 </code></pre>
-<p><strong>Expected output in Terminal 1 (Server):</strong></p>
+<p><strong>Expected output in Terminal 2 (Server):</strong></p>
 <pre><code class="language-text">AddTwoInts service server started, waiting for requests...
 Incoming request
 a: 10 b: 20
@@ -1214,7 +1514,7 @@ Incoming request
 a: -5 b: 15
 Sending response: 10
 </code></pre>
-<p><strong>Expected output in Terminal 2 (Client):</strong></p>
+<p><strong>Expected output in Terminal 3 (Client):</strong></p>
 <pre><code class="language-text">AddTwoInts service client started (mode: sync)
 Sending request: 10 + 20
 Received response: 30
@@ -1887,7 +2187,7 @@ let config = GeneratorConfig {
 
 let generator = MessageGenerator::new(config);
 generator.generate_from_msg_files(&amp;package_paths)?;</code></pre>
-<h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
+<h2 id="troubleshooting-1"><a class="header" href="#troubleshooting-1">Troubleshooting</a></h2>
 <h3 id="package-not-found"><a class="header" href="#package-not-found">Package Not Found</a></h3>
 <pre><code class="language-bash"># Check ROS 2 is sourced
 echo $AMENT_PREFIX_PATH
@@ -2305,18 +2605,36 @@ impl ZService for NavigateTo {
     type Response = NavigateToResponse;
 }</code></pre>
 <h2 id="running-the-example"><a class="header" href="#running-the-example">Running the Example</a></h2>
+<div id="admonition-note-1" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-1-title">
+<div class="admonition-title">
+<div id="admonition-note-1-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/custom_messages.html#admonition-note-1"></a>
+</div>
+<div>
+<p>All examples require a Zenoh router to be running first. Start it with:
+<code>cargo run --example zenoh_router</code></p>
+</div>
+</div>
 <p><strong>Publisher/Subscriber Mode:</strong></p>
-<p>Terminal 1 - Start Subscriber:</p>
+<p>Terminal 1 - Start Zenoh Router:</p>
+<pre><code class="language-bash">cargo run --example zenoh_router
+</code></pre>
+<p>Terminal 2 - Start Subscriber:</p>
 <pre><code class="language-bash">cargo run --example z_custom_message -- --mode status-sub
 </code></pre>
-<p>Terminal 2 - Start Publisher:</p>
+<p>Terminal 3 - Start Publisher:</p>
 <pre><code class="language-bash">cargo run --example z_custom_message -- --mode status-pub
 </code></pre>
 <p><strong>Service Client/Server Mode:</strong></p>
-<p>Terminal 1 - Start Server:</p>
+<p>Terminal 1 - Start Zenoh Router:</p>
+<pre><code class="language-bash">cargo run --example zenoh_router
+</code></pre>
+<p>Terminal 2 - Start Server:</p>
 <pre><code class="language-bash">cargo run --example z_custom_message -- --mode nav-server
 </code></pre>
-<p>Terminal 2 - Send Requests:</p>
+<p>Terminal 3 - Send Requests:</p>
 <pre><code class="language-bash">cargo run --example z_custom_message -- --mode nav-client \
   --target_x 10.0 --target_y 20.0 --max_speed 1.5
 </code></pre>
@@ -2698,7 +3016,7 @@ cargo run --example z_pingpong        # std_msgs
 <li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - How messages are generated</li>
 </ul>
 <p><strong>Start with default features and add more as your project evolves. Feature flags provide flexibility without forcing early architectural decisions.</strong></p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="troubleshooting-1"><a class="header" href="#troubleshooting-1">Troubleshooting</a></h1>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="troubleshooting-2"><a class="header" href="#troubleshooting-2">Troubleshooting</a></h1>
 <p><strong>Comprehensive solutions to common ros-z build and runtime issues.</strong> This guide provides diagnostic steps, root cause analysis, and proven fixes for the most frequent problems.</p>
 <div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
 <div class="admonition-title">

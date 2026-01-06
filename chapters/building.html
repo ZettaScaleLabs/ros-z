@@ -269,8 +269,27 @@ cargo build
 </div>
 </div>
 <h2 id="running-examples"><a class="header" href="#running-examples">Running Examples</a></h2>
-<p>Once you've added ros-z to your project, you can run the included examples to see it in action:</p>
-<pre><code class="language-bash"># Pure Rust example with custom messages (no ros-z-msgs needed)
+<p>Once you've added ros-z to your project, you can run the included examples to see it in action.</p>
+<div id="admonition-important" class="admonition admonish-tip" role="note" aria-labelledby="admonition-important-title">
+<div class="admonition-title">
+<div id="admonition-important-title">
+<p>Important</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-important"></a>
+</div>
+<div>
+<p><strong>All examples require a Zenoh router to be running first:</strong></p>
+<pre><code class="language-bash">cargo run --example zenoh_router
+
+&lt;/div&gt;
+&lt;/div&gt;
+
+Leave this running in a separate terminal, then run any example in another terminal.
+
+**Available examples:**
+
+```bash
+# Pure Rust example with custom messages (no ros-z-msgs needed)
 cargo run --example z_custom_message -- --mode status-pub
 
 # Examples using bundled messages (requires ros-z-msgs)
@@ -281,6 +300,7 @@ cargo run --example battery_state_sub # Receiving sensor_msgs
 # Examples requiring ROS 2 (requires external_msgs feature)
 cargo run --example z_srvcli --features external_msgs
 </code></pre>
+<p>See the <a href="./config.html">Zenoh Configuration</a> chapter for router setup details and alternative configurations.</p>
 <h2 id="using-nix-optional"><a class="header" href="#using-nix-optional">Using Nix (Optional)</a></h2>
 <p>Pre-configured development environments with all dependencies:</p>
 <pre><code class="language-bash"># Default: ROS 2 Jazzy with full tooling
@@ -414,7 +434,7 @@ cargo build -p rcl-z
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next prefetch" href="../chapters/pubsub.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../chapters/config.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -428,7 +448,7 @@ cargo build -p rcl-z
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next prefetch" href="../chapters/pubsub.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../chapters/config.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>

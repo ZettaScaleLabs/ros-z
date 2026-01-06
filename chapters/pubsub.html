@@ -395,14 +395,17 @@ cargo run --example demo_nodes_listener -- --topic /my_topic
 cargo run --example demo_nodes_listener -- --max-count 5
 </code></pre>
 <h2 id="complete-pub-sub-workflow"><a class="header" href="#complete-pub-sub-workflow">Complete Pub-Sub Workflow</a></h2>
-<p>To see publishers and subscribers in action together:</p>
-<p><strong>Terminal 1 - Start Subscriber:</strong></p>
+<p>To see publishers and subscribers in action together, you'll need to start a Zenoh router first:</p>
+<p><strong>Terminal 1 - Start Zenoh Router:</strong></p>
+<pre><code class="language-bash">cargo run --example zenoh_router
+</code></pre>
+<p><strong>Terminal 2 - Start Subscriber:</strong></p>
 <pre><code class="language-bash">cargo run --example demo_nodes_listener
 </code></pre>
-<p><strong>Terminal 2 - Start Publisher:</strong></p>
+<p><strong>Terminal 3 - Start Publisher:</strong></p>
 <pre><code class="language-bash">cargo run --example demo_nodes_talker
 </code></pre>
-<p><strong>Expected output in Terminal 1:</strong></p>
+<p><strong>Expected output in Terminal 2 (Subscriber):</strong></p>
 <pre><code class="language-text">I heard: [Hello World: 1]
 I heard: [Hello World: 2]
 I heard: [Hello World: 3]
@@ -531,7 +534,7 @@ ros2 topic info /chatter
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../chapters/building.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../chapters/config.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
@@ -545,7 +548,7 @@ ros2 topic info /chatter
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../chapters/building.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../chapters/config.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 

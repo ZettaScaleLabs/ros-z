@@ -571,18 +571,36 @@ impl ZService for NavigateTo {
     type Response = NavigateToResponse;
 }</code></pre>
 <h2 id="running-the-example"><a class="header" href="#running-the-example">Running the Example</a></h2>
+<div id="admonition-note-1" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-1-title">
+<div class="admonition-title">
+<div id="admonition-note-1-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-note-1"></a>
+</div>
+<div>
+<p>All examples require a Zenoh router to be running first. Start it with:
+<code>cargo run --example zenoh_router</code></p>
+</div>
+</div>
 <p><strong>Publisher/Subscriber Mode:</strong></p>
-<p>Terminal 1 - Start Subscriber:</p>
+<p>Terminal 1 - Start Zenoh Router:</p>
+<pre><code class="language-bash">cargo run --example zenoh_router
+</code></pre>
+<p>Terminal 2 - Start Subscriber:</p>
 <pre><code class="language-bash">cargo run --example z_custom_message -- --mode status-sub
 </code></pre>
-<p>Terminal 2 - Start Publisher:</p>
+<p>Terminal 3 - Start Publisher:</p>
 <pre><code class="language-bash">cargo run --example z_custom_message -- --mode status-pub
 </code></pre>
 <p><strong>Service Client/Server Mode:</strong></p>
-<p>Terminal 1 - Start Server:</p>
+<p>Terminal 1 - Start Zenoh Router:</p>
+<pre><code class="language-bash">cargo run --example zenoh_router
+</code></pre>
+<p>Terminal 2 - Start Server:</p>
 <pre><code class="language-bash">cargo run --example z_custom_message -- --mode nav-server
 </code></pre>
-<p>Terminal 2 - Send Requests:</p>
+<p>Terminal 3 - Send Requests:</p>
 <pre><code class="language-bash">cargo run --example z_custom_message -- --mode nav-client \
   --target_x 10.0 --target_y 20.0 --max_speed 1.5
 </code></pre>
