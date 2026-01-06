@@ -14,185 +14,168 @@ pub struct ConfigOverride {
 // ROUTER CONFIG - Based on rmw_zenoh_cpp DEFAULT_RMW_ZENOH_ROUTER_CONFIG.json5
 pub fn router_overrides() -> Vec<ConfigOverride> {
     vec![
-    ConfigOverride {
-        key: "mode",
-        value: serde_json::json!("router"),
-        reason: "Router mode required for ROS 2 discovery/routing",
-    },
-    ConfigOverride {
-        key: "listen/endpoints",
-        value: serde_json::json!(["tcp/[::]:7447"]),
-        reason: "Standard ROS 2 port, IPv6 wildcard for all interfaces",
-    },
-    ConfigOverride {
-        key: "connect/endpoints",
-        value: serde_json::json!([]),
-        reason: "Router does not connect to other endpoints",
-    },
-    ConfigOverride {
-        key: "scouting/multicast/enabled",
-        value: serde_json::json!(false),
-        reason: "Disable multicast discovery by default - router uses TCP gossip",
-    },
-    ConfigOverride {
-        key: "scouting/gossip/target",
-        value: serde_json::json!({"router": ["router", "peer"], "peer": ["router"]}),
-        reason: "Peers send gossip messages only to router to avoid unnecessary traffic",
-    },
-    ConfigOverride {
-        key: "timestamping/enabled",
-        value: serde_json::json!({"router": true, "peer": true, "client": true}),
-        reason: "Required for PublicationCache/transient_local durability",
-    },
-    ConfigOverride {
-        key: "queries_default_timeout",
-        value: serde_json::json!(600000),
-        reason: "10 minutes timeout for service calls at launch with many nodes",
-    },
-    ConfigOverride {
-        key: "routing/router/peers_failover_brokering",
-        value: serde_json::json!(false),
-        reason: "Disabled - no purpose when peers connect directly, reduces overhead",
-    },
-    ConfigOverride {
-        key: "transport/unicast/open_timeout",
-        value: serde_json::json!(60000),
-        reason: "Increased timeout to avoid issues at launch with many nodes",
-    },
-    ConfigOverride {
-        key: "transport/unicast/accept_timeout",
-        value: serde_json::json!(60000),
-        reason: "Increased timeout to avoid issues at launch with many nodes",
-    },
-    ConfigOverride {
-        key: "transport/unicast/accept_pending",
-        value: serde_json::json!(10000),
-        reason: "Support large number of nodes starting together",
-    },
-    ConfigOverride {
-        key: "transport/unicast/max_sessions",
-        value: serde_json::json!(10000),
-        reason: "Support large number of nodes starting together",
-    },
-    ConfigOverride {
-        key: "transport/link/tx/lease",
-        value: serde_json::json!(60000),
-        reason: "Avoid lease expiration at launch with many nodes",
-    },
-    ConfigOverride {
-        key: "transport/link/tx/keep_alive",
-        value: serde_json::json!(2),
-        reason: "Decreased for loopback where keep-alive messages are less likely lost",
-    },
-    ConfigOverride {
-        key: "transport/link/tx/queue/congestion_control/block/wait_before_close",
-        value: serde_json::json!(5000000),
-        reason: "Router routes to outside robot possibly over WiFi, lower value prevents long blocks",
-    },
-    ConfigOverride {
-        key: "transport/shared_memory/enabled",
-        value: serde_json::json!(false),
-        reason: "Disabled by default until fully tested",
-    },
+        ConfigOverride {
+            key: "mode",
+            value: serde_json::json!("router"),
+            reason: "Router mode required for ROS 2 discovery/routing",
+        },
+        ConfigOverride {
+            key: "listen/endpoints",
+            value: serde_json::json!(["tcp/[::]:7447"]),
+            reason: "Standard ROS 2 port, IPv6 wildcard for all interfaces",
+        },
+        ConfigOverride {
+            key: "connect/endpoints",
+            value: serde_json::json!([]),
+            reason: "Router does not connect to other endpoints",
+        },
+        ConfigOverride {
+            key: "scouting/multicast/enabled",
+            value: serde_json::json!(false),
+            reason: "Disable multicast discovery - router uses TCP gossip",
+        },
+        ConfigOverride {
+            key: "scouting/gossip/target",
+            value: serde_json::json!({"router": ["router", "peer"], "peer": ["router"]}),
+            reason: "Peers send gossip only to router (not to other peers) to avoid unnecessary traffic",
+        },
+        ConfigOverride {
+            key: "timestamping/enabled",
+            value: serde_json::json!({"router": true, "peer": true, "client": true}),
+            reason: "Enable timestamping for peers and clients (required for PublicationCache/transient_local durability)",
+        },
+        ConfigOverride {
+            key: "routing/router/peers_failover_brokering",
+            value: serde_json::json!(false),
+            reason: "Disable failover brokering - unnecessary when peers connect directly, reduces router overhead",
+        },
+        ConfigOverride {
+            key: "transport/unicast/open_timeout",
+            value: serde_json::json!(60000),
+            reason: "Increased timeout to avoid issues at launch with many nodes",
+        },
+        ConfigOverride {
+            key: "transport/unicast/accept_timeout",
+            value: serde_json::json!(60000),
+            reason: "Increased timeout to avoid issues at launch with many nodes",
+        },
+        ConfigOverride {
+            key: "transport/unicast/accept_pending",
+            value: serde_json::json!(10000),
+            reason: "Support large number of nodes starting together",
+        },
+        ConfigOverride {
+            key: "transport/unicast/max_sessions",
+            value: serde_json::json!(10000),
+            reason: "Support large number of nodes starting together",
+        },
+        ConfigOverride {
+            key: "transport/unicast/tx/lease",
+            value: serde_json::json!(60000),
+            reason: "Avoid lease expiration at launch with many nodes",
+        },
+        ConfigOverride {
+            key: "transport/unicast/tx/keep_alive",
+            value: serde_json::json!(2),
+            reason: "Decreased for loopback where keep-alive less likely lost",
+        },
+        ConfigOverride {
+            key: "transport/unicast/tx/queue/congestion_control/block/wait_before_close",
+            value: serde_json::json!(5000000),
+            reason: "Router routes outside robot over WiFi - lower value prevents long blocks on congestion",
+        },
+        ConfigOverride {
+            key: "transport/shared_memory/enabled",
+            value: serde_json::json!(false),
+            reason: "Disabled by default until fully tested",
+        },
     ]
 }
-
 // SESSION CONFIG - Based on rmw_zenoh_cpp DEFAULT_RMW_ZENOH_SESSION_CONFIG.json5
 pub fn session_overrides() -> Vec<ConfigOverride> {
     vec![
-    ConfigOverride {
-        key: "mode",
-        value: serde_json::json!("peer"),
-        reason: "Peer mode connects to router (not router itself)",
-    },
-    ConfigOverride {
-        key: "connect/endpoints",
-        value: serde_json::json!(["tcp/localhost:7447"]),
-        reason: "Connect to router at standard ROS 2 location",
-    },
-    ConfigOverride {
-        key: "listen/endpoints",
-        value: serde_json::json!(["tcp/localhost:0"]),
-        reason: "Localhost only - ROS nodes don't accept external connections",
-    },
-    ConfigOverride {
-        key: "scouting/multicast/enabled",
-        value: serde_json::json!(false),
-        reason: "Peers use TCP to router, no multicast needed",
-    },
-    ConfigOverride {
-        key: "scouting/multicast/autoconnect_strategy",
-        value: serde_json::json!({"peer": {"to_router": "always", "to_peer": "greater-zid"}}),
-        reason: "All peers interconnect over loopback, greater-zid avoids double connections",
-    },
-    ConfigOverride {
-        key: "scouting/gossip/target",
-        value: serde_json::json!({"router": ["router", "peer"], "peer": ["router"]}),
-        reason: "Peers send gossip messages only to router to avoid unnecessary traffic",
-    },
-    ConfigOverride {
-        key: "scouting/gossip/autoconnect_strategy",
-        value: serde_json::json!({"peer": {"to_router": "always", "to_peer": "greater-zid"}}),
-        reason: "All peers reachable on loopback, greater-zid avoids double connections at startup",
-    },
-    ConfigOverride {
-        key: "timestamping/enabled",
-        value: serde_json::json!({"router": true, "peer": true, "client": true}),
-        reason: "Required for PublicationCache/transient_local durability",
-    },
-    ConfigOverride {
-        key: "queries_default_timeout",
-        value: serde_json::json!(600000),
-        reason: "10 minutes timeout for service calls at launch with many nodes",
-    },
-    ConfigOverride {
-        key: "routing/router/peers_failover_brokering",
-        value: serde_json::json!(true),
-        reason: "Enable failover brokering for peer sessions",
-    },
-    ConfigOverride {
-        key: "transport/unicast/open_timeout",
-        value: serde_json::json!(60000),
-        reason: "Increased timeout to avoid issues at launch with many nodes",
-    },
-    ConfigOverride {
-        key: "transport/unicast/accept_timeout",
-        value: serde_json::json!(60000),
-        reason: "Increased timeout to avoid issues at launch with many nodes",
-    },
-    ConfigOverride {
-        key: "transport/unicast/accept_pending",
-        value: serde_json::json!(10000),
-        reason: "Support large number of nodes starting together",
-    },
-    ConfigOverride {
-        key: "transport/unicast/max_sessions",
-        value: serde_json::json!(10000),
-        reason: "Support large number of nodes starting together",
-    },
-    ConfigOverride {
-        key: "transport/link/tx/lease",
-        value: serde_json::json!(60000),
-        reason: "Avoid lease expiration at launch with many nodes",
-    },
-    ConfigOverride {
-        key: "transport/link/tx/keep_alive",
-        value: serde_json::json!(2),
-        reason: "Decreased for loopback where keep-alive messages are less likely lost",
-    },
-    ConfigOverride {
-        key: "transport/link/tx/queue/congestion_control/block/wait_before_close",
-        value: serde_json::json!(60000000),
-        reason: "Increased to avoid link closure at launch where congestion likely on loopback",
-    },
-    ConfigOverride {
-        key: "transport/shared_memory/enabled",
-        value: serde_json::json!(false),
-        reason: "Disabled by default until fully tested",
-    },
+        ConfigOverride {
+            key: "mode",
+            value: serde_json::json!("peer"),
+            reason: "Peer mode for ROS nodes - connects to router for discovery and routing",
+        },
+        ConfigOverride {
+            key: "connect/endpoints",
+            value: serde_json::json!(["tcp/localhost:7447"]),
+            reason: "Connect to Zenoh router on localhost at standard ROS 2 port 7447",
+        },
+        ConfigOverride {
+            key: "listen/endpoints",
+            value: serde_json::json!(["tcp/localhost:0"]),
+            reason: "Accept connections only from localhost - external traffic routed via router",
+        },
+        ConfigOverride {
+            key: "scouting/multicast/enabled",
+            value: serde_json::json!(false),
+            reason: "Disable multicast discovery - peers connect directly to router via TCP",
+        },
+        ConfigOverride {
+            key: "scouting/gossip/target",
+            value: serde_json::json!({"router": ["router", "peer"], "peer": ["router"]}),
+            reason: "Peers send gossip only to router (not other peers) to minimize traffic at launch",
+        },
+        ConfigOverride {
+            key: "scouting/gossip/autoconnect_strategy",
+            value: serde_json::json!({"peer": {"to_router": "always", "to_peer": "greater-zid"}}),
+            reason: "Use greater-zid strategy for peer-to-peer to avoid redundant connections on loopback",
+        },
+        ConfigOverride {
+            key: "timestamping/enabled",
+            value: serde_json::json!({"router": true, "peer": true, "client": true}),
+            reason: "Enable timestamping for peers and clients (required for transient_local durability)",
+        },
+        ConfigOverride {
+            key: "queries_default_timeout",
+            value: serde_json::json!(60000),  // FIXED: was 600000
+            reason: "Increased from 10s to 60s to handle slow service servers at launch",
+        },
+        ConfigOverride {
+            key: "transport/unicast/open_timeout",
+            value: serde_json::json!(60000),
+            reason: "Increased from 10s to 60s to avoid timeout when opening links with many nodes",
+        },
+        ConfigOverride {
+            key: "transport/unicast/accept_timeout",
+            value: serde_json::json!(60000),
+            reason: "Increased from 10s to 60s to avoid timeout when accepting links with many nodes",
+        },
+        ConfigOverride {
+            key: "transport/unicast/accept_pending",
+            value: serde_json::json!(10000),
+            reason: "Increased from 100 to 10000 to handle many simultaneous connection handshakes",
+        },
+        ConfigOverride {
+            key: "transport/unicast/max_sessions",
+            value: serde_json::json!(10000),
+            reason: "Increased from 1000 to 10000 to support large number of concurrent nodes",
+        },
+        ConfigOverride {
+            key: "transport/unicast/tx/lease",
+            value: serde_json::json!(60000),
+            reason: "Increased from 10s to 60s to avoid premature lease expiration during congestion",
+        },
+        ConfigOverride {
+            key: "transport/unicast/tx/keep_alive",
+            value: serde_json::json!(2),
+            reason: "Decreased from 4 to 2 for loopback where packet loss is minimal",
+        },
+        ConfigOverride {
+            key: "transport/unicast/tx/queue/congestion_control/block/wait_before_close",
+            value: serde_json::json!(60000000),
+            reason: "Increased from 5s to 60s to avoid premature link closure during launch congestion",
+        },
+        ConfigOverride {
+            key: "transport/shared_memory/enabled",
+            value: serde_json::json!(false),
+            reason: "Disabled by default until fully tested in ROS environment",
+        },
     ]
 }
-
 /// Build-time JSON5 generator with comments
 pub fn generate_json5(overrides: &[ConfigOverride], name: &str) -> String {
     let mut output = format!("// GENERATED: {} - DO NOT EDIT\n", name);
