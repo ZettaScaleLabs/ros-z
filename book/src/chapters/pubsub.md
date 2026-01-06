@@ -86,21 +86,27 @@ cargo run --example demo_nodes_listener -- --max-count 5
 
 ## Complete Pub-Sub Workflow
 
-To see publishers and subscribers in action together:
+To see publishers and subscribers in action together, you'll need to start a Zenoh router first:
 
-**Terminal 1 - Start Subscriber:**
+**Terminal 1 - Start Zenoh Router:**
+
+```bash
+cargo run --example zenoh_router
+```
+
+**Terminal 2 - Start Subscriber:**
 
 ```bash
 cargo run --example demo_nodes_listener
 ```
 
-**Terminal 2 - Start Publisher:**
+**Terminal 3 - Start Publisher:**
 
 ```bash
 cargo run --example demo_nodes_talker
 ```
 
-**Expected output in Terminal 1:**
+**Expected output in Terminal 2 (Subscriber):**
 
 ```text
 I heard: [Hello World: 1]

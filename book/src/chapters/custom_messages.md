@@ -115,15 +115,26 @@ impl ZService for NavigateTo {
 
 ## Running the Example
 
+```admonish note
+All examples require a Zenoh router to be running first. Start it with:
+`cargo run --example zenoh_router`
+```
+
 **Publisher/Subscriber Mode:**
 
-Terminal 1 - Start Subscriber:
+Terminal 1 - Start Zenoh Router:
+
+```bash
+cargo run --example zenoh_router
+```
+
+Terminal 2 - Start Subscriber:
 
 ```bash
 cargo run --example z_custom_message -- --mode status-sub
 ```
 
-Terminal 2 - Start Publisher:
+Terminal 3 - Start Publisher:
 
 ```bash
 cargo run --example z_custom_message -- --mode status-pub
@@ -131,13 +142,19 @@ cargo run --example z_custom_message -- --mode status-pub
 
 **Service Client/Server Mode:**
 
-Terminal 1 - Start Server:
+Terminal 1 - Start Zenoh Router:
+
+```bash
+cargo run --example zenoh_router
+```
+
+Terminal 2 - Start Server:
 
 ```bash
 cargo run --example z_custom_message -- --mode nav-server
 ```
 
-Terminal 2 - Send Requests:
+Terminal 3 - Send Requests:
 
 ```bash
 cargo run --example z_custom_message -- --mode nav-client \

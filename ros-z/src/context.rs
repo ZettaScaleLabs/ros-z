@@ -61,6 +61,7 @@ impl RemapRules {
 #[derive(Default)]
 pub struct ZContextBuilder {
     domain_id: usize,
+    zenoh_config: Option<zenoh::Config>,
     config_file: Option<PathBuf>,
     config_overrides: Vec<(String, serde_json::Value)>,
     remap_rules: RemapRules,
@@ -135,6 +136,44 @@ impl ZContextBuilder {
     /// Convenience method: set mode (peer, client, router)
     pub fn with_mode<S: Into<String>>(self, mode: S) -> Self {
         self.with_json("mode", json!(mode.into()))
+    }
+
+    /// Override the default ROS session config with a custom Zenoh configuration
+    ///
+    /// # Example
+    /// ```
+    /// use ros_z::context::ZContextBuilder;
+    /// use ros_z::Builder;
+    ///
+    /// let custom_config = zenoh::Config::default();
+    /// let ctx = ZContextBuilder::default()
+    ///     .with_zenoh_config(custom_config)
+    ///     .build()
+    ///     .expect("Failed to build context");
+    /// ```
+    pub fn with_zenoh_config(mut self, config: zenoh::Config) -> Self {
+        self.zenoh_config = Some(config);
+        self
+    }
+
+    /// Customize the default ROS session config to connect to a specific router endpoint
+    ///
+    /// # Example
+    /// ```
+    /// use ros_z::context::ZContextBuilder;
+    /// use ros_z::Builder;
+    ///
+    /// let ctx = ZContextBuilder::default()
+    ///     .with_router_endpoint("tcp/192.168.1.1:7447")
+    ///     .build()
+    ///     .expect("Failed to build context");
+    /// ```
+    pub fn with_router_endpoint<S: Into<String>>(mut self, endpoint: S) -> Result<Self> {
+        let session_config = crate::config::SessionConfigBuilder::new()
+            .with_router_endpoint(&endpoint.into())
+            .build()?;
+        self.zenoh_config = Some(session_config);
+        Ok(self)
     }
 
     /// Add a name remapping rule
@@ -232,31 +271,34 @@ impl ZContextBuilder {
 impl Builder for ZContextBuilder {
     type Output = ZContext;
 
-    fn build(mut self) -> Result<ZContext> {
+    fn build(self) -> Result<ZContext> {
         // Priority order:
-        // 1. Config file passed via with_config_file()
-        // 2. ROSZ_CONFIG_FILE environment variable
-        // 3. Default config
+        // 1. Custom Zenoh config passed via with_zenoh_config()
+        // 2. Config file passed via with_config_file()
+        // 3. ROSZ_CONFIG_FILE environment variable
+        // 4. **NEW DEFAULT**: ROS session config (connects to router at tcp/localhost:7447)
+        //    This matches rmw_zenoh_cpp behavior
 
-        let mut config = if let Some(ref config_file) = self.config_file {
+        // Apply environment variable overrides first
+        let builder = self.apply_env_overrides()?;
+
+        let mut config = if let Some(config) = builder.zenoh_config {
+            // Use explicitly provided Zenoh config
+            config
+        } else if let Some(ref config_file) = builder.config_file {
             // Use explicit config file
             zenoh::Config::from_file(config_file)?
         } else if let Ok(path) = std::env::var("ROSZ_CONFIG_FILE") {
             // Use environment variable config file
             zenoh::Config::from_file(path)?
         } else {
-            // Use default config
-            let mut config = zenoh::Config::default();
-            // Disable multicast scouting to avoid conflicts between parallel tests
-            config.insert_json5("scouting/multicast/enabled", "false")?;
-            config
+            // DEFAULT: Use ROS session config (requires router at localhost:7447)
+            // This is the key change - matching rmw_zenoh_cpp behavior
+            crate::config::session_config()?
         };
 
-        // Apply environment variable overrides first
-        self = self.apply_env_overrides()?;
-
         // Apply all JSON overrides
-        for (key, value) in self.config_overrides {
+        for (key, value) in builder.config_overrides {
             let value_str = serde_json::to_string(&value)
                 .map_err(|e| format!("Failed to serialize value for key '{}': {}", key, e))?;
 
@@ -271,7 +313,7 @@ impl Builder for ZContextBuilder {
         // Open Zenoh session
         let session = zenoh::open(config).wait()?;
 
-        let domain_id = self.domain_id;
+        let domain_id = builder.domain_id;
         let graph = Arc::new(Graph::new(&session, domain_id)?);
 
         Ok(ZContext {
@@ -279,7 +321,7 @@ impl Builder for ZContextBuilder {
             counter: Arc::new(GlobalCounter::default()),
             domain_id,
             graph,
-            remap_rules: self.remap_rules,
+            remap_rules: builder.remap_rules,
         })
     }
 }

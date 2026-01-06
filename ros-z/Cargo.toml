@@ -34,10 +34,18 @@ paste = "1.0"
 ros-z-msgs = { path = "../ros-z-msgs" }
 
 [build-dependencies]
+serde = { workspace = true, features = ["serde_derive"] }
+serde_json = { workspace = true }
+zenoh = { workspace = true, default-features = false, features = [
+  "transport_tcp",
+  "unstable",
+] }
 prost-build = { workspace = true, optional = true }
 
 [features]
-default = []
+default = ["config-builders"]
+config-builders = []
+generate-configs = []
 protobuf = ["prost", "prost-build"]
 rcl-z = []
 # Feature to enable examples that require external ROS message packages
@@ -109,3 +117,8 @@ required-features = ["external_msgs"]
 [[example]]
 name = "z_srvcli"
 required-features = ["external_msgs"]
+
+[[example]]
+name = "zenoh_router"
+path = "examples/zenoh_router.rs"
+required-features = []
