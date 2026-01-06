@@ -155,17 +155,17 @@ pub fn session_overrides() -> Vec<ConfigOverride> {
             reason: "Increased from 1000 to 10000 to support large number of concurrent nodes",
         },
         ConfigOverride {
-            key: "transport/unicast/tx/lease",
+            key: "transport/link/tx/lease",
             value: serde_json::json!(60000),
             reason: "Increased from 10s to 60s to avoid premature lease expiration during congestion",
         },
         ConfigOverride {
-            key: "transport/unicast/tx/keep_alive",
+            key: "transport/link/tx/keep_alive",
             value: serde_json::json!(2),
             reason: "Decreased from 4 to 2 for loopback where packet loss is minimal",
         },
         ConfigOverride {
-            key: "transport/unicast/tx/queue/congestion_control/block/wait_before_close",
+            key: "transport/link/tx/queue/congestion_control/block/wait_before_close",
             value: serde_json::json!(60000000),
             reason: "Increased from 5s to 60s to avoid premature link closure during launch congestion",
         },
