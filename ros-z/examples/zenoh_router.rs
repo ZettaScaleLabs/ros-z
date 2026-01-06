@@ -55,11 +55,11 @@ fn main() {
         format!("tcp/[::]:{}", args.port)
     };
 
-    println!("🚀 ROS-Z Router (rmw_zenoh_cpp compatible)");
-    println!("📡 Listening: {}", listen_endpoint);
-    println!("💡 Run your ROS-Z examples in other terminals now!");
-    println!("   Example: cargo run --example demo_nodes_talker");
-    println!("🛑 Press Ctrl-C to stop");
+    println!("ROS-Z Router (rmw_zenoh_cpp compatible)");
+    println!("Listening: {}", listen_endpoint);
+    println!("Run your ROS-Z examples in other terminals now!");
+    println!("Example: cargo run --example demo_nodes_talker");
+    println!("Press Ctrl-C to stop");
     println!();
 
     // Open Zenoh session in router mode
@@ -69,7 +69,7 @@ fn main() {
 
     // Print session info
     let zid = session.zid();
-    println!("✅ Router started with ZID: {}", zid);
+    println!("Router started with ZID: {}", zid);
     println!();
 
     // Create runtime for async operations
@@ -82,7 +82,7 @@ fn main() {
     });
 
     println!();
-    println!("👋 Router shutting down...");
+    println!("Router shutting down...");
 
     // Session will be closed when dropped
     drop(session);

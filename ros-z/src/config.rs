@@ -1,182 +1,243 @@
 //! ROS 2 Zenoh configuration builders
-//! Generates rmw_zenoh_cpp compatible configs programmatically
+//!
+//! Generates rmw_zenoh_cpp compatible configs programmatically.
+//! All configurations are stored as compile-time constants using LazyLock
+//! for zero-cost abstraction after first access.
+//!
+//! # Architecture
+//! - Common overrides: 10 settings shared between router and session
+//! - Router-specific: 5 settings unique to router mode
+//! - Session-specific: 6 settings unique to peer mode
+//!
+//! # Example
+//! ```rust
+//! // Create router config
+//! let router_cfg = router_config()?;
+//! let router = zenoh::open(router_cfg).await?;
+//!
+//! // Create session config
+//! let session_cfg = session_config()?;
+//! let session = zenoh::open(session_cfg).await?;
+//!
+//! // Customize router port
+//! let custom_router = RouterConfigBuilder::new()
+//!     .with_listen_port(7448)
+//!     .build()?;
+//! ```
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::sync::LazyLock;
 
-#[derive(Serialize, Deserialize, Clone)]
+/// A single configuration override with key, value, and documentation
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ConfigOverride {
+    /// Configuration key path (e.g., "transport/link/tx/lease")
     pub key: &'static str,
+    /// JSON value to set
     pub value: Value,
+    /// Human-readable explanation of why this override exists
     pub reason: &'static str,
 }
 
-// ROUTER CONFIG - Based on rmw_zenoh_cpp DEFAULT_RMW_ZENOH_ROUTER_CONFIG.json5
+/// Common overrides shared between router and session configs (10 settings)
+fn common_overrides() -> &'static [ConfigOverride] {
+    static COMMON: LazyLock<Vec<ConfigOverride>> = LazyLock::new(|| {
+        vec![
+            ConfigOverride {
+                key: "scouting/multicast/enabled",
+                value: serde_json::json!(false),
+                reason: "Disable multicast discovery - use TCP gossip instead",
+            },
+            ConfigOverride {
+                key: "scouting/gossip/target",
+                value: serde_json::json!({"router": ["router", "peer"], "peer": ["router"]}),
+                reason: "Peers send gossip only to router (not to other peers) to minimize traffic at launch",
+            },
+            ConfigOverride {
+                key: "timestamping/enabled",
+                value: serde_json::json!({"router": true, "peer": true, "client": true}),
+                reason: "Enable timestamping for peers and clients (required for transient_local durability)",
+            },
+            ConfigOverride {
+                key: "transport/unicast/open_timeout",
+                value: serde_json::json!(60000),
+                reason: "Increased from 10s to 60s to avoid timeout when opening links with many nodes",
+            },
+            ConfigOverride {
+                key: "transport/unicast/accept_timeout",
+                value: serde_json::json!(60000),
+                reason: "Increased from 10s to 60s to avoid timeout when accepting links with many nodes",
+            },
+            ConfigOverride {
+                key: "transport/unicast/accept_pending",
+                value: serde_json::json!(10000),
+                reason: "Increased from 100 to 10000 to handle many simultaneous connection handshakes",
+            },
+            ConfigOverride {
+                key: "transport/unicast/max_sessions",
+                value: serde_json::json!(10000),
+                reason: "Increased from 1000 to 10000 to support large number of concurrent sessions",
+            },
+            ConfigOverride {
+                key: "transport/link/tx/lease",
+                value: serde_json::json!(60000),
+                reason: "Increased from 10s to 60s to avoid lease expiration at launch with many nodes",
+            },
+            ConfigOverride {
+                key: "transport/link/tx/keep_alive",
+                value: serde_json::json!(2),
+                reason: "Decreased from 4 to 2 for loopback where packet loss is minimal",
+            },
+            ConfigOverride {
+                key: "transport/shared_memory/enabled",
+                value: serde_json::json!(false),
+                reason: "Disabled by default until fully tested in production ROS environments",
+            },
+        ]
+    });
+
+    &COMMON
+}
+
+/// Router-specific overrides (5 settings)
+fn router_specific_overrides() -> &'static [ConfigOverride] {
+    static ROUTER_SPECIFIC: LazyLock<Vec<ConfigOverride>> = LazyLock::new(|| {
+        vec![
+            ConfigOverride {
+                key: "mode",
+                value: serde_json::json!("router"),
+                reason: "Router mode required for ROS 2 discovery/routing",
+            },
+            ConfigOverride {
+                key: "listen/endpoints",
+                value: serde_json::json!(["tcp/[::]:7447"]),
+                reason: "Standard ROS 2 port 7447, IPv6 wildcard for all interfaces",
+            },
+            ConfigOverride {
+                key: "connect/endpoints",
+                value: serde_json::json!([]),
+                reason: "Router does not connect to other endpoints (empty list)",
+            },
+            ConfigOverride {
+                key: "routing/router/peers_failover_brokering",
+                value: serde_json::json!(false),
+                reason: "Changed from true to false - unnecessary when peers connect directly, reduces overhead",
+            },
+            ConfigOverride {
+                key: "transport/link/tx/queue/congestion_control/block/wait_before_close",
+                value: serde_json::json!(5000000),
+                reason: "Keep at 5s (vs 60s for session) - router routes to WiFi, lower value prevents long blocks",
+            },
+        ]
+    });
+
+    &ROUTER_SPECIFIC
+}
+
+/// Session-specific overrides (6 settings)
+fn session_specific_overrides() -> &'static [ConfigOverride] {
+    static SESSION_SPECIFIC: LazyLock<Vec<ConfigOverride>> = LazyLock::new(|| {
+        vec![
+            ConfigOverride {
+                key: "mode",
+                value: serde_json::json!("peer"),
+                reason: "Peer mode for ROS nodes - connects to router for discovery and routing",
+            },
+            ConfigOverride {
+                key: "connect/endpoints",
+                value: serde_json::json!(["tcp/localhost:7447"]),
+                reason: "Connect to Zenoh router on localhost at standard ROS 2 port 7447",
+            },
+            ConfigOverride {
+                key: "listen/endpoints",
+                value: serde_json::json!(["tcp/localhost:0"]),
+                reason: "Accept connections only from localhost - external traffic routed via router",
+            },
+            ConfigOverride {
+                key: "scouting/gossip/autoconnect_strategy",
+                value: serde_json::json!({"peer": {"to_router": "always", "to_peer": "greater-zid"}}),
+                reason: "Changed peer-to-peer from 'always' to 'greater-zid' to avoid redundant connections on loopback",
+            },
+            ConfigOverride {
+                key: "queries_default_timeout",
+                value: serde_json::json!(60000),
+                reason: "Increased from 10s to 60s to handle slow service servers at launch",
+            },
+            ConfigOverride {
+                key: "transport/link/tx/queue/congestion_control/block/wait_before_close",
+                value: serde_json::json!(60000000),
+                reason: "Increased from 5s to 60s to avoid premature link closure during launch congestion on loopback",
+            },
+        ]
+    });
+
+    &SESSION_SPECIFIC
+}
+
+/// Complete router configuration (cached statically)
+///
+/// Returns a Vec containing all router-specific and common overrides.
+/// The Vec is cloned from static storage for modification if needed.
 pub fn router_overrides() -> Vec<ConfigOverride> {
-    vec![
-        ConfigOverride {
-            key: "mode",
-            value: serde_json::json!("router"),
-            reason: "Router mode required for ROS 2 discovery/routing",
-        },
-        ConfigOverride {
-            key: "listen/endpoints",
-            value: serde_json::json!(["tcp/[::]:7447"]),
-            reason: "Standard ROS 2 port, IPv6 wildcard for all interfaces",
-        },
-        ConfigOverride {
-            key: "connect/endpoints",
-            value: serde_json::json!([]),
-            reason: "Router does not connect to other endpoints",
-        },
-        ConfigOverride {
-            key: "scouting/multicast/enabled",
-            value: serde_json::json!(false),
-            reason: "Disable multicast discovery - router uses TCP gossip",
-        },
-        ConfigOverride {
-            key: "scouting/gossip/target",
-            value: serde_json::json!({"router": ["router", "peer"], "peer": ["router"]}),
-            reason: "Peers send gossip only to router (not to other peers) to avoid unnecessary traffic",
-        },
-        ConfigOverride {
-            key: "timestamping/enabled",
-            value: serde_json::json!({"router": true, "peer": true, "client": true}),
-            reason: "Enable timestamping for peers and clients (required for PublicationCache/transient_local durability)",
-        },
-        ConfigOverride {
-            key: "routing/router/peers_failover_brokering",
-            value: serde_json::json!(false),
-            reason: "Disable failover brokering - unnecessary when peers connect directly, reduces router overhead",
-        },
-        ConfigOverride {
-            key: "transport/unicast/open_timeout",
-            value: serde_json::json!(60000),
-            reason: "Increased timeout to avoid issues at launch with many nodes",
-        },
-        ConfigOverride {
-            key: "transport/unicast/accept_timeout",
-            value: serde_json::json!(60000),
-            reason: "Increased timeout to avoid issues at launch with many nodes",
-        },
-        ConfigOverride {
-            key: "transport/unicast/accept_pending",
-            value: serde_json::json!(10000),
-            reason: "Support large number of nodes starting together",
-        },
-        ConfigOverride {
-            key: "transport/unicast/max_sessions",
-            value: serde_json::json!(10000),
-            reason: "Support large number of nodes starting together",
-        },
-        ConfigOverride {
-            key: "transport/unicast/tx/lease",
-            value: serde_json::json!(60000),
-            reason: "Avoid lease expiration at launch with many nodes",
-        },
-        ConfigOverride {
-            key: "transport/unicast/tx/keep_alive",
-            value: serde_json::json!(2),
-            reason: "Decreased for loopback where keep-alive less likely lost",
-        },
-        ConfigOverride {
-            key: "transport/unicast/tx/queue/congestion_control/block/wait_before_close",
-            value: serde_json::json!(5000000),
-            reason: "Router routes outside robot over WiFi - lower value prevents long blocks on congestion",
-        },
-        ConfigOverride {
-            key: "transport/shared_memory/enabled",
-            value: serde_json::json!(false),
-            reason: "Disabled by default until fully tested",
-        },
-    ]
+    let mut overrides = Vec::with_capacity(router_specific_overrides().len() + common_overrides().len());
+    overrides.extend_from_slice(router_specific_overrides());
+    overrides.extend_from_slice(common_overrides());
+    overrides
 }
-// SESSION CONFIG - Based on rmw_zenoh_cpp DEFAULT_RMW_ZENOH_SESSION_CONFIG.json5
+
+/// Complete session configuration (cached statically)
+///
+/// Returns a Vec containing all session-specific and common overrides.
+/// The Vec is cloned from static storage for modification if needed.
 pub fn session_overrides() -> Vec<ConfigOverride> {
-    vec![
-        ConfigOverride {
-            key: "mode",
-            value: serde_json::json!("peer"),
-            reason: "Peer mode for ROS nodes - connects to router for discovery and routing",
-        },
-        ConfigOverride {
-            key: "connect/endpoints",
-            value: serde_json::json!(["tcp/localhost:7447"]),
-            reason: "Connect to Zenoh router on localhost at standard ROS 2 port 7447",
-        },
-        ConfigOverride {
-            key: "listen/endpoints",
-            value: serde_json::json!(["tcp/localhost:0"]),
-            reason: "Accept connections only from localhost - external traffic routed via router",
-        },
-        ConfigOverride {
-            key: "scouting/multicast/enabled",
-            value: serde_json::json!(false),
-            reason: "Disable multicast discovery - peers connect directly to router via TCP",
-        },
-        ConfigOverride {
-            key: "scouting/gossip/target",
-            value: serde_json::json!({"router": ["router", "peer"], "peer": ["router"]}),
-            reason: "Peers send gossip only to router (not other peers) to minimize traffic at launch",
-        },
-        ConfigOverride {
-            key: "scouting/gossip/autoconnect_strategy",
-            value: serde_json::json!({"peer": {"to_router": "always", "to_peer": "greater-zid"}}),
-            reason: "Use greater-zid strategy for peer-to-peer to avoid redundant connections on loopback",
-        },
-        ConfigOverride {
-            key: "timestamping/enabled",
-            value: serde_json::json!({"router": true, "peer": true, "client": true}),
-            reason: "Enable timestamping for peers and clients (required for transient_local durability)",
-        },
-        ConfigOverride {
-            key: "queries_default_timeout",
-            value: serde_json::json!(60000),  // FIXED: was 600000
-            reason: "Increased from 10s to 60s to handle slow service servers at launch",
-        },
-        ConfigOverride {
-            key: "transport/unicast/open_timeout",
-            value: serde_json::json!(60000),
-            reason: "Increased from 10s to 60s to avoid timeout when opening links with many nodes",
-        },
-        ConfigOverride {
-            key: "transport/unicast/accept_timeout",
-            value: serde_json::json!(60000),
-            reason: "Increased from 10s to 60s to avoid timeout when accepting links with many nodes",
-        },
-        ConfigOverride {
-            key: "transport/unicast/accept_pending",
-            value: serde_json::json!(10000),
-            reason: "Increased from 100 to 10000 to handle many simultaneous connection handshakes",
-        },
-        ConfigOverride {
-            key: "transport/unicast/max_sessions",
-            value: serde_json::json!(10000),
-            reason: "Increased from 1000 to 10000 to support large number of concurrent nodes",
-        },
-        ConfigOverride {
-            key: "transport/link/tx/lease",
-            value: serde_json::json!(60000),
-            reason: "Increased from 10s to 60s to avoid premature lease expiration during congestion",
-        },
-        ConfigOverride {
-            key: "transport/link/tx/keep_alive",
-            value: serde_json::json!(2),
-            reason: "Decreased from 4 to 2 for loopback where packet loss is minimal",
-        },
-        ConfigOverride {
-            key: "transport/link/tx/queue/congestion_control/block/wait_before_close",
-            value: serde_json::json!(60000000),
-            reason: "Increased from 5s to 60s to avoid premature link closure during launch congestion",
-        },
-        ConfigOverride {
-            key: "transport/shared_memory/enabled",
-            value: serde_json::json!(false),
-            reason: "Disabled by default until fully tested in ROS environment",
-        },
-    ]
+    let mut overrides = Vec::with_capacity(session_specific_overrides().len() + common_overrides().len());
+    overrides.extend_from_slice(session_specific_overrides());
+    overrides.extend_from_slice(common_overrides());
+    overrides
 }
+/// Build a Zenoh config from a set of overrides
+fn build_config(overrides: &[ConfigOverride]) -> zenoh::Result<zenoh::Config> {
+    let mut config = zenoh::Config::default();
+    for override_ in overrides {
+        let value_str = serde_json::to_string(&override_.value)?;
+        config.insert_json5(override_.key, &value_str)?;
+    }
+    Ok(config)
+}
+
+/// Create a router configuration matching rmw_zenoh_cpp defaults
+///
+/// # Example
+/// ```rust
+/// let config = router_config()?;
+/// let router = zenoh::open(config).await?;
+/// ```
+pub fn router_config() -> zenoh::Result<zenoh::Config> {
+    build_config(&router_overrides())
+}
+
+/// Create a session configuration matching rmw_zenoh_cpp defaults
+///
+/// # Example
+/// ```rust
+/// let config = session_config()?;
+/// let session = zenoh::open(config).await?;
+/// ```
+pub fn session_config() -> zenoh::Result<zenoh::Config> {
+    build_config(&session_overrides())
+}
+
 /// Build-time JSON5 generator with comments
+///
+/// Generates a JSON5 file with inline comments explaining each override.
+/// Useful for generating reference configuration files.
+///
+/// # Example
+/// ```rust
+/// let json5 = generate_json5(&router_overrides(), "Router Config");
+/// std::fs::write("router_config.json5", json5)?;
+/// ```
 pub fn generate_json5(overrides: &[ConfigOverride], name: &str) -> String {
     let mut output = format!("// GENERATED: {} - DO NOT EDIT\n", name);
     output.push_str("// This file is auto-generated from ros-z/src/config.rs\n");
@@ -197,26 +258,6 @@ pub fn generate_json5(overrides: &[ConfigOverride], name: &str) -> String {
     output
 }
 
-/// Build a Zenoh config from a set of overrides
-fn build_config(overrides: &[ConfigOverride]) -> zenoh::Result<zenoh::Config> {
-    let mut config = zenoh::Config::default();
-    for override_ in overrides {
-        let value_str = serde_json::to_string(&override_.value)?;
-        config.insert_json5(override_.key, &value_str)?;
-    }
-    Ok(config)
-}
-
-/// Create a router configuration matching rmw_zenoh_cpp
-pub fn router_config() -> zenoh::Result<zenoh::Config> {
-    build_config(&router_overrides())
-}
-
-/// Create a session configuration matching rmw_zenoh_cpp
-pub fn session_config() -> zenoh::Result<zenoh::Config> {
-    build_config(&session_overrides())
-}
-
 /// Builder for router configuration with customization options
 #[derive(Clone)]
 pub struct RouterConfigBuilder {
@@ -232,6 +273,13 @@ impl RouterConfigBuilder {
     }
 
     /// Change the listen port (default: 7447)
+    ///
+    /// # Example
+    /// ```rust
+    /// let config = RouterConfigBuilder::new()
+    ///     .with_listen_port(7448)
+    ///     .build()?;
+    /// ```
     pub fn with_listen_port(mut self, port: u16) -> Self {
         if let Some(listen) = self.overrides.iter_mut().find(|o| o.key == "listen/endpoints") {
             listen.value = serde_json::json!([format!("tcp/[::]:{}", port)]);
@@ -240,9 +288,40 @@ impl RouterConfigBuilder {
     }
 
     /// Set a custom listen endpoint
+    ///
+    /// # Example
+    /// ```rust
+    /// let config = RouterConfigBuilder::new()
+    ///     .with_listen_endpoint("tcp/0.0.0.0:7447")
+    ///     .build()?;
+    /// ```
     pub fn with_listen_endpoint(mut self, endpoint: &str) -> Self {
         if let Some(listen) = self.overrides.iter_mut().find(|o| o.key == "listen/endpoints") {
             listen.value = serde_json::json!([endpoint]);
+        }
+        self
+    }
+
+    /// Override a specific config key
+    ///
+    /// Replaces existing override if key exists, otherwise adds new one.
+    ///
+    /// # Example
+    /// ```rust
+    /// let config = RouterConfigBuilder::new()
+    ///     .with_override(
+    ///         "transport/unicast/max_sessions",
+    ///         serde_json::json!(20000),
+    ///         "Custom increased sessions"
+    ///     )
+    ///     .build()?;
+    /// ```
+    pub fn with_override(mut self, key: &'static str, value: Value, reason: &'static str) -> Self {
+        if let Some(existing) = self.overrides.iter_mut().find(|o| o.key == key) {
+            existing.value = value;
+            existing.reason = reason;
+        } else {
+            self.overrides.push(ConfigOverride { key, value, reason });
         }
         self
     }
@@ -274,9 +353,40 @@ impl SessionConfigBuilder {
     }
 
     /// Change the router endpoint to connect to (default: tcp/localhost:7447)
+    ///
+    /// # Example
+    /// ```rust
+    /// let config = SessionConfigBuilder::new()
+    ///     .with_router_endpoint("tcp/192.168.1.100:7447")
+    ///     .build()?;
+    /// ```
     pub fn with_router_endpoint(mut self, endpoint: &str) -> Self {
         if let Some(connect) = self.overrides.iter_mut().find(|o| o.key == "connect/endpoints") {
             connect.value = serde_json::json!([endpoint]);
+        }
+        self
+    }
+
+    /// Override a specific config key
+    ///
+    /// Replaces existing override if key exists, otherwise adds new one.
+    ///
+    /// # Example
+    /// ```rust
+    /// let config = SessionConfigBuilder::new()
+    ///     .with_override(
+    ///         "queries_default_timeout",
+    ///         serde_json::json!(120000),
+    ///         "Increased timeout for slow network"
+    ///     )
+    ///     .build()?;
+    /// ```
+    pub fn with_override(mut self, key: &'static str, value: Value, reason: &'static str) -> Self {
+        if let Some(existing) = self.overrides.iter_mut().find(|o| o.key == key) {
+            existing.value = value;
+            existing.reason = reason;
+        } else {
+            self.overrides.push(ConfigOverride { key, value, reason });
         }
         self
     }
@@ -298,23 +408,87 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_router_config() {
-        let config = router_config().expect("Failed to build router config");
-        // Verify mode is router
-        assert_eq!(
-            config.mode().unwrap().to_string(),
-            "router"
-        );
+    fn test_common_overrides_shared() {
+        let router = router_overrides();
+        let session = session_overrides();
+        let common = common_overrides();
+
+        // Verify common overrides are present in both
+        for common_override in common {
+            assert!(
+                router.iter().any(|o| o.key == common_override.key),
+                "Router missing common override: {}",
+                common_override.key
+            );
+            assert!(
+                session.iter().any(|o| o.key == common_override.key),
+                "Session missing common override: {}",
+                common_override.key
+            );
+        }
     }
 
     #[test]
-    fn test_session_config() {
+    fn test_router_config_creates_valid_session() {
+        // Use port 0 to let OS assign an available port
+        let config = RouterConfigBuilder::new()
+            .with_listen_endpoint("tcp/[::]:0")
+            .build()
+            .expect("Failed to build router config");
+
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        runtime.block_on(async {
+            let session = zenoh::open(config).await;
+            assert!(
+                session.is_ok(),
+                "Failed to create Zenoh session with router config: {:?}",
+                session.err()
+            );
+        });
+    }
+
+    #[test]
+    fn test_session_config_creates_valid_session() {
         let config = session_config().expect("Failed to build session config");
-        // Verify mode is peer
-        assert_eq!(
-            config.mode().unwrap().to_string(),
-            "peer"
-        );
+
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        runtime.block_on(async {
+            let session = zenoh::open(config).await;
+            assert!(
+                session.is_ok(),
+                "Failed to create Zenoh session with peer config: {:?}",
+                session.err()
+            );
+        });
+    }
+
+    #[test]
+    fn test_all_overrides_produce_valid_config() {
+        // Test router overrides
+        for override_ in &router_overrides() {
+            let mut config = zenoh::Config::default();
+            let value_str = serde_json::to_string(&override_.value).unwrap();
+            let result = config.insert_json5(override_.key, &value_str);
+            assert!(
+                result.is_ok(),
+                "Router override '{}' is invalid: {:?}",
+                override_.key,
+                result.err()
+            );
+        }
+
+        // Test session overrides
+        for override_ in &session_overrides() {
+            let mut config = zenoh::Config::default();
+            let value_str = serde_json::to_string(&override_.value).unwrap();
+            let result = config.insert_json5(override_.key, &value_str);
+            assert!(
+                result.is_ok(),
+                "Session override '{}' is invalid: {:?}",
+                override_.key,
+                result.err()
+            );
+        }
     }
 
     #[test]
@@ -323,10 +497,8 @@ mod tests {
             .with_listen_port(7448)
             .build()
             .expect("Failed to build router config");
-        assert_eq!(
-            config.mode().unwrap().to_string(),
-            "router"
-        );
+
+        assert_eq!(config.mode().unwrap().to_string(), "router");
     }
 
     #[test]
@@ -335,10 +507,22 @@ mod tests {
             .with_router_endpoint("tcp/192.168.1.1:7447")
             .build()
             .expect("Failed to build session config");
-        assert_eq!(
-            config.mode().unwrap().to_string(),
-            "peer"
-        );
+
+        assert_eq!(config.mode().unwrap().to_string(), "peer");
+    }
+
+    #[test]
+    fn test_builder_with_custom_override() {
+        let config = RouterConfigBuilder::new()
+            .with_override(
+                "transport/unicast/max_sessions",
+                serde_json::json!(20000),
+                "Custom increased sessions"
+            )
+            .build()
+            .expect("Failed to build");
+
+        assert_eq!(config.mode().unwrap().to_string(), "router");
     }
 
     #[test]

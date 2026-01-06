@@ -292,7 +292,7 @@ impl Builder for ZContextBuilder {
             // Use environment variable config file
             zenoh::Config::from_file(path)?
         } else {
-            // ✅ DEFAULT: Use ROS session config (requires router at localhost:7447)
+            // DEFAULT: Use ROS session config (requires router at localhost:7447)
             // This is the key change - matching rmw_zenoh_cpp behavior
             crate::config::session_config()?
         };
