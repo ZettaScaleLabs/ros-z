@@ -188,8 +188,8 @@ cargo build --features generate-configs
 
 ```console
 target/debug/build/ros-z-*/out/ros_z_config/
-  ├── DEFAULT_RMW_ZENOH_ROUTER_CONFIG.json5
-  └── DEFAULT_RMW_ZENOH_SESSION_CONFIG.json5
+  ├── DEFAULT_ROSZ_ROUTER_CONFIG.json5
+  └── DEFAULT_ROSZ_SESSION_CONFIG.json5
 ```
 
 ### Custom Output Directory
@@ -222,7 +222,7 @@ Generated files include inline comments explaining each setting, making them per
 
 ```rust,ignore
 let ctx = ZContextBuilder::default()
-    .with_config_file("./config/DEFAULT_RMW_ZENOH_SESSION_CONFIG.json5")
+    .with_config_file("./config/DEFAULT_ROSZ_SESSION_CONFIG.json5")
     .build()?;
 ```
 

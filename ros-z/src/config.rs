@@ -231,6 +231,7 @@ pub fn session_config() -> zenoh::Result<zenoh::Config> {
 /// Build-time JSON5 generator with comments
 ///
 /// Generates a JSON5 file with inline comments explaining each override.
+/// Converts path notation (e.g., "connect/endpoints") into nested JSON structure.
 /// Useful for generating reference configuration files.
 ///
 /// # Example
@@ -239,22 +240,126 @@ pub fn session_config() -> zenoh::Result<zenoh::Config> {
 /// std::fs::write("router_config.json5", json5)?;
 /// ```
 pub fn generate_json5(overrides: &[ConfigOverride], name: &str) -> String {
+    use serde_json::Value as JsonValue;
+    use std::collections::BTreeMap;
+
     let mut output = format!("// GENERATED: {} - DO NOT EDIT\n", name);
     output.push_str("// This file is auto-generated from ros-z/src/config.rs\n");
     output.push_str("// Edit the source file and rebuild to make changes\n");
-    output.push_str("{\n");
 
-    for (i, override_) in overrides.iter().enumerate() {
-        output.push_str(&format!("  // {}\n", override_.reason));
-        output.push_str(&format!("  \"{}\": ", override_.key));
-        let value_str = serde_json::to_string_pretty(&override_.value)
-            .unwrap()
-            .replace('\n', "\n  ");
-        output.push_str(&value_str);
-        output.push_str(if i < overrides.len() - 1 { ",\n\n" } else { "\n" });
+    // Build nested structure from path notation
+    let mut root = JsonValue::Object(serde_json::Map::new());
+    let mut comments: BTreeMap<String, String> = BTreeMap::new();
+
+    for override_ in overrides {
+        let path_parts: Vec<&str> = override_.key.split('/').collect();
+
+        // Store comment at the full path
+        comments.insert(override_.key.to_string(), override_.reason.to_string());
+
+        // Navigate/create nested structure
+        let mut current = &mut root;
+        for (i, part) in path_parts.iter().enumerate() {
+            if i == path_parts.len() - 1 {
+                // Last part - insert the value
+                if let JsonValue::Object(map) = current {
+                    map.insert(part.to_string(), override_.value.clone());
+                }
+            } else {
+                // Intermediate part - ensure object exists
+                if let JsonValue::Object(map) = current {
+                    current = map
+                        .entry(part.to_string())
+                        .or_insert_with(|| JsonValue::Object(serde_json::Map::new()));
+                }
+            }
+        }
     }
 
-    output.push_str("}\n");
+    // Generate JSON5 with comments
+    output.push_str(&generate_json5_with_comments(&root, &comments, "", 0));
+    output
+}
+
+/// Helper function to recursively generate JSON5 with inline comments
+fn generate_json5_with_comments(
+    value: &serde_json::Value,
+    comments: &std::collections::BTreeMap<String, String>,
+    current_path: &str,
+    indent_level: usize,
+) -> String {
+    use serde_json::Value as JsonValue;
+
+    let indent = "  ".repeat(indent_level);
+    let mut output = String::new();
+
+    match value {
+        JsonValue::Object(map) => {
+            output.push_str("{\n");
+            let entries: Vec<_> = map.iter().collect();
+            for (i, (key, val)) in entries.iter().enumerate() {
+                let new_path = if current_path.is_empty() {
+                    key.to_string()
+                } else {
+                    format!("{}/{}", current_path, key)
+                };
+
+                // Add comment if exists for this path
+                if let Some(comment) = comments.get(&new_path) {
+                    output.push_str(&format!("{}  // {}\n", indent, comment));
+                }
+
+                output.push_str(&format!("{}  \"{}\": ", indent, key));
+
+                let nested = generate_json5_with_comments(val, comments, &new_path, indent_level + 1);
+                // Trim the nested output if it's a simple value
+                let nested_trimmed = if matches!(val, JsonValue::Object(_) | JsonValue::Array(_)) {
+                    nested
+                } else {
+                    nested.trim().to_string()
+                };
+                output.push_str(&nested_trimmed);
+
+                if i < entries.len() - 1 {
+                    output.push_str(",\n");
+                } else {
+                    output.push('\n');
+                }
+            }
+            output.push_str(&format!("{}}}", indent));
+        }
+        JsonValue::Array(arr) => {
+            if arr.is_empty() {
+                output.push_str("[]");
+            } else if arr.iter().all(|v| !matches!(v, JsonValue::Object(_) | JsonValue::Array(_))) {
+                // Inline simple arrays
+                output.push('[');
+                for (i, item) in arr.iter().enumerate() {
+                    output.push_str(&serde_json::to_string(item).unwrap());
+                    if i < arr.len() - 1 {
+                        output.push_str(", ");
+                    }
+                }
+                output.push(']');
+            } else {
+                // Multi-line for complex arrays
+                output.push_str("[\n");
+                for (i, item) in arr.iter().enumerate() {
+                    output.push_str(&format!("{}  ", indent));
+                    output.push_str(&generate_json5_with_comments(item, comments, current_path, indent_level + 1).trim());
+                    if i < arr.len() - 1 {
+                        output.push(',');
+                    }
+                    output.push('\n');
+                }
+                output.push_str(&format!("{}]", indent));
+            }
+        }
+        other => {
+            output.push_str(&serde_json::to_string_pretty(other).unwrap());
+        }
+    }
+
     output
 }
 

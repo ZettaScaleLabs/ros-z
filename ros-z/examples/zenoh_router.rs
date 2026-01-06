@@ -7,6 +7,7 @@
 //!   cargo run --example zenoh_router          # Default: tcp/[::]:7447
 //!   cargo run --example zenoh_router -- --port 7448
 //!   cargo run --example zenoh_router -- --endpoint "tcp/192.168.1.1:7447"
+//!   cargo run --example zenoh_router -- --config /path/to/config.json5
 //!
 //! Enable logging with RUST_LOG:
 //!   RUST_LOG=info cargo run --example zenoh_router
@@ -27,6 +28,10 @@ struct Args {
     /// Example: "tcp/192.168.1.1:7447"
     #[arg(short, long)]
     endpoint: Option<String>,
+
+    /// Path to a JSON5 config file to load
+    #[arg(short, long)]
+    config: Option<String>,
 }
 
 fn main() {
@@ -36,7 +41,10 @@ fn main() {
     zenoh::init_log_from_env_or("error");
 
     // Build router configuration
-    let config = if let Some(endpoint) = &args.endpoint {
+    let config = if let Some(config_path) = &args.config {
+        zenoh::Config::from_file(config_path)
+            .expect("Failed to load config from file")
+    } else if let Some(endpoint) = &args.endpoint {
         RouterConfigBuilder::new()
             .with_listen_endpoint(endpoint)
             .build()
@@ -49,14 +57,16 @@ fn main() {
     };
 
     // Extract listen endpoint for display
-    let listen_endpoint = if let Some(endpoint) = &args.endpoint {
-        endpoint.clone()
+    let listen_info = if let Some(config_path) = &args.config {
+        format!("Using config file: {}", config_path)
+    } else if let Some(endpoint) = &args.endpoint {
+        format!("Listening: {}", endpoint)
     } else {
-        format!("tcp/[::]:{}", args.port)
+        format!("Listening: tcp/[::]:{}", args.port)
     };
 
     println!("ROS-Z Router (rmw_zenoh_cpp compatible)");
-    println!("Listening: {}", listen_endpoint);
+    println!("{}", listen_info);
     println!("Run your ROS-Z examples in other terminals now!");
     println!("Example: cargo run --example demo_nodes_talker");
     println!("Press Ctrl-C to stop");
