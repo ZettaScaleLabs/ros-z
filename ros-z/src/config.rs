@@ -346,7 +346,7 @@ fn generate_json5_with_comments(
                 output.push_str("[\n");
                 for (i, item) in arr.iter().enumerate() {
                     output.push_str(&format!("{}  ", indent));
-                    output.push_str(&generate_json5_with_comments(item, comments, current_path, indent_level + 1).trim());
+                    output.push_str(generate_json5_with_comments(item, comments, current_path, indent_level + 1).trim());
                     if i < arr.len() - 1 {
                         output.push(',');
                     }

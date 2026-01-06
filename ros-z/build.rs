@@ -25,8 +25,18 @@ fn main() {
     };
 
     // Always set rerun-if-changed on the output files to ensure regeneration if deleted
-    println!("cargo:rerun-if-changed={}", config_dir.join("DEFAULT_ROSZ_ROUTER_CONFIG.json5").display());
-    println!("cargo:rerun-if-changed={}", config_dir.join("DEFAULT_ROSZ_SESSION_CONFIG.json5").display());
+    println!(
+        "cargo:rerun-if-changed={}",
+        config_dir
+            .join("DEFAULT_ROSZ_ROUTER_CONFIG.json5")
+            .display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        config_dir
+            .join("DEFAULT_ROSZ_SESSION_CONFIG.json5")
+            .display()
+    );
 
     // Only generate configs if the feature is enabled
     #[cfg(feature = "generate-configs")]

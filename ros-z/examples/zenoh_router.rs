@@ -42,8 +42,7 @@ fn main() {
 
     // Build router configuration
     let config = if let Some(config_path) = &args.config {
-        zenoh::Config::from_file(config_path)
-            .expect("Failed to load config from file")
+        zenoh::Config::from_file(config_path).expect("Failed to load config from file")
     } else if let Some(endpoint) = &args.endpoint {
         RouterConfigBuilder::new()
             .with_listen_endpoint(endpoint)
