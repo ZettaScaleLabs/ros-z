@@ -859,8 +859,8 @@ let ctx = ZContextBuilder::default()
 </code></pre>
 <p><strong>Output location:</strong></p>
 <pre><code class="language-console">target/debug/build/ros-z-*/out/ros_z_config/
-  ├── DEFAULT_RMW_ZENOH_ROUTER_CONFIG.json5
-  └── DEFAULT_RMW_ZENOH_SESSION_CONFIG.json5
+  ├── DEFAULT_ROSZ_ROUTER_CONFIG.json5
+  └── DEFAULT_ROSZ_SESSION_CONFIG.json5
 </code></pre>
 <h3 id="custom-output-directory"><a class="header" href="#custom-output-directory">Custom Output Directory</a></h3>
 <p>Specify a custom directory using the <code>ROS_Z_CONFIG_OUTPUT_DIR</code> environment variable:</p>
@@ -886,7 +886,7 @@ let ctx = ZContextBuilder::default()
 </div>
 <h3 id="using-generated-files"><a class="header" href="#using-generated-files">Using Generated Files</a></h3>
 <pre><code class="language-rust ignore">let ctx = ZContextBuilder::default()
-    .with_config_file("./config/DEFAULT_RMW_ZENOH_SESSION_CONFIG.json5")
+    .with_config_file("./config/DEFAULT_ROSZ_SESSION_CONFIG.json5")
     .build()?;</code></pre>
 <h2 id="running-the-zenoh-router"><a class="header" href="#running-the-zenoh-router">Running the Zenoh Router</a></h2>
 <h3 id="option-1-default-router"><a class="header" href="#option-1-default-router">Option 1: Default Router</a></h3>
