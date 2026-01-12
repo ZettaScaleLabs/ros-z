@@ -2,10 +2,6 @@
 
 **ros-z is designed to work without ROS 2 dependencies by default, enabling pure Rust development while optionally integrating with existing ROS 2 installations.** This flexible approach lets you choose your dependency level based on project requirements.
 
-```admonish success
-Start with zero dependencies and add ROS 2 integration only when you need it. This gradual approach reduces complexity and speeds up initial development.
-```
-
 ## Philosophy
 
 ros-z follows a **dependency-optional** design:
@@ -62,7 +58,7 @@ tokio = { version = "1", features = ["full"] }
 
 **Use when:** You need all ROS 2 message types or custom packages from your workspace
 
-**Requirements:** ROS 2 installation (Jazzy, Rolling, Iron, or Humble)
+**Requirements:** ROS 2 installation (Rolling, Kilted, Jazzy, etc.)
 
 **Add to your `Cargo.toml`:**
 
@@ -73,14 +69,17 @@ ros-z-msgs = { version = "0.x", features = ["external_msgs"] }
 tokio = { version = "1", features = ["full"] }
 ```
 
+**The `external_msgs` feature flag tells ros-z-msgs to generate bindings for all message types found in your ROS 2 installation.** Without this flag, only bundled messages are included (Scenario 2).
+
 **Build your project:**
 
 ```bash
-# Ensure ROS 2 is sourced
+# Ensure ROS 2 is sourced (Jazzy as an example)
 source /opt/ros/jazzy/setup.bash
 
-# Build your project
-cargo build
+# Build your project with external_msgs feature
+# This feature enables access to all ROS 2 message types from your installation
+cargo build --features external_msgs
 ```
 
 **Additional packages available:**
@@ -91,55 +90,6 @@ cargo build
 
 ```admonish tip
 Start with Scenario 1 or 2 for development, then move to Scenario 3 when you need full ROS 2 interoperability.
-```
-
-## Running Examples
-
-Once you've added ros-z to your project, you can run the included examples to see it in action.
-
-```admonish important
-**All examples require a Zenoh router to be running first:**
-```bash
-cargo run --example zenoh_router
-```
-
-Leave this running in a separate terminal, then run any example in another terminal.
-
-**Available examples:**
-
-```bash
-# Pure Rust example with custom messages (no ros-z-msgs needed)
-cargo run --example z_custom_message -- --mode status-pub
-
-# Examples using bundled messages (requires ros-z-msgs)
-cargo run --example z_pubsub          # Publisher/Subscriber with std_msgs
-cargo run --example twist_pub         # Publishing geometry_msgs
-cargo run --example battery_state_sub # Receiving sensor_msgs
-
-# Examples requiring ROS 2 (requires external_msgs feature)
-cargo run --example z_srvcli --features external_msgs
-```
-
-See the [Zenoh Configuration](./config.md) chapter for router setup details and alternative configurations.
-
-## Using Nix (Optional)
-
-Pre-configured development environments with all dependencies:
-
-```bash
-# Default: ROS 2 Jazzy with full tooling
-nix develop
-
-# Specific ROS distros
-nix develop .#ros-jazzy      # ROS 2 Jazzy
-nix develop .#ros-rolling    # ROS 2 Rolling
-
-# Pure Rust (no ROS)
-nix develop .#pureRust
-```
-
-```admonish tip
-Use Nix for consistent development environments across team members and CI/CD pipelines.
 ```
 
 ## Development
@@ -212,46 +162,11 @@ cargo clean -p ros-z-msgs  # Clean specific package
 After changing feature flags or updating ROS 2, run `cargo clean -p ros-z-msgs` to force message regeneration.
 ```
 
-## Troubleshooting Builds
+## Next Steps
 
-**Build too slow?**
-
-```bash
-# Use parallel builds (automatic on most systems)
-cargo build -j $(nproc)
-
-# Build only what you need
-cargo build -p ros-z-msgs --features std_msgs,geometry_msgs
-```
-
-**Can't find ROS packages?**
-
-```bash
-# Ensure ROS 2 is sourced
-source /opt/ros/jazzy/setup.bash
-
-# Verify environment
-echo $AMENT_PREFIX_PATH
-
-# Check package exists
-ros2 pkg prefix example_interfaces
-```
-
-**Linker errors?**
-
-```bash
-# Clear cache and rebuild
-cargo clean
-source /opt/ros/jazzy/setup.bash
-cargo build -p rcl-z
-```
-
-For comprehensive troubleshooting, see the [Troubleshooting Guide](./troubleshooting.md).
-
-## Resources
-
-- **[Feature Flags](./feature_flags.md)** - Detailed feature documentation
-- **[Troubleshooting](./troubleshooting.md)** - Common build issues
-- **[Message Generation](./message_generation.md)** - How messages work
+- **[Running Examples](./examples.md)** - Try out the included examples
+- **[Networking](./config.md)** - Set up Zenoh router and session config
+- **[Message Generation](./message_generation.md)** - Understand how messages work
+- **[Troubleshooting](./troubleshooting.md)** - Solutions to common build issues
 
 **Start with the simplest build and add dependencies incrementally as your project grows.**

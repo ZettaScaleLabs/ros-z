@@ -369,7 +369,7 @@ cargo build -p ros-z --features protobuf
 - Requires feature flag
 
 ```admonish info
-Use protobuf when you need schema evolution or cross-language data exchange beyond ROS 2 ecosystem.
+Use protobuf when you need schema evolution or cross-language data exchange beyond ROS 2 ecosystem. See [Protobuf Serialization](./protobuf.md) for detailed usage guide.
 ```
 
 ## Extending Message Packages
@@ -502,6 +502,6 @@ See [Troubleshooting Guide](./troubleshooting.md) for detailed solutions.
 - **[Feature Flags](./feature_flags.md)** - Available message packages
 - **[Building](./building.md)** - Build configuration
 - **[Custom Messages](./custom_messages.md)** - Manual implementation
-- **[Demo Talker](./demo_talker.md)** - Using generated messages
+- **[Protobuf Serialization](./protobuf.md)** - Alternative serialization format
 
 **Message generation is transparent. Focus on writing ROS 2 message definitions and let ros-z handle the Rust code generation.**
