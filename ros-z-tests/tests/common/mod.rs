@@ -155,6 +155,7 @@ pub fn create_ros_z_context_with_endpoint(endpoint: &str) -> ros_z::Result<ros_z
 }
 
 /// Helper to wait for nodes to be ready
+#[allow(dead_code)]
 pub fn wait_for_ready(duration: Duration) {
     thread::sleep(duration);
 }

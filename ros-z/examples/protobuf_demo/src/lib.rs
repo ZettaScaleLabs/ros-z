@@ -109,6 +109,9 @@ pub fn run_service_client(
     // Give server time to start if needed
     std::thread::sleep(Duration::from_millis(500));
 
+    // Create runtime once for all requests
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
     for (op, a, b) in operations {
         println!("[Client] Sending: {} {} {}", a, op, b);
 
@@ -118,8 +121,8 @@ pub fn run_service_client(
             operation: op.to_string(),
         };
 
-        // Send request and wait for response
-        let response = tokio::runtime::Runtime::new().unwrap().block_on(async {
+        // Send request and wait for response using the shared runtime
+        let response = rt.block_on(async {
             client.send_request(&request).await?;
             client.take_response_timeout(Duration::from_secs(5))
         })?;
@@ -164,9 +167,13 @@ pub fn run_service_server(
     println!("Waiting for requests...\n");
 
     let mut count = 0;
+    let mut consecutive_errors = 0;
+    const MAX_CONSECUTIVE_ERRORS: u32 = 10;
+
     loop {
         match server.take_request() {
             Ok((key, request)) => {
+                consecutive_errors = 0; // Reset error counter on success
                 count += 1;
                 println!(
                     "[Server] Request {}: {} {} {}",
@@ -231,7 +238,10 @@ pub fn run_service_server(
                     },
                 };
 
-                server.send_response(&response, &key)?;
+                if let Err(e) = server.send_response(&response, &key) {
+                    eprintln!("[Server] Failed to send response: {}", e);
+                    consecutive_errors += 1;
+                }
 
                 // Check if we've reached max_requests
                 if let Some(max) = max_requests
@@ -242,8 +252,24 @@ pub fn run_service_server(
                 }
             }
             Err(e) => {
-                eprintln!("[Server] Error: {}", e);
-                std::thread::sleep(std::time::Duration::from_millis(100));
+                consecutive_errors += 1;
+                eprintln!(
+                    "[Server] Error taking request ({} consecutive): {}",
+                    consecutive_errors, e
+                );
+
+                // If we have too many consecutive errors, exit to avoid infinite loops
+                if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
+                    eprintln!(
+                        "[Server] Too many consecutive errors ({}), exiting",
+                        consecutive_errors
+                    );
+                    break;
+                }
+
+                // Sleep briefly before retrying, but with exponential backoff
+                let sleep_ms = 100 * (consecutive_errors as u64).min(10);
+                std::thread::sleep(std::time::Duration::from_millis(sleep_ms));
             }
         }
     }
