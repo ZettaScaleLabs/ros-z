@@ -38,6 +38,7 @@ let
         "sub"
         "iframe"
         "script"
+        "img"
       ];
     };
     # First line in file should be a top-level heading
