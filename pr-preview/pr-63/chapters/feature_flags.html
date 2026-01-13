@@ -1,0 +1,566 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Feature Flags - ros-z Documentation</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Native Rust ROS 2 implementation using Zenoh">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../mdbook-admonish.css">
+        <link rel="stylesheet" href="../book/mdbook-admonish.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ros-z Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/ZettaScaleLabs/ros-z" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/ZettaScaleLabs/ros-z/edit/main/src/chapters/feature_flags.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="feature-flags"><a class="header" href="#feature-flags">Feature Flags</a></h1>
+<p><strong>Fine-grained control over dependencies and functionality through Cargo feature flags.</strong> Build exactly what you need, from zero-dependency core to full ROS 2 integration, without carrying unused code.</p>
+<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
+<div class="admonition-title">
+<div id="admonition-success-title">
+<p>Success</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-success"></a>
+</div>
+<div>
+<p>Feature flags enable pay-per-use dependencies. Start minimal and enable features incrementally as requirements grow.</p>
+</div>
+</div>
+<h2 id="feature-categories"><a class="header" href="#feature-categories">Feature Categories</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Category</th><th>Purpose</th><th>Example Features</th></tr></thead><tbody>
+<tr><td><strong>Message Packages</strong></td><td>Enable ROS 2 message types</td><td><code>std_msgs</code>, <code>geometry_msgs</code></td></tr>
+<tr><td><strong>Serialization</strong></td><td>Additional encoding formats</td><td><code>protobuf</code></td></tr>
+<tr><td><strong>Integration</strong></td><td>External system bindings</td><td><code>rcl-z</code>, <code>external_msgs</code></td></tr>
+</tbody></table>
+</div>
+<h2 id="ros-z-core-features"><a class="header" href="#ros-z-core-features">ros-z Core Features</a></h2>
+<h3 id="protobuf"><a class="header" href="#protobuf"><code>protobuf</code></a></h3>
+<p>Enables Protocol Buffers serialization using <code>prost</code>.</p>
+<pre><code class="language-bash">cargo build -p ros-z --features protobuf
+</code></pre>
+<p><strong>Use cases:</strong></p>
+<ul>
+<li>Schema evolution support</li>
+<li>Language-agnostic data exchange</li>
+<li>Efficient binary encoding</li>
+<li>Familiar protobuf ecosystem</li>
+</ul>
+<p><strong>Dependencies:</strong> <code>prost</code>, <code>prost-types</code></p>
+<div id="admonition-info" class="admonition admonish-info" role="note" aria-labelledby="admonition-info-title">
+<div class="admonition-title">
+<div id="admonition-info-title">
+<p>Info</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-info"></a>
+</div>
+<div>
+<p>Protobuf is optional. CDR serialization (default) provides full ROS 2 compatibility without additional dependencies.</p>
+</div>
+</div>
+<h3 id="rcl-z"><a class="header" href="#rcl-z"><code>rcl-z</code></a></h3>
+<p>Enables RCL (ROS Client Library) integration for C/C++ interoperability.</p>
+<pre><code class="language-bash">cargo build -p ros-z --features rcl-z
+</code></pre>
+<p><strong>Use cases:</strong></p>
+<ul>
+<li>Integrating with existing RCL-based code</li>
+<li>Leveraging C/C++ ROS 2 libraries</li>
+<li>Hybrid Rust/C++ applications</li>
+</ul>
+<p><strong>Requirements:</strong> ROS 2 installation with RCL libraries</p>
+<div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
+<div class="admonition-title">
+<div id="admonition-warning-title">
+<p>Warning</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-warning"></a>
+</div>
+<div>
+<p>This feature requires ROS 2 to be sourced before building. See <a href="./building.html">Building Guide</a> for setup instructions.</p>
+</div>
+</div>
+<h3 id="external_msgs"><a class="header" href="#external_msgs"><code>external_msgs</code></a></h3>
+<p>Propagates to <code>ros-z-msgs/external_msgs</code> for examples using external message packages.</p>
+<pre><code class="language-bash">cargo build -p ros-z --features external_msgs
+cargo run --example z_srvcli --features external_msgs
+</code></pre>
+<p><strong>Enables:</strong> Examples requiring <code>example_interfaces</code> and other external packages</p>
+<h2 id="ros-z-msgs-features"><a class="header" href="#ros-z-msgs-features">ros-z-msgs Features</a></h2>
+<h3 id="default-features"><a class="header" href="#default-features">Default Features</a></h3>
+<p>The default build includes commonly used message types:</p>
+<pre><code class="language-bash">cargo build -p ros-z-msgs
+</code></pre>
+<p><strong>Includes:</strong></p>
+<ul>
+<li><code>common_interfaces</code> meta-feature
+<ul>
+<li><code>std_msgs</code> - Basic types (String, Int32, etc.)</li>
+<li><code>geometry_msgs</code> - Spatial types (Point, Pose, Transform)</li>
+<li><code>sensor_msgs</code> - Sensor data (LaserScan, Image, Imu)</li>
+</ul>
+</li>
+</ul>
+<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
+<div class="admonition-title">
+<div id="admonition-tip-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-tip"></a>
+</div>
+<div>
+<p>Default features require no ROS 2 installation. Message definitions come bundled via roslibrust.</p>
+</div>
+</div>
+<h3 id="bundled-message-features"><a class="header" href="#bundled-message-features">Bundled Message Features</a></h3>
+<p>Work without ROS 2 installation:</p>
+<pre class="mermaid">graph LR
+    A[Bundled Features] --&gt; B[std_msgs]
+    A --&gt; C[geometry_msgs]
+    A --&gt; D[sensor_msgs]
+    A --&gt; E[nav_msgs]
+
+    B --&gt; F[roslibrust assets]
+    C --&gt; F
+    D --&gt; F
+    E --&gt; F
+</pre>
+<p><strong>Individual packages:</strong></p>
+<div class="table-wrapper"><table><thead><tr><th>Feature</th><th>Package</th><th>Use Case</th></tr></thead><tbody>
+<tr><td><code>std_msgs</code></td><td>Standard messages</td><td>Strings, numbers, arrays</td></tr>
+<tr><td><code>geometry_msgs</code></td><td>Geometric primitives</td><td>Points, poses, transforms</td></tr>
+<tr><td><code>sensor_msgs</code></td><td>Sensor data</td><td>Cameras, lidars, IMUs</td></tr>
+<tr><td><code>nav_msgs</code></td><td>Navigation</td><td>Paths, maps, odometry</td></tr>
+</tbody></table>
+</div>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-bash"># Single package
+cargo build -p ros-z-msgs --features std_msgs
+
+# Multiple packages
+cargo build -p ros-z-msgs --features "std_msgs,geometry_msgs"
+
+# All bundled
+cargo build -p ros-z-msgs --features bundled_msgs
+</code></pre>
+<h3 id="external-message-features"><a class="header" href="#external-message-features">External Message Features</a></h3>
+<p>Require ROS 2 installation:</p>
+<pre class="mermaid">graph LR
+    A[External Features] --&gt; B[example_interfaces]
+    B --&gt; C[ROS 2 Installation]
+    C --&gt; D[AMENT_PREFIX_PATH]
+</pre>
+<p><strong>Available packages:</strong></p>
+<div class="table-wrapper"><table><thead><tr><th>Feature</th><th>Package</th><th>Use Case</th></tr></thead><tbody>
+<tr><td><code>example_interfaces</code></td><td>Tutorial services</td><td>AddTwoInts, Fibonacci</td></tr>
+<tr><td><code>action_msgs</code></td><td>Action types</td><td>GoalStatus, ActionFeedback</td></tr>
+<tr><td><em>(custom)</em></td><td>Your packages</td><td>Domain-specific types</td></tr>
+</tbody></table>
+</div>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-bash"># Ensure ROS 2 is sourced
+source /opt/ros/jazzy/setup.bash
+
+# Build with external messages
+cargo build -p ros-z-msgs --features external_msgs
+
+# Or specific package
+cargo build -p ros-z-msgs --features example_interfaces
+</code></pre>
+<div id="admonition-warning-1" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-1-title">
+<div class="admonition-title">
+<div id="admonition-warning-1-title">
+<p>Warning</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-warning-1"></a>
+</div>
+<div>
+<p>External message features fail without ROS 2. Source your ROS 2 installation before building.</p>
+</div>
+</div>
+<h3 id="meta-features"><a class="header" href="#meta-features">Meta Features</a></h3>
+<p>Convenience features that enable multiple packages:</p>
+<p><strong><code>common_interfaces</code> (default):</strong></p>
+<pre><code class="language-bash">cargo build -p ros-z-msgs --features common_interfaces
+</code></pre>
+<p>Enables: <code>std_msgs</code>, <code>geometry_msgs</code>, <code>sensor_msgs</code></p>
+<p><strong><code>bundled_msgs</code>:</strong></p>
+<pre><code class="language-bash">cargo build -p ros-z-msgs --features bundled_msgs
+</code></pre>
+<p>Enables: <code>std_msgs</code>, <code>geometry_msgs</code>, <code>sensor_msgs</code>, <code>nav_msgs</code></p>
+<p><strong><code>all_msgs</code>:</strong></p>
+<pre><code class="language-bash">cargo build -p ros-z-msgs --features all_msgs
+</code></pre>
+<p>Enables: All bundled + all external messages</p>
+<h3 id="protobuf-types"><a class="header" href="#protobuf-types">Protobuf Types</a></h3>
+<p>Generate protobuf types alongside ROS messages:</p>
+<pre><code class="language-bash">cargo build -p ros-z-msgs --features protobuf
+</code></pre>
+<p><strong>Note:</strong> Requires <code>ros-z/protobuf</code> feature enabled as well.</p>
+<h2 id="ros-z-codegen-features"><a class="header" href="#ros-z-codegen-features">ros-z-codegen Features</a></h2>
+<h3 id="protobuf-code-generation"><a class="header" href="#protobuf-code-generation">Protobuf Code Generation</a></h3>
+<p>Enable protobuf code generation support:</p>
+<pre><code class="language-bash">cargo build -p ros-z-codegen --features protobuf
+</code></pre>
+<p><strong>Use case:</strong> Building tools that generate protobuf code from ROS messages</p>
+<h2 id="feature-dependency-graph"><a class="header" href="#feature-dependency-graph">Feature Dependency Graph</a></h2>
+<pre class="mermaid">graph TD
+    A[all_msgs] --&gt; B[bundled_msgs]
+    A --&gt; C[external_msgs]
+
+    B --&gt; D[std_msgs]
+    B --&gt; E[geometry_msgs]
+    B --&gt; F[sensor_msgs]
+    B --&gt; G[nav_msgs]
+
+    C --&gt; H[example_interfaces]
+
+    I[common_interfaces] --&gt; D
+    I --&gt; E
+    I --&gt; F
+</pre>
+<h2 id="common-feature-combinations"><a class="header" href="#common-feature-combinations">Common Feature Combinations</a></h2>
+<h3 id="minimal-development"><a class="header" href="#minimal-development">Minimal Development</a></h3>
+<p>Core library only, no messages:</p>
+<pre><code class="language-bash">cargo build -p ros-z
+</code></pre>
+<p><strong>Dependencies:</strong> Rust, Cargo
+<strong>Use case:</strong> Custom messages only</p>
+<h3 id="standard-development"><a class="header" href="#standard-development">Standard Development</a></h3>
+<p>Core with common message types:</p>
+<pre><code class="language-bash">cargo build -p ros-z-msgs  # Uses default common_interfaces
+cargo build -p ros-z
+</code></pre>
+<p><strong>Dependencies:</strong> Rust, Cargo
+<strong>Use case:</strong> Most applications</p>
+<h3 id="full-ros-2-integration"><a class="header" href="#full-ros-2-integration">Full ROS 2 Integration</a></h3>
+<p>Everything including external messages:</p>
+<pre><code class="language-bash">source /opt/ros/jazzy/setup.bash
+cargo build -p ros-z-msgs --features all_msgs
+cargo build -p ros-z --features external_msgs
+cargo build -p rcl-z
+</code></pre>
+<p><strong>Dependencies:</strong> Rust, Cargo, ROS 2
+<strong>Use case:</strong> Complete ROS 2 ecosystem integration</p>
+<h3 id="protobuf-development"><a class="header" href="#protobuf-development">Protobuf Development</a></h3>
+<p>Core with protobuf serialization:</p>
+<pre><code class="language-bash">cargo build -p ros-z-codegen --features protobuf
+cargo build -p ros-z-msgs --features protobuf
+cargo build -p ros-z --features protobuf
+</code></pre>
+<p><strong>Dependencies:</strong> Rust, Cargo, Protobuf compiler
+<strong>Use case:</strong> Cross-language data exchange</p>
+<h2 id="feature-matrix"><a class="header" href="#feature-matrix">Feature Matrix</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Package</th><th>Feature</th><th>Requires ROS 2</th><th>Adds Dependencies</th></tr></thead><tbody>
+<tr><td>ros-z</td><td>(none)</td><td>No</td><td>None</td></tr>
+<tr><td>ros-z</td><td>protobuf</td><td>No</td><td>prost, prost-types</td></tr>
+<tr><td>ros-z</td><td>rcl-z</td><td>Yes</td><td>RCL libraries</td></tr>
+<tr><td>ros-z</td><td>external_msgs</td><td>Yes (propagated)</td><td>None</td></tr>
+<tr><td>ros-z-msgs</td><td>common_interfaces</td><td>No</td><td>None (bundled)</td></tr>
+<tr><td>ros-z-msgs</td><td>bundled_msgs</td><td>No</td><td>None (bundled)</td></tr>
+<tr><td>ros-z-msgs</td><td>external_msgs</td><td>Yes</td><td>None (uses system)</td></tr>
+<tr><td>ros-z-msgs</td><td>protobuf</td><td>No</td><td>prost, prost-types</td></tr>
+<tr><td>ros-z-codegen</td><td>protobuf</td><td>No</td><td>prost-build</td></tr>
+</tbody></table>
+</div>
+<h2 id="checking-active-features"><a class="header" href="#checking-active-features">Checking Active Features</a></h2>
+<p>View enabled features for a package:</p>
+<pre><code class="language-bash"># Show features for ros-z-msgs
+cargo tree -p ros-z-msgs -e features
+
+# Show all workspace features
+cargo tree -e features
+
+# Build with specific features and verify
+cargo build -p ros-z-msgs --features std_msgs,geometry_msgs -v
+</code></pre>
+<div id="admonition-tip-1" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-1-title">
+<div class="admonition-title">
+<div id="admonition-tip-1-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-tip-1"></a>
+</div>
+<div>
+<p>Use <code>cargo tree</code> to debug feature resolution issues. It shows exactly which features are active and why.</p>
+</div>
+</div>
+<h2 id="feature-selection-strategy"><a class="header" href="#feature-selection-strategy">Feature Selection Strategy</a></h2>
+<pre class="mermaid">flowchart TD
+    A[Start Project] --&gt; B{Need ROS messages?}
+    B --&gt;|No| C[Zero features&lt;br/&gt;Custom messages]
+    B --&gt;|Yes| D{Which messages?}
+
+    D --&gt;|Common| E{ROS 2 available?}
+    E --&gt;|No| F[bundled_msgs&lt;br/&gt;No ROS required]
+    E --&gt;|Yes| G[bundled_msgs&lt;br/&gt;Or all_msgs]
+
+    D --&gt;|All/External| H[all_msgs&lt;br/&gt;Requires ROS 2]
+
+    C --&gt; I[Minimal dependencies]
+    F --&gt; J[Standard dependencies]
+    G --&gt; K[Standard dependencies]
+    H --&gt; L[Full dependencies]
+</pre>
+<p><strong>Decision guide:</strong></p>
+<ol>
+<li><strong>Prototyping?</strong> → Use bundled_msgs (no ROS 2 required)</li>
+<li><strong>Need external packages?</strong> → Use all_msgs (requires ROS 2)</li>
+<li><strong>Custom messages only?</strong> → No message features</li>
+<li><strong>Cross-language data?</strong> → Add protobuf feature</li>
+<li><strong>C++ integration?</strong> → Add rcl-z feature</li>
+</ol>
+<div id="admonition-info-1" class="admonition admonish-info" role="note" aria-labelledby="admonition-info-1-title">
+<div class="admonition-title">
+<div id="admonition-info-1-title">
+<p>Info</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-info-1"></a>
+</div>
+<div>
+<p>First build with message generation is slow. Incremental builds are fast. Choose the minimal feature set that meets your needs.</p>
+</div>
+</div>
+<h2 id="examples-by-feature"><a class="header" href="#examples-by-feature">Examples by Feature</a></h2>
+<h3 id="bundled-messages-only"><a class="header" href="#bundled-messages-only">Bundled Messages Only</a></h3>
+<pre><code class="language-bash">cargo run --example z_pubsub          # std_msgs
+cargo run --example twist_pub         # geometry_msgs
+cargo run --example battery_state_sub # sensor_msgs
+cargo run --example z_pingpong        # std_msgs
+</code></pre>
+<h3 id="external-messages-required"><a class="header" href="#external-messages-required">External Messages Required</a></h3>
+<pre><code class="language-bash">cargo run --example z_srvcli --features external_msgs  # example_interfaces
+</code></pre>
+<h3 id="custom-messages"><a class="header" href="#custom-messages">Custom Messages</a></h3>
+<pre><code class="language-bash">cargo run --example z_custom_message  # No features needed
+</code></pre>
+<h2 id="resources"><a class="header" href="#resources">Resources</a></h2>
+<ul>
+<li><strong><a href="./building.html">Building Guide</a></strong> - Build procedures for each scenario</li>
+<li><strong><a href="./message_generation.html">Message Generation</a></strong> - How messages are generated</li>
+</ul>
+<p><strong>Start with default features and add more as your project evolves. Feature flags provide flexibility without forcing early architectural decisions.</strong></p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../chapters/nix.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../chapters/troubleshooting.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../chapters/nix.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../chapters/troubleshooting.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../mermaid.min.js"></script>
+        <script src="../mermaid-init.js"></script>
+
+
+
+    </div>
+    </body>
+</html>
