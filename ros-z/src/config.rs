@@ -40,6 +40,73 @@ pub struct ConfigOverride {
     pub reason: &'static str,
 }
 
+/// ROS 2 distro-specific default configurations
+///
+/// Different ROS 2 distributions have different default behaviors and feature support.
+/// This struct captures those differences to ensure compatibility with rmw_zenoh_cpp.
+#[derive(Debug, Clone)]
+pub struct DistroDefaults {
+    /// Default query timeout in milliseconds
+    pub query_timeout_ms: u64,
+    /// Whether this distro supports shared memory (SHM)
+    pub supports_shm: bool,
+    /// Whether this distro supports type hashing
+    pub supports_type_hash: bool,
+}
+
+impl DistroDefaults {
+    /// ROS 2 Humble (LTS) defaults
+    ///
+    /// - Humble uses rmw_zenoh v0.1.8
+    /// - Query timeout: 5s
+    /// - No SHM support
+    /// - Type hash uses placeholder "TypeHashNotSupported"
+    pub const fn humble() -> Self {
+        Self {
+            query_timeout_ms: 5_000,
+            supports_shm: false,
+            supports_type_hash: false,
+        }
+    }
+
+    /// ROS 2 Jazzy defaults
+    ///
+    /// - Jazzy uses rmw_zenoh v0.2.9
+    /// - Query timeout: 10 minutes (600s)
+    /// - SHM support enabled
+    /// - Real type hashes (RIHS01 format)
+    pub const fn jazzy() -> Self {
+        Self {
+            query_timeout_ms: 600_000,
+            supports_shm: true,
+            supports_type_hash: true,
+        }
+    }
+
+    /// ROS 2 Rolling defaults (same as Jazzy)
+    pub const fn rolling() -> Self {
+        Self::jazzy()
+    }
+
+    /// Get the default for the currently compiled distro based on feature flags
+    /// When multiple distro features are enabled (e.g., with --all-features),
+    /// priority order is: humble > rolling > jazzy (default)
+    pub const fn current() -> Self {
+        // Priority 1: Humble
+        if cfg!(feature = "humble") {
+            return Self::humble();
+        }
+
+        // Priority 2: Rolling (if humble is not set)
+        if cfg!(feature = "rolling") {
+            return Self::rolling();
+        }
+
+        // Priority 3 (default): Jazzy
+        Self::jazzy()
+    }
+}
+
 /// Common overrides shared between router and session configs (10 settings)
 fn common_overrides() -> &'static [ConfigOverride] {
     static COMMON: LazyLock<Vec<ConfigOverride>> = LazyLock::new(|| {

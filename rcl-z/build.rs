@@ -6,21 +6,56 @@ const INCLUDE_PACKAGES: &[&str] = &[
     "rcutils",
     "rcl_yaml_param_parser",
     "rosidl_runtime_c",
-    "type_description_interfaces",
     "service_msgs",
     "builtin_interfaces",
     "rosidl_typesupport_interface",
     "rosidl_dynamic_typesupport",
     "fastcdr",
-    "type_description_interfaces",
 ];
 
 fn main() {
     // Declare custom cfg for auto-detection
     println!("cargo:rustc-check-cfg=cfg(has_test_msgs)");
+    println!("cargo:rustc-check-cfg=cfg(has_type_description_interfaces)");
 
     // Get AMENT_PREFIX_PATH from the environment
     let ament_prefix = env::var("AMENT_PREFIX_PATH").expect("AMENT_PREFIX_PATH is missing!");
+
+    // Check if type_description_interfaces is available (not in Humble)
+    let has_type_description = ament_prefix.split(':').any(|prefix| {
+        PathBuf::from(prefix)
+            .join("include/type_description_interfaces")
+            .exists()
+    });
+
+    if has_type_description {
+        println!("cargo:rustc-cfg=has_type_description_interfaces");
+        println!("cargo:warning=type_description_interfaces found - enabling support");
+    } else {
+        println!("cargo:warning=type_description_interfaces not found - disabling support (Humble mode)");
+    }
+
+    // Check FastCDR version - Humble uses FastCDR 1.0.x which doesn't have CdrVersion enum
+    // Jazzy+ uses FastCDR 1.1.0+ which has CdrVersion::DDS_CDR
+    let has_fastcdr_v2 = ament_prefix.split(':').any(|prefix| {
+        let version_file = PathBuf::from(prefix).join("share/fastcdr/package.xml");
+        if let Ok(content) = std::fs::read_to_string(&version_file) {
+            // Check if version is >= 1.1.0 (simple heuristic: contains "1.1" or "1.2" etc)
+            content.contains("<version>1.1")
+                || content.contains("<version>1.2")
+                || content.contains("<version>2.")
+        } else {
+            false
+        }
+    });
+
+    if has_fastcdr_v2 {
+        println!("cargo:rustc-cfg=has_fastcdr_v2");
+        println!("cargo:warning=FastCDR v1.1+ detected - using CdrVersion API");
+    } else {
+        println!("cargo:warning=FastCDR v1.0 detected - using legacy API (Humble)");
+    }
+    println!("cargo:rustc-check-cfg=cfg(has_fastcdr_v2)");
 
     // Collect all include paths
     let mut include_args = Vec::new();
@@ -33,10 +68,23 @@ fn main() {
             }
         }
     }
+
+    // Add type_description_interfaces if available
+    if has_type_description {
+        for prefix in ament_prefix.split(':') {
+            let pkg_path = PathBuf::from(prefix).join("include/type_description_interfaces");
+            if pkg_path.exists() {
+                include_args.push(format!("-I{}", pkg_path.display()));
+                break;
+            }
+        }
+        // Define macro for C++ code
+        include_args.push("-DHAS_TYPE_DESCRIPTION_INTERFACES".to_string());
+    }
     // println!("cargo:warning=include_args: {:?}", include_args);
 
     // Build the bindgen builder
-    let builder = bindgen::Builder::default()
+    let mut builder = bindgen::Builder::default()
         .header("wrapper.hpp")
         .generate_comments(false)
         .clang_args(include_args)
@@ -44,7 +92,6 @@ fn main() {
         .allowlist_function("rmw_get_gid_for_publisher")
         .allowlist_function("rmw_publisher_count_matched_subscriptions")
         .allowlist_function("rmw_subscription_count_matched_publishers")
-        .allowlist_function("rosidl_typesupport_c__get_service_type_support_handle__type_description_interfaces__srv__GetTypeDescription")
         .allowlist_type("rcl_.*")
         .blocklist_type("rmw_qos_profile_s")
         .blocklist_type("rmw_qos_.*_policy_e")
@@ -59,6 +106,11 @@ fn main() {
         .derive_default(true)
         .derive_partialeq(true)
         .derive_eq(true);
+
+    // Only add type_description_interfaces support if available
+    if has_type_description {
+        builder = builder.allowlist_function("rosidl_typesupport_c__get_service_type_support_handle__type_description_interfaces__srv__GetTypeDescription");
+    }
 
     let blocked_functions = [
         "rcl_init_options_init",
@@ -84,7 +136,6 @@ fn main() {
         "rcl_init_options_get_allocator",
     ];
 
-    let mut builder = builder;
     for func in blocked_functions {
         builder = builder.blocklist_function(func);
     }
@@ -119,12 +170,19 @@ fn main() {
         }
     }
     // cxx_build::bridge("src/lib.rs")
-    cxx_build::bridge("src/type_support.rs")
+    let mut cxx_builder = cxx_build::bridge("src/type_support.rs");
+    cxx_builder
         .file("src/serde_bridge.cc")
         .include("include")
         .includes(include_dirs)
-        .std("c++17")
-        .compile("serde_bridge");
+        .std("c++17");
+
+    // Pass FastCDR version flag to C++ compiler
+    if has_fastcdr_v2 {
+        cxx_builder.define("HAS_FASTCDR_V2", None);
+    }
+
+    cxx_builder.compile("serde_bridge");
 
     println!("cargo:rerun-if-changed=wrapper.hpp");
     println!("cargo:rerun-if-changed=src/lib.rs");
@@ -142,7 +200,11 @@ fn main() {
     println!("cargo:rustc-link-lib=dylib=rosidl_runtime_c");
     println!("cargo:rustc-link-lib=dylib=rosidl_typesupport_fastrtps_c");
     println!("cargo:rustc-link-lib=dylib=rosidl_typesupport_fastrtps_cpp");
-    println!("cargo:rustc-link-lib=dylib=type_description_interfaces__rosidl_typesupport_c");
+
+    // Only link type_description_interfaces if available
+    if has_type_description {
+        println!("cargo:rustc-link-lib=dylib=type_description_interfaces__rosidl_typesupport_c");
+    }
 
     // Link test_msgs for tests
     #[cfg(feature = "test-msgs")]
