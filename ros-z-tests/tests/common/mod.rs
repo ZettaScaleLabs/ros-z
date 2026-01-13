@@ -9,11 +9,13 @@ use zenoh::config::WhatAmI;
 use zenoh::Wait;
 
 /// Helper to manage background processes with automatic cleanup
+#[allow(dead_code)]
 pub struct ProcessGuard {
     child: Option<Child>,
     name: String,
 }
 
+#[allow(dead_code)]
 impl ProcessGuard {
     pub fn new(child: Child, name: &str) -> Self {
         println!("Started process: {}", name);
@@ -90,6 +92,7 @@ static NEXT_PORT: once_cell::sync::Lazy<AtomicU16> = once_cell::sync::Lazy::new(
 
 /// Per-test Zenoh router configuration
 pub struct TestRouter {
+    #[allow(dead_code)]
     pub port: u16,
     pub endpoint: String,
     _session: zenoh::Session,
@@ -130,6 +133,7 @@ impl TestRouter {
     }
 
     /// Get environment variable override for RMW Zenoh
+    #[allow(dead_code)]
     pub fn rmw_zenoh_env(&self) -> String {
         format!("connect/endpoints=[\"tcp/127.0.0.1:{}\"]", self.port)
     }
@@ -156,6 +160,7 @@ pub fn wait_for_ready(duration: Duration) {
 }
 
 /// Check if ros2 CLI is available
+#[allow(dead_code)]
 pub fn check_ros2_available() -> bool {
     Command::new("ros2").arg("--version").output().is_ok()
 }

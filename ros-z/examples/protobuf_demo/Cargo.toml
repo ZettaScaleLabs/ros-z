@@ -10,7 +10,7 @@ path = "src/lib.rs"
 
 [[bin]]
 name = "protobuf_demo"
-path = "src/main.rs"
+path = "src/demo.rs"
 
 [dependencies]
 ros-z = { workspace = true, features = ["protobuf"] }

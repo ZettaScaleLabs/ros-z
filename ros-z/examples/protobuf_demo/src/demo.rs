@@ -1,7 +1,6 @@
 use clap::Parser;
-use ros_z::{Builder, Result, context::ZContextBuilder};
-
 use protobuf_demo::{run_pubsub_demo, run_service_client, run_service_server};
+use ros_z::{Builder, Result, context::ZContextBuilder};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -89,9 +88,8 @@ fn main() -> Result<()> {
             let service_name = args.service.clone();
 
             // Run server in background thread
-            let _server_handle = std::thread::spawn(move || {
-                run_service_server(server_ctx, &service_name, Some(5))
-            });
+            let _server_handle =
+                std::thread::spawn(move || run_service_server(server_ctx, &service_name, Some(5)));
 
             // Give server time to start
             std::thread::sleep(std::time::Duration::from_millis(500));

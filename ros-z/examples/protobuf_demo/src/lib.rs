@@ -1,4 +1,4 @@
-// ! Protobuf demo module
+//! Protobuf demo module
 //!
 //! This module demonstrates using protobuf messages with ros-z for both
 //! pub/sub and service communication.
@@ -6,15 +6,247 @@
 //! Re-exports functions from example modules, allowing tests to import
 //! and use the exact same code that users run.
 
-pub mod pubsub;
-pub mod service_client;
-pub mod service_server;
-pub mod types;
+use std::time::Duration;
 
-// Re-export main functions for easy access
-pub use pubsub::run_pubsub_demo;
-pub use service_client::run_service_client;
-pub use service_server::run_service_server;
+use ros_z::{Builder, Result, context::ZContext, msg::ProtobufSerdes};
+use ros_z_msgs::proto::geometry_msgs::Vector3 as Vector3Proto;
+
+pub mod types;
 
 // Re-export types for tests
 pub use types::{Calculate, CalculateRequest, CalculateResponse, SensorData};
+
+/// Run protobuf pub/sub demo
+///
+/// Demonstrates two approaches:
+/// 1. ROS messages with protobuf serialization (Vector3Proto)
+/// 2. Custom protobuf messages (SensorData)
+pub fn run_pubsub_demo(ctx: ZContext, max_count: Option<usize>) -> Result<()> {
+    let node = ctx.create_node("protobuf_pubsub_demo").build()?;
+
+    println!("\n=== Protobuf Serialization Demo ===");
+    println!("This demonstrates two ways to use protobuf with ros-z:");
+    println!("1. ROS messages with protobuf serialization (from ros-z-msgs)");
+    println!("2. Custom protobuf messages (from .proto files)");
+    println!("=====================================================\n");
+
+    // Part 1: ROS message with protobuf serialization
+    println!("--- Part 1: ROS geometry_msgs/Vector3 with Protobuf ---");
+    let ros_pub = node
+        .create_pub::<Vector3Proto>("/vector_proto")
+        .with_serdes::<ProtobufSerdes<Vector3Proto>>()
+        .build()?;
+
+    println!("Publishing ROS Vector3 messages...\n");
+    let count = max_count.unwrap_or(3);
+    for i in 0..count {
+        let msg = Vector3Proto {
+            x: i as f64,
+            y: (i as f64) * 2.0,
+            z: (i as f64) * 3.0,
+        };
+
+        ros_pub.publish(&msg)?;
+        println!("  Published Vector3: x={}, y={}, z={}", msg.x, msg.y, msg.z);
+        std::thread::sleep(Duration::from_millis(500));
+    }
+
+    // Part 2: Custom protobuf message
+    println!("\n--- Part 2: Custom SensorData message (pure protobuf) ---");
+    let custom_pub = node
+        .create_pub::<SensorData>("/sensor_data")
+        .with_serdes::<ProtobufSerdes<SensorData>>()
+        .build()?;
+
+    println!("Publishing custom SensorData messages...\n");
+    for i in 0..count {
+        let msg = SensorData {
+            sensor_id: format!("sensor_{}", i),
+            temperature: 20.0 + (i as f64) * 0.5,
+            humidity: 45.0 + (i as f64) * 2.0,
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as i64,
+        };
+
+        custom_pub.publish(&msg)?;
+        println!(
+            "  Published SensorData: id={}, temp={:.1}°C, humidity={:.1}%, ts={}",
+            msg.sensor_id, msg.temperature, msg.humidity, msg.timestamp
+        );
+        std::thread::sleep(Duration::from_millis(500));
+    }
+
+    println!("\nSuccessfully demonstrated both protobuf approaches!");
+    println!("\nKey points:");
+    println!("1. ROS messages (Vector3Proto): Auto-generated from ros-z-msgs with MessageTypeInfo");
+    println!("2. Custom messages (SensorData): Generated from your own .proto files");
+    println!("3. Both use .with_serdes::<ProtobufSerdes<T>>() for protobuf serialization");
+    println!("4. ros-z is transport-agnostic - works with ANY protobuf message!");
+
+    Ok(())
+}
+
+/// Run the calculator service client
+///
+/// # Arguments
+/// * `ctx` - The ROS-Z context
+/// * `service_name` - Name of the service to call
+/// * `operations` - List of (operation, a, b) tuples to execute
+pub fn run_service_client(
+    ctx: ZContext,
+    service_name: &str,
+    operations: Vec<(&str, f64, f64)>,
+) -> Result<()> {
+    let node = ctx.create_node("calculator_client").build()?;
+
+    let client = node.create_client::<Calculate>(service_name).build()?;
+
+    println!("Calculator service client started");
+    println!("Calling service '{}'...\n", service_name);
+
+    // Give server time to start if needed
+    std::thread::sleep(Duration::from_millis(500));
+
+    for (op, a, b) in operations {
+        println!("[Client] Sending: {} {} {}", a, op, b);
+
+        let request = CalculateRequest {
+            a,
+            b,
+            operation: op.to_string(),
+        };
+
+        // Send request and wait for response
+        let response = tokio::runtime::Runtime::new().unwrap().block_on(async {
+            client.send_request(&request).await?;
+            client.take_response_timeout(Duration::from_secs(5))
+        })?;
+
+        if response.success {
+            println!("[Client] ✓ Success: {}", response.message);
+        } else {
+            println!("[Client] ✗ Failed: {}", response.message);
+        }
+        println!();
+
+        std::thread::sleep(Duration::from_millis(200));
+    }
+
+    println!("Successfully demonstrated protobuf service calls!");
+    println!("\nKey points:");
+    println!("1. Request/Response: Protobuf messages generated from .proto files");
+    println!("2. Both implement MessageTypeInfo, WithTypeInfo, and ZMessage traits");
+    println!("3. Service type implements ZService and ServiceTypeInfo");
+    println!("4. Works seamlessly with node.create_service() and node.create_client()");
+    println!("5. Uses ProtobufSerdes for pure protobuf serialization (not CDR!)");
+
+    Ok(())
+}
+
+/// Run the calculator service server
+///
+/// # Arguments
+/// * `ctx` - The ROS-Z context
+/// * `service_name` - Name of the service
+/// * `max_requests` - Optional maximum number of requests to handle. If None, handles indefinitely.
+pub fn run_service_server(
+    ctx: ZContext,
+    service_name: &str,
+    max_requests: Option<usize>,
+) -> Result<()> {
+    let node = ctx.create_node("calculator_server").build()?;
+
+    let mut server = node.create_service::<Calculate>(service_name).build()?;
+
+    println!("Calculator service server started on '{}'", service_name);
+    println!("Waiting for requests...\n");
+
+    let mut count = 0;
+    loop {
+        match server.take_request() {
+            Ok((key, request)) => {
+                count += 1;
+                println!(
+                    "[Server] Request {}: {} {} {}",
+                    count, request.a, request.operation, request.b
+                );
+
+                let response = match request.operation.as_str() {
+                    "add" => types::CalculateResponse {
+                        success: true,
+                        result: request.a + request.b,
+                        message: format!(
+                            "{} + {} = {}",
+                            request.a,
+                            request.b,
+                            request.a + request.b
+                        ),
+                    },
+                    "subtract" => types::CalculateResponse {
+                        success: true,
+                        result: request.a - request.b,
+                        message: format!(
+                            "{} - {} = {}",
+                            request.a,
+                            request.b,
+                            request.a - request.b
+                        ),
+                    },
+                    "multiply" => types::CalculateResponse {
+                        success: true,
+                        result: request.a * request.b,
+                        message: format!(
+                            "{} * {} = {}",
+                            request.a,
+                            request.b,
+                            request.a * request.b
+                        ),
+                    },
+                    "divide" => {
+                        if request.b == 0.0 {
+                            types::CalculateResponse {
+                                success: false,
+                                result: 0.0,
+                                message: "Error: Division by zero".to_string(),
+                            }
+                        } else {
+                            types::CalculateResponse {
+                                success: true,
+                                result: request.a / request.b,
+                                message: format!(
+                                    "{} / {} = {}",
+                                    request.a,
+                                    request.b,
+                                    request.a / request.b
+                                ),
+                            }
+                        }
+                    }
+                    _ => types::CalculateResponse {
+                        success: false,
+                        result: 0.0,
+                        message: format!("Error: Unknown operation '{}'", request.operation),
+                    },
+                };
+
+                server.send_response(&response, &key)?;
+
+                // Check if we've reached max_requests
+                if let Some(max) = max_requests
+                    && count >= max
+                {
+                    println!("[Server] Processed {} requests, exiting", count);
+                    break;
+                }
+            }
+            Err(e) => {
+                eprintln!("[Server] Error: {}", e);
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+        }
+    }
+
+    Ok(())
+}

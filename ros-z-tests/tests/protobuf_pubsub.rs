@@ -2,10 +2,7 @@
 
 mod common;
 
-use std::{
-    thread,
-    time::Duration,
-};
+use std::{thread, time::Duration};
 
 use crate::common::*;
 
@@ -17,12 +14,11 @@ fn test_protobuf_pubsub_demo() {
 
     // Run the pub/sub demo using the example code
     let handle = thread::spawn(move || {
-        let ctx = create_ros_z_context_with_router(&router)
-            .expect("Failed to create ros-z context");
+        let ctx =
+            create_ros_z_context_with_router(&router).expect("Failed to create ros-z context");
 
         // Use the actual pubsub demo code with max 3 messages
-        protobuf_demo::run_pubsub_demo(ctx, Some(3))
-            .expect("Pubsub demo failed");
+        protobuf_demo::run_pubsub_demo(ctx, Some(3)).expect("Pubsub demo failed");
     });
 
     handle.join().expect("Pubsub demo thread panicked");
@@ -50,8 +46,7 @@ fn test_protobuf_service_ros_z_to_ros_z() {
     wait_for_ready(Duration::from_secs(2));
 
     // Run client in the main thread
-    let ctx = create_ros_z_context_with_router(&router)
-        .expect("Failed to create ros-z context");
+    let ctx = create_ros_z_context_with_router(&router).expect("Failed to create ros-z context");
 
     let operations = vec![
         ("add", 10.0, 5.0),
@@ -90,20 +85,19 @@ fn test_protobuf_service_multiple_operations() {
     wait_for_ready(Duration::from_secs(2));
 
     // Run client with various operations
-    let ctx = create_ros_z_context_with_router(&router)
-        .expect("Failed to create ros-z context");
+    let ctx = create_ros_z_context_with_router(&router).expect("Failed to create ros-z context");
 
     let operations = vec![
-        ("add", 100.0, 50.0),       // = 150.0
-        ("subtract", 100.0, 50.0),  // = 50.0
-        ("multiply", 100.0, 50.0),  // = 5000.0
-        ("divide", 100.0, 50.0),    // = 2.0
-        ("add", -5.0, 3.0),         // = -2.0
-        ("multiply", -5.0, 3.0),    // = -15.0
-        ("divide", 1.0, 3.0),       // = 0.333...
-        ("divide", 10.0, 0.0),      // Error: division by zero
-        ("unknown", 1.0, 1.0),      // Error: unknown operation
-        ("add", 0.0, 0.0),          // = 0.0
+        ("add", 100.0, 50.0),      // = 150.0
+        ("subtract", 100.0, 50.0), // = 50.0
+        ("multiply", 100.0, 50.0), // = 5000.0
+        ("divide", 100.0, 50.0),   // = 2.0
+        ("add", -5.0, 3.0),        // = -2.0
+        ("multiply", -5.0, 3.0),   // = -15.0
+        ("divide", 1.0, 3.0),      // = 0.333...
+        ("divide", 10.0, 0.0),     // Error: division by zero
+        ("unknown", 1.0, 1.0),     // Error: unknown operation
+        ("add", 0.0, 0.0),         // = 0.0
     ];
 
     protobuf_demo::run_service_client(ctx, "/multi_calc", operations)
@@ -135,13 +129,12 @@ fn test_protobuf_service_error_handling() {
     wait_for_ready(Duration::from_secs(2));
 
     // Run client with error cases
-    let ctx = create_ros_z_context_with_router(&router)
-        .expect("Failed to create ros-z context");
+    let ctx = create_ros_z_context_with_router(&router).expect("Failed to create ros-z context");
 
     let operations = vec![
-        ("divide", 10.0, 0.0),      // Error: division by zero
-        ("invalid", 5.0, 5.0),      // Error: unknown operation
-        ("unknown_op", 1.0, 1.0),   // Error: unknown operation
+        ("divide", 10.0, 0.0),    // Error: division by zero
+        ("invalid", 5.0, 5.0),    // Error: unknown operation
+        ("unknown_op", 1.0, 1.0), // Error: unknown operation
     ];
 
     protobuf_demo::run_service_client(ctx, "/error_calc", operations)
