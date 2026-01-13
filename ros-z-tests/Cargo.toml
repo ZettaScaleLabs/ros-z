@@ -30,4 +30,8 @@ ros-msgs = ["dep:ros-z-msgs"]
 external_msgs = ["ros-msgs", "ros-z/external_msgs", "ros-z-msgs/external_msgs"]
 interop-tests = ["external_msgs"]
 
-humble = ["ros-z/humble"]
+# ROS 2 distro compatibility - propagate to ros-z and ros-z-msgs
+humble = ["ros-z/humble", "ros-z-msgs/humble"]
+jazzy = ["ros-z/jazzy", "ros-z-msgs/jazzy"]
+rolling = ["ros-z/rolling", "ros-z-msgs/rolling"]
+iron = ["ros-z/iron", "ros-z-msgs/iron"]

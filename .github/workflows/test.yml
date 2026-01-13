@@ -47,4 +47,8 @@ jobs:
         run: |
           source /opt/ros/${{ matrix.distro }}/setup.bash
           export RMW_IMPLEMENTATION=rmw_zenoh_cpp
-          cargo nextest run -p ros-z-tests --features interop-tests,${{ matrix.distro }} --release
+          if [ "${{ matrix.distro }}" = "humble" ]; then
+            cargo nextest run -p ros-z-tests --no-default-features --features interop-tests,humble --release
+          else
+            cargo nextest run -p ros-z-tests --features interop-tests,${{ matrix.distro }} --release
+          fi
