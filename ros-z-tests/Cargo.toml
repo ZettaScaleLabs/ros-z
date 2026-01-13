@@ -27,4 +27,7 @@ prost = { workspace = true } # For protobuf service tests
 [features]
 default = []
 ros-msgs = ["dep:ros-z-msgs"]
-interop-tests = ["ros-msgs", "ros-z/external_msgs", "ros-z-msgs/external_msgs"]
+external_msgs = ["ros-msgs", "ros-z/external_msgs", "ros-z-msgs/external_msgs"]
+interop-tests = ["external_msgs"]
+
+humble = ["ros-z/humble"]

@@ -83,26 +83,16 @@ impl DistroDefaults {
         }
     }
 
-    /// ROS 2 Rolling defaults (same as Jazzy)
-    pub const fn rolling() -> Self {
-        Self::jazzy()
-    }
-
     /// Get the default for the currently compiled distro based on feature flags
     /// When multiple distro features are enabled (e.g., with --all-features),
-    /// priority order is: humble > rolling > jazzy (default)
+    /// priority order is: humble > jazzy (default)
     pub const fn current() -> Self {
         // Priority 1: Humble
         if cfg!(feature = "humble") {
             return Self::humble();
         }
 
-        // Priority 2: Rolling (if humble is not set)
-        if cfg!(feature = "rolling") {
-            return Self::rolling();
-        }
-
-        // Priority 3 (default): Jazzy
+        // Priority 2 (default): Jazzy
         Self::jazzy()
     }
 }

@@ -130,17 +130,17 @@ jobs:
       - name: Clippy (workspace without rcl-z, without examples)
         run: |
           source /tmp/nix-dev-env.sh
-          cargo clippy --workspace --exclude rcl-z --lib --bins --tests -- -D warnings
+          cargo clippy --workspace --exclude rcl-z --lib --bins --tests --features ${{ matrix.distro }} -- -D warnings
 
       - name: Clippy bundled examples
         run: |
           source /tmp/nix-dev-env.sh
-          cargo clippy -p ros-z --examples -- -D warnings
+          cargo clippy -p ros-z --examples --features ${{ matrix.distro }} -- -D warnings
 
       - name: Clippy external_msgs examples
         run: |
           source /tmp/nix-dev-env.sh
-          cargo clippy -p ros-z --examples --features external_msgs -- -D warnings
+          cargo clippy -p ros-z --examples --features external_msgs,${{ matrix.distro }} -- -D warnings
 
       - name: Clippy rcl-z with distro-specific features
         run: |
@@ -165,64 +165,50 @@ jobs:
       - name: Check ros-z-msgs (default bundled features)
         run: |
           source /tmp/nix-dev-env.sh
-          cargo check -p ros-z-msgs
+          cargo check -p ros-z-msgs --features ${{ matrix.distro }}
 
       - name: Check ros-z-msgs with external messages
         run: |
           source /tmp/nix-dev-env.sh
-          cargo check -p ros-z-msgs --features external_msgs
-          cargo check -p ros-z-msgs --features example_interfaces
+          cargo check -p ros-z-msgs --features external_msgs,${{ matrix.distro }}
+          cargo check -p ros-z-msgs --features example_interfaces,${{ matrix.distro }}
 
       - name: Check ros-z-msgs with all messages (bundled + external)
         run: |
           source /tmp/nix-dev-env.sh
-          cargo check -p ros-z-msgs --features all_msgs
+          cargo check -p ros-z-msgs --features all_msgs,${{ matrix.distro }}
 
       - name: Check with protobuf feature
         run: |
           source /tmp/nix-dev-env.sh
-          cargo check -p ros-z -p ros-z-msgs --features ros-z/protobuf,ros-z-msgs/protobuf
+          cargo check -p ros-z -p ros-z-msgs \
+            --features ros-z/protobuf,ros-z-msgs/protobuf,ros-z/${{ matrix.distro }},ros-z-msgs/${{ matrix.distro }}
 
       - name: Check ros-z (with rcl-z feature)
         run: |
           source /tmp/nix-dev-env.sh
-          cargo check -p ros-z --features rcl-z
+          cargo check -p ros-z --features rcl-z,${{ matrix.distro }}
 
-      - name: Build ROS message examples (bundled messages)
+      - name: Build examples
         run: |
           source /tmp/nix-dev-env.sh
-          cargo build -p ros-z-msgs
-          cargo build --example z_pubsub
-          cargo build --example z_pingpong
-          cargo build --example twist_pub
-          cargo build --example battery_state_sub
-          cargo build --example laser_scan
-          cargo build --example demo_nodes_talker
-          cargo build --example demo_nodes_listener
-          cargo build --example zenoh_router
-          cargo build --example z_custom_message
-
-      - name: Build external message examples
-        run: |
-          source /tmp/nix-dev-env.sh
-          cargo build --example z_srvcli --features external_msgs
-          cargo build --example demo_nodes_add_two_ints_server --features external_msgs
-          cargo build --example demo_nodes_add_two_ints_client --features external_msgs
-          cargo build --example demo_nodes_fibonacci_action_server --features external_msgs
-          cargo build --example demo_nodes_fibonacci_action_client --features external_msgs
+          # Build bundled message examples (those without required-features)
+          cargo build --examples --features ${{ matrix.distro }}
+          # Build external message examples (those with required-features = ["external_msgs"])
+          cargo build --examples --features external_msgs,${{ matrix.distro }}
 
       - name: Build protobuf demo
         run: |
           source /tmp/nix-dev-env.sh
-          cargo build -p protobuf_demo
+          cargo build -p protobuf_demo --features ${{ matrix.distro }}
 
       - name: Run unit tests
         run: |
           source /tmp/nix-dev-env.sh
           if [ "${{ matrix.distro }}" = "humble" ]; then
             # Exclude rcl-z for Humble due to missing type hash/description interfaces
-            cargo nextest run --workspace --exclude rcl-z
+            cargo nextest run --workspace --exclude rcl-z --features ${{ matrix.distro }}
           else
             # Run all tests for Jazzy and newer distros
-            cargo nextest run --workspace
+            cargo nextest run --workspace --features ${{ matrix.distro }}
           fi
