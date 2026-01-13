@@ -22,7 +22,8 @@ jobs:
             ros-jazzy-example-interfaces \
             ros-jazzy-rmw-zenoh-cpp \
             ros-jazzy-demo-nodes-cpp \
-            ros-jazzy-action-tutorials-cpp
+            ros-jazzy-action-tutorials-cpp \
+            protobuf-compiler
 
       - uses: actions/checkout@v4
 

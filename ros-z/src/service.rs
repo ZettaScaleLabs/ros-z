@@ -27,7 +27,7 @@ use crate::{
     common::DataHandler,
     entity::EndpointEntity,
     impl_with_type_info,
-    msg::{CdrSerdes, ZMessage, ZService},
+    msg::{CdrSerdes, ZDeserializer, ZMessage, ZService},
 };
 
 #[derive(Debug)]
@@ -128,20 +128,24 @@ where
 
     pub fn take_response_timeout(&self, timeout: Duration) -> Result<T::Response>
     where
-        for<'c> T::Response: ZMessage<Serdes = CdrSerdes<T::Response>> + Deserialize<'c>,
+        T::Response: ZMessage,
+        for<'a> <T::Response as ZMessage>::Serdes: ZDeserializer<Output = T::Response, Input<'a> = &'a [u8]>,
     {
         let sample = self.take_sample_timeout(timeout)?;
-        let msg = <T::Response as ZMessage>::deserialize(&sample.payload().to_bytes())
+        let payload_bytes = sample.payload().to_bytes();
+        let msg = <T::Response as ZMessage>::deserialize(&payload_bytes[..])
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok(msg)
     }
 
     pub async fn take_response_async(&self) -> Result<T::Response>
     where
-        for<'c> T::Response: ZMessage<Serdes = CdrSerdes<T::Response>> + Deserialize<'c>,
+        T::Response: ZMessage,
+        for<'a> <T::Response as ZMessage>::Serdes: ZDeserializer<Output = T::Response, Input<'a> = &'a [u8]>,
     {
         let sample = self.rx.recv_async().await?;
-        let msg = <T::Response as ZMessage>::deserialize(&sample.payload().to_bytes())
+        let payload_bytes = sample.payload().to_bytes();
+        let msg = <T::Response as ZMessage>::deserialize(&payload_bytes[..])
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok(msg)
     }
@@ -366,8 +370,8 @@ where
     /// This method may fail if the message does not deserialize as the requested type.
     pub fn take_request(&mut self) -> Result<(QueryKey, T::Request)>
     where
-        for<'c> T::Request:
-            ZMessage<Serdes = CdrSerdes<T::Request>> + Send + Sync + 'static + Deserialize<'c>,
+        T::Request: ZMessage + Send + Sync + 'static,
+        for<'a> <T::Request as ZMessage>::Serdes: ZDeserializer<Output = T::Request, Input<'a> = &'a [u8]>,
     {
         let rx = self.rx.as_ref()
             .ok_or_else(|| zenoh::Error::from("Server was built with callback, no queue available"))?;
@@ -377,7 +381,8 @@ where
         if self.map.contains_key(&key) {
             return Err("Existing query detected".into());
         }
-        let msg = <T::Request as ZMessage>::deserialize(&query.payload().unwrap().to_bytes())
+        let payload_bytes = query.payload().unwrap().to_bytes();
+        let msg = <T::Request as ZMessage>::deserialize(&payload_bytes[..])
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
         self.map.insert(key.clone(), query);
 
@@ -389,8 +394,8 @@ where
     /// This method may fail if the message does not deserialize as the requested type.
     pub async fn take_request_async(&mut self) -> Result<(QueryKey, T::Request)>
     where
-        for<'c> T::Request:
-            ZMessage<Serdes = CdrSerdes<T::Request>> + Send + Sync + 'static + Deserialize<'c>,
+        T::Request: ZMessage + Send + Sync + 'static,
+        for<'a> <T::Request as ZMessage>::Serdes: ZDeserializer<Output = T::Request, Input<'a> = &'a [u8]>,
     {
         let rx = self.rx.as_ref()
             .ok_or_else(|| zenoh::Error::from("Server was built with callback, no queue available"))?;
@@ -400,7 +405,8 @@ where
         if self.map.contains_key(&key) {
             return Err("Existing query detected".into());
         }
-        let msg = <T::Request as ZMessage>::deserialize(&query.payload().unwrap().to_bytes())
+        let payload_bytes = query.payload().unwrap().to_bytes();
+        let msg = <T::Request as ZMessage>::deserialize(&payload_bytes[..])
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
         self.map.insert(key.clone(), query);
 
