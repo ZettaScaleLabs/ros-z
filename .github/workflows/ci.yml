@@ -103,6 +103,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        if: matrix.distro == 'humble'
+        with:
+          # Free up space by removing large packages
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: false
+
       - name: Install Determinate Nix
         uses: DeterminateSystems/determinate-nix-action@v3
         with:
@@ -124,7 +137,7 @@ jobs:
         run: |
           nix print-dev-env '.#ros-${{ matrix.distro }}-ci' --accept-flake-config > /tmp/nix-dev-env.sh
           echo "export SCCACHE_GHA_ENABLED=true" >> /tmp/nix-dev-env.sh
-          echo "export SCCACHE_CACHE_SIZE=2G" >> /tmp/nix-dev-env.sh
+          echo "export SCCACHE_CACHE_SIZE=1G" >> /tmp/nix-dev-env.sh
           echo "export RUSTC_WRAPPER=sccache" >> /tmp/nix-dev-env.sh
 
       - name: Check available disk space
@@ -174,9 +187,15 @@ jobs:
 
       - name: Clean clippy artifacts to save space
         run: |
-          cargo clean --release
-          rm -rf target/debug/incremental
-          df -h
+          if [ "${{ matrix.distro }}" = "humble" ]; then
+            # For Humble, do aggressive cleanup
+            cargo clean --release
+            cargo clean --doc
+            rm -rf target/debug/incremental
+            rm -rf target/debug/.fingerprint
+            # Show what we freed
+            df -h
+          fi
 
       - name: Check rcl-z
         run: |
@@ -229,12 +248,18 @@ jobs:
 
       - name: Clean build artifacts to save space
         run: |
-          # Remove build artifacts except executables
+          # Aggressive cleanup - we only need the examples we just built
+          # Remove all dependencies except the final executables
+          find target/debug/deps -type f ! -name "*.so" -delete 2>/dev/null || true
           rm -rf target/debug/.fingerprint
           rm -rf target/debug/incremental
-          rm -rf target/debug/build/*/out
-          rm -rf target/debug/deps/*.d
+          rm -rf target/debug/build
+          # Clean up Nix store to free space
+          nix-collect-garbage -d || true
+          # Show disk usage
           df -h
+          echo "Target directory size:"
+          du -sh target/ 2>/dev/null || true
 
       - name: Build protobuf demo
         run: |
@@ -243,6 +268,22 @@ jobs:
           if [ "${{ matrix.distro }}" != "humble" ]; then
             cargo build -p protobuf_demo
           fi
+
+      - name: Free up disk space before tests
+        run: |
+          # Remove unnecessary system files
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker image prune -af || true
+          # Clean cargo cache
+          rm -rf ~/.cargo/registry/index
+          rm -rf ~/.cargo/registry/cache
+          rm -rf ~/.cargo/git/db
+          # Final cleanup
+          nix-collect-garbage -d || true
+          df -h
 
       - name: Run unit tests
         run: |
