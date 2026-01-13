@@ -13,7 +13,10 @@
 - Delivers optimized performance for Rust users
 - Interoperates seamlessly with Zenoh RMW-based ROS 2
 
-![architecture](./assets/architecture.png)
+
+<div align="center">
+<img src="./assets/architecture.png" alt="architecture">
+</div>
 
 ## Status
 
