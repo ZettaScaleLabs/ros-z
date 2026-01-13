@@ -7,7 +7,7 @@ use std::{thread, time::Duration};
 use crate::common::*;
 
 #[test]
-fn test_protobuf_service_ros_z_to_ros_z() {
+fn test_protobuf_service_ros_z_to_ros_z() -> Result<(), Box<dyn std::error::Error>> {
     let router = TestRouter::new();
 
     println!("\n=== Test: protobuf service (ros-z server -> ros-z client) ===");
@@ -18,15 +18,16 @@ fn test_protobuf_service_ros_z_to_ros_z() {
         let ctx = create_ros_z_context_with_endpoint(&router_endpoint)
             .expect("Failed to create ros-z context");
 
-        // Use the actual server example code (handle 1 request)
-        protobuf_demo::run_service_server(ctx, "/test_calculator", Some(1))
+        // Use the actual server example code (handle 1 request + 1 for readiness check)
+        protobuf_demo::run_service_server(ctx, "/test_calculator", Some(2))
             .expect("Service server failed");
     });
 
-    wait_for_ready(Duration::from_secs(2));
-
     // Run client in the main thread
     let ctx = create_ros_z_context_with_router(&router).expect("Failed to create ros-z context");
+
+    // Wait for service to be ready deterministically
+    wait_for_service_ready(&ctx, "/test_calculator", Duration::from_secs(5))?;
 
     let operations = vec![
         ("add", 10.0, 32.0), // This should give 42
@@ -39,10 +40,11 @@ fn test_protobuf_service_ros_z_to_ros_z() {
     server_handle.join().expect("Server thread panicked");
 
     println!("Test passed: protobuf service client-server communication works");
+    Ok(())
 }
 
 #[test]
-fn test_protobuf_service_multiple_calls() {
+fn test_protobuf_service_multiple_calls() -> Result<(), Box<dyn std::error::Error>> {
     let router = TestRouter::new();
 
     println!("\n=== Test: protobuf service with multiple operation types ===");
@@ -53,15 +55,16 @@ fn test_protobuf_service_multiple_calls() {
         let ctx = create_ros_z_context_with_endpoint(&router_endpoint)
             .expect("Failed to create ros-z context");
 
-        // Handle 3 requests
-        protobuf_demo::run_service_server(ctx, "/multi_calc", Some(3))
+        // Handle 3 requests + 1 for readiness check
+        protobuf_demo::run_service_server(ctx, "/multi_calc", Some(4))
             .expect("Service server failed");
     });
 
-    wait_for_ready(Duration::from_secs(2));
-
     // Run client with various operations
     let ctx = create_ros_z_context_with_router(&router).expect("Failed to create ros-z context");
+
+    // Wait for service to be ready deterministically
+    wait_for_service_ready(&ctx, "/multi_calc", Duration::from_secs(5))?;
 
     let operations = vec![
         ("add", 5.0, 7.0),     // = 12.0
@@ -76,10 +79,11 @@ fn test_protobuf_service_multiple_calls() {
     server_handle.join().expect("Server thread panicked");
 
     println!("Test passed: protobuf service handles multiple operation types correctly");
+    Ok(())
 }
 
 #[test]
-fn test_protobuf_service_comprehensive_operations() {
+fn test_protobuf_service_comprehensive_operations() -> Result<(), Box<dyn std::error::Error>> {
     let router = TestRouter::new();
 
     println!("\n=== Test: protobuf service comprehensive operations ===");
@@ -90,15 +94,16 @@ fn test_protobuf_service_comprehensive_operations() {
         let ctx = create_ros_z_context_with_endpoint(&router_endpoint)
             .expect("Failed to create ros-z context");
 
-        // Handle 10 requests
-        protobuf_demo::run_service_server(ctx, "/comprehensive_calc", Some(10))
+        // Handle 10 requests + 1 for readiness check
+        protobuf_demo::run_service_server(ctx, "/comprehensive_calc", Some(11))
             .expect("Service server failed");
     });
 
-    wait_for_ready(Duration::from_secs(2));
-
     // Run client with comprehensive operations
     let ctx = create_ros_z_context_with_router(&router).expect("Failed to create ros-z context");
+
+    // Wait for service to be ready deterministically
+    wait_for_service_ready(&ctx, "/comprehensive_calc", Duration::from_secs(5))?;
 
     let operations = vec![
         ("add", 100.0, 50.0),      // = 150.0
@@ -120,10 +125,11 @@ fn test_protobuf_service_comprehensive_operations() {
     server_handle.join().expect("Server thread panicked");
 
     println!("Test passed: protobuf service handles comprehensive operation types correctly");
+    Ok(())
 }
 
 #[test]
-fn test_protobuf_service_error_handling() {
+fn test_protobuf_service_error_handling() -> Result<(), Box<dyn std::error::Error>> {
     let router = TestRouter::new();
 
     println!("\n=== Test: protobuf service error handling ===");
@@ -134,15 +140,16 @@ fn test_protobuf_service_error_handling() {
         let ctx = create_ros_z_context_with_endpoint(&router_endpoint)
             .expect("Failed to create ros-z context");
 
-        // Handle 3 error cases
-        protobuf_demo::run_service_server(ctx, "/error_calc", Some(3))
+        // Handle 3 error cases + 1 for readiness check
+        protobuf_demo::run_service_server(ctx, "/error_calc", Some(4))
             .expect("Service server failed");
     });
 
-    wait_for_ready(Duration::from_secs(2));
-
     // Run client with error cases
     let ctx = create_ros_z_context_with_router(&router).expect("Failed to create ros-z context");
+
+    // Wait for service to be ready deterministically
+    wait_for_service_ready(&ctx, "/error_calc", Duration::from_secs(5))?;
 
     let operations = vec![
         ("divide", 10.0, 0.0),    // Error: division by zero
@@ -157,4 +164,5 @@ fn test_protobuf_service_error_handling() {
     server_handle.join().expect("Server thread panicked");
 
     println!("Test passed: protobuf service error handling works correctly");
+    Ok(())
 }

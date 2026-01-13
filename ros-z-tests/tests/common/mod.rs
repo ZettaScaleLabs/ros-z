@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
+use ros_z::Builder;
 use zenoh::config::WhatAmI;
 use zenoh::Wait;
 
@@ -158,6 +159,48 @@ pub fn create_ros_z_context_with_endpoint(endpoint: &str) -> ros_z::Result<ros_z
 #[allow(dead_code)]
 pub fn wait_for_ready(duration: Duration) {
     thread::sleep(duration);
+}
+
+/// Deterministically wait for a service to be ready by polling with test requests
+#[allow(dead_code)]
+pub fn wait_for_service_ready(
+    ctx: &ros_z::context::ZContext,
+    service_name: &str,
+    timeout: Duration,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let start_time = std::time::Instant::now();
+
+    loop {
+        // Try to create a client and send a test request
+        if let Ok(node) = ctx.create_node("service_readiness_checker").build()
+            && let Ok(client) = node.create_client::<protobuf_demo::Calculate>(service_name).build() {
+                // Try a simple test request (add 1 + 1 = 2)
+                let test_request = protobuf_demo::CalculateRequest {
+                    a: 1.0,
+                    b: 1.0,
+                    operation: "add".to_string(),
+                };
+
+                let rt = tokio::runtime::Runtime::new()?;
+                let result = rt.block_on(async {
+                    client.send_request(&test_request).await?;
+                    client.take_response_timeout(Duration::from_millis(500))
+                });
+
+            if result.is_ok() {
+                println!("Service '{}' is ready", service_name);
+                return Ok(());
+            }
+        }
+
+        // Check timeout
+        if start_time.elapsed() >= timeout {
+            return Err(format!("Service '{}' did not become ready within {:?}", service_name, timeout).into());
+        }
+
+        // Wait a bit before retrying
+        thread::sleep(Duration::from_millis(100));
+    }
 }
 
 /// Check if ros2 CLI is available
