@@ -266,8 +266,8 @@ where
             .declare_queryable(&key_expr)
             .complete(true)
             .callback(move |query| {
-                tracing::error!("RECEIVED QUERY: {}", &query.key_expr());
-                tracing::error!("Selector: {}", &query.selector());
+                tracing::debug!("RECEIVED QUERY: {}", &query.key_expr());
+                tracing::debug!("Selector: {}", &query.selector());
                 handler.handle(query);
             })
             .wait()?;

@@ -204,6 +204,7 @@ The trailing underscore and `dds_` infix match ROS 2's internal naming scheme us
 ## Resources
 
 - **[Message Generation](./message_generation.md)** - Understanding message architecture
+- **[Protobuf Serialization](./protobuf.md)** - Using protobuf with custom messages
 - **[Publishers & Subscribers](./pubsub.md)** - Using messages in pub-sub
 - **[Services](./services.md)** - Using messages in services
 - **[Feature Flags](./feature_flags.md)** - Pre-generated message packages

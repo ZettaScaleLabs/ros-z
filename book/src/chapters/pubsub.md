@@ -106,18 +106,8 @@ cargo run --example demo_nodes_listener
 cargo run --example demo_nodes_talker
 ```
 
-**Expected output in Terminal 2 (Subscriber):**
 
-```text
-I heard: [Hello World: 1]
-I heard: [Hello World: 2]
-I heard: [Hello World: 3]
-...
-```
-
-```admonish success
-The subscriber receives messages in real-time as the publisher sends them, demonstrating ros-z's efficient pub-sub implementation over Zenoh.
-```
+<script src="https://asciinema.org/a/l7L1vuoyZSYwXEGE.js" id="asciicast-l7L1vuoyZSYwXEGE" async="true"></script>
 
 ## Subscriber Patterns
 

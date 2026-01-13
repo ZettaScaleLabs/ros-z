@@ -23,6 +23,8 @@ let
   markdownlintConfig = {
     # Line length
     "MD013" = false;
+    # Multiple consecutive blank lines
+    "MD012" = false;
     # Multiple top-level headings in same document
     "MD025" = false;
     # Inline HTML
@@ -34,6 +36,8 @@ let
         "strong"
         "a"
         "sub"
+        "iframe"
+        "script"
       ];
     };
     # First line in file should be a top-level heading

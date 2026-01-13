@@ -103,8 +103,15 @@ Both nodes run independently. You can start/stop them in any order, and multiple
 
 Now that you understand the basics:
 
-- **[Publishers & Subscribers](./pubsub.md)** - Deep dive into pub-sub patterns and QoS
-- **[Services](./services.md)** - Learn request-response communication
-- **[Custom Messages](./custom_messages.md)** - Define domain-specific message types
+**Core Concepts:**
 
-**Experiment by modifying the example: change the topic name, message content, or publishing rate to see how the system responds.**
+- **[Pub/Sub](./pubsub.md)** - Deep dive into pub-sub patterns and QoS
+- **[Services](./services.md)** - Request-response communication
+- **[Actions](./actions.md)** - Long-running tasks with feedback
+- **[Message Generation](./message_generation.md)** - How message types work
+- **[Custom Messages](./custom_messages.md)** - Define your own message types
+
+**Development:**
+
+- **[Building](./building.md)** - Build configurations and dependencies
+- **[Networking](./config.md)** - Zenoh router setup and options
