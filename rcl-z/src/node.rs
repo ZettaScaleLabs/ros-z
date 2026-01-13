@@ -535,6 +535,8 @@ pub extern "C" fn rcl_node_is_valid(node: *const rcl_node_t) -> bool {
     node.borrow_impl().is_ok()
 }
 
+// Type description service is only available in Jazzy+
+#[cfg(not(ros_humble))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn rcl_node_type_description_service_init(
     service: *mut rcl_service_t,

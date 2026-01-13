@@ -168,18 +168,34 @@ fn inject_action_structs_into_modules(
     Ok(())
 }
 
-/// Recursively deduplicate struct definitions by name, keeping the first occurrence
+/// Recursively deduplicate struct definitions and impl blocks by name/signature, keeping the first occurrence
 fn dedup_structs_recursive(items: &mut Vec<syn::Item>) {
     let mut struct_map: std::collections::BTreeMap<String, syn::ItemStruct> = std::collections::BTreeMap::new();
+    let mut impl_map: std::collections::BTreeMap<String, syn::ItemImpl> = std::collections::BTreeMap::new();
     let mut new_items = vec![];
 
     for item in items.drain(..) {
         match item {
             syn::Item::Struct(struct_item) => {
                 let name = struct_item.ident.to_string();
-                if !struct_map.contains_key(&name) {
-                    struct_map.insert(name.clone(), struct_item.clone());
+                if let std::collections::btree_map::Entry::Vacant(e) = struct_map.entry(name) {
+                    e.insert(struct_item.clone());
                     new_items.push(syn::Item::Struct(struct_item));
+                }
+            }
+            syn::Item::Impl(impl_item) => {
+                // Create a signature for the impl block to use as dedup key
+                // Format: "impl TraitPath for TypePath"
+                let trait_path = impl_item.trait_.as_ref().map(|(_, path, _)| {
+                    quote::quote! { #path }.to_string()
+                }).unwrap_or_default();
+                let self_ty = &impl_item.self_ty;
+                let self_ty_str = quote::quote! { #self_ty }.to_string();
+                let signature = format!("impl {} for {}", trait_path, self_ty_str);
+
+                if let std::collections::btree_map::Entry::Vacant(e) = impl_map.entry(signature) {
+                    e.insert(impl_item.clone());
+                    new_items.push(syn::Item::Impl(impl_item));
                 }
             }
             syn::Item::Mod(mut mod_item) => {
@@ -222,7 +238,28 @@ pub fn generate_ros_messages_with_config(
     let (messages, services, parsed_actions) = roslibrust_codegen::find_and_parse_ros_messages(&package_paths_vec)?;
 
     // Resolve action hashes from JSON metadata
-    let actions = roslibrust_codegen::resolve_action_hashes(parsed_actions);
+    let actions = {
+        #[allow(unused_mut)]
+        let mut resolved_actions = roslibrust_codegen::resolve_action_hashes(parsed_actions.clone());
+
+        // For Humble: If action hash resolution fails (no type_description_interfaces),
+        // create ActionWithHashes with zero/placeholder hashes
+        #[cfg(ros_humble)]
+        if resolved_actions.is_empty() && !parsed_actions.is_empty() {
+            println!("cargo:warning=Humble mode: Generating actions with placeholder hashes");
+            resolved_actions = parsed_actions.into_iter().map(|parsed| {
+                // Create ActionWithHashes with zero hashes for Humble compatibility
+                roslibrust_codegen::ActionWithHashes {
+                    parsed,
+                    send_goal_hash: roslibrust_codegen::Ros2Hash::default(),
+                    get_result_hash: roslibrust_codegen::Ros2Hash::default(),
+                    feedback_message_hash: roslibrust_codegen::Ros2Hash::default(),
+                }
+            }).collect();
+        }
+
+        resolved_actions
+    };
 
     // Filter out deprecated actionlib messages and unsupported wstring messages
     // actionlib_msgs was deprecated in ROS 2 and causes dependency resolution issues
@@ -247,6 +284,15 @@ pub fn generate_ros_messages_with_config(
                 || full_name.ends_with("ActionFeedback");
 
             if is_old_action_msg {
+                return false;
+            }
+
+            // Filter out redundant service Request/Response message files
+            // ROS 2 Humble ships with separate *_Request.msg and *_Response.msg files
+            // but these are auto-generated from .srv files by roslibrust (with CamelCase naming).
+            // Filtering these out ensures consistent CamelCase naming across all ROS versions.
+            let msg_name = msg.name.as_str();
+            if msg_name.ends_with("_Request") || msg_name.ends_with("_Response") {
                 return false;
             }
 
@@ -278,6 +324,15 @@ pub fn generate_ros_messages_with_config(
     // Filter out duplicate messages by full name to avoid conflicts
     let mut seen = std::collections::HashSet::new();
     resolved_msgs.retain(|msg| seen.insert(msg.parsed.get_full_name()));
+
+    // Also deduplicate services to avoid duplicate trait implementations
+    let mut seen_services = std::collections::HashSet::new();
+    let resolved_srvs: Vec<_> = resolved_srvs.into_iter()
+        .filter(|srv| {
+            let full_name = format!("{}/{}", srv.get_package_name(), srv.get_short_name());
+            seen_services.insert(full_name)
+        })
+        .collect();
 
     // Create roslibrust codegen options
     let roslibrust_options = roslibrust_codegen::CodegenOptions {
@@ -481,6 +536,9 @@ fn generate_service_type_info_tokens(services: &[ServiceFile]) -> Result<TokenSt
     for srv in services {
         let package_name = syn::Ident::new(&srv.get_package_name(), proc_macro2::Span::call_site());
         let srv_name = syn::Ident::new(&srv.get_short_name(), proc_macro2::Span::call_site());
+
+        // roslibrust always generates CamelCase naming: ServiceNameRequest, ServiceNameResponse
+        // We filter out the redundant *_Request.msg/*_Response.msg files that Humble ships with
         let request_name = syn::Ident::new(&format!("{}Request", srv.get_short_name()), proc_macro2::Span::call_site());
         let response_name = syn::Ident::new(&format!("{}Response", srv.get_short_name()), proc_macro2::Span::call_site());
 
@@ -492,6 +550,7 @@ fn generate_service_type_info_tokens(services: &[ServiceFile]) -> Result<TokenSt
         let response_ros_type = format!("{}::srv::dds_::{}_Response_", srv.get_package_name(), srv.get_short_name());
         let service_ros_type = format!("{}::srv::dds_::{}_", srv.get_package_name(), srv.get_short_name());
 
+        // Generate trait implementations
         let impl_block = quote! {
             impl ::ros_z::MessageTypeInfo for #package_name::#request_name {
                 fn type_name() -> &'static str {

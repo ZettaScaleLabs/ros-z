@@ -16,6 +16,19 @@ use crate::{
     type_support::ServiceTypeSupport,
 };
 
+// Helper functions for GID conversions between Humble (i8) and Jazzy+ (u8)
+#[cfg(ros_humble)]
+#[inline]
+fn gid_u8_to_i8(gid: [u8; 16]) -> [i8; 16] {
+    unsafe { std::mem::transmute(gid) }
+}
+
+#[cfg(ros_humble)]
+#[inline]
+fn gid_i8_to_u8(gid: [i8; 16]) -> [u8; 16] {
+    unsafe { std::mem::transmute(gid) }
+}
+
 pub struct ClientImpl {
     pub(crate) inner: ZClient<RosService>,
     pub(crate) ts: ServiceTypeSupport,
@@ -60,9 +73,14 @@ impl ServiceImpl {
         request_id: *mut rmw_request_id_t,
     ) -> Result<()> {
         let key = unsafe {
+            #[cfg(ros_humble)]
+            let gid = gid_i8_to_u8((*request_id).writer_guid);
+            #[cfg(not(ros_humble))]
+            let gid = (*request_id).writer_guid;
+
             QueryKey {
                 sn: (*request_id).sequence_number,
-                gid: (*request_id).writer_guid,
+                gid,
             }
         };
 
@@ -286,7 +304,14 @@ pub unsafe extern "C" fn rcl_take_response(
 
     unsafe {
         (*request_header).sequence_number = request_id.sn;
-        (*request_header).writer_guid = request_id.gid;
+        #[cfg(ros_humble)]
+        {
+            (*request_header).writer_guid = gid_u8_to_i8(request_id.gid);
+        }
+        #[cfg(not(ros_humble))]
+        {
+            (*request_header).writer_guid = request_id.gid;
+        }
     }
 
     RCL_RET_OK as _
@@ -322,7 +347,14 @@ pub unsafe extern "C" fn rcl_take_response_with_info(
 
     unsafe {
         (*request_header).request_id.sequence_number = request_id.sn;
-        (*request_header).request_id.writer_guid = request_id.gid;
+        #[cfg(ros_humble)]
+        {
+            (*request_header).request_id.writer_guid = gid_u8_to_i8(request_id.gid);
+        }
+        #[cfg(not(ros_humble))]
+        {
+            (*request_header).request_id.writer_guid = request_id.gid;
+        }
         // Set timestamps to 0 for now (not currently supported)
         (*request_header).source_timestamp = 0;
         (*request_header).received_timestamp = 0;
@@ -363,7 +395,14 @@ pub unsafe extern "C" fn rcl_take_request_with_info(
 
     unsafe {
         (*request_header).request_id.sequence_number = request_id.sn;
-        (*request_header).request_id.writer_guid = request_id.gid;
+        #[cfg(ros_humble)]
+        {
+            (*request_header).request_id.writer_guid = gid_u8_to_i8(request_id.gid);
+        }
+        #[cfg(not(ros_humble))]
+        {
+            (*request_header).request_id.writer_guid = request_id.gid;
+        }
         // Set timestamps to 0 for now (not currently supported)
         (*request_header).source_timestamp = 0;
         (*request_header).received_timestamp = 0;
@@ -400,6 +439,7 @@ pub unsafe extern "C" fn rcl_service_server_is_available(
     RCL_RET_OK as _
 }
 
+#[cfg(not(ros_humble))]
 #[unsafe(no_mangle)]
 pub extern "C" fn rcl_node_type_description_service_handle_request(
     _node: *mut rcl_node_t,
@@ -555,7 +595,14 @@ pub unsafe extern "C" fn rcl_take_request(
 
     unsafe {
         (*request_header).sequence_number = request_id.sn;
-        (*request_header).writer_guid = request_id.gid;
+        #[cfg(ros_humble)]
+        {
+            (*request_header).writer_guid = gid_u8_to_i8(request_id.gid);
+        }
+        #[cfg(not(ros_humble))]
+        {
+            (*request_header).writer_guid = request_id.gid;
+        }
     }
     RCL_RET_OK as _
 }

@@ -70,8 +70,10 @@ mod ffi {
 use ffi::*;
 use ros_z::entity::{TypeHash, TypeInfo};
 
+#[cfg(not(ros_humble))]
 use crate::ros::rosidl_type_hash_t;
 
+#[cfg(not(ros_humble))]
 impl std::fmt::Display for rosidl_type_hash_t {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         const HASH_PREFIX: &str = "RIHS01_";
@@ -111,15 +113,22 @@ impl MessageTypeSupport {
     }
 
     pub fn get_type_hash(&self) -> TypeHash {
-        let hash = unsafe {
-            let type_hash = self
-                .as_ref()
-                .get_type_hash_func
-                .expect("Failed to get_type_hash_func")(self.as_ref());
-            assert!(!type_hash.is_null());
-            *type_hash
-        };
-        TypeHash::new(hash.version, hash.value)
+        #[cfg(not(ros_humble))]
+        {
+            let hash = unsafe {
+                let type_hash = self
+                    .as_ref()
+                    .get_type_hash_func
+                    .expect("Failed to get_type_hash_func")(self.as_ref());
+                assert!(!type_hash.is_null());
+                *type_hash
+            };
+            TypeHash::new(hash.version, hash.value)
+        }
+        #[cfg(ros_humble)]
+        {
+            TypeHash::zero()
+        }
     }
 
     pub unsafe fn serialize_message(&self, ros_message: *const c_void) -> Vec<u8> {
@@ -211,15 +220,22 @@ impl ServiceTypeSupport {
     }
 
     pub fn get_type_hash(&self) -> TypeHash {
-        let hash = unsafe {
-            let type_hash = self
-                .as_ref()
-                .get_type_hash_func
-                .expect("Failed to get_type_hash_func")(self.as_ref());
-            assert!(!type_hash.is_null());
-            *type_hash
-        };
-        TypeHash::new(hash.version, hash.value)
+        #[cfg(not(ros_humble))]
+        {
+            let hash = unsafe {
+                let type_hash = self
+                    .as_ref()
+                    .get_type_hash_func
+                    .expect("Failed to get_type_hash_func")(self.as_ref());
+                assert!(!type_hash.is_null());
+                *type_hash
+            };
+            TypeHash::new(hash.version, hash.value)
+        }
+        #[cfg(ros_humble)]
+        {
+            TypeHash::zero()
+        }
     }
 
     pub fn get_type_info(&self) -> TypeInfo {

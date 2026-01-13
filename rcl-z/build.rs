@@ -17,9 +17,26 @@ fn main() {
     // Declare custom cfg for auto-detection
     println!("cargo:rustc-check-cfg=cfg(has_test_msgs)");
     println!("cargo:rustc-check-cfg=cfg(has_type_description_interfaces)");
+    println!("cargo:rustc-check-cfg=cfg(ros_humble)");
 
-    // Get AMENT_PREFIX_PATH from the environment
-    let ament_prefix = env::var("AMENT_PREFIX_PATH").expect("AMENT_PREFIX_PATH is missing!");
+    // Check if ROS is installed
+    let ros_installed = env::var("AMENT_PREFIX_PATH").is_ok();
+    let humble_compat = env::var("CARGO_FEATURE_HUMBLE_COMPAT").is_ok();
+
+    // Get AMENT_PREFIX_PATH for the rest of the build (only if ROS is installed)
+    if !ros_installed {
+        println!(
+            "cargo:warning=ROS not detected (no AMENT_PREFIX_PATH) - using feature flag for API selection"
+        );
+        // Pure Rust mode: user chooses via feature
+        if humble_compat {
+            println!("cargo:rustc-cfg=ros_humble");
+        }
+        println!("cargo:warning=Skipping ROS-dependent build steps");
+        return;
+    }
+
+    let ament_prefix = env::var("AMENT_PREFIX_PATH").unwrap();
 
     // Check if type_description_interfaces is available (not in Humble)
     let has_type_description = ament_prefix.split(':').any(|prefix| {
@@ -28,11 +45,34 @@ fn main() {
             .exists()
     });
 
+    let is_humble = !has_type_description;
+
+    if is_humble && !humble_compat {
+        panic!(
+            "ROS Humble detected but 'humble_compat' feature not enabled. Build with --features humble_compat"
+        );
+    }
+
+    if !is_humble && humble_compat {
+        panic!(
+            "humble_compat feature enabled but ROS Jazzy+ detected.\n\
+             The humble_compat feature is only for use without ROS installed or with ROS Humble.\n\
+             When building with ROS Jazzy+, do not enable the humble_compat feature.\n\
+             If running clippy with --all-features, use --exclude rcl-z or filter features appropriately."
+        );
+    }
+
     if has_type_description {
         println!("cargo:rustc-cfg=has_type_description_interfaces");
-        println!("cargo:warning=type_description_interfaces found - enabling support");
+        println!("cargo:warning=type_description_interfaces found - ROS Jazzy+ detected");
     } else {
-        println!("cargo:warning=type_description_interfaces not found - disabling support (Humble mode)");
+        println!("cargo:warning=type_description_interfaces not found - ROS Humble detected");
+    }
+
+    // Emit cfg based on what mode we're in
+    let use_humble_mode = is_humble || humble_compat;
+    if use_humble_mode {
+        println!("cargo:rustc-cfg=ros_humble");
     }
 
     // Check FastCDR version - Humble uses FastCDR 1.0.x which doesn't have CdrVersion enum
@@ -111,6 +151,16 @@ fn main() {
     if has_type_description {
         builder = builder.allowlist_function("rosidl_typesupport_c__get_service_type_support_handle__type_description_interfaces__srv__GetTypeDescription");
     }
+
+    // Allowlist Jazzy types
+    builder = builder
+        .allowlist_type("rcl_timer_call_info_t")
+        .allowlist_function("rcl_get_type_description_services")
+        .allowlist_function("rcl_type_description_service_init")
+        .allowlist_function("rcl_type_description_service_fini")
+        .allowlist_var("RCL_SERVICE_INTROSPECTION_PUBLISHER")
+        .allowlist_var("RCL_SERVICE_INTROSPECTION_SUBSCRIPTION")
+        .allowlist_var("RCL_SERVICE_INTROSPECTION_OFF");
 
     let blocked_functions = [
         "rcl_init_options_init",

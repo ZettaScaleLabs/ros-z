@@ -347,6 +347,8 @@ pub unsafe extern "C" fn rcl_timer_call(timer: *mut rcl_timer_t) -> rcl_ret_t {
     }
 }
 
+// rcl_timer_call_with_info is only available in Jazzy+
+#[cfg(not(ros_humble))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn rcl_timer_call_with_info(
     timer: *mut rcl_timer_t,

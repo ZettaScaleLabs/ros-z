@@ -96,8 +96,8 @@ jobs:
       contents: read
     strategy:
       matrix:
-        distro: [jazzy]
-        # distro: [jazzy, rolling]  # Uncomment to test rolling when stable
+        distro: [humble, jazzy]
+        # distro: [humble, jazzy, rolling]  # Uncomment to test rolling when stable
 
     steps:
       - name: Checkout repository
@@ -127,15 +127,40 @@ jobs:
           echo "export SCCACHE_CACHE_SIZE=2G" >> /tmp/nix-dev-env.sh
           echo "export RUSTC_WRAPPER=sccache" >> /tmp/nix-dev-env.sh
 
-      - name: Clippy (all targets, all features)
+      - name: Clippy (workspace without rcl-z, without examples)
         run: |
           source /tmp/nix-dev-env.sh
-          cargo clippy --all-targets --all-features --workspace -- -D warnings
+          cargo clippy --workspace --exclude rcl-z --lib --bins --tests -- -D warnings
+
+      - name: Clippy bundled examples
+        run: |
+          source /tmp/nix-dev-env.sh
+          cargo clippy -p ros-z --examples -- -D warnings
+
+      - name: Clippy external_msgs examples
+        run: |
+          source /tmp/nix-dev-env.sh
+          cargo clippy -p ros-z --examples --features external_msgs -- -D warnings
+
+      - name: Clippy rcl-z with distro-specific features
+        run: |
+          source /tmp/nix-dev-env.sh
+          if [ "${{ matrix.distro }}" = "humble" ]; then
+            # Humble: lib only (tests use APIs not available in Humble)
+            cargo clippy -p rcl-z --lib --features humble_compat -- -D warnings
+          else
+            # Jazzy+: all targets including tests
+            cargo clippy -p rcl-z --all-targets -- -D warnings
+          fi
 
       - name: Check rcl-z
         run: |
           source /tmp/nix-dev-env.sh
-          cargo check -p rcl-z
+          if [ "${{ matrix.distro }}" = "humble" ]; then
+            cargo check -p rcl-z --features humble_compat
+          else
+            cargo check -p rcl-z
+          fi
 
       - name: Check ros-z-msgs (default bundled features)
         run: |
@@ -163,19 +188,41 @@ jobs:
           source /tmp/nix-dev-env.sh
           cargo check -p ros-z --features rcl-z
 
-      - name: Build ROS message examples
+      - name: Build ROS message examples (bundled messages)
         run: |
           source /tmp/nix-dev-env.sh
           cargo build -p ros-z-msgs
-          cargo build --examples
+          cargo build --example z_pubsub
+          cargo build --example z_pingpong
+          cargo build --example twist_pub
+          cargo build --example battery_state_sub
+          cargo build --example laser_scan
+          cargo build --example demo_nodes_talker
+          cargo build --example demo_nodes_listener
+          cargo build --example zenoh_router
+          cargo build --example z_custom_message
+
+      - name: Build external message examples
+        run: |
+          source /tmp/nix-dev-env.sh
           cargo build --example z_srvcli --features external_msgs
+          cargo build --example demo_nodes_add_two_ints_server --features external_msgs
+          cargo build --example demo_nodes_add_two_ints_client --features external_msgs
+          cargo build --example demo_nodes_fibonacci_action_server --features external_msgs
+          cargo build --example demo_nodes_fibonacci_action_client --features external_msgs
 
       - name: Build protobuf demo
         run: |
           source /tmp/nix-dev-env.sh
           cargo build -p protobuf_demo
 
-      # FIXME: This requires the installation of rmw_zenoh_cpp triggering a build from source...
-      # - name: Run unit tests
-      #   run: |
-      #     nix develop .#ci -c cargo test --all-features
+      - name: Run unit tests
+        run: |
+          source /tmp/nix-dev-env.sh
+          if [ "${{ matrix.distro }}" = "humble" ]; then
+            # Exclude rcl-z for Humble due to missing type hash/description interfaces
+            cargo nextest run --workspace --exclude rcl-z
+          else
+            # Run all tests for Jazzy and newer distros
+            cargo nextest run --workspace
+          fi

@@ -9,7 +9,7 @@ publish = false
 #   cargo build --workspace --exclude rcl-z --exclude ros-z-msgs --exclude ros-z-tests
 
 [dependencies]
-ros-z = { path = "../ros-z", features = ["protobuf"] }
+ros-z = { path = "../ros-z", default-features = false, features = ["protobuf"] }
 ros-z-msgs = { path = "../ros-z-msgs", optional = true }
 # rcl-z = { path = "../rcl-z" }
 protobuf_demo = { path = "../ros-z/examples/protobuf_demo" }
@@ -27,4 +27,4 @@ prost = { workspace = true } # For protobuf service tests
 [features]
 default = []
 ros-msgs = ["dep:ros-z-msgs"]
-interop-tests = ["ros-msgs", "ros-z-msgs/external_msgs"]
+interop-tests = ["ros-msgs", "ros-z/external_msgs", "ros-z-msgs/external_msgs"]

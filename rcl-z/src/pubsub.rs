@@ -503,9 +503,12 @@ pub extern "C" fn rcl_publisher_get_default_options() -> rcl_publisher_options_t
     // Set default allocator
     options.allocator = rcl_get_default_allocator();
 
-    // Check ROS_DISABLE_LOANED_MESSAGES environment variable
-    if let Ok(disable_loaned) = std::env::var("ROS_DISABLE_LOANED_MESSAGES") {
-        options.disable_loaned_message = matches!(disable_loaned.as_str(), "1");
+    // Check ROS_DISABLE_LOANED_MESSAGES environment variable (Jazzy+ only)
+    #[cfg(not(ros_humble))]
+    {
+        if let Ok(disable_loaned) = std::env::var("ROS_DISABLE_LOANED_MESSAGES") {
+            options.disable_loaned_message = matches!(disable_loaned.as_str(), "1");
+        }
     }
 
     options
@@ -684,12 +687,15 @@ pub extern "C" fn rcl_subscription_get_default_options() -> rcl_subscription_opt
     // Set default allocator
     options.allocator = rcl_get_default_allocator();
 
-    // Check ROS_DISABLE_LOANED_MESSAGES environment variable
+    // Check ROS_DISABLE_LOANED_MESSAGES environment variable (Jazzy+ only)
     // Default is to disable loaned messages (true)
-    options.disable_loaned_message = match std::env::var("ROS_DISABLE_LOANED_MESSAGES") {
-        Ok(val) if val == "0" => false,
-        _ => true, // Default to true for any other value or if not set
-    };
+    #[cfg(not(ros_humble))]
+    {
+        options.disable_loaned_message = match std::env::var("ROS_DISABLE_LOANED_MESSAGES") {
+            Ok(val) if val == "0" => false,
+            _ => true, // Default to true for any other value or if not set
+        };
+    }
 
     options
 }
