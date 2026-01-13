@@ -10,3 +10,16 @@ message SensorData {
     double humidity = 3;
     int64 timestamp = 4;
 }
+
+// Calculator service - demonstrates protobuf services with ros-z
+message CalculateRequest {
+    double a = 1;
+    double b = 2;
+    string operation = 3; // "add", "subtract", "multiply", "divide"
+}
+
+message CalculateResponse {
+    bool success = 1;
+    double result = 2;
+    string message = 3;
+}
