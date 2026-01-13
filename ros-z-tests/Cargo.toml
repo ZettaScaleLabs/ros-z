@@ -9,9 +9,10 @@ publish = false
 #   cargo build --workspace --exclude rcl-z --exclude ros-z-msgs --exclude ros-z-tests
 
 [dependencies]
-ros-z = { path = "../ros-z" }
+ros-z = { path = "../ros-z", features = ["protobuf"] }
 ros-z-msgs = { path = "../ros-z-msgs", optional = true }
 # rcl-z = { path = "../rcl-z" }
+protobuf_demo = { path = "../ros-z/examples/protobuf_demo" }
 
 # Test runtime dependencies
 zenoh = { workspace = true } # For per-test router sessions
@@ -21,6 +22,7 @@ serial_test = "3.0" # For sequential test execution
 nix = { version = "0.29", features = [
   "signal",
 ] } # For graceful process shutdown
+prost = { workspace = true } # For protobuf service tests
 
 [features]
 default = []

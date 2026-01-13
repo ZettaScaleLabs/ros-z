@@ -4,6 +4,14 @@ version.workspace = true
 edition.workspace = true
 publish = false
 
+[lib]
+name = "protobuf_demo"
+path = "src/lib.rs"
+
+[[bin]]
+name = "protobuf_demo"
+path = "src/main.rs"
+
 [dependencies]
 ros-z = { workspace = true, features = ["protobuf"] }
 ros-z-msgs = { path = "../../../ros-z-msgs", features = [
@@ -13,6 +21,8 @@ ros-z-msgs = { path = "../../../ros-z-msgs", features = [
 prost = { workspace = true }
 serde = { workspace = true }
 zenoh = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+clap = { workspace = true, features = ["derive"] }
 
 [build-dependencies]
 prost-build = { workspace = true }

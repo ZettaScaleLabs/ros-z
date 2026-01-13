@@ -1,96 +1,117 @@
-use std::time::Duration;
+use clap::Parser;
+use ros_z::{Builder, Result, context::ZContextBuilder};
 
-use ros_z::{
-    Builder, MessageTypeInfo, Result, WithTypeInfo, entity::TypeHash, msg::ProtobufSerdes,
-};
-// Import ROS-generated protobuf messages
-use ros_z_msgs::proto::geometry_msgs::Vector3 as Vector3Proto;
+use protobuf_demo::{run_pubsub_demo, run_service_client, run_service_server};
 
-// Include custom protobuf message generated from sensor_data.proto
-pub mod sensor_data {
-    include!(concat!(env!("OUT_DIR"), "/examples.rs"));
+#[derive(Debug, Parser)]
+#[command(
+    name = "protobuf_demo",
+    about = "Protobuf demonstration for ros-z - pub/sub and services"
+)]
+struct Args {
+    /// Mode to run: pubsub, service-server, service-client, or combined
+    #[arg(short, long, default_value = "pubsub")]
+    mode: String,
+
+    /// Service name (for service modes)
+    #[arg(long, default_value = "/calculator")]
+    service: String,
+
+    /// Maximum number of messages/requests (0 for unlimited)
+    #[arg(short = 'n', long, default_value = "3")]
+    count: usize,
+
+    /// Zenoh session mode (peer, client, router)
+    #[arg(long, default_value = "peer")]
+    zenoh_mode: String,
+
+    /// Zenoh router endpoint to connect to
+    #[arg(short, long)]
+    endpoint: Option<String>,
 }
-
-use sensor_data::SensorData;
-
-// Implement required traits for custom protobuf message
-impl MessageTypeInfo for SensorData {
-    fn type_name() -> &'static str {
-        "examples::msg::dds_::SensorData_"
-    }
-
-    fn type_hash() -> TypeHash {
-        TypeHash::zero() // For custom messages without ROS type support
-    }
-}
-
-impl WithTypeInfo for SensorData {}
 
 fn main() -> Result<()> {
+    let args = Args::parse();
+
+    // Initialize logging
     zenoh::init_log_from_env_or("info");
 
-    println!("\n=== Protobuf Serialization Demo ===");
-    println!("This demonstrates two ways to use protobuf with ros-z:");
-    println!("1. ROS messages with protobuf serialization (from ros-z-msgs)");
-    println!("2. Custom protobuf messages (from .proto files)");
-    println!("=====================================================\n");
+    // Create the ROS-Z context
+    let ctx = if let Some(ref e) = args.endpoint {
+        ZContextBuilder::default()
+            .with_mode(&args.zenoh_mode)
+            .with_connect_endpoints([e.clone()])
+            .build()?
+    } else {
+        ZContextBuilder::default()
+            .with_mode(&args.zenoh_mode)
+            .build()?
+    };
 
-    let ctx = ros_z::context::ZContextBuilder::default().build()?;
-    let node = ctx.create_node("protobuf_demo").build()?;
+    let max_count = if args.count == 0 {
+        None
+    } else {
+        Some(args.count)
+    };
 
-    // Part 1: ROS message with protobuf serialization
-    println!("--- Part 1: ROS geometry_msgs/Vector3 with Protobuf ---");
-    let ros_pub = node
-        .create_pub::<Vector3Proto>("/vector_proto")
-        .with_serdes::<ProtobufSerdes<Vector3Proto>>()
-        .build()?;
+    match args.mode.as_str() {
+        "pubsub" => {
+            run_pubsub_demo(ctx, max_count)?;
+        }
+        "service-server" => {
+            run_service_server(ctx, &args.service, max_count)?;
+        }
+        "service-client" => {
+            let operations = vec![
+                ("add", 10.0, 5.0),
+                ("subtract", 10.0, 5.0),
+                ("multiply", 10.0, 5.0),
+                ("divide", 10.0, 5.0),
+                ("divide", 10.0, 0.0), // This will fail
+            ];
+            run_service_client(ctx, &args.service, operations)?;
+        }
+        "combined" => {
+            println!("\n=== Running Combined Demo ===\n");
 
-    println!("Publishing ROS Vector3 messages...\n");
-    for i in 0..3 {
-        let msg = Vector3Proto {
-            x: i as f64,
-            y: (i as f64) * 2.0,
-            z: (i as f64) * 3.0,
-        };
+            // Create separate contexts for server and client
+            let server_ctx = if let Some(e) = args.endpoint.clone() {
+                ZContextBuilder::default()
+                    .with_mode(&args.zenoh_mode)
+                    .with_connect_endpoints([e])
+                    .build()?
+            } else {
+                ZContextBuilder::default()
+                    .with_mode(&args.zenoh_mode)
+                    .build()?
+            };
 
-        ros_pub.publish(&msg)?;
-        println!("  Published Vector3: x={}, y={}, z={}", msg.x, msg.y, msg.z);
-        std::thread::sleep(Duration::from_millis(500));
+            let service_name = args.service.clone();
+
+            // Run server in background thread
+            let _server_handle = std::thread::spawn(move || {
+                run_service_server(server_ctx, &service_name, Some(5))
+            });
+
+            // Give server time to start
+            std::thread::sleep(std::time::Duration::from_millis(500));
+
+            // Run client
+            let operations = vec![
+                ("add", 10.0, 5.0),
+                ("subtract", 10.0, 5.0),
+                ("multiply", 10.0, 5.0),
+                ("divide", 10.0, 5.0),
+                ("divide", 10.0, 0.0),
+            ];
+            run_service_client(ctx, &args.service, operations)?;
+        }
+        _ => {
+            eprintln!("Unknown mode: {}", args.mode);
+            eprintln!("Valid modes: pubsub, service-server, service-client, combined");
+            std::process::exit(1);
+        }
     }
-
-    // Part 2: Custom protobuf message
-    println!("\n--- Part 2: Custom SensorData message (pure protobuf) ---");
-    let custom_pub = node
-        .create_pub::<SensorData>("/sensor_data")
-        .with_serdes::<ProtobufSerdes<SensorData>>()
-        .build()?;
-
-    println!("Publishing custom SensorData messages...\n");
-    for i in 0..3 {
-        let msg = SensorData {
-            sensor_id: format!("sensor_{}", i),
-            temperature: 20.0 + (i as f64) * 0.5,
-            humidity: 45.0 + (i as f64) * 2.0,
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs() as i64,
-        };
-
-        custom_pub.publish(&msg)?;
-        println!(
-            "  Published SensorData: id={}, temp={:.1}°C, humidity={:.1}%, ts={}",
-            msg.sensor_id, msg.temperature, msg.humidity, msg.timestamp
-        );
-        std::thread::sleep(Duration::from_millis(500));
-    }
-
-    println!("\nSuccessfully demonstrated both protobuf approaches!");
-    println!("\nKey points:");
-    println!("1. ROS messages (Vector3Proto): Auto-generated from ros-z-msgs with MessageTypeInfo");
-    println!("2. Custom messages (SensorData): Generated from your own .proto files");
-    println!("3. Both use .with_serdes::<ProtobufSerdes<T>>() for protobuf serialization");
-    println!("4. ros-z is transport-agnostic - works with ANY protobuf message!");
 
     Ok(())
 }
