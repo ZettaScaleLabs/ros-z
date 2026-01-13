@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Networking - ros-z Documentation</title>
+        <title>Reproducible Development with Nix - ros-z Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -149,7 +149,7 @@
                         <a href="https://github.com/ZettaScaleLabs/ros-z" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/ZettaScaleLabs/ros-z/edit/main/src/chapters/config.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                        <a href="https://github.com/ZettaScaleLabs/ros-z/edit/main/src/chapters/nix.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -183,66 +183,68 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="networking"><a class="header" href="#networking">Networking</a></h1>
-<p><strong>Configure ros-z's Zenoh transport layer for optimal performance in your deployment environment.</strong> ros-z uses router-based architecture by default, matching ROS 2's official <code>rmw_zenoh_cpp</code> middleware for production-ready scalability.</p>
-<h2 id="router-based-architecture"><a class="header" href="#router-based-architecture">Router-Based Architecture</a></h2>
-<p>ros-z uses a centralized Zenoh router for node discovery and communication, providing:</p>
-<div class="table-wrapper"><table><thead><tr><th>Benefit</th><th>Description</th></tr></thead><tbody>
-<tr><td><strong>Scalability</strong></td><td>Centralized discovery handles large deployments efficiently</td></tr>
-<tr><td><strong>Lower Network Overhead</strong></td><td>TCP-based discovery instead of multicast broadcasts</td></tr>
-<tr><td><strong>ROS 2 Compatibility</strong></td><td>Matches <code>rmw_zenoh_cpp</code> behavior for seamless interoperability</td></tr>
-<tr><td><strong>Production Ready</strong></td><td>Battle-tested configuration used in real robotics systems</td></tr>
-</tbody></table>
-</div>
-<h2 id="quick-start"><a class="header" href="#quick-start">Quick Start</a></h2>
-<p>The simplest way to get started is using the built-in router example:</p>
-<p><strong>Terminal 1 - Start the Router:</strong></p>
-<pre><code class="language-bash">cargo run --example zenoh_router
-</code></pre>
-<p><strong>Terminal 2 - Run Your Application:</strong></p>
-<pre><code class="language-rust ignore">use ros_z::context::ZContextBuilder;
-use ros_z::Builder;
-
-// Uses default ROS session config (connects to tcp/localhost:7447)
-let ctx = ZContextBuilder::default().build()?;
-let node = ctx.create_node("my_node").build()?;</code></pre>
-<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
+                        <h1 id="reproducible-development-with-nix"><a class="header" href="#reproducible-development-with-nix">Reproducible Development with Nix</a></h1>
+<div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
 <div class="admonition-title">
-<div id="admonition-success-title">
-<p>Success</p>
+<div id="admonition-warning-title">
+<p>Warning</p>
 </div>
-<a class="admonition-anchor-link" href="#admonition-success"></a>
+<a class="admonition-anchor-link" href="#admonition-warning"></a>
 </div>
 <div>
-<p>That's it! The default configuration automatically connects to the router on <code>tcp/localhost:7447</code>.</p>
+<p>This is an advanced topic for users familiar with Nix. If you're new to Nix, you can safely skip this chapter and use the standard <a href="./building.html">Building</a> instructions instead.</p>
 </div>
 </div>
-<h2 id="running-the-zenoh-router"><a class="header" href="#running-the-zenoh-router">Running the Zenoh Router</a></h2>
-<h3 id="option-1-built-in-router-example"><a class="header" href="#option-1-built-in-router-example">Option 1: Built-in Router Example</a></h3>
-<p>ros-z provides a built-in router example that's ROS-compatible out of the box.</p>
-<pre><code class="language-bash">cargo run --example zenoh_router
+<p>ros-z provides Nix flakes for reproducible development environments with all dependencies pre-configured.</p>
+<h2 id="why-use-nix"><a class="header" href="#why-use-nix">Why Use Nix?</a></h2>
+<p><strong>Reproducible Builds:</strong> Nix ensures every developer and CI system uses the exact same dependencies, eliminating "works on my machine" issues. All dependencies—from compilers to ROS 2 packages—are pinned to specific versions and cached immutably.</p>
+<p><strong>Uniform CI/CD:</strong> The same Nix configuration that runs locally is used in continuous integration, ensuring build consistency across development, testing, and deployment environments. No more divergence between local builds and CI failures.</p>
+<p><strong>Zero Setup:</strong> New team members can start developing with a single <code>nix develop</code> command—no manual ROS installation, no dependency hunting, no environment configuration.</p>
+<h2 id="available-environments"><a class="header" href="#available-environments">Available Environments</a></h2>
+<pre><code class="language-bash"># Default: ROS 2 Jazzy with full tooling
+nix develop
+
+# Specific ROS distros
+nix develop .#ros-jazzy      # ROS 2 Jazzy
+nix develop .#ros-rolling    # ROS 2 Rolling
+
+# Pure Rust (no ROS)
+nix develop .#pureRust       # Minimal Rust toolchain only
 </code></pre>
-<p>Listens on <code>tcp/[::]:7447</code> (all interfaces, port 7447).</p>
-<h3 id="option-2-official-zenoh-router"><a class="header" href="#option-2-official-zenoh-router">Option 2: Official Zenoh Router</a></h3>
-<p>You can also use the official Zenoh router: <a href="https://zenoh.io/docs/getting-started/installation/#installing-the-zenoh-router">https://zenoh.io/docs/getting-started/installation/#installing-the-zenoh-router</a>.</p>
-<h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
-<p>Choose the configuration approach that fits your needs:</p>
+<h2 id="use-cases"><a class="header" href="#use-cases">Use Cases</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Use Case</th><th>Environment</th><th>Benefit</th></tr></thead><tbody>
+<tr><td><strong>Team Development</strong></td><td>All developers</td><td>Everyone has identical toolchains and dependencies</td></tr>
+<tr><td><strong>CI/CD Pipelines</strong></td><td>GitHub Actions, GitLab CI</td><td>Same environment locally and in automation</td></tr>
+<tr><td><strong>Cross-Platform</strong></td><td>Linux, macOS, WSL</td><td>Consistent builds regardless of host OS</td></tr>
+<tr><td><strong>Multiple ROS Versions</strong></td><td>Switch environments easily</td><td>Test against different ROS distros without conflicts</td></tr>
+</tbody></table>
+</div><div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
+<div class="admonition-title">
+<div id="admonition-tip-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-tip"></a>
+</div>
+<div>
+<p>Use Nix for consistent development environments across team members and CI/CD pipelines. The reproducibility guarantees catch integration issues early.</p>
+</div>
+</div>
+<h2 id="learning-more"><a class="header" href="#learning-more">Learning More</a></h2>
 <ul>
-<li><strong><a href="./config_options.html">Configuration Options</a></strong> - Six ways to configure Zenoh (from simple to complex)</li>
-<li><strong><a href="./config_advanced.html">Advanced Configuration</a></strong> - Generate config files, run routers, configuration reference</li>
-<li><strong><a href="./troubleshooting.html">Troubleshooting</a></strong> - Solutions to connectivity issues</li>
+<li><strong><a href="https://nixos.org/manual/nix/stable/">Nix Official Guide</a></strong> - Introduction to Nix</li>
+<li><strong><a href="https://nixos.wiki/wiki/Flakes">Nix Flakes</a></strong> - Understanding flakes</li>
+<li><strong><a href="https://github.com/ZettaScaleLabs/ros-z/blob/main/flake.nix">ros-z flake.nix</a></strong> - Our Nix configuration</li>
 </ul>
-<p><strong>Ready to optimize your deployment? Experiment with different configurations and measure performance impact.</strong></p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../chapters/examples.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../chapters/protobuf.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next prefetch" href="../chapters/config_options.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../chapters/feature_flags.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -252,11 +254,11 @@ let node = ctx.create_node("my_node").build()?;</code></pre>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../chapters/examples.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../chapters/protobuf.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next prefetch" href="../chapters/config_options.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../chapters/feature_flags.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>

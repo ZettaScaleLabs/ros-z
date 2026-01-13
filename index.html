@@ -185,42 +185,23 @@
                     <main>
                         <h1 id="introduction"><a class="header" href="#introduction">Introduction</a></h1>
 <p><strong>ros-z is a native Rust ROS 2 implementation powered by Zenoh, delivering high-performance robotics communication with type safety and zero-cost abstractions.</strong> Build reliable robot applications using modern Rust idioms while maintaining full ROS 2 compatibility.</p>
-<h2 id="core-capabilities"><a class="header" href="#core-capabilities">Core Capabilities</a></h2>
+<h2 id="architecture"><a class="header" href="#architecture">Architecture</a></h2>
+<p>ros-z provides three integration paths to suit different use cases:</p>
+<div style="position: relative; width: 100%; height: 700px; margin: 20px 0; overflow: hidden;">
+    <iframe src="architecture.html" style="width: 1600px; height: 1000px; border: none; transform: scale(0.75); transform-origin: top left;" title="Interactive ros-z Architecture" scrolling="no"></iframe>
+</div>
+<h2 id="why-choose-ros-z"><a class="header" href="#why-choose-ros-z">Why Choose ros-z?</a></h2>
 <div class="table-wrapper"><table><thead><tr><th>Feature</th><th>Description</th><th>Benefit</th></tr></thead><tbody>
 <tr><td><strong>Native Rust</strong></td><td>Pure Rust implementation with no C/C++ dependencies</td><td>Memory safety, concurrency without data races</td></tr>
 <tr><td><strong>Zenoh Transport</strong></td><td>High-performance pub-sub engine</td><td>Low latency, efficient bandwidth usage</td></tr>
 <tr><td><strong>ROS 2 Compatible</strong></td><td>Works seamlessly with standard ROS 2 tools</td><td>Integrate with existing robotics ecosystems</td></tr>
+<tr><td><strong>Multiple Serializations</strong></td><td>Support for various data representations: CDR (ROS default), Protobuf</td><td>Flexible message encoding for different performance and interoperability needs</td></tr>
 <tr><td><strong>Type Safety</strong></td><td>Compile-time message validation</td><td>Catch errors before deployment</td></tr>
 <tr><td><strong>Modern API</strong></td><td>Idiomatic Rust patterns</td><td>Ergonomic developer experience</td></tr>
+<tr><td><strong>Safety First</strong></td><td>Ownership model prevents common bugs</td><td>No data races, null pointers, or buffer overflows at compile time</td></tr>
+<tr><td><strong>High Productivity</strong></td><td>Cargo ecosystem with excellent tooling</td><td>Fast development without sacrificing reliability</td></tr>
 </tbody></table>
-</div>
-<h2 id="communication-patterns"><a class="header" href="#communication-patterns">Communication Patterns</a></h2>
-<p>ros-z supports all essential ROS 2 communication patterns:</p>
-<p><strong>Publishers &amp; Subscribers:</strong></p>
-<pre><code class="language-rust ignore">let pub = node.create_pub::&lt;String&gt;("topic").build()?;
-let sub = node.create_sub::&lt;String&gt;("topic").build()?;</code></pre>
-<p><strong>Services:</strong></p>
-<pre><code class="language-rust ignore">let server = node.create_service::&lt;AddTwoInts&gt;("add").build()?;
-let client = node.create_client::&lt;AddTwoInts&gt;("add").build()?;</code></pre>
-<p><strong>Actions:</strong></p>
-<pre><code class="language-rust ignore">// Long-running tasks with feedback and cancellation
-let action_server = node.create_action_server::&lt;Fibonacci&gt;("fibonacci").build()?;
-let action_client = node.create_action_client::&lt;Fibonacci&gt;("fibonacci").build()?;</code></pre>
-<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
-<div class="admonition-title">
-<div id="admonition-tip-title">
-<p>Tip</p>
-</div>
-<a class="admonition-anchor-link" href="#admonition-tip"></a>
-</div>
-<div>
-<p>Start with pub-sub for data streaming, use services for request-response operations, and leverage actions for long-running tasks that need progress feedback.</p>
-</div>
-</div>
-<h2 id="why-ros-z"><a class="header" href="#why-ros-z">Why ros-z?</a></h2>
-<p><strong>Safety:</strong> Rust's ownership model prevents common robotics bugs like data races, null pointer dereferences, and buffer overflows at compile time.</p>
-<p><strong>Productivity:</strong> Cargo ecosystem integration, excellent tooling, and expressive type system accelerate development without sacrificing reliability.</p>
-<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+</div><div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
 <div class="admonition-title">
 <div id="admonition-note-title">
 <p>Note</p>
@@ -231,13 +212,57 @@ let action_client = node.create_action_client::&lt;Fibonacci&gt;("fibonacci").bu
 <p>ros-z is designed for both new projects and gradual migration. Deploy ros-z nodes alongside existing ROS 2 C++/Python nodes with full interoperability.</p>
 </div>
 </div>
-<h2 id="resources"><a class="header" href="#resources">Resources</a></h2>
-<ul>
-<li><strong><a href="./chapters/quick_start.html">Quick Start</a></strong> - Get running in 5 minutes</li>
-<li><strong><a href="./chapters/pubsub.html">Publishers &amp; Subscribers</a></strong> - Master the fundamental pattern</li>
-<li><strong><a href="./chapters/services.html">Services</a></strong> - Request-response communication</li>
-<li><strong><a href="./chapters/troubleshooting.html">Troubleshooting</a></strong> - Common issues and solutions</li>
-</ul>
+<h2 id="communication-patterns"><a class="header" href="#communication-patterns">Communication Patterns</a></h2>
+<p>ros-z supports all essential ROS 2 communication patterns:</p>
+<div class="table-wrapper"><table><thead><tr><th>Pattern</th><th>Use Case</th><th>Learn More</th></tr></thead><tbody>
+<tr><td><strong>Pub/Sub</strong></td><td>Continuous data streaming, sensor data, status updates</td><td><a href="./chapters/pubsub.html">Pub/Sub</a></td></tr>
+<tr><td><strong>Services</strong></td><td>Request-response operations, remote procedure calls</td><td><a href="./chapters/services.html">Services</a></td></tr>
+<tr><td><strong>Actions</strong></td><td>Long-running tasks with feedback and cancellation support</td><td><a href="./chapters/actions.html">Actions</a></td></tr>
+</tbody></table>
+</div><div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
+<div class="admonition-title">
+<div id="admonition-tip-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-tip"></a>
+</div>
+<div>
+<p>Start with pub/sub for data streaming, use services for request-response operations, and leverage actions for long-running tasks that need progress feedback.</p>
+</div>
+</div>
+<h2 id="ergonomic-api-design"><a class="header" href="#ergonomic-api-design">Ergonomic API Design</a></h2>
+<p>ros-z provides flexible, idiomatic Rust APIs that adapt to your preferred programming style:</p>
+<p><strong>Flexible Builder Pattern:</strong></p>
+<pre><code class="language-rust ignore">let pub = node.create_pub::&lt;Vector3&gt;("vector")
+    // Quality of Service settings
+    .with_qos(QosProfile {
+        reliability: QosReliability::Reliable,
+        ..Default::default()
+    })
+    // custom serialization
+    .with_serdes::&lt;ProtobufSerdes&lt;Vector3&gt;&gt;()
+    .build()?;</code></pre>
+<p><strong>Async &amp; Sync Patterns:</strong></p>
+<pre><code class="language-rust ignore">// Publishers: sync and async variants
+zpub.publish(&amp;msg)?;
+zpub.async_publish(&amp;msg).await?;
+
+// Subscribers: sync and async receiving
+let msg = zsub.recv()?;
+let msg = zsub.async_recv().await?;</code></pre>
+<p><strong>Callback or Polling Style for Subscribers:</strong></p>
+<pre><code class="language-rust ignore">// Callback style - process messages with a closure
+let sub = node.create_sub::&lt;RosString&gt;("topic")
+    .build_with_callback(|msg| {
+        println!("Received: {}", msg);
+    })?;
+
+// Polling style - receive messages on demand
+let sub = node.create_sub::&lt;RosString&gt;("topic").build()?;
+while let Ok(msg) = sub.recv() {
+    println!("Received: {}", msg);
+}</code></pre>
+<h2 id="next-step"><a class="header" href="#next-step">Next Step</a></h2>
 <p><strong>Ready to build safer, faster robotics applications? Start with the <a href="./chapters/quick_start.html">Quick Start Guide</a>.</strong></p>
 
                     </main>

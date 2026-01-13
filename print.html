@@ -183,42 +183,23 @@
                     <main>
                         <h1 id="introduction"><a class="header" href="#introduction">Introduction</a></h1>
 <p><strong>ros-z is a native Rust ROS 2 implementation powered by Zenoh, delivering high-performance robotics communication with type safety and zero-cost abstractions.</strong> Build reliable robot applications using modern Rust idioms while maintaining full ROS 2 compatibility.</p>
-<h2 id="core-capabilities"><a class="header" href="#core-capabilities">Core Capabilities</a></h2>
+<h2 id="architecture"><a class="header" href="#architecture">Architecture</a></h2>
+<p>ros-z provides three integration paths to suit different use cases:</p>
+<div style="position: relative; width: 100%; height: 700px; margin: 20px 0; overflow: hidden;">
+    <iframe src="architecture.html" style="width: 1600px; height: 1000px; border: none; transform: scale(0.75); transform-origin: top left;" title="Interactive ros-z Architecture" scrolling="no"></iframe>
+</div>
+<h2 id="why-choose-ros-z"><a class="header" href="#why-choose-ros-z">Why Choose ros-z?</a></h2>
 <div class="table-wrapper"><table><thead><tr><th>Feature</th><th>Description</th><th>Benefit</th></tr></thead><tbody>
 <tr><td><strong>Native Rust</strong></td><td>Pure Rust implementation with no C/C++ dependencies</td><td>Memory safety, concurrency without data races</td></tr>
 <tr><td><strong>Zenoh Transport</strong></td><td>High-performance pub-sub engine</td><td>Low latency, efficient bandwidth usage</td></tr>
 <tr><td><strong>ROS 2 Compatible</strong></td><td>Works seamlessly with standard ROS 2 tools</td><td>Integrate with existing robotics ecosystems</td></tr>
+<tr><td><strong>Multiple Serializations</strong></td><td>Support for various data representations: CDR (ROS default), Protobuf</td><td>Flexible message encoding for different performance and interoperability needs</td></tr>
 <tr><td><strong>Type Safety</strong></td><td>Compile-time message validation</td><td>Catch errors before deployment</td></tr>
 <tr><td><strong>Modern API</strong></td><td>Idiomatic Rust patterns</td><td>Ergonomic developer experience</td></tr>
+<tr><td><strong>Safety First</strong></td><td>Ownership model prevents common bugs</td><td>No data races, null pointers, or buffer overflows at compile time</td></tr>
+<tr><td><strong>High Productivity</strong></td><td>Cargo ecosystem with excellent tooling</td><td>Fast development without sacrificing reliability</td></tr>
 </tbody></table>
-</div>
-<h2 id="communication-patterns"><a class="header" href="#communication-patterns">Communication Patterns</a></h2>
-<p>ros-z supports all essential ROS 2 communication patterns:</p>
-<p><strong>Publishers &amp; Subscribers:</strong></p>
-<pre><code class="language-rust ignore">let pub = node.create_pub::&lt;String&gt;("topic").build()?;
-let sub = node.create_sub::&lt;String&gt;("topic").build()?;</code></pre>
-<p><strong>Services:</strong></p>
-<pre><code class="language-rust ignore">let server = node.create_service::&lt;AddTwoInts&gt;("add").build()?;
-let client = node.create_client::&lt;AddTwoInts&gt;("add").build()?;</code></pre>
-<p><strong>Actions:</strong></p>
-<pre><code class="language-rust ignore">// Long-running tasks with feedback and cancellation
-let action_server = node.create_action_server::&lt;Fibonacci&gt;("fibonacci").build()?;
-let action_client = node.create_action_client::&lt;Fibonacci&gt;("fibonacci").build()?;</code></pre>
-<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
-<div class="admonition-title">
-<div id="admonition-tip-title">
-<p>Tip</p>
-</div>
-<a class="admonition-anchor-link" href="introduction.html#admonition-tip"></a>
-</div>
-<div>
-<p>Start with pub-sub for data streaming, use services for request-response operations, and leverage actions for long-running tasks that need progress feedback.</p>
-</div>
-</div>
-<h2 id="why-ros-z"><a class="header" href="#why-ros-z">Why ros-z?</a></h2>
-<p><strong>Safety:</strong> Rust's ownership model prevents common robotics bugs like data races, null pointer dereferences, and buffer overflows at compile time.</p>
-<p><strong>Productivity:</strong> Cargo ecosystem integration, excellent tooling, and expressive type system accelerate development without sacrificing reliability.</p>
-<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+</div><div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
 <div class="admonition-title">
 <div id="admonition-note-title">
 <p>Note</p>
@@ -229,13 +210,57 @@ let action_client = node.create_action_client::&lt;Fibonacci&gt;("fibonacci").bu
 <p>ros-z is designed for both new projects and gradual migration. Deploy ros-z nodes alongside existing ROS 2 C++/Python nodes with full interoperability.</p>
 </div>
 </div>
-<h2 id="resources"><a class="header" href="#resources">Resources</a></h2>
-<ul>
-<li><strong><a href="./chapters/quick_start.html">Quick Start</a></strong> - Get running in 5 minutes</li>
-<li><strong><a href="./chapters/pubsub.html">Publishers &amp; Subscribers</a></strong> - Master the fundamental pattern</li>
-<li><strong><a href="./chapters/services.html">Services</a></strong> - Request-response communication</li>
-<li><strong><a href="./chapters/troubleshooting.html">Troubleshooting</a></strong> - Common issues and solutions</li>
-</ul>
+<h2 id="communication-patterns"><a class="header" href="#communication-patterns">Communication Patterns</a></h2>
+<p>ros-z supports all essential ROS 2 communication patterns:</p>
+<div class="table-wrapper"><table><thead><tr><th>Pattern</th><th>Use Case</th><th>Learn More</th></tr></thead><tbody>
+<tr><td><strong>Pub/Sub</strong></td><td>Continuous data streaming, sensor data, status updates</td><td><a href="./chapters/pubsub.html">Pub/Sub</a></td></tr>
+<tr><td><strong>Services</strong></td><td>Request-response operations, remote procedure calls</td><td><a href="./chapters/services.html">Services</a></td></tr>
+<tr><td><strong>Actions</strong></td><td>Long-running tasks with feedback and cancellation support</td><td><a href="./chapters/actions.html">Actions</a></td></tr>
+</tbody></table>
+</div><div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
+<div class="admonition-title">
+<div id="admonition-tip-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="introduction.html#admonition-tip"></a>
+</div>
+<div>
+<p>Start with pub/sub for data streaming, use services for request-response operations, and leverage actions for long-running tasks that need progress feedback.</p>
+</div>
+</div>
+<h2 id="ergonomic-api-design"><a class="header" href="#ergonomic-api-design">Ergonomic API Design</a></h2>
+<p>ros-z provides flexible, idiomatic Rust APIs that adapt to your preferred programming style:</p>
+<p><strong>Flexible Builder Pattern:</strong></p>
+<pre><code class="language-rust ignore">let pub = node.create_pub::&lt;Vector3&gt;("vector")
+    // Quality of Service settings
+    .with_qos(QosProfile {
+        reliability: QosReliability::Reliable,
+        ..Default::default()
+    })
+    // custom serialization
+    .with_serdes::&lt;ProtobufSerdes&lt;Vector3&gt;&gt;()
+    .build()?;</code></pre>
+<p><strong>Async &amp; Sync Patterns:</strong></p>
+<pre><code class="language-rust ignore">// Publishers: sync and async variants
+zpub.publish(&amp;msg)?;
+zpub.async_publish(&amp;msg).await?;
+
+// Subscribers: sync and async receiving
+let msg = zsub.recv()?;
+let msg = zsub.async_recv().await?;</code></pre>
+<p><strong>Callback or Polling Style for Subscribers:</strong></p>
+<pre><code class="language-rust ignore">// Callback style - process messages with a closure
+let sub = node.create_sub::&lt;RosString&gt;("topic")
+    .build_with_callback(|msg| {
+        println!("Received: {}", msg);
+    })?;
+
+// Polling style - receive messages on demand
+let sub = node.create_sub::&lt;RosString&gt;("topic").build()?;
+while let Ok(msg) = sub.recv() {
+    println!("Received: {}", msg);
+}</code></pre>
+<h2 id="next-step"><a class="header" href="#next-step">Next Step</a></h2>
 <p><strong>Ready to build safer, faster robotics applications? Start with the <a href="./chapters/quick_start.html">Quick Start Guide</a>.</strong></p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="quick-start"><a class="header" href="#quick-start">Quick Start</a></h1>
 <p><strong>Get ros-z running in under 5 minutes with this hands-on tutorial.</strong> Build a complete publisher-subscriber system to understand the core concepts through working code.</p>
@@ -458,519 +483,19 @@ struct Args {
 </div>
 <h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
 <p>Now that you understand the basics:</p>
+<p><strong>Core Concepts:</strong></p>
 <ul>
-<li><strong><a href="chapters/./pubsub.html">Publishers &amp; Subscribers</a></strong> - Deep dive into pub-sub patterns and QoS</li>
-<li><strong><a href="chapters/./services.html">Services</a></strong> - Learn request-response communication</li>
-<li><strong><a href="chapters/./custom_messages.html">Custom Messages</a></strong> - Define domain-specific message types</li>
+<li><strong><a href="chapters/./pubsub.html">Pub/Sub</a></strong> - Deep dive into pub-sub patterns and QoS</li>
+<li><strong><a href="chapters/./services.html">Services</a></strong> - Request-response communication</li>
+<li><strong><a href="chapters/./actions.html">Actions</a></strong> - Long-running tasks with feedback</li>
+<li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - How message types work</li>
+<li><strong><a href="chapters/./custom_messages.html">Custom Messages</a></strong> - Define your own message types</li>
 </ul>
-<p><strong>Experiment by modifying the example: change the topic name, message content, or publishing rate to see how the system responds.</strong></p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="building-ros-z"><a class="header" href="#building-ros-z">Building ros-z</a></h1>
-<p><strong>ros-z is designed to work without ROS 2 dependencies by default, enabling pure Rust development while optionally integrating with existing ROS 2 installations.</strong> This flexible approach lets you choose your dependency level based on project requirements.</p>
-<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
-<div class="admonition-title">
-<div id="admonition-success-title">
-<p>Success</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/building.html#admonition-success"></a>
-</div>
-<div>
-<p>Start with zero dependencies and add ROS 2 integration only when you need it. This gradual approach reduces complexity and speeds up initial development.</p>
-</div>
-</div>
-<h2 id="philosophy"><a class="header" href="#philosophy">Philosophy</a></h2>
-<p>ros-z follows a <strong>dependency-optional</strong> design:</p>
+<p><strong>Development:</strong></p>
 <ul>
-<li>Build pure Rust applications without ROS 2 installed</li>
-<li>Use bundled message definitions for common types</li>
-<li>Opt-in to ROS 2 integration when needed</li>
-<li>Pay only for what you use</li>
+<li><strong><a href="chapters/./building.html">Building</a></strong> - Build configurations and dependencies</li>
+<li><strong><a href="chapters/./config.html">Networking</a></strong> - Zenoh router setup and options</li>
 </ul>
-<h2 id="adding-ros-z-to-your-project"><a class="header" href="#adding-ros-z-to-your-project">Adding ros-z to Your Project</a></h2>
-<p>Get started by adding ros-z to your <code>Cargo.toml</code>. Choose the dependency setup that matches your needs:</p>
-<h3 id="scenario-1-pure-rust-with-custom-messages"><a class="header" href="#scenario-1-pure-rust-with-custom-messages">Scenario 1: Pure Rust with Custom Messages</a></h3>
-<p><strong>Use when:</strong> You want to define your own message types without ROS 2 dependencies</p>
-<p><strong>Add to your <code>Cargo.toml</code>:</strong></p>
-<pre><code class="language-toml">[dependencies]
-ros-z = "0.x"
-tokio = { version = "1", features = ["full"] }  # Async runtime required
-</code></pre>
-<p><strong>What you get:</strong></p>
-<ul>
-<li>Full ros-z functionality</li>
-<li>Custom message support via derive macros</li>
-<li>Zero external dependencies</li>
-<li>Fast build times</li>
-</ul>
-<h3 id="scenario-2-using-bundled-ros-messages"><a class="header" href="#scenario-2-using-bundled-ros-messages">Scenario 2: Using Bundled ROS Messages</a></h3>
-<p><strong>Use when:</strong> You need standard ROS 2 message types but don't have ROS 2 installed</p>
-<p><strong>Add to your <code>Cargo.toml</code>:</strong></p>
-<pre><code class="language-toml">[dependencies]
-ros-z = "0.x"
-ros-z-msgs = "0.x"  # Includes std_msgs, geometry_msgs, sensor_msgs, nav_msgs
-tokio = { version = "1", features = ["full"] }
-</code></pre>
-<p><strong>Bundled message packages:</strong></p>
-<ul>
-<li><code>std_msgs</code> - Primitive types (String, Int32, Float64, etc.)</li>
-<li><code>geometry_msgs</code> - Spatial data (Point, Pose, Transform, Twist)</li>
-<li><code>sensor_msgs</code> - Sensor data (LaserScan, Image, Imu, PointCloud2)</li>
-<li><code>nav_msgs</code> - Navigation (Path, OccupancyGrid, Odometry)</li>
-</ul>
-<h3 id="scenario-3-full-ros-2-integration"><a class="header" href="#scenario-3-full-ros-2-integration">Scenario 3: Full ROS 2 Integration</a></h3>
-<p><strong>Use when:</strong> You need all ROS 2 message types or custom packages from your workspace</p>
-<p><strong>Requirements:</strong> ROS 2 installation (Jazzy, Rolling, Iron, or Humble)</p>
-<p><strong>Add to your <code>Cargo.toml</code>:</strong></p>
-<pre><code class="language-toml">[dependencies]
-ros-z = "0.x"
-ros-z-msgs = { version = "0.x", features = ["external_msgs"] }
-tokio = { version = "1", features = ["full"] }
-</code></pre>
-<p><strong>Build your project:</strong></p>
-<pre><code class="language-bash"># Ensure ROS 2 is sourced
-source /opt/ros/jazzy/setup.bash
-
-# Build your project
-cargo build
-</code></pre>
-<p><strong>Additional packages available:</strong></p>
-<ul>
-<li><code>example_interfaces</code> - Tutorial services and actions</li>
-<li><code>action_msgs</code> - Action communication types</li>
-<li>Any custom messages from your ROS 2 workspace</li>
-</ul>
-<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
-<div class="admonition-title">
-<div id="admonition-tip-title">
-<p>Tip</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/building.html#admonition-tip"></a>
-</div>
-<div>
-<p>Start with Scenario 1 or 2 for development, then move to Scenario 3 when you need full ROS 2 interoperability.</p>
-</div>
-</div>
-<h2 id="running-examples"><a class="header" href="#running-examples">Running Examples</a></h2>
-<p>Once you've added ros-z to your project, you can run the included examples to see it in action.</p>
-<div id="admonition-important" class="admonition admonish-tip" role="note" aria-labelledby="admonition-important-title">
-<div class="admonition-title">
-<div id="admonition-important-title">
-<p>Important</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/building.html#admonition-important"></a>
-</div>
-<div>
-<p><strong>All examples require a Zenoh router to be running first:</strong></p>
-<pre><code class="language-bash">cargo run --example zenoh_router
-
-&lt;/div&gt;
-&lt;/div&gt;
-
-Leave this running in a separate terminal, then run any example in another terminal.
-
-**Available examples:**
-
-```bash
-# Pure Rust example with custom messages (no ros-z-msgs needed)
-cargo run --example z_custom_message -- --mode status-pub
-
-# Examples using bundled messages (requires ros-z-msgs)
-cargo run --example z_pubsub          # Publisher/Subscriber with std_msgs
-cargo run --example twist_pub         # Publishing geometry_msgs
-cargo run --example battery_state_sub # Receiving sensor_msgs
-
-# Examples requiring ROS 2 (requires external_msgs feature)
-cargo run --example z_srvcli --features external_msgs
-</code></pre>
-<p>See the <a href="chapters/./config.html">Zenoh Configuration</a> chapter for router setup details and alternative configurations.</p>
-<h2 id="using-nix-optional"><a class="header" href="#using-nix-optional">Using Nix (Optional)</a></h2>
-<p>Pre-configured development environments with all dependencies:</p>
-<pre><code class="language-bash"># Default: ROS 2 Jazzy with full tooling
-nix develop
-
-# Specific ROS distros
-nix develop .#ros-jazzy      # ROS 2 Jazzy
-nix develop .#ros-rolling    # ROS 2 Rolling
-
-# Pure Rust (no ROS)
-nix develop .#pureRust
-</code></pre>
-<div id="admonition-tip-1" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-1-title">
-<div class="admonition-title">
-<div id="admonition-tip-1-title">
-<p>Tip</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/building.html#admonition-tip-1"></a>
-</div>
-<div>
-<p>Use Nix for consistent development environments across team members and CI/CD pipelines.</p>
-</div>
-</div>
-<h2 id="development"><a class="header" href="#development">Development</a></h2>
-<p>This section is for contributors working on ros-z itself. If you're using ros-z in your project, you can skip this section.</p>
-<h3 id="package-organization"><a class="header" href="#package-organization">Package Organization</a></h3>
-<p>The ros-z repository is organized as a Cargo workspace with multiple packages:</p>
-<div class="table-wrapper"><table><thead><tr><th>Package</th><th>Default Build</th><th>Purpose</th><th>Dependencies</th></tr></thead><tbody>
-<tr><td><strong>ros-z</strong></td><td>Yes</td><td>Core Zenoh-native ROS 2 library</td><td>None</td></tr>
-<tr><td><strong>ros-z-codegen</strong></td><td>Yes</td><td>Message generation utilities</td><td>None</td></tr>
-<tr><td><strong>ros-z-msgs</strong></td><td>No</td><td>Pre-generated message types</td><td>Optional ROS 2</td></tr>
-<tr><td><strong>ros-z-tests</strong></td><td>No</td><td>Integration tests</td><td>ros-z-msgs</td></tr>
-<tr><td><strong>rcl-z</strong></td><td>No</td><td>RCL C bindings</td><td>ROS 2 required</td></tr>
-</tbody></table>
-</div><div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
-<div class="admonition-title">
-<div id="admonition-note-title">
-<p>Note</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/building.html#admonition-note"></a>
-</div>
-<div>
-<p>Only <code>ros-z</code> and <code>ros-z-codegen</code> build by default. Other packages are optional for development, testing, and running examples.</p>
-</div>
-</div>
-<h3 id="building-the-repository"><a class="header" href="#building-the-repository">Building the Repository</a></h3>
-<p>When contributing to ros-z, you can build different parts of the workspace:</p>
-<pre><code class="language-bash"># Build core library
-cargo build
-
-# Run tests
-cargo test
-
-# Build with bundled messages for examples
-cargo build -p ros-z-msgs
-
-# Build all packages (requires ROS 2)
-source /opt/ros/jazzy/setup.bash
-cargo build --all
-</code></pre>
-<h3 id="message-package-resolution"><a class="header" href="#message-package-resolution">Message Package Resolution</a></h3>
-<p>The build system automatically locates ROS message definitions:</p>
-<p><strong>Search order:</strong></p>
-<ol>
-<li>System ROS installation (<code>AMENT_PREFIX_PATH</code>, <code>CMAKE_PREFIX_PATH</code>)</li>
-<li>Common ROS paths (<code>/opt/ros/{rolling,jazzy,iron,humble}</code>)</li>
-<li>Roslibrust git checkout (<code>~/.cargo/git/checkouts/roslibrust-*/assets/</code>)</li>
-</ol>
-<p>This fallback mechanism enables builds without ROS 2 installed.</p>
-<h3 id="common-development-commands"><a class="header" href="#common-development-commands">Common Development Commands</a></h3>
-<pre><code class="language-bash"># Fast iterative development
-cargo check                # Quick compile check
-cargo build                # Debug build
-cargo build --release      # Optimized build
-cargo test                 # Run tests
-cargo clippy              # Lint checks
-
-# Clean builds
-cargo clean                # Remove all build artifacts
-cargo clean -p ros-z-msgs  # Clean specific package
-</code></pre>
-<div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
-<div class="admonition-title">
-<div id="admonition-warning-title">
-<p>Warning</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/building.html#admonition-warning"></a>
-</div>
-<div>
-<p>After changing feature flags or updating ROS 2, run <code>cargo clean -p ros-z-msgs</code> to force message regeneration.</p>
-</div>
-</div>
-<h2 id="troubleshooting-builds"><a class="header" href="#troubleshooting-builds">Troubleshooting Builds</a></h2>
-<p><strong>Build too slow?</strong></p>
-<pre><code class="language-bash"># Use parallel builds (automatic on most systems)
-cargo build -j $(nproc)
-
-# Build only what you need
-cargo build -p ros-z-msgs --features std_msgs,geometry_msgs
-</code></pre>
-<p><strong>Can't find ROS packages?</strong></p>
-<pre><code class="language-bash"># Ensure ROS 2 is sourced
-source /opt/ros/jazzy/setup.bash
-
-# Verify environment
-echo $AMENT_PREFIX_PATH
-
-# Check package exists
-ros2 pkg prefix example_interfaces
-</code></pre>
-<p><strong>Linker errors?</strong></p>
-<pre><code class="language-bash"># Clear cache and rebuild
-cargo clean
-source /opt/ros/jazzy/setup.bash
-cargo build -p rcl-z
-</code></pre>
-<p>For comprehensive troubleshooting, see the <a href="chapters/./troubleshooting.html">Troubleshooting Guide</a>.</p>
-<h2 id="resources-1"><a class="header" href="#resources-1">Resources</a></h2>
-<ul>
-<li><strong><a href="chapters/./feature_flags.html">Feature Flags</a></strong> - Detailed feature documentation</li>
-<li><strong><a href="chapters/./troubleshooting.html">Troubleshooting</a></strong> - Common build issues</li>
-<li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - How messages work</li>
-</ul>
-<p><strong>Start with the simplest build and add dependencies incrementally as your project grows.</strong></p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="zenoh-configuration"><a class="header" href="#zenoh-configuration">Zenoh Configuration</a></h1>
-<p><strong>Configure ros-z's Zenoh transport layer for optimal performance in your deployment environment.</strong> ros-z uses router-based architecture by default, matching ROS 2's official <code>rmw_zenoh_cpp</code> middleware for production-ready scalability.</p>
-<h2 id="router-based-architecture"><a class="header" href="#router-based-architecture">Router-Based Architecture</a></h2>
-<p>ros-z uses a centralized Zenoh router for node discovery and communication, providing:</p>
-<div class="table-wrapper"><table><thead><tr><th>Benefit</th><th>Description</th></tr></thead><tbody>
-<tr><td><strong>Scalability</strong></td><td>Centralized discovery handles large deployments efficiently</td></tr>
-<tr><td><strong>Lower Network Overhead</strong></td><td>TCP-based discovery instead of multicast broadcasts</td></tr>
-<tr><td><strong>ROS 2 Compatibility</strong></td><td>Matches <code>rmw_zenoh_cpp</code> behavior for seamless interoperability</td></tr>
-<tr><td><strong>Production Ready</strong></td><td>Battle-tested configuration used in real robotics systems</td></tr>
-</tbody></table>
-</div>
-<h2 id="quick-start-1"><a class="header" href="#quick-start-1">Quick Start</a></h2>
-<p>The simplest way to get started is using the built-in router example:</p>
-<p><strong>Terminal 1 - Start the Router:</strong></p>
-<pre><code class="language-bash">cargo run --example zenoh_router
-</code></pre>
-<p><strong>Terminal 2 - Run Your Application:</strong></p>
-<pre><code class="language-rust ignore">use ros_z::context::ZContextBuilder;
-use ros_z::Builder;
-
-// Uses default ROS session config (connects to tcp/localhost:7447)
-let ctx = ZContextBuilder::default().build()?;
-let node = ctx.create_node("my_node").build()?;</code></pre>
-<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
-<div class="admonition-title">
-<div id="admonition-success-title">
-<p>Success</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/config.html#admonition-success"></a>
-</div>
-<div>
-<p>That's it! The default configuration automatically connects to the router on <code>tcp/localhost:7447</code>.</p>
-</div>
-</div>
-<h2 id="configuration-options"><a class="header" href="#configuration-options">Configuration Options</a></h2>
-<p>ros-z provides multiple ways to configure Zenoh, from simple to advanced.</p>
-<h3 id="option-1-default-configuration-recommended"><a class="header" href="#option-1-default-configuration-recommended">Option 1: Default Configuration (Recommended)</a></h3>
-<p>Use the built-in ROS session config for standard deployments:</p>
-<pre><code class="language-rust ignore">let ctx = ZContextBuilder::default().build()?;</code></pre>
-<p><strong>What it does:</strong></p>
-<ul>
-<li>Connects to router at <code>tcp/localhost:7447</code></li>
-<li>Uses ROS-compatible timeouts and buffer sizes</li>
-<li>Disables multicast discovery (uses router instead)</li>
-</ul>
-<h3 id="option-2-custom-router-endpoint"><a class="header" href="#option-2-custom-router-endpoint">Option 2: Custom Router Endpoint</a></h3>
-<p>Connect to a router on a different host or port:</p>
-<pre><code class="language-rust ignore">let ctx = ZContextBuilder::default()
-    .with_router_endpoint("tcp/192.168.1.100:7447")
-    .build()?;</code></pre>
-<p><strong>Use cases:</strong></p>
-<ul>
-<li>Distributed systems with remote router</li>
-<li>Custom port configurations</li>
-<li>Multiple isolated networks</li>
-</ul>
-<h3 id="option-3-environment-variable-overrides"><a class="header" href="#option-3-environment-variable-overrides">Option 3: Environment Variable Overrides</a></h3>
-<p>Override any Zenoh configuration setting using the <code>ROSZ_CONFIG_OVERRIDE</code> environment variable without changing code:</p>
-<pre><code class="language-bash"># Override mode and endpoint
-export ROSZ_CONFIG_OVERRIDE='mode="client";connect/endpoints=["tcp/192.168.1.100:7447"]'
-
-# Run your application
-cargo run --example my_app
-</code></pre>
-<pre><code class="language-rust ignore">// No code changes needed - overrides are applied automatically
-let ctx = ZContextBuilder::default().build()?;</code></pre>
-<p><strong>Format:</strong></p>
-<ul>
-<li>Semicolon-separated <code>key=value</code> pairs</li>
-<li>Values use JSON5 syntax</li>
-<li>Keys use slash-separated paths (e.g., <code>connect/endpoints</code>, <code>scouting/multicast/enabled</code>)</li>
-</ul>
-<p><strong>Common examples:</strong></p>
-<pre><code class="language-bash"># Connect to remote router
-export ROSZ_CONFIG_OVERRIDE='connect/endpoints=["tcp/10.0.0.5:7447"]'
-
-# Enable multicast scouting explicitly
-export ROSZ_CONFIG_OVERRIDE='scouting/multicast/enabled=true'
-
-# Multiple overrides
-export ROSZ_CONFIG_OVERRIDE='mode="client";connect/timeout_ms=5000;scouting/multicast/enabled=false'
-</code></pre>
-<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
-<div class="admonition-title">
-<div id="admonition-tip-title">
-<p>Tip</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/config.html#admonition-tip"></a>
-</div>
-<div>
-<p>Environment variable overrides have the highest priority and will override any programmatic configuration or config file settings.</p>
-</div>
-</div>
-<h3 id="option-4-advanced-configuration-builders"><a class="header" href="#option-4-advanced-configuration-builders">Option 4: Advanced Configuration Builders</a></h3>
-<p>Fine-tune session or router settings programmatically:</p>
-<pre><code class="language-rust ignore">use ros_z::config::{SessionConfigBuilder, RouterConfigBuilder};
-
-// Customize session config
-let session_config = SessionConfigBuilder::new()
-    .with_router_endpoint("tcp/192.168.1.100:7447")
-    .build()?;
-
-let ctx = ZContextBuilder::default()
-    .with_zenoh_config(session_config)
-    .build()?;
-
-// Or build a custom router config
-let router_config = RouterConfigBuilder::new()
-    .with_listen_port(7448)  // Custom port
-    .build()?;
-
-zenoh::open(router_config).await?;</code></pre>
-<p><strong>Key builder methods:</strong></p>
-<div class="table-wrapper"><table><thead><tr><th>Builder</th><th>Methods</th><th>Purpose</th></tr></thead><tbody>
-<tr><td><code>SessionConfigBuilder</code></td><td><code>with_router_endpoint(endpoint)</code></td><td>Connect to custom router</td></tr>
-<tr><td><code>RouterConfigBuilder</code></td><td><code>with_listen_port(port)</code></td><td>Set custom router port</td></tr>
-</tbody></table>
-</div>
-<h3 id="option-5-peer-mode-using-multicast-discovery-no-router-required"><a class="header" href="#option-5-peer-mode-using-multicast-discovery-no-router-required">Option 5: Peer Mode Using Multicast Discovery (No Router Required)</a></h3>
-<p>Revert to multicast peer discovery for simple setups:</p>
-<pre><code class="language-rust ignore">// Use vanilla Zenoh config (peer mode with multicast)
-let ctx = ZContextBuilder::default()
-    .with_zenoh_config(zenoh::Config::default())
-    .build()?;</code></pre>
-<div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
-<div class="admonition-title">
-<div id="admonition-warning-title">
-<p>Warning</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/config.html#admonition-warning"></a>
-</div>
-<div>
-<p>Multicast scouting discovery is convenient for quick testing but doesn't scale well and won't work with ROS 2 nodes using <code>rmw_zenoh_cpp</code> (which expects a zenoh router).</p>
-</div>
-</div>
-<h3 id="option-6-load-from-config-file"><a class="header" href="#option-6-load-from-config-file">Option 6: Load from Config File</a></h3>
-<p>Use JSON5 config files for complex deployments:</p>
-<pre><code class="language-rust ignore">let ctx = ZContextBuilder::default()
-    .with_config_file("/etc/zenoh/session_config.json5")
-    .build()?;</code></pre>
-<p><strong>When to use:</strong></p>
-<ul>
-<li>Deploying across multiple machines</li>
-<li>Environment-specific configurations</li>
-<li>Version-controlled infrastructure</li>
-</ul>
-<h2 id="advanced-generating-config-files"><a class="header" href="#advanced-generating-config-files">(Advanced) Generating Config Files</a></h2>
-<p>ros-z can generate JSON5 config files matching <code>rmw_zenoh_cpp</code> defaults. This is opt-in via the <code>generate-configs</code> feature flag.</p>
-<h3 id="basic-generation"><a class="header" href="#basic-generation">Basic Generation</a></h3>
-<pre><code class="language-bash">cargo build --features generate-configs
-</code></pre>
-<p><strong>Output location:</strong></p>
-<pre><code class="language-console">target/debug/build/ros-z-*/out/ros_z_config/
-  ├── DEFAULT_ROSZ_ROUTER_CONFIG.json5
-  └── DEFAULT_ROSZ_SESSION_CONFIG.json5
-</code></pre>
-<h3 id="custom-output-directory"><a class="header" href="#custom-output-directory">Custom Output Directory</a></h3>
-<p>Specify a custom directory using the <code>ROS_Z_CONFIG_OUTPUT_DIR</code> environment variable:</p>
-<p><strong>Absolute path:</strong></p>
-<pre><code class="language-bash">ROS_Z_CONFIG_OUTPUT_DIR=/etc/zenoh cargo build --features generate-configs
-</code></pre>
-<p><strong>Relative path (from package root):</strong></p>
-<pre><code class="language-bash">ROS_Z_CONFIG_OUTPUT_DIR=./config cargo build --features generate-configs
-</code></pre>
-<p><strong>From workspace root:</strong></p>
-<pre><code class="language-bash">ROS_Z_CONFIG_OUTPUT_DIR=$PWD/config cargo build -p ros-z --features generate-configs
-</code></pre>
-<div id="admonition-tip-1" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-1-title">
-<div class="admonition-title">
-<div id="admonition-tip-1-title">
-<p>Tip</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/config.html#admonition-tip-1"></a>
-</div>
-<div>
-<p>Generated files include inline comments explaining each setting, making them perfect documentation references.</p>
-</div>
-</div>
-<h3 id="using-generated-files"><a class="header" href="#using-generated-files">Using Generated Files</a></h3>
-<pre><code class="language-rust ignore">let ctx = ZContextBuilder::default()
-    .with_config_file("./config/DEFAULT_ROSZ_SESSION_CONFIG.json5")
-    .build()?;</code></pre>
-<h2 id="running-the-zenoh-router"><a class="header" href="#running-the-zenoh-router">Running the Zenoh Router</a></h2>
-<h3 id="option-1-default-router"><a class="header" href="#option-1-default-router">Option 1: Default Router</a></h3>
-<p>ros-z provides a built-in router example that's ROS-compatible out of the box.</p>
-<pre><code class="language-bash">cargo run --example zenoh_router
-</code></pre>
-<p>Listens on <code>tcp/[::]:7447</code> (all interfaces, port 7447).</p>
-<h3 id="option-2-official-zenoh-router"><a class="header" href="#option-2-official-zenoh-router">Option 2: Official Zenoh Router</a></h3>
-<p>You can also use the official Zenoh router: <a href="https://zenoh.io/docs/getting-started/installation/#installing-the-zenoh-router">https://zenoh.io/docs/getting-started/installation/#installing-the-zenoh-router</a>.</p>
-<h2 id="configuration-reference"><a class="header" href="#configuration-reference">Configuration Reference</a></h2>
-<h3 id="key-settings-explained"><a class="header" href="#key-settings-explained">Key Settings Explained</a></h3>
-<div class="table-wrapper"><table><thead><tr><th>Setting</th><th>Router</th><th>Session</th><th>Purpose</th></tr></thead><tbody>
-<tr><td><strong>Mode</strong></td><td><code>router</code></td><td><code>peer</code></td><td>Router relays messages, peers connect directly</td></tr>
-<tr><td><strong>Listen Endpoint</strong></td><td><code>tcp/[::]:7447</code></td><td>-</td><td>Router accepts connections</td></tr>
-<tr><td><strong>Connect Endpoint</strong></td><td>-</td><td><code>tcp/localhost:7447</code></td><td>Session connects to router</td></tr>
-<tr><td><strong>Multicast</strong></td><td>Disabled</td><td>Disabled</td><td>Uses TCP gossip for discovery</td></tr>
-<tr><td><strong>Unicast Timeout</strong></td><td>60s</td><td>60s</td><td>Handles slow networks/large deployments</td></tr>
-<tr><td><strong>Query Timeout</strong></td><td>10min</td><td>10min</td><td>Long-running service calls</td></tr>
-<tr><td><strong>Max Sessions</strong></td><td>10,000</td><td>-</td><td>Supports concurrent node startup</td></tr>
-<tr><td><strong>Keep-Alive</strong></td><td>2s</td><td>2s</td><td>Optimized for loopback</td></tr>
-</tbody></table>
-</div><div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
-<div class="admonition-title">
-<div id="admonition-note-title">
-<p>Note</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/config.html#admonition-note"></a>
-</div>
-<div>
-<p>These defaults are tuned for ROS 2 deployments and match <code>rmw_zenoh_cpp</code> exactly. Only modify them if you have specific performance requirements.</p>
-</div>
-</div>
-<h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
-<h3 id="nodes-cant-find-each-other"><a class="header" href="#nodes-cant-find-each-other">Nodes Can't Find Each Other</a></h3>
-<p><strong>Symptom:</strong> Publishers and subscribers on different processes don't communicate.</p>
-<p><strong>Solution:</strong> Ensure the Zenoh router is running and both nodes connect to it:</p>
-<pre><code class="language-bash"># Check router is running
-cargo run --example zenoh_router
-
-# Verify endpoint matches in your code
-let ctx = ZContextBuilder::default()
-    .with_router_endpoint("tcp/localhost:7447")  // Must match router
-    .build()?;
-</code></pre>
-<h3 id="router-port-already-in-use"><a class="header" href="#router-port-already-in-use">Router Port Already in Use</a></h3>
-<p><strong>Symptom:</strong> Router fails to start with "Address already in use" error.</p>
-<p><strong>Solution:</strong> Another process is using port 7447. Either:</p>
-<ul>
-<li>Stop the conflicting process</li>
-<li>Use a custom port for the router and update session configs</li>
-</ul>
-<pre><code class="language-rust ignore">// Custom router port
-let router_config = RouterConfigBuilder::new()
-    .with_listen_port(7448)
-    .build()?;
-
-// Connect sessions to custom port
-let ctx = ZContextBuilder::default()
-    .with_router_endpoint("tcp/localhost:7448")
-    .build()?;</code></pre>
-<h3 id="want-multicast-discovery-back"><a class="header" href="#want-multicast-discovery-back">Want Multicast Discovery Back</a></h3>
-<p><strong>Symptom:</strong> Don't want to manage a router for simple local testing.</p>
-<p><strong>Solution:</strong> Use peer mode:</p>
-<pre><code class="language-rust ignore">let ctx = ZContextBuilder::default()
-    .with_zenoh_config(zenoh::Config::default())
-    .build()?;</code></pre>
-<div id="admonition-warning-1" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-1-title">
-<div class="admonition-title">
-<div id="admonition-warning-1-title">
-<p>Warning</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/config.html#admonition-warning-1"></a>
-</div>
-<div>
-<p>Peer mode won't interoperate with ROS 2 nodes using <code>rmw_zenoh_cpp</code> in router mode.</p>
-</div>
-</div>
-<h2 id="next-steps-1"><a class="header" href="#next-steps-1">Next Steps</a></h2>
-<ul>
-<li><strong><a href="chapters/./pubsub.html">Publishers &amp; Subscribers</a></strong> - Build communication patterns</li>
-<li><strong><a href="chapters/./services.html">Services</a></strong> - Implement request-response</li>
-<li><strong><a href="chapters/./troubleshooting.html">Troubleshooting</a></strong> - Solve common issues</li>
-</ul>
-<p><strong>Ready to optimize your deployment? Experiment with different configurations and measure performance impact.</strong></p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="publishers-and-subscribers"><a class="header" href="#publishers-and-subscribers">Publishers and Subscribers</a></h1>
 <p><strong>ros-z implements ROS 2's publish-subscribe pattern with type-safe, zero-copy messaging over Zenoh.</strong> This enables efficient, decoupled communication between nodes with minimal overhead.</p>
 <div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
@@ -1193,23 +718,7 @@ cargo run --example demo_nodes_listener -- --max-count 5
 <p><strong>Terminal 3 - Start Publisher:</strong></p>
 <pre><code class="language-bash">cargo run --example demo_nodes_talker
 </code></pre>
-<p><strong>Expected output in Terminal 2 (Subscriber):</strong></p>
-<pre><code class="language-text">I heard: [Hello World: 1]
-I heard: [Hello World: 2]
-I heard: [Hello World: 3]
-...
-</code></pre>
-<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
-<div class="admonition-title">
-<div id="admonition-success-title">
-<p>Success</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/pubsub.html#admonition-success"></a>
-</div>
-<div>
-<p>The subscriber receives messages in real-time as the publisher sends them, demonstrating ros-z's efficient pub-sub implementation over Zenoh.</p>
-</div>
-</div>
+<script src="https://asciinema.org/a/l7L1vuoyZSYwXEGE.js" id="asciicast-l7L1vuoyZSYwXEGE" async="true"></script>
 <h2 id="subscriber-patterns"><a class="header" href="#subscriber-patterns">Subscriber Patterns</a></h2>
 <p>ros-z provides three patterns for receiving messages, each suited for different use cases:</p>
 <h3 id="pattern-1-blocking-receive-pull-model"><a class="header" href="#pattern-1-blocking-receive-pull-model">Pattern 1: Blocking Receive (Pull Model)</a></h3>
@@ -1299,18 +808,18 @@ ros2 topic pub /chatter std_msgs/msg/String "data: 'Hello from ROS 2'"
 # Check topic info
 ros2 topic info /chatter
 </code></pre>
-<div id="admonition-success-1" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-1-title">
+<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
 <div class="admonition-title">
-<div id="admonition-success-1-title">
+<div id="admonition-success-title">
 <p>Success</p>
 </div>
-<a class="admonition-anchor-link" href="chapters/pubsub.html#admonition-success-1"></a>
+<a class="admonition-anchor-link" href="chapters/pubsub.html#admonition-success"></a>
 </div>
 <div>
 <p>ros-z provides full ROS 2 compatibility via Zenoh bridge or rmw_zenoh, enabling cross-language communication.</p>
 </div>
 </div>
-<h2 id="resources-2"><a class="header" href="#resources-2">Resources</a></h2>
+<h2 id="resources"><a class="header" href="#resources">Resources</a></h2>
 <ul>
 <li><strong><a href="chapters/./custom_messages.html">Custom Messages</a></strong> - Defining and using custom message types</li>
 <li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - Generating Rust types from ROS 2 messages</li>
@@ -1410,13 +919,13 @@ pub fn run_add_two_ints_server(ctx: ZContext, max_requests: Option&lt;usize&gt;)
 </ul>
 <p><strong>Running the server:</strong></p>
 <pre><code class="language-bash"># Basic usage - runs indefinitely
-cargo run --example demo_nodes_add_two_ints_server
+cargo run --example demo_nodes_add_two_ints_server -F external_msgs
 
 # Handle 5 requests then exit
-cargo run --example demo_nodes_add_two_ints_server -- --count 5
+cargo run --example demo_nodes_add_two_ints_server -F external_msgs -- --count 5
 
 # Connect to specific Zenoh router
-cargo run --example demo_nodes_add_two_ints_server -- --endpoint tcp/localhost:7447
+cargo run --example demo_nodes_add_two_ints_server -F external_msgs -- --endpoint tcp/localhost:7447
 </code></pre>
 <h2 id="service-client-example"><a class="header" href="#service-client-example">Service Client Example</a></h2>
 <p>This example demonstrates a service client that sends addition requests to the server and displays the results.</p>
@@ -1474,13 +983,13 @@ pub fn run_add_two_ints_client(ctx: ZContext, a: i64, b: i64, async_mode: bool) 
 </ul>
 <p><strong>Running the client:</strong></p>
 <pre><code class="language-bash"># Basic usage
-cargo run --example demo_nodes_add_two_ints_client -- --a 10 --b 20
+cargo run --example demo_nodes_add_two_ints_client -F external_msgs -- --a 10 --b 20
 
 # Using async mode
-cargo run --example demo_nodes_add_two_ints_client -- --a 5 --b 3 --async-mode
+cargo run --example demo_nodes_add_two_ints_client -F external_msgs -- --a 5 --b 3 --async-mode
 
 # Connect to specific Zenoh router
-cargo run --example demo_nodes_add_two_ints_client -- --a 100 --b 200 --endpoint tcp/localhost:7447
+cargo run --example demo_nodes_add_two_ints_client -F external_msgs -- --a 100 --b 200 --endpoint tcp/localhost:7447
 </code></pre>
 <h2 id="complete-service-workflow"><a class="header" href="#complete-service-workflow">Complete Service Workflow</a></h2>
 <p>To see services in action, you'll need to start a Zenoh router first:</p>
@@ -1488,38 +997,16 @@ cargo run --example demo_nodes_add_two_ints_client -- --a 100 --b 200 --endpoint
 <pre><code class="language-bash">cargo run --example zenoh_router
 </code></pre>
 <p><strong>Terminal 2 - Start Server:</strong></p>
-<pre><code class="language-bash">cargo run --example demo_nodes_add_two_ints_server
+<pre><code class="language-bash">cargo run --example demo_nodes_add_two_ints_server -F external_msgs
 </code></pre>
 <p><strong>Terminal 3 - Send Client Requests:</strong></p>
 <pre><code class="language-bash"># Request 1
-cargo run --example demo_nodes_add_two_ints_client -- --a 10 --b 20
+cargo run --example demo_nodes_add_two_ints_client -F external_msgs -- --a 10 --b 20
 
 # Request 2
-cargo run --example demo_nodes_add_two_ints_client -- --a 100 --b 200
-
-# Request 3
-cargo run --example demo_nodes_add_two_ints_client -- --a -5 --b 15
+cargo run --example demo_nodes_add_two_ints_client -F external_msgs -- --a 100 --b 200
 </code></pre>
-<p><strong>Expected output in Terminal 2 (Server):</strong></p>
-<pre><code class="language-text">AddTwoInts service server started, waiting for requests...
-Incoming request
-a: 10 b: 20
-Sending response: 30
-
-Incoming request
-a: 100 b: 200
-Sending response: 300
-
-Incoming request
-a: -5 b: 15
-Sending response: 10
-</code></pre>
-<p><strong>Expected output in Terminal 3 (Client):</strong></p>
-<pre><code class="language-text">AddTwoInts service client started (mode: sync)
-Sending request: 10 + 20
-Received response: 30
-Result: 30
-</code></pre>
+<script src="https://asciinema.org/a/yChRkMOyYKoKBPqM.js" id="asciicast-yChRkMOyYKoKBPqM" async="true"></script>
 <div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
 <div class="admonition-title">
 <div id="admonition-success-title">
@@ -1630,7 +1117,7 @@ ros2 service info /add_two_ints
 <p>ros-z service servers and clients are fully compatible with ROS 2 via Zenoh bridge or rmw_zenoh, enabling cross-language service calls.</p>
 </div>
 </div>
-<h2 id="resources-3"><a class="header" href="#resources-3">Resources</a></h2>
+<h2 id="resources-1"><a class="header" href="#resources-1">Resources</a></h2>
 <ul>
 <li><strong><a href="chapters/./custom_messages.html">Custom Messages</a></strong> - Defining and using custom service types</li>
 <li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - Generating service definitions</li>
@@ -1775,13 +1262,417 @@ println!("Final: {:?}", result.sequence);</code></pre>
 <tr><td><strong>Action</strong></td><td>Seconds to minutes</td><td>Yes</td><td>Yes</td><td>Long-running tasks</td></tr>
 </tbody></table>
 </div>
-<h2 id="resources-4"><a class="header" href="#resources-4">Resources</a></h2>
+<h2 id="resources-2"><a class="header" href="#resources-2">Resources</a></h2>
 <ul>
 <li><strong><a href="https://docs.ros.org/en/rolling/Tutorials/Intermediate/Writing-an-Action-Server-Client/Py.html">ROS 2 Actions Documentation</a></strong> - Official ROS 2 action guide</li>
 <li><strong><a href="https://github.com/ZettaScaleLabs/ros-z/tree/main/ros-z/examples">ros-z Examples</a></strong> - Working action implementations</li>
 <li><strong><a href="chapters/./services.html">Services</a></strong> - Simpler request-response pattern</li>
 </ul>
 <p><strong>Action implementation is evolving. Check the ros-z repository for the latest examples and API updates.</strong></p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="building-ros-z"><a class="header" href="#building-ros-z">Building ros-z</a></h1>
+<p><strong>ros-z is designed to work without ROS 2 dependencies by default, enabling pure Rust development while optionally integrating with existing ROS 2 installations.</strong> This flexible approach lets you choose your dependency level based on project requirements.</p>
+<h2 id="philosophy"><a class="header" href="#philosophy">Philosophy</a></h2>
+<p>ros-z follows a <strong>dependency-optional</strong> design:</p>
+<ul>
+<li>Build pure Rust applications without ROS 2 installed</li>
+<li>Use bundled message definitions for common types</li>
+<li>Opt-in to ROS 2 integration when needed</li>
+<li>Pay only for what you use</li>
+</ul>
+<h2 id="adding-ros-z-to-your-project"><a class="header" href="#adding-ros-z-to-your-project">Adding ros-z to Your Project</a></h2>
+<p>Get started by adding ros-z to your <code>Cargo.toml</code>. Choose the dependency setup that matches your needs:</p>
+<h3 id="scenario-1-pure-rust-with-custom-messages"><a class="header" href="#scenario-1-pure-rust-with-custom-messages">Scenario 1: Pure Rust with Custom Messages</a></h3>
+<p><strong>Use when:</strong> You want to define your own message types without ROS 2 dependencies</p>
+<p><strong>Add to your <code>Cargo.toml</code>:</strong></p>
+<pre><code class="language-toml">[dependencies]
+ros-z = "0.x"
+tokio = { version = "1", features = ["full"] }  # Async runtime required
+</code></pre>
+<p><strong>What you get:</strong></p>
+<ul>
+<li>Full ros-z functionality</li>
+<li>Custom message support via derive macros</li>
+<li>Zero external dependencies</li>
+<li>Fast build times</li>
+</ul>
+<h3 id="scenario-2-using-bundled-ros-messages"><a class="header" href="#scenario-2-using-bundled-ros-messages">Scenario 2: Using Bundled ROS Messages</a></h3>
+<p><strong>Use when:</strong> You need standard ROS 2 message types but don't have ROS 2 installed</p>
+<p><strong>Add to your <code>Cargo.toml</code>:</strong></p>
+<pre><code class="language-toml">[dependencies]
+ros-z = "0.x"
+ros-z-msgs = "0.x"  # Includes std_msgs, geometry_msgs, sensor_msgs, nav_msgs
+tokio = { version = "1", features = ["full"] }
+</code></pre>
+<p><strong>Bundled message packages:</strong></p>
+<ul>
+<li><code>std_msgs</code> - Primitive types (String, Int32, Float64, etc.)</li>
+<li><code>geometry_msgs</code> - Spatial data (Point, Pose, Transform, Twist)</li>
+<li><code>sensor_msgs</code> - Sensor data (LaserScan, Image, Imu, PointCloud2)</li>
+<li><code>nav_msgs</code> - Navigation (Path, OccupancyGrid, Odometry)</li>
+</ul>
+<h3 id="scenario-3-full-ros-2-integration"><a class="header" href="#scenario-3-full-ros-2-integration">Scenario 3: Full ROS 2 Integration</a></h3>
+<p><strong>Use when:</strong> You need all ROS 2 message types or custom packages from your workspace</p>
+<p><strong>Requirements:</strong> ROS 2 installation (Rolling, Kilted, Jazzy, etc.)</p>
+<p><strong>Add to your <code>Cargo.toml</code>:</strong></p>
+<pre><code class="language-toml">[dependencies]
+ros-z = "0.x"
+ros-z-msgs = { version = "0.x", features = ["external_msgs"] }
+tokio = { version = "1", features = ["full"] }
+</code></pre>
+<p><strong>The <code>external_msgs</code> feature flag tells ros-z-msgs to generate bindings for all message types found in your ROS 2 installation.</strong> Without this flag, only bundled messages are included (Scenario 2).</p>
+<p><strong>Build your project:</strong></p>
+<pre><code class="language-bash"># Ensure ROS 2 is sourced (Jazzy as an example)
+source /opt/ros/jazzy/setup.bash
+
+# Build your project with external_msgs feature
+# This feature enables access to all ROS 2 message types from your installation
+cargo build --features external_msgs
+</code></pre>
+<p><strong>Additional packages available:</strong></p>
+<ul>
+<li><code>example_interfaces</code> - Tutorial services and actions</li>
+<li><code>action_msgs</code> - Action communication types</li>
+<li>Any custom messages from your ROS 2 workspace</li>
+</ul>
+<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
+<div class="admonition-title">
+<div id="admonition-tip-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/building.html#admonition-tip"></a>
+</div>
+<div>
+<p>Start with Scenario 1 or 2 for development, then move to Scenario 3 when you need full ROS 2 interoperability.</p>
+</div>
+</div>
+<h2 id="development"><a class="header" href="#development">Development</a></h2>
+<p>This section is for contributors working on ros-z itself. If you're using ros-z in your project, you can skip this section.</p>
+<h3 id="package-organization"><a class="header" href="#package-organization">Package Organization</a></h3>
+<p>The ros-z repository is organized as a Cargo workspace with multiple packages:</p>
+<div class="table-wrapper"><table><thead><tr><th>Package</th><th>Default Build</th><th>Purpose</th><th>Dependencies</th></tr></thead><tbody>
+<tr><td><strong>ros-z</strong></td><td>Yes</td><td>Core Zenoh-native ROS 2 library</td><td>None</td></tr>
+<tr><td><strong>ros-z-codegen</strong></td><td>Yes</td><td>Message generation utilities</td><td>None</td></tr>
+<tr><td><strong>ros-z-msgs</strong></td><td>No</td><td>Pre-generated message types</td><td>Optional ROS 2</td></tr>
+<tr><td><strong>ros-z-tests</strong></td><td>No</td><td>Integration tests</td><td>ros-z-msgs</td></tr>
+<tr><td><strong>rcl-z</strong></td><td>No</td><td>RCL C bindings</td><td>ROS 2 required</td></tr>
+</tbody></table>
+</div><div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+<div class="admonition-title">
+<div id="admonition-note-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/building.html#admonition-note"></a>
+</div>
+<div>
+<p>Only <code>ros-z</code> and <code>ros-z-codegen</code> build by default. Other packages are optional for development, testing, and running examples.</p>
+</div>
+</div>
+<h3 id="building-the-repository"><a class="header" href="#building-the-repository">Building the Repository</a></h3>
+<p>When contributing to ros-z, you can build different parts of the workspace:</p>
+<pre><code class="language-bash"># Build core library
+cargo build
+
+# Run tests
+cargo test
+
+# Build with bundled messages for examples
+cargo build -p ros-z-msgs
+
+# Build all packages (requires ROS 2)
+source /opt/ros/jazzy/setup.bash
+cargo build --all
+</code></pre>
+<h3 id="message-package-resolution"><a class="header" href="#message-package-resolution">Message Package Resolution</a></h3>
+<p>The build system automatically locates ROS message definitions:</p>
+<p><strong>Search order:</strong></p>
+<ol>
+<li>System ROS installation (<code>AMENT_PREFIX_PATH</code>, <code>CMAKE_PREFIX_PATH</code>)</li>
+<li>Common ROS paths (<code>/opt/ros/{rolling,jazzy,iron,humble}</code>)</li>
+<li>Roslibrust git checkout (<code>~/.cargo/git/checkouts/roslibrust-*/assets/</code>)</li>
+</ol>
+<p>This fallback mechanism enables builds without ROS 2 installed.</p>
+<h3 id="common-development-commands"><a class="header" href="#common-development-commands">Common Development Commands</a></h3>
+<pre><code class="language-bash"># Fast iterative development
+cargo check                # Quick compile check
+cargo build                # Debug build
+cargo build --release      # Optimized build
+cargo test                 # Run tests
+cargo clippy              # Lint checks
+
+# Clean builds
+cargo clean                # Remove all build artifacts
+cargo clean -p ros-z-msgs  # Clean specific package
+</code></pre>
+<div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
+<div class="admonition-title">
+<div id="admonition-warning-title">
+<p>Warning</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/building.html#admonition-warning"></a>
+</div>
+<div>
+<p>After changing feature flags or updating ROS 2, run <code>cargo clean -p ros-z-msgs</code> to force message regeneration.</p>
+</div>
+</div>
+<h2 id="next-steps-1"><a class="header" href="#next-steps-1">Next Steps</a></h2>
+<ul>
+<li><strong><a href="chapters/./examples.html">Running Examples</a></strong> - Try out the included examples</li>
+<li><strong><a href="chapters/./config.html">Networking</a></strong> - Set up Zenoh router and session config</li>
+<li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - Understand how messages work</li>
+<li><strong><a href="chapters/./troubleshooting.html">Troubleshooting</a></strong> - Solutions to common build issues</li>
+</ul>
+<p><strong>Start with the simplest build and add dependencies incrementally as your project grows.</strong></p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="running-examples"><a class="header" href="#running-examples">Running Examples</a></h1>
+<p>Once you've added ros-z to your project, you can run the included examples to see it in action.</p>
+<div id="admonition-important" class="admonition admonish-tip" role="note" aria-labelledby="admonition-important-title">
+<div class="admonition-title">
+<div id="admonition-important-title">
+<p>Important</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/examples.html#admonition-important"></a>
+</div>
+<div>
+<p><strong>All examples require a Zenoh router to be running first</strong> (see <a href="chapters/./config.html">Networking</a> for why ros-z uses router-based architecture by default):</p>
+<pre><code class="language-bash">cargo run --example zenoh_router
+</code></pre>
+</div>
+</div>
+<p>Leave this running in a separate terminal, then run any example in another terminal.</p>
+<h2 id="available-examples"><a class="header" href="#available-examples">Available Examples</a></h2>
+<pre><code class="language-bash"># Pure Rust example with custom messages (no ros-z-msgs needed)
+cargo run --example z_custom_message -- --mode status-pub
+
+# Examples using bundled messages (requires ros-z-msgs)
+cargo run --example z_pubsub          # Publisher/Subscriber with std_msgs
+cargo run --example twist_pub         # Publishing geometry_msgs
+cargo run --example battery_state_sub # Receiving sensor_msgs
+
+# Examples requiring ROS 2 (requires external_msgs feature)
+cargo run --example z_srvcli --features external_msgs
+</code></pre>
+<p>See the <a href="chapters/./config.html">Networking</a> chapter for router setup details and alternative configurations.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="networking"><a class="header" href="#networking">Networking</a></h1>
+<p><strong>Configure ros-z's Zenoh transport layer for optimal performance in your deployment environment.</strong> ros-z uses router-based architecture by default, matching ROS 2's official <code>rmw_zenoh_cpp</code> middleware for production-ready scalability.</p>
+<h2 id="router-based-architecture"><a class="header" href="#router-based-architecture">Router-Based Architecture</a></h2>
+<p>ros-z uses a centralized Zenoh router for node discovery and communication, providing:</p>
+<div class="table-wrapper"><table><thead><tr><th>Benefit</th><th>Description</th></tr></thead><tbody>
+<tr><td><strong>Scalability</strong></td><td>Centralized discovery handles large deployments efficiently</td></tr>
+<tr><td><strong>Lower Network Overhead</strong></td><td>TCP-based discovery instead of multicast broadcasts</td></tr>
+<tr><td><strong>ROS 2 Compatibility</strong></td><td>Matches <code>rmw_zenoh_cpp</code> behavior for seamless interoperability</td></tr>
+<tr><td><strong>Production Ready</strong></td><td>Battle-tested configuration used in real robotics systems</td></tr>
+</tbody></table>
+</div>
+<h2 id="quick-start-1"><a class="header" href="#quick-start-1">Quick Start</a></h2>
+<p>The simplest way to get started is using the built-in router example:</p>
+<p><strong>Terminal 1 - Start the Router:</strong></p>
+<pre><code class="language-bash">cargo run --example zenoh_router
+</code></pre>
+<p><strong>Terminal 2 - Run Your Application:</strong></p>
+<pre><code class="language-rust ignore">use ros_z::context::ZContextBuilder;
+use ros_z::Builder;
+
+// Uses default ROS session config (connects to tcp/localhost:7447)
+let ctx = ZContextBuilder::default().build()?;
+let node = ctx.create_node("my_node").build()?;</code></pre>
+<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
+<div class="admonition-title">
+<div id="admonition-success-title">
+<p>Success</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/config.html#admonition-success"></a>
+</div>
+<div>
+<p>That's it! The default configuration automatically connects to the router on <code>tcp/localhost:7447</code>.</p>
+</div>
+</div>
+<h2 id="running-the-zenoh-router"><a class="header" href="#running-the-zenoh-router">Running the Zenoh Router</a></h2>
+<h3 id="option-1-built-in-router-example"><a class="header" href="#option-1-built-in-router-example">Option 1: Built-in Router Example</a></h3>
+<p>ros-z provides a built-in router example that's ROS-compatible out of the box.</p>
+<pre><code class="language-bash">cargo run --example zenoh_router
+</code></pre>
+<p>Listens on <code>tcp/[::]:7447</code> (all interfaces, port 7447).</p>
+<h3 id="option-2-official-zenoh-router"><a class="header" href="#option-2-official-zenoh-router">Option 2: Official Zenoh Router</a></h3>
+<p>You can also use the official Zenoh router: <a href="https://zenoh.io/docs/getting-started/installation/#installing-the-zenoh-router">https://zenoh.io/docs/getting-started/installation/#installing-the-zenoh-router</a>.</p>
+<h2 id="next-steps-2"><a class="header" href="#next-steps-2">Next Steps</a></h2>
+<p>Choose the configuration approach that fits your needs:</p>
+<ul>
+<li><strong><a href="chapters/./config_options.html">Configuration Options</a></strong> - Six ways to configure Zenoh (from simple to complex)</li>
+<li><strong><a href="chapters/./config_advanced.html">Advanced Configuration</a></strong> - Generate config files, run routers, configuration reference</li>
+<li><strong><a href="chapters/./troubleshooting.html">Troubleshooting</a></strong> - Solutions to connectivity issues</li>
+</ul>
+<p><strong>Ready to optimize your deployment? Experiment with different configurations and measure performance impact.</strong></p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="configuration-options"><a class="header" href="#configuration-options">Configuration Options</a></h1>
+<p>ros-z provides multiple ways to configure Zenoh, from simple to advanced.</p>
+<h2 id="option-1-default-configuration-recommended"><a class="header" href="#option-1-default-configuration-recommended">Option 1: Default Configuration (Recommended)</a></h2>
+<p>Use the built-in ROS session config for standard deployments:</p>
+<pre><code class="language-rust ignore">let ctx = ZContextBuilder::default().build()?;</code></pre>
+<p><strong>What it does:</strong></p>
+<ul>
+<li>Connects to router at <code>tcp/localhost:7447</code></li>
+<li>Uses ROS-compatible timeouts and buffer sizes</li>
+<li>Disables multicast discovery (uses router instead)</li>
+</ul>
+<h2 id="option-2-custom-router-endpoint"><a class="header" href="#option-2-custom-router-endpoint">Option 2: Custom Router Endpoint</a></h2>
+<p>Connect to a router on a different host or port:</p>
+<pre><code class="language-rust ignore">let ctx = ZContextBuilder::default()
+    .with_router_endpoint("tcp/192.168.1.100:7447")
+    .build()?;</code></pre>
+<p><strong>Use cases:</strong></p>
+<ul>
+<li>Distributed systems with remote router</li>
+<li>Custom port configurations</li>
+<li>Multiple isolated networks</li>
+</ul>
+<h2 id="option-3-environment-variable-overrides"><a class="header" href="#option-3-environment-variable-overrides">Option 3: Environment Variable Overrides</a></h2>
+<p>Override any Zenoh configuration setting using the <code>ROSZ_CONFIG_OVERRIDE</code> environment variable without changing code:</p>
+<pre><code class="language-bash"># Override mode and endpoint
+export ROSZ_CONFIG_OVERRIDE='mode="client";connect/endpoints=["tcp/192.168.1.100:7447"]'
+
+# Run your application
+cargo run --example my_app
+</code></pre>
+<pre><code class="language-rust ignore">// No code changes needed - overrides are applied automatically
+let ctx = ZContextBuilder::default().build()?;</code></pre>
+<p><strong>Format:</strong></p>
+<ul>
+<li>Semicolon-separated <code>key=value</code> pairs</li>
+<li>Values use JSON5 syntax</li>
+<li>Keys use slash-separated paths (e.g., <code>connect/endpoints</code>, <code>scouting/multicast/enabled</code>)</li>
+</ul>
+<p><strong>Common examples:</strong></p>
+<pre><code class="language-bash"># Connect to remote router
+export ROSZ_CONFIG_OVERRIDE='connect/endpoints=["tcp/10.0.0.5:7447"]'
+
+# Enable multicast scouting explicitly
+export ROSZ_CONFIG_OVERRIDE='scouting/multicast/enabled=true'
+
+# Multiple overrides
+export ROSZ_CONFIG_OVERRIDE='mode="client";connect/timeout_ms=5000;scouting/multicast/enabled=false'
+</code></pre>
+<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
+<div class="admonition-title">
+<div id="admonition-tip-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/config_options.html#admonition-tip"></a>
+</div>
+<div>
+<p>Environment variable overrides have the highest priority and will override any programmatic configuration or config file settings.</p>
+</div>
+</div>
+<h2 id="option-4-advanced-configuration-builders"><a class="header" href="#option-4-advanced-configuration-builders">Option 4: Advanced Configuration Builders</a></h2>
+<p>Fine-tune session or router settings programmatically:</p>
+<pre><code class="language-rust ignore">use ros_z::config::{SessionConfigBuilder, RouterConfigBuilder};
+
+// Customize session config
+let session_config = SessionConfigBuilder::new()
+    .with_router_endpoint("tcp/192.168.1.100:7447")
+    .build()?;
+
+let ctx = ZContextBuilder::default()
+    .with_zenoh_config(session_config)
+    .build()?;
+
+// Or build a custom router config
+let router_config = RouterConfigBuilder::new()
+    .with_listen_port(7448)  // Custom port
+    .build()?;
+
+zenoh::open(router_config).await?;</code></pre>
+<p><strong>Key builder methods:</strong></p>
+<div class="table-wrapper"><table><thead><tr><th>Builder</th><th>Methods</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><code>SessionConfigBuilder</code></td><td><code>with_router_endpoint(endpoint)</code></td><td>Connect to custom router</td></tr>
+<tr><td><code>RouterConfigBuilder</code></td><td><code>with_listen_port(port)</code></td><td>Set custom router port</td></tr>
+</tbody></table>
+</div>
+<h2 id="option-5-peer-mode-using-multicast-discovery-no-router-required"><a class="header" href="#option-5-peer-mode-using-multicast-discovery-no-router-required">Option 5: Peer Mode Using Multicast Discovery (No Router Required)</a></h2>
+<p>Revert to multicast peer discovery for simple setups:</p>
+<pre><code class="language-rust ignore">// Use vanilla Zenoh config (peer mode with multicast)
+let ctx = ZContextBuilder::default()
+    .with_zenoh_config(zenoh::Config::default())
+    .build()?;</code></pre>
+<div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
+<div class="admonition-title">
+<div id="admonition-warning-title">
+<p>Warning</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/config_options.html#admonition-warning"></a>
+</div>
+<div>
+<p>Multicast scouting discovery is convenient for quick testing but doesn't scale well and won't work with ROS 2 nodes using <code>rmw_zenoh_cpp</code> (which expects a zenoh router).</p>
+</div>
+</div>
+<h2 id="option-6-load-from-config-file"><a class="header" href="#option-6-load-from-config-file">Option 6: Load from Config File</a></h2>
+<p>Use JSON5 config files for complex deployments:</p>
+<pre><code class="language-rust ignore">let ctx = ZContextBuilder::default()
+    .with_config_file("/etc/zenoh/session_config.json5")
+    .build()?;</code></pre>
+<p><strong>When to use:</strong></p>
+<ul>
+<li>Deploying across multiple machines</li>
+<li>Environment-specific configurations</li>
+<li>Version-controlled infrastructure</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="advanced-configuration"><a class="header" href="#advanced-configuration">Advanced Configuration</a></h1>
+<h2 id="generating-config-files"><a class="header" href="#generating-config-files">Generating Config Files</a></h2>
+<p>ros-z can generate JSON5 config files matching <code>rmw_zenoh_cpp</code> defaults. This is opt-in via the <code>generate-configs</code> feature flag.</p>
+<h3 id="basic-generation"><a class="header" href="#basic-generation">Basic Generation</a></h3>
+<pre><code class="language-bash">cargo build --features generate-configs
+</code></pre>
+<p><strong>Output location:</strong></p>
+<pre><code class="language-console">target/debug/build/ros-z-*/out/ros_z_config/
+  ├── DEFAULT_ROSZ_ROUTER_CONFIG.json5
+  └── DEFAULT_ROSZ_SESSION_CONFIG.json5
+</code></pre>
+<h3 id="custom-output-directory"><a class="header" href="#custom-output-directory">Custom Output Directory</a></h3>
+<p>Specify a custom directory using the <code>ROS_Z_CONFIG_OUTPUT_DIR</code> environment variable:</p>
+<p><strong>Absolute path:</strong></p>
+<pre><code class="language-bash">ROS_Z_CONFIG_OUTPUT_DIR=/etc/zenoh cargo build --features generate-configs
+</code></pre>
+<p><strong>Relative path (from package root):</strong></p>
+<pre><code class="language-bash">ROS_Z_CONFIG_OUTPUT_DIR=./config cargo build --features generate-configs
+</code></pre>
+<p><strong>From workspace root:</strong></p>
+<pre><code class="language-bash">ROS_Z_CONFIG_OUTPUT_DIR=$PWD/config cargo build -p ros-z --features generate-configs
+</code></pre>
+<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
+<div class="admonition-title">
+<div id="admonition-tip-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/config_advanced.html#admonition-tip"></a>
+</div>
+<div>
+<p>Generated files include inline comments explaining each setting, making them perfect documentation references.</p>
+</div>
+</div>
+<h3 id="using-generated-files"><a class="header" href="#using-generated-files">Using Generated Files</a></h3>
+<pre><code class="language-rust ignore">let ctx = ZContextBuilder::default()
+    .with_config_file("./config/DEFAULT_ROSZ_SESSION_CONFIG.json5")
+    .build()?;</code></pre>
+<h2 id="configuration-reference"><a class="header" href="#configuration-reference">Configuration Reference</a></h2>
+<h3 id="key-settings-explained"><a class="header" href="#key-settings-explained">Key Settings Explained</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Setting</th><th>Router</th><th>Session</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><strong>Mode</strong></td><td><code>router</code></td><td><code>peer</code></td><td>Router relays messages, peers connect directly</td></tr>
+<tr><td><strong>Listen Endpoint</strong></td><td><code>tcp/[::]:7447</code></td><td>-</td><td>Router accepts connections</td></tr>
+<tr><td><strong>Connect Endpoint</strong></td><td>-</td><td><code>tcp/localhost:7447</code></td><td>Session connects to router</td></tr>
+<tr><td><strong>Multicast</strong></td><td>Disabled</td><td>Disabled</td><td>Uses TCP gossip for discovery</td></tr>
+<tr><td><strong>Unicast Timeout</strong></td><td>60s</td><td>60s</td><td>Handles slow networks/large deployments</td></tr>
+<tr><td><strong>Query Timeout</strong></td><td>10min</td><td>10min</td><td>Long-running service calls</td></tr>
+<tr><td><strong>Max Sessions</strong></td><td>10,000</td><td>-</td><td>Supports concurrent node startup</td></tr>
+<tr><td><strong>Keep-Alive</strong></td><td>2s</td><td>2s</td><td>Optimized for loopback</td></tr>
+</tbody></table>
+</div><div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+<div class="admonition-title">
+<div id="admonition-note-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/config_advanced.html#admonition-note"></a>
+</div>
+<div>
+<p>These defaults are tuned for ROS 2 deployments and match <code>rmw_zenoh_cpp</code> exactly. Only modify them if you have specific performance requirements.</p>
+</div>
+</div>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="message-generation"><a class="header" href="#message-generation">Message Generation</a></h1>
 <p><strong>Automatic Rust type generation from ROS 2 message definitions at build time.</strong> The code generation system converts <code>.msg</code>, <code>.srv</code>, and <code>.action</code> files into type-safe Rust structs with full serialization support and ROS 2 compatibility.</p>
 <div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
@@ -2116,7 +2007,7 @@ cargo build -p ros-z --features protobuf
 <a class="admonition-anchor-link" href="chapters/message_generation.html#admonition-info-1"></a>
 </div>
 <div>
-<p>Use protobuf when you need schema evolution or cross-language data exchange beyond ROS 2 ecosystem.</p>
+<p>Use protobuf when you need schema evolution or cross-language data exchange beyond ROS 2 ecosystem. See <a href="chapters/./protobuf.html">Protobuf Serialization</a> for detailed usage guide.</p>
 </div>
 </div>
 <h2 id="extending-message-packages"><a class="header" href="#extending-message-packages">Extending Message Packages</a></h2>
@@ -2187,7 +2078,7 @@ let config = GeneratorConfig {
 
 let generator = MessageGenerator::new(config);
 generator.generate_from_msg_files(&amp;package_paths)?;</code></pre>
-<h2 id="troubleshooting-1"><a class="header" href="#troubleshooting-1">Troubleshooting</a></h2>
+<h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
 <h3 id="package-not-found"><a class="header" href="#package-not-found">Package Not Found</a></h3>
 <pre><code class="language-bash"># Check ROS 2 is sourced
 echo $AMENT_PREFIX_PATH
@@ -2209,12 +2100,12 @@ ls ~/.cargo/git/checkouts/roslibrust-*/assets/
 </tbody></table>
 </div>
 <p>See <a href="chapters/./troubleshooting.html">Troubleshooting Guide</a> for detailed solutions.</p>
-<h2 id="resources-5"><a class="header" href="#resources-5">Resources</a></h2>
+<h2 id="resources-3"><a class="header" href="#resources-3">Resources</a></h2>
 <ul>
 <li><strong><a href="chapters/./feature_flags.html">Feature Flags</a></strong> - Available message packages</li>
 <li><strong><a href="chapters/./building.html">Building</a></strong> - Build configuration</li>
 <li><strong><a href="chapters/./custom_messages.html">Custom Messages</a></strong> - Manual implementation</li>
-<li><strong><a href="chapters/./demo_talker.html">Demo Talker</a></strong> - Using generated messages</li>
+<li><strong><a href="chapters/./protobuf.html">Protobuf Serialization</a></strong> - Alternative serialization format</li>
 </ul>
 <p><strong>Message generation is transparent. Focus on writing ROS 2 message definitions and let ros-z handle the Rust code generation.</strong></p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="custom-messages"><a class="header" href="#custom-messages">Custom Messages</a></h1>
@@ -2682,15 +2573,642 @@ impl ZService for NavigateTo {
 // Pattern: package::srv::dds_::ServiceName_
 "custom_msgs::srv::dds_::NavigateTo_"</code></pre>
 <p>The trailing underscore and <code>dds_</code> infix match ROS 2's internal naming scheme used by DDS middleware.</p>
-<h2 id="resources-6"><a class="header" href="#resources-6">Resources</a></h2>
+<h2 id="resources-4"><a class="header" href="#resources-4">Resources</a></h2>
 <ul>
 <li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - Understanding message architecture</li>
+<li><strong><a href="chapters/./protobuf.html">Protobuf Serialization</a></strong> - Using protobuf with custom messages</li>
 <li><strong><a href="chapters/./pubsub.html">Publishers &amp; Subscribers</a></strong> - Using messages in pub-sub</li>
 <li><strong><a href="chapters/./services.html">Services</a></strong> - Using messages in services</li>
 <li><strong><a href="chapters/./feature_flags.html">Feature Flags</a></strong> - Pre-generated message packages</li>
 </ul>
 <p><strong>Start experimenting with custom messages, then transition to generated messages when you need ROS 2 interoperability.</strong></p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="feature-flags"><a class="header" href="#feature-flags">Feature Flags</a></h1>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="protobuf-serialization"><a class="header" href="#protobuf-serialization">Protobuf Serialization</a></h1>
+<p><strong>Use Protocol Buffers as an alternative serialization format for ros-z messages.</strong> While CDR is the default ROS 2-compatible format, protobuf offers schema evolution, cross-language compatibility, and familiar tooling for teams already using the protobuf ecosystem.</p>
+<div id="admonition-info" class="admonition admonish-info" role="note" aria-labelledby="admonition-info-title">
+<div class="admonition-title">
+<div id="admonition-info-title">
+<p>Info</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/protobuf.html#admonition-info"></a>
+</div>
+<div>
+<p>Protobuf support in ros-z enables two powerful use cases:</p>
+<ol>
+<li><strong>ROS messages with protobuf encoding</strong> - Use standard ROS message types serialized via protobuf</li>
+<li><strong>Pure protobuf messages</strong> - Send custom <code>.proto</code> messages directly through ros-z</li>
+</ol>
+</div>
+</div>
+<h2 id="when-to-use-protobuf"><a class="header" href="#when-to-use-protobuf">When to Use Protobuf</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Use Case</th><th>Recommendation</th></tr></thead><tbody>
+<tr><td><strong>ROS 2 interoperability</strong></td><td>Use CDR (default)</td></tr>
+<tr><td><strong>Schema evolution</strong></td><td>Use Protobuf</td></tr>
+<tr><td><strong>Cross-language data exchange</strong></td><td>Use Protobuf</td></tr>
+<tr><td><strong>Existing protobuf infrastructure</strong></td><td>Use Protobuf</td></tr>
+<tr><td><strong>Performance critical</strong></td><td>Benchmark both (typically similar)</td></tr>
+</tbody></table>
+</div><div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
+<div class="admonition-title">
+<div id="admonition-warning-title">
+<p>Warning</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/protobuf.html#admonition-warning"></a>
+</div>
+<div>
+<p>Protobuf-serialized messages are <strong>not</strong> compatible with standard ROS 2 nodes using CDR. Use protobuf when you control both ends of the communication or need its specific features.</p>
+</div>
+</div>
+<h2 id="enabling-protobuf-support"><a class="header" href="#enabling-protobuf-support">Enabling Protobuf Support</a></h2>
+<h3 id="feature-flags"><a class="header" href="#feature-flags">Feature Flags</a></h3>
+<p>Enable protobuf in your <code>Cargo.toml</code>:</p>
+<pre><code class="language-toml">[dependencies]
+ros-z = { version = "0.1", features = ["protobuf"] }
+ros-z-msgs = { version = "0.1", features = ["geometry_msgs", "protobuf"] }
+prost = "0.13"
+
+[build-dependencies]
+prost-build = "0.13"
+</code></pre>
+<h3 id="build-configuration"><a class="header" href="#build-configuration">Build Configuration</a></h3>
+<p>For custom <code>.proto</code> files, add a <code>build.rs</code>:</p>
+<pre><code class="language-rust ignore">fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let mut config = prost_build::Config::new();
+    // Enable serde support for ros-z compatibility
+    config.type_attribute(".", "#[derive(serde::Serialize, serde::Deserialize)]");
+    config.compile_protos(&amp;["proto/sensor_data.proto"], &amp;["proto/"])?;
+    println!("cargo:rerun-if-changed=proto/sensor_data.proto");
+    Ok(())
+}</code></pre>
+<h2 id="approach-1-ros-messages-with-protobuf"><a class="header" href="#approach-1-ros-messages-with-protobuf">Approach 1: ROS Messages with Protobuf</a></h2>
+<p>Use auto-generated ROS message types with protobuf serialization:</p>
+<pre><code class="language-rust ignore">use ros_z::msg::ProtobufSerdes;
+use ros_z_msgs::proto::geometry_msgs::Vector3 as Vector3Proto;
+
+let ctx = ros_z::context::ZContextBuilder::default().build()?;
+let node = ctx.create_node("protobuf_node").build()?;
+
+// Create publisher with protobuf serialization
+let pub = node
+    .create_pub::&lt;Vector3Proto&gt;("/vector_proto")
+    .with_serdes::&lt;ProtobufSerdes&lt;Vector3Proto&gt;&gt;()
+    .build()?;
+
+// Publish messages
+let msg = Vector3Proto {
+    x: 1.0,
+    y: 2.0,
+    z: 3.0,
+};
+pub.publish(&amp;msg)?;</code></pre>
+<p><strong>Key points:</strong></p>
+<ul>
+<li>Import from <code>ros_z_msgs::proto::*</code> namespace (not <code>ros_z_msgs::ros::*</code>)</li>
+<li>Use <code>.with_serdes::&lt;ProtobufSerdes&lt;T&gt;&gt;()</code> to select protobuf encoding</li>
+<li>Message types automatically implement <code>MessageTypeInfo</code> trait</li>
+<li>Full type safety and compile-time checking</li>
+</ul>
+<h2 id="approach-2-custom-protobuf-messages"><a class="header" href="#approach-2-custom-protobuf-messages">Approach 2: Custom Protobuf Messages</a></h2>
+<p>Send arbitrary protobuf messages defined in <code>.proto</code> files:</p>
+<h3 id="step-1-define-your-message"><a class="header" href="#step-1-define-your-message">Step 1: Define Your Message</a></h3>
+<p>Create <code>proto/sensor_data.proto</code>:</p>
+<pre><code class="language-protobuf">syntax = "proto3";
+
+package examples;
+
+message SensorData {
+    string sensor_id = 1;
+    double temperature = 2;
+    double humidity = 3;
+    int64 timestamp = 4;
+}
+</code></pre>
+<h3 id="step-2-generate-rust-code"><a class="header" href="#step-2-generate-rust-code">Step 2: Generate Rust Code</a></h3>
+<p>Configure <code>build.rs</code> as shown above. The build script generates Rust structs at compile time.</p>
+<h3 id="step-3-include-generated-code"><a class="header" href="#step-3-include-generated-code">Step 3: Include Generated Code</a></h3>
+<pre><code class="language-rust ignore">pub mod sensor_data {
+    include!(concat!(env!("OUT_DIR"), "/examples.rs"));
+}
+
+use sensor_data::SensorData;</code></pre>
+<h3 id="step-4-implement-required-traits"><a class="header" href="#step-4-implement-required-traits">Step 4: Implement Required Traits</a></h3>
+<pre><code class="language-rust ignore">use ros_z::{MessageTypeInfo, WithTypeInfo, entity::TypeHash};
+
+impl MessageTypeInfo for SensorData {
+    fn type_name() -&gt; &amp;'static str {
+        "examples::msg::dds_::SensorData_"
+    }
+
+    fn type_hash() -&gt; TypeHash {
+        TypeHash::zero()  // For custom protobuf messages
+    }
+}
+
+impl WithTypeInfo for SensorData {}</code></pre>
+<h3 id="step-5-use-in-ros-z"><a class="header" href="#step-5-use-in-ros-z">Step 5: Use in ros-z</a></h3>
+<pre><code class="language-rust ignore">let pub = node
+    .create_pub::&lt;SensorData&gt;("/sensor_data")
+    .with_serdes::&lt;ProtobufSerdes&lt;SensorData&gt;&gt;()
+    .build()?;
+
+let msg = SensorData {
+    sensor_id: "sensor_01".to_string(),
+    temperature: 23.5,
+    humidity: 45.0,
+    timestamp: 1234567890,
+};
+
+pub.publish(&amp;msg)?;</code></pre>
+<h2 id="complete-example-1"><a class="header" href="#complete-example-1">Complete Example</a></h2>
+<p>The <code>protobuf_demo</code> example demonstrates both approaches:</p>
+<pre><code class="language-rust ignore">use std::time::Duration;
+
+use ros_z::{
+    Builder, MessageTypeInfo, Result, WithTypeInfo, entity::TypeHash, msg::ProtobufSerdes,
+};
+// Import ROS-generated protobuf messages
+use ros_z_msgs::proto::geometry_msgs::Vector3 as Vector3Proto;
+
+// Include custom protobuf message generated from sensor_data.proto
+pub mod sensor_data {
+    include!(concat!(env!("OUT_DIR"), "/examples.rs"));
+}
+
+use sensor_data::SensorData;
+
+// Implement required traits for custom protobuf message
+impl MessageTypeInfo for SensorData {
+    fn type_name() -&gt; &amp;'static str {
+        "examples::msg::dds_::SensorData_"
+    }
+
+    fn type_hash() -&gt; TypeHash {
+        TypeHash::zero() // For custom messages without ROS type support
+    }
+}
+
+impl WithTypeInfo for SensorData {}
+
+fn main() -&gt; Result&lt;()&gt; {
+    zenoh::init_log_from_env_or("info");
+
+    println!("\n=== Protobuf Serialization Demo ===");
+    println!("This demonstrates two ways to use protobuf with ros-z:");
+    println!("1. ROS messages with protobuf serialization (from ros-z-msgs)");
+    println!("2. Custom protobuf messages (from .proto files)");
+    println!("=====================================================\n");
+
+    let ctx = ros_z::context::ZContextBuilder::default().build()?;
+    let node = ctx.create_node("protobuf_demo").build()?;
+
+    // Part 1: ROS message with protobuf serialization
+    println!("--- Part 1: ROS geometry_msgs/Vector3 with Protobuf ---");
+    let ros_pub = node
+        .create_pub::&lt;Vector3Proto&gt;("/vector_proto")
+        .with_serdes::&lt;ProtobufSerdes&lt;Vector3Proto&gt;&gt;()
+        .build()?;
+
+    println!("Publishing ROS Vector3 messages...\n");
+    for i in 0..3 {
+        let msg = Vector3Proto {
+            x: i as f64,
+            y: (i as f64) * 2.0,
+            z: (i as f64) * 3.0,
+        };
+
+        ros_pub.publish(&amp;msg)?;
+        println!("  Published Vector3: x={}, y={}, z={}", msg.x, msg.y, msg.z);
+        std::thread::sleep(Duration::from_millis(500));
+    }
+
+    // Part 2: Custom protobuf message
+    println!("\n--- Part 2: Custom SensorData message (pure protobuf) ---");
+    let custom_pub = node
+        .create_pub::&lt;SensorData&gt;("/sensor_data")
+        .with_serdes::&lt;ProtobufSerdes&lt;SensorData&gt;&gt;()
+        .build()?;
+
+    println!("Publishing custom SensorData messages...\n");
+    for i in 0..3 {
+        let msg = SensorData {
+            sensor_id: format!("sensor_{}", i),
+            temperature: 20.0 + (i as f64) * 0.5,
+            humidity: 45.0 + (i as f64) * 2.0,
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as i64,
+        };
+
+        custom_pub.publish(&amp;msg)?;
+        println!(
+            "  Published SensorData: id={}, temp={:.1}°C, humidity={:.1}%, ts={}",
+            msg.sensor_id, msg.temperature, msg.humidity, msg.timestamp
+        );
+        std::thread::sleep(Duration::from_millis(500));
+    }
+
+    println!("\nSuccessfully demonstrated both protobuf approaches!");
+    println!("\nKey points:");
+    println!("1. ROS messages (Vector3Proto): Auto-generated from ros-z-msgs with MessageTypeInfo");
+    println!("2. Custom messages (SensorData): Generated from your own .proto files");
+    println!("3. Both use .with_serdes::&lt;ProtobufSerdes&lt;T&gt;&gt;() for protobuf serialization");
+    println!("4. ros-z is transport-agnostic - works with ANY protobuf message!");
+
+    Ok(())
+}</code></pre>
+<h3 id="running-the-demo"><a class="header" href="#running-the-demo">Running the Demo</a></h3>
+<pre><code class="language-bash"># Navigate to the demo directory
+cd ros-z/examples/protobuf_demo
+
+# Run the example
+cargo run
+</code></pre>
+<p><strong>Expected output:</strong></p>
+<pre><code class="language-text">=== Protobuf Serialization Demo ===
+This demonstrates two ways to use protobuf with ros-z:
+1. ROS messages with protobuf serialization (from ros-z-msgs)
+2. Custom protobuf messages (from .proto files)
+=====================================================
+
+--- Part 1: ROS geometry_msgs/Vector3 with Protobuf ---
+Publishing ROS Vector3 messages...
+
+  Published Vector3: x=0, y=0, z=0
+  Published Vector3: x=1, y=2, z=3
+  Published Vector3: x=2, y=4, z=6
+
+--- Part 2: Custom SensorData message (pure protobuf) ---
+Publishing custom SensorData messages...
+
+  Published SensorData: id=sensor_0, temp=20.0°C, humidity=45.0%, ts=1234567890
+  Published SensorData: id=sensor_1, temp=20.5°C, humidity=47.0%, ts=1234567891
+  Published SensorData: id=sensor_2, temp=21.0°C, humidity=49.0%, ts=1234567892
+
+Successfully demonstrated both protobuf approaches!
+</code></pre>
+<h2 id="subscribers-with-protobuf"><a class="header" href="#subscribers-with-protobuf">Subscribers with Protobuf</a></h2>
+<p>Receive protobuf-encoded messages:</p>
+<pre><code class="language-rust ignore">use ros_z::msg::ProtobufSerdes;
+
+let sub = node
+    .create_sub::&lt;Vector3Proto&gt;("/vector_proto")
+    .with_serdes::&lt;ProtobufSerdes&lt;Vector3Proto&gt;&gt;()
+    .build()?;
+
+loop {
+    let msg = sub.recv()?;
+    println!("Received: x={}, y={}, z={}", msg.x, msg.y, msg.z);
+}</code></pre>
+<div id="admonition-important" class="admonition admonish-tip" role="note" aria-labelledby="admonition-important-title">
+<div class="admonition-title">
+<div id="admonition-important-title">
+<p>Important</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/protobuf.html#admonition-important"></a>
+</div>
+<div>
+<p>Publishers and subscribers must use the <strong>same serialization format</strong>. A protobuf publisher requires a protobuf subscriber.</p>
+</div>
+</div>
+<h2 id="services-with-protobuf"><a class="header" href="#services-with-protobuf">Services with Protobuf</a></h2>
+<p>Both request and response use protobuf encoding:</p>
+<h3 id="server"><a class="header" href="#server">Server</a></h3>
+<pre><code class="language-rust ignore">let service = node
+    .create_service::&lt;MyService&gt;("/my_service")
+    .with_serdes::&lt;ProtobufSerdes&lt;MyServiceRequest&gt;, ProtobufSerdes&lt;MyServiceResponse&gt;&gt;()
+    .build()?;
+
+loop {
+    let (key, request) = service.take_request()?;
+    let response = process_request(&amp;request);
+    service.send_response(&amp;response, &amp;key)?;
+}</code></pre>
+<h3 id="client"><a class="header" href="#client">Client</a></h3>
+<pre><code class="language-rust ignore">let client = node
+    .create_client::&lt;MyService&gt;("/my_service")
+    .with_serdes::&lt;ProtobufSerdes&lt;MyServiceRequest&gt;, ProtobufSerdes&lt;MyServiceResponse&gt;&gt;()
+    .build()?;
+
+client.send_request(&amp;request)?;
+let response = client.take_response()?;</code></pre>
+<h2 id="available-ros-messages"><a class="header" href="#available-ros-messages">Available ROS Messages</a></h2>
+<p>When ros-z-msgs is built with <code>protobuf</code> feature, it generates protobuf versions of ROS messages:</p>
+<pre><code class="language-rust ignore">// Import from proto namespace
+use ros_z_msgs::proto::std_msgs::String as StringProto;
+use ros_z_msgs::proto::geometry_msgs::{Point, Pose, Twist};
+use ros_z_msgs::proto::sensor_msgs::{LaserScan, Image};</code></pre>
+<p><strong>Namespace mapping:</strong></p>
+<div class="table-wrapper"><table><thead><tr><th>Format</th><th>Namespace</th><th>Use</th></tr></thead><tbody>
+<tr><td><strong>CDR</strong></td><td><code>ros_z_msgs::ros::*</code></td><td>ROS 2 interop</td></tr>
+<tr><td><strong>Protobuf</strong></td><td><code>ros_z_msgs::proto::*</code></td><td>Protobuf encoding</td></tr>
+</tbody></table>
+</div>
+<h2 id="type-information"><a class="header" href="#type-information">Type Information</a></h2>
+<h3 id="ros-messages"><a class="header" href="#ros-messages">ROS Messages</a></h3>
+<p>Auto-generated messages from ros-z-msgs include <code>MessageTypeInfo</code>:</p>
+<pre><code class="language-rust ignore">// No manual implementation needed
+use ros_z_msgs::proto::geometry_msgs::Vector3;
+// Vector3 already implements MessageTypeInfo</code></pre>
+<h3 id="custom-protobuf-messages"><a class="header" href="#custom-protobuf-messages">Custom Protobuf Messages</a></h3>
+<p>Manual implementation required:</p>
+<pre><code class="language-rust ignore">impl MessageTypeInfo for MyProtoMessage {
+    fn type_name() -&gt; &amp;'static str {
+        // Follow ROS naming convention
+        "my_package::msg::dds_::MyProtoMessage_"
+    }
+
+    fn type_hash() -&gt; TypeHash {
+        // Use zero for custom protobuf messages
+        TypeHash::zero()
+    }
+}
+
+impl WithTypeInfo for MyProtoMessage {}</code></pre>
+<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+<div class="admonition-title">
+<div id="admonition-note-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/protobuf.html#admonition-note"></a>
+</div>
+<div>
+<p><code>TypeHash::zero()</code> indicates the message doesn't have ROS 2 type compatibility. This is fine for ros-z-to-ros-z communication.</p>
+</div>
+</div>
+<h2 id="protobuf-vs-cdr-comparison"><a class="header" href="#protobuf-vs-cdr-comparison">Protobuf vs CDR Comparison</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Aspect</th><th>CDR</th><th>Protobuf</th></tr></thead><tbody>
+<tr><td><strong>ROS 2 Compatibility</strong></td><td>✅ Full</td><td>❌ None</td></tr>
+<tr><td><strong>Schema Evolution</strong></td><td>❌ Limited</td><td>✅ Excellent</td></tr>
+<tr><td><strong>Cross-language</strong></td><td>ROS 2 only</td><td>✅ Universal</td></tr>
+<tr><td><strong>Tooling</strong></td><td>ROS ecosystem</td><td>✅ Protobuf ecosystem</td></tr>
+<tr><td><strong>Message Size</strong></td><td>Efficient</td><td>Efficient</td></tr>
+<tr><td><strong>Setup Complexity</strong></td><td>Simple</td><td>Moderate</td></tr>
+<tr><td><strong>ros-z Support</strong></td><td>Default</td><td>Requires feature flag</td></tr>
+</tbody></table>
+</div>
+<h2 id="common-patterns"><a class="header" href="#common-patterns">Common Patterns</a></h2>
+<h3 id="mixed-serialization"><a class="header" href="#mixed-serialization">Mixed Serialization</a></h3>
+<p>Different topics can use different formats:</p>
+<pre><code class="language-rust ignore">// CDR for ROS 2 compatibility
+let ros_pub = node
+    .create_pub::&lt;RosString&gt;("/ros_topic")
+    .build()?;  // CDR is default
+
+// Protobuf for schema evolution
+let proto_pub = node
+    .create_pub::&lt;ProtoString&gt;("/proto_topic")
+    .with_serdes::&lt;ProtobufSerdes&lt;ProtoString&gt;&gt;()
+    .build()?;</code></pre>
+<h3 id="migration-strategy"><a class="header" href="#migration-strategy">Migration Strategy</a></h3>
+<p>Gradual migration from CDR to protobuf:</p>
+<ol>
+<li>Add protobuf feature to dependencies</li>
+<li>Create protobuf topics with new names</li>
+<li>Run both CDR and protobuf publishers temporarily</li>
+<li>Migrate subscribers to protobuf</li>
+<li>Deprecate CDR topics</li>
+</ol>
+<h2 id="build-integration"><a class="header" href="#build-integration">Build Integration</a></h2>
+<h3 id="project-structure"><a class="header" href="#project-structure">Project Structure</a></h3>
+<pre><code class="language-text">my_ros_project/
+├── proto/
+│   ├── sensor_data.proto
+│   └── robot_status.proto
+├── src/
+│   └── main.rs
+├── build.rs
+└── Cargo.toml
+</code></pre>
+<h3 id="cargotoml"><a class="header" href="#cargotoml">Cargo.toml</a></h3>
+<pre><code class="language-toml">[package]
+name = "my_ros_project"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ros-z = { version = "0.1", features = ["protobuf"] }
+ros-z-msgs = { version = "0.1", features = ["geometry_msgs", "protobuf"] }
+prost = "0.13"
+serde = { version = "1.0", features = ["derive"] }
+
+[build-dependencies]
+prost-build = "0.13"
+</code></pre>
+<h3 id="buildrs"><a class="header" href="#buildrs">build.rs</a></h3>
+<pre><code class="language-rust ignore">use std::io::Result;
+
+fn main() -&gt; Result&lt;()&gt; {
+    let mut config = prost_build::Config::new();
+
+    // Enable serde for ros-z compatibility
+    config.type_attribute(".", "#[derive(serde::Serialize, serde::Deserialize)]");
+
+    // Compile all proto files
+    config.compile_protos(
+        &amp;[
+            "proto/sensor_data.proto",
+            "proto/robot_status.proto",
+        ],
+        &amp;["proto/"]
+    )?;
+
+    // Rebuild if proto files change
+    println!("cargo:rerun-if-changed=proto/");
+
+    Ok(())
+}</code></pre>
+<h2 id="troubleshooting-1"><a class="header" href="#troubleshooting-1">Troubleshooting</a></h2>
+<details id="admonition-error-protobuf-feature-not-enabled" class="admonition admonish-question" role="note" aria-labelledby="admonition-error-protobuf-feature-not-enabled-title">
+<summary class="admonition-title">
+<div id="admonition-error-protobuf-feature-not-enabled-title">
+<p>Error: protobuf feature not enabled</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/protobuf.html#admonition-error-protobuf-feature-not-enabled"></a>
+</summary>
+<div>
+<p>This error occurs when you try to use protobuf serialization without enabling the feature flag.</p>
+<p><strong>Solution:</strong></p>
+<p>Enable the protobuf feature in your <code>Cargo.toml</code>:</p>
+<pre><code class="language-toml">[dependencies]
+ros-z = { version = "0.1", features = ["protobuf"] }
+ros-z-msgs = { version = "0.1", features = ["geometry_msgs", "protobuf"] }
+</code></pre>
+</div>
+</details>
+<details id="admonition-error-messagetypeinfo-not-implemented" class="admonition admonish-question" role="note" aria-labelledby="admonition-error-messagetypeinfo-not-implemented-title">
+<summary class="admonition-title">
+<div id="admonition-error-messagetypeinfo-not-implemented-title">
+<p>Error: MessageTypeInfo not implemented</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/protobuf.html#admonition-error-messagetypeinfo-not-implemented"></a>
+</summary>
+<div>
+<p>Custom protobuf messages need to implement required ros-z traits.</p>
+<p><strong>Solution:</strong></p>
+<p>Implement the required traits for your custom message:</p>
+<pre><code class="language-rust ignore">use ros_z::{MessageTypeInfo, WithTypeInfo, entity::TypeHash};
+
+impl MessageTypeInfo for MyMessage {
+    fn type_name() -&gt; &amp;'static str {
+        "package::msg::dds_::MyMessage_"
+    }
+
+    fn type_hash() -&gt; TypeHash {
+        TypeHash::zero()
+    }
+}
+
+impl WithTypeInfo for MyMessage {}</code></pre>
+</div>
+</details>
+<details id="admonition-build-fails-with-prost-errors" class="admonition admonish-question" role="note" aria-labelledby="admonition-build-fails-with-prost-errors-title">
+<summary class="admonition-title">
+<div id="admonition-build-fails-with-prost-errors-title">
+<p>Build fails with prost errors</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/protobuf.html#admonition-build-fails-with-prost-errors"></a>
+</summary>
+<div>
+<p>Version mismatches between prost dependencies can cause build failures.</p>
+<p><strong>Solution:</strong></p>
+<p>Ensure prost versions match in your <code>Cargo.toml</code>:</p>
+<pre><code class="language-toml">[dependencies]
+prost = "0.13"
+
+[build-dependencies]
+prost-build = "0.13"
+</code></pre>
+<p>If issues persist, try:</p>
+<pre><code class="language-bash">cargo clean
+cargo build
+</code></pre>
+</div>
+</details>
+<details id="admonition-messages-not-receiving" class="admonition admonish-question" role="note" aria-labelledby="admonition-messages-not-receiving-title">
+<summary class="admonition-title">
+<div id="admonition-messages-not-receiving-title">
+<p>Messages not receiving</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/protobuf.html#admonition-messages-not-receiving"></a>
+</summary>
+<div>
+<p>Publisher and subscriber must use the same serialization format.</p>
+<p><strong>Solution:</strong></p>
+<p>Verify both sides use protobuf serialization:</p>
+<pre><code class="language-rust ignore">// Publisher
+let pub = node
+    .create_pub::&lt;MyMessage&gt;("/topic")
+    .with_serdes::&lt;ProtobufSerdes&lt;MyMessage&gt;&gt;()
+    .build()?;
+
+// Subscriber
+let sub = node
+    .create_sub::&lt;MyMessage&gt;("/topic")
+    .with_serdes::&lt;ProtobufSerdes&lt;MyMessage&gt;&gt;()
+    .build()?;</code></pre>
+<p><strong>Note:</strong> A protobuf publisher cannot communicate with a CDR subscriber and vice versa.</p>
+</div>
+</details>
+<details id="admonition-proto-file-not-found-during-build" class="admonition admonish-question" role="note" aria-labelledby="admonition-proto-file-not-found-during-build-title">
+<summary class="admonition-title">
+<div id="admonition-proto-file-not-found-during-build-title">
+<p>Proto file not found during build</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/protobuf.html#admonition-proto-file-not-found-during-build"></a>
+</summary>
+<div>
+<p>The build script cannot locate your <code>.proto</code> files.</p>
+<p><strong>Solution:</strong></p>
+<p>Verify the path in your <code>build.rs</code>:</p>
+<pre><code class="language-rust ignore">config.compile_protos(
+    &amp;["proto/sensor_data.proto"],  // Check this path
+    &amp;["proto/"]                     // Check include directory
+)?;</code></pre>
+<p>Ensure the proto directory exists:</p>
+<pre><code class="language-bash">ls proto/sensor_data.proto
+</code></pre>
+</div>
+</details>
+<details id="admonition-generated-code-not-found" class="admonition admonish-question" role="note" aria-labelledby="admonition-generated-code-not-found-title">
+<summary class="admonition-title">
+<div id="admonition-generated-code-not-found-title">
+<p>Generated code not found</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/protobuf.html#admonition-generated-code-not-found"></a>
+</summary>
+<div>
+<p>The build script generated code but you can't import it.</p>
+<p><strong>Solution:</strong></p>
+<p>Ensure you're including from the correct location:</p>
+<pre><code class="language-rust ignore">pub mod sensor_data {
+    include!(concat!(env!("OUT_DIR"), "/examples.rs"));
+}</code></pre>
+<p>The filename after <code>OUT_DIR</code> should match your package name in the <code>.proto</code> file:</p>
+<pre><code class="language-protobuf">package examples;  // Generates examples.rs
+</code></pre>
+</div>
+</details>
+<h2 id="resources-5"><a class="header" href="#resources-5">Resources</a></h2>
+<ul>
+<li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - Understanding message architecture</li>
+<li><strong><a href="chapters/./custom_messages.html">Custom Messages</a></strong> - Manual message implementation</li>
+<li><strong><a href="https://protobuf.dev/">Protobuf Documentation</a></strong> - Official protobuf guide</li>
+<li><strong><a href="https://docs.rs/prost/">prost Crate</a></strong> - Rust protobuf library</li>
+</ul>
+<p><strong>Use protobuf when you need schema evolution or cross-language compatibility beyond the ROS 2 ecosystem. Stick with CDR for standard ROS 2 interoperability.</strong></p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="reproducible-development-with-nix"><a class="header" href="#reproducible-development-with-nix">Reproducible Development with Nix</a></h1>
+<div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
+<div class="admonition-title">
+<div id="admonition-warning-title">
+<p>Warning</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/nix.html#admonition-warning"></a>
+</div>
+<div>
+<p>This is an advanced topic for users familiar with Nix. If you're new to Nix, you can safely skip this chapter and use the standard <a href="chapters/./building.html">Building</a> instructions instead.</p>
+</div>
+</div>
+<p>ros-z provides Nix flakes for reproducible development environments with all dependencies pre-configured.</p>
+<h2 id="why-use-nix"><a class="header" href="#why-use-nix">Why Use Nix?</a></h2>
+<p><strong>Reproducible Builds:</strong> Nix ensures every developer and CI system uses the exact same dependencies, eliminating "works on my machine" issues. All dependencies—from compilers to ROS 2 packages—are pinned to specific versions and cached immutably.</p>
+<p><strong>Uniform CI/CD:</strong> The same Nix configuration that runs locally is used in continuous integration, ensuring build consistency across development, testing, and deployment environments. No more divergence between local builds and CI failures.</p>
+<p><strong>Zero Setup:</strong> New team members can start developing with a single <code>nix develop</code> command—no manual ROS installation, no dependency hunting, no environment configuration.</p>
+<h2 id="available-environments"><a class="header" href="#available-environments">Available Environments</a></h2>
+<pre><code class="language-bash"># Default: ROS 2 Jazzy with full tooling
+nix develop
+
+# Specific ROS distros
+nix develop .#ros-jazzy      # ROS 2 Jazzy
+nix develop .#ros-rolling    # ROS 2 Rolling
+
+# Pure Rust (no ROS)
+nix develop .#pureRust       # Minimal Rust toolchain only
+</code></pre>
+<h2 id="use-cases-1"><a class="header" href="#use-cases-1">Use Cases</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Use Case</th><th>Environment</th><th>Benefit</th></tr></thead><tbody>
+<tr><td><strong>Team Development</strong></td><td>All developers</td><td>Everyone has identical toolchains and dependencies</td></tr>
+<tr><td><strong>CI/CD Pipelines</strong></td><td>GitHub Actions, GitLab CI</td><td>Same environment locally and in automation</td></tr>
+<tr><td><strong>Cross-Platform</strong></td><td>Linux, macOS, WSL</td><td>Consistent builds regardless of host OS</td></tr>
+<tr><td><strong>Multiple ROS Versions</strong></td><td>Switch environments easily</td><td>Test against different ROS distros without conflicts</td></tr>
+</tbody></table>
+</div><div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
+<div class="admonition-title">
+<div id="admonition-tip-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/nix.html#admonition-tip"></a>
+</div>
+<div>
+<p>Use Nix for consistent development environments across team members and CI/CD pipelines. The reproducibility guarantees catch integration issues early.</p>
+</div>
+</div>
+<h2 id="learning-more"><a class="header" href="#learning-more">Learning More</a></h2>
+<ul>
+<li><strong><a href="https://nixos.org/manual/nix/stable/">Nix Official Guide</a></strong> - Introduction to Nix</li>
+<li><strong><a href="https://nixos.wiki/wiki/Flakes">Nix Flakes</a></strong> - Understanding flakes</li>
+<li><strong><a href="https://github.com/ZettaScaleLabs/ros-z/blob/main/flake.nix">ros-z flake.nix</a></strong> - Our Nix configuration</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="feature-flags-1"><a class="header" href="#feature-flags-1">Feature Flags</a></h1>
 <p><strong>Fine-grained control over dependencies and functionality through Cargo feature flags.</strong> Build exactly what you need, from zero-dependency core to full ROS 2 integration, without carrying unused code.</p>
 <div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
 <div class="admonition-title">
@@ -3010,14 +3528,14 @@ cargo run --example z_pingpong        # std_msgs
 <h3 id="custom-messages-1"><a class="header" href="#custom-messages-1">Custom Messages</a></h3>
 <pre><code class="language-bash">cargo run --example z_custom_message  # No features needed
 </code></pre>
-<h2 id="resources-7"><a class="header" href="#resources-7">Resources</a></h2>
+<h2 id="resources-6"><a class="header" href="#resources-6">Resources</a></h2>
 <ul>
 <li><strong><a href="chapters/./building.html">Building Guide</a></strong> - Build procedures for each scenario</li>
 <li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - How messages are generated</li>
 </ul>
 <p><strong>Start with default features and add more as your project evolves. Feature flags provide flexibility without forcing early architectural decisions.</strong></p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="troubleshooting-2"><a class="header" href="#troubleshooting-2">Troubleshooting</a></h1>
-<p><strong>Comprehensive solutions to common ros-z build and runtime issues.</strong> This guide provides diagnostic steps, root cause analysis, and proven fixes for the most frequent problems.</p>
+<p><strong>Quick solutions to common ros-z build and runtime issues.</strong> Click on any question to expand the answer.</p>
 <div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
 <div class="admonition-title">
 <div id="admonition-tip-title">
@@ -3026,22 +3544,19 @@ cargo run --example z_pingpong        # std_msgs
 <a class="admonition-anchor-link" href="chapters/troubleshooting.html#admonition-tip"></a>
 </div>
 <div>
-<p>Most issues fall into three categories: build configuration, runtime connectivity, or ROS 2 integration. Use the diagnostic flowcharts to quickly identify your issue type.</p>
+<p>Most issues fall into three categories: build configuration, runtime connectivity, or ROS 2 integration.</p>
 </div>
 </div>
 <h2 id="build-issues"><a class="header" href="#build-issues">Build Issues</a></h2>
-<h3 id="cannot-find-ros-packages"><a class="header" href="#cannot-find-ros-packages">Cannot Find ROS Packages</a></h3>
-<p><strong>Symptom:</strong> Build fails with "Cannot find ROS packages" or package discovery errors</p>
-<p><strong>Diagnostic Steps:</strong></p>
-<pre class="mermaid">flowchart TD
-    A[Package Not Found] --&gt; B{Is ROS 2 sourced?}
-    B --&gt;|No| C[Source ROS 2]
-    B --&gt;|Yes| D{Package installed?}
-    D --&gt;|No| E[Install package]
-    D --&gt;|Yes| F{Environment set?}
-    F --&gt;|No| G[Check env vars]
-    F --&gt;|Yes| H[Clear cache &amp; rebuild]
-</pre>
+<details id="admonition-build-fails-with-cannot-find-ros-packages-or-package-discovery-errors" class="admonition admonish-question" role="note" aria-labelledby="admonition-build-fails-with-cannot-find-ros-packages-or-package-discovery-errors-title">
+<summary class="admonition-title">
+<div id="admonition-build-fails-with-cannot-find-ros-packages-or-package-discovery-errors-title">
+<p>Build fails with 'Cannot find ROS packages' or package discovery errors</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/troubleshooting.html#admonition-build-fails-with-cannot-find-ros-packages-or-package-discovery-errors"></a>
+</summary>
+<div>
+<p><strong>Root Cause:</strong> ROS 2 environment not sourced or packages not installed.</p>
 <p><strong>Solutions:</strong></p>
 <ol>
 <li>
@@ -3071,26 +3586,25 @@ cargo build -p ros-z-msgs --features external_msgs
 </code></pre>
 </li>
 </ol>
-<div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
-<div class="admonition-title">
-<div id="admonition-warning-title">
-<p>Warning</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/troubleshooting.html#admonition-warning"></a>
-</div>
-<div>
-<p>Always source ROS 2 before building with <code>external_msgs</code>. The build system reads environment variables at build time, not runtime.</p>
-</div>
-</div>
-<div class="table-wrapper"><table><thead><tr><th>Error Message</th><th>Root Cause</th><th>Solution</th></tr></thead><tbody>
-<tr><td>"Package X not found"</td><td>Not in search path</td><td>Source ROS 2 environment</td></tr>
-<tr><td>"Cannot find ament_index"</td><td>ROS 2 not installed</td><td>Install ROS 2 or use bundled msgs</td></tr>
-<tr><td>"AMENT_PREFIX_PATH not set"</td><td>Environment not sourced</td><td>Run <code>source /opt/ros/jazzy/setup.bash</code></td></tr>
+<p><strong>Common Error Messages:</strong></p>
+<div class="table-wrapper"><table><thead><tr><th>Error</th><th>Solution</th></tr></thead><tbody>
+<tr><td>"Package X not found"</td><td>Source ROS 2 environment</td></tr>
+<tr><td>"Cannot find ament_index"</td><td>Install ROS 2 or use bundled msgs</td></tr>
+<tr><td>"AMENT_PREFIX_PATH not set"</td><td>Run <code>source /opt/ros/jazzy/setup.bash</code></td></tr>
 </tbody></table>
 </div>
-<h3 id="cannot-find-crate-ros_z_msgs"><a class="header" href="#cannot-find-crate-ros_z_msgs">Cannot Find Crate <code>ros_z_msgs</code></a></h3>
-<p><strong>Symptom:</strong> Compiler error "cannot find crate <code>ros_z_msgs</code>"</p>
-<p><strong>Root Cause:</strong> <code>ros-z-msgs</code> is not part of default workspace members</p>
+<p><strong>Note:</strong> Always source ROS 2 before building with <code>external_msgs</code>. The build system reads environment variables at build time, not runtime.</p>
+</div>
+</details>
+<details id="admonition-compiler-error-cannot-find-crate-ros_z_msgs" class="admonition admonish-question" role="note" aria-labelledby="admonition-compiler-error-cannot-find-crate-ros_z_msgs-title">
+<summary class="admonition-title">
+<div id="admonition-compiler-error-cannot-find-crate-ros_z_msgs-title">
+<p>Compiler error: cannot find crate ros_z_msgs</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/troubleshooting.html#admonition-compiler-error-cannot-find-crate-ros_z_msgs"></a>
+</summary>
+<div>
+<p><strong>Root Cause:</strong> <code>ros-z-msgs</code> is not part of default workspace members.</p>
 <p><strong>Solution:</strong></p>
 <pre><code class="language-bash"># Build ros-z-msgs explicitly
 cargo build -p ros-z-msgs
@@ -3101,20 +3615,117 @@ cargo build -p ros-z-msgs --features external_msgs
 # Then build your example
 cargo build --example z_srvcli --features external_msgs
 </code></pre>
-<div id="admonition-info" class="admonition admonish-info" role="note" aria-labelledby="admonition-info-title">
-<div class="admonition-title">
-<div id="admonition-info-title">
-<p>Info</p>
+<p><strong>Note:</strong> <code>ros-z-msgs</code> is excluded from default builds to avoid requiring ROS 2 for core development. Build it explicitly when needed.</p>
 </div>
-<a class="admonition-anchor-link" href="chapters/troubleshooting.html#admonition-info"></a>
+</details>
+<details id="admonition-build-takes-too-long-to-complete" class="admonition admonish-question" role="note" aria-labelledby="admonition-build-takes-too-long-to-complete-title">
+<summary class="admonition-title">
+<div id="admonition-build-takes-too-long-to-complete-title">
+<p>Build takes too long to complete</p>
 </div>
+<a class="admonition-anchor-link" href="chapters/troubleshooting.html#admonition-build-takes-too-long-to-complete"></a>
+</summary>
 <div>
-<p><code>ros-z-msgs</code> is excluded from default builds to avoid requiring ROS 2 for core development. Build it explicitly when needed.</p>
+<p><strong>Solutions:</strong></p>
+<pre><code class="language-bash"># Use parallel builds (automatic on most systems)
+cargo build -j $(nproc)
+
+# Build only what you need
+cargo build -p ros-z-msgs --features std_msgs,geometry_msgs
+</code></pre>
 </div>
+</details>
+<details id="admonition-linker-errors-during-build-especially-with-rcl-z" class="admonition admonish-question" role="note" aria-labelledby="admonition-linker-errors-during-build-especially-with-rcl-z-title">
+<summary class="admonition-title">
+<div id="admonition-linker-errors-during-build-especially-with-rcl-z-title">
+<p>Linker errors during build (especially with rcl-z)</p>
 </div>
-<h2 id="resources-8"><a class="header" href="#resources-8">Resources</a></h2>
+<a class="admonition-anchor-link" href="chapters/troubleshooting.html#admonition-linker-errors-during-build-especially-with-rcl-z"></a>
+</summary>
+<div>
+<p><strong>Solution:</strong></p>
+<pre><code class="language-bash"># Clear cache and rebuild
+cargo clean
+source /opt/ros/jazzy/setup.bash
+cargo build -p rcl-z
+</code></pre>
+<p><strong>Warning:</strong> After changing feature flags or updating ROS 2, run <code>cargo clean -p ros-z-msgs</code> to force message regeneration.</p>
+</div>
+</details>
+<h2 id="runtime-issues"><a class="header" href="#runtime-issues">Runtime Issues</a></h2>
+<details id="admonition-publishers-and-subscribers-on-different-processes-dont-communicate" class="admonition admonish-question" role="note" aria-labelledby="admonition-publishers-and-subscribers-on-different-processes-dont-communicate-title">
+<summary class="admonition-title">
+<div id="admonition-publishers-and-subscribers-on-different-processes-dont-communicate-title">
+<p>Publishers and subscribers on different processes don't communicate</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/troubleshooting.html#admonition-publishers-and-subscribers-on-different-processes-dont-communicate"></a>
+</summary>
+<div>
+<p><strong>Root Cause:</strong> Zenoh router not running or nodes not configured correctly.</p>
+<p><strong>Solution:</strong></p>
+<ol>
+<li>
+<p><strong>Ensure the router is running:</strong></p>
+<pre><code class="language-bash">cargo run --example zenoh_router
+</code></pre>
+</li>
+<li>
+<p><strong>Verify endpoint matches in your code:</strong></p>
+<pre><code class="language-rust ignore">let ctx = ZContextBuilder::default()
+    .with_router_endpoint("tcp/localhost:7447")  // Must match router
+    .build()?;</code></pre>
+</li>
+</ol>
+</div>
+</details>
+<details id="admonition-router-fails-to-start-with-address-already-in-use-error" class="admonition admonish-question" role="note" aria-labelledby="admonition-router-fails-to-start-with-address-already-in-use-error-title">
+<summary class="admonition-title">
+<div id="admonition-router-fails-to-start-with-address-already-in-use-error-title">
+<p>Router fails to start with 'Address already in use' error</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/troubleshooting.html#admonition-router-fails-to-start-with-address-already-in-use-error"></a>
+</summary>
+<div>
+<p><strong>Root Cause:</strong> Another process is using port 7447.</p>
+<p><strong>Solutions:</strong></p>
+<ol>
+<li>
+<p><strong>Stop the conflicting process</strong></p>
+</li>
+<li>
+<p><strong>Use a custom port:</strong></p>
+<pre><code class="language-rust ignore">// Custom router port
+let router_config = RouterConfigBuilder::new()
+    .with_listen_port(7448)
+    .build()?;
+
+// Connect sessions to custom port
+let ctx = ZContextBuilder::default()
+    .with_router_endpoint("tcp/localhost:7448")
+    .build()?;</code></pre>
+</li>
+</ol>
+</div>
+</details>
+<details id="admonition-dont-want-to-manage-a-router-for-simple-local-testing" class="admonition admonish-question" role="note" aria-labelledby="admonition-dont-want-to-manage-a-router-for-simple-local-testing-title">
+<summary class="admonition-title">
+<div id="admonition-dont-want-to-manage-a-router-for-simple-local-testing-title">
+<p>Don't want to manage a router for simple local testing</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/troubleshooting.html#admonition-dont-want-to-manage-a-router-for-simple-local-testing"></a>
+</summary>
+<div>
+<p><strong>Solution:</strong> Use peer mode with multicast discovery:</p>
+<pre><code class="language-rust ignore">let ctx = ZContextBuilder::default()
+    .with_zenoh_config(zenoh::Config::default())
+    .build()?;</code></pre>
+<p><strong>Warning:</strong> Peer mode won't interoperate with ROS 2 nodes using <code>rmw_zenoh_cpp</code> in router mode.</p>
+</div>
+</details>
+<h2 id="resources-7"><a class="header" href="#resources-7">Resources</a></h2>
 <ul>
 <li><strong><a href="chapters/./building.html">Building Guide</a></strong> - Correct build procedures</li>
+<li><strong><a href="chapters/./config.html">Networking</a></strong> - Zenoh router setup</li>
 <li><strong><a href="chapters/./feature_flags.html">Feature Flags</a></strong> - Available features</li>
 <li><strong><a href="https://github.com/ZettaScaleLabs/ros-z/issues">GitHub Issues</a></strong> - Report bugs</li>
 </ul>

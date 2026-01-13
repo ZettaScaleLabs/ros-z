@@ -185,17 +185,6 @@
                     <main>
                         <h1 id="building-ros-z"><a class="header" href="#building-ros-z">Building ros-z</a></h1>
 <p><strong>ros-z is designed to work without ROS 2 dependencies by default, enabling pure Rust development while optionally integrating with existing ROS 2 installations.</strong> This flexible approach lets you choose your dependency level based on project requirements.</p>
-<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
-<div class="admonition-title">
-<div id="admonition-success-title">
-<p>Success</p>
-</div>
-<a class="admonition-anchor-link" href="#admonition-success"></a>
-</div>
-<div>
-<p>Start with zero dependencies and add ROS 2 integration only when you need it. This gradual approach reduces complexity and speeds up initial development.</p>
-</div>
-</div>
 <h2 id="philosophy"><a class="header" href="#philosophy">Philosophy</a></h2>
 <p>ros-z follows a <strong>dependency-optional</strong> design:</p>
 <ul>
@@ -237,19 +226,21 @@ tokio = { version = "1", features = ["full"] }
 </ul>
 <h3 id="scenario-3-full-ros-2-integration"><a class="header" href="#scenario-3-full-ros-2-integration">Scenario 3: Full ROS 2 Integration</a></h3>
 <p><strong>Use when:</strong> You need all ROS 2 message types or custom packages from your workspace</p>
-<p><strong>Requirements:</strong> ROS 2 installation (Jazzy, Rolling, Iron, or Humble)</p>
+<p><strong>Requirements:</strong> ROS 2 installation (Rolling, Kilted, Jazzy, etc.)</p>
 <p><strong>Add to your <code>Cargo.toml</code>:</strong></p>
 <pre><code class="language-toml">[dependencies]
 ros-z = "0.x"
 ros-z-msgs = { version = "0.x", features = ["external_msgs"] }
 tokio = { version = "1", features = ["full"] }
 </code></pre>
+<p><strong>The <code>external_msgs</code> feature flag tells ros-z-msgs to generate bindings for all message types found in your ROS 2 installation.</strong> Without this flag, only bundled messages are included (Scenario 2).</p>
 <p><strong>Build your project:</strong></p>
-<pre><code class="language-bash"># Ensure ROS 2 is sourced
+<pre><code class="language-bash"># Ensure ROS 2 is sourced (Jazzy as an example)
 source /opt/ros/jazzy/setup.bash
 
-# Build your project
-cargo build
+# Build your project with external_msgs feature
+# This feature enables access to all ROS 2 message types from your installation
+cargo build --features external_msgs
 </code></pre>
 <p><strong>Additional packages available:</strong></p>
 <ul>
@@ -266,62 +257,6 @@ cargo build
 </div>
 <div>
 <p>Start with Scenario 1 or 2 for development, then move to Scenario 3 when you need full ROS 2 interoperability.</p>
-</div>
-</div>
-<h2 id="running-examples"><a class="header" href="#running-examples">Running Examples</a></h2>
-<p>Once you've added ros-z to your project, you can run the included examples to see it in action.</p>
-<div id="admonition-important" class="admonition admonish-tip" role="note" aria-labelledby="admonition-important-title">
-<div class="admonition-title">
-<div id="admonition-important-title">
-<p>Important</p>
-</div>
-<a class="admonition-anchor-link" href="#admonition-important"></a>
-</div>
-<div>
-<p><strong>All examples require a Zenoh router to be running first:</strong></p>
-<pre><code class="language-bash">cargo run --example zenoh_router
-
-&lt;/div&gt;
-&lt;/div&gt;
-
-Leave this running in a separate terminal, then run any example in another terminal.
-
-**Available examples:**
-
-```bash
-# Pure Rust example with custom messages (no ros-z-msgs needed)
-cargo run --example z_custom_message -- --mode status-pub
-
-# Examples using bundled messages (requires ros-z-msgs)
-cargo run --example z_pubsub          # Publisher/Subscriber with std_msgs
-cargo run --example twist_pub         # Publishing geometry_msgs
-cargo run --example battery_state_sub # Receiving sensor_msgs
-
-# Examples requiring ROS 2 (requires external_msgs feature)
-cargo run --example z_srvcli --features external_msgs
-</code></pre>
-<p>See the <a href="./config.html">Zenoh Configuration</a> chapter for router setup details and alternative configurations.</p>
-<h2 id="using-nix-optional"><a class="header" href="#using-nix-optional">Using Nix (Optional)</a></h2>
-<p>Pre-configured development environments with all dependencies:</p>
-<pre><code class="language-bash"># Default: ROS 2 Jazzy with full tooling
-nix develop
-
-# Specific ROS distros
-nix develop .#ros-jazzy      # ROS 2 Jazzy
-nix develop .#ros-rolling    # ROS 2 Rolling
-
-# Pure Rust (no ROS)
-nix develop .#pureRust
-</code></pre>
-<div id="admonition-tip-1" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-1-title">
-<div class="admonition-title">
-<div id="admonition-tip-1-title">
-<p>Tip</p>
-</div>
-<a class="admonition-anchor-link" href="#admonition-tip-1"></a>
-</div>
-<div>
-<p>Use Nix for consistent development environments across team members and CI/CD pipelines.</p>
 </div>
 </div>
 <h2 id="development"><a class="header" href="#development">Development</a></h2>
@@ -393,36 +328,12 @@ cargo clean -p ros-z-msgs  # Clean specific package
 <p>After changing feature flags or updating ROS 2, run <code>cargo clean -p ros-z-msgs</code> to force message regeneration.</p>
 </div>
 </div>
-<h2 id="troubleshooting-builds"><a class="header" href="#troubleshooting-builds">Troubleshooting Builds</a></h2>
-<p><strong>Build too slow?</strong></p>
-<pre><code class="language-bash"># Use parallel builds (automatic on most systems)
-cargo build -j $(nproc)
-
-# Build only what you need
-cargo build -p ros-z-msgs --features std_msgs,geometry_msgs
-</code></pre>
-<p><strong>Can't find ROS packages?</strong></p>
-<pre><code class="language-bash"># Ensure ROS 2 is sourced
-source /opt/ros/jazzy/setup.bash
-
-# Verify environment
-echo $AMENT_PREFIX_PATH
-
-# Check package exists
-ros2 pkg prefix example_interfaces
-</code></pre>
-<p><strong>Linker errors?</strong></p>
-<pre><code class="language-bash"># Clear cache and rebuild
-cargo clean
-source /opt/ros/jazzy/setup.bash
-cargo build -p rcl-z
-</code></pre>
-<p>For comprehensive troubleshooting, see the <a href="./troubleshooting.html">Troubleshooting Guide</a>.</p>
-<h2 id="resources"><a class="header" href="#resources">Resources</a></h2>
+<h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
 <ul>
-<li><strong><a href="./feature_flags.html">Feature Flags</a></strong> - Detailed feature documentation</li>
-<li><strong><a href="./troubleshooting.html">Troubleshooting</a></strong> - Common build issues</li>
-<li><strong><a href="./message_generation.html">Message Generation</a></strong> - How messages work</li>
+<li><strong><a href="./examples.html">Running Examples</a></strong> - Try out the included examples</li>
+<li><strong><a href="./config.html">Networking</a></strong> - Set up Zenoh router and session config</li>
+<li><strong><a href="./message_generation.html">Message Generation</a></strong> - Understand how messages work</li>
+<li><strong><a href="./troubleshooting.html">Troubleshooting</a></strong> - Solutions to common build issues</li>
 </ul>
 <p><strong>Start with the simplest build and add dependencies incrementally as your project grows.</strong></p>
 
@@ -430,11 +341,11 @@ cargo build -p rcl-z
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../chapters/quick_start.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../chapters/actions.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next prefetch" href="../chapters/config.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../chapters/examples.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -444,11 +355,11 @@ cargo build -p rcl-z
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../chapters/quick_start.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../chapters/actions.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next prefetch" href="../chapters/config.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../chapters/examples.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>

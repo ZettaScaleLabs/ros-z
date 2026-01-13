@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Publishers and Subscribers - ros-z Documentation</title>
+        <title>Pub/Sub - ros-z Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -405,23 +405,7 @@ cargo run --example demo_nodes_listener -- --max-count 5
 <p><strong>Terminal 3 - Start Publisher:</strong></p>
 <pre><code class="language-bash">cargo run --example demo_nodes_talker
 </code></pre>
-<p><strong>Expected output in Terminal 2 (Subscriber):</strong></p>
-<pre><code class="language-text">I heard: [Hello World: 1]
-I heard: [Hello World: 2]
-I heard: [Hello World: 3]
-...
-</code></pre>
-<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
-<div class="admonition-title">
-<div id="admonition-success-title">
-<p>Success</p>
-</div>
-<a class="admonition-anchor-link" href="#admonition-success"></a>
-</div>
-<div>
-<p>The subscriber receives messages in real-time as the publisher sends them, demonstrating ros-z's efficient pub-sub implementation over Zenoh.</p>
-</div>
-</div>
+<script src="https://asciinema.org/a/l7L1vuoyZSYwXEGE.js" id="asciicast-l7L1vuoyZSYwXEGE" async="true"></script>
 <h2 id="subscriber-patterns"><a class="header" href="#subscriber-patterns">Subscriber Patterns</a></h2>
 <p>ros-z provides three patterns for receiving messages, each suited for different use cases:</p>
 <h3 id="pattern-1-blocking-receive-pull-model"><a class="header" href="#pattern-1-blocking-receive-pull-model">Pattern 1: Blocking Receive (Pull Model)</a></h3>
@@ -511,12 +495,12 @@ ros2 topic pub /chatter std_msgs/msg/String "data: 'Hello from ROS 2'"
 # Check topic info
 ros2 topic info /chatter
 </code></pre>
-<div id="admonition-success-1" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-1-title">
+<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
 <div class="admonition-title">
-<div id="admonition-success-1-title">
+<div id="admonition-success-title">
 <p>Success</p>
 </div>
-<a class="admonition-anchor-link" href="#admonition-success-1"></a>
+<a class="admonition-anchor-link" href="#admonition-success"></a>
 </div>
 <div>
 <p>ros-z provides full ROS 2 compatibility via Zenoh bridge or rmw_zenoh, enabling cross-language communication.</p>
@@ -534,7 +518,7 @@ ros2 topic info /chatter
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../chapters/config.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../chapters/quick_start.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
@@ -548,7 +532,7 @@ ros2 topic info /chatter
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../chapters/config.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../chapters/quick_start.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 

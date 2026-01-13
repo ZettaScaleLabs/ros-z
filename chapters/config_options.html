@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Networking - ros-z Documentation</title>
+        <title>Configuration Options - ros-z Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -149,7 +149,7 @@
                         <a href="https://github.com/ZettaScaleLabs/ros-z" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/ZettaScaleLabs/ros-z/edit/main/src/chapters/config.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                        <a href="https://github.com/ZettaScaleLabs/ros-z/edit/main/src/chapters/config_options.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -183,66 +183,128 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="networking"><a class="header" href="#networking">Networking</a></h1>
-<p><strong>Configure ros-z's Zenoh transport layer for optimal performance in your deployment environment.</strong> ros-z uses router-based architecture by default, matching ROS 2's official <code>rmw_zenoh_cpp</code> middleware for production-ready scalability.</p>
-<h2 id="router-based-architecture"><a class="header" href="#router-based-architecture">Router-Based Architecture</a></h2>
-<p>ros-z uses a centralized Zenoh router for node discovery and communication, providing:</p>
-<div class="table-wrapper"><table><thead><tr><th>Benefit</th><th>Description</th></tr></thead><tbody>
-<tr><td><strong>Scalability</strong></td><td>Centralized discovery handles large deployments efficiently</td></tr>
-<tr><td><strong>Lower Network Overhead</strong></td><td>TCP-based discovery instead of multicast broadcasts</td></tr>
-<tr><td><strong>ROS 2 Compatibility</strong></td><td>Matches <code>rmw_zenoh_cpp</code> behavior for seamless interoperability</td></tr>
-<tr><td><strong>Production Ready</strong></td><td>Battle-tested configuration used in real robotics systems</td></tr>
-</tbody></table>
-</div>
-<h2 id="quick-start"><a class="header" href="#quick-start">Quick Start</a></h2>
-<p>The simplest way to get started is using the built-in router example:</p>
-<p><strong>Terminal 1 - Start the Router:</strong></p>
-<pre><code class="language-bash">cargo run --example zenoh_router
-</code></pre>
-<p><strong>Terminal 2 - Run Your Application:</strong></p>
-<pre><code class="language-rust ignore">use ros_z::context::ZContextBuilder;
-use ros_z::Builder;
+                        <h1 id="configuration-options"><a class="header" href="#configuration-options">Configuration Options</a></h1>
+<p>ros-z provides multiple ways to configure Zenoh, from simple to advanced.</p>
+<h2 id="option-1-default-configuration-recommended"><a class="header" href="#option-1-default-configuration-recommended">Option 1: Default Configuration (Recommended)</a></h2>
+<p>Use the built-in ROS session config for standard deployments:</p>
+<pre><code class="language-rust ignore">let ctx = ZContextBuilder::default().build()?;</code></pre>
+<p><strong>What it does:</strong></p>
+<ul>
+<li>Connects to router at <code>tcp/localhost:7447</code></li>
+<li>Uses ROS-compatible timeouts and buffer sizes</li>
+<li>Disables multicast discovery (uses router instead)</li>
+</ul>
+<h2 id="option-2-custom-router-endpoint"><a class="header" href="#option-2-custom-router-endpoint">Option 2: Custom Router Endpoint</a></h2>
+<p>Connect to a router on a different host or port:</p>
+<pre><code class="language-rust ignore">let ctx = ZContextBuilder::default()
+    .with_router_endpoint("tcp/192.168.1.100:7447")
+    .build()?;</code></pre>
+<p><strong>Use cases:</strong></p>
+<ul>
+<li>Distributed systems with remote router</li>
+<li>Custom port configurations</li>
+<li>Multiple isolated networks</li>
+</ul>
+<h2 id="option-3-environment-variable-overrides"><a class="header" href="#option-3-environment-variable-overrides">Option 3: Environment Variable Overrides</a></h2>
+<p>Override any Zenoh configuration setting using the <code>ROSZ_CONFIG_OVERRIDE</code> environment variable without changing code:</p>
+<pre><code class="language-bash"># Override mode and endpoint
+export ROSZ_CONFIG_OVERRIDE='mode="client";connect/endpoints=["tcp/192.168.1.100:7447"]'
 
-// Uses default ROS session config (connects to tcp/localhost:7447)
-let ctx = ZContextBuilder::default().build()?;
-let node = ctx.create_node("my_node").build()?;</code></pre>
-<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
+# Run your application
+cargo run --example my_app
+</code></pre>
+<pre><code class="language-rust ignore">// No code changes needed - overrides are applied automatically
+let ctx = ZContextBuilder::default().build()?;</code></pre>
+<p><strong>Format:</strong></p>
+<ul>
+<li>Semicolon-separated <code>key=value</code> pairs</li>
+<li>Values use JSON5 syntax</li>
+<li>Keys use slash-separated paths (e.g., <code>connect/endpoints</code>, <code>scouting/multicast/enabled</code>)</li>
+</ul>
+<p><strong>Common examples:</strong></p>
+<pre><code class="language-bash"># Connect to remote router
+export ROSZ_CONFIG_OVERRIDE='connect/endpoints=["tcp/10.0.0.5:7447"]'
+
+# Enable multicast scouting explicitly
+export ROSZ_CONFIG_OVERRIDE='scouting/multicast/enabled=true'
+
+# Multiple overrides
+export ROSZ_CONFIG_OVERRIDE='mode="client";connect/timeout_ms=5000;scouting/multicast/enabled=false'
+</code></pre>
+<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
 <div class="admonition-title">
-<div id="admonition-success-title">
-<p>Success</p>
+<div id="admonition-tip-title">
+<p>Tip</p>
 </div>
-<a class="admonition-anchor-link" href="#admonition-success"></a>
+<a class="admonition-anchor-link" href="#admonition-tip"></a>
 </div>
 <div>
-<p>That's it! The default configuration automatically connects to the router on <code>tcp/localhost:7447</code>.</p>
+<p>Environment variable overrides have the highest priority and will override any programmatic configuration or config file settings.</p>
 </div>
 </div>
-<h2 id="running-the-zenoh-router"><a class="header" href="#running-the-zenoh-router">Running the Zenoh Router</a></h2>
-<h3 id="option-1-built-in-router-example"><a class="header" href="#option-1-built-in-router-example">Option 1: Built-in Router Example</a></h3>
-<p>ros-z provides a built-in router example that's ROS-compatible out of the box.</p>
-<pre><code class="language-bash">cargo run --example zenoh_router
-</code></pre>
-<p>Listens on <code>tcp/[::]:7447</code> (all interfaces, port 7447).</p>
-<h3 id="option-2-official-zenoh-router"><a class="header" href="#option-2-official-zenoh-router">Option 2: Official Zenoh Router</a></h3>
-<p>You can also use the official Zenoh router: <a href="https://zenoh.io/docs/getting-started/installation/#installing-the-zenoh-router">https://zenoh.io/docs/getting-started/installation/#installing-the-zenoh-router</a>.</p>
-<h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
-<p>Choose the configuration approach that fits your needs:</p>
+<h2 id="option-4-advanced-configuration-builders"><a class="header" href="#option-4-advanced-configuration-builders">Option 4: Advanced Configuration Builders</a></h2>
+<p>Fine-tune session or router settings programmatically:</p>
+<pre><code class="language-rust ignore">use ros_z::config::{SessionConfigBuilder, RouterConfigBuilder};
+
+// Customize session config
+let session_config = SessionConfigBuilder::new()
+    .with_router_endpoint("tcp/192.168.1.100:7447")
+    .build()?;
+
+let ctx = ZContextBuilder::default()
+    .with_zenoh_config(session_config)
+    .build()?;
+
+// Or build a custom router config
+let router_config = RouterConfigBuilder::new()
+    .with_listen_port(7448)  // Custom port
+    .build()?;
+
+zenoh::open(router_config).await?;</code></pre>
+<p><strong>Key builder methods:</strong></p>
+<div class="table-wrapper"><table><thead><tr><th>Builder</th><th>Methods</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><code>SessionConfigBuilder</code></td><td><code>with_router_endpoint(endpoint)</code></td><td>Connect to custom router</td></tr>
+<tr><td><code>RouterConfigBuilder</code></td><td><code>with_listen_port(port)</code></td><td>Set custom router port</td></tr>
+</tbody></table>
+</div>
+<h2 id="option-5-peer-mode-using-multicast-discovery-no-router-required"><a class="header" href="#option-5-peer-mode-using-multicast-discovery-no-router-required">Option 5: Peer Mode Using Multicast Discovery (No Router Required)</a></h2>
+<p>Revert to multicast peer discovery for simple setups:</p>
+<pre><code class="language-rust ignore">// Use vanilla Zenoh config (peer mode with multicast)
+let ctx = ZContextBuilder::default()
+    .with_zenoh_config(zenoh::Config::default())
+    .build()?;</code></pre>
+<div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
+<div class="admonition-title">
+<div id="admonition-warning-title">
+<p>Warning</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-warning"></a>
+</div>
+<div>
+<p>Multicast scouting discovery is convenient for quick testing but doesn't scale well and won't work with ROS 2 nodes using <code>rmw_zenoh_cpp</code> (which expects a zenoh router).</p>
+</div>
+</div>
+<h2 id="option-6-load-from-config-file"><a class="header" href="#option-6-load-from-config-file">Option 6: Load from Config File</a></h2>
+<p>Use JSON5 config files for complex deployments:</p>
+<pre><code class="language-rust ignore">let ctx = ZContextBuilder::default()
+    .with_config_file("/etc/zenoh/session_config.json5")
+    .build()?;</code></pre>
+<p><strong>When to use:</strong></p>
 <ul>
-<li><strong><a href="./config_options.html">Configuration Options</a></strong> - Six ways to configure Zenoh (from simple to complex)</li>
-<li><strong><a href="./config_advanced.html">Advanced Configuration</a></strong> - Generate config files, run routers, configuration reference</li>
-<li><strong><a href="./troubleshooting.html">Troubleshooting</a></strong> - Solutions to connectivity issues</li>
+<li>Deploying across multiple machines</li>
+<li>Environment-specific configurations</li>
+<li>Version-controlled infrastructure</li>
 </ul>
-<p><strong>Ready to optimize your deployment? Experiment with different configurations and measure performance impact.</strong></p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../chapters/examples.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../chapters/config.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next prefetch" href="../chapters/config_options.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../chapters/config_advanced.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -252,11 +314,11 @@ let node = ctx.create_node("my_node").build()?;</code></pre>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../chapters/examples.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../chapters/config.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next prefetch" href="../chapters/config_options.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../chapters/config_advanced.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>
