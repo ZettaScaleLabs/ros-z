@@ -1,0 +1,538 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Services - ros-z Documentation</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Native Rust ROS 2 implementation using Zenoh">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../mdbook-admonish.css">
+        <link rel="stylesheet" href="../book/mdbook-admonish.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ros-z Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/ZettaScaleLabs/ros-z" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/ZettaScaleLabs/ros-z/edit/main/src/chapters/services.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="services"><a class="header" href="#services">Services</a></h1>
+<p><strong>ros-z implements ROS 2's service pattern with type-safe request-response communication over Zenoh.</strong> This enables synchronous, point-to-point interactions between nodes using a pull-based model for full control over request processing.</p>
+<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+<div class="admonition-title">
+<div id="admonition-note-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-note"></a>
+</div>
+<div>
+<p>Services provide request-response communication for operations that need immediate feedback. Unlike topics, services are bidirectional and ensure a response for each request. ros-z uses a pull model that gives you explicit control over when to process requests.</p>
+</div>
+</div>
+<h2 id="visual-flow"><a class="header" href="#visual-flow">Visual Flow</a></h2>
+<pre class="mermaid">graph TD
+    A[ZContextBuilder] --&gt;|configure| B[ZContext]
+    B --&gt;|create| C[Client Node]
+    B --&gt;|create| D[Server Node]
+    C --&gt;|create_client| E[Service Client]
+    D --&gt;|create_service| F[Service Server]
+    E --&gt;|send_request| G[Service Call]
+    G --&gt;|route| F
+    F --&gt;|take_request| H[Request Handler]
+    H --&gt;|send_response| G
+    G --&gt;|deliver| E
+    E --&gt;|take_response| I[Response Handler]
+</pre>
+<h2 id="key-features"><a class="header" href="#key-features">Key Features</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Feature</th><th>Description</th><th>Benefit</th></tr></thead><tbody>
+<tr><td><strong>Type Safety</strong></td><td>Strongly-typed service definitions with Rust structs</td><td>Compile-time error detection</td></tr>
+<tr><td><strong>Pull Model</strong></td><td>Explicit control over request processing timing</td><td>Predictable concurrency and backpressure</td></tr>
+<tr><td><strong>Async/Blocking</strong></td><td>Dual API for both paradigms</td><td>Flexible integration patterns</td></tr>
+<tr><td><strong>Request Tracking</strong></td><td>Key-based request/response matching</td><td>Reliable message correlation</td></tr>
+</tbody></table>
+</div>
+<h2 id="service-server-example"><a class="header" href="#service-server-example">Service Server Example</a></h2>
+<p>This example demonstrates a service server that adds two integers. The server waits for requests, processes them, and sends responses back to clients.</p>
+<pre><code class="language-rust ignore">use ros_z::{Builder, Result, context::ZContext};
+use ros_z_msgs::example_interfaces::{AddTwoInts, AddTwoIntsResponse};
+
+/// AddTwoInts server node that provides a service to add two integers
+///
+/// # Arguments
+/// * `ctx` - The ROS-Z context
+/// * `max_requests` - Optional maximum number of requests to handle. If None, handles requests indefinitely.
+pub fn run_add_two_ints_server(ctx: ZContext, max_requests: Option&lt;usize&gt;) -&gt; Result&lt;()&gt; {
+    // Create a node named "add_two_ints_server"
+    let node = ctx.create_node("add_two_ints_server").build()?;
+
+    // Create a service that will handle requests
+    let mut service = node.create_service::&lt;AddTwoInts&gt;("add_two_ints").build()?;
+
+    println!("AddTwoInts service server started, waiting for requests...");
+
+    let mut request_count = 0;
+
+    loop {
+        // Wait for a request
+        let (key, req) = service.take_request()?;
+        println!("Incoming request\na: {} b: {}", req.a, req.b);
+
+        // Compute the sum
+        let sum = req.a + req.b;
+
+        // Create the response
+        let resp = AddTwoIntsResponse { sum };
+
+        println!("Sending response: {}", resp.sum);
+
+        // Send the response
+        service.send_response(&amp;resp, &amp;key)?;
+
+        request_count += 1;
+
+        // Check if we've reached the max requests
+        if let Some(max) = max_requests
+            &amp;&amp; request_count &gt;= max
+        {
+            break;
+        }
+    }
+
+    Ok(())
+}</code></pre>
+<p><strong>Key points:</strong></p>
+<ul>
+<li><strong>Pull Model</strong>: Uses <code>take_request()</code> for explicit control over when to accept requests</li>
+<li><strong>Request Key</strong>: Each request has a unique key for matching responses</li>
+<li><strong>Bounded Operation</strong>: Optional <code>max_requests</code> parameter for testing</li>
+<li><strong>Simple Processing</strong>: Demonstrates synchronous request handling</li>
+</ul>
+<p><strong>Running the server:</strong></p>
+<pre><code class="language-bash"># Basic usage - runs indefinitely
+cargo run --example demo_nodes_add_two_ints_server -F external_msgs
+
+# Handle 5 requests then exit
+cargo run --example demo_nodes_add_two_ints_server -F external_msgs -- --count 5
+
+# Connect to specific Zenoh router
+cargo run --example demo_nodes_add_two_ints_server -F external_msgs -- --endpoint tcp/localhost:7447
+</code></pre>
+<h2 id="service-client-example"><a class="header" href="#service-client-example">Service Client Example</a></h2>
+<p>This example demonstrates a service client that sends addition requests to the server and displays the results.</p>
+<pre><code class="language-rust ignore">use std::time::Duration;
+
+use ros_z::{Builder, Result, context::ZContext};
+use ros_z_msgs::example_interfaces::{AddTwoInts, AddTwoIntsRequest};
+
+/// AddTwoInts client node that calls the service to add two integers
+///
+/// # Arguments
+/// * `ctx` - The ROS-Z context
+/// * `a` - First number to add
+/// * `b` - Second number to add
+/// * `async_mode` - Whether to use async response waiting
+pub fn run_add_two_ints_client(ctx: ZContext, a: i64, b: i64, async_mode: bool) -&gt; Result&lt;i64&gt; {
+    // Create a node named "add_two_ints_client"
+    let node = ctx.create_node("add_two_ints_client").build()?;
+
+    // Create a client for the service
+    let client = node.create_client::&lt;AddTwoInts&gt;("add_two_ints").build()?;
+
+    println!(
+        "AddTwoInts service client started (mode: {})",
+        if async_mode { "async" } else { "sync" }
+    );
+
+    // Create the request
+    let req = AddTwoIntsRequest { a, b };
+    println!("Sending request: {} + {}", req.a, req.b);
+
+    // Wait for the response
+    let resp = if async_mode {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            client.send_request(&amp;req).await?;
+            client.take_response_async().await
+        })?
+    } else {
+        tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(async { client.send_request(&amp;req).await })?;
+        client.take_response_timeout(Duration::from_secs(5))?
+    };
+
+    println!("Received response: {}", resp.sum);
+
+    Ok(resp.sum)
+}</code></pre>
+<p><strong>Key points:</strong></p>
+<ul>
+<li><strong>Async Support</strong>: Supports both blocking and async response patterns</li>
+<li><strong>Timeout Handling</strong>: Uses <code>take_response_timeout()</code> for reliable operation</li>
+<li><strong>Simple API</strong>: Send request, receive response, process result</li>
+<li><strong>Type Safety</strong>: Request and response types are enforced at compile time</li>
+</ul>
+<p><strong>Running the client:</strong></p>
+<pre><code class="language-bash"># Basic usage
+cargo run --example demo_nodes_add_two_ints_client -F external_msgs -- --a 10 --b 20
+
+# Using async mode
+cargo run --example demo_nodes_add_two_ints_client -F external_msgs -- --a 5 --b 3 --async-mode
+
+# Connect to specific Zenoh router
+cargo run --example demo_nodes_add_two_ints_client -F external_msgs -- --a 100 --b 200 --endpoint tcp/localhost:7447
+</code></pre>
+<h2 id="complete-service-workflow"><a class="header" href="#complete-service-workflow">Complete Service Workflow</a></h2>
+<p>To see services in action, you'll need to start a Zenoh router first:</p>
+<p><strong>Terminal 1 - Start Zenoh Router:</strong></p>
+<pre><code class="language-bash">cargo run --example zenoh_router
+</code></pre>
+<p><strong>Terminal 2 - Start Server:</strong></p>
+<pre><code class="language-bash">cargo run --example demo_nodes_add_two_ints_server -F external_msgs
+</code></pre>
+<p><strong>Terminal 3 - Send Client Requests:</strong></p>
+<pre><code class="language-bash"># Request 1
+cargo run --example demo_nodes_add_two_ints_client -F external_msgs -- --a 10 --b 20
+
+# Request 2
+cargo run --example demo_nodes_add_two_ints_client -F external_msgs -- --a 100 --b 200
+</code></pre>
+<script src="https://asciinema.org/a/yChRkMOyYKoKBPqM.js" id="asciicast-yChRkMOyYKoKBPqM" async="true"></script>
+<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
+<div class="admonition-title">
+<div id="admonition-success-title">
+<p>Success</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-success"></a>
+</div>
+<div>
+<p>Each client request is processed immediately by the server, demonstrating synchronous request-response communication over Zenoh.</p>
+</div>
+</div>
+<h2 id="service-server-patterns"><a class="header" href="#service-server-patterns">Service Server Patterns</a></h2>
+<p>Service servers in ros-z follow a <strong>pull model</strong> pattern, similar to subscribers. You explicitly receive requests when ready to process them, giving you full control over request handling timing and concurrency.</p>
+<div id="admonition-info" class="admonition admonish-info" role="note" aria-labelledby="admonition-info-title">
+<div class="admonition-title">
+<div id="admonition-info-title">
+<p>Info</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-info"></a>
+</div>
+<div>
+<p>This pull-based approach is consistent with subscriber's <code>recv()</code> pattern, allowing you to control when work happens rather than having callbacks interrupt your flow.</p>
+</div>
+</div>
+<h3 id="pattern-1-blocking-request-handling"><a class="header" href="#pattern-1-blocking-request-handling">Pattern 1: Blocking Request Handling</a></h3>
+<p>Best for: Simple synchronous service implementations</p>
+<pre><code class="language-rust ignore">let mut service = node
+    .create_service::&lt;ServiceType&gt;("service_name")
+    .build()?;
+
+loop {
+    let (key, request) = service.take_request()?;
+    let response = process_request(&amp;request);
+    service.send_response(&amp;response, &amp;key)?;
+}</code></pre>
+<h3 id="pattern-2-async-request-handling"><a class="header" href="#pattern-2-async-request-handling">Pattern 2: Async Request Handling</a></h3>
+<p>Best for: Services that need to await other operations</p>
+<pre><code class="language-rust ignore">let mut service = node
+    .create_service::&lt;ServiceType&gt;("service_name")
+    .build()?;
+
+loop {
+    let (key, request) = service.take_request_async().await?;
+    let response = async_process_request(&amp;request).await;
+    service.send_response(&amp;response, &amp;key)?;
+}</code></pre>
+<h3 id="why-pull-model"><a class="header" href="#why-pull-model">Why Pull Model?</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Aspect</th><th>Pull Model (take_request)</th><th>Push Model (callback)</th></tr></thead><tbody>
+<tr><td><strong>Control</strong></td><td>Explicit control over when to accept requests</td><td>Interrupts current work</td></tr>
+<tr><td><strong>Concurrency</strong></td><td>Easy to reason about</td><td>Requires careful synchronization</td></tr>
+<tr><td><strong>Backpressure</strong></td><td>Natural - slow processing slows acceptance</td><td>Can overwhelm if processing is slow</td></tr>
+<tr><td><strong>Consistency</strong></td><td>Same pattern as subscriber <code>recv()</code></td><td>Different pattern</td></tr>
+</tbody></table>
+</div>
+<h2 id="service-client-patterns"><a class="header" href="#service-client-patterns">Service Client Patterns</a></h2>
+<p>Service clients send requests to servers and receive responses. Both blocking and async patterns are supported.</p>
+<h3 id="pattern-1-blocking-client"><a class="header" href="#pattern-1-blocking-client">Pattern 1: Blocking Client</a></h3>
+<p>Best for: Simple synchronous request-response operations</p>
+<pre><code class="language-rust ignore">let client = node
+    .create_client::&lt;ServiceType&gt;("service_name")
+    .build()?;
+
+let request = create_request();
+client.send_request(&amp;request)?;
+let response = client.take_response()?;</code></pre>
+<h3 id="pattern-2-async-client"><a class="header" href="#pattern-2-async-client">Pattern 2: Async Client</a></h3>
+<p>Best for: Integration with async codebases</p>
+<pre><code class="language-rust ignore">let client = node
+    .create_client::&lt;ServiceType&gt;("service_name")
+    .build()?;
+
+let request = create_request();
+client.send_request(&amp;request).await?;
+let response = client.take_response_async().await?;</code></pre>
+<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
+<div class="admonition-title">
+<div id="admonition-tip-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-tip"></a>
+</div>
+<div>
+<p>Match your client and server patterns for consistency. Use blocking patterns for simple scripts and async patterns when integrating with async runtimes like tokio.</p>
+</div>
+</div>
+<h2 id="ros-2-interoperability"><a class="header" href="#ros-2-interoperability">ROS 2 Interoperability</a></h2>
+<p>ros-z services work seamlessly with ROS 2 C++ and Python nodes:</p>
+<pre><code class="language-bash"># List available services
+ros2 service list
+
+# Call ros-z service from ROS 2 CLI
+ros2 service call /add_two_ints example_interfaces/srv/AddTwoInts "{a: 42, b: 58}"
+
+# Show service type
+ros2 service type /add_two_ints
+
+# Get service info
+ros2 service info /add_two_ints
+</code></pre>
+<div id="admonition-success-1" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-1-title">
+<div class="admonition-title">
+<div id="admonition-success-1-title">
+<p>Success</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-success-1"></a>
+</div>
+<div>
+<p>ros-z service servers and clients are fully compatible with ROS 2 via Zenoh bridge or rmw_zenoh, enabling cross-language service calls.</p>
+</div>
+</div>
+<h2 id="resources"><a class="header" href="#resources">Resources</a></h2>
+<ul>
+<li><strong><a href="./custom_messages.html">Custom Messages</a></strong> - Defining and using custom service types</li>
+<li><strong><a href="./message_generation.html">Message Generation</a></strong> - Generating service definitions</li>
+<li><strong><a href="./actions.html">Actions</a></strong> - For long-running operations with feedback</li>
+</ul>
+<p><strong>Start with the examples above to understand the basic service workflow, then explore custom service types for domain-specific operations.</strong></p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../chapters/pubsub.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../chapters/actions.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../chapters/pubsub.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../chapters/actions.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../mermaid.min.js"></script>
+        <script src="../mermaid-init.js"></script>
+
+
+
+    </div>
+    </body>
+</html>
