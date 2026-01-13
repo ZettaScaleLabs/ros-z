@@ -13,26 +13,14 @@
 - Delivers optimized performance for Rust users
 - Interoperates seamlessly with Zenoh RMW-based ROS 2
 
-![architecture](./assets/architecture.png)
+
+<div align="center">
+<img src="./assets/architecture.png" alt="architecture">
+</div>
 
 ## Status
 
 **ROS-Z** is experimental software. It is tested with ROS 2 Jazzy and should be interoperable with ROS 2 Rolling, but we make no guarantees with respect to official distributions.
-
-## Quick Start
-
-```bash
-# Build the core library (no ROS dependencies required)
-cargo build
-
-# Run tests
-cargo test
-
-# Try an example
-cargo run --example z_pubsub
-```
-
-See the [Quick Start Guide](https://zettascalelabs.github.io/ros-z/chapters/quick_start.html) for more details.
 
 ## Documentation
 
