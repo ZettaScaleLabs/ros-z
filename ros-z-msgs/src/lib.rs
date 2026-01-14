@@ -32,3 +32,16 @@ pub use ros_z::{
     MessageTypeInfo,
     entity::{TypeHash, TypeInfo},
 };
+
+// Python registry module for Python bindings
+#[cfg(feature = "python_registry")]
+pub mod python_registry;
+
+#[cfg(feature = "python_registry")]
+pub use python_registry::{
+    serialize_to_cdr,
+    deserialize_from_cdr,
+    get_type_hash,
+    list_registered_types,
+    init_registry,
+};
