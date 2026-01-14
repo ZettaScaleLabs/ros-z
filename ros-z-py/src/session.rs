@@ -22,7 +22,7 @@ impl PySession {
         _args: &Bound<PyTuple>,
         _kwargs: Option<&Bound<PyDict>>,
     ) -> PyResult<()> {
-        self.close()
+        unsafe { self.close() }
     }
 
     unsafe fn close(&self) -> PyResult<()> {

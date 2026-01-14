@@ -84,7 +84,7 @@ impl ZNode {
         self.create_pub_impl(topic, Some(T::type_info()))
     }
 
-    pub(crate) fn create_pub_impl<T>(
+    pub fn create_pub_impl<T>(
         &self,
         topic: &str,
         type_info: Option<crate::entity::TypeInfo>,
@@ -124,7 +124,7 @@ impl ZNode {
         self.create_sub_impl(topic, Some(T::type_info()))
     }
 
-    pub(crate) fn create_sub_impl<T>(
+    pub fn create_sub_impl<T>(
         &self,
         topic: &str,
         type_info: Option<crate::entity::TypeInfo>,
