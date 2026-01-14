@@ -153,6 +153,7 @@
           rust-analyzer
           nixfmt-rfc-style
           gdb
+          maturin
         ];
 
         # Documentation tools

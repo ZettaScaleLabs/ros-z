@@ -12,9 +12,9 @@ mod subscriber;
 mod traits;
 mod utils;
 
-use session::*;
 use node::*;
 use publisher::*;
+use session::*;
 use subscriber::*;
 
 /// Python bindings for ros-z: Native Rust ROS 2 implementation using Zenoh
@@ -23,7 +23,20 @@ fn ros_z_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Initialize the message type registry
     ros_z_msgs::init_registry();
 
-    // Exceptions are automatically available via create_exception! macro
+    // Register custom exceptions
+    m.add("RosZError", m.py().get_type_bound::<error::RosZError>())?;
+    m.add(
+        "TimeoutError",
+        m.py().get_type_bound::<error::TimeoutError>(),
+    )?;
+    m.add(
+        "SerializationError",
+        m.py().get_type_bound::<error::SerializationError>(),
+    )?;
+    m.add(
+        "TypeMismatchError",
+        m.py().get_type_bound::<error::TypeMismatchError>(),
+    )?;
 
     // Register functions
     m.add_function(wrap_pyfunction!(open_session, m)?)?;
@@ -38,10 +51,22 @@ fn ros_z_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PySubscriber>()?;
 
     // QoS presets
-    m.add("QOS_DEFAULT", qos::qos_to_pydict(m.py(), &qos::QOS_DEFAULT)?)?;
-    m.add("QOS_SENSOR_DATA", qos::qos_to_pydict(m.py(), &qos::QOS_SENSOR_DATA)?)?;
-    m.add("QOS_PARAMETERS", qos::qos_to_pydict(m.py(), &qos::QOS_PARAMETERS)?)?;
-    m.add("QOS_SERVICES", qos::qos_to_pydict(m.py(), &qos::QOS_SERVICES)?)?;
+    m.add(
+        "QOS_DEFAULT",
+        qos::qos_to_pydict(m.py(), &qos::QOS_DEFAULT)?,
+    )?;
+    m.add(
+        "QOS_SENSOR_DATA",
+        qos::qos_to_pydict(m.py(), &qos::QOS_SENSOR_DATA)?,
+    )?;
+    m.add(
+        "QOS_PARAMETERS",
+        qos::qos_to_pydict(m.py(), &qos::QOS_PARAMETERS)?,
+    )?;
+    m.add(
+        "QOS_SERVICES",
+        qos::qos_to_pydict(m.py(), &qos::QOS_SERVICES)?,
+    )?;
 
     Ok(())
 }

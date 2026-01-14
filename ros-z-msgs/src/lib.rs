@@ -39,9 +39,5 @@ pub mod python_registry;
 
 #[cfg(feature = "python_registry")]
 pub use python_registry::{
-    serialize_to_cdr,
-    deserialize_from_cdr,
-    get_type_hash,
-    list_registered_types,
-    init_registry,
+    deserialize_from_cdr, get_type_hash, init_registry, list_registered_types, serialize_to_cdr,
 };

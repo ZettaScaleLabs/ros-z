@@ -25,7 +25,7 @@ impl PySession {
         self.close()
     }
 
-    fn close(&self) -> PyResult<()> {
+    unsafe fn close(&self) -> PyResult<()> {
         // Zenoh sessions are ref-counted via Arc, no explicit close needed
         // The session will be closed when the last reference is dropped
         Ok(())

@@ -26,7 +26,7 @@ impl PySubscriber {
     /// Returns:
     ///     Message as dict, or None if timeout occurred
     #[pyo3(signature = (timeout=None))]
-    fn recv(&self, py: Python, timeout: Option<f64>) -> PyResult<Option<Py<PyDict>>> {
+    unsafe fn recv(&self, py: Python, timeout: Option<f64>) -> PyResult<Option<Py<PyDict>>> {
         let timeout_duration = timeout.map(|s| Duration::from_secs_f64(s));
 
         match self.inner.recv_serialized(timeout_duration) {
@@ -51,7 +51,7 @@ impl PySubscriber {
     ///
     /// Returns:
     ///     Message as dict, or None if no message available
-    fn try_recv(&self, py: Python) -> PyResult<Option<Py<PyDict>>> {
+    unsafe fn try_recv(&self, py: Python) -> PyResult<Option<Py<PyDict>>> {
         match self.inner.try_recv_serialized().map_err(|e| e.into_pyerr())? {
             Some(cdr_bytes) => {
                 // Deserialize CDR bytes to Python dict using the registry
@@ -64,7 +64,7 @@ impl PySubscriber {
 
     /// Receive raw serialized bytes (for testing/advanced use)
     #[pyo3(signature = (timeout=None))]
-    fn recv_raw(&self, timeout: Option<f64>) -> PyResult<Option<Vec<u8>>> {
+    unsafe fn recv_raw(&self, timeout: Option<f64>) -> PyResult<Option<Vec<u8>>> {
         let timeout_duration = timeout.map(|s| Duration::from_secs_f64(s));
 
         match self.inner.recv_serialized(timeout_duration) {
@@ -82,14 +82,14 @@ impl PySubscriber {
     }
 
     /// Try to receive raw serialized bytes without blocking
-    fn try_recv_raw(&self) -> PyResult<Option<Vec<u8>>> {
+    unsafe fn try_recv_raw(&self) -> PyResult<Option<Vec<u8>>> {
         self.inner
             .try_recv_serialized()
             .map_err(|e| e.into_pyerr())
     }
 
     /// Get the type name (for debugging)
-    fn get_type_name(&self) -> String {
+    unsafe fn get_type_name(&self) -> String {
         self.type_name.clone()
     }
 }
