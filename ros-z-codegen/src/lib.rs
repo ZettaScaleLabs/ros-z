@@ -1,3 +1,4 @@
+mod codegen;
 #[cfg(feature = "protobuf")]
 pub mod protobuf_adapter;
 pub mod python_msgspec_generator;

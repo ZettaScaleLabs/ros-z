@@ -8,6 +8,7 @@ use roslibrust_codegen::MessageFile;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use crate::codegen::extraction;
 
 /// Generate both Python msgspec structs AND complete Rust PyO3 module
 pub fn generate_python_bindings(
@@ -145,362 +146,6 @@ fn escape_rust_keyword(name: &str) -> String {
         "type" | "struct" | "enum" | "fn" | "impl" | "trait" | "use" | "mod" | "pub" | "crate" | "super" | "self" => format!("r#{}", name),
         _ => name.to_string(),
     }
-}
-
-fn generate_rust_field_extraction(
-    field: &roslibrust_codegen::FieldInfo,
-    all_messages: &HashMap<String, &MessageFile>,
-) -> Result<String> {
-    let field_name = &field.field_name;
-    let escaped_name = escape_rust_keyword(field_name);
-
-    let is_array = !matches!(
-        field.field_type.array_info,
-        roslibrust_codegen::ArrayType::NotArray
-    );
-
-    let base_type = &field.field_type.field_type;
-
-    if is_array {
-        // Check if it's a fixed-size array
-        let is_fixed_size = matches!(
-            field.field_type.array_info,
-            roslibrust_codegen::ArrayType::FixedLength(_)
-        );
-
-        if is_fixed_size {
-            // Fixed-size arrays need conversion from Vec
-            match base_type.as_str() {
-                "bool" => Ok(format!(
-                    "            {}: {{\n\
-                     let vec: Vec<bool> = extract_field!(dict, \"{}\", Vec<bool>);\n\
-                     vec.try_into().map_err(|_| pyo3::exceptions::PyValueError::new_err(\n\
-                     \"Array size mismatch for field '{}'\"))?\n\
-                     }},\n",
-                    escaped_name, field_name, field_name
-                )),
-                "int8" => Ok(format!(
-                    "            {}: {{\n\
-                     let vec: Vec<i8> = extract_field!(dict, \"{}\", Vec<i8>);\n\
-                     vec.try_into().map_err(|_| pyo3::exceptions::PyValueError::new_err(\n\
-                     \"Array size mismatch for field '{}'\"))?\n\
-                     }},\n",
-                    escaped_name, field_name, field_name
-                )),
-                "byte" | "char" | "uint8" => Ok(format!(
-                    "            {}: {{\n\
-                     let vec: Vec<u8> = extract_field!(dict, \"{}\", Vec<u8>);\n\
-                     vec.try_into().map_err(|_| pyo3::exceptions::PyValueError::new_err(\n\
-                     \"Array size mismatch for field '{}'\"))?\n\
-                     }},\n",
-                    escaped_name, field_name, field_name
-                )),
-                "int16" => Ok(format!(
-                    "            {}: {{\n\
-                     let vec: Vec<i16> = extract_field!(dict, \"{}\", Vec<i16>);\n\
-                     vec.try_into().map_err(|_| pyo3::exceptions::PyValueError::new_err(\n\
-                     \"Array size mismatch for field '{}'\"))?\n\
-                     }},\n",
-                    escaped_name, field_name, field_name
-                )),
-                "uint16" => Ok(format!(
-                    "            {}: {{\n\
-                     let vec: Vec<u16> = extract_field!(dict, \"{}\", Vec<u16>);\n\
-                     vec.try_into().map_err(|_| pyo3::exceptions::PyValueError::new_err(\n\
-                     \"Array size mismatch for field '{}'\"))?\n\
-                     }},\n",
-                    escaped_name, field_name, field_name
-                )),
-                "int32" => Ok(format!(
-                    "            {}: {{\n\
-                     let vec: Vec<i32> = extract_field!(dict, \"{}\", Vec<i32>);\n\
-                     vec.try_into().map_err(|_| pyo3::exceptions::PyValueError::new_err(\n\
-                     \"Array size mismatch for field '{}'\"))?\n\
-                     }},\n",
-                    escaped_name, field_name, field_name
-                )),
-                "uint32" => Ok(format!(
-                    "            {}: {{\n\
-                     let vec: Vec<u32> = extract_field!(dict, \"{}\", Vec<u32>);\n\
-                     vec.try_into().map_err(|_| pyo3::exceptions::PyValueError::new_err(\n\
-                     \"Array size mismatch for field '{}'\"))?\n\
-                     }},\n",
-                    escaped_name, field_name, field_name
-                )),
-                "int64" => Ok(format!(
-                    "            {}: {{\n\
-                     let vec: Vec<i64> = extract_field!(dict, \"{}\", Vec<i64>);\n\
-                     vec.try_into().map_err(|_| pyo3::exceptions::PyValueError::new_err(\n\
-                     \"Array size mismatch for field '{}'\"))?\n\
-                     }},\n",
-                    escaped_name, field_name, field_name
-                )),
-                "uint64" => Ok(format!(
-                    "            {}: {{\n\
-                     let vec: Vec<u64> = extract_field!(dict, \"{}\", Vec<u64>);\n\
-                     vec.try_into().map_err(|_| pyo3::exceptions::PyValueError::new_err(\n\
-                     \"Array size mismatch for field '{}'\"))?\n\
-                     }},\n",
-                    escaped_name, field_name, field_name
-                )),
-                "float32" => Ok(format!(
-                    "            {}: {{\n\
-                     let vec: Vec<f32> = extract_field!(dict, \"{}\", Vec<f32>);\n\
-                     vec.try_into().map_err(|_| pyo3::exceptions::PyValueError::new_err(\n\
-                     \"Array size mismatch for field '{}'\"))?\n\
-                     }},\n",
-                    escaped_name, field_name, field_name
-                )),
-                "float64" => Ok(format!(
-                    "            {}: {{\n\
-                     let vec: Vec<f64> = extract_field!(dict, \"{}\", Vec<f64>);\n\
-                     vec.try_into().map_err(|_| pyo3::exceptions::PyValueError::new_err(\n\
-                     \"Array size mismatch for field '{}'\"))?\n\
-                     }},\n",
-                    escaped_name, field_name, field_name
-                )),
-                "string" => Ok(format!(
-                    "            {}: {{\n\
-                     let vec: Vec<String> = extract_field!(dict, \"{}\", Vec<String>);\n\
-                     vec.try_into().map_err(|_| pyo3::exceptions::PyValueError::new_err(\n\
-                     \"Array size mismatch for field '{}'\"))?\n\
-                     }},\n",
-                    escaped_name, field_name, field_name
-                )),
-                _ => {
-                    // Fixed-size array of nested messages
-                    let nested_msg_key = if let Some(ref package_name) = field.field_type.package_name {
-                        format!("{}/{}", package_name, base_type)
-                    } else {
-                        format!("{}/{}", field.field_type.source_package, base_type)
-                    };
-
-                    let nested_msg = all_messages.get(&nested_msg_key)
-                        .ok_or_else(|| anyhow::anyhow!("Message {} not found", nested_msg_key))?;
-
-                    let nested_fields = generate_nested_fields(&nested_msg.parsed.fields, all_messages)?;
-
-                    let package = if let Some(ref package_name) = field.field_type.package_name {
-                        package_name.clone()
-                    } else {
-                        field.field_type.source_package.clone()
-                    };
-
-                    Ok(format!(
-                        "            {}: {{\n\
-                         let py_list = dict.get_item(\"{}\")?\n\
-                         .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(\"Missing '{}'\"))?;\n\
-                         let mut vec = Vec::new();\n\
-                         for item in py_list.iter()? {{\n\
-                         let _item_dict = item?.downcast::<PyDict>()?;\n\
-                         vec.push({}::{} {{\n\
-                         {}\
-                         }});\n\
-                         }}\n\
-                         vec.try_into().map_err(|_| pyo3::exceptions::PyValueError::new_err(\n\
-                         \"Array size mismatch for field '{}'\"))?\n\
-                         }},\n",
-                        escaped_name,
-                        field_name,
-                        field_name,
-                        package,
-                        base_type,
-                        nested_fields,
-                        field_name
-                    ))
-                }
-            }
-        } else {
-            // Dynamic-size arrays (Vec) - keep existing logic
-            match base_type.as_str() {
-                "bool" => Ok(format!(
-                    "            {}: extract_field!(dict, \"{}\", Vec<bool>),\n",
-                    escaped_name, field_name
-                )),
-                "int8" => Ok(format!(
-                    "            {}: extract_field!(dict, \"{}\", Vec<i8>),\n",
-                    escaped_name, field_name
-                )),
-                "byte" | "char" | "uint8" => Ok(format!(
-                    "            {}: extract_field!(dict, \"{}\", Vec<u8>),\n",
-                    escaped_name, field_name
-                )),
-                "int16" => Ok(format!(
-                    "            {}: extract_field!(dict, \"{}\", Vec<i16>),\n",
-                    escaped_name, field_name
-                )),
-                "uint16" => Ok(format!(
-                    "            {}: extract_field!(dict, \"{}\", Vec<u16>),\n",
-                    escaped_name, field_name
-                )),
-                "int32" => Ok(format!(
-                    "            {}: extract_field!(dict, \"{}\", Vec<i32>),\n",
-                    escaped_name, field_name
-                )),
-                "uint32" => Ok(format!(
-                    "            {}: extract_field!(dict, \"{}\", Vec<u32>),\n",
-                    escaped_name, field_name
-                )),
-                "int64" => Ok(format!(
-                    "            {}: extract_field!(dict, \"{}\", Vec<i64>),\n",
-                    escaped_name, field_name
-                )),
-                "uint64" => Ok(format!(
-                    "            {}: extract_field!(dict, \"{}\", Vec<u64>),\n",
-                    escaped_name, field_name
-                )),
-                "float32" => Ok(format!(
-                    "            {}: extract_field!(dict, \"{}\", Vec<f32>),\n",
-                    escaped_name, field_name
-                )),
-                "float64" => Ok(format!(
-                    "            {}: extract_field!(dict, \"{}\", Vec<f64>),\n",
-                    escaped_name, field_name
-                )),
-                "string" => Ok(format!(
-                    "            {}: extract_field!(dict, \"{}\", Vec<String>),\n",
-                    escaped_name, field_name
-                )),
-                _ => {
-                    let nested_msg_key = if let Some(ref package_name) = field.field_type.package_name {
-                        format!("{}/{}", package_name, base_type)
-                    } else {
-                        format!("{}/{}", field.field_type.source_package, base_type)
-                    };
-
-                    let nested_msg = all_messages.get(&nested_msg_key)
-                        .ok_or_else(|| anyhow::anyhow!("Message {} not found", nested_msg_key))?;
-
-                    let nested_fields = generate_nested_fields(&nested_msg.parsed.fields, all_messages)?;
-
-                    let package = if let Some(ref package_name) = field.field_type.package_name {
-                        package_name.clone()
-                    } else {
-                        field.field_type.source_package.clone()
-                    };
-
-                    Ok(format!(
-                        "            {}: {{\n\
-                         let py_list = dict.get_item(\"{}\")?\n\
-                         .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(\"Missing '{}'\"))?;\n\
-                         let mut vec = Vec::new();\n\
-                         for item in py_list.iter()? {{\n\
-                         let _item_dict = item?.downcast::<PyDict>()?;\n\
-                         vec.push({}::{} {{\n\
-                         {}\
-                         }});\n\
-                         }}\n\
-                         vec\n\
-                         }},\n",
-                        escaped_name,
-                        field_name,
-                        field_name,
-                        package,
-                        base_type,
-                        nested_fields
-                    ))
-                }
-            }
-        }
-    } else {
-        match base_type.as_str() {
-            "bool" => Ok(format!(
-                "            {}: extract_field!(dict, \"{}\", bool),\n",
-                escaped_name, field_name
-            )),
-            "int8" => Ok(format!(
-                "            {}: extract_field!(dict, \"{}\", i8),\n",
-                escaped_name, field_name
-            )),
-            "byte" | "char" | "uint8" => Ok(format!(
-                "            {}: extract_field!(dict, \"{}\", u8),\n",
-                escaped_name, field_name
-            )),
-            "int16" => Ok(format!(
-                "            {}: extract_field!(dict, \"{}\", i16),\n",
-                escaped_name, field_name
-            )),
-            "uint16" => Ok(format!(
-                "            {}: extract_field!(dict, \"{}\", u16),\n",
-                escaped_name, field_name
-            )),
-            "int32" => Ok(format!(
-                "            {}: extract_field!(dict, \"{}\", i32),\n",
-                escaped_name, field_name
-            )),
-            "uint32" => Ok(format!(
-                "            {}: extract_field!(dict, \"{}\", u32),\n",
-                escaped_name, field_name
-            )),
-            "int64" => Ok(format!(
-                "            {}: extract_field!(dict, \"{}\", i64),\n",
-                escaped_name, field_name
-            )),
-            "uint64" => Ok(format!(
-                "            {}: extract_field!(dict, \"{}\", u64),\n",
-                escaped_name, field_name
-            )),
-            "float32" => Ok(format!(
-                "            {}: extract_field!(dict, \"{}\", f32),\n",
-                escaped_name, field_name
-            )),
-            "float64" => Ok(format!(
-                "            {}: extract_field!(dict, \"{}\", f64),\n",
-                escaped_name, field_name
-            )),
-            "string" => Ok(format!(
-                "            {}: extract_field!(dict, \"{}\", String),\n",
-                escaped_name, field_name
-            )),
-            _ => {
-                let nested_msg_key = if let Some(ref package_name) = field.field_type.package_name {
-                    format!("{}/{}", package_name, base_type)
-                } else {
-                    format!("{}/{}", field.field_type.source_package, base_type)
-                };
-
-                let nested_msg = all_messages.get(&nested_msg_key)
-                    .ok_or_else(|| anyhow::anyhow!("Message {} not found", nested_msg_key))?;
-
-                let nested_fields = generate_nested_fields(&nested_msg.parsed.fields, all_messages)?;
-
-                let package = if let Some(ref package_name) = field.field_type.package_name {
-                    package_name.clone()
-                } else {
-                    field.field_type.source_package.clone()
-                };
-
-                Ok(format!(
-                    "            {}: {{\n\
-                     let _nested_dict = dict.get_item(\"{}\")?\n\
-                     .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(\"Missing '{}'\"))?\n\
-                     .downcast::<PyDict>()?;\n\
-                     {}::{} {{\n\
-                     {}\
-                     }}\n\
-                     }},\n",
-                    escaped_name,
-                    field_name,
-                    field_name,
-                    package,
-                    base_type,
-                    nested_fields
-                ))
-            }
-        }
-    }
-}
-
-// Helper function to generate nested field extractions
-fn generate_nested_fields(
-    fields: &[roslibrust_codegen::FieldInfo],
-    all_messages: &HashMap<String, &MessageFile>,
-) -> Result<String> {
-    let mut code = String::new();
-    for field in fields {
-        code.push_str(&generate_rust_field_extraction(field, all_messages)?);
-    }
-    Ok(code)
 }
 
 // Helper to generate nested field constructions with proper field access
@@ -822,20 +467,6 @@ fn generate_complete_rust_module(
          use cdr::{CdrLe, Infinite};\n\n"
     );
 
-    // Generate helper macro for extracting fields from dict
-    code.push_str(
-        "macro_rules! extract_field {\n\
-          ($dict:expr, $field:expr, $ty:ty) => {\n\
-          {\n\
-          let item = $dict.get_item($field)?;\n\
-          let item = item.ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(\n\
-          format!(\"Missing field '{}'\", $field)))?;\n\
-          item.extract::<$ty>()?\n\
-          }\n\
-          };\n\
-          }\n\n"
-    );
-
     // Generate serialize/deserialize functions for each message
     for (package_name, package_msgs) in packages {
         code.push_str("#[allow(unsafe_op_in_unsafe_fn)]\n");
@@ -857,7 +488,7 @@ fn generate_complete_rust_module(
     Ok(code)
 }
 
-/// Generate serialize/deserialize functions for a single message
+/// Generate serialize/deserialize functions for a single message using TokenStream
 fn generate_message_functions(
     msg: &MessageFile,
     all_messages: &HashMap<String, &MessageFile>,
@@ -865,45 +496,13 @@ fn generate_message_functions(
     let package = &msg.parsed.package;
     let name = &msg.parsed.name;
 
-    let mut code = format!(
-        "    #[pyfunction]\n\
-         pub fn serialize_{}(msg: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {{\n",
-        name.to_lowercase()
-    );
-
-    // Check if it's a msgspec struct
-    code.push_str(
-        "        if !msg.hasattr(\"__msgtype__\")? {\n\
-         return Err(pyo3::exceptions::PyTypeError::new_err(\n\
-         \"Expected msgspec.Struct message\"\n\
-         ));\n\
-         }\n\n"
-    );
-
-    // Convert to dict via msgspec.structs.asdict (zero-copy)
-    let dict_var = if msg.parsed.fields.is_empty() { "_dict" } else { "dict" };
-    code.push_str(&format!(
-        "        let msgspec_mod = msg.py().import_bound(\"msgspec.structs\")?;\n\
-          let asdict = msgspec_mod.getattr(\"asdict\")?;\n\
-          let dict_obj = asdict.call1((msg,))?;\n\
-          let {} = dict_obj.downcast::<PyDict>()?;\n\n",
-        dict_var
-    ));
-
-    // Manually construct Rust struct from dict
-    code.push_str(&format!("        let rust_msg = {}::{} {{\n", package, name));
-    for field in &msg.parsed.fields {
-        code.push_str(&generate_rust_field_extraction(field, all_messages)?);
-    }
-    code.push_str("        };\n\n");
-
-    // Serialize
-    code.push_str(
-        "        cdr::serialize::<_, _, CdrLe>(&rust_msg, Infinite)\n\
-         .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))\n\
-         }\n\n"
-    );
-
+    // Generate serialize function using TokenStream
+    let serialize_fn = extraction::generate_serialize_function(msg, all_messages)?;
+    
+    // Generate deserialize function (keep string-based for now as it's not in the proposal)
+    let mut code = serialize_fn.to_string();
+    code.push_str("\n\n");
+    
     // Generate deserialize function
     code.push_str(&format!(
         "    #[pyfunction]\n\
@@ -920,7 +519,7 @@ fn generate_message_functions(
 
     // Import Python class
     code.push_str(&format!(
-        "        let types = py.import_bound(\"ros_z_python.types.{}\")?;\n\
+        "        let types = py.import_bound(\"ros_z_python.types.{}\")?\n\
          let msg_class = types.getattr(\"{}\")?;\n\n",
         package, name
     ));

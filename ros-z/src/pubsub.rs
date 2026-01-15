@@ -213,6 +213,7 @@ where
         .map_err(|e| zenoh::Error::from(format!("Failed to qualify topic: {}", e)))?;
 
         self.entity.topic = qualified_topic;
+        tracing::debug!("ZSub KE: {}", self.entity.topic_key_expr()?);
 
         let inner = self
             .session
