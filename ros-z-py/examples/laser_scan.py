@@ -12,6 +12,7 @@ Usage:
 """
 
 import ros_z_py
+from ros_z_py import std_msgs, sensor_msgs
 import time
 import math
 import argparse
@@ -54,27 +55,27 @@ def run_publisher():
             ranges.append(range_val)
             intensities.append(100.0 + 50.0 * (i / num_readings))
 
-        msg = {
-            "header": {
-                "stamp": {
+        msg = sensor_msgs.LaserScan(
+            header=std_msgs.Header(
+                stamp={
                     "sec": seq // 10,
                     "nanosec": (seq % 10) * 100_000_000
                 },
-                "frame_id": "laser"
-            },
-            "angle_min": angle_min,
-            "angle_max": angle_max,
-            "angle_increment": angle_increment,
-            "time_increment": 0.0001,
-            "scan_time": 0.1,
-            "range_min": 0.1,
-            "range_max": 10.0,
-            "ranges": ranges,
-            "intensities": intensities,
-        }
+                frame_id="laser"
+            ),
+            angle_min=angle_min,
+            angle_max=angle_max,
+            angle_increment=angle_increment,
+            time_increment=0.0001,
+            scan_time=0.1,
+            range_min=0.1,
+            range_max=10.0,
+            ranges=ranges,
+            intensities=intensities,
+        )
 
         pub.publish(msg)
-        print(f"Published LaserScan #{seq}: {len(msg['ranges'])} ranges, angle [{msg['angle_min']:.2f}, {msg['angle_max']:.2f}] rad")
+        print(f"Published LaserScan #{seq}: {len(msg.ranges)} ranges, angle [{msg.angle_min:.2f}, {msg.angle_max:.2f}] rad")
 
         seq += 1
         time.sleep(0.1)
@@ -95,15 +96,15 @@ def run_subscriber():
             print("No message received (timeout)")
             continue
         print("Received LaserScan:")
-        print(f"  Frame: {msg['header']['frame_id']}")
-        print(f"  Angle range: [{msg['angle_min']:.2f}, {msg['angle_max']:.2f}] rad")
-        print(f"  Angle increment: {msg['angle_increment']:.4f} rad")
-        print(f"  Range: [{msg['range_min']:.2f}, {msg['range_max']:.2f}] m")
-        print(f"  Number of ranges: {len(msg['ranges'])}")
-        print(f"  Scan time: {msg['scan_time']:.3f} s")
+        print(f"  Frame: {msg.header.frame_id}")
+        print(f"  Angle range: [{msg.angle_min:.2f}, {msg.angle_max:.2f}] rad")
+        print(f"  Angle increment: {msg.angle_increment:.4f} rad")
+        print(f"  Range: [{msg.range_min:.2f}, {msg.range_max:.2f}] m")
+        print(f"  Number of ranges: {len(msg.ranges)}")
+        print(f"  Scan time: {msg.scan_time:.3f} s")
 
-        if msg['ranges']:
-            valid_ranges = [r for r in msg['ranges'] if msg['range_min'] <= r <= msg['range_max']]
+        if msg.ranges:
+            valid_ranges = [r for r in msg.ranges if msg.range_min <= r <= msg.range_max]
             if valid_ranges:
                 min_range = min(valid_ranges)
                 max_range = max(valid_ranges)

@@ -291,7 +291,7 @@ impl Builder for ZContextBuilder {
 
         // Initialize logging if enabled
         if builder.enable_logging {
-            init_log_from_env_or("error");
+            zenoh::init_log_from_env_or("error");
         }
 
         let mut config = if let Some(config) = builder.zenoh_config {

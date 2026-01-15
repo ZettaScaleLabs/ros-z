@@ -15,9 +15,9 @@ mod traits;
 mod utils;
 
 use node::*;
-use publisher::*;
+use publisher::PyZPublisher;
 use session::*;
-use subscriber::*;
+use subscriber::PyZSubscriber;
 
 /// Get list of all registered message types
 #[pyfunction]
@@ -51,10 +51,10 @@ fn ros_z_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(list_registered_types, m)?)?;
 
     // Register classes
-    m.add_class::<PySession>()?;
-    m.add_class::<PyNode>()?;
-    m.add_class::<PyPublisher>()?;
-    m.add_class::<PySubscriber>()?;
+    m.add_class::<PyZContext>()?;
+    m.add_class::<PyZNode>()?;
+    m.add_class::<PyZPublisher>()?;
+    m.add_class::<PyZSubscriber>()?;
 
     // QoS presets
     m.add(

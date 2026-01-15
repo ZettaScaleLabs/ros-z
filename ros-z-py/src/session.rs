@@ -4,14 +4,14 @@ use std::sync::Arc;
 use ros_z::context::ZContext;
 use crate::error::IntoPyErr;
 
-#[pyclass]
-pub struct PySession {
+#[pyclass(name = "ZContext")]
+pub struct PyZContext {
     pub(crate) ctx: Arc<ZContext>,
 }
 
 #[allow(unsafe_op_in_unsafe_fn)]
 #[pymethods]
-impl PySession {
+impl PyZContext {
     fn __enter__<'a, 'py>(this: &'a Bound<'py, Self>) -> &'a Bound<'py, Self> {
         this
     }
@@ -37,7 +37,7 @@ impl PySession {
 #[allow(unsafe_op_in_unsafe_fn)]
 #[pyfunction]
 #[pyo3(signature = (config=None, domain_id=0))]
-pub fn open_session(config: Option<&Bound<'_, PyDict>>, domain_id: usize) -> PyResult<PySession> {
+pub fn open_session(config: Option<&Bound<'_, PyDict>>, domain_id: usize) -> PyResult<PyZContext> {
     use ros_z::{Builder, context::ZContextBuilder};
 
     // Create context builder
@@ -52,7 +52,7 @@ pub fn open_session(config: Option<&Bound<'_, PyDict>>, domain_id: usize) -> PyR
     // Build the context
     let ctx = builder.build().map_err(|e| e.into_pyerr())?;
 
-    Ok(PySession {
+    Ok(PyZContext {
         ctx: Arc::new(ctx),
     })
 }

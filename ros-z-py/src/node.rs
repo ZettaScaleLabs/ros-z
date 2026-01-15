@@ -4,21 +4,21 @@ use ros_z::node::ZNode;
 use ros_z::Builder;
 use ros_z::entity::{TypeHash, TypeInfo};
 use std::sync::Arc;
-use crate::session::PySession;
+use crate::session::PyZContext;
 use crate::error::IntoPyErr;
-use crate::publisher::PyPublisher;
-use crate::subscriber::PySubscriber;
+use crate::publisher::PyZPublisher;
+use crate::subscriber::PyZSubscriber;
 use crate::qos::{qos_from_pydict, QOS_DEFAULT};
 use crate::traits::{ZPubWrapper, ZSubWrapper};
 
-#[pyclass]
-pub struct PyNode {
+#[pyclass(name = "ZNode")]
+pub struct PyZNode {
     pub(crate) inner: Arc<ZNode>,
 }
 
 #[allow(unsafe_op_in_unsafe_fn)]
 #[pymethods]
-impl PyNode {
+impl PyZNode {
     /// Create a publisher for a given topic and message type
     ///
     /// Args:
@@ -30,7 +30,7 @@ impl PyNode {
         topic: String,
         msg_type: String,
         qos: Option<&Bound<'_, PyDict>>,
-    ) -> PyResult<PyPublisher> {
+    ) -> PyResult<PyZPublisher> {
         // Parse QoS or use default
         let qos_profile = if let Some(qos_dict) = qos {
             qos_from_pydict(qos_dict)?
@@ -71,7 +71,7 @@ impl PyNode {
         topic: String,
         msg_type: String,
         qos: Option<&Bound<'_, PyDict>>,
-    ) -> PyResult<PySubscriber> {
+    ) -> PyResult<PyZSubscriber> {
         // Parse QoS or use default
         let qos_profile = if let Some(qos_dict) = qos {
             qos_from_pydict(qos_dict)?
@@ -107,20 +107,20 @@ impl PyNode {
 #[pyfunction]
 #[pyo3(signature = (session, name, namespace=None))]
 pub fn create_node(
-    session: &PySession,
+    session: &PyZContext,
     name: String,
     namespace: Option<String>,
-) -> PyResult<PyNode> {
+) -> PyResult<PyZNode> {
     let namespace = namespace.unwrap_or_else(|| "/".to_string());
 
-    // Create node using the context from PySession
+    // Create node using the context from PyZContext
     let node = session.ctx
         .create_node(&name)
         .with_namespace(&namespace)
         .build()
         .map_err(|e| e.into_pyerr())?;
 
-    Ok(PyNode {
+    Ok(PyZNode {
         inner: Arc::new(node),
     })
 }
@@ -133,7 +133,7 @@ fn create_publisher_for_type(
     msg_type: &str,
     type_info: TypeInfo,
     qos: ros_z::qos::QosProfile,
-) -> PyResult<PyPublisher> {
+) -> PyResult<PyZPublisher> {
     use ros_z_msgs::{std_msgs, geometry_msgs, sensor_msgs};
 
     // Match on the message type and create the appropriate publisher
@@ -143,28 +143,28 @@ fn create_publisher_for_type(
                 .with_qos(qos);
             let zpub = pub_builder.build().map_err(|e| e.into_pyerr())?;
             let wrapper = ZPubWrapper::new(zpub);
-            Ok(PyPublisher::new(Box::new(wrapper), msg_type.to_string()))
+            Ok(PyZPublisher::new(Box::new(wrapper), msg_type.to_string()))
         }
         "geometry_msgs/msg/Vector3" => {
             let pub_builder = node.create_pub_impl::<geometry_msgs::Vector3>(topic, Some(type_info))
                 .with_qos(qos);
             let zpub = pub_builder.build().map_err(|e| e.into_pyerr())?;
             let wrapper = ZPubWrapper::new(zpub);
-            Ok(PyPublisher::new(Box::new(wrapper), msg_type.to_string()))
+            Ok(PyZPublisher::new(Box::new(wrapper), msg_type.to_string()))
         }
         "geometry_msgs/msg/Twist" => {
             let pub_builder = node.create_pub_impl::<geometry_msgs::Twist>(topic, Some(type_info))
                 .with_qos(qos);
             let zpub = pub_builder.build().map_err(|e| e.into_pyerr())?;
             let wrapper = ZPubWrapper::new(zpub);
-            Ok(PyPublisher::new(Box::new(wrapper), msg_type.to_string()))
+            Ok(PyZPublisher::new(Box::new(wrapper), msg_type.to_string()))
         }
         "sensor_msgs/msg/LaserScan" => {
             let pub_builder = node.create_pub_impl::<sensor_msgs::LaserScan>(topic, Some(type_info))
                 .with_qos(qos);
             let zpub = pub_builder.build().map_err(|e| e.into_pyerr())?;
             let wrapper = ZPubWrapper::new(zpub);
-            Ok(PyPublisher::new(Box::new(wrapper), msg_type.to_string()))
+            Ok(PyZPublisher::new(Box::new(wrapper), msg_type.to_string()))
         }
         _ => Err(pyo3::exceptions::PyTypeError::new_err(
             format!("Message type '{}' is registered but not implemented in publisher factory. \
@@ -182,7 +182,7 @@ fn create_subscriber_for_type(
     msg_type: &str,
     type_info: TypeInfo,
     qos: ros_z::qos::QosProfile,
-) -> PyResult<PySubscriber> {
+) -> PyResult<PyZSubscriber> {
     use ros_z_msgs::{std_msgs, geometry_msgs, sensor_msgs};
 
     // Match on the message type and create the appropriate subscriber
@@ -192,28 +192,28 @@ fn create_subscriber_for_type(
                 .with_qos(qos);
             let zsub = sub_builder.build().map_err(|e| e.into_pyerr())?;
             let wrapper = ZSubWrapper::new(zsub);
-            Ok(PySubscriber::new(Box::new(wrapper), msg_type.to_string()))
+            Ok(PyZSubscriber::new(Box::new(wrapper), msg_type.to_string()))
         }
         "geometry_msgs/msg/Vector3" => {
             let sub_builder = node.create_sub_impl::<geometry_msgs::Vector3>(topic, Some(type_info))
                 .with_qos(qos);
             let zsub = sub_builder.build().map_err(|e| e.into_pyerr())?;
             let wrapper = ZSubWrapper::new(zsub);
-            Ok(PySubscriber::new(Box::new(wrapper), msg_type.to_string()))
+            Ok(PyZSubscriber::new(Box::new(wrapper), msg_type.to_string()))
         }
         "geometry_msgs/msg/Twist" => {
             let sub_builder = node.create_sub_impl::<geometry_msgs::Twist>(topic, Some(type_info))
                 .with_qos(qos);
             let zsub = sub_builder.build().map_err(|e| e.into_pyerr())?;
             let wrapper = ZSubWrapper::new(zsub);
-            Ok(PySubscriber::new(Box::new(wrapper), msg_type.to_string()))
+            Ok(PyZSubscriber::new(Box::new(wrapper), msg_type.to_string()))
         }
         "sensor_msgs/msg/LaserScan" => {
             let sub_builder = node.create_sub_impl::<sensor_msgs::LaserScan>(topic, Some(type_info))
                 .with_qos(qos);
             let zsub = sub_builder.build().map_err(|e| e.into_pyerr())?;
             let wrapper = ZSubWrapper::new(zsub);
-            Ok(PySubscriber::new(Box::new(wrapper), msg_type.to_string()))
+            Ok(PyZSubscriber::new(Box::new(wrapper), msg_type.to_string()))
         }
         _ => Err(pyo3::exceptions::PyTypeError::new_err(
             format!("Message type '{}' is registered but not implemented in subscriber factory. \

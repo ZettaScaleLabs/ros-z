@@ -2,6 +2,7 @@
 """Simple talker example - publishes String messages."""
 
 import ros_z_py
+from ros_z_py import std_msgs
 import time
 
 def main():
@@ -17,7 +18,8 @@ def main():
     count = 0
     while True:
         message = f"Hello, World! {count}"
-        pub.publish({"data": message})
+        msg = std_msgs.String(data=message)
+        pub.publish(msg)
         print(f"Published: {message}")
         count += 1
         time.sleep(1.0)

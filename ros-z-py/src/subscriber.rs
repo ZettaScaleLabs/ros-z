@@ -3,13 +3,13 @@ use crate::traits::RawSubscriber;
 use crate::error::IntoPyErr;
 use std::time::Duration;
 
-#[pyclass]
-pub struct PySubscriber {
+#[pyclass(name = "ZSubscriber")]
+pub struct PyZSubscriber {
     inner: Box<dyn RawSubscriber>,
     type_name: String,
 }
 
-impl PySubscriber {
+impl PyZSubscriber {
     pub fn new(inner: Box<dyn RawSubscriber>, type_name: String) -> Self {
         Self { inner, type_name }
     }
@@ -17,7 +17,7 @@ impl PySubscriber {
 
 #[allow(unsafe_op_in_unsafe_fn)]
 #[pymethods]
-impl PySubscriber {
+impl PyZSubscriber {
     /// Receive the next message (blocking)
     ///
     /// Args:

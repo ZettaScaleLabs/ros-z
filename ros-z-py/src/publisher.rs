@@ -3,13 +3,13 @@ use pyo3::types::PyAny;
 use crate::traits::RawPublisher;
 use crate::error::IntoPyErr;
 
-#[pyclass]
-pub struct PyPublisher {
+#[pyclass(name = "ZPublisher")]
+pub struct PyZPublisher {
     inner: Box<dyn RawPublisher>,
     type_name: String,
 }
 
-impl PyPublisher {
+impl PyZPublisher {
     pub fn new(inner: Box<dyn RawPublisher>, type_name: String) -> Self {
         Self { inner, type_name }
     }
@@ -17,7 +17,7 @@ impl PyPublisher {
 
 #[allow(unsafe_op_in_unsafe_fn)]
 #[pymethods]
-impl PyPublisher {
+impl PyZPublisher {
     /// Publish a message
     ///
     /// Serializes the Python message (msgspec.Struct) to CDR bytes using the message registry
