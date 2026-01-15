@@ -226,7 +226,7 @@ tokio = { version = "1", features = ["full"] }
 </ul>
 <h3 id="scenario-3-full-ros-2-integration"><a class="header" href="#scenario-3-full-ros-2-integration">Scenario 3: Full ROS 2 Integration</a></h3>
 <p><strong>Use when:</strong> You need all ROS 2 message types or custom packages from your workspace</p>
-<p><strong>Requirements:</strong> ROS 2 installation (Rolling, Kilted, Jazzy, etc.)</p>
+<p><strong>Requirements:</strong> ROS 2 installation (Jazzy, Humble, Rolling, etc.)</p>
 <p><strong>Add to your <code>Cargo.toml</code>:</strong></p>
 <pre><code class="language-toml">[dependencies]
 ros-z = "0.x"
@@ -259,6 +259,19 @@ cargo build --features external_msgs
 <p>Start with Scenario 1 or 2 for development, then move to Scenario 3 when you need full ROS 2 interoperability.</p>
 </div>
 </div>
+<h2 id="ros-2-distribution-compatibility"><a class="header" href="#ros-2-distribution-compatibility">ROS 2 Distribution Compatibility</a></h2>
+<p><strong>ros-z defaults to ROS 2 Jazzy compatibility</strong>, which is the recommended distribution for new projects. If you need to target a different distribution like Humble, see the <a href="./distro_compatibility.html">ROS 2 Distribution Compatibility</a> chapter for detailed instructions.</p>
+<p><strong>Quick reference:</strong></p>
+<pre><code class="language-bash"># Default (Jazzy) - works out of the box
+cargo build
+
+# For Humble - use --no-default-features
+cargo build --no-default-features --features humble
+
+# For Rolling/Iron - just add the feature
+cargo build --features rolling
+</code></pre>
+<p>The distribution choice affects type hash support and interoperability with ROS 2 nodes. See the <a href="./distro_compatibility.html">Distribution Compatibility chapter</a> for full details.</p>
 <h2 id="development"><a class="header" href="#development">Development</a></h2>
 <p>This section is for contributors working on ros-z itself. If you're using ros-z in your project, you can skip this section.</p>
 <h3 id="package-organization"><a class="header" href="#package-organization">Package Organization</a></h3>
@@ -330,6 +343,7 @@ cargo clean -p ros-z-msgs  # Clean specific package
 </div>
 <h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
 <ul>
+<li><strong><a href="./distro_compatibility.html">ROS 2 Distribution Compatibility</a></strong> - Target Jazzy, Humble, or other distributions</li>
 <li><strong><a href="./examples.html">Running Examples</a></strong> - Try out the included examples</li>
 <li><strong><a href="./config.html">Networking</a></strong> - Set up Zenoh router and session config</li>
 <li><strong><a href="./message_generation.html">Message Generation</a></strong> - Understand how messages work</li>
@@ -345,7 +359,7 @@ cargo clean -p ros-z-msgs  # Clean specific package
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next prefetch" href="../chapters/examples.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../chapters/distro_compatibility.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -359,7 +373,7 @@ cargo clean -p ros-z-msgs  # Clean specific package
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next prefetch" href="../chapters/examples.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../chapters/distro_compatibility.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>

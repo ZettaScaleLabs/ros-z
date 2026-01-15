@@ -1312,7 +1312,7 @@ tokio = { version = "1", features = ["full"] }
 </ul>
 <h3 id="scenario-3-full-ros-2-integration"><a class="header" href="#scenario-3-full-ros-2-integration">Scenario 3: Full ROS 2 Integration</a></h3>
 <p><strong>Use when:</strong> You need all ROS 2 message types or custom packages from your workspace</p>
-<p><strong>Requirements:</strong> ROS 2 installation (Rolling, Kilted, Jazzy, etc.)</p>
+<p><strong>Requirements:</strong> ROS 2 installation (Jazzy, Humble, Rolling, etc.)</p>
 <p><strong>Add to your <code>Cargo.toml</code>:</strong></p>
 <pre><code class="language-toml">[dependencies]
 ros-z = "0.x"
@@ -1345,6 +1345,19 @@ cargo build --features external_msgs
 <p>Start with Scenario 1 or 2 for development, then move to Scenario 3 when you need full ROS 2 interoperability.</p>
 </div>
 </div>
+<h2 id="ros-2-distribution-compatibility"><a class="header" href="#ros-2-distribution-compatibility">ROS 2 Distribution Compatibility</a></h2>
+<p><strong>ros-z defaults to ROS 2 Jazzy compatibility</strong>, which is the recommended distribution for new projects. If you need to target a different distribution like Humble, see the <a href="chapters/./distro_compatibility.html">ROS 2 Distribution Compatibility</a> chapter for detailed instructions.</p>
+<p><strong>Quick reference:</strong></p>
+<pre><code class="language-bash"># Default (Jazzy) - works out of the box
+cargo build
+
+# For Humble - use --no-default-features
+cargo build --no-default-features --features humble
+
+# For Rolling/Iron - just add the feature
+cargo build --features rolling
+</code></pre>
+<p>The distribution choice affects type hash support and interoperability with ROS 2 nodes. See the <a href="chapters/./distro_compatibility.html">Distribution Compatibility chapter</a> for full details.</p>
 <h2 id="development"><a class="header" href="#development">Development</a></h2>
 <p>This section is for contributors working on ros-z itself. If you're using ros-z in your project, you can skip this section.</p>
 <h3 id="package-organization"><a class="header" href="#package-organization">Package Organization</a></h3>
@@ -1416,12 +1429,82 @@ cargo clean -p ros-z-msgs  # Clean specific package
 </div>
 <h2 id="next-steps-1"><a class="header" href="#next-steps-1">Next Steps</a></h2>
 <ul>
+<li><strong><a href="chapters/./distro_compatibility.html">ROS 2 Distribution Compatibility</a></strong> - Target Jazzy, Humble, or other distributions</li>
 <li><strong><a href="chapters/./examples.html">Running Examples</a></strong> - Try out the included examples</li>
 <li><strong><a href="chapters/./config.html">Networking</a></strong> - Set up Zenoh router and session config</li>
 <li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - Understand how messages work</li>
 <li><strong><a href="chapters/./troubleshooting.html">Troubleshooting</a></strong> - Solutions to common build issues</li>
 </ul>
 <p><strong>Start with the simplest build and add dependencies incrementally as your project grows.</strong></p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="ros-2-distribution-compatibility-1"><a class="header" href="#ros-2-distribution-compatibility-1">ROS 2 Distribution Compatibility</a></h1>
+<p>ros-z supports multiple ROS 2 distributions through compile-time feature flags. This chapter explains the differences between distributions and how to target specific ROS 2 versions.</p>
+<h2 id="supported-distributions"><a class="header" href="#supported-distributions">Supported Distributions</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Distribution</th><th>Status</th><th>Type Hash Support</th><th>Default</th></tr></thead><tbody>
+<tr><td><strong>Jazzy Jalisco</strong></td><td>✅ Fully Supported</td><td>✅ Yes</td><td><strong>Yes</strong></td></tr>
+<tr><td><strong>Humble Hawksbill</strong></td><td>✅ Supported</td><td>❌ No (placeholder)</td><td>No</td></tr>
+<tr><td>Rolling Ridley</td><td>✅ Supported</td><td>✅ Yes</td><td>No</td></tr>
+<tr><td>Iron Irwini</td><td>✅ Supported</td><td>✅ Yes</td><td>No</td></tr>
+</tbody></table>
+</div>
+<p><strong>Default</strong>: ros-z defaults to <strong>Jazzy</strong> compatibility, which is the recommended distribution for new projects.</p>
+<h2 id="distribution-differences"><a class="header" href="#distribution-differences">Distribution Differences</a></h2>
+<h3 id="type-hash-support"><a class="header" href="#type-hash-support">Type Hash Support</a></h3>
+<p>The most significant difference between distributions is <strong>type hash support</strong>:</p>
+<p><strong>Jazzy/Rolling/Iron</strong> (Modern):</p>
+<ul>
+<li>Supports real type hashes computed from message definitions</li>
+<li>Format: <code>RIHS01_&lt;64-hex-chars&gt;</code> (ROS IDL Hash Standard version 1)</li>
+<li>Enables type safety checks during pub/sub matching</li>
+<li>Type hashes are embedded in Zenoh key expressions for discovery</li>
+</ul>
+<p><strong>Humble</strong> (Legacy):</p>
+<ul>
+<li>Does not support real type hashes</li>
+<li>Uses constant placeholder: <code>"TypeHashNotSupported"</code></li>
+<li>No type safety validation during discovery</li>
+<li>Compatible with rmw_zenoh_cpp v0.1.8</li>
+</ul>
+<h3 id="example-key-expressions"><a class="header" href="#example-key-expressions">Example Key Expressions</a></h3>
+<p><strong>Jazzy:</strong></p>
+<pre><code class="language-text">@ros2_lv/0/&lt;zid&gt;/&lt;nid&gt;/&lt;eid&gt;/MP/%/&lt;namespace&gt;/&lt;node&gt;/chatter/std_msgs%msg%String/RIHS01_1234567890abcdef.../...
+</code></pre>
+<p><strong>Humble:</strong></p>
+<pre><code class="language-text">@ros2_lv/0/&lt;zid&gt;/&lt;nid&gt;/&lt;eid&gt;/MP/%/&lt;namespace&gt;/&lt;node&gt;/chatter/std_msgs%msg%String/TypeHashNotSupported/...
+</code></pre>
+<h2 id="building-for-different-distributions"><a class="header" href="#building-for-different-distributions">Building for Different Distributions</a></h2>
+<h3 id="using-jazzy-default"><a class="header" href="#using-jazzy-default">Using Jazzy (Default)</a></h3>
+<p>By default, ros-z builds with Jazzy compatibility. No special flags needed:</p>
+<pre><code class="language-bash"># Build with default (Jazzy)
+cargo build
+
+# Run examples
+cargo run --example demo_nodes_talker
+
+# Run tests
+cargo nextest run
+</code></pre>
+<h3 id="using-humble"><a class="header" href="#using-humble">Using Humble</a></h3>
+<p>To build for Humble, use <code>--no-default-features --features humble</code>:</p>
+<pre><code class="language-bash"># Build for Humble
+cargo build --no-default-features --features humble
+
+# Build with additional features
+cargo build --no-default-features --features humble,external_msgs
+
+# Run examples for Humble
+cargo run --no-default-features --features humble --example demo_nodes_talker
+
+# Run tests for Humble
+cargo nextest run --no-default-features --features humble
+</code></pre>
+<h3 id="using-other-distributions"><a class="header" href="#using-other-distributions">Using Other Distributions</a></h3>
+<p>For Rolling or Iron, simply specify the distro feature:</p>
+<pre><code class="language-bash"># Build for Rolling
+cargo build --features rolling
+
+# Build for Iron
+cargo build --features iron
+</code></pre>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="running-examples"><a class="header" href="#running-examples">Running Examples</a></h1>
 <p>Once you've added ros-z to your project, you can run the included examples to see it in action.</p>
 <div id="admonition-important" class="admonition admonish-tip" role="note" aria-labelledby="admonition-important-title">
@@ -2720,7 +2803,121 @@ let msg = SensorData {
 pub.publish(&amp;msg)?;</code></pre>
 <h2 id="complete-example-1"><a class="header" href="#complete-example-1">Complete Example</a></h2>
 <p>The <code>protobuf_demo</code> example demonstrates both approaches:</p>
-<pre><code class="language-rust ignore">{{#include ../../../ros-z/examples/protobuf_demo/src/main.rs}}</code></pre>
+<pre><code class="language-rust ignore">use clap::Parser;
+use protobuf_demo::{run_pubsub_demo, run_service_client, run_service_server};
+use ros_z::{Builder, Result, context::ZContextBuilder};
+
+#[derive(Debug, Parser)]
+#[command(
+    name = "protobuf_demo",
+    about = "Protobuf demonstration for ros-z - pub/sub and services"
+)]
+struct Args {
+    /// Mode to run: pubsub, service-server, service-client, or combined
+    #[arg(short, long, default_value = "pubsub")]
+    mode: String,
+
+    /// Service name (for service modes)
+    #[arg(long, default_value = "/calculator")]
+    service: String,
+
+    /// Maximum number of messages/requests (0 for unlimited)
+    #[arg(short = 'n', long, default_value = "3")]
+    count: usize,
+
+    /// Zenoh session mode (peer, client, router)
+    #[arg(long, default_value = "peer")]
+    zenoh_mode: String,
+
+    /// Zenoh router endpoint to connect to
+    #[arg(short, long)]
+    endpoint: Option&lt;String&gt;,
+}
+
+fn main() -&gt; Result&lt;()&gt; {
+    let args = Args::parse();
+
+    // Initialize logging
+    zenoh::init_log_from_env_or("info");
+
+    // Create the ROS-Z context
+    let ctx = if let Some(ref e) = args.endpoint {
+        ZContextBuilder::default()
+            .with_mode(&amp;args.zenoh_mode)
+            .with_connect_endpoints([e.clone()])
+            .build()?
+    } else {
+        ZContextBuilder::default()
+            .with_mode(&amp;args.zenoh_mode)
+            .build()?
+    };
+
+    let max_count = if args.count == 0 {
+        None
+    } else {
+        Some(args.count)
+    };
+
+    match args.mode.as_str() {
+        "pubsub" =&gt; {
+            run_pubsub_demo(ctx, max_count)?;
+        }
+        "service-server" =&gt; {
+            run_service_server(ctx, &amp;args.service, max_count)?;
+        }
+        "service-client" =&gt; {
+            let operations = vec![
+                ("add", 10.0, 5.0),
+                ("subtract", 10.0, 5.0),
+                ("multiply", 10.0, 5.0),
+                ("divide", 10.0, 5.0),
+                ("divide", 10.0, 0.0), // This will fail
+            ];
+            run_service_client(ctx, &amp;args.service, operations)?;
+        }
+        "combined" =&gt; {
+            println!("\n=== Running Combined Demo ===\n");
+
+            // Create separate contexts for server and client
+            let server_ctx = if let Some(e) = args.endpoint.clone() {
+                ZContextBuilder::default()
+                    .with_mode(&amp;args.zenoh_mode)
+                    .with_connect_endpoints([e])
+                    .build()?
+            } else {
+                ZContextBuilder::default()
+                    .with_mode(&amp;args.zenoh_mode)
+                    .build()?
+            };
+
+            let service_name = args.service.clone();
+
+            // Run server in background thread
+            let _server_handle =
+                std::thread::spawn(move || run_service_server(server_ctx, &amp;service_name, Some(5)));
+
+            // Give server time to start
+            std::thread::sleep(std::time::Duration::from_millis(500));
+
+            // Run client
+            let operations = vec![
+                ("add", 10.0, 5.0),
+                ("subtract", 10.0, 5.0),
+                ("multiply", 10.0, 5.0),
+                ("divide", 10.0, 5.0),
+                ("divide", 10.0, 0.0),
+            ];
+            run_service_client(ctx, &amp;args.service, operations)?;
+        }
+        _ =&gt; {
+            eprintln!("Unknown mode: {}", args.mode);
+            eprintln!("Valid modes: pubsub, service-server, service-client, combined");
+            std::process::exit(1);
+        }
+    }
+
+    Ok(())
+}</code></pre>
 <h3 id="running-the-demo"><a class="header" href="#running-the-demo">Running the Demo</a></h3>
 <pre><code class="language-bash"># Navigate to the demo directory
 cd ros-z/examples/protobuf_demo
@@ -3128,6 +3325,7 @@ nix develop .#pureRust       # Minimal Rust toolchain only
 </div>
 <h2 id="feature-categories"><a class="header" href="#feature-categories">Feature Categories</a></h2>
 <div class="table-wrapper"><table><thead><tr><th>Category</th><th>Purpose</th><th>Example Features</th></tr></thead><tbody>
+<tr><td><strong>Distribution</strong></td><td>Target specific ROS 2 versions</td><td><code>humble</code>, <code>jazzy</code>, <code>rolling</code></td></tr>
 <tr><td><strong>Message Packages</strong></td><td>Enable ROS 2 message types</td><td><code>std_msgs</code>, <code>geometry_msgs</code></td></tr>
 <tr><td><strong>Serialization</strong></td><td>Additional encoding formats</td><td><code>protobuf</code></td></tr>
 <tr><td><strong>Integration</strong></td><td>External system bindings</td><td><code>rcl-z</code>, <code>external_msgs</code></td></tr>
@@ -3157,6 +3355,44 @@ nix develop .#pureRust       # Minimal Rust toolchain only
 <p>Protobuf is optional. CDR serialization (default) provides full ROS 2 compatibility without additional dependencies.</p>
 </div>
 </div>
+<h2 id="distribution-compatibility-features"><a class="header" href="#distribution-compatibility-features">Distribution Compatibility Features</a></h2>
+<p><strong>ros-z defaults to ROS 2 Jazzy</strong>. Use distribution features to target other ROS 2 versions.</p>
+<h3 id="jazzy-default"><a class="header" href="#jazzy-default"><code>jazzy</code> (default)</a></h3>
+<p>Targets ROS 2 Jazzy Jalisco with modern type hash support.</p>
+<pre><code class="language-bash"># Automatically enabled (default)
+cargo build
+
+# Explicitly enable
+cargo build --features jazzy
+</code></pre>
+<p><strong>Features:</strong></p>
+<ul>
+<li>✅ Type hash support (RIHS01)</li>
+<li>✅ Shared memory optimization</li>
+<li>✅ Modern ROS 2 protocol</li>
+</ul>
+<h3 id="humble"><a class="header" href="#humble"><code>humble</code></a></h3>
+<p>Targets ROS 2 Humble Hawksbill (LTS) with legacy compatibility.</p>
+<pre><code class="language-bash"># Disable defaults and enable humble
+cargo build --no-default-features --features humble
+</code></pre>
+<p><strong>Features:</strong></p>
+<ul>
+<li>❌ No type hash (uses placeholder)</li>
+<li>❌ No shared memory support</li>
+<li>✅ LTS support until 2027</li>
+<li>✅ Compatible with rmw_zenoh_cpp v0.1.8</li>
+</ul>
+<p><strong>Important:</strong> Humble requires <code>--no-default-features</code> to avoid conflicts with the jazzy default.</p>
+<h3 id="rolling-and-iron"><a class="header" href="#rolling-and-iron"><code>rolling</code> and <code>iron</code></a></h3>
+<p>Target newer distributions:</p>
+<pre><code class="language-bash"># Rolling
+cargo build --features rolling
+
+# Iron
+cargo build --features iron
+</code></pre>
+<p><strong>See also:</strong> <a href="chapters/./distro_compatibility.html">ROS 2 Distribution Compatibility</a> for detailed documentation.</p>
 <h3 id="rcl-z"><a class="header" href="#rcl-z"><code>rcl-z</code></a></h3>
 <p>Enables RCL (ROS Client Library) integration for C/C++ interoperability.</p>
 <pre><code class="language-bash">cargo build -p ros-z --features rcl-z
@@ -3352,6 +3588,9 @@ cargo build -p ros-z --features protobuf
 <h2 id="feature-matrix"><a class="header" href="#feature-matrix">Feature Matrix</a></h2>
 <div class="table-wrapper"><table><thead><tr><th>Package</th><th>Feature</th><th>Requires ROS 2</th><th>Adds Dependencies</th></tr></thead><tbody>
 <tr><td>ros-z</td><td>(none)</td><td>No</td><td>None</td></tr>
+<tr><td>ros-z</td><td>jazzy (default)</td><td>No</td><td>None</td></tr>
+<tr><td>ros-z</td><td>humble</td><td>No</td><td>None</td></tr>
+<tr><td>ros-z</td><td>rolling</td><td>No</td><td>None</td></tr>
 <tr><td>ros-z</td><td>protobuf</td><td>No</td><td>prost, prost-types</td></tr>
 <tr><td>ros-z</td><td>rcl-z</td><td>Yes</td><td>RCL libraries</td></tr>
 <tr><td>ros-z</td><td>external_msgs</td><td>Yes (propagated)</td><td>None</td></tr>
@@ -3359,6 +3598,8 @@ cargo build -p ros-z --features protobuf
 <tr><td>ros-z-msgs</td><td>bundled_msgs</td><td>No</td><td>None (bundled)</td></tr>
 <tr><td>ros-z-msgs</td><td>external_msgs</td><td>Yes</td><td>None (uses system)</td></tr>
 <tr><td>ros-z-msgs</td><td>protobuf</td><td>No</td><td>prost, prost-types</td></tr>
+<tr><td>ros-z-msgs</td><td>jazzy (default)</td><td>No</td><td>None</td></tr>
+<tr><td>ros-z-msgs</td><td>humble</td><td>No</td><td>None</td></tr>
 <tr><td>ros-z-codegen</td><td>protobuf</td><td>No</td><td>prost-build</td></tr>
 </tbody></table>
 </div>
@@ -3436,6 +3677,7 @@ cargo run --example z_pingpong        # std_msgs
 <h2 id="resources-6"><a class="header" href="#resources-6">Resources</a></h2>
 <ul>
 <li><strong><a href="chapters/./building.html">Building Guide</a></strong> - Build procedures for each scenario</li>
+<li><strong><a href="chapters/./distro_compatibility.html">ROS 2 Distribution Compatibility</a></strong> - Target Jazzy, Humble, or other distributions</li>
 <li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - How messages are generated</li>
 </ul>
 <p><strong>Start with default features and add more as your project evolves. Feature flags provide flexibility without forcing early architectural decisions.</strong></p>

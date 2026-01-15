@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Networking - ros-z Documentation</title>
+        <title>ROS 2 Distribution Compatibility - ros-z Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -149,7 +149,7 @@
                         <a href="https://github.com/ZettaScaleLabs/ros-z" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/ZettaScaleLabs/ros-z/edit/main/src/chapters/config.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                        <a href="https://github.com/ZettaScaleLabs/ros-z/edit/main/src/chapters/distro_compatibility.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -183,66 +183,85 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="networking"><a class="header" href="#networking">Networking</a></h1>
-<p><strong>Configure ros-z's Zenoh transport layer for optimal performance in your deployment environment.</strong> ros-z uses router-based architecture by default, matching ROS 2's official <code>rmw_zenoh_cpp</code> middleware for production-ready scalability.</p>
-<h2 id="router-based-architecture"><a class="header" href="#router-based-architecture">Router-Based Architecture</a></h2>
-<p>ros-z uses a centralized Zenoh router for node discovery and communication, providing:</p>
-<div class="table-wrapper"><table><thead><tr><th>Benefit</th><th>Description</th></tr></thead><tbody>
-<tr><td><strong>Scalability</strong></td><td>Centralized discovery handles large deployments efficiently</td></tr>
-<tr><td><strong>Lower Network Overhead</strong></td><td>TCP-based discovery instead of multicast broadcasts</td></tr>
-<tr><td><strong>ROS 2 Compatibility</strong></td><td>Matches <code>rmw_zenoh_cpp</code> behavior for seamless interoperability</td></tr>
-<tr><td><strong>Production Ready</strong></td><td>Battle-tested configuration used in real robotics systems</td></tr>
+                        <h1 id="ros-2-distribution-compatibility"><a class="header" href="#ros-2-distribution-compatibility">ROS 2 Distribution Compatibility</a></h1>
+<p>ros-z supports multiple ROS 2 distributions through compile-time feature flags. This chapter explains the differences between distributions and how to target specific ROS 2 versions.</p>
+<h2 id="supported-distributions"><a class="header" href="#supported-distributions">Supported Distributions</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Distribution</th><th>Status</th><th>Type Hash Support</th><th>Default</th></tr></thead><tbody>
+<tr><td><strong>Jazzy Jalisco</strong></td><td>✅ Fully Supported</td><td>✅ Yes</td><td><strong>Yes</strong></td></tr>
+<tr><td><strong>Humble Hawksbill</strong></td><td>✅ Supported</td><td>❌ No (placeholder)</td><td>No</td></tr>
+<tr><td>Rolling Ridley</td><td>✅ Supported</td><td>✅ Yes</td><td>No</td></tr>
+<tr><td>Iron Irwini</td><td>✅ Supported</td><td>✅ Yes</td><td>No</td></tr>
 </tbody></table>
 </div>
-<h2 id="quick-start"><a class="header" href="#quick-start">Quick Start</a></h2>
-<p>The simplest way to get started is using the built-in router example:</p>
-<p><strong>Terminal 1 - Start the Router:</strong></p>
-<pre><code class="language-bash">cargo run --example zenoh_router
-</code></pre>
-<p><strong>Terminal 2 - Run Your Application:</strong></p>
-<pre><code class="language-rust ignore">use ros_z::context::ZContextBuilder;
-use ros_z::Builder;
-
-// Uses default ROS session config (connects to tcp/localhost:7447)
-let ctx = ZContextBuilder::default().build()?;
-let node = ctx.create_node("my_node").build()?;</code></pre>
-<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
-<div class="admonition-title">
-<div id="admonition-success-title">
-<p>Success</p>
-</div>
-<a class="admonition-anchor-link" href="#admonition-success"></a>
-</div>
-<div>
-<p>That's it! The default configuration automatically connects to the router on <code>tcp/localhost:7447</code>.</p>
-</div>
-</div>
-<h2 id="running-the-zenoh-router"><a class="header" href="#running-the-zenoh-router">Running the Zenoh Router</a></h2>
-<h3 id="option-1-built-in-router-example"><a class="header" href="#option-1-built-in-router-example">Option 1: Built-in Router Example</a></h3>
-<p>ros-z provides a built-in router example that's ROS-compatible out of the box.</p>
-<pre><code class="language-bash">cargo run --example zenoh_router
-</code></pre>
-<p>Listens on <code>tcp/[::]:7447</code> (all interfaces, port 7447).</p>
-<h3 id="option-2-official-zenoh-router"><a class="header" href="#option-2-official-zenoh-router">Option 2: Official Zenoh Router</a></h3>
-<p>You can also use the official Zenoh router: <a href="https://zenoh.io/docs/getting-started/installation/#installing-the-zenoh-router">https://zenoh.io/docs/getting-started/installation/#installing-the-zenoh-router</a>.</p>
-<h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
-<p>Choose the configuration approach that fits your needs:</p>
+<p><strong>Default</strong>: ros-z defaults to <strong>Jazzy</strong> compatibility, which is the recommended distribution for new projects.</p>
+<h2 id="distribution-differences"><a class="header" href="#distribution-differences">Distribution Differences</a></h2>
+<h3 id="type-hash-support"><a class="header" href="#type-hash-support">Type Hash Support</a></h3>
+<p>The most significant difference between distributions is <strong>type hash support</strong>:</p>
+<p><strong>Jazzy/Rolling/Iron</strong> (Modern):</p>
 <ul>
-<li><strong><a href="./config_options.html">Configuration Options</a></strong> - Six ways to configure Zenoh (from simple to complex)</li>
-<li><strong><a href="./config_advanced.html">Advanced Configuration</a></strong> - Generate config files, run routers, configuration reference</li>
-<li><strong><a href="./troubleshooting.html">Troubleshooting</a></strong> - Solutions to connectivity issues</li>
+<li>Supports real type hashes computed from message definitions</li>
+<li>Format: <code>RIHS01_&lt;64-hex-chars&gt;</code> (ROS IDL Hash Standard version 1)</li>
+<li>Enables type safety checks during pub/sub matching</li>
+<li>Type hashes are embedded in Zenoh key expressions for discovery</li>
 </ul>
-<p><strong>Ready to optimize your deployment? Experiment with different configurations and measure performance impact.</strong></p>
+<p><strong>Humble</strong> (Legacy):</p>
+<ul>
+<li>Does not support real type hashes</li>
+<li>Uses constant placeholder: <code>"TypeHashNotSupported"</code></li>
+<li>No type safety validation during discovery</li>
+<li>Compatible with rmw_zenoh_cpp v0.1.8</li>
+</ul>
+<h3 id="example-key-expressions"><a class="header" href="#example-key-expressions">Example Key Expressions</a></h3>
+<p><strong>Jazzy:</strong></p>
+<pre><code class="language-text">@ros2_lv/0/&lt;zid&gt;/&lt;nid&gt;/&lt;eid&gt;/MP/%/&lt;namespace&gt;/&lt;node&gt;/chatter/std_msgs%msg%String/RIHS01_1234567890abcdef.../...
+</code></pre>
+<p><strong>Humble:</strong></p>
+<pre><code class="language-text">@ros2_lv/0/&lt;zid&gt;/&lt;nid&gt;/&lt;eid&gt;/MP/%/&lt;namespace&gt;/&lt;node&gt;/chatter/std_msgs%msg%String/TypeHashNotSupported/...
+</code></pre>
+<h2 id="building-for-different-distributions"><a class="header" href="#building-for-different-distributions">Building for Different Distributions</a></h2>
+<h3 id="using-jazzy-default"><a class="header" href="#using-jazzy-default">Using Jazzy (Default)</a></h3>
+<p>By default, ros-z builds with Jazzy compatibility. No special flags needed:</p>
+<pre><code class="language-bash"># Build with default (Jazzy)
+cargo build
+
+# Run examples
+cargo run --example demo_nodes_talker
+
+# Run tests
+cargo nextest run
+</code></pre>
+<h3 id="using-humble"><a class="header" href="#using-humble">Using Humble</a></h3>
+<p>To build for Humble, use <code>--no-default-features --features humble</code>:</p>
+<pre><code class="language-bash"># Build for Humble
+cargo build --no-default-features --features humble
+
+# Build with additional features
+cargo build --no-default-features --features humble,external_msgs
+
+# Run examples for Humble
+cargo run --no-default-features --features humble --example demo_nodes_talker
+
+# Run tests for Humble
+cargo nextest run --no-default-features --features humble
+</code></pre>
+<h3 id="using-other-distributions"><a class="header" href="#using-other-distributions">Using Other Distributions</a></h3>
+<p>For Rolling or Iron, simply specify the distro feature:</p>
+<pre><code class="language-bash"># Build for Rolling
+cargo build --features rolling
+
+# Build for Iron
+cargo build --features iron
+</code></pre>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../chapters/examples.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../chapters/building.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next prefetch" href="../chapters/config_options.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../chapters/examples.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -252,11 +271,11 @@ let node = ctx.create_node("my_node").build()?;</code></pre>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../chapters/examples.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../chapters/building.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next prefetch" href="../chapters/config_options.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../chapters/examples.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>
