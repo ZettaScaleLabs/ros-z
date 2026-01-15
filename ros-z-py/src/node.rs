@@ -3,7 +3,6 @@ use pyo3::types::PyDict;
 use ros_z::node::ZNode;
 use ros_z::Builder;
 use ros_z::entity::{TypeHash, TypeInfo};
-use ros_z::msg::CdrSerdes;
 use std::sync::Arc;
 use crate::session::PySession;
 use crate::error::IntoPyErr;
@@ -17,6 +16,7 @@ pub struct PyNode {
     pub(crate) inner: Arc<ZNode>,
 }
 
+#[allow(unsafe_op_in_unsafe_fn)]
 #[pymethods]
 impl PyNode {
     /// Create a publisher for a given topic and message type
@@ -103,6 +103,7 @@ impl PyNode {
 }
 
 /// Create a ROS 2 node
+#[allow(unsafe_op_in_unsafe_fn)]
 #[pyfunction]
 #[pyo3(signature = (session, name, namespace=None))]
 pub fn create_node(

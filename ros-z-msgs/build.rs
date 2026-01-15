@@ -1,7 +1,9 @@
 use std::{env, path::PathBuf};
 
 use anyhow::Result;
+#[cfg(feature = "python_registry")]
 use ros_z_codegen::python_msgspec_generator;
+#[cfg(feature = "python_registry")]
 use roslibrust_codegen;
 
 fn main() -> Result<()> {
@@ -43,7 +45,7 @@ fn main() -> Result<()> {
                 roslibrust_codegen::find_and_parse_ros_messages(&ros_packages)?;
 
             // Resolve action hashes from JSON metadata
-            let actions = roslibrust_codegen::resolve_action_hashes(parsed_actions);
+            let _actions = roslibrust_codegen::resolve_action_hashes(parsed_actions);
 
             // Filter out old-style actionlib messages and wstring messages
             let messages: Vec<_> = messages

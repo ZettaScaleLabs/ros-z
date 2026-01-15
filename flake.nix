@@ -154,6 +154,8 @@
           nixfmt-rfc-style
           gdb
           maturin
+          uv
+          python3
         ];
 
         # Documentation tools

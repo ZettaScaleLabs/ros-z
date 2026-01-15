@@ -9,6 +9,7 @@ pub struct PySession {
     pub(crate) ctx: Arc<ZContext>,
 }
 
+#[allow(unsafe_op_in_unsafe_fn)]
 #[pymethods]
 impl PySession {
     fn __enter__<'a, 'py>(this: &'a Bound<'py, Self>) -> &'a Bound<'py, Self> {
@@ -22,10 +23,10 @@ impl PySession {
         _args: &Bound<PyTuple>,
         _kwargs: Option<&Bound<PyDict>>,
     ) -> PyResult<()> {
-        unsafe { self.close() }
+        self.close()
     }
 
-    unsafe fn close(&self) -> PyResult<()> {
+    fn close(&self) -> PyResult<()> {
         // Zenoh sessions are ref-counted via Arc, no explicit close needed
         // The session will be closed when the last reference is dropped
         Ok(())
@@ -33,13 +34,14 @@ impl PySession {
 }
 
 /// Open a Zenoh session for ROS 2 communication
+#[allow(unsafe_op_in_unsafe_fn)]
 #[pyfunction]
 #[pyo3(signature = (config=None, domain_id=0))]
 pub fn open_session(config: Option<&Bound<'_, PyDict>>, domain_id: usize) -> PyResult<PySession> {
     use ros_z::{Builder, context::ZContextBuilder};
 
     // Create context builder
-    let mut builder = ZContextBuilder::default().with_domain_id(domain_id);
+    let builder = ZContextBuilder::default().with_domain_id(domain_id);
 
     // Parse Zenoh configuration from Python dict if provided
     if let Some(_cfg_dict) = config {

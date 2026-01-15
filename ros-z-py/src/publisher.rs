@@ -1,5 +1,5 @@
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
+use pyo3::types::PyAny;
 use crate::traits::RawPublisher;
 use crate::error::IntoPyErr;
 
@@ -15,13 +15,14 @@ impl PyPublisher {
     }
 }
 
+#[allow(unsafe_op_in_unsafe_fn)]
 #[pymethods]
 impl PyPublisher {
     /// Publish a message
     ///
-    /// Serializes the Python dict to CDR bytes using the message registry
-    unsafe fn publish(&self, data: &Bound<'_, PyDict>) -> PyResult<()> {
-        // Serialize Python dict to CDR bytes using the registry
+    /// Serializes the Python message (msgspec.Struct) to CDR bytes using the message registry
+    unsafe fn publish(&self, data: &Bound<'_, PyAny>) -> PyResult<()> {
+        // Serialize Python message to CDR bytes using the registry
         let cdr_bytes = ros_z_msgs::serialize_to_cdr(&self.type_name, data.py(), data)?;
 
         // Publish the serialized bytes

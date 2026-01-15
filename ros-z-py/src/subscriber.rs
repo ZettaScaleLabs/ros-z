@@ -1,5 +1,4 @@
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
 use crate::traits::RawSubscriber;
 use crate::error::IntoPyErr;
 use std::time::Duration;
@@ -16,6 +15,7 @@ impl PySubscriber {
     }
 }
 
+#[allow(unsafe_op_in_unsafe_fn)]
 #[pymethods]
 impl PySubscriber {
     /// Receive the next message (blocking)

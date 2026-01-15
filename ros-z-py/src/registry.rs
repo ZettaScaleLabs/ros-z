@@ -45,6 +45,7 @@ static RUNTIME_REGISTRY: Lazy<RwLock<RuntimeRegistry>> = Lazy::new(|| {
 ///         deserialize_my_msg,
 ///         "RIHS01_abcd1234..."
 ///     )
+#[allow(unsafe_op_in_unsafe_fn)]
 #[pyfunction]
 pub fn register_message_type(
     type_name: String,
@@ -60,6 +61,7 @@ pub fn register_message_type(
 }
 
 /// Serialize using runtime registry (fallback for user-defined types)
+#[allow(dead_code)]
 pub(crate) fn runtime_serialize(
     type_name: &str,
     py: Python,
@@ -78,6 +80,7 @@ pub(crate) fn runtime_serialize(
 }
 
 /// Deserialize using runtime registry (fallback for user-defined types)
+#[allow(dead_code)]
 pub(crate) fn runtime_deserialize(
     type_name: &str,
     py: Python,
@@ -99,6 +102,7 @@ pub(crate) fn runtime_deserialize(
 }
 
 /// Get type hash from runtime registry
+#[allow(dead_code)]
 pub(crate) fn runtime_get_type_hash(type_name: &str) -> Option<String> {
     let registry = RUNTIME_REGISTRY.read();
     registry.type_hashes.get(type_name).cloned()
@@ -115,6 +119,7 @@ pub(crate) fn runtime_get_type_hash(type_name: &str) -> Option<String> {
 ///
 /// Returns:
 ///     RIHS01 type hash string
+#[allow(unsafe_op_in_unsafe_fn)]
 #[pyfunction]
 pub fn compute_type_hash(msg_definition: &str) -> PyResult<String> {
     use std::collections::hash_map::DefaultHasher;
