@@ -85,7 +85,7 @@ fn main() -> Result<()> {
                 roslibrust_codegen::resolve_dependency_graph(messages, services)?;
 
             // Create Python output directory
-            let python_output_dir = PathBuf::from("python/ros_z_python/types");
+            let python_output_dir = PathBuf::from("python/ros_z_msgs_py/types");
             std::fs::create_dir_all(&python_output_dir)?;
 
             // Generate Python bindings + complete PyO3 module

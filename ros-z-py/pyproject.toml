@@ -22,6 +22,9 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Rust",
 ]
+dependencies = [
+    "msgspec>=0.18.0",
+]
 
 [tool.maturin]
 features = ["pyo3/extension-module"]

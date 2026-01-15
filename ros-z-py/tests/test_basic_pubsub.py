@@ -2,6 +2,7 @@
 """Test basic pub/sub functionality with std_msgs/String."""
 
 import ros_z_py
+from ros_z_py import std_msgs
 import time
 
 def test_session_creation():
@@ -45,15 +46,16 @@ def test_publish_receive(pub, sub):
 
     # Publish message
     test_data = "Hello, ros-z-py!"
-    pub.publish({"data": test_data})
+    msg_to_send = std_msgs.String(data=test_data)
+    pub.publish(msg_to_send)
     print(f"  Published: {test_data}")
 
     # Receive message
     msg = sub.recv(timeout=2.0)
     assert msg is not None, "No message received"
-    assert "data" in msg, "Message missing 'data' field"
-    assert msg["data"] == test_data, f"Expected '{test_data}', got '{msg['data']}'"
-    print(f"  Received: {msg['data']}")
+    assert hasattr(msg, 'data'), "Message missing 'data' field"
+    assert msg.data == test_data, f"Expected '{test_data}', got '{msg.data}'"
+    print(f"  Received: {msg.data}")
     print("✓ Publish/receive works")
 
 def test_qos_configuration(node):

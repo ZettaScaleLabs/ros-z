@@ -12,7 +12,7 @@ Usage:
 """
 
 import ros_z_py
-from ros_z_py import std_msgs, sensor_msgs
+from ros_z_py import std_msgs, sensor_msgs, builtin_interfaces
 import time
 import math
 import argparse
@@ -57,10 +57,10 @@ def run_publisher():
 
         msg = sensor_msgs.LaserScan(
             header=std_msgs.Header(
-                stamp={
-                    "sec": seq // 10,
-                    "nanosec": (seq % 10) * 100_000_000
-                },
+                stamp=builtin_interfaces.Time(
+                    sec=seq // 10,
+                    nanosec=(seq % 10) * 100_000_000
+                ),
                 frame_id="laser"
             ),
             angle_min=angle_min,

@@ -154,6 +154,7 @@ fn generate_python_nested_field_constructions(
     all_messages: &HashMap<String, &MessageFile>,
     _current_package: &str,
     item_var: &str,
+    kwargs_dict: &str,
 ) -> Result<String> {
     let mut code = String::new();
     for field in fields {
@@ -186,13 +187,14 @@ fn generate_python_nested_field_constructions(
                     &nested_msg.parsed.fields,
                     all_messages,
                     &nested_package,
-                    "inner_item"
+                    "inner_item",
+                    "inner_kwargs"
                 )?;
 
                 code.push_str(&format!(
                     "             {{\n\
                      let inner_list = pyo3::types::PyList::empty_bound(py);\n\
-                     let inner_types = py.import_bound(\"ros_z_python.types.{}\")?;\n\
+                     let inner_types = py.import_bound(\"ros_z_msgs_py.types.{}\")?;\n\
                      let inner_class = inner_types.getattr(\"{}\")?;\n\
                      for inner_item in &{}.{} {{\n\
                      let inner_kwargs = PyDict::new_bound(py);\n\
@@ -200,20 +202,21 @@ fn generate_python_nested_field_constructions(
                      let inner_obj = inner_class.call((), Some(&inner_kwargs))?;\n\
                      inner_list.append(inner_obj)?;\n\
                      }}\n\
-                     nested_kwargs.set_item(\"{}\", inner_list)?;\n\
+                     {}.set_item(\"{}\", inner_list)?;\n\
                      }}\n",
                     nested_package,
                     base_type,
                     item_var,
                     escaped_name,
                     inner_constructions,
+                    kwargs_dict,
                     field_name
                 ));
             } else {
                 // Fallback for unknown array types
                 code.push_str(&format!(
-                    "             nested_kwargs.set_item(\"{}\", {}.{}.to_vec())?;\n",
-                    field_name, item_var, escaped_name
+                    "             {}.set_item(\"{}\", {}.{}.to_vec())?;\n",
+                    kwargs_dict, field_name, item_var, escaped_name
                 ));
             }
         } else {
@@ -221,15 +224,15 @@ fn generate_python_nested_field_constructions(
                 "bool" | "byte" | "char" | "int8" | "uint8" | "int16" | "uint16" |
                 "int32" | "uint32" | "int64" | "uint64" | "float32" | "float64" => {
                     code.push_str(&format!(
-                        "             nested_kwargs.set_item(\"{}\", {}.{})?;\n",
-                        field_name, item_var, escaped_name
+                        "             {}.set_item(\"{}\", {}.{})?;\n",
+                        kwargs_dict, field_name, item_var, escaped_name
                     ));
                 },
                 "string" => {
                     // For strings, we need to borrow as &str since item_var is often a reference
                     code.push_str(&format!(
-                        "             nested_kwargs.set_item(\"{}\", &*{}.{})?;\n",
-                        field_name, item_var, escaped_name
+                        "             {}.set_item(\"{}\", &*{}.{})?;\n",
+                        kwargs_dict, field_name, item_var, escaped_name
                     ));
                 },
                 _ => {
@@ -254,28 +257,30 @@ fn generate_python_nested_field_constructions(
                             &nested_msg.parsed.fields,
                             all_messages,
                             &nested_package,
-                            &nested_item_var
+                            &nested_item_var,
+                            "inner_kwargs"
                         )?;
 
                         code.push_str(&format!(
                             "             {{\n\
-                             let inner_types = py.import_bound(\"ros_z_python.types.{}\")?;\n\
+                             let inner_types = py.import_bound(\"ros_z_msgs_py.types.{}\")?;\n\
                              let inner_class = inner_types.getattr(\"{}\")?;\n\
                              let inner_kwargs = PyDict::new_bound(py);\n\
                              {}\
                              let inner_obj = inner_class.call((), Some(&inner_kwargs))?;\n\
-                             nested_kwargs.set_item(\"{}\", inner_obj)?;\n\
+                             {}.set_item(\"{}\", inner_obj)?;\n\
                              }}\n",
                             nested_package,
                             base_type,
                             inner_constructions,
+                            kwargs_dict,
                             field_name
                         ));
                     } else {
                         // Fallback for unknown types
                         code.push_str(&format!(
-                            "             nested_kwargs.set_item(\"{}\", PyDict::new_bound(py))?;\n",
-                            field_name
+                            "             {}.set_item(\"{}\", PyDict::new_bound(py))?;\n",
+                            kwargs_dict, field_name
                         ));
                     }
                 }
@@ -344,13 +349,14 @@ fn generate_python_field_construction(
                     &nested_msg.parsed.fields,
                     all_messages,
                     &package,
-                    "item"
+                    "item",
+                    "nested_kwargs"
                 )?;
 
                 Ok(format!(
                     "        {{\n\
                      let nested_list = pyo3::types::PyList::empty_bound(py);\n\
-                     let nested_types = py.import_bound(\"ros_z_python.types.{}\")?;\n\
+                     let nested_types = py.import_bound(\"ros_z_msgs_py.types.{}\")?;\n\
                      let nested_class = nested_types.getattr(\"{}\")?;\n\
                      for item in &rust_msg.{} {{\n\
                      let nested_kwargs = PyDict::new_bound(py);\n\
@@ -398,12 +404,13 @@ fn generate_python_field_construction(
                     &nested_msg.parsed.fields,
                     all_messages,
                     &package,
-                    &nested_item_var
+                    &nested_item_var,
+                    "nested_kwargs"
                 )?;
 
                 Ok(format!(
                     "        {{\n\
-                     let nested_types = py.import_bound(\"ros_z_python.types.{}\")?;\n\
+                     let nested_types = py.import_bound(\"ros_z_msgs_py.types.{}\")?;\n\
                      let nested_class = nested_types.getattr(\"{}\")?;\n\
                      let nested_kwargs = PyDict::new_bound(py);\n\
                      {}\
@@ -519,7 +526,7 @@ fn generate_message_functions(
 
     // Import Python class
     code.push_str(&format!(
-        "        let types = py.import_bound(\"ros_z_python.types.{}\")?\n\
+        "        let types = py.import_bound(\"ros_z_msgs_py.types.{}\")?;\n\
          let msg_class = types.getattr(\"{}\")?;\n\n",
         package, name
     ));
