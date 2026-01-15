@@ -17,6 +17,12 @@ use publisher::*;
 use session::*;
 use subscriber::*;
 
+/// Get list of all registered message types
+#[pyfunction]
+fn list_registered_types() -> Vec<String> {
+    ros_z_msgs::list_registered_types()
+}
+
 /// Python bindings for ros-z: Native Rust ROS 2 implementation using Zenoh
 #[pymodule]
 fn ros_z_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -43,6 +49,7 @@ fn ros_z_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(create_node, m)?)?;
     m.add_function(wrap_pyfunction!(registry::register_message_type, m)?)?;
     m.add_function(wrap_pyfunction!(registry::compute_type_hash, m)?)?;
+    m.add_function(wrap_pyfunction!(list_registered_types, m)?)?;
 
     // Register classes
     m.add_class::<PySession>()?;
