@@ -10,6 +10,7 @@ use crate::publisher::PyZPublisher;
 use crate::subscriber::PyZSubscriber;
 use crate::qos::{qos_from_pydict, QOS_DEFAULT};
 use crate::traits::{ZPubWrapper, ZSubWrapper};
+use crate::utils::python_type_to_rust_type;
 
 #[pyclass(name = "ZNode")]
 pub struct PyZNode {
@@ -52,8 +53,12 @@ impl PyZNode {
                 format!("Invalid type hash format: {}", type_hash_str)
             ))?;
 
-        // Create TypeInfo
-        let type_info = TypeInfo::new(&msg_type, type_hash);
+        // Convert Python-style type name to Rust-style type name
+        // e.g., "std_msgs/msg/String" -> "std_msgs::msg::dds_::String_"
+        let rust_type_name = python_type_to_rust_type(&msg_type);
+
+        // Create TypeInfo with Rust-style type name
+        let type_info = TypeInfo::new(&rust_type_name, type_hash);
 
         // Create publisher based on message type
         // This uses runtime dispatch based on the message type string
@@ -93,8 +98,12 @@ impl PyZNode {
                 format!("Invalid type hash format: {}", type_hash_str)
             ))?;
 
-        // Create TypeInfo
-        let type_info = TypeInfo::new(&msg_type, type_hash);
+        // Convert Python-style type name to Rust-style type name
+        // e.g., "std_msgs/msg/String" -> "std_msgs::msg::dds_::String_"
+        let rust_type_name = python_type_to_rust_type(&msg_type);
+
+        // Create TypeInfo with Rust-style type name
+        let type_info = TypeInfo::new(&rust_type_name, type_hash);
 
         // Create subscriber based on message type
         // This uses runtime dispatch based on the message type string
