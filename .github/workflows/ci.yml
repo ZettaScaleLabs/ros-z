@@ -130,15 +130,21 @@ jobs:
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
           skipPush: true
 
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+       - name: Setup sccache
+         uses: mozilla-actions/sccache-action@v0.0.9
 
-      - name: Setup nix environment
-        run: |
-          nix print-dev-env '.#ros-${{ matrix.distro }}-ci' --accept-flake-config > /tmp/nix-dev-env.sh
-          echo "export SCCACHE_GHA_ENABLED=true" >> /tmp/nix-dev-env.sh
-          echo "export SCCACHE_CACHE_SIZE=1G" >> /tmp/nix-dev-env.sh
-          echo "export RUSTC_WRAPPER=sccache" >> /tmp/nix-dev-env.sh
+       - name: Install Nushell
+         run: |
+           nix profile install nixpkgs#nushell
+           chmod +x scripts/test-ros.nu
+
+       - name: Setup nix environment
+         run: |
+           nix print-dev-env '.#ros-${{ matrix.distro }}-ci' --accept-flake-config > /tmp/nix-dev-env.sh
+           echo "export SCCACHE_GHA_ENABLED=true" >> /tmp/nix-dev-env.sh
+           echo "export SCCACHE_CACHE_SIZE=1G" >> /tmp/nix-dev-env.sh
+           echo "export RUSTC_WRAPPER=sccache" >> /tmp/nix-dev-env.sh
+           echo "export CI=true" >> /tmp/nix-dev-env.sh
 
       - name: Check available disk space
         run: |
@@ -146,84 +152,45 @@ jobs:
           echo "Available space in /home/runner:"
           du -sh /home/runner/* 2>/dev/null | sort -h || true
 
-      - name: Clippy (workspace without rcl-z, without examples)
-        run: |
-          source /tmp/nix-dev-env.sh
-          if [ "${{ matrix.distro }}" = "humble" ]; then
-            cargo clippy --workspace --exclude rcl-z --lib --bins --tests --no-default-features \
-              --features humble -- -D warnings
-          else
-            cargo clippy --workspace --exclude rcl-z --lib --bins --tests -- -D warnings
-          fi
+       - name: Clippy workspace
+         run: |
+           source /tmp/nix-dev-env.sh
+           nu scripts/test-ros.nu ${{ matrix.distro }} clippy-workspace
 
-      - name: Clippy bundled examples
-        run: |
-          source /tmp/nix-dev-env.sh
-          if [ "${{ matrix.distro }}" = "humble" ]; then
-            cargo clippy -p ros-z --examples --no-default-features --features humble -- -D warnings
-          else
-            cargo clippy -p ros-z --examples -- -D warnings
-          fi
+       - name: Clippy bundled examples
+         run: |
+           source /tmp/nix-dev-env.sh
+           nu scripts/test-ros.nu ${{ matrix.distro }} clippy-bundled-examples
 
-      - name: Clippy external_msgs examples
-        run: |
-          source /tmp/nix-dev-env.sh
-          if [ "${{ matrix.distro }}" = "humble" ]; then
-            cargo clippy -p ros-z --examples --no-default-features --features external_msgs,humble -- -D warnings
-          else
-            cargo clippy -p ros-z --examples --features external_msgs -- -D warnings
-          fi
+       - name: Clippy external examples
+         run: |
+           source /tmp/nix-dev-env.sh
+           nu scripts/test-ros.nu ${{ matrix.distro }} clippy-external-examples
 
-      - name: Clippy rcl-z with distro-specific features
-        run: |
-          source /tmp/nix-dev-env.sh
-          if [ "${{ matrix.distro }}" = "humble" ]; then
-            # Humble: lib only (tests use APIs not available in Humble)
-            cargo clippy -p rcl-z --lib --features humble_compat -- -D warnings
-          else
-            # Jazzy+: all targets including tests
-            cargo clippy -p rcl-z --all-targets -- -D warnings
-          fi
+       - name: Clippy rcl-z
+         run: |
+           source /tmp/nix-dev-env.sh
+           nu scripts/test-ros.nu ${{ matrix.distro }} clippy-rclz
 
-      - name: Clean clippy artifacts to save space
-        run: |
-          if [ "${{ matrix.distro }}" = "humble" ]; then
-            # For Humble, do aggressive cleanup
-            cargo clean --release
-            cargo clean --doc
-            rm -rf target/debug/incremental
-            rm -rf target/debug/.fingerprint
-            # Show what we freed
-            df -h
-          fi
+       - name: Cleanup after clippy
+         run: |
+           source /tmp/nix-dev-env.sh
+           nu scripts/test-ros.nu ${{ matrix.distro }} cleanup-after-clippy
 
-      - name: Check rcl-z
-        run: |
-          source /tmp/nix-dev-env.sh
-          if [ "${{ matrix.distro }}" = "humble" ]; then
-            cargo check -p rcl-z --features humble_compat
-          else
-            cargo check -p rcl-z
-          fi
+       - name: Check rcl-z
+         run: |
+           source /tmp/nix-dev-env.sh
+           nu scripts/test-ros.nu ${{ matrix.distro }} check-rclz
 
-      - name: Check ros-z-msgs with all messages
-        run: |
-          source /tmp/nix-dev-env.sh
-          if [ "${{ matrix.distro }}" = "humble" ]; then
-            # Just check all_msgs (includes bundled + external)
-            cargo check -p ros-z-msgs --no-default-features --features all_msgs,humble
-          else
-            # Just check all_msgs (includes bundled + external)
-            cargo check -p ros-z-msgs --features all_msgs
-          fi
+       - name: Check ros-z-msgs all
+         run: |
+           source /tmp/nix-dev-env.sh
+           nu scripts/test-ros.nu ${{ matrix.distro }} check-ros-z-msgs-all
 
-      - name: Check with protobuf feature
-        run: |
-          source /tmp/nix-dev-env.sh
-          # Skip protobuf check for Humble to save disk space
-          if [ "${{ matrix.distro }}" != "humble" ]; then
-            cargo check -p ros-z -p ros-z-msgs --features ros-z/protobuf,ros-z-msgs/protobuf
-          fi
+       - name: Check protobuf
+         run: |
+           source /tmp/nix-dev-env.sh
+           nu scripts/test-ros.nu ${{ matrix.distro }} check-protobuf
 
       - name: Check ros-z (with rcl-z feature)
         run: |
@@ -235,39 +202,20 @@ jobs:
           #   cargo check -p ros-z --features rcl-z
           # fi
 
-      - name: Build examples
-        run: |
-          source /tmp/nix-dev-env.sh
-          if [ "${{ matrix.distro }}" = "humble" ]; then
-            # Build with external_msgs (includes bundled messages too)
-            cargo build --examples --no-default-features --features external_msgs,humble
-          else
-            # Build with external_msgs (includes bundled messages too)
-            cargo build --examples --features external_msgs
-          fi
+       - name: Build examples
+         run: |
+           source /tmp/nix-dev-env.sh
+           nu scripts/test-ros.nu ${{ matrix.distro }} build-examples
 
-      - name: Clean build artifacts to save space
-        run: |
-          # Aggressive cleanup - we only need the examples we just built
-          # Remove all dependencies except the final executables
-          find target/debug/deps -type f ! -name "*.so" -delete 2>/dev/null || true
-          rm -rf target/debug/.fingerprint
-          rm -rf target/debug/incremental
-          rm -rf target/debug/build
-          # Clean up Nix store to free space
-          nix-collect-garbage -d || true
-          # Show disk usage
-          df -h
-          echo "Target directory size:"
-          du -sh target/ 2>/dev/null || true
+       - name: Cleanup after build
+         run: |
+           source /tmp/nix-dev-env.sh
+           nu scripts/test-ros.nu ${{ matrix.distro }} cleanup-after-build
 
-      - name: Build protobuf demo
-        run: |
-          source /tmp/nix-dev-env.sh
-          # Skip protobuf demo for Humble to save disk space
-          if [ "${{ matrix.distro }}" != "humble" ]; then
-            cargo build -p protobuf_demo
-          fi
+       - name: Build protobuf demo
+         run: |
+           source /tmp/nix-dev-env.sh
+           nu scripts/test-ros.nu ${{ matrix.distro }} build-protobuf-demo
 
       - name: Free up disk space before tests
         run: |
@@ -285,13 +233,7 @@ jobs:
           nix-collect-garbage -d || true
           df -h
 
-      - name: Run unit tests
-        run: |
-          source /tmp/nix-dev-env.sh
-          if [ "${{ matrix.distro }}" = "humble" ]; then
-            # Exclude rcl-z for Humble due to missing type hash/description interfaces
-            cargo nextest run --workspace --exclude rcl-z --no-default-features --features humble
-          else
-            # Run all tests for Jazzy and newer distros
-            cargo nextest run --workspace
-          fi
+       - name: Run unit tests
+         run: |
+           source /tmp/nix-dev-env.sh
+           nu scripts/test-ros.nu ${{ matrix.distro }} run-unit-tests
