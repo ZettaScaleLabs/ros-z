@@ -125,6 +125,126 @@ mod std_msgs_registry {
     }
 }
 
+// sensor_msgs registry implementations
+#[cfg(feature = "sensor_msgs")]
+mod sensor_msgs_registry {
+    use super::*;
+    use crate::sensor_msgs::LaserScan;
+    use crate::std_msgs::Header;
+    use crate::builtin_interfaces::Time;
+    use cdr::{CdrLe, Infinite};
+
+    fn serialize_laser_scan(_py: Python, data: &Bound<'_, PyDict>) -> PyResult<Vec<u8>> {
+        // Extract header
+        let header_item = data.get_item("header")?
+            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("Missing 'header' field"))?;
+        let header_dict: &Bound<'_, PyDict> = header_item.downcast()?;
+
+        let stamp_item = header_dict.get_item("stamp")?
+            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("Missing 'header.stamp'"))?;
+        let stamp_dict: &Bound<'_, PyDict> = stamp_item.downcast()?;
+        let stamp = Time {
+            sec: stamp_dict.get_item("sec")?.ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("Missing 'stamp.sec'"))?.extract()?,
+            nanosec: stamp_dict.get_item("nanosec")?.ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("Missing 'stamp.nanosec'"))?.extract()?,
+        };
+
+        let frame_id: String = header_dict.get_item("frame_id")?
+            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("Missing 'header.frame_id'"))?
+            .extract()?;
+
+        let header = Header { stamp, frame_id };
+
+        // Extract other fields
+        let angle_min: f32 = data.get_item("angle_min")?
+            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("Missing 'angle_min'"))?
+            .extract()?;
+        let angle_max: f32 = data.get_item("angle_max")?
+            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("Missing 'angle_max'"))?
+            .extract()?;
+        let angle_increment: f32 = data.get_item("angle_increment")?
+            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("Missing 'angle_increment'"))?
+            .extract()?;
+        let time_increment: f32 = data.get_item("time_increment")?
+            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("Missing 'time_increment'"))?
+            .extract()?;
+        let scan_time: f32 = data.get_item("scan_time")?
+            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("Missing 'scan_time'"))?
+            .extract()?;
+        let range_min: f32 = data.get_item("range_min")?
+            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("Missing 'range_min'"))?
+            .extract()?;
+        let range_max: f32 = data.get_item("range_max")?
+            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("Missing 'range_max'"))?
+            .extract()?;
+        let ranges: Vec<f32> = data.get_item("ranges")?
+            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("Missing 'ranges'"))?
+            .extract()?;
+        let intensities: Vec<f32> = data.get_item("intensities")?
+            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("Missing 'intensities'"))?
+            .extract()?;
+
+        let msg = LaserScan {
+            header,
+            angle_min,
+            angle_max,
+            angle_increment,
+            time_increment,
+            scan_time,
+            range_min,
+            range_max,
+            ranges,
+            intensities,
+        };
+
+        cdr::serialize::<_, _, CdrLe>(&msg, Infinite)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(
+                format!("CDR serialization failed: {}", e)
+            ))
+    }
+
+    fn deserialize_laser_scan(py: Python, bytes: &[u8]) -> PyResult<Py<PyDict>> {
+        let msg: LaserScan = cdr::deserialize::<LaserScan>(bytes)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(
+                format!("CDR deserialization failed: {}", e)
+            ))?;
+
+        let dict = PyDict::new_bound(py);
+
+        // Create header dict
+        let header_dict = PyDict::new_bound(py);
+        let stamp_dict = PyDict::new_bound(py);
+        stamp_dict.set_item("sec", msg.header.stamp.sec)?;
+        stamp_dict.set_item("nanosec", msg.header.stamp.nanosec)?;
+        header_dict.set_item("stamp", stamp_dict)?;
+        header_dict.set_item("frame_id", msg.header.frame_id)?;
+        dict.set_item("header", header_dict)?;
+
+        dict.set_item("angle_min", msg.angle_min)?;
+        dict.set_item("angle_max", msg.angle_max)?;
+        dict.set_item("angle_increment", msg.angle_increment)?;
+        dict.set_item("time_increment", msg.time_increment)?;
+        dict.set_item("scan_time", msg.scan_time)?;
+        dict.set_item("range_min", msg.range_min)?;
+        dict.set_item("range_max", msg.range_max)?;
+        dict.set_item("ranges", msg.ranges)?;
+        dict.set_item("intensities", msg.intensities)?;
+
+        Ok(dict.unbind())
+    }
+
+    pub(crate) fn register() {
+        use crate::MessageTypeInfo;
+
+        let type_info = LaserScan::type_info();
+        super::register_type(
+            "sensor_msgs/msg/LaserScan",
+            serialize_laser_scan,
+            deserialize_laser_scan,
+            &type_info.hash.to_string(),
+        );
+    }
+}
+
 // geometry_msgs registry implementations
 #[cfg(feature = "geometry_msgs")]
 mod geometry_msgs_registry {
@@ -249,6 +369,9 @@ pub fn init_registry() {
 
     #[cfg(feature = "geometry_msgs")]
     geometry_msgs_registry::register();
+
+    #[cfg(feature = "sensor_msgs")]
+    sensor_msgs_registry::register();
 
     // More message types would be registered here...
     // This will be auto-generated in the future

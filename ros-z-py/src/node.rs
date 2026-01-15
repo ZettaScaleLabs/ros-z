@@ -133,7 +133,7 @@ fn create_publisher_for_type(
     type_info: TypeInfo,
     qos: ros_z::qos::QosProfile,
 ) -> PyResult<PyPublisher> {
-    use ros_z_msgs::{std_msgs, geometry_msgs};
+    use ros_z_msgs::{std_msgs, geometry_msgs, sensor_msgs};
 
     // Match on the message type and create the appropriate publisher
     match msg_type {
@@ -158,9 +158,16 @@ fn create_publisher_for_type(
             let wrapper = ZPubWrapper::new(zpub);
             Ok(PyPublisher::new(Box::new(wrapper), msg_type.to_string()))
         }
+        "sensor_msgs/msg/LaserScan" => {
+            let pub_builder = node.create_pub_impl::<sensor_msgs::LaserScan>(topic, Some(type_info))
+                .with_qos(qos);
+            let zpub = pub_builder.build().map_err(|e| e.into_pyerr())?;
+            let wrapper = ZPubWrapper::new(zpub);
+            Ok(PyPublisher::new(Box::new(wrapper), msg_type.to_string()))
+        }
         _ => Err(pyo3::exceptions::PyTypeError::new_err(
             format!("Message type '{}' is registered but not implemented in publisher factory. \
-                     Supported types: std_msgs/msg/String, geometry_msgs/msg/Vector3, geometry_msgs/msg/Twist",
+                     Supported types: std_msgs/msg/String, geometry_msgs/msg/Vector3, geometry_msgs/msg/Twist, sensor_msgs/msg/LaserScan",
                     msg_type)
         ))
     }
@@ -175,7 +182,7 @@ fn create_subscriber_for_type(
     type_info: TypeInfo,
     qos: ros_z::qos::QosProfile,
 ) -> PyResult<PySubscriber> {
-    use ros_z_msgs::{std_msgs, geometry_msgs};
+    use ros_z_msgs::{std_msgs, geometry_msgs, sensor_msgs};
 
     // Match on the message type and create the appropriate subscriber
     match msg_type {
@@ -200,9 +207,16 @@ fn create_subscriber_for_type(
             let wrapper = ZSubWrapper::new(zsub);
             Ok(PySubscriber::new(Box::new(wrapper), msg_type.to_string()))
         }
+        "sensor_msgs/msg/LaserScan" => {
+            let sub_builder = node.create_sub_impl::<sensor_msgs::LaserScan>(topic, Some(type_info))
+                .with_qos(qos);
+            let zsub = sub_builder.build().map_err(|e| e.into_pyerr())?;
+            let wrapper = ZSubWrapper::new(zsub);
+            Ok(PySubscriber::new(Box::new(wrapper), msg_type.to_string()))
+        }
         _ => Err(pyo3::exceptions::PyTypeError::new_err(
             format!("Message type '{}' is registered but not implemented in subscriber factory. \
-                     Supported types: std_msgs/msg/String, geometry_msgs/msg/Vector3, geometry_msgs/msg/Twist",
+                     Supported types: std_msgs/msg/String, geometry_msgs/msg/Vector3, geometry_msgs/msg/Twist, sensor_msgs/msg/LaserScan",
                     msg_type)
         ))
     }
