@@ -40,9 +40,9 @@ impl PyNode {
 
         // Get type hash from registry
         let type_hash_str = ros_z_msgs::get_type_hash(&msg_type)
-            .ok_or_else(|| pyo3::exceptions::PyTypeError::new_err(
-                format!("Unknown message type: {}. Available types: {:?}",
-                    msg_type,
+            .map_err(|e| pyo3::exceptions::PyTypeError::new_err(
+                format!("{}. Available types: {:?}",
+                    e,
                     ros_z_msgs::list_registered_types())
             ))?;
 
@@ -81,9 +81,9 @@ impl PyNode {
 
         // Get type hash from registry
         let type_hash_str = ros_z_msgs::get_type_hash(&msg_type)
-            .ok_or_else(|| pyo3::exceptions::PyTypeError::new_err(
-                format!("Unknown message type: {}. Available types: {:?}",
-                    msg_type,
+            .map_err(|e| pyo3::exceptions::PyTypeError::new_err(
+                format!("{}. Available types: {:?}",
+                    e,
                     ros_z_msgs::list_registered_types())
             ))?;
 

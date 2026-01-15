@@ -61,72 +61,70 @@ fn generate_python_package(
 }
 
 fn rust_to_python_type(field_type: &roslibrust_codegen::FieldType) -> Result<String> {
-    // Convert field type to string and map to Python type
-    let type_str = field_type.to_string();
-    match type_str.as_str() {
-        "bool" => Ok("bool".to_string()),
-        "byte" | "int8" => Ok("int".to_string()),
-        "char" | "uint8" => Ok("int".to_string()),
-        "float32" => Ok("float".to_string()),
-        "float64" => Ok("float".to_string()),
-        "int16" => Ok("int".to_string()),
-        "uint16" => Ok("int".to_string()),
-        "int32" => Ok("int".to_string()),
-        "uint32" => Ok("int".to_string()),
-        "int64" => Ok("int".to_string()),
-        "uint64" => Ok("int".to_string()),
-        "string" => Ok("str".to_string()),
-        "wstring" => Ok("str".to_string()), // Note: wstring not fully supported
-        type_str if type_str.contains("Time") => Ok("dict".to_string()), // Time is a struct with sec/nanosec
-        type_str if type_str.contains("Duration") => Ok("dict".to_string()), // Duration is a struct
-        type_str if type_str.contains("/") => {
-            // Nested type like "std_msgs/String"
-            let parts: Vec<&str> = type_str.split("/").collect();
-            if parts.len() == 3 && parts[1] == "msg" {
-                Ok(format!("\"{}.{}\"", parts[0], parts[2])) // Forward reference to other msgspec structs
+    // Get the base field type (without array indicators)
+    let base_type = &field_type.field_type;
+
+    // Check if this is an array type
+    let is_array = !matches!(
+        field_type.array_info,
+        roslibrust_codegen::ArrayType::NotArray
+    );
+
+    // First check if this is a primitive type
+    let python_type = match base_type.as_str() {
+        "bool" => "bool",
+        "byte" | "int8" | "char" | "uint8" | "int16" | "uint16" | "int32" | "uint32" | "int64" | "uint64" => "int",
+        "float32" | "float64" => "float",
+        "string" | "wstring" => "str",
+        _ => {
+            // Not a primitive type - check if it's a nested message
+            // Try to construct the fully qualified type name
+            if let Some(ref package_name) = field_type.package_name {
+                // Has an explicit package name - it's a nested message
+                return Ok(if is_array {
+                    format!("list[\"{}.{}\"]", package_name, base_type)
+                } else {
+                    format!("\"{}.{}\"", package_name, base_type)
+                });
+            } else if !base_type.contains("/") {
+                // No package prefix and no explicit package_name
+                // This is likely a nested message from the same package or unresolved
+                // Use source_package as fallback
+                let package = &field_type.source_package;
+                return Ok(if is_array {
+                    format!("list[\"{}.{}\"]", package, base_type)
+                } else {
+                    format!("\"{}.{}\"", package, base_type)
+                });
             } else {
-                Err(anyhow::anyhow!("Unsupported nested type: {}", type_str))
-            }
-        }
-        // Handle array types like "int32[]" or "geometry_msgs/Point[]"
-        type_str if type_str.ends_with("[]") => {
-            let element_type = &type_str[..type_str.len() - 2];
-            match element_type {
-                "bool" => Ok("list[bool]".to_string()),
-                "byte" | "int8" => Ok("list[int]".to_string()),
-                "char" | "uint8" => Ok("list[int]".to_string()),
-                "float32" => Ok("list[float]".to_string()),
-                "float64" => Ok("list[float]".to_string()),
-                "int16" => Ok("list[int]".to_string()),
-                "uint16" => Ok("list[int]".to_string()),
-                "int32" => Ok("list[int]".to_string()),
-                "uint32" => Ok("list[int]".to_string()),
-                "int64" => Ok("list[int]".to_string()),
-                "uint64" => Ok("list[int]".to_string()),
-                "string" => Ok("list[str]".to_string()),
-                nested if nested.contains("/") => {
-                    // Nested array type
-                    let parts: Vec<&str> = nested.split("/").collect();
-                    if parts.len() == 3 && parts[1] == "msg" {
-                        Ok(format!("list[\"{}.{}\"]", parts[0], parts[2]))
-                     } else {
-                         Err(anyhow::anyhow!("Unsupported array element type: {}", nested))
-                     }
-                 }
-                 _ => {
-                    // Fallback for unknown array element types
-                    println!("cargo:warning=Unknown array element type '{}', treating as dict", element_type);
-                    Ok("list[dict]".to_string())
+                // Has "/" in the type name - parse it
+                let parts: Vec<&str> = base_type.split("/").collect();
+                if parts.len() == 3 && parts[1] == "msg" {
+                    return Ok(if is_array {
+                        format!("list[\"{}.{}\"]", parts[0], parts[2])
+                    } else {
+                        format!("\"{}.{}\"", parts[0], parts[2])
+                    });
+                } else if parts.len() == 2 {
+                    // Format: "package/Type"
+                    return Ok(if is_array {
+                        format!("list[\"{}.{}\"]", parts[0], parts[1])
+                    } else {
+                        format!("\"{}.{}\"", parts[0], parts[1])
+                    });
+                } else {
+                    return Err(anyhow::anyhow!("Unsupported type format: {}", base_type));
                 }
             }
         }
-        // Fallback for other types - treat as dict (for nested messages without package prefix)
-        _ => {
-            // For unknown types, treat as dict
-            println!("cargo:warning=Unknown field type '{}', treating as dict", type_str);
-            Ok("dict".to_string())
-        }
-    }
+    };
+
+    // Return primitive type, with list wrapper if it's an array
+    Ok(if is_array {
+        format!("list[{}]", python_type)
+    } else {
+        python_type.to_string()
+    })
 }
 
 fn get_python_default(field_type: &roslibrust_codegen::FieldType) -> String {
@@ -181,7 +179,7 @@ fn generate_rust_field_extraction(
                      }},\n",
                     escaped_name, field_name, field_name
                 )),
-                "byte" | "int8" => Ok(format!(
+                "int8" => Ok(format!(
                     "            {}: {{\n\
                      let vec: Vec<i8> = extract_field!(dict, \"{}\", Vec<i8>);\n\
                      vec.try_into().map_err(|_| pyo3::exceptions::PyValueError::new_err(\n\
@@ -189,7 +187,7 @@ fn generate_rust_field_extraction(
                      }},\n",
                     escaped_name, field_name, field_name
                 )),
-                "char" | "uint8" => Ok(format!(
+                "byte" | "char" | "uint8" => Ok(format!(
                     "            {}: {{\n\
                      let vec: Vec<u8> = extract_field!(dict, \"{}\", Vec<u8>);\n\
                      vec.try_into().map_err(|_| pyo3::exceptions::PyValueError::new_err(\n\
@@ -319,11 +317,11 @@ fn generate_rust_field_extraction(
                     "            {}: extract_field!(dict, \"{}\", Vec<bool>),\n",
                     escaped_name, field_name
                 )),
-                "byte" | "int8" => Ok(format!(
+                "int8" => Ok(format!(
                     "            {}: extract_field!(dict, \"{}\", Vec<i8>),\n",
                     escaped_name, field_name
                 )),
-                "char" | "uint8" => Ok(format!(
+                "byte" | "char" | "uint8" => Ok(format!(
                     "            {}: extract_field!(dict, \"{}\", Vec<u8>),\n",
                     escaped_name, field_name
                 )),
@@ -410,11 +408,11 @@ fn generate_rust_field_extraction(
                 "            {}: extract_field!(dict, \"{}\", bool),\n",
                 escaped_name, field_name
             )),
-            "byte" | "int8" => Ok(format!(
+            "int8" => Ok(format!(
                 "            {}: extract_field!(dict, \"{}\", i8),\n",
                 escaped_name, field_name
             )),
-            "char" | "uint8" => Ok(format!(
+            "byte" | "char" | "uint8" => Ok(format!(
                 "            {}: extract_field!(dict, \"{}\", u8),\n",
                 escaped_name, field_name
             )),
@@ -508,8 +506,9 @@ fn generate_nested_fields(
 // Helper to generate nested field constructions with proper field access
 fn generate_python_nested_field_constructions(
     fields: &[roslibrust_codegen::FieldInfo],
-    _all_messages: &HashMap<String, &MessageFile>,
+    all_messages: &HashMap<String, &MessageFile>,
     _current_package: &str,
+    item_var: &str,
 ) -> Result<String> {
     let mut code = String::new();
     for field in fields {
@@ -522,43 +521,119 @@ fn generate_python_nested_field_constructions(
             roslibrust_codegen::ArrayType::NotArray
         );
 
-        // Check if it's a fixed-size array
-        let is_fixed_size = matches!(
-            field.field_type.array_info,
-            roslibrust_codegen::ArrayType::FixedLength(_)
-        );
+        if is_array {
+            // Handle arrays of nested messages recursively
+            let nested_msg_key = if let Some(ref package_name) = field.field_type.package_name {
+                format!("{}/{}", package_name, base_type)
+            } else {
+                format!("{}/{}", field.field_type.source_package, base_type)
+            };
 
-        // For nested constructions, reference item.<field> instead of rust_msg.<field>
-        match base_type.as_str() {
-            "bool" | "byte" | "char" | "int8" | "uint8" | "int16" | "uint16" |
-            "int32" | "uint32" | "int64" | "uint64" | "float32" | "float64" | "string" => {
-                if is_array {
-                    // For arrays (both fixed and dynamic), convert to Python list
-                    if is_fixed_size {
+            if let Some(nested_msg) = all_messages.get(&nested_msg_key) {
+                // Generate recursive construction for array of nested messages
+                let nested_package = if let Some(ref package_name) = field.field_type.package_name {
+                    package_name.clone()
+                } else {
+                    field.field_type.source_package.clone()
+                };
+
+                let inner_constructions = generate_python_nested_field_constructions(
+                    &nested_msg.parsed.fields,
+                    all_messages,
+                    &nested_package,
+                    "inner_item"
+                )?;
+
+                code.push_str(&format!(
+                    "             {{\n\
+                     let inner_list = pyo3::types::PyList::empty_bound(py);\n\
+                     let inner_types = py.import_bound(\"ros_z_python.types.{}\")?;\n\
+                     let inner_class = inner_types.getattr(\"{}\")?;\n\
+                     for inner_item in &{}.{} {{\n\
+                     let inner_kwargs = PyDict::new_bound(py);\n\
+                     {}\
+                     let inner_obj = inner_class.call((), Some(&inner_kwargs))?;\n\
+                     inner_list.append(inner_obj)?;\n\
+                     }}\n\
+                     nested_kwargs.set_item(\"{}\", inner_list)?;\n\
+                     }}\n",
+                    nested_package,
+                    base_type,
+                    item_var,
+                    escaped_name,
+                    inner_constructions,
+                    field_name
+                ));
+            } else {
+                // Fallback for unknown array types
+                code.push_str(&format!(
+                    "             nested_kwargs.set_item(\"{}\", {}.{}.to_vec())?;\n",
+                    field_name, item_var, escaped_name
+                ));
+            }
+        } else {
+            match base_type.as_str() {
+                "bool" | "byte" | "char" | "int8" | "uint8" | "int16" | "uint16" |
+                "int32" | "uint32" | "int64" | "uint64" | "float32" | "float64" => {
+                    code.push_str(&format!(
+                        "             nested_kwargs.set_item(\"{}\", {}.{})?;\n",
+                        field_name, item_var, escaped_name
+                    ));
+                },
+                "string" => {
+                    // For strings, we need to borrow as &str since item_var is often a reference
+                    code.push_str(&format!(
+                        "             nested_kwargs.set_item(\"{}\", &*{}.{})?;\n",
+                        field_name, item_var, escaped_name
+                    ));
+                },
+                _ => {
+                    // Handle nested messages recursively
+                    let nested_msg_key = if let Some(ref package_name) = field.field_type.package_name {
+                        format!("{}/{}", package_name, base_type)
+                    } else {
+                        format!("{}/{}", field.field_type.source_package, base_type)
+                    };
+
+                    if let Some(nested_msg) = all_messages.get(&nested_msg_key) {
+                        let nested_package = if let Some(ref package_name) = field.field_type.package_name {
+                            package_name.clone()
+                        } else {
+                            field.field_type.source_package.clone()
+                        };
+
+                        // Build the field access path for nested structs
+                        let nested_item_var = format!("{}.{}", item_var, escaped_name);
+
+                        let inner_constructions = generate_python_nested_field_constructions(
+                            &nested_msg.parsed.fields,
+                            all_messages,
+                            &nested_package,
+                            &nested_item_var
+                        )?;
+
                         code.push_str(&format!(
-                            "             nested_kwargs.set_item(\"{}\", item.{}.to_vec())?;\n",
-                            field_name, escaped_name
+                            "             {{\n\
+                             let inner_types = py.import_bound(\"ros_z_python.types.{}\")?;\n\
+                             let inner_class = inner_types.getattr(\"{}\")?;\n\
+                             let inner_kwargs = PyDict::new_bound(py);\n\
+                             {}\
+                             let inner_obj = inner_class.call((), Some(&inner_kwargs))?;\n\
+                             nested_kwargs.set_item(\"{}\", inner_obj)?;\n\
+                             }}\n",
+                            nested_package,
+                            base_type,
+                            inner_constructions,
+                            field_name
                         ));
                     } else {
+                        // Fallback for unknown types
                         code.push_str(&format!(
-                            "             nested_kwargs.set_item(\"{}\", &item.{})?;\n",
-                            field_name, escaped_name
+                            "             nested_kwargs.set_item(\"{}\", PyDict::new_bound(py))?;\n",
+                            field_name
                         ));
                     }
-                } else {
-                    code.push_str(&format!(
-                        "             nested_kwargs.set_item(\"{}\", item.{})?;\n",
-                        field_name, escaped_name
-                    ));
                 }
-            },
-            _ => {
-                // For deeply nested messages, add TODO comment
-                code.push_str(&format!(
-                    "             // TODO: Handle deeply nested field {}\n\
-                     nested_kwargs.set_item(\"{}\", PyDict::new_bound(py))?;\n",
-                    base_type, field_name
-                ));
             }
         }
     }
@@ -619,10 +694,12 @@ fn generate_python_field_construction(
                 let nested_msg = all_messages.get(&nested_msg_key)
                     .ok_or_else(|| anyhow::anyhow!("Message {} not found", nested_msg_key))?;
 
+                // For array elements, use "item" as the variable name since we loop over items
                 let nested_constructions = generate_python_nested_field_constructions(
                     &nested_msg.parsed.fields,
                     all_messages,
-                    &package
+                    &package,
+                    "item"
                 )?;
 
                 Ok(format!(
@@ -669,10 +746,14 @@ fn generate_python_field_construction(
                 let nested_msg = all_messages.get(&nested_msg_key)
                     .ok_or_else(|| anyhow::anyhow!("Message {} not found", nested_msg_key))?;
 
+                // Build the field access path for the nested message
+                let nested_item_var = format!("rust_msg.{}", escaped_name);
+
                 let nested_constructions = generate_python_nested_field_constructions(
                     &nested_msg.parsed.fields,
                     all_messages,
-                    &package
+                    &package,
+                    &nested_item_var
                 )?;
 
                 Ok(format!(
@@ -803,7 +884,8 @@ fn generate_message_functions(
     code.push_str(
         "        let msgspec_mod = msg.py().import_bound(\"msgspec.structs\")?;\n\
           let asdict = msgspec_mod.getattr(\"asdict\")?;\n\
-          let dict = asdict.call1((msg,))?.downcast::<PyDict>()?;\n\n"
+          let dict_obj = asdict.call1((msg,))?;\n\
+          let dict = dict_obj.downcast::<PyDict>()?;\n\n"
     );
 
     // Manually construct Rust struct from dict
@@ -912,22 +994,71 @@ fn generate_pymodule_registration(
         "#[pyfunction]\n\
          fn serialize_message(py: Python, type_name: &str, msg: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {\n\
          let registry = py.import_bound(\"ros_z_msgs\")?.getattr(\"REGISTRY\")?;\n\
-         let msg_info = registry.get_item(type_name)?\n\
-         .ok_or_else(|| pyo3::exceptions::PyTypeError::new_err(\n\
+         let msg_info = registry.get_item(type_name)\n\
+         .map_err(|_| pyo3::exceptions::PyTypeError::new_err(\n\
          format!(\"Unknown message type: {}\", type_name)\n\
          ))?;\n\
-         let serialize_fn = msg_info.get_item(\"serialize\")?.unwrap();\n\
+         let serialize_fn = msg_info.get_item(\"serialize\")?;\n\
          serialize_fn.call1((msg,))?.extract()\n\
          }\n\n\
          #[pyfunction]\n\
          fn deserialize_message(py: Python, type_name: &str, bytes: &[u8]) -> PyResult<PyObject> {\n\
          let registry = py.import_bound(\"ros_z_msgs\")?.getattr(\"REGISTRY\")?;\n\
-         let msg_info = registry.get_item(type_name)?\n\
-         .ok_or_else(|| pyo3::exceptions::PyTypeError::new_err(\n\
+         let msg_info = registry.get_item(type_name)\n\
+         .map_err(|_| pyo3::exceptions::PyTypeError::new_err(\n\
          format!(\"Unknown message type: {}\", type_name)\n\
          ))?;\n\
-         let deserialize_fn = msg_info.get_item(\"deserialize\")?.unwrap();\n\
-         deserialize_fn.call1((bytes,))\n\
+         let deserialize_fn = msg_info.get_item(\"deserialize\")?;\n\
+         deserialize_fn.call1((bytes,)).map(|obj| obj.unbind())\n\
+         }\n"
+    );
+
+    // Add Rust API wrappers for use from other Rust crates
+    code.push_str(
+        "\n// Rust API wrappers\n\
+         /// Serialize a Python message to CDR bytes\n\
+         pub fn serialize_to_cdr(type_name: &str, py: Python, msg: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {\n\
+         serialize_message(py, type_name, msg)\n\
+         }\n\n\
+         /// Deserialize CDR bytes to a Python message\n\
+         pub fn deserialize_from_cdr(type_name: &str, py: Python, bytes: &[u8]) -> PyResult<PyObject> {\n\
+         deserialize_message(py, type_name, bytes)\n\
+         }\n\n\
+         /// Get the type hash for a message type\n\
+         pub fn get_type_hash(type_name: &str) -> Result<String, String> {\n\
+         Python::with_gil(|py| {\n\
+         let registry = py.import_bound(\"ros_z_msgs\")\n\
+         .map_err(|e| format!(\"Failed to import ros_z_msgs: {}\", e))?\n\
+         .getattr(\"REGISTRY\")\n\
+         .map_err(|e| format!(\"Failed to get REGISTRY: {}\", e))?;\n\
+         let info_obj = registry.get_item(type_name)\n\
+         .map_err(|_| format!(\"Unknown message type: {}\", type_name))?;\n\
+         let hash = info_obj.get_item(\"hash\")\n\
+         .map_err(|_| \"Missing hash field\".to_string())?;\n\
+         hash.extract::<String>()\n\
+         .map_err(|e| format!(\"Failed to extract hash: {}\", e))\n\
+         })\n\
+         }\n\n\
+         /// List all registered message types\n\
+         pub fn list_registered_types() -> Vec<String> {\n\
+         Python::with_gil(|py| {\n\
+         let registry = py.import_bound(\"ros_z_msgs\")\n\
+         .and_then(|m| m.getattr(\"REGISTRY\"))\n\
+         .ok();\n\
+         registry.and_then(|r| {\n\
+         r.call_method0(\"keys\")\n\
+         .ok()\n\
+         .and_then(|keys| keys.extract::<Vec<String>>().ok())\n\
+         })\n\
+         .unwrap_or_default()\n\
+         })\n\
+         }\n\n\
+         /// Initialize the Python registry (called automatically on module load)\n\
+         pub fn init_registry() {\n\
+         // Registry is initialized when the module is imported\n\
+         Python::with_gil(|py| {\n\
+         let _ = py.import_bound(\"ros_z_msgs\");\n\
+         });\n\
          }\n"
     );
 

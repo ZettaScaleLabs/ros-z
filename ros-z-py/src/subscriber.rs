@@ -26,14 +26,14 @@ impl PySubscriber {
     /// Returns:
     ///     Message as dict, or None if timeout occurred
     #[pyo3(signature = (timeout=None))]
-    unsafe fn recv(&self, py: Python, timeout: Option<f64>) -> PyResult<Option<Py<PyDict>>> {
+    unsafe fn recv(&self, py: Python, timeout: Option<f64>) -> PyResult<Option<PyObject>> {
         let timeout_duration = timeout.map(|s| Duration::from_secs_f64(s));
 
         match self.inner.recv_serialized(timeout_duration) {
             Ok(cdr_bytes) => {
                 // Deserialize CDR bytes to Python dict using the registry
-                let dict = ros_z_msgs::deserialize_from_cdr(&self.type_name, py, &cdr_bytes)?;
-                Ok(Some(dict))
+                let obj = ros_z_msgs::deserialize_from_cdr(&self.type_name, py, &cdr_bytes)?;
+                Ok(Some(obj))
             }
             Err(e) => {
                 // Check if it's a timeout error
@@ -51,12 +51,12 @@ impl PySubscriber {
     ///
     /// Returns:
     ///     Message as dict, or None if no message available
-    unsafe fn try_recv(&self, py: Python) -> PyResult<Option<Py<PyDict>>> {
+    unsafe fn try_recv(&self, py: Python) -> PyResult<Option<PyObject>> {
         match self.inner.try_recv_serialized().map_err(|e| e.into_pyerr())? {
             Some(cdr_bytes) => {
                 // Deserialize CDR bytes to Python dict using the registry
-                let dict = ros_z_msgs::deserialize_from_cdr(&self.type_name, py, &cdr_bytes)?;
-                Ok(Some(dict))
+                let obj = ros_z_msgs::deserialize_from_cdr(&self.type_name, py, &cdr_bytes)?;
+                Ok(Some(obj))
             }
             None => Ok(None),
         }
