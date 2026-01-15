@@ -58,7 +58,7 @@ tokio = { version = "1", features = ["full"] }
 
 **Use when:** You need all ROS 2 message types or custom packages from your workspace
 
-**Requirements:** ROS 2 installation (Rolling, Kilted, Jazzy, etc.)
+**Requirements:** ROS 2 installation (Jazzy, Humble, Rolling, etc.)
 
 **Add to your `Cargo.toml`:**
 
@@ -91,6 +91,25 @@ cargo build --features external_msgs
 ```admonish tip
 Start with Scenario 1 or 2 for development, then move to Scenario 3 when you need full ROS 2 interoperability.
 ```
+
+## ROS 2 Distribution Compatibility
+
+**ros-z defaults to ROS 2 Jazzy compatibility**, which is the recommended distribution for new projects. If you need to target a different distribution like Humble, see the [ROS 2 Distribution Compatibility](./distro_compatibility.md) chapter for detailed instructions.
+
+**Quick reference:**
+
+```bash
+# Default (Jazzy) - works out of the box
+cargo build
+
+# For Humble - use --no-default-features
+cargo build --no-default-features --features humble
+
+# For Rolling/Iron - just add the feature
+cargo build --features rolling
+```
+
+The distribution choice affects type hash support and interoperability with ROS 2 nodes. See the [Distribution Compatibility chapter](./distro_compatibility.md) for full details.
 
 ## Development
 
@@ -164,6 +183,7 @@ After changing feature flags or updating ROS 2, run `cargo clean -p ros-z-msgs` 
 
 ## Next Steps
 
+- **[ROS 2 Distribution Compatibility](./distro_compatibility.md)** - Target Jazzy, Humble, or other distributions
 - **[Running Examples](./examples.md)** - Try out the included examples
 - **[Networking](./config.md)** - Set up Zenoh router and session config
 - **[Message Generation](./message_generation.md)** - Understand how messages work

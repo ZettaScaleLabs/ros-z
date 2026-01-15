@@ -15,6 +15,7 @@
 # User Guide
 
 - [Building](./chapters/building.md)
+- [ROS 2 Distribution Compatibility](./chapters/distro_compatibility.md)
 - [Running Examples](./chapters/examples.md)
 - [Networking](./chapters/config.md)
   - [Configuration Options](./chapters/config_options.md)
