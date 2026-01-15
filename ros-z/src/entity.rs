@@ -10,6 +10,8 @@ const EMPTY_NAMESPACE: &str = "%";
 const EMPTY_ENCLAVE: &str = "%";
 const EMPTY_TOPIC_TYPE: &str = "EMPTY_TOPIC_TYPE";
 const EMPTY_TOPIC_HASH: &str = "EMPTY_TOPIC_HASH";
+#[cfg(feature = "no-type-hash")]
+const HUMBLE_TYPE_HASH_PLACEHOLDER: &str = "TypeHashNotSupported";
 pub const ADMIN_SPACE: &str = "@ros2_lv";
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -133,7 +135,20 @@ impl TypeHash {
         }
     }
 
+    /// Creates a Humble-compatible placeholder TypeHash
+    /// In Humble (rmw_zenoh v0.1.8), type hashes are not supported,
+    /// so a constant placeholder "TypeHashNotSupported" is used instead
+    #[cfg(feature = "humble-compat")]
+    pub const fn humble_placeholder() -> Self {
+        Self::zero() // Use zero hash as placeholder for Humble
+    }
+
     pub fn from_rihs_string(rihs_str: &str) -> Option<Self> {
+        // Handle Humble's placeholder
+        #[cfg(feature = "humble-compat")]
+        if rihs_str == HUMBLE_TYPE_HASH_PLACEHOLDER {
+            return Some(Self::zero());
+        }
         if let Some(hex_part) = rihs_str.strip_prefix("RIHS01_")
             && hex_part.len() == 64
         {
@@ -158,19 +173,28 @@ impl TypeHash {
     }
 
     pub fn to_rihs_string(&self) -> String {
-        match self.version {
-            1 => {
-                let hex_str: String = self.value.iter().map(|b| format!("{:02x}", b)).collect();
-                format!("RIHS01_{}", hex_str)
+        #[cfg(feature = "no-type-hash")]
+        {
+            // In Humble, always use the placeholder regardless of actual hash value
+            HUMBLE_TYPE_HASH_PLACEHOLDER.to_string()
+        }
+
+        #[cfg(not(feature = "no-type-hash"))]
+        {
+            match self.version {
+                1 => {
+                    let hex_str: String = self.value.iter().map(|b| format!("{:02x}", b)).collect();
+                    format!("RIHS01_{}", hex_str)
+                }
+                _ => format!(
+                    "RIHS{:02x}_{}",
+                    self.version,
+                    self.value
+                        .iter()
+                        .map(|b| format!("{:02x}", b))
+                        .collect::<String>()
+                ),
             }
-            _ => format!(
-                "RIHS{:02x}_{}",
-                self.version,
-                self.value
-                    .iter()
-                    .map(|b| format!("{:02x}", b))
-                    .collect::<String>()
-            ),
         }
     }
 }

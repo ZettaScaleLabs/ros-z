@@ -40,3 +40,6 @@ test-all = ["test-core", "test-msgs"]
 
 # Legacy compatibility
 test-rcl = ["test-all"]
+
+# ROS 2 Humble compatibility
+humble_compat = []

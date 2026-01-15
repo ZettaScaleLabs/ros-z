@@ -24,7 +24,7 @@ anyhow = { workspace = true }
 glob = { workspace = true }
 
 [features]
-default = ["bundled_msgs"]
+default = ["bundled_msgs", "jazzy"]
 
 # Bundled messages - available without ROS installation via roslibrust assets
 # These are included in the roslibrust git repository and work offline
@@ -55,3 +55,9 @@ common_interfaces = ["std_msgs", "geometry_msgs", "sensor_msgs"]
 all_msgs = ["bundled_msgs", "external_msgs"]
 
 protobuf = ["prost", "ros-z/protobuf", "ros-z-codegen/protobuf"]
+
+# ROS 2 distro compatibility - propagate to ros-z
+humble = ["ros-z/humble"]
+jazzy = ["ros-z/jazzy"]
+rolling = ["ros-z/rolling"]
+iron = ["ros-z/iron"]

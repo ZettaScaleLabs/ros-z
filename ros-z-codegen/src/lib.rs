@@ -52,6 +52,7 @@ impl MessageGenerator {
                 .into_iter()
                 .filter(|msg| {
                     let full_name = msg.get_full_name();
+                    let msg_name = msg.name.as_str();
 
                     // Filter out actionlib_msgs and old-style Action messages
                     if full_name.starts_with("actionlib_msgs/")
@@ -60,6 +61,14 @@ impl MessageGenerator {
                         || full_name.ends_with("ActionResult")
                         || full_name.ends_with("ActionFeedback")
                     {
+                        return false;
+                    }
+
+                    // Filter out redundant service Request/Response message files
+                    // ROS 2 Humble ships with separate *_Request.msg and *_Response.msg files
+                    // but these are auto-generated from .srv files by roslibrust (with CamelCase naming).
+                    // Filtering these out ensures consistent CamelCase naming across all ROS versions.
+                    if msg_name.ends_with("_Request") || msg_name.ends_with("_Response") {
                         return false;
                     }
 

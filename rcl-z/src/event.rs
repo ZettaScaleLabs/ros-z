@@ -20,6 +20,8 @@ pub(crate) static EVENT_MAP: OnceLock<Mutex<HashMap<usize, Box<EventImpl>>>> = O
 
 pub const ZENOH_EVENT_ID_MAX: usize = 11;
 
+// Jazzy+ version with type matching events
+#[cfg(not(ros_humble))]
 impl From<rcl_publisher_event_type_t> for rmw_event_type_t {
     fn from(event_type: rcl_publisher_event_type_t) -> Self {
         match event_type {
@@ -32,6 +34,20 @@ impl From<rcl_publisher_event_type_t> for rmw_event_type_t {
     }
 }
 
+// Humble version without type matching events
+#[cfg(ros_humble)]
+impl From<rcl_publisher_event_type_t> for rmw_event_type_t {
+    fn from(event_type: rcl_publisher_event_type_t) -> Self {
+        match event_type {
+            rcl_publisher_event_type_t::RCL_PUBLISHER_OFFERED_DEADLINE_MISSED => rmw_event_type_t::RMW_EVENT_OFFERED_DEADLINE_MISSED,
+            rcl_publisher_event_type_t::RCL_PUBLISHER_LIVELINESS_LOST => rmw_event_type_t::RMW_EVENT_LIVELINESS_LOST,
+            rcl_publisher_event_type_t::RCL_PUBLISHER_OFFERED_INCOMPATIBLE_QOS => rmw_event_type_t::RMW_EVENT_OFFERED_QOS_INCOMPATIBLE,
+        }
+    }
+}
+
+// Jazzy+ version with type matching events
+#[cfg(not(ros_humble))]
 impl From<rcl_subscription_event_type_t> for rmw_event_type_t {
     fn from(event_type: rcl_subscription_event_type_t) -> Self {
         match event_type {
@@ -45,6 +61,21 @@ impl From<rcl_subscription_event_type_t> for rmw_event_type_t {
     }
 }
 
+// Humble version without type matching events
+#[cfg(ros_humble)]
+impl From<rcl_subscription_event_type_t> for rmw_event_type_t {
+    fn from(event_type: rcl_subscription_event_type_t) -> Self {
+        match event_type {
+            rcl_subscription_event_type_t::RCL_SUBSCRIPTION_REQUESTED_DEADLINE_MISSED => rmw_event_type_t::RMW_EVENT_REQUESTED_DEADLINE_MISSED,
+            rcl_subscription_event_type_t::RCL_SUBSCRIPTION_LIVELINESS_CHANGED => rmw_event_type_t::RMW_EVENT_LIVELINESS_CHANGED,
+            rcl_subscription_event_type_t::RCL_SUBSCRIPTION_REQUESTED_INCOMPATIBLE_QOS => rmw_event_type_t::RMW_EVENT_REQUESTED_QOS_INCOMPATIBLE,
+            rcl_subscription_event_type_t::RCL_SUBSCRIPTION_MESSAGE_LOST => rmw_event_type_t::RMW_EVENT_MESSAGE_LOST,
+        }
+    }
+}
+
+// Jazzy+ version with type matching events
+#[cfg(not(ros_humble))]
 impl From<rmw_event_type_t> for Option<ZenohEventType> {
     fn from(rmw_event: rmw_event_type_t) -> Self {
         match rmw_event {
@@ -55,6 +86,23 @@ impl From<rmw_event_type_t> for Option<ZenohEventType> {
             rmw_event_type_t::RMW_EVENT_PUBLICATION_MATCHED => Some(ZenohEventType::PublicationMatched),
             rmw_event_type_t::RMW_EVENT_SUBSCRIPTION_INCOMPATIBLE_TYPE => Some(ZenohEventType::SubscriptionIncompatibleType),
             rmw_event_type_t::RMW_EVENT_PUBLISHER_INCOMPATIBLE_TYPE => Some(ZenohEventType::PublisherIncompatibleType),
+            rmw_event_type_t::RMW_EVENT_OFFERED_DEADLINE_MISSED => Some(ZenohEventType::OfferedDeadlineMissed),
+            rmw_event_type_t::RMW_EVENT_REQUESTED_DEADLINE_MISSED => Some(ZenohEventType::RequestedDeadlineMissed),
+            rmw_event_type_t::RMW_EVENT_LIVELINESS_LOST => Some(ZenohEventType::LivelinessLost),
+            rmw_event_type_t::RMW_EVENT_LIVELINESS_CHANGED => Some(ZenohEventType::LivelinessChanged),
+            _ => None,
+        }
+    }
+}
+
+// Humble version without type matching events
+#[cfg(ros_humble)]
+impl From<rmw_event_type_t> for Option<ZenohEventType> {
+    fn from(rmw_event: rmw_event_type_t) -> Self {
+        match rmw_event {
+            rmw_event_type_t::RMW_EVENT_REQUESTED_QOS_INCOMPATIBLE => Some(ZenohEventType::RequestedQosIncompatible),
+            rmw_event_type_t::RMW_EVENT_OFFERED_QOS_INCOMPATIBLE => Some(ZenohEventType::OfferedQosIncompatible),
+            rmw_event_type_t::RMW_EVENT_MESSAGE_LOST => Some(ZenohEventType::MessageLost),
             rmw_event_type_t::RMW_EVENT_OFFERED_DEADLINE_MISSED => Some(ZenohEventType::OfferedDeadlineMissed),
             rmw_event_type_t::RMW_EVENT_REQUESTED_DEADLINE_MISSED => Some(ZenohEventType::RequestedDeadlineMissed),
             rmw_event_type_t::RMW_EVENT_LIVELINESS_LOST => Some(ZenohEventType::LivelinessLost),
@@ -221,10 +269,19 @@ pub unsafe extern "C" fn rcl_publisher_event_init(
     let rmw_event_type = rmw_event_type_t::from(event_type);
 
     // Convert to Zenoh event type
+    #[cfg(not(ros_humble))]
     let zenoh_event_type = match rmw_event_type {
         rmw_event_type_t::RMW_EVENT_PUBLICATION_MATCHED => ZenohEventType::PublicationMatched,
         rmw_event_type_t::RMW_EVENT_OFFERED_QOS_INCOMPATIBLE => ZenohEventType::OfferedQosIncompatible,
         rmw_event_type_t::RMW_EVENT_PUBLISHER_INCOMPATIBLE_TYPE => ZenohEventType::PublisherIncompatibleType,
+        rmw_event_type_t::RMW_EVENT_OFFERED_DEADLINE_MISSED => ZenohEventType::OfferedDeadlineMissed,
+        rmw_event_type_t::RMW_EVENT_LIVELINESS_LOST => ZenohEventType::LivelinessLost,
+        _ => return RCL_RET_INVALID_ARGUMENT as _,
+    };
+
+    #[cfg(ros_humble)]
+    let zenoh_event_type = match rmw_event_type {
+        rmw_event_type_t::RMW_EVENT_OFFERED_QOS_INCOMPATIBLE => ZenohEventType::OfferedQosIncompatible,
         rmw_event_type_t::RMW_EVENT_OFFERED_DEADLINE_MISSED => ZenohEventType::OfferedDeadlineMissed,
         rmw_event_type_t::RMW_EVENT_LIVELINESS_LOST => ZenohEventType::LivelinessLost,
         _ => return RCL_RET_INVALID_ARGUMENT as _,
@@ -284,11 +341,21 @@ pub unsafe extern "C" fn rcl_subscription_event_init(
     let rmw_event_type = rmw_event_type_t::from(event_type);
 
     // Convert to Zenoh event type
+    #[cfg(not(ros_humble))]
     let zenoh_event_type = match rmw_event_type {
         rmw_event_type_t::RMW_EVENT_SUBSCRIPTION_MATCHED => ZenohEventType::SubscriptionMatched,
         rmw_event_type_t::RMW_EVENT_REQUESTED_QOS_INCOMPATIBLE => ZenohEventType::RequestedQosIncompatible,
         rmw_event_type_t::RMW_EVENT_MESSAGE_LOST => ZenohEventType::MessageLost,
         rmw_event_type_t::RMW_EVENT_SUBSCRIPTION_INCOMPATIBLE_TYPE => ZenohEventType::SubscriptionIncompatibleType,
+        rmw_event_type_t::RMW_EVENT_REQUESTED_DEADLINE_MISSED => ZenohEventType::RequestedDeadlineMissed,
+        rmw_event_type_t::RMW_EVENT_LIVELINESS_CHANGED => ZenohEventType::LivelinessChanged,
+        _ => return RCL_RET_INVALID_ARGUMENT as _,
+    };
+
+    #[cfg(ros_humble)]
+    let zenoh_event_type = match rmw_event_type {
+        rmw_event_type_t::RMW_EVENT_REQUESTED_QOS_INCOMPATIBLE => ZenohEventType::RequestedQosIncompatible,
+        rmw_event_type_t::RMW_EVENT_MESSAGE_LOST => ZenohEventType::MessageLost,
         rmw_event_type_t::RMW_EVENT_REQUESTED_DEADLINE_MISSED => ZenohEventType::RequestedDeadlineMissed,
         rmw_event_type_t::RMW_EVENT_LIVELINESS_CHANGED => ZenohEventType::LivelinessChanged,
         _ => return RCL_RET_INVALID_ARGUMENT as _,

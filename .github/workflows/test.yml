@@ -8,10 +8,18 @@ on:
 
 jobs:
   interop_test:
-    name: Interop tests with ROS 2 Jazzy
+    name: Interop tests with ROS 2 ${{ matrix.distro }}
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        distro: [humble, jazzy]
+        include:
+          - distro: humble
+            image: rostooling/setup-ros-docker:ubuntu-jammy-ros-humble-ros-base-latest
+          - distro: jazzy
+            image: rostooling/setup-ros-docker:ubuntu-noble-ros-jazzy-ros-base-latest
     container:
-      image: rostooling/setup-ros-docker:ubuntu-noble-ros-jazzy-ros-base-latest
+      image: ${{ matrix.image }}
     steps:
       - name: Install system dependencies
         run: apt-get update && apt-get install -y nodejs
@@ -19,10 +27,10 @@ jobs:
       - name: Install ROS dependencies
         run: |
           apt-get install -y \
-            ros-jazzy-example-interfaces \
-            ros-jazzy-rmw-zenoh-cpp \
-            ros-jazzy-demo-nodes-cpp \
-            ros-jazzy-action-tutorials-cpp \
+            ros-${{ matrix.distro }}-example-interfaces \
+            ros-${{ matrix.distro }}-rmw-zenoh-cpp \
+            ros-${{ matrix.distro }}-demo-nodes-cpp \
+            ros-${{ matrix.distro }}-action-tutorials-cpp \
             protobuf-compiler
 
       - uses: actions/checkout@v4
@@ -37,6 +45,10 @@ jobs:
       - name: Run interop tests
         shell: bash
         run: |
-          source /opt/ros/jazzy/setup.bash
+          source /opt/ros/${{ matrix.distro }}/setup.bash
           export RMW_IMPLEMENTATION=rmw_zenoh_cpp
-          cargo nextest run -p ros-z-tests --features interop-tests --release
+          if [ "${{ matrix.distro }}" = "humble" ]; then
+            cargo nextest run -p ros-z-tests --no-default-features --features interop-tests,humble --release
+          else
+            cargo nextest run -p ros-z-tests --features interop-tests,${{ matrix.distro }} --release
+          fi

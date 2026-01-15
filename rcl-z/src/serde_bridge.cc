@@ -37,7 +37,13 @@ bool serialize_message(const rosidl_message_type_support_t *ts, const void *ros_
     auto callbacks = static_cast<const message_type_support_callbacks_t *>(ts->data);
 
     eprosima::fastcdr::FastBuffer buffer(reinterpret_cast<char *>(out.data()), out.size());
+#ifdef HAS_FASTCDR_V2
+    // FastCDR 1.1.0+ (Jazzy and newer) - supports CdrVersion parameter
     eprosima::fastcdr::Cdr ser(buffer, eprosima::fastcdr::Cdr::DEFAULT_ENDIAN, eprosima::fastcdr::CdrVersion::DDS_CDR);
+#else
+    // FastCDR 1.0.x (Humble) - no CdrVersion parameter
+    eprosima::fastcdr::Cdr ser(buffer, eprosima::fastcdr::Cdr::DEFAULT_ENDIAN);
+#endif
 
     ser.serialize_encapsulation();
     return callbacks->cdr_serialize(ros_message, ser);

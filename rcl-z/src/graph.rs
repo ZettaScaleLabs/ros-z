@@ -12,6 +12,8 @@ use crate::utils::str_from_ptr;
 use ros_z::entity::{EndpointEntity, EntityKind, NodeKey};
 use ros_z::qos::{QosDurability, QosHistory, QosProfile, QosReliability};
 
+// Jazzy+ version with type hash support
+#[cfg(not(ros_humble))]
 impl TryFrom<EndpointEntity> for rmw_topic_endpoint_info_t {
     type Error = NulError;
     fn try_from(value: EndpointEntity) -> Result<Self, Self::Error> {
@@ -68,6 +70,60 @@ impl TryFrom<EndpointEntity> for rmw_topic_endpoint_info_t {
             node_namespace,
             topic_type,
             topic_type_hash,
+            endpoint_type,
+            endpoint_gid,
+            qos_profile,
+        })
+    }
+}
+
+// Humble version without type hash support
+#[cfg(ros_humble)]
+impl TryFrom<EndpointEntity> for rmw_topic_endpoint_info_t {
+    type Error = NulError;
+    fn try_from(value: EndpointEntity) -> Result<Self, Self::Error> {
+        let node_name = CString::from_str(&value.node.name)?.into_raw();
+        // Use "/" as default namespace if empty
+        let node_namespace = if value.node.namespace.is_empty() {
+            CString::from_str("/")?.into_raw()
+        } else {
+            CString::from_str(&value.node.namespace)?.into_raw()
+        };
+        // Convert DDS type name (e.g., "test_msgs::msg::dds_::Strings_") to ROS format ("test_msgs/msg/Strings")
+        let topic_type = match &value.type_info {
+            Some(info) => {
+                let dds_name = &info.name;
+                // Convert :: to / and remove "dds_::" and trailing "_"
+                let ros_name = dds_name
+                    .replace("::msg::dds_::", "/msg/")
+                    .replace("::srv::dds_::", "/srv/")
+                    .replace("::action::dds_::", "/action/")
+                    .trim_end_matches('_')
+                    .to_string();
+                CString::from_str(&ros_name)?.into_raw()
+            }
+            None => std::ptr::null(),
+        };
+
+        // Convert EntityKind to rmw_endpoint_type_t
+        let endpoint_type = match value.kind {
+            EntityKind::Publisher => rmw_endpoint_type_e::RMW_ENDPOINT_PUBLISHER,
+            EntityKind::Subscription => rmw_endpoint_type_e::RMW_ENDPOINT_SUBSCRIPTION,
+            _ => rmw_endpoint_type_e::RMW_ENDPOINT_INVALID,
+        };
+
+        // Get GID from EndpointEntity - Humble uses 24 bytes, so pad the 16-byte GID
+        let gid_16 = value.gid();
+        let mut endpoint_gid = [0u8; 24];
+        endpoint_gid[0..16].copy_from_slice(&gid_16);
+
+        // Convert QosProfile to rmw_qos_profile_t
+        let qos_profile = (&value.qos).into();
+
+        Ok(rmw_topic_endpoint_info_s {
+            node_name,
+            node_namespace,
+            topic_type,
             endpoint_type,
             endpoint_gid,
             qos_profile,

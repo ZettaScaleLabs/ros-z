@@ -7,17 +7,28 @@ fn test_type_hash_zero() {
 
     assert_eq!(zero_hash.version, 1);
     assert_eq!(zero_hash.value, [0u8; 32]);
-    assert_eq!(
-        zero_hash.to_rihs_string(),
-        "RIHS01_0000000000000000000000000000000000000000000000000000000000000000"
-    );
 
-    // It should be equivalent to parsing the zero hash string
-    let parsed_zero = TypeHash::from_rihs_string(
-        "RIHS01_0000000000000000000000000000000000000000000000000000000000000000",
-    )
-    .unwrap();
-    assert_eq!(zero_hash, parsed_zero);
+    #[cfg(feature = "no-type-hash")]
+    {
+        // Humble: uses placeholder
+        assert_eq!(zero_hash.to_rihs_string(), "TypeHashNotSupported");
+    }
+
+    #[cfg(not(feature = "no-type-hash"))]
+    {
+        // Jazzy/Rolling: uses actual hash
+        assert_eq!(
+            zero_hash.to_rihs_string(),
+            "RIHS01_0000000000000000000000000000000000000000000000000000000000000000"
+        );
+
+        // It should be equivalent to parsing the zero hash string
+        let parsed_zero = TypeHash::from_rihs_string(
+            "RIHS01_0000000000000000000000000000000000000000000000000000000000000000",
+        )
+        .unwrap();
+        assert_eq!(zero_hash, parsed_zero);
+    }
 }
 
 // Mock message type for testing
@@ -33,10 +44,17 @@ impl MessageTypeInfo for MockMessage {
     }
 
     fn type_hash() -> TypeHash {
-        TypeHash::from_rihs_string(
-            "RIHS01_1111111111111111111111111111111111111111111111111111111111111111",
-        )
-        .unwrap()
+        #[cfg(feature = "no-type-hash")]
+        {
+            TypeHash::zero()
+        }
+        #[cfg(not(feature = "no-type-hash"))]
+        {
+            TypeHash::from_rihs_string(
+                "RIHS01_1111111111111111111111111111111111111111111111111111111111111111",
+            )
+            .unwrap()
+        }
     }
 
     // Override dynamic methods to return instance-specific values
@@ -57,16 +75,27 @@ fn test_static_type_info() {
     let static_info = MockMessage::type_info();
 
     assert_eq!(static_name, "mock::StaticMessage");
-    assert_eq!(
-        static_hash.to_rihs_string(),
-        "RIHS01_1111111111111111111111111111111111111111111111111111111111111111"
-    );
+
+    #[cfg(feature = "no-type-hash")]
+    {
+        assert_eq!(static_hash.to_rihs_string(), "TypeHashNotSupported");
+    }
+    #[cfg(not(feature = "no-type-hash"))]
+    {
+        assert_eq!(
+            static_hash.to_rihs_string(),
+            "RIHS01_1111111111111111111111111111111111111111111111111111111111111111"
+        );
+    }
+
     assert_eq!(static_info.name, "mock::StaticMessage");
 }
 
 #[test]
+#[cfg(not(feature = "no-type-hash"))]
 fn test_dynamic_type_info() {
     // Dynamic methods work with instance-specific data
+    // Skip this test for Humble since it uses hardcoded RIHS01 hashes
     let msg1 = MockMessage {
         name: "geometry_msgs::msg::dds_::Vector3_".to_string(),
         hash: TypeHash::from_rihs_string(
@@ -116,10 +145,17 @@ fn test_default_dynamic_delegates_to_static() {
         }
 
         fn type_hash() -> TypeHash {
-            TypeHash::from_rihs_string(
-                "RIHS01_4444444444444444444444444444444444444444444444444444444444444444",
-            )
-            .unwrap()
+            #[cfg(feature = "no-type-hash")]
+            {
+                TypeHash::zero()
+            }
+            #[cfg(not(feature = "no-type-hash"))]
+            {
+                TypeHash::from_rihs_string(
+                    "RIHS01_4444444444444444444444444444444444444444444444444444444444444444",
+                )
+                .unwrap()
+            }
         }
     }
 
@@ -127,8 +163,16 @@ fn test_default_dynamic_delegates_to_static() {
 
     // Dynamic methods delegate to static by default
     assert_eq!(msg.type_name_dyn(), "simple::Message");
-    assert_eq!(
-        msg.type_hash_dyn().to_rihs_string(),
-        "RIHS01_4444444444444444444444444444444444444444444444444444444444444444"
-    );
+
+    #[cfg(feature = "no-type-hash")]
+    {
+        assert_eq!(msg.type_hash_dyn().to_rihs_string(), "TypeHashNotSupported");
+    }
+    #[cfg(not(feature = "no-type-hash"))]
+    {
+        assert_eq!(
+            msg.type_hash_dyn().to_rihs_string(),
+            "RIHS01_4444444444444444444444444444444444444444444444444444444444444444"
+        );
+    }
 }

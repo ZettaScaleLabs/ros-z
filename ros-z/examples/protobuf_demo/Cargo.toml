@@ -26,3 +26,10 @@ clap = { workspace = true, features = ["derive"] }
 
 [build-dependencies]
 prost-build = { workspace = true }
+
+[features]
+# ROS 2 distro compatibility - pass-through to dependencies
+humble = ["ros-z/humble", "ros-z-msgs/humble"]
+jazzy = ["ros-z/jazzy", "ros-z-msgs/jazzy"]
+rolling = ["ros-z/rolling", "ros-z-msgs/rolling"]
+iron = ["ros-z/iron", "ros-z-msgs/iron"]

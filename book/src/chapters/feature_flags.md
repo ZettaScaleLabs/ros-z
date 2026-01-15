@@ -10,6 +10,7 @@ Feature flags enable pay-per-use dependencies. Start minimal and enable features
 
 | Category | Purpose | Example Features |
 |----------|---------|------------------|
+| **Distribution** | Target specific ROS 2 versions | `humble`, `jazzy`, `rolling` |
 | **Message Packages** | Enable ROS 2 message types | `std_msgs`, `geometry_msgs` |
 | **Serialization** | Additional encoding formats | `protobuf` |
 | **Integration** | External system bindings | `rcl-z`, `external_msgs` |
@@ -36,6 +37,60 @@ cargo build -p ros-z --features protobuf
 ```admonish info
 Protobuf is optional. CDR serialization (default) provides full ROS 2 compatibility without additional dependencies.
 ```
+
+## Distribution Compatibility Features
+
+**ros-z defaults to ROS 2 Jazzy**. Use distribution features to target other ROS 2 versions.
+
+### `jazzy` (default)
+
+Targets ROS 2 Jazzy Jalisco with modern type hash support.
+
+```bash
+# Automatically enabled (default)
+cargo build
+
+# Explicitly enable
+cargo build --features jazzy
+```
+
+**Features:**
+
+- ✅ Type hash support (RIHS01)
+- ✅ Shared memory optimization
+- ✅ Modern ROS 2 protocol
+
+### `humble`
+
+Targets ROS 2 Humble Hawksbill (LTS) with legacy compatibility.
+
+```bash
+# Disable defaults and enable humble
+cargo build --no-default-features --features humble
+```
+
+**Features:**
+
+- ❌ No type hash (uses placeholder)
+- ❌ No shared memory support
+- ✅ LTS support until 2027
+- ✅ Compatible with rmw_zenoh_cpp v0.1.8
+
+**Important:** Humble requires `--no-default-features` to avoid conflicts with the jazzy default.
+
+### `rolling` and `iron`
+
+Target newer distributions:
+
+```bash
+# Rolling
+cargo build --features rolling
+
+# Iron
+cargo build --features iron
+```
+
+**See also:** [ROS 2 Distribution Compatibility](./distro_compatibility.md) for detailed documentation.
 
 ### `rcl-z`
 
@@ -290,6 +345,9 @@ cargo build -p ros-z --features protobuf
 | Package | Feature | Requires ROS 2 | Adds Dependencies |
 |---------|---------|----------------|-------------------|
 | ros-z | (none) | No | None |
+| ros-z | jazzy (default) | No | None |
+| ros-z | humble | No | None |
+| ros-z | rolling | No | None |
 | ros-z | protobuf | No | prost, prost-types |
 | ros-z | rcl-z | Yes | RCL libraries |
 | ros-z | external_msgs | Yes (propagated) | None |
@@ -297,6 +355,8 @@ cargo build -p ros-z --features protobuf
 | ros-z-msgs | bundled_msgs | No | None (bundled) |
 | ros-z-msgs | external_msgs | Yes | None (uses system) |
 | ros-z-msgs | protobuf | No | prost, prost-types |
+| ros-z-msgs | jazzy (default) | No | None |
+| ros-z-msgs | humble | No | None |
 | ros-z-codegen | protobuf | No | prost-build |
 
 ## Checking Active Features
@@ -376,6 +436,7 @@ cargo run --example z_custom_message  # No features needed
 ## Resources
 
 - **[Building Guide](./building.md)** - Build procedures for each scenario
+- **[ROS 2 Distribution Compatibility](./distro_compatibility.md)** - Target Jazzy, Humble, or other distributions
 - **[Message Generation](./message_generation.md)** - How messages are generated
 
 **Start with default features and add more as your project evolves. Feature flags provide flexibility without forcing early architectural decisions.**
