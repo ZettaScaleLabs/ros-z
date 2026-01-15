@@ -213,10 +213,10 @@
 </ul>
 <h3 id="example-key-expressions"><a class="header" href="#example-key-expressions">Example Key Expressions</a></h3>
 <p><strong>Jazzy:</strong></p>
-<pre><code>@ros2_lv/0/&lt;zid&gt;/&lt;nid&gt;/&lt;eid&gt;/MP/%/&lt;namespace&gt;/&lt;node&gt;/chatter/std_msgs%msg%String/RIHS01_1234567890abcdef.../...
+<pre><code class="language-text">@ros2_lv/0/&lt;zid&gt;/&lt;nid&gt;/&lt;eid&gt;/MP/%/&lt;namespace&gt;/&lt;node&gt;/chatter/std_msgs%msg%String/RIHS01_1234567890abcdef.../...
 </code></pre>
 <p><strong>Humble:</strong></p>
-<pre><code>@ros2_lv/0/&lt;zid&gt;/&lt;nid&gt;/&lt;eid&gt;/MP/%/&lt;namespace&gt;/&lt;node&gt;/chatter/std_msgs%msg%String/TypeHashNotSupported/...
+<pre><code class="language-text">@ros2_lv/0/&lt;zid&gt;/&lt;nid&gt;/&lt;eid&gt;/MP/%/&lt;namespace&gt;/&lt;node&gt;/chatter/std_msgs%msg%String/TypeHashNotSupported/...
 </code></pre>
 <h3 id="other-differences"><a class="header" href="#other-differences">Other Differences</a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Feature</th><th>Humble</th><th>Jazzy/Rolling</th></tr></thead><tbody>
@@ -342,6 +342,7 @@ cargo build --no-default-features --features humble
             cargo build --features ${{ matrix.distro }}
             cargo nextest run --features ${{ matrix.distro }}
           fi
+
 </code></pre>
 <h2 id="interoperability-testing"><a class="header" href="#interoperability-testing">Interoperability Testing</a></h2>
 <p>The ros-z test suite includes interoperability tests with actual ROS 2 nodes:</p>
@@ -364,7 +365,7 @@ cargo nextest run -p ros-z-tests --no-default-features --features interop-tests,
 </ul>
 <h2 id="choosing-a-distribution"><a class="header" href="#choosing-a-distribution">Choosing a Distribution</a></h2>
 <h3 id="for-new-projects"><a class="header" href="#for-new-projects">For New Projects</a></h3>
-<p><strong>Recommendation: Use Jazzy (default)</strong></p>
+<h4 id="recommendation-use-jazzy-default"><a class="header" href="#recommendation-use-jazzy-default">Recommendation: Use Jazzy (default)</a></h4>
 <p>Jazzy is the latest stable release with:</p>
 <ul>
 <li>✅ Modern type hash support for type safety</li>
@@ -387,7 +388,7 @@ cargo nextest run -p ros-z-tests --no-default-features --features interop-tests,
 </ul>
 <h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
 <h3 id="feature-conflict-error"><a class="header" href="#feature-conflict-error">Feature Conflict Error</a></h3>
-<pre><code>error: the following features cannot be enabled at the same time
+<pre><code class="language-text">error: the following features cannot be enabled at the same time
 </code></pre>
 <p><strong>Solution:</strong> Use <code>--no-default-features</code> when enabling Humble:</p>
 <pre><code class="language-bash">cargo build --no-default-features --features humble
