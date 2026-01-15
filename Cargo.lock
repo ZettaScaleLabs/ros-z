@@ -691,6 +691,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "dashmap"
+version = "5.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "978747c1d849a7d2ee5e8adc0159961c48fb7e5db2f06af6723b80123bb53856"
+dependencies = [
+ "cfg-if",
+ "hashbrown 0.14.5",
+ "lock_api",
+ "once_cell",
+ "parking_lot_core",
+]
+
+[[package]]
 name = "data-encoding"
 version = "2.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -761,7 +774,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -800,7 +813,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1286,6 +1299,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "indoc"
+version = "2.0.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "79cf5c93f93228cf8efb3ba362535fb11199ac548a09ce117c9b1adc3030d706"
+dependencies = [
+ "rustversion",
+]
+
+[[package]]
 name = "inout"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1533,6 +1555,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f52b00d39961fc5b2736ea853c9cc86238e165017a493d1d5c8eac6bdc4cc273"
 
 [[package]]
+name = "memoffset"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "488016bfae457b036d996092f6cb448677611ce4449e970ceaf42695203f218a"
+dependencies = [
+ "autocfg",
+]
+
+[[package]]
 name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1632,7 +1663,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1964,6 +1995,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "portable-atomic"
+version = "1.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f89776e4d69bb58bc6993e99ffa1d11f228b839984854c7daeb5d37f87cbe950"
+
+[[package]]
 name = "potential_utf"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2071,12 +2108,77 @@ dependencies = [
 name = "protobuf_demo"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "prost",
  "prost-build",
  "ros-z",
  "ros-z-msgs",
  "serde",
+ "tokio",
  "zenoh",
+]
+
+[[package]]
+name = "pyo3"
+version = "0.22.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f402062616ab18202ae8319da13fa4279883a2b8a9d9f83f20dbade813ce1884"
+dependencies = [
+ "cfg-if",
+ "indoc",
+ "libc",
+ "memoffset",
+ "once_cell",
+ "portable-atomic",
+ "pyo3-build-config",
+ "pyo3-ffi",
+ "pyo3-macros",
+ "unindent",
+]
+
+[[package]]
+name = "pyo3-build-config"
+version = "0.22.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b14b5775b5ff446dd1056212d778012cbe8a0fbffd368029fd9e25b514479c38"
+dependencies = [
+ "once_cell",
+ "target-lexicon",
+]
+
+[[package]]
+name = "pyo3-ffi"
+version = "0.22.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ab5bcf04a2cdcbb50c7d6105de943f543f9ed92af55818fd17b660390fc8636"
+dependencies = [
+ "libc",
+ "pyo3-build-config",
+]
+
+[[package]]
+name = "pyo3-macros"
+version = "0.22.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0fd24d897903a9e6d80b968368a34e1525aeb719d568dba8b3d4bfa5dc67d453"
+dependencies = [
+ "proc-macro2",
+ "pyo3-macros-backend",
+ "quote",
+ "syn 2.0.110",
+]
+
+[[package]]
+name = "pyo3-macros-backend"
+version = "0.22.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "36c011a03ba1e50152b4b394b479826cad97e7a21eb52df179cd91ac411cbfbe"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "pyo3-build-config",
+ "quote",
+ "syn 2.0.110",
 ]
 
 [[package]]
@@ -2342,9 +2444,11 @@ dependencies = [
  "cdr-encoding",
  "clap",
  "csv",
+ "dashmap",
  "flume",
  "json5",
  "parking_lot",
+ "paste",
  "prost",
  "prost-build",
  "ros-z-msgs",
@@ -2354,7 +2458,9 @@ dependencies = [
  "slab",
  "strum",
  "tokio",
+ "tokio-util",
  "tracing",
+ "uuid",
  "zenoh",
  "zenoh-ext",
 ]
@@ -2379,7 +2485,10 @@ dependencies = [
  "anyhow",
  "cdr",
  "glob",
+ "once_cell",
+ "parking_lot",
  "prost",
+ "pyo3",
  "ros-z",
  "ros-z-codegen",
  "roslibrust",
@@ -2391,21 +2500,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "ros-z-py"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "flume",
+ "once_cell",
+ "parking_lot",
+ "pyo3",
+ "ros-z",
+ "ros-z-msgs",
+ "tokio",
+ "zenoh",
+]
+
+[[package]]
 name = "ros-z-tests"
 version = "0.1.0"
 dependencies = [
  "nix 0.29.0",
  "once_cell",
+ "prost",
+ "protobuf_demo",
  "ros-z",
  "ros-z-msgs",
  "serial_test",
  "tokio",
+ "zenoh",
 ]
 
 [[package]]
 name = "roslibrust"
-version = "0.17.0"
-source = "git+https://github.com/YuanYuYuan/roslibrust?branch=feat%2Fcodegen-options#f58184c1db6291d08d259338a1b249364988ab3e"
+version = "0.18.0"
+source = "git+https://github.com/YuanYuYuan/roslibrust?branch=feat%2Fros2-action-hash#50e871e35551de25697b9c1a0d101598a92947b6"
 dependencies = [
  "roslibrust_codegen",
  "roslibrust_common",
@@ -2413,8 +2540,8 @@ dependencies = [
 
 [[package]]
 name = "roslibrust_codegen"
-version = "0.17.0"
-source = "git+https://github.com/YuanYuYuan/roslibrust?branch=feat%2Fcodegen-options#f58184c1db6291d08d259338a1b249364988ab3e"
+version = "0.18.0"
+source = "git+https://github.com/YuanYuYuan/roslibrust?branch=feat%2Fros2-action-hash#50e871e35551de25697b9c1a0d101598a92947b6"
 dependencies = [
  "anyhow",
  "base64",
@@ -2439,8 +2566,8 @@ dependencies = [
 
 [[package]]
 name = "roslibrust_common"
-version = "0.17.0"
-source = "git+https://github.com/YuanYuYuan/roslibrust?branch=feat%2Fcodegen-options#f58184c1db6291d08d259338a1b249364988ab3e"
+version = "0.18.0"
+source = "git+https://github.com/YuanYuYuan/roslibrust?branch=feat%2Fros2-action-hash#50e871e35551de25697b9c1a0d101598a92947b6"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -2504,7 +2631,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2571,7 +2698,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3193,6 +3320,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "target-lexicon"
+version = "0.12.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "61c41af27dd6d1e27b1b16b489db798443478cef1f06a660c96db617ba5de3b1"
+
+[[package]]
 name = "tempfile"
 version = "3.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3202,7 +3335,7 @@ dependencies = [
  "getrandom 0.3.4",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3602,6 +3735,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
 
 [[package]]
+name = "unindent"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7264e107f553ccae879d21fbea1d6724ac785e8c3bfc762137959b5802826ef3"
+
+[[package]]
 name = "unsafe-libyaml"
 version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3836,7 +3975,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
