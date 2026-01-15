@@ -1,0 +1,477 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>ROS 2 Distribution Compatibility - ros-z Documentation</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Native Rust ROS 2 implementation using Zenoh">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../mdbook-admonish.css">
+        <link rel="stylesheet" href="../book/mdbook-admonish.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ros-z Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/ZettaScaleLabs/ros-z" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/ZettaScaleLabs/ros-z/edit/main/src/chapters/distro_compatibility.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="ros-2-distribution-compatibility"><a class="header" href="#ros-2-distribution-compatibility">ROS 2 Distribution Compatibility</a></h1>
+<p>ros-z supports multiple ROS 2 distributions through compile-time feature flags. This chapter explains the differences between distributions and how to target specific ROS 2 versions.</p>
+<h2 id="supported-distributions"><a class="header" href="#supported-distributions">Supported Distributions</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Distribution</th><th>Status</th><th>Type Hash Support</th><th>Default</th></tr></thead><tbody>
+<tr><td><strong>Jazzy Jalisco</strong></td><td>✅ Fully Supported</td><td>✅ Yes</td><td><strong>Yes</strong></td></tr>
+<tr><td><strong>Humble Hawksbill</strong></td><td>✅ Supported</td><td>❌ No (placeholder)</td><td>No</td></tr>
+<tr><td>Rolling Ridley</td><td>✅ Supported</td><td>✅ Yes</td><td>No</td></tr>
+<tr><td>Iron Irwini</td><td>✅ Supported</td><td>✅ Yes</td><td>No</td></tr>
+</tbody></table>
+</div>
+<p><strong>Default</strong>: ros-z defaults to <strong>Jazzy</strong> compatibility, which is the recommended distribution for new projects.</p>
+<h2 id="distribution-differences"><a class="header" href="#distribution-differences">Distribution Differences</a></h2>
+<h3 id="type-hash-support"><a class="header" href="#type-hash-support">Type Hash Support</a></h3>
+<p>The most significant difference between distributions is <strong>type hash support</strong>:</p>
+<p><strong>Jazzy/Rolling/Iron</strong> (Modern):</p>
+<ul>
+<li>Supports real type hashes computed from message definitions</li>
+<li>Format: <code>RIHS01_&lt;64-hex-chars&gt;</code> (ROS IDL Hash Standard version 1)</li>
+<li>Enables type safety checks during pub/sub matching</li>
+<li>Type hashes are embedded in Zenoh key expressions for discovery</li>
+</ul>
+<p><strong>Humble</strong> (Legacy):</p>
+<ul>
+<li>Does not support real type hashes</li>
+<li>Uses constant placeholder: <code>"TypeHashNotSupported"</code></li>
+<li>No type safety validation during discovery</li>
+<li>Compatible with rmw_zenoh_cpp v0.1.8</li>
+</ul>
+<h3 id="example-key-expressions"><a class="header" href="#example-key-expressions">Example Key Expressions</a></h3>
+<p><strong>Jazzy:</strong></p>
+<pre><code>@ros2_lv/0/&lt;zid&gt;/&lt;nid&gt;/&lt;eid&gt;/MP/%/&lt;namespace&gt;/&lt;node&gt;/chatter/std_msgs%msg%String/RIHS01_1234567890abcdef.../...
+</code></pre>
+<p><strong>Humble:</strong></p>
+<pre><code>@ros2_lv/0/&lt;zid&gt;/&lt;nid&gt;/&lt;eid&gt;/MP/%/&lt;namespace&gt;/&lt;node&gt;/chatter/std_msgs%msg%String/TypeHashNotSupported/...
+</code></pre>
+<h3 id="other-differences"><a class="header" href="#other-differences">Other Differences</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Feature</th><th>Humble</th><th>Jazzy/Rolling</th></tr></thead><tbody>
+<tr><td>Shared Memory (SHM)</td><td>❌ Not supported</td><td>✅ Supported (&gt;3KB messages)</td></tr>
+<tr><td>Query timeout</td><td>5 seconds</td><td>10 minutes (600 seconds)</td></tr>
+<tr><td>Default durability</td><td>TransientLocal</td><td>Volatile</td></tr>
+<tr><td>rmw_zenoh version</td><td>v0.1.8</td><td>v0.2.9+</td></tr>
+</tbody></table>
+</div>
+<h2 id="building-for-different-distributions"><a class="header" href="#building-for-different-distributions">Building for Different Distributions</a></h2>
+<h3 id="using-jazzy-default"><a class="header" href="#using-jazzy-default">Using Jazzy (Default)</a></h3>
+<p>By default, ros-z builds with Jazzy compatibility. No special flags needed:</p>
+<pre><code class="language-bash"># Build with default (Jazzy)
+cargo build
+
+# Run examples
+cargo run --example demo_nodes_talker
+
+# Run tests
+cargo nextest run
+</code></pre>
+<h3 id="using-humble"><a class="header" href="#using-humble">Using Humble</a></h3>
+<p>To build for Humble, use <code>--no-default-features --features humble</code>:</p>
+<pre><code class="language-bash"># Build for Humble
+cargo build --no-default-features --features humble
+
+# Build with additional features
+cargo build --no-default-features --features humble,external_msgs
+
+# Run examples for Humble
+cargo run --no-default-features --features humble --example demo_nodes_talker
+
+# Run tests for Humble
+cargo nextest run --no-default-features --features humble
+</code></pre>
+<h3 id="using-other-distributions"><a class="header" href="#using-other-distributions">Using Other Distributions</a></h3>
+<p>For Rolling or Iron, simply specify the distro feature:</p>
+<pre><code class="language-bash"># Build for Rolling
+cargo build --features rolling
+
+# Build for Iron
+cargo build --features iron
+</code></pre>
+<h2 id="using-with-nix"><a class="header" href="#using-with-nix">Using with Nix</a></h2>
+<p>The Nix flake provides separate development shells for each distribution:</p>
+<pre><code class="language-bash"># Enter Jazzy shell (default)
+nix develop .#ros-jazzy
+
+# Enter Humble shell
+nix develop .#ros-humble
+
+# Build in Humble shell
+nix develop .#ros-humble -c cargo build --no-default-features --features humble
+</code></pre>
+<p>Inside the Nix shell, the ROS 2 environment is automatically configured with the correct version.</p>
+<h2 id="package-specific-configuration"><a class="header" href="#package-specific-configuration">Package-Specific Configuration</a></h2>
+<h3 id="library-crates-ros-z-ros-z-msgs"><a class="header" href="#library-crates-ros-z-ros-z-msgs">Library Crates (<code>ros-z</code>, <code>ros-z-msgs</code>)</a></h3>
+<p>When depending on ros-z in your <code>Cargo.toml</code>:</p>
+<pre><code class="language-toml">[dependencies]
+# Default (Jazzy)
+ros-z = "0.1"
+
+# For Humble support, users enable the feature:
+# cargo build --no-default-features --features humble
+ros-z = { version = "0.1", default-features = false }
+</code></pre>
+<h3 id="application-crates"><a class="header" href="#application-crates">Application Crates</a></h3>
+<p>If your application needs to support multiple distributions:</p>
+<pre><code class="language-toml">[dependencies]
+ros-z = { version = "0.1", default-features = false }
+
+[features]
+default = ["jazzy"]
+humble = ["ros-z/humble"]
+jazzy = ["ros-z/jazzy"]
+rolling = ["ros-z/rolling"]
+</code></pre>
+<p>Then users can build with:</p>
+<pre><code class="language-bash"># For Jazzy (default)
+cargo build
+
+# For Humble
+cargo build --no-default-features --features humble
+</code></pre>
+<h2 id="cross-distribution-communication"><a class="header" href="#cross-distribution-communication">Cross-Distribution Communication</a></h2>
+<h3 id="same-distribution"><a class="header" href="#same-distribution">Same Distribution</a></h3>
+<p>Communication between ros-z nodes and ROS 2 nodes works seamlessly when using the same distribution:</p>
+<div class="table-wrapper"><table><thead><tr><th>ros-z Distro</th><th>ROS 2 Distro</th><th>Result</th></tr></thead><tbody>
+<tr><td>Jazzy</td><td>Jazzy</td><td>✅ Full compatibility</td></tr>
+<tr><td>Humble</td><td>Humble</td><td>✅ Full compatibility</td></tr>
+</tbody></table>
+</div>
+<h3 id="cross-distribution"><a class="header" href="#cross-distribution">Cross-Distribution</a></h3>
+<p>Cross-distribution communication is <strong>limited</strong>:</p>
+<div class="table-wrapper"><table><thead><tr><th>ros-z Distro</th><th>ROS 2 Distro</th><th>Result</th></tr></thead><tbody>
+<tr><td>Jazzy</td><td>Humble</td><td>⚠️ May not discover each other</td></tr>
+<tr><td>Humble</td><td>Jazzy</td><td>⚠️ May not discover each other</td></tr>
+</tbody></table>
+</div>
+<p><strong>Why?</strong> The type hash format in Zenoh key expressions differs:</p>
+<ul>
+<li>Jazzy nodes advertise with <code>RIHS01_&lt;hash&gt;</code></li>
+<li>Humble nodes advertise with <code>TypeHashNotSupported</code></li>
+<li>Subscribers filter by exact key expression match, causing discovery to fail</li>
+</ul>
+<h2 id="cicd-integration"><a class="header" href="#cicd-integration">CI/CD Integration</a></h2>
+<h3 id="github-actions-example"><a class="header" href="#github-actions-example">GitHub Actions Example</a></h3>
+<p>For testing multiple distributions in CI:</p>
+<pre><code class="language-yaml">jobs:
+  test:
+    strategy:
+      matrix:
+        distro: [humble, jazzy]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and test
+        run: |
+          if [ "${{ matrix.distro }}" = "humble" ]; then
+            cargo build --no-default-features --features humble
+            cargo nextest run --no-default-features --features humble
+          else
+            cargo build --features ${{ matrix.distro }}
+            cargo nextest run --features ${{ matrix.distro }}
+          fi
+</code></pre>
+<h2 id="interoperability-testing"><a class="header" href="#interoperability-testing">Interoperability Testing</a></h2>
+<p>The ros-z test suite includes interoperability tests with actual ROS 2 nodes:</p>
+<pre><code class="language-bash"># Test Jazzy interop (requires ROS 2 Jazzy + rmw_zenoh_cpp)
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+cargo nextest run -p ros-z-tests --features interop-tests,jazzy
+
+# Test Humble interop (requires ROS 2 Humble + rmw_zenoh_cpp)
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+cargo nextest run -p ros-z-tests --no-default-features --features interop-tests,humble
+</code></pre>
+<p>These tests verify:</p>
+<ul>
+<li>ros-z publisher → ROS 2 subscriber</li>
+<li>ROS 2 publisher → ros-z subscriber</li>
+<li>ros-z service client → ROS 2 service server</li>
+<li>ROS 2 service client → ros-z service server</li>
+<li>ros-z action client → ROS 2 action server</li>
+<li>ROS 2 action client → ros-z action server</li>
+</ul>
+<h2 id="choosing-a-distribution"><a class="header" href="#choosing-a-distribution">Choosing a Distribution</a></h2>
+<h3 id="for-new-projects"><a class="header" href="#for-new-projects">For New Projects</a></h3>
+<p><strong>Recommendation: Use Jazzy (default)</strong></p>
+<p>Jazzy is the latest stable release with:</p>
+<ul>
+<li>✅ Modern type hash support for type safety</li>
+<li>✅ Shared memory optimization for large messages</li>
+<li>✅ Better performance with longer query timeouts</li>
+<li>✅ Active development and support</li>
+</ul>
+<h3 id="for-existing-projects"><a class="header" href="#for-existing-projects">For Existing Projects</a></h3>
+<p><strong>Use Humble if:</strong></p>
+<ul>
+<li>You have existing ROS 2 Humble infrastructure</li>
+<li>You need LTS (Long Term Support) until 2027</li>
+<li>You're targeting Ubuntu 22.04 (Jammy)</li>
+</ul>
+<p><strong>Migrate to Jazzy if:</strong></p>
+<ul>
+<li>You want the latest features</li>
+<li>You can upgrade to Ubuntu 24.04 (Noble)</li>
+<li>You need shared memory support</li>
+</ul>
+<h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
+<h3 id="feature-conflict-error"><a class="header" href="#feature-conflict-error">Feature Conflict Error</a></h3>
+<pre><code>error: the following features cannot be enabled at the same time
+</code></pre>
+<p><strong>Solution:</strong> Use <code>--no-default-features</code> when enabling Humble:</p>
+<pre><code class="language-bash">cargo build --no-default-features --features humble
+</code></pre>
+<h3 id="discovery-failures-between-distros"><a class="header" href="#discovery-failures-between-distros">Discovery Failures Between Distros</a></h3>
+<p><strong>Symptom:</strong> ros-z Jazzy node can't see ROS 2 Humble node</p>
+<p><strong>Cause:</strong> Type hash mismatch in key expressions</p>
+<p><strong>Solution:</strong> Use matching distributions on both sides:</p>
+<ul>
+<li>ros-z Humble ↔ ROS 2 Humble</li>
+<li>ros-z Jazzy ↔ ROS 2 Jazzy</li>
+</ul>
+<h3 id="missing-type-hash-in-humble"><a class="header" href="#missing-type-hash-in-humble">Missing Type Hash in Humble</a></h3>
+<p><strong>Symptom:</strong> Warnings about missing type descriptions when using Humble</p>
+<p><strong>Expected behavior:</strong> Humble doesn't support type hashes. These warnings are informational and can be ignored.</p>
+<h2 id="implementation-details"><a class="header" href="#implementation-details">Implementation Details</a></h2>
+<p>For developers interested in the technical implementation:</p>
+<ul>
+<li>Type hashes are handled by the <code>TypeHash</code> struct in <code>ros-z/src/entity.rs</code></li>
+<li>Humble detection uses <code>#[cfg(feature = "humble-compat")]</code></li>
+<li>Key expression generation adapts based on <code>#[cfg(feature = "no-type-hash")]</code></li>
+<li>Distro defaults are defined in <code>ros-z/src/config.rs</code></li>
+</ul>
+<p>See <a href="../../HUMBLE_SUPPORT.html"><code>HUMBLE_SUPPORT.md</code></a> for detailed implementation notes.</p>
+<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
+<ul>
+<li><strong>Default: Jazzy</strong> - Recommended for new projects</li>
+<li><strong>Humble: Legacy</strong> - Use <code>--no-default-features --features humble</code></li>
+<li><strong>Type hashes</strong> - Key difference affecting discovery</li>
+<li><strong>Same distro</strong> - Required for reliable communication</li>
+<li><strong>Nix shells</strong> - Provide pre-configured environments per distro</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../chapters/building.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../chapters/examples.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../chapters/building.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../chapters/examples.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../mermaid.min.js"></script>
+        <script src="../mermaid-init.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

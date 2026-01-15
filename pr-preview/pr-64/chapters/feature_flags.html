@@ -198,6 +198,7 @@
 </div>
 <h2 id="feature-categories"><a class="header" href="#feature-categories">Feature Categories</a></h2>
 <div class="table-wrapper"><table><thead><tr><th>Category</th><th>Purpose</th><th>Example Features</th></tr></thead><tbody>
+<tr><td><strong>Distribution</strong></td><td>Target specific ROS 2 versions</td><td><code>humble</code>, <code>jazzy</code>, <code>rolling</code></td></tr>
 <tr><td><strong>Message Packages</strong></td><td>Enable ROS 2 message types</td><td><code>std_msgs</code>, <code>geometry_msgs</code></td></tr>
 <tr><td><strong>Serialization</strong></td><td>Additional encoding formats</td><td><code>protobuf</code></td></tr>
 <tr><td><strong>Integration</strong></td><td>External system bindings</td><td><code>rcl-z</code>, <code>external_msgs</code></td></tr>
@@ -227,6 +228,44 @@
 <p>Protobuf is optional. CDR serialization (default) provides full ROS 2 compatibility without additional dependencies.</p>
 </div>
 </div>
+<h2 id="distribution-compatibility-features"><a class="header" href="#distribution-compatibility-features">Distribution Compatibility Features</a></h2>
+<p><strong>ros-z defaults to ROS 2 Jazzy</strong>. Use distribution features to target other ROS 2 versions.</p>
+<h3 id="jazzy-default"><a class="header" href="#jazzy-default"><code>jazzy</code> (default)</a></h3>
+<p>Targets ROS 2 Jazzy Jalisco with modern type hash support.</p>
+<pre><code class="language-bash"># Automatically enabled (default)
+cargo build
+
+# Explicitly enable
+cargo build --features jazzy
+</code></pre>
+<p><strong>Features:</strong></p>
+<ul>
+<li>✅ Type hash support (RIHS01)</li>
+<li>✅ Shared memory optimization</li>
+<li>✅ Modern ROS 2 protocol</li>
+</ul>
+<h3 id="humble"><a class="header" href="#humble"><code>humble</code></a></h3>
+<p>Targets ROS 2 Humble Hawksbill (LTS) with legacy compatibility.</p>
+<pre><code class="language-bash"># Disable defaults and enable humble
+cargo build --no-default-features --features humble
+</code></pre>
+<p><strong>Features:</strong></p>
+<ul>
+<li>❌ No type hash (uses placeholder)</li>
+<li>❌ No shared memory support</li>
+<li>✅ LTS support until 2027</li>
+<li>✅ Compatible with rmw_zenoh_cpp v0.1.8</li>
+</ul>
+<p><strong>Important:</strong> Humble requires <code>--no-default-features</code> to avoid conflicts with the jazzy default.</p>
+<h3 id="rolling-and-iron"><a class="header" href="#rolling-and-iron"><code>rolling</code> and <code>iron</code></a></h3>
+<p>Target newer distributions:</p>
+<pre><code class="language-bash"># Rolling
+cargo build --features rolling
+
+# Iron
+cargo build --features iron
+</code></pre>
+<p><strong>See also:</strong> <a href="./distro_compatibility.html">ROS 2 Distribution Compatibility</a> for detailed documentation.</p>
 <h3 id="rcl-z"><a class="header" href="#rcl-z"><code>rcl-z</code></a></h3>
 <p>Enables RCL (ROS Client Library) integration for C/C++ interoperability.</p>
 <pre><code class="language-bash">cargo build -p ros-z --features rcl-z
@@ -422,6 +461,9 @@ cargo build -p ros-z --features protobuf
 <h2 id="feature-matrix"><a class="header" href="#feature-matrix">Feature Matrix</a></h2>
 <div class="table-wrapper"><table><thead><tr><th>Package</th><th>Feature</th><th>Requires ROS 2</th><th>Adds Dependencies</th></tr></thead><tbody>
 <tr><td>ros-z</td><td>(none)</td><td>No</td><td>None</td></tr>
+<tr><td>ros-z</td><td>jazzy (default)</td><td>No</td><td>None</td></tr>
+<tr><td>ros-z</td><td>humble</td><td>No</td><td>None</td></tr>
+<tr><td>ros-z</td><td>rolling</td><td>No</td><td>None</td></tr>
 <tr><td>ros-z</td><td>protobuf</td><td>No</td><td>prost, prost-types</td></tr>
 <tr><td>ros-z</td><td>rcl-z</td><td>Yes</td><td>RCL libraries</td></tr>
 <tr><td>ros-z</td><td>external_msgs</td><td>Yes (propagated)</td><td>None</td></tr>
@@ -429,6 +471,8 @@ cargo build -p ros-z --features protobuf
 <tr><td>ros-z-msgs</td><td>bundled_msgs</td><td>No</td><td>None (bundled)</td></tr>
 <tr><td>ros-z-msgs</td><td>external_msgs</td><td>Yes</td><td>None (uses system)</td></tr>
 <tr><td>ros-z-msgs</td><td>protobuf</td><td>No</td><td>prost, prost-types</td></tr>
+<tr><td>ros-z-msgs</td><td>jazzy (default)</td><td>No</td><td>None</td></tr>
+<tr><td>ros-z-msgs</td><td>humble</td><td>No</td><td>None</td></tr>
 <tr><td>ros-z-codegen</td><td>protobuf</td><td>No</td><td>prost-build</td></tr>
 </tbody></table>
 </div>
@@ -506,6 +550,7 @@ cargo run --example z_pingpong        # std_msgs
 <h2 id="resources"><a class="header" href="#resources">Resources</a></h2>
 <ul>
 <li><strong><a href="./building.html">Building Guide</a></strong> - Build procedures for each scenario</li>
+<li><strong><a href="./distro_compatibility.html">ROS 2 Distribution Compatibility</a></strong> - Target Jazzy, Humble, or other distributions</li>
 <li><strong><a href="./message_generation.html">Message Generation</a></strong> - How messages are generated</li>
 </ul>
 <p><strong>Start with default features and add more as your project evolves. Feature flags provide flexibility without forcing early architectural decisions.</strong></p>
