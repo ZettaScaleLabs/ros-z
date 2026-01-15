@@ -46,10 +46,6 @@ pub struct ConfigOverride {
 /// This struct captures those differences to ensure compatibility with rmw_zenoh_cpp.
 #[derive(Debug, Clone)]
 pub struct DistroDefaults {
-    /// Default query timeout in milliseconds
-    pub query_timeout_ms: u64,
-    /// Whether this distro supports shared memory (SHM)
-    pub supports_shm: bool,
     /// Whether this distro supports type hashing
     pub supports_type_hash: bool,
 }
@@ -58,41 +54,63 @@ impl DistroDefaults {
     /// ROS 2 Humble (LTS) defaults
     ///
     /// - Humble uses rmw_zenoh v0.1.8
-    /// - Query timeout: 5s
-    /// - No SHM support
     /// - Type hash uses placeholder "TypeHashNotSupported"
     pub const fn humble() -> Self {
         Self {
-            query_timeout_ms: 5_000,
-            supports_shm: false,
             supports_type_hash: false,
+        }
+    }
+
+    /// ROS 2 Iron defaults
+    ///
+    /// - Iron uses rmw_zenoh v0.2.x
+    /// - Real type hashes (RIHS01 format)
+    pub const fn iron() -> Self {
+        Self {
+            supports_type_hash: true,
+        }
+    }
+
+    /// ROS 2 Rolling defaults
+    ///
+    /// - Rolling uses rmw_zenoh v0.2.x
+    /// - Real type hashes (RIHS01 format)
+    pub const fn rolling() -> Self {
+        Self {
+            supports_type_hash: true,
         }
     }
 
     /// ROS 2 Jazzy defaults
     ///
     /// - Jazzy uses rmw_zenoh v0.2.9
-    /// - Query timeout: 10 minutes (600s)
-    /// - SHM support enabled
     /// - Real type hashes (RIHS01 format)
     pub const fn jazzy() -> Self {
         Self {
-            query_timeout_ms: 600_000,
-            supports_shm: true,
             supports_type_hash: true,
         }
     }
 
     /// Get the default for the currently compiled distro based on feature flags
     /// When multiple distro features are enabled (e.g., with --all-features),
-    /// priority order is: humble > jazzy (default)
+    /// priority order is: humble > iron > rolling > jazzy (default)
     pub const fn current() -> Self {
         // Priority 1: Humble
         if cfg!(feature = "humble") {
             return Self::humble();
         }
 
-        // Priority 2 (default): Jazzy
+        // Priority 2: Iron
+        if cfg!(feature = "iron") {
+            return Self::iron();
+        }
+
+        // Priority 3: Rolling
+        if cfg!(feature = "rolling") {
+            return Self::rolling();
+        }
+
+        // Priority 4 (default): Jazzy
         Self::jazzy()
     }
 }
