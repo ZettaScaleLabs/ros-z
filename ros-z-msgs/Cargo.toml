@@ -24,6 +24,7 @@ cdr = { workspace = true }
 
 [build-dependencies]
 ros-z-codegen = { version = "0.1", path = "../ros-z-codegen" }
+roslibrust_codegen = { workspace = true }
 anyhow = { workspace = true }
 glob = { workspace = true }
 

@@ -1,5 +1,6 @@
 #[cfg(feature = "protobuf")]
 pub mod protobuf_adapter;
+pub mod python_msgspec_generator;
 pub mod roslibrust_adapter;
 
 use std::path::{Path, PathBuf};

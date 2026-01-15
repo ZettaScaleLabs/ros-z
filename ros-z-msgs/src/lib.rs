@@ -27,17 +27,12 @@ pub mod proto {
     include!(concat!(env!("OUT_DIR"), "/generated_proto.rs"));
 }
 
+// Include generated Python bindings (complete module)
+#[cfg(feature = "python_registry")]
+include!(concat!(env!("OUT_DIR"), "/python_bindings.rs"));
+
 // Re-export commonly used items from ros-z for convenience
 pub use ros_z::{
     MessageTypeInfo,
     entity::{TypeHash, TypeInfo},
-};
-
-// Python registry module for Python bindings
-#[cfg(feature = "python_registry")]
-pub mod python_registry;
-
-#[cfg(feature = "python_registry")]
-pub use python_registry::{
-    deserialize_from_cdr, get_type_hash, init_registry, list_registered_types, serialize_to_cdr,
 };
