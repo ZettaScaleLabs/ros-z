@@ -41,7 +41,7 @@ pub fn open_session(config: Option<&Bound<'_, PyDict>>, domain_id: usize) -> PyR
     use ros_z::{Builder, context::ZContextBuilder};
 
     // Create context builder
-    let builder = ZContextBuilder::default().with_domain_id(domain_id);
+    let builder = ZContextBuilder::default().with_domain_id(domain_id).with_logging_enabled();
 
     // Parse Zenoh configuration from Python dict if provided
     if let Some(_cfg_dict) = config {
