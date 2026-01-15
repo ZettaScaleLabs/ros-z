@@ -130,21 +130,21 @@ jobs:
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
           skipPush: true
 
-       - name: Setup sccache
-         uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
 
-       - name: Install Nushell
-         run: |
-           nix profile install nixpkgs#nushell
-           chmod +x scripts/test-ros.nu
+      - name: Install Nushell
+        run: |
+          nix profile install nixpkgs#nushell
+          chmod +x scripts/test-ros.nu
 
-       - name: Setup nix environment
-         run: |
-           nix print-dev-env '.#ros-${{ matrix.distro }}-ci' --accept-flake-config > /tmp/nix-dev-env.sh
-           echo "export SCCACHE_GHA_ENABLED=true" >> /tmp/nix-dev-env.sh
-           echo "export SCCACHE_CACHE_SIZE=1G" >> /tmp/nix-dev-env.sh
-           echo "export RUSTC_WRAPPER=sccache" >> /tmp/nix-dev-env.sh
-           echo "export CI=true" >> /tmp/nix-dev-env.sh
+      - name: Setup nix environment
+        run: |
+          nix print-dev-env '.#ros-${{ matrix.distro }}-ci' --accept-flake-config > /tmp/nix-dev-env.sh
+          echo "export SCCACHE_GHA_ENABLED=true" >> /tmp/nix-dev-env.sh
+          echo "export SCCACHE_CACHE_SIZE=1G" >> /tmp/nix-dev-env.sh
+          echo "export RUSTC_WRAPPER=sccache" >> /tmp/nix-dev-env.sh
+          echo "export CI=true" >> /tmp/nix-dev-env.sh
 
       - name: Check available disk space
         run: |
@@ -152,45 +152,45 @@ jobs:
           echo "Available space in /home/runner:"
           du -sh /home/runner/* 2>/dev/null | sort -h || true
 
-       - name: Clippy workspace
-         run: |
-           source /tmp/nix-dev-env.sh
-           nu scripts/test-ros.nu ${{ matrix.distro }} clippy-workspace
+      - name: Clippy workspace
+        run: |
+          source /tmp/nix-dev-env.sh
+          nu scripts/test-ros.nu ${{ matrix.distro }} clippy-workspace
 
-       - name: Clippy bundled examples
-         run: |
-           source /tmp/nix-dev-env.sh
-           nu scripts/test-ros.nu ${{ matrix.distro }} clippy-bundled-examples
+      - name: Clippy bundled examples
+        run: |
+          source /tmp/nix-dev-env.sh
+          nu scripts/test-ros.nu ${{ matrix.distro }} clippy-bundled-examples
 
-       - name: Clippy external examples
-         run: |
-           source /tmp/nix-dev-env.sh
-           nu scripts/test-ros.nu ${{ matrix.distro }} clippy-external-examples
+      - name: Clippy external examples
+        run: |
+          source /tmp/nix-dev-env.sh
+          nu scripts/test-ros.nu ${{ matrix.distro }} clippy-external-examples
 
-       - name: Clippy rcl-z
-         run: |
-           source /tmp/nix-dev-env.sh
-           nu scripts/test-ros.nu ${{ matrix.distro }} clippy-rclz
+      - name: Clippy rcl-z
+        run: |
+          source /tmp/nix-dev-env.sh
+          nu scripts/test-ros.nu ${{ matrix.distro }} clippy-rclz
 
-       - name: Cleanup after clippy
-         run: |
-           source /tmp/nix-dev-env.sh
-           nu scripts/test-ros.nu ${{ matrix.distro }} cleanup-after-clippy
+      - name: Cleanup after clippy
+        run: |
+          source /tmp/nix-dev-env.sh
+          nu scripts/test-ros.nu ${{ matrix.distro }} cleanup-after-clippy
 
-       - name: Check rcl-z
-         run: |
-           source /tmp/nix-dev-env.sh
-           nu scripts/test-ros.nu ${{ matrix.distro }} check-rclz
+      - name: Check rcl-z
+        run: |
+          source /tmp/nix-dev-env.sh
+          nu scripts/test-ros.nu ${{ matrix.distro }} check-rclz
 
-       - name: Check ros-z-msgs all
-         run: |
-           source /tmp/nix-dev-env.sh
-           nu scripts/test-ros.nu ${{ matrix.distro }} check-ros-z-msgs-all
+      - name: Check ros-z-msgs all
+        run: |
+          source /tmp/nix-dev-env.sh
+          nu scripts/test-ros.nu ${{ matrix.distro }} check-ros-z-msgs-all
 
-       - name: Check protobuf
-         run: |
-           source /tmp/nix-dev-env.sh
-           nu scripts/test-ros.nu ${{ matrix.distro }} check-protobuf
+      - name: Check protobuf
+        run: |
+          source /tmp/nix-dev-env.sh
+          nu scripts/test-ros.nu ${{ matrix.distro }} check-protobuf
 
       - name: Check ros-z (with rcl-z feature)
         run: |
@@ -202,20 +202,20 @@ jobs:
           #   cargo check -p ros-z --features rcl-z
           # fi
 
-       - name: Build examples
-         run: |
-           source /tmp/nix-dev-env.sh
-           nu scripts/test-ros.nu ${{ matrix.distro }} build-examples
+      - name: Build examples
+        run: |
+          source /tmp/nix-dev-env.sh
+          nu scripts/test-ros.nu ${{ matrix.distro }} build-examples
 
-       - name: Cleanup after build
-         run: |
-           source /tmp/nix-dev-env.sh
-           nu scripts/test-ros.nu ${{ matrix.distro }} cleanup-after-build
+      - name: Cleanup after build
+        run: |
+          source /tmp/nix-dev-env.sh
+          nu scripts/test-ros.nu ${{ matrix.distro }} cleanup-after-build
 
-       - name: Build protobuf demo
-         run: |
-           source /tmp/nix-dev-env.sh
-           nu scripts/test-ros.nu ${{ matrix.distro }} build-protobuf-demo
+      - name: Build protobuf demo
+        run: |
+          source /tmp/nix-dev-env.sh
+          nu scripts/test-ros.nu ${{ matrix.distro }} build-protobuf-demo
 
       - name: Free up disk space before tests
         run: |
@@ -233,7 +233,7 @@ jobs:
           nix-collect-garbage -d || true
           df -h
 
-       - name: Run unit tests
-         run: |
-           source /tmp/nix-dev-env.sh
-           nu scripts/test-ros.nu ${{ matrix.distro }} run-unit-tests
+      - name: Run unit tests
+        run: |
+          source /tmp/nix-dev-env.sh
+          nu scripts/test-ros.nu ${{ matrix.distro }} run-unit-tests

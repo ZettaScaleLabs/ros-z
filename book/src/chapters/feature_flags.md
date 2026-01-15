@@ -55,6 +55,7 @@ cargo build --features jazzy
 ```
 
 **Features:**
+
 - ✅ Type hash support (RIHS01)
 - ✅ Shared memory optimization
 - ✅ Modern ROS 2 protocol
@@ -69,6 +70,7 @@ cargo build --no-default-features --features humble
 ```
 
 **Features:**
+
 - ❌ No type hash (uses placeholder)
 - ❌ No shared memory support
 - ✅ LTS support until 2027

@@ -20,12 +20,14 @@ ros-z supports multiple ROS 2 distributions through compile-time feature flags. 
 The most significant difference between distributions is **type hash support**:
 
 **Jazzy/Rolling/Iron** (Modern):
+
 - Supports real type hashes computed from message definitions
 - Format: `RIHS01_<64-hex-chars>` (ROS IDL Hash Standard version 1)
 - Enables type safety checks during pub/sub matching
 - Type hashes are embedded in Zenoh key expressions for discovery
 
 **Humble** (Legacy):
+
 - Does not support real type hashes
 - Uses constant placeholder: `"TypeHashNotSupported"`
 - No type safety validation during discovery
@@ -34,12 +36,14 @@ The most significant difference between distributions is **type hash support**:
 ### Example Key Expressions
 
 **Jazzy:**
-```
+
+```text
 @ros2_lv/0/<zid>/<nid>/<eid>/MP/%/<namespace>/<node>/chatter/std_msgs%msg%String/RIHS01_1234567890abcdef.../...
 ```
 
 **Humble:**
-```
+
+```text
 @ros2_lv/0/<zid>/<nid>/<eid>/MP/%/<namespace>/<node>/chatter/std_msgs%msg%String/TypeHashNotSupported/...
 ```
 
@@ -148,6 +152,7 @@ rolling = ["ros-z/rolling"]
 ```
 
 Then users can build with:
+
 ```bash
 # For Jazzy (default)
 cargo build
@@ -177,6 +182,7 @@ Cross-distribution communication is **limited**:
 | Humble | Jazzy | ⚠️ May not discover each other |
 
 **Why?** The type hash format in Zenoh key expressions differs:
+
 - Jazzy nodes advertise with `RIHS01_<hash>`
 - Humble nodes advertise with `TypeHashNotSupported`
 - Subscribers filter by exact key expression match, causing discovery to fail
@@ -205,6 +211,7 @@ jobs:
             cargo build --features ${{ matrix.distro }}
             cargo nextest run --features ${{ matrix.distro }}
           fi
+
 ```
 
 ## Interoperability Testing
@@ -222,6 +229,7 @@ cargo nextest run -p ros-z-tests --no-default-features --features interop-tests,
 ```
 
 These tests verify:
+
 - ros-z publisher → ROS 2 subscriber
 - ROS 2 publisher → ros-z subscriber
 - ros-z service client → ROS 2 service server
@@ -233,9 +241,10 @@ These tests verify:
 
 ### For New Projects
 
-**Recommendation: Use Jazzy (default)**
+#### Recommendation: Use Jazzy (default)
 
 Jazzy is the latest stable release with:
+
 - ✅ Modern type hash support for type safety
 - ✅ Shared memory optimization for large messages
 - ✅ Better performance with longer query timeouts
@@ -244,11 +253,13 @@ Jazzy is the latest stable release with:
 ### For Existing Projects
 
 **Use Humble if:**
+
 - You have existing ROS 2 Humble infrastructure
 - You need LTS (Long Term Support) until 2027
 - You're targeting Ubuntu 22.04 (Jammy)
 
 **Migrate to Jazzy if:**
+
 - You want the latest features
 - You can upgrade to Ubuntu 24.04 (Noble)
 - You need shared memory support
@@ -257,11 +268,12 @@ Jazzy is the latest stable release with:
 
 ### Feature Conflict Error
 
-```
+```text
 error: the following features cannot be enabled at the same time
 ```
 
 **Solution:** Use `--no-default-features` when enabling Humble:
+
 ```bash
 cargo build --no-default-features --features humble
 ```
@@ -273,6 +285,7 @@ cargo build --no-default-features --features humble
 **Cause:** Type hash mismatch in key expressions
 
 **Solution:** Use matching distributions on both sides:
+
 - ros-z Humble ↔ ROS 2 Humble
 - ros-z Jazzy ↔ ROS 2 Jazzy
 
