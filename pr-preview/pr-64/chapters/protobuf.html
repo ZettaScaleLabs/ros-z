@@ -321,7 +321,121 @@ let msg = SensorData {
 pub.publish(&amp;msg)?;</code></pre>
 <h2 id="complete-example"><a class="header" href="#complete-example">Complete Example</a></h2>
 <p>The <code>protobuf_demo</code> example demonstrates both approaches:</p>
-<pre><code class="language-rust ignore">{{#include ../../../ros-z/examples/protobuf_demo/src/main.rs}}</code></pre>
+<pre><code class="language-rust ignore">use clap::Parser;
+use protobuf_demo::{run_pubsub_demo, run_service_client, run_service_server};
+use ros_z::{Builder, Result, context::ZContextBuilder};
+
+#[derive(Debug, Parser)]
+#[command(
+    name = "protobuf_demo",
+    about = "Protobuf demonstration for ros-z - pub/sub and services"
+)]
+struct Args {
+    /// Mode to run: pubsub, service-server, service-client, or combined
+    #[arg(short, long, default_value = "pubsub")]
+    mode: String,
+
+    /// Service name (for service modes)
+    #[arg(long, default_value = "/calculator")]
+    service: String,
+
+    /// Maximum number of messages/requests (0 for unlimited)
+    #[arg(short = 'n', long, default_value = "3")]
+    count: usize,
+
+    /// Zenoh session mode (peer, client, router)
+    #[arg(long, default_value = "peer")]
+    zenoh_mode: String,
+
+    /// Zenoh router endpoint to connect to
+    #[arg(short, long)]
+    endpoint: Option&lt;String&gt;,
+}
+
+fn main() -&gt; Result&lt;()&gt; {
+    let args = Args::parse();
+
+    // Initialize logging
+    zenoh::init_log_from_env_or("info");
+
+    // Create the ROS-Z context
+    let ctx = if let Some(ref e) = args.endpoint {
+        ZContextBuilder::default()
+            .with_mode(&amp;args.zenoh_mode)
+            .with_connect_endpoints([e.clone()])
+            .build()?
+    } else {
+        ZContextBuilder::default()
+            .with_mode(&amp;args.zenoh_mode)
+            .build()?
+    };
+
+    let max_count = if args.count == 0 {
+        None
+    } else {
+        Some(args.count)
+    };
+
+    match args.mode.as_str() {
+        "pubsub" =&gt; {
+            run_pubsub_demo(ctx, max_count)?;
+        }
+        "service-server" =&gt; {
+            run_service_server(ctx, &amp;args.service, max_count)?;
+        }
+        "service-client" =&gt; {
+            let operations = vec![
+                ("add", 10.0, 5.0),
+                ("subtract", 10.0, 5.0),
+                ("multiply", 10.0, 5.0),
+                ("divide", 10.0, 5.0),
+                ("divide", 10.0, 0.0), // This will fail
+            ];
+            run_service_client(ctx, &amp;args.service, operations)?;
+        }
+        "combined" =&gt; {
+            println!("\n=== Running Combined Demo ===\n");
+
+            // Create separate contexts for server and client
+            let server_ctx = if let Some(e) = args.endpoint.clone() {
+                ZContextBuilder::default()
+                    .with_mode(&amp;args.zenoh_mode)
+                    .with_connect_endpoints([e])
+                    .build()?
+            } else {
+                ZContextBuilder::default()
+                    .with_mode(&amp;args.zenoh_mode)
+                    .build()?
+            };
+
+            let service_name = args.service.clone();
+
+            // Run server in background thread
+            let _server_handle =
+                std::thread::spawn(move || run_service_server(server_ctx, &amp;service_name, Some(5)));
+
+            // Give server time to start
+            std::thread::sleep(std::time::Duration::from_millis(500));
+
+            // Run client
+            let operations = vec![
+                ("add", 10.0, 5.0),
+                ("subtract", 10.0, 5.0),
+                ("multiply", 10.0, 5.0),
+                ("divide", 10.0, 5.0),
+                ("divide", 10.0, 0.0),
+            ];
+            run_service_client(ctx, &amp;args.service, operations)?;
+        }
+        _ =&gt; {
+            eprintln!("Unknown mode: {}", args.mode);
+            eprintln!("Valid modes: pubsub, service-server, service-client, combined");
+            std::process::exit(1);
+        }
+    }
+
+    Ok(())
+}</code></pre>
 <h3 id="running-the-demo"><a class="header" href="#running-the-demo">Running the Demo</a></h3>
 <pre><code class="language-bash"># Navigate to the demo directory
 cd ros-z/examples/protobuf_demo
