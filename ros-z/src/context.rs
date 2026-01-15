@@ -65,6 +65,7 @@ pub struct ZContextBuilder {
     config_file: Option<PathBuf>,
     config_overrides: Vec<(String, serde_json::Value)>,
     remap_rules: RemapRules,
+    enable_logging: bool,
 }
 
 impl ZContextBuilder {
@@ -212,6 +213,12 @@ impl ZContextBuilder {
         Ok(self)
     }
 
+    /// Enable Zenoh logging initialization with default level "error"
+    pub fn with_logging_enabled(mut self) -> Self {
+        self.enable_logging = true;
+        self
+    }
+
     /// Parse and apply overrides from environment variable
     ///
     /// Expected format: `key1=value1;key2=value2`
@@ -281,6 +288,11 @@ impl Builder for ZContextBuilder {
 
         // Apply environment variable overrides first
         let builder = self.apply_env_overrides()?;
+
+        // Initialize logging if enabled
+        if builder.enable_logging {
+            init_log_from_env_or("error");
+        }
 
         let mut config = if let Some(config) = builder.zenoh_config {
             // Use explicitly provided Zenoh config
