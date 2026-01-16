@@ -26,6 +26,7 @@ impl PyZNode {
     ///     topic: Topic name (e.g., "/chatter")
     ///     msg_type: Message type name (e.g., "std_msgs/msg/String")
     ///     qos: Optional QoS profile as dict
+    #[pyo3(signature = (topic, msg_type, qos=None))]
     fn create_publisher(
         &self,
         topic: String,
@@ -71,6 +72,7 @@ impl PyZNode {
     ///     topic: Topic name (e.g., "/chatter")
     ///     msg_type: Message type name (e.g., "std_msgs/msg/String")
     ///     qos: Optional QoS profile as dict
+    #[pyo3(signature = (topic, msg_type, qos=None))]
     fn create_subscriber(
         &self,
         topic: String,

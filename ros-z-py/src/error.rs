@@ -1,3 +1,5 @@
+#![allow(unexpected_cfgs)]
+
 use pyo3::prelude::*;
 
 // Custom exception types

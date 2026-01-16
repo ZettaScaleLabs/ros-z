@@ -27,7 +27,7 @@ impl PyZSubscriber {
     ///     Message as dict, or None if timeout occurred
     #[pyo3(signature = (timeout=None))]
     unsafe fn recv(&self, py: Python, timeout: Option<f64>) -> PyResult<Option<PyObject>> {
-        let timeout_duration = timeout.map(|s| Duration::from_secs_f64(s));
+        let timeout_duration = timeout.map(Duration::from_secs_f64);
 
         match self.inner.recv_serialized(timeout_duration) {
             Ok(cdr_bytes) => {
@@ -65,7 +65,7 @@ impl PyZSubscriber {
     /// Receive raw serialized bytes (for testing/advanced use)
     #[pyo3(signature = (timeout=None))]
     unsafe fn recv_raw(&self, timeout: Option<f64>) -> PyResult<Option<Vec<u8>>> {
-        let timeout_duration = timeout.map(|s| Duration::from_secs_f64(s));
+        let timeout_duration = timeout.map(Duration::from_secs_f64);
 
         match self.inner.recv_serialized(timeout_duration) {
             Ok(data) => Ok(Some(data)),

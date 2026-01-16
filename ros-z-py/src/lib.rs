@@ -1,4 +1,9 @@
-#![allow(unsafe_op_in_unsafe_fn)]
+#![allow(
+    unsafe_op_in_unsafe_fn,
+    clippy::useless_conversion,
+    dead_code,
+    private_interfaces
+)]
 
 use pyo3::prelude::*;
 

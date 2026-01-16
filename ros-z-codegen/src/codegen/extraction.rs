@@ -208,7 +208,7 @@ pub fn generate_serialize_function(
     let extraction = generate_nested_extraction(&msg_ident, msg, allmessages)?;
 
     Ok(quote! {
-        #[allow(unsafe_op_in_unsafe_fn)]
+        #[allow(unsafe_op_in_unsafe_fn, clippy::useless_conversion)]
         #[pyo3::pyfunction]
         pub fn #func_name(#msg_ident: pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<Vec<u8>> {
             // Validate msgspec.Struct
