@@ -43,7 +43,6 @@ pip install -e ../ros-z-msgs/python/    # Message type definitions
 pip install -e .                        # Python bindings
 ```
 
-
 ## Usage
 
 ### Basic Publisher/Subscriber
@@ -248,7 +247,6 @@ ros-z-msgs/python/            # Separate package for message types
 │       └── ...
 └── pyproject.toml
 ```
-
 
 ## Troubleshooting
 

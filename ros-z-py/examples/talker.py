@@ -5,6 +5,7 @@ import ros_z_py
 from ros_z_py import std_msgs
 import time
 
+
 def main():
     # Create session and node
     session = ros_z_py.open_session(domain_id=0)
@@ -23,6 +24,7 @@ def main():
         print(f"Published: {message}")
         count += 1
         time.sleep(1.0)
+
 
 if __name__ == "__main__":
     try:

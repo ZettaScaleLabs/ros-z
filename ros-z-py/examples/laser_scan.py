@@ -17,6 +17,7 @@ import time
 import math
 import argparse
 
+
 def run_publisher():
     print("Starting publisher...")
     # Create session and node
@@ -58,10 +59,9 @@ def run_publisher():
         msg = sensor_msgs.LaserScan(
             header=std_msgs.Header(
                 stamp=builtin_interfaces.Time(
-                    sec=seq // 10,
-                    nanosec=(seq % 10) * 100_000_000
+                    sec=seq // 10, nanosec=(seq % 10) * 100_000_000
                 ),
-                frame_id="laser"
+                frame_id="laser",
             ),
             angle_min=angle_min,
             angle_max=angle_max,
@@ -75,10 +75,13 @@ def run_publisher():
         )
 
         pub.publish(msg)
-        print(f"Published LaserScan #{seq}: {len(msg.ranges)} ranges, angle [{msg.angle_min:.2f}, {msg.angle_max:.2f}] rad")
+        print(
+            f"Published LaserScan #{seq}: {len(msg.ranges)} ranges, angle [{msg.angle_min:.2f}, {msg.angle_max:.2f}] rad"
+        )
 
         seq += 1
         time.sleep(0.1)
+
 
 def run_subscriber():
     # Create session and node
@@ -104,23 +107,33 @@ def run_subscriber():
         print(f"  Scan time: {msg.scan_time:.3f} s")
 
         if msg.ranges:
-            valid_ranges = [r for r in msg.ranges if msg.range_min <= r <= msg.range_max]
+            valid_ranges = [
+                r for r in msg.ranges if msg.range_min <= r <= msg.range_max
+            ]
             if valid_ranges:
                 min_range = min(valid_ranges)
                 max_range = max(valid_ranges)
-                print(f"  Valid ranges: {len(valid_ranges)} (min: {min_range:.2f}m, max: {max_range:.2f}m)")
+                print(
+                    f"  Valid ranges: {len(valid_ranges)} (min: {min_range:.2f}m, max: {max_range:.2f}m)"
+                )
 
         print("---")
 
+
 def main():
-    parser = argparse.ArgumentParser(description="LaserScan publisher/subscriber example")
-    parser.add_argument("--mode", choices=["pub", "sub"], default="pub", help="Mode: pub or sub")
+    parser = argparse.ArgumentParser(
+        description="LaserScan publisher/subscriber example"
+    )
+    parser.add_argument(
+        "--mode", choices=["pub", "sub"], default="pub", help="Mode: pub or sub"
+    )
     args = parser.parse_args()
 
     if args.mode == "pub":
         run_publisher()
     elif args.mode == "sub":
         run_subscriber()
+
 
 if __name__ == "__main__":
     main()

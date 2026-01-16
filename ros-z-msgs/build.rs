@@ -3,8 +3,6 @@ use std::{env, path::PathBuf};
 use anyhow::Result;
 #[cfg(feature = "python_registry")]
 use ros_z_codegen::python_msgspec_generator;
-#[cfg(feature = "python_registry")]
-use roslibrust_codegen;
 
 fn main() -> Result<()> {
     let out_dir = PathBuf::from(env::var("OUT_DIR")?);
@@ -40,6 +38,8 @@ fn main() -> Result<()> {
         // Generate Python bindings if python_registry feature is enabled
         #[cfg(feature = "python_registry")]
         {
+            use roslibrust_codegen;
+
             // Parse messages for Python generation
             let (messages, services, parsed_actions) =
                 roslibrust_codegen::find_and_parse_ros_messages(&ros_packages)?;

@@ -5,6 +5,7 @@ import ros_z_py
 from ros_z_py import std_msgs
 import time
 
+
 def test_session_creation():
     """Test creating a session."""
     print("Testing session creation...")
@@ -12,6 +13,7 @@ def test_session_creation():
     assert session is not None
     print("✓ Session created")
     return session
+
 
 def test_node_creation(session):
     """Test creating a node."""
@@ -21,6 +23,7 @@ def test_node_creation(session):
     print("✓ Node created")
     return node
 
+
 def test_publisher_creation(node):
     """Test creating a publisher."""
     print("Testing publisher creation...")
@@ -29,6 +32,7 @@ def test_publisher_creation(node):
     print("✓ Publisher created")
     return pub
 
+
 def test_subscriber_creation(node):
     """Test creating a subscriber."""
     print("Testing subscriber creation...")
@@ -36,6 +40,7 @@ def test_subscriber_creation(node):
     assert sub is not None
     print("✓ Subscriber created")
     return sub
+
 
 def test_publish_receive(pub, sub):
     """Test publishing and receiving a message."""
@@ -53,10 +58,11 @@ def test_publish_receive(pub, sub):
     # Receive message
     msg = sub.recv(timeout=2.0)
     assert msg is not None, "No message received"
-    assert hasattr(msg, 'data'), "Message missing 'data' field"
+    assert hasattr(msg, "data"), "Message missing 'data' field"
     assert msg.data == test_data, f"Expected '{test_data}', got '{msg.data}'"
     print(f"  Received: {msg.data}")
     print("✓ Publish/receive works")
+
 
 def test_qos_configuration(node):
     """Test QoS configuration."""
@@ -66,22 +72,24 @@ def test_qos_configuration(node):
         "reliability": "reliable",
         "durability": "volatile",
         "history": "keep_last",
-        "depth": 10
+        "depth": 10,
     }
 
     pub = node.create_publisher("/qos_topic", "std_msgs/msg/String", qos=qos)
     assert pub is not None
     print("✓ QoS configuration accepted")
 
+
 def test_error_handling(node):
     """Test error handling for unknown message types."""
     print("Testing error handling...")
 
     try:
-        pub = node.create_publisher("/test", "nonexistent/msg/Type")
+        _ = node.create_publisher("/test", "nonexistent/msg/Type")
         assert False, "Should have raised error for unknown message type"
     except TypeError:
         print("✓ Error handling works (unknown message type rejected)")
+
 
 def main():
     print("=" * 60)
@@ -100,6 +108,7 @@ def main():
     print("=" * 60)
     print("All tests passed! ✓")
     print("=" * 60)
+
 
 if __name__ == "__main__":
     main()

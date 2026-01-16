@@ -5,6 +5,7 @@ import ros_z_py
 from ros_z_py import geometry_msgs
 import time
 
+
 def test_vector3(node):
     """Test geometry_msgs/Vector3 serialization."""
     print("Testing Vector3...")
@@ -29,6 +30,7 @@ def test_vector3(node):
     print(f"  Received: Vector3(x={msg.x}, y={msg.y}, z={msg.z})")
     print("✓ Vector3 works")
 
+
 def test_twist(node):
     """Test geometry_msgs/Twist serialization (nested message)."""
     print("Testing Twist (nested message)...")
@@ -42,11 +44,13 @@ def test_twist(node):
     # Test data with nested Vector3 messages
     test_msg = geometry_msgs.Twist(
         linear=geometry_msgs.Vector3(x=1.0, y=0.0, z=0.0),
-        angular=geometry_msgs.Vector3(x=0.0, y=0.0, z=0.5)
+        angular=geometry_msgs.Vector3(x=0.0, y=0.0, z=0.5),
     )
     pub.publish(test_msg)
-    print(f"  Published: Twist(linear=({test_msg.linear.x}, {test_msg.linear.y}, {test_msg.linear.z}), "
-          f"angular=({test_msg.angular.x}, {test_msg.angular.y}, {test_msg.angular.z}))")
+    print(
+        f"  Published: Twist(linear=({test_msg.linear.x}, {test_msg.linear.y}, {test_msg.linear.z}), "
+        f"angular=({test_msg.angular.x}, {test_msg.angular.y}, {test_msg.angular.z}))"
+    )
 
     # Receive and validate
     msg = sub.recv(timeout=2.0)
@@ -57,9 +61,12 @@ def test_twist(node):
     assert msg.angular.x == 0.0
     assert msg.angular.y == 0.0
     assert msg.angular.z == 0.5
-    print(f"  Received: Twist(linear=({msg.linear.x}, {msg.linear.y}, {msg.linear.z}), "
-          f"angular=({msg.angular.x}, {msg.angular.y}, {msg.angular.z}))")
+    print(
+        f"  Received: Twist(linear=({msg.linear.x}, {msg.linear.y}, {msg.linear.z}), "
+        f"angular=({msg.angular.x}, {msg.angular.y}, {msg.angular.z}))"
+    )
     print("✓ Twist works")
+
 
 def main():
     print("=" * 60)
@@ -77,6 +84,7 @@ def main():
     print("=" * 60)
     print("All tests passed! ✓")
     print("=" * 60)
+
 
 if __name__ == "__main__":
     main()

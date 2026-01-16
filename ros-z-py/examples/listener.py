@@ -2,7 +2,7 @@
 """Simple listener example - subscribes to String messages."""
 
 import ros_z_py
-from ros_z_py import std_msgs
+
 
 def main():
     # Create session and node
@@ -20,7 +20,9 @@ def main():
             print(f"Received: {msg.data}")
         else:
             import time
+
             time.sleep(0.1)  # Small delay to prevent busy waiting
+
 
 if __name__ == "__main__":
     try:
