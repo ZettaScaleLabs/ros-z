@@ -23,9 +23,9 @@
       let
         # List of supported ROS distros
         distros = [
-          "humble" # LTS
           "jazzy" # default
           "rolling"
+          "humble" # LTS
         ];
 
         pkgs = import nixpkgs {
