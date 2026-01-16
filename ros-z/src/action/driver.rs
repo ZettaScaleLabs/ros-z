@@ -246,7 +246,7 @@ async fn handle_result_request<A: ZAction>(
             // Goal exists but not terminated yet - register waiter
             manager.result_futures
                 .entry(request.goal_id)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(tx);
             (ResultState::Waiting, None)
         } else {

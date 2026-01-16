@@ -282,8 +282,11 @@ impl Builder for ZContextBuilder {
         // Apply environment variable overrides first
         let builder = self.apply_env_overrides()?;
 
+        let has_custom_config = builder.zenoh_config.is_some();
+        let has_config_file = builder.config_file.is_some();
+        let has_env_config = std::env::var("ROSZ_CONFIG_FILE").is_ok();
+
         let mut config = if let Some(config) = builder.zenoh_config {
-            // Use explicitly provided Zenoh config
             config
         } else if let Some(ref config_file) = builder.config_file {
             // Use explicit config file
@@ -312,6 +315,14 @@ impl Builder for ZContextBuilder {
 
         // Open Zenoh session
         let session = zenoh::open(config).wait()?;
+
+        // Check if router is running when using default peer mode
+        if !has_custom_config && !has_config_file && !has_env_config {
+            let mut routers_zid = session.info().routers_zid().wait();
+            if routers_zid.next().is_none() {
+                tracing::warn!("No Zenoh router detected. Have you started a router with `cargo run --example example_router`? Other peers will not discover or receive data from peers in this session until a router is started.");
+            }
+        }
 
         let domain_id = builder.domain_id;
         let graph = Arc::new(Graph::new(&session, domain_id)?);
