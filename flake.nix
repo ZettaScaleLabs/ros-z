@@ -153,6 +153,16 @@
           rust-analyzer
           nixfmt-rfc-style
           gdb
+          maturin
+          uv
+          python3
+          # Python testing tools
+          ruff
+          python3Packages.mypy
+          python3Packages.pytest
+          python3Packages.pytest-cov
+          python3Packages.build
+          python3Packages.pip
         ];
 
         # Documentation tools

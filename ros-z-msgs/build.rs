@@ -1,6 +1,8 @@
 use std::{env, path::PathBuf};
 
 use anyhow::Result;
+#[cfg(feature = "python_registry")]
+use ros_z_codegen::python_msgspec_generator;
 
 fn main() -> Result<()> {
     let out_dir = PathBuf::from(env::var("OUT_DIR")?);
@@ -32,6 +34,81 @@ fn main() -> Result<()> {
             "cargo:info=Generated ROS messages from {} packages",
             ros_packages.len()
         );
+
+        // Generate Python bindings if python_registry feature is enabled
+        #[cfg(feature = "python_registry")]
+        {
+            use roslibrust_codegen;
+
+            // Parse messages for Python generation
+            let (messages, services, parsed_actions) =
+                roslibrust_codegen::find_and_parse_ros_messages(&ros_packages)?;
+
+            // Resolve action hashes from JSON metadata
+            let _actions = roslibrust_codegen::resolve_action_hashes(parsed_actions);
+
+            // Filter out old-style actionlib messages and wstring messages
+            let messages: Vec<_> = messages
+                .into_iter()
+                .filter(|msg| {
+                    let full_name = msg.get_full_name();
+                    let msg_name = msg.name.as_str();
+
+                    // Filter out actionlib_msgs and old-style Action messages
+                    if full_name.starts_with("actionlib_msgs/")
+                        || full_name.ends_with("Action")
+                        || full_name.ends_with("ActionGoal")
+                        || full_name.ends_with("ActionResult")
+                        || full_name.ends_with("ActionFeedback")
+                    {
+                        return false;
+                    }
+
+                    // Filter out redundant service Request/Response message files
+                    // ROS 2 Humble ships with separate *_Request.msg and *_Response.msg files
+                    // but these are auto-generated from .srv files by roslibrust (with CamelCase naming).
+                    // Filtering these out ensures consistent CamelCase naming across all ROS versions.
+                    if msg_name.ends_with("_Request") || msg_name.ends_with("_Response") {
+                        return false;
+                    }
+
+                    // Filter out messages with wstring fields
+                    let has_wstring = msg
+                        .fields
+                        .iter()
+                        .any(|field| field.field_type.to_string().contains("wstring"));
+
+                    !has_wstring
+                })
+                .collect();
+
+            let services: Vec<_> = services
+                .into_iter()
+                .filter(|srv| {
+                    let full_name = format!("{}/{}", srv.package, srv.name);
+                    !full_name.starts_with("actionlib_msgs/")
+                })
+                .collect();
+
+            let (resolved_msgs, _resolved_srvs) =
+                roslibrust_codegen::resolve_dependency_graph(messages, services)?;
+
+            // Create Python output directory
+            let python_output_dir = PathBuf::from("python/ros_z_msgs_py/types");
+            std::fs::create_dir_all(&python_output_dir)?;
+
+            // Generate Python bindings + complete PyO3 module
+            python_msgspec_generator::generate_python_bindings(
+                &resolved_msgs,
+                &python_output_dir,
+                &out_dir.join("python_bindings.rs"),
+            )?;
+
+            println!(
+                "cargo:info=Generated Python bindings for {} messages",
+                resolved_msgs.len()
+            );
+        }
     }
 
     println!("cargo:rerun-if-changed=build.rs");

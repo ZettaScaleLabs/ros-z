@@ -1,0 +1,58 @@
+use pyo3::prelude::*;
+use pyo3::types::{PyDict, PyTuple};
+use std::sync::Arc;
+use ros_z::context::ZContext;
+use crate::error::IntoPyErr;
+
+#[pyclass(name = "ZContext")]
+pub struct PyZContext {
+    pub(crate) ctx: Arc<ZContext>,
+}
+
+#[allow(unsafe_op_in_unsafe_fn)]
+#[pymethods]
+impl PyZContext {
+    fn __enter__<'a, 'py>(this: &'a Bound<'py, Self>) -> &'a Bound<'py, Self> {
+        this
+    }
+
+    #[pyo3(signature = (*_args, **_kwargs))]
+    fn __exit__(
+        &mut self,
+        _py: Python,
+        _args: &Bound<PyTuple>,
+        _kwargs: Option<&Bound<PyDict>>,
+    ) -> PyResult<()> {
+        self.close()
+    }
+
+    fn close(&self) -> PyResult<()> {
+        // Zenoh sessions are ref-counted via Arc, no explicit close needed
+        // The session will be closed when the last reference is dropped
+        Ok(())
+    }
+}
+
+/// Open a Zenoh session for ROS 2 communication
+#[allow(unsafe_op_in_unsafe_fn)]
+#[pyfunction]
+#[pyo3(signature = (config=None, domain_id=0))]
+pub fn open_session(config: Option<&Bound<'_, PyDict>>, domain_id: usize) -> PyResult<PyZContext> {
+    use ros_z::{Builder, context::ZContextBuilder};
+
+    // Create context builder
+    let builder = ZContextBuilder::default().with_domain_id(domain_id).with_logging_enabled();
+
+    // Parse Zenoh configuration from Python dict if provided
+    if let Some(_cfg_dict) = config {
+        // TODO: Parse config dict and apply to builder
+        // For now, just use defaults
+    }
+
+    // Build the context
+    let ctx = builder.build().map_err(|e| e.into_pyerr())?;
+
+    Ok(PyZContext {
+        ctx: Arc::new(ctx),
+    })
+}

@@ -14,12 +14,17 @@ smart-default = { workspace = true }
 serde-big-array = { workspace = true }
 
 prost = { workspace = true, optional = true }
+pyo3 = { version = "0.22", optional = true }
+cdr = { workspace = true, optional = true }
+parking_lot = { workspace = true, optional = true }
+once_cell = { workspace = true, optional = true }
 
 [dev-dependencies]
 cdr = { workspace = true }
 
 [build-dependencies]
 ros-z-codegen = { version = "0.1", path = "../ros-z-codegen" }
+roslibrust_codegen = { workspace = true }
 anyhow = { workspace = true }
 glob = { workspace = true }
 
@@ -61,3 +66,4 @@ humble = ["ros-z/humble"]
 jazzy = ["ros-z/jazzy"]
 rolling = ["ros-z/rolling"]
 iron = ["ros-z/iron"]
+python_registry = ["pyo3", "cdr", "parking_lot", "once_cell"]
