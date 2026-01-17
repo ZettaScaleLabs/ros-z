@@ -1,10 +1,10 @@
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering::AcqRel;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 use std::{marker::PhantomData, sync::Arc};
 
 use zenoh::liveliness::LivelinessToken;
 use zenoh::{Result, Session, Wait, sample::Sample};
+use tracing::{info, debug, trace};
 
 use crate::Builder;
 use crate::attachment::{Attachment, GidArray};
@@ -70,6 +70,11 @@ where
 {
     type Output = ZPub<T, S>;
 
+    #[tracing::instrument(name = "pub_build", skip(self), fields(
+        topic = %self.entity.topic,
+        qos_reliability = ?self.entity.qos.reliability,
+        qos_durability = ?self.entity.qos.durability
+    ))]
     fn build(mut self) -> Result<Self::Output> {
         // Qualify the topic name according to ROS 2 rules
         let qualified_topic = topic_name::qualify_topic_name(
@@ -79,10 +84,11 @@ where
         )
         .map_err(|e| zenoh::Error::from(format!("Failed to qualify topic: {}", e)))?;
 
-        self.entity.topic = qualified_topic;
+        self.entity.topic = qualified_topic.clone();
+        debug!("[PUB] Qualified topic: {}", qualified_topic);
 
         let key_expr = self.entity.topic_key_expr()?;
-        tracing::debug!("[PUB] KE: {key_expr}");
+        debug!("[PUB] Key expression: {}", key_expr);
 
         // Map QoS to Zenoh publisher settings
         let mut pub_builder = self.session.declare_publisher(key_expr);
@@ -91,9 +97,11 @@ where
         match self.entity.qos.reliability {
             QosReliability::Reliable => {
                 pub_builder = pub_builder.congestion_control(zenoh::qos::CongestionControl::Block);
+                debug!("[PUB] QoS: Reliable (Block)");
             }
             QosReliability::BestEffort => {
                 pub_builder = pub_builder.congestion_control(zenoh::qos::CongestionControl::Drop);
+                debug!("[PUB] QoS: BestEffort (Drop)");
             }
         }
 
@@ -101,13 +109,17 @@ where
         match self.entity.qos.durability {
             QosDurability::TransientLocal => {
                 pub_builder = pub_builder.express(true);
+                debug!("[PUB] Durability: TransientLocal (express)");
             }
             QosDurability::Volatile => {
                 pub_builder = pub_builder.express(false);
+                debug!("[PUB] Durability: Volatile");
             }
         }
 
         let inner = pub_builder.wait()?;
+        info!("[PUB] Publisher ready: topic={}", self.entity.topic);
+
         let lv_token = self
             .session
             .liveliness()
@@ -133,14 +145,31 @@ where
     S: for<'a> ZSerializer<Input<'a> = &'a T> + 'static,
 {
     fn new_attchment(&self) -> Attachment {
-        Attachment::new(self.sn.fetch_add(1, AcqRel) as _, self.gid)
+        let sn = self.sn.fetch_add(1, Ordering::AcqRel);
+        trace!("[PUB] Creating attachment: sn={}, gid={:02x?}", sn, &self.gid[..4]);
+        Attachment::new(sn as _, self.gid)
     }
 
+    #[tracing::instrument(name = "publish", skip(self, msg), fields(
+        topic = %self.entity.topic,
+        sn = self.sn.load(Ordering::Acquire),
+        payload_len = tracing::field::Empty
+    ))]
     pub fn publish(&self, msg: &T) -> Result<()> {
-        let mut put_builder = self.inner.put(S::serialize(msg));
+        let payload = S::serialize(msg);
+        tracing::Span::current().record("payload_len", payload.len());
+
+        debug!("[PUB] Publishing message");
+
+        let mut put_builder = self.inner.put(payload);
+
         if self.with_attachment {
-            put_builder = put_builder.attachment(self.new_attchment());
+            let att = self.new_attchment();
+            let sn = att.sequence_number;
+            put_builder = put_builder.attachment(att);
+            trace!("[PUB] Attached sn={}", sn);
         }
+
         put_builder.wait()
     }
 
@@ -212,11 +241,15 @@ where
         )
         .map_err(|e| zenoh::Error::from(format!("Failed to qualify topic: {}", e)))?;
 
-        self.entity.topic = qualified_topic;
+        self.entity.topic = qualified_topic.clone();
+        debug!("[SUB] Qualified topic: {}", qualified_topic);
+
+        let key_expr = self.entity.topic_key_expr()?;
+        debug!("[SUB] Key expression: {}, qos={:?}", key_expr, self.entity.qos);
 
         let inner = self
             .session
-            .declare_subscriber(self.entity.topic_key_expr()?)
+            .declare_subscriber(key_expr)
             .callback(move |sample| handler.handle(sample))
             .wait()?;
 
@@ -226,6 +259,8 @@ where
             .liveliness()
             .declare_token(self.entity.lv_token_key_expr()?)
             .wait()?;
+
+        info!("[SUB] Subscriber ready: topic={}", self.entity.topic);
 
         Ok(ZSub {
             entity: self.entity,
@@ -348,11 +383,21 @@ where
     S: for<'a> ZDeserializer<Input<'a> = &'a [u8]>,
 {
     /// Receive and deserialize the next message (aligned with ROS behavior)
+    #[tracing::instrument(name = "recv", skip(self), fields(
+        topic = %self.entity.topic,
+        payload_len = tracing::field::Empty
+    ))]
     pub fn recv(&self) -> Result<S::Output> {
+        trace!("[SUB] Waiting for message");
+
         let queue = self.queue.as_ref()
             .ok_or_else(|| zenoh::Error::from("Subscriber was built with callback, no queue available"))?;
         let sample = queue.recv()?;
         let payload = sample.payload().to_bytes();
+
+        tracing::Span::current().record("payload_len", payload.len());
+        debug!("[SUB] Received message");
+
         S::deserialize(&payload).map_err(|e| zenoh::Error::from(e.to_string()))
     }
 

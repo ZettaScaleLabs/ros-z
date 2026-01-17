@@ -2,6 +2,7 @@ use std::sync::{Arc, atomic::AtomicUsize};
 use std::collections::HashMap;
 
 use zenoh::{Result, Session, Wait};
+use tracing::{info, debug, warn};
 
 use crate::{Builder, graph::Graph, node::ZNodeBuilder};
 
@@ -46,6 +47,7 @@ impl RemapRules {
     /// Apply remapping to a name
     pub fn apply(&self, name: &str) -> String {
         if let Some(remapped) = self.rules.get(name) {
+            debug!("[CTX] Remapped '{}' -> '{}'", name, remapped);
             remapped.clone()
         } else {
             name.to_string()
@@ -271,6 +273,10 @@ impl ZContextBuilder {
 impl Builder for ZContextBuilder {
     type Output = ZContext;
 
+    #[tracing::instrument(name = "ctx_build", skip(self), fields(
+        domain_id = %self.domain_id,
+        config_file = ?self.config_file
+    ))]
     fn build(self) -> Result<ZContext> {
         // Priority order:
         // 1. Custom Zenoh config passed via with_zenoh_config()
@@ -279,8 +285,12 @@ impl Builder for ZContextBuilder {
         // 4. **NEW DEFAULT**: ROS session config (connects to router at tcp/localhost:7447)
         //    This matches rmw_zenoh_cpp behavior
 
+        info!("[CTX] Building context: domain_id={}, has_config={}",
+            self.domain_id, self.config_file.is_some());
+
         // Apply environment variable overrides first
         let builder = self.apply_env_overrides()?;
+        debug!("[CTX] Applied {} env overrides", builder.config_overrides.len());
 
         let has_custom_config = builder.zenoh_config.is_some();
         let has_config_file = builder.config_file.is_some();
@@ -315,12 +325,15 @@ impl Builder for ZContextBuilder {
 
         // Open Zenoh session
         let session = zenoh::open(config).wait()?;
+        info!("[CTX] Zenoh session opened: zid={}", session.zid());
 
         // Check if router is running when using default peer mode
         if !has_custom_config && !has_config_file && !has_env_config {
             let mut routers_zid = session.info().routers_zid().wait();
             if routers_zid.next().is_none() {
-                tracing::warn!("No Zenoh router detected. Have you started a router with `cargo run --example example_router`? Other peers will not discover or receive data from peers in this session until a router is started.");
+                warn!("[CTX] No routers connected");
+            } else {
+                debug!("[CTX] Connected to routers");
             }
         }
 

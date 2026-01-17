@@ -3,6 +3,7 @@ use crate::graph::Graph;
 use std::sync::Arc;
 use zenoh::liveliness::LivelinessToken;
 use zenoh::{Result, Session, Wait};
+use tracing::{info, debug};
 
 use crate::{
     action::{client::ZActionClientBuilder, server::ZActionServerBuilder},
@@ -44,20 +45,35 @@ impl ZNodeBuilder {
 
 impl Builder for ZNodeBuilder {
     type Output = ZNode;
+
+    #[tracing::instrument(name = "node_build", skip(self), fields(
+        name = %self.name,
+        namespace = %self.namespace,
+        id = tracing::field::Empty
+    ))]
     fn build(self) -> Result<ZNode> {
         let id = self.counter.increment();
+        tracing::Span::current().record("id", id);
+
+        info!("[NOD] Creating node: {}/{}, id={}", self.namespace, self.name, id);
+
         let node = NodeEntity::new(
             self.domain_id,
             self.session.zid(),
             id,
-            self.name,
-            self.namespace,
+            self.name.clone(),
+            self.namespace.clone(),
         );
+        let lv_token_ke = node.lv_token_key_expr()?;
+        debug!("[NOD] Liveliness token KE: {}", lv_token_ke);
+
         let lv_token = self
             .session
             .liveliness()
-            .declare_token(node.lv_token_key_expr()?)
+            .declare_token(lv_token_ke)
             .wait()?;
+        info!("[NOD] Node ready: {}/{}", self.namespace, self.name);
+
         Ok(ZNode {
             entity: node,
             session: self.session,
@@ -81,6 +97,7 @@ impl ZNode {
     where
         T: ZMessage + WithTypeInfo,
     {
+        debug!("[NOD] Creating publisher: topic={}", topic);
         self.create_pub_impl(topic, Some(T::type_info()))
     }
 
@@ -121,6 +138,7 @@ impl ZNode {
     where
         T: WithTypeInfo,
     {
+        debug!("[NOD] Creating subscriber: topic={}", topic);
         self.create_sub_impl(topic, Some(T::type_info()))
     }
 
@@ -157,6 +175,7 @@ impl ZNode {
     where
         T: ZService + ServiceTypeInfo,
     {
+        debug!("[NOD] Creating service: topic={}", topic);
         self.create_service_impl(topic, Some(T::service_type_info()))
     }
 
@@ -193,6 +212,7 @@ impl ZNode {
     where
         T: ZService + ServiceTypeInfo,
     {
+        debug!("[NOD] Creating client: topic={}", topic);
         self.create_client_impl(topic, Some(T::service_type_info()))
     }
 

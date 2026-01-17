@@ -3,7 +3,7 @@
 use std::{
     collections::HashMap,
     marker::PhantomData,
-    sync::{Arc, atomic::AtomicUsize},
+    sync::{atomic::AtomicUsize, Arc},
     time::Duration,
 };
 
@@ -15,8 +15,9 @@ use zenoh::{
     query::{Query, Reply},
     sample::Sample,
 };
+use tracing::{error, info, debug, warn, trace};
 
-use std::sync::atomic::Ordering::AcqRel;
+use std::sync::atomic::Ordering;
 
 use crate::entity::TopicKE;
 use crate::topic_name;
@@ -49,6 +50,7 @@ pub struct ZClient<T: ZService> {
     lv_token: LivelinessToken,
     tx: flume::Sender<Sample>,
     pub rx: flume::Receiver<Sample>,
+    topic: String,
     _phantom_data: PhantomData<T>,
 }
 
@@ -58,6 +60,9 @@ where
 {
     type Output = ZClient<T>;
 
+    #[tracing::instrument(name = "client_build", skip(self), fields(
+        service = %self.entity.topic
+    ))]
     fn build(mut self) -> Result<Self::Output> {
         // Qualify the service name according to ROS 2 rules
         let qualified_service = topic_name::qualify_service_name(
@@ -67,10 +72,11 @@ where
         )
         .map_err(|e| zenoh::Error::from(format!("Failed to qualify service: {}", e)))?;
 
-        self.entity.topic = qualified_service;
+        self.entity.topic = qualified_service.clone();
+        debug!("[CLN] Qualified service: {}", qualified_service);
 
         let key_expr = self.entity.topic_key_expr()?;
-        tracing::debug!("[CLN] KE: {key_expr}");
+        debug!("[CLN] Key expression: {}", key_expr);
 
         let inner = self.session.declare_querier(key_expr)
             .target(zenoh::query::QueryTarget::AllComplete)
@@ -83,6 +89,8 @@ where
             .declare_token(self.entity.lv_token_key_expr()?)
             .wait()?;
         let (tx, rx) = flume::unbounded();
+        info!("[CLN] Client ready: service={}", self.entity.topic);
+
         Ok(ZClient {
             sn: AtomicUsize::new(1), // Start at 1 for ROS compatibility
             inner,
@@ -90,6 +98,7 @@ where
             gid: self.entity.gid(),
             tx,
             rx,
+            topic: self.entity.topic.clone(),
             _phantom_data: Default::default(),
         })
     }
@@ -100,7 +109,7 @@ where
     T: ZService,
 {
     fn new_attchment(&self) -> Attachment {
-        Attachment::new(self.sn.fetch_add(1, AcqRel) as _, self.gid)
+        Attachment::new(self.sn.fetch_add(1, Ordering::AcqRel) as _, self.gid)
     }
 
     pub fn take_sample(&self) -> Result<Sample> {
@@ -155,25 +164,35 @@ impl<T> ZClient<T>
 where
     T: ZService,
 {
+    #[tracing::instrument(name = "send_request", skip(self, msg), fields(
+        service = %self.topic,
+        sn = self.sn.load(Ordering::Acquire),
+        payload_len = tracing::field::Empty
+    ))]
     pub async fn send_request(&self, msg: &T::Request) -> Result<()> {
+        let payload = msg.serialize();
+        tracing::Span::current().record("payload_len", payload.len());
+
+        debug!("[CLN] Sending request");
+
         let tx = self.tx.clone();
         self.inner
             .get()
-            .payload(msg.serialize())
+            .payload(payload)
             .attachment(self.new_attchment())
             .callback(move |reply| {
-                tracing::trace!("ZClient received reply in callback");
                 match reply.into_result() {
                     Ok(sample) => {
-                        tracing::trace!("ZClient reply OK, sending to channel");
-                        tx.send(sample);
+                        debug!("[CLN] Reply received: len={}", sample.payload().len());
+                        let _ = tx.send(sample);
                     }
                     Err(e) => {
-                        tracing::error!("ZClient reply error: {:?}", e);
+                        warn!("[CLN] Reply error: {:?}", e);
                     }
                 }
             })
             .await?;
+
         Ok(())
     }
 
@@ -270,8 +289,13 @@ where
             .declare_queryable(&key_expr)
             .complete(true)
             .callback(move |query| {
-                tracing::debug!("RECEIVED QUERY: {}", &query.key_expr());
-                tracing::debug!("Selector: {}", &query.selector());
+                debug!("[SRV] Query received: ke={}, selector={}",
+                    query.key_expr(), query.selector());
+
+                if let Some(att) = query.attachment() {
+                    trace!("[SRV] Query has attachment");
+                }
+
                 handler.handle(query);
             })
             .wait()?;
@@ -349,7 +373,7 @@ where
     T: ZService,
 {
     fn new_attchment(&self) -> Attachment {
-        Attachment::new(self.sn.fetch_add(1, AcqRel) as _, self.gid)
+        Attachment::new(self.sn.fetch_add(1, Ordering::AcqRel) as _, self.gid)
     }
 
     /// Retrieve the next query on the service without deserializing the payload.
@@ -368,20 +392,36 @@ where
     /// Blocks waiting to receive the next request on the service and then deserializes the payload.
     ///
     /// This method may fail if the message does not deserialize as the requested type.
+    #[tracing::instrument(name = "take_request", skip(self), fields(
+        service = %self.key_expr,
+        sn = tracing::field::Empty,
+        payload_len = tracing::field::Empty
+    ))]
     pub fn take_request(&mut self) -> Result<(QueryKey, T::Request)>
     where
         T::Request: ZMessage + Send + Sync + 'static,
         for<'a> <T::Request as ZMessage>::Serdes: ZDeserializer<Output = T::Request, Input<'a> = &'a [u8]>,
     {
+        trace!("[SRV] Waiting for request");
+
         let rx = self.rx.as_ref()
             .ok_or_else(|| zenoh::Error::from("Server was built with callback, no queue available"))?;
         let query = rx.recv()?;
         let attachment: Attachment = query.attachment().unwrap().try_into()?;
         let key: QueryKey = attachment.into();
+
+        tracing::Span::current().record("sn", key.sn);
+
+        let payload_bytes = query.payload().unwrap().to_bytes();
+        tracing::Span::current().record("payload_len", payload_bytes.len());
+
         if self.map.contains_key(&key) {
+            warn!("[SRV] Duplicate request: sn={}", key.sn);
             return Err("Existing query detected".into());
         }
-        let payload_bytes = query.payload().unwrap().to_bytes();
+
+        debug!("[SRV] Processing request");
+
         let msg = <T::Request as ZMessage>::deserialize(&payload_bytes[..])
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
         self.map.insert(key.clone(), query);
@@ -417,17 +457,30 @@ where
     ///
     /// - `msg` is the response message to send.
     /// - `key` is the query key of the request to reply to and is obtained from [take_request](Self::take_request) or [take_request_async](Self::take_request_async)
+    #[tracing::instrument(name = "send_response", skip(self, msg), fields(
+        service = %self.key_expr,
+        sn = %key.sn,
+        payload_len = tracing::field::Empty
+    ))]
     pub fn send_response(&mut self, msg: &T::Response, key: &QueryKey) -> Result<()> {
         match self.map.remove(key) {
             Some(query) => {
+                let payload = msg.serialize();
+                tracing::Span::current().record("payload_len", payload.len());
+
+                debug!("[SRV] Sending response");
+
                 // Use the sequence number and GID from the request
                 let attachment = Attachment::new(key.sn, key.gid);
                 query
-                    .reply(&self.key_expr, msg.serialize())
+                    .reply(&self.key_expr, payload)
                     .attachment(attachment)
                     .wait()
             }
-            None => Err("Quey map doesn't contains {key}".into()),
+            None => {
+                error!("[SRV] No query found for sn={}", key.sn);
+                Err("Query map doesn't contain key".into())
+            }
         }
     }
 
