@@ -1,8 +1,12 @@
+use ros_z::{
+    MessageTypeInfo, ServiceTypeInfo,
+    entity::{TypeHash, TypeInfo},
+    msg::{ZDeserializer, ZMessage, ZSerializer, ZService},
+    ros_msg::WithTypeInfo,
+};
+use zenoh_buffers::ZBuf;
+
 use crate::type_support::MessageTypeSupport;
-use ros_z::entity::{TypeHash, TypeInfo};
-use ros_z::msg::{ZDeserializer, ZMessage, ZSerializer, ZService};
-use ros_z::ros_msg::WithTypeInfo;
-use ros_z::{MessageTypeInfo, ServiceTypeInfo};
 
 pub struct RosMessage {
     msg: *const crate::c_void,
@@ -45,6 +49,17 @@ impl ZSerializer for RosSerdes {
     fn serialize(input: &RosMessage) -> Vec<u8> {
         let RosMessage { msg, ts } = input;
         unsafe { ts.serialize_message(*msg) }
+    }
+
+    fn serialize_to_zbuf(input: &RosMessage) -> ZBuf {
+        let serialized = Self::serialize(input);
+        ZBuf::from(serialized)
+    }
+
+    fn serialize_to_buf(input: &RosMessage, buffer: &mut Vec<u8>) {
+        buffer.clear();
+        let serialized = Self::serialize(input);
+        buffer.extend(serialized);
     }
 }
 

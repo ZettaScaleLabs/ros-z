@@ -28,6 +28,7 @@ pub struct ZPub<T: ZMessage, S: ZSerializer> {
     _lv_token: LivelinessToken,
     with_attachment: bool,
     events_mgr: Arc<Mutex<EventsManager>>,
+    typical_msg_size: AtomicUsize,
     _phantom_data: PhantomData<(T, S)>,
 }
 
@@ -126,6 +127,7 @@ where
             .declare_token(self.entity.lv_token_key_expr()?)
             .wait()?;
         let gid = self.entity.gid();
+
         Ok(ZPub {
             entity: self.entity,
             sn: AtomicUsize::new(0),
@@ -134,6 +136,7 @@ where
             gid,
             events_mgr: Arc::new(Mutex::new(EventsManager::new(gid))),
             with_attachment: self.with_attachment,
+            typical_msg_size: AtomicUsize::new(4096),
             _phantom_data: Default::default(),
         })
     }
@@ -145,7 +148,7 @@ where
     S: for<'a> ZSerializer<Input<'a> = &'a T> + 'static,
 {
     fn new_attchment(&self) -> Attachment {
-        let sn = self.sn.fetch_add(1, Ordering::AcqRel);
+        let sn = self.sn.fetch_add(1, Ordering::Relaxed);
         trace!("[PUB] Creating attachment: sn={}, gid={:02x?}", sn, &self.gid[..4]);
         Attachment::new(sn as _, self.gid)
     }
@@ -156,13 +159,20 @@ where
         payload_len = tracing::field::Empty
     ))]
     pub fn publish(&self, msg: &T) -> Result<()> {
-        let payload = S::serialize(msg);
-        tracing::Span::current().record("payload_len", payload.len());
+        // Serialize directly to ZBuf for zero-copy publishing
+        let zbuf = S::serialize_to_zbuf(msg);
 
+        // Update size estimate for next publish (used for metrics/debugging)
+        use zenoh_buffers::buffer::Buffer;
+        let actual_size = zbuf.len();
+        self.typical_msg_size.store(actual_size, Ordering::Relaxed);
+
+        tracing::Span::current().record("payload_len", actual_size);
         debug!("[PUB] Publishing message");
 
-        let mut put_builder = self.inner.put(payload);
-
+        // Convert ZBuf to ZBytes and publish
+        let zbytes = zenoh::bytes::ZBytes::from(zbuf);
+        let mut put_builder = self.inner.put(zbytes);
         if self.with_attachment {
             let att = self.new_attchment();
             let sn = att.sequence_number;
@@ -174,7 +184,17 @@ where
     }
 
     pub async fn async_publish(&self, msg: &T) -> Result<()> {
-        let mut put_builder = self.inner.put(S::serialize(msg));
+        // Serialize directly to ZBuf for zero-copy publishing
+        let zbuf = S::serialize_to_zbuf(msg);
+
+        // Update size estimate
+        use zenoh_buffers::buffer::Buffer;
+        let actual_size = zbuf.len();
+        self.typical_msg_size.store(actual_size, Ordering::Relaxed);
+
+        // Convert ZBuf to ZBytes and publish
+        let zbytes = zenoh::bytes::ZBytes::from(zbuf);
+        let mut put_builder = self.inner.put(zbytes);
         if self.with_attachment {
             put_builder = put_builder.attachment(self.new_attchment());
         }
@@ -190,7 +210,9 @@ where
     }
 
     pub fn publish_sample(&self, msg: &Sample) -> Result<()> {
-        let mut put_builder = self.inner.put(msg.payload().to_bytes());
+        let payload = msg.payload().to_bytes();
+        // NOTE: pass by reference to avoid copy
+        let mut put_builder = self.inner.put(&payload);
         if self.with_attachment {
             put_builder = put_builder.attachment(self.new_attchment());
         }
@@ -348,7 +370,7 @@ pub struct ZSub<T: ZMessage, Q, S: ZDeserializer> {
     _inner: zenoh::pubsub::Subscriber<()>,
     _lv_token: LivelinessToken,
     events_mgr: Arc<Mutex<EventsManager>>,
-    _phantom_data: PhantomData<(T, S)>,
+    _phantom_data: PhantomData<(T, Q, S)>,
 }
 
 impl<T, S> ZSub<T, Sample, S>

@@ -15,7 +15,8 @@ zenoh-buffers = { workspace = true }
 prost = { workspace = true, optional = true }
 
 [dev-dependencies]
-cdr = { workspace = true }
+ros-z-cdr = { workspace = true }
+byteorder = { workspace = true }
 
 [build-dependencies]
 ros-z-codegen = { version = "0.1", path = "../ros-z-codegen" }
