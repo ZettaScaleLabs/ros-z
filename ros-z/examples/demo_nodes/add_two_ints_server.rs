@@ -1,5 +1,5 @@
 use ros_z::{Builder, Result, context::ZContext};
-use ros_z_msgs::example_interfaces::{AddTwoInts, AddTwoIntsResponse};
+use ros_z_msgs::example_interfaces::{AddTwoIntsResponse, srv::AddTwoInts};
 
 /// AddTwoInts server node that provides a service to add two integers
 ///

@@ -38,6 +38,7 @@ zenoh = { version = "1.7.2", default-features = false, features = [
   "transport_serial",
 ] }
 zenoh-ext = { version = "1.7.2" }
+zenoh-buffers = { version = "1.7.2" }
 
 # CLI
 clap = "4.5.45"

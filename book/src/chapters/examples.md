@@ -21,9 +21,7 @@ cargo run --example z_custom_message -- --mode status-pub
 cargo run --example z_pubsub          # Publisher/Subscriber with std_msgs
 cargo run --example twist_pub         # Publishing geometry_msgs
 cargo run --example battery_state_sub # Receiving sensor_msgs
-
-# Examples requiring ROS 2 (requires external_msgs feature)
-cargo run --example z_srvcli --features external_msgs
+cargo run --example z_srvcli          # Service example with example_interfaces
 ```
 
 See the [Networking](./config.md) chapter for router setup details and alternative configurations.

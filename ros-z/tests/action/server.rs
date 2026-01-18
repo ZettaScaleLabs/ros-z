@@ -190,7 +190,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_action_process_cancel_request() -> Result<()> {
-        use ros_z::action::messages::CancelGoalResponse;
+        use ros_z::action::messages::CancelGoalServiceResponse;
 
         let (_node, client, server) = setup_test().await?;
 
@@ -209,7 +209,7 @@ mod tests {
             let (cancel_request, query) = server_clone.recv_cancel().await?;
 
             // Send cancel response
-            let response = CancelGoalResponse {
+            let response = CancelGoalServiceResponse {
                 return_code: 1,
                 goals_canceling: vec![cancel_request.goal_info.clone()],
             };

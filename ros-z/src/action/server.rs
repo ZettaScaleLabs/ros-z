@@ -4,23 +4,24 @@
 //! allowing nodes to accept goals from action clients, execute them,
 //! provide feedback, and return results.
 
-use std::marker::PhantomData;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, Instant};
+use std::{
+    marker::PhantomData,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::{Duration, Instant},
+};
 
 use tokio_util::sync::CancellationToken;
 use zenoh::{Result, Wait};
 
-use crate::attachment::Attachment;
-use crate::msg::ZMessage;
-use crate::topic_name::qualify_topic_name;
-use crate::{Builder};
-
-use super::ZAction;
-use super::messages::*;
-use super::{GoalId, GoalInfo, GoalStatus};
-use super::state::{SafeGoalManager, ServerGoalState};
+use super::{
+    GoalId, GoalInfo, GoalStatus, ZAction,
+    messages::*,
+    state::{SafeGoalManager, ServerGoalState},
+};
+use crate::{Builder, attachment::Attachment, msg::ZMessage, topic_name::qualify_topic_name};
 
 /// Private implementation holding the actual server state.
 /// This is wrapped by the public `ZActionServer` handle.
@@ -28,8 +29,10 @@ pub(crate) struct InnerServer<A: ZAction> {
     pub(crate) goal_server: Arc<crate::service::ZServer<GoalService<A>>>,
     pub(crate) result_server: Arc<crate::service::ZServer<ResultService<A>>>,
     pub(crate) cancel_server: Arc<crate::service::ZServer<CancelService<A>>>,
-    pub(crate) feedback_pub: Arc<crate::pubsub::ZPub<FeedbackMessage<A>, <FeedbackMessage<A> as ZMessage>::Serdes>>,
-    pub(crate) status_pub: Arc<crate::pubsub::ZPub<StatusMessage, <StatusMessage as ZMessage>::Serdes>>,
+    pub(crate) feedback_pub:
+        Arc<crate::pubsub::ZPub<FeedbackMessage<A>, <FeedbackMessage<A> as ZMessage>::Serdes>>,
+    pub(crate) status_pub:
+        Arc<crate::pubsub::ZPub<StatusMessage, <StatusMessage as ZMessage>::Serdes>>,
     pub(crate) goal_manager: Arc<SafeGoalManager<A>>,
     /// Token to cancel the default result handler when switching to full driver mode
     pub(crate) result_handler_token: CancellationToken,
@@ -144,7 +147,7 @@ async fn handle_result_requests_legacy_inner<A: ZAction>(
 ) {
     tracing::debug!("Received result request");
     let payload = query.payload().unwrap().to_bytes();
-    let request = match <ResultRequest as ZMessage>::deserialize(&payload) {
+    let request = match <GetResultRequest as ZMessage>::deserialize(&payload) {
         Ok(r) => r,
         Err(e) => {
             tracing::error!("Failed to deserialize result request: {}", e);
@@ -164,17 +167,22 @@ async fn handle_result_requests_legacy_inner<A: ZAction>(
     }); // Lock released here
 
     if let Some((result, status)) = result_data {
-        tracing::debug!("Goal {:?} is terminated with status {:?}", request.goal_id, status);
+        tracing::debug!(
+            "Goal {:?} is terminated with status {:?}",
+            request.goal_id,
+            status
+        );
 
         // Send result response without holding lock
-        let response = ResultResponse::<A> {
-            status,
+        let response = GetResultResponse::<A> {
+            status: status as i8,
             result,
         };
-        let response_bytes = <ResultResponse<A> as ZMessage>::serialize(&response);
+        let response_bytes = <GetResultResponse<A> as ZMessage>::serialize(&response);
         let attachment: Attachment = query.attachment().unwrap().try_into().unwrap();
         //FIXME: address the result
-        let _ = query.reply(query.key_expr().clone(), response_bytes)
+        let _ = query
+            .reply(query.key_expr().clone(), response_bytes)
             .attachment(attachment)
             .wait();
         tracing::debug!("Sent result response");
@@ -197,10 +205,18 @@ impl<'a, A: ZAction> Builder for ZActionServerBuilder<'a, A> {
         }
 
         // Qualify action name like a topic name
-        let qualified_action_name = qualify_topic_name(&action_name, &self.node.entity.namespace, &self.node.entity.name)?;
+        let qualified_action_name = qualify_topic_name(
+            &action_name,
+            &self.node.entity.namespace,
+            &self.node.entity.name,
+        )?;
 
-        tracing::info!("Action name: '{}', namespace: '{}', qualified: '{}'",
-            action_name, self.node.entity.namespace, qualified_action_name);
+        tracing::info!(
+            "Action name: '{}', namespace: '{}', qualified: '{}'",
+            action_name,
+            self.node.entity.namespace,
+            qualified_action_name
+        );
 
         // ROS 2 action naming conventions
         let goal_service_name = format!("{}/_action/send_goal", qualified_action_name);
@@ -212,7 +228,9 @@ impl<'a, A: ZAction> Builder for ZActionServerBuilder<'a, A> {
         // Create goal server using node API for proper graph registration
         // Use the action's send_goal_type_info for proper ROS 2 interop
         let goal_type_info = Some(A::send_goal_type_info());
-        let mut goal_server_builder = self.node.create_service_impl::<GoalService<A>>(&goal_service_name, goal_type_info);
+        let mut goal_server_builder = self
+            .node
+            .create_service_impl::<GoalService<A>>(&goal_service_name, goal_type_info);
         if let Some(qos) = self.goal_service_qos {
             goal_server_builder.entity.qos = qos;
         }
@@ -221,7 +239,9 @@ impl<'a, A: ZAction> Builder for ZActionServerBuilder<'a, A> {
         // Create result server using node API for proper graph registration
         // Use the action's get_result_type_info for proper ROS 2 interop
         let result_type_info = Some(A::get_result_type_info());
-        let mut result_server_builder = self.node.create_service_impl::<ResultService<A>>(&result_service_name, result_type_info);
+        let mut result_server_builder = self
+            .node
+            .create_service_impl::<ResultService<A>>(&result_service_name, result_type_info);
         if let Some(qos) = self.result_service_qos {
             result_server_builder.entity.qos = qos;
         }
@@ -231,7 +251,9 @@ impl<'a, A: ZAction> Builder for ZActionServerBuilder<'a, A> {
         // Create cancel server using node API for proper graph registration
         // Use the action's cancel_goal_type_info for proper ROS 2 interop
         let cancel_type_info = Some(A::cancel_goal_type_info());
-        let mut cancel_server_builder = self.node.create_service_impl::<CancelService<A>>(&cancel_service_name, cancel_type_info);
+        let mut cancel_server_builder = self
+            .node
+            .create_service_impl::<CancelService<A>>(&cancel_service_name, cancel_type_info);
         if let Some(qos) = self.cancel_service_qos {
             cancel_server_builder.entity.qos = qos;
         }
@@ -240,7 +262,9 @@ impl<'a, A: ZAction> Builder for ZActionServerBuilder<'a, A> {
         // Create feedback publisher using node API for proper graph registration
         // Use the action's feedback_type_info for proper ROS 2 interop
         let feedback_type_info = Some(A::feedback_type_info());
-        let mut feedback_pub_builder = self.node.create_pub_impl::<FeedbackMessage<A>>(&feedback_topic_name, feedback_type_info);
+        let mut feedback_pub_builder = self
+            .node
+            .create_pub_impl::<FeedbackMessage<A>>(&feedback_topic_name, feedback_type_info);
         if let Some(qos) = self.feedback_topic_qos {
             feedback_pub_builder.entity.qos = qos;
         }
@@ -250,17 +274,16 @@ impl<'a, A: ZAction> Builder for ZActionServerBuilder<'a, A> {
         // Create status publisher using node API for proper graph registration
         // Use the action's status_type_info for proper ROS 2 interop
         let status_type_info = Some(A::status_type_info());
-        let mut status_pub_builder = self.node.create_pub_impl::<StatusMessage>(&status_topic_name, status_type_info);
+        let mut status_pub_builder = self
+            .node
+            .create_pub_impl::<StatusMessage>(&status_topic_name, status_type_info);
         if let Some(qos) = self.status_topic_qos {
             status_pub_builder.entity.qos = qos;
         }
         // Keep attachments enabled for RMW-Zenoh compatibility
         let status_pub = status_pub_builder.build()?;
 
-        let goal_manager = Arc::new(SafeGoalManager::new(
-            self.result_timeout,
-            self.goal_timeout,
-        ));
+        let goal_manager = Arc::new(SafeGoalManager::new(self.result_timeout, self.goal_timeout));
 
         let cancellation_token = CancellationToken::new();
         let result_handler_token = CancellationToken::new();
@@ -303,7 +326,9 @@ impl<'a, A: ZAction> Builder for ZActionServerBuilder<'a, A> {
 
         Ok(ZActionServer {
             inner,
-            _shutdown: Arc::new(ShutdownGuard { token: cancellation_token }),
+            _shutdown: Arc::new(ShutdownGuard {
+                token: cancellation_token,
+            }),
         })
     }
 }
@@ -354,11 +379,16 @@ impl<A: ZAction> ZActionServer<A> {
         &self.inner.cancel_server
     }
 
-    fn feedback_pub(&self) -> &Arc<crate::pubsub::ZPub<FeedbackMessage<A>, <FeedbackMessage<A> as ZMessage>::Serdes>> {
+    fn feedback_pub(
+        &self,
+    ) -> &Arc<crate::pubsub::ZPub<FeedbackMessage<A>, <FeedbackMessage<A> as ZMessage>::Serdes>>
+    {
         &self.inner.feedback_pub
     }
 
-    fn status_pub(&self) -> &Arc<crate::pubsub::ZPub<StatusMessage, <StatusMessage as ZMessage>::Serdes>> {
+    fn status_pub(
+        &self,
+    ) -> &Arc<crate::pubsub::ZPub<StatusMessage, <StatusMessage as ZMessage>::Serdes>> {
         &self.inner.status_pub
     }
 
@@ -381,18 +411,22 @@ impl<A: ZAction> ZActionServer<A> {
     fn publish_status(&self) {
         // Build status list while holding lock, then release before publishing
         let status_list: Vec<GoalStatusInfo> = self.goal_manager().read(|manager| {
-            manager.goals.iter().map(|(goal_id, state)| {
-                let status = match state {
-                    ServerGoalState::Accepted { .. } => GoalStatus::Accepted,
-                    ServerGoalState::Executing { .. } => GoalStatus::Executing,
-                    ServerGoalState::Canceling { .. } => GoalStatus::Canceling,
-                    ServerGoalState::Terminated { status, .. } => *status,
-                };
-                GoalStatusInfo {
-                    goal_info: GoalInfo::new(*goal_id),
-                    status,
-                }
-            }).collect()
+            manager
+                .goals
+                .iter()
+                .map(|(goal_id, state)| {
+                    let status = match state {
+                        ServerGoalState::Accepted { .. } => GoalStatus::Accepted,
+                        ServerGoalState::Executing { .. } => GoalStatus::Executing,
+                        ServerGoalState::Canceling { .. } => GoalStatus::Canceling,
+                        ServerGoalState::Terminated { status, .. } => *status,
+                    };
+                    GoalStatusInfo {
+                        goal_info: GoalInfo::new(*goal_id),
+                        status,
+                    }
+                })
+                .collect()
         }); // Lock released here
 
         // Publish without holding lock
@@ -404,7 +438,7 @@ impl<A: ZAction> ZActionServer<A> {
     pub async fn recv_goal(&self) -> Result<GoalHandle<A, Requested>> {
         let query = self.goal_server().rx().recv_async().await?;
         let payload = query.payload().unwrap().to_bytes();
-        let request = <GoalRequest<A> as ZMessage>::deserialize(&payload)
+        let request = <SendGoalRequest<A> as ZMessage>::deserialize(&payload)
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
 
         Ok(GoalHandle {
@@ -417,10 +451,10 @@ impl<A: ZAction> ZActionServer<A> {
         })
     }
 
-    pub async fn recv_cancel(&self) -> Result<(CancelGoalRequest, zenoh::query::Query)> {
+    pub async fn recv_cancel(&self) -> Result<(CancelGoalServiceRequest, zenoh::query::Query)> {
         let query = self.cancel_server().rx().recv_async().await?;
         let payload = query.payload().unwrap().to_bytes();
-        let request = <CancelGoalRequest as ZMessage>::deserialize(&payload)
+        let request = <CancelGoalServiceRequest as ZMessage>::deserialize(&payload)
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok((request, query))
     }
@@ -433,7 +467,9 @@ impl<A: ZAction> ZActionServer<A> {
     /// This is a lock-free operation that can be called from any thread.
     pub fn request_cancel(&self, goal_id: GoalId) -> bool {
         self.goal_manager().read(|manager| {
-            if let Some(ServerGoalState::Executing { cancel_flag, .. }) = manager.goals.get(&goal_id) {
+            if let Some(ServerGoalState::Executing { cancel_flag, .. }) =
+                manager.goals.get(&goal_id)
+            {
                 cancel_flag.store(true, Ordering::Relaxed);
                 true
             } else {
@@ -451,38 +487,55 @@ impl<A: ZAction> ZActionServer<A> {
     }
 
     // FIXME: check the necessity
-    pub fn send_goal_response_low(&self, query: &zenoh::query::Query, response: &GoalResponse) -> Result<()> {
+    pub fn send_goal_response_low(
+        &self,
+        query: &zenoh::query::Query,
+        response: &GoalResponse,
+    ) -> Result<()> {
         let response_bytes = <GoalResponse as ZMessage>::serialize(response);
         let attachment: Attachment = query.attachment().unwrap().try_into().unwrap();
-        let _ = query.reply(query.key_expr().clone(), response_bytes)
+        let _ = query
+            .reply(query.key_expr().clone(), response_bytes)
             .attachment(attachment)
             .wait();
         Ok(())
     }
 
     // FIXME: check the necessity
-    pub async fn recv_cancel_request_low(&self) -> Result<(CancelGoalRequest, zenoh::query::Query)> {
+    pub async fn recv_cancel_request_low(
+        &self,
+    ) -> Result<(CancelGoalServiceRequest, zenoh::query::Query)> {
         let query = self.cancel_server().rx().recv_async().await?;
         let payload = query.payload().unwrap().to_bytes();
-        let request = <CancelGoalRequest as ZMessage>::deserialize(&payload)
+        let request = <CancelGoalServiceRequest as ZMessage>::deserialize(&payload)
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok((request, query))
     }
 
-    pub fn send_cancel_response_low(&self, query: &zenoh::query::Query, response: &CancelGoalResponse) -> Result<()> {
-        let response_bytes = <CancelGoalResponse as ZMessage>::serialize(response);
+    pub fn send_cancel_response_low(
+        &self,
+        query: &zenoh::query::Query,
+        response: &CancelGoalServiceResponse,
+    ) -> Result<()> {
+        let response_bytes = <CancelGoalServiceResponse as ZMessage>::serialize(response);
         let attachment: Attachment = query.attachment().unwrap().try_into().unwrap();
-        let _ = query.reply(query.key_expr().clone(), response_bytes)
+        let _ = query
+            .reply(query.key_expr().clone(), response_bytes)
             .attachment(attachment)
             .wait();
         Ok(())
     }
 
     // FIXME: check the necessity
-    pub fn send_result_response_low(&self, query: &zenoh::query::Query, response: &ResultResponse<A>) -> Result<()> {
-        let response_bytes = <ResultResponse<A> as ZMessage>::serialize(response);
+    pub fn send_result_response_low(
+        &self,
+        query: &zenoh::query::Query,
+        response: &GetResultResponse<A>,
+    ) -> Result<()> {
+        let response_bytes = <GetResultResponse<A> as ZMessage>::serialize(response);
         let attachment: Attachment = query.attachment().unwrap().try_into().unwrap();
-        let _ = query.reply(query.key_expr().clone(), response_bytes)
+        let _ = query
+            .reply(query.key_expr().clone(), response_bytes)
             .attachment(attachment)
             .wait();
         Ok(())
@@ -558,9 +611,9 @@ impl<A: ZAction> ZActionServer<A> {
             // Find goals that have passed their expiration time
             manager.goals.retain(|goal_id, state| {
                 let should_expire = match state {
-                    ServerGoalState::Accepted { expires_at, .. } |
-                    ServerGoalState::Executing { expires_at, .. } |
-                    ServerGoalState::Terminated { expires_at, .. } => {
+                    ServerGoalState::Accepted { expires_at, .. }
+                    | ServerGoalState::Executing { expires_at, .. }
+                    | ServerGoalState::Terminated { expires_at, .. } => {
                         expires_at.is_some_and(|exp| now >= exp)
                     }
                     ServerGoalState::Canceling { .. } => false,
@@ -695,17 +748,18 @@ impl<A: ZAction> GoalHandle<A, Requested> {
     pub fn accept(mut self) -> GoalHandle<A, Accepted> {
         // Send acceptance response
         // Use timestamp from GoalInfo which is already in sec/nanosec format
-        let response = GoalResponse {
+        let response = SendGoalResponse {
             accepted: true,
             stamp_sec: self.info.stamp.sec,
-            stamp_nanosec: self.info.stamp.nanosec
+            stamp_nanosec: self.info.stamp.nanosec,
         };
-        let response_bytes = <GoalResponse as ZMessage>::serialize(&response);
+        let response_bytes = <SendGoalResponse as ZMessage>::serialize(&response);
 
         if let Some(query) = self.query.take() {
             let attachment: Attachment = query.attachment().unwrap().try_into().unwrap();
             // FIXME: address the result
-            let _ = query.reply(query.key_expr().clone(), response_bytes)
+            let _ = query
+                .reply(query.key_expr().clone(), response_bytes)
                 .attachment(attachment)
                 .wait();
         }
@@ -741,13 +795,18 @@ impl<A: ZAction> GoalHandle<A, Requested> {
     /// This sends a rejection response to the client. The goal will not be executed.
     pub fn reject(mut self) -> Result<()> {
         // Send rejection response
-        let response = GoalResponse { accepted: false, stamp_sec: 0, stamp_nanosec: 0 };
+        let response = GoalResponse {
+            accepted: false,
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+        };
         let response_bytes = <GoalResponse as ZMessage>::serialize(&response);
 
         if let Some(query) = self.query.take() {
             // FIXME: Address the unwrap usage
             let attachment: Attachment = query.attachment().unwrap().try_into().unwrap();
-            let _ = query.reply(query.key_expr().clone(), response_bytes)
+            let _ = query
+                .reply(query.key_expr().clone(), response_bytes)
                 .attachment(attachment)
                 .wait();
         }
@@ -833,7 +892,8 @@ impl<A: ZAction> GoalHandle<A, Executing> {
     ///
     /// `true` if a cancel request has been received, `false` otherwise.
     pub fn is_cancel_requested(&self) -> bool {
-        self.cancel_flag.as_ref()
+        self.cancel_flag
+            .as_ref()
             .map(|flag| flag.load(Ordering::Relaxed))
             .unwrap_or(false)
     }
@@ -875,7 +935,10 @@ impl<A: ZAction> GoalHandle<A, Executing> {
             );
 
             // Take all waiting result futures for this goal
-            manager.result_futures.remove(&self.info.goal_id).unwrap_or_default()
+            manager
+                .result_futures
+                .remove(&self.info.goal_id)
+                .unwrap_or_default()
         }); // Drop the lock before notifying futures and publishing status
 
         // Notify all waiting result futures

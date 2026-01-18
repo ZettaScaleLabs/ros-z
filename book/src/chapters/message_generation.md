@@ -253,19 +253,19 @@ Available without ROS 2:
 cargo build -p ros-z-msgs --features bundled_msgs
 ```
 
-### External Packages
+### Additional Packages
 
-Require ROS 2 installation:
+These packages are bundled and available without ROS 2 installation:
 
 | Package | Messages | Use Cases |
 |---------|----------|-----------|
 | **example_interfaces** | AddTwoInts, Fibonacci | Tutorials |
-| **action_msgs** | GoalStatus, GoalInfo | Action support |
-| **(custom)** | Your messages | Domain-specific |
+| **action_tutorials_interfaces** | Fibonacci action | Action tutorials |
+| **test_msgs** | Test types | Testing |
 
 ```bash
-source /opt/ros/jazzy/setup.bash
-cargo build -p ros-z-msgs --features external_msgs
+# All packages are bundled by default
+cargo build -p ros-z-msgs --features all_msgs
 ```
 
 ## Manual Custom Messages

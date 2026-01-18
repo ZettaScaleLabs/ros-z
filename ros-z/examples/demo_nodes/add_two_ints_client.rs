@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use ros_z::{Builder, Result, context::ZContext};
-use ros_z_msgs::example_interfaces::{AddTwoInts, AddTwoIntsRequest};
+use ros_z_msgs::example_interfaces::{AddTwoIntsRequest, srv::AddTwoInts};
 
 /// AddTwoInts client node that calls the service to add two integers
 ///

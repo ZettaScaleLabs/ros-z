@@ -36,7 +36,7 @@ Most issues fall into three categories: build configuration, runtime connectivit
 4. **Clean and rebuild:**
    ```bash
    cargo clean -p ros-z-msgs
-   cargo build -p ros-z-msgs --features external_msgs
+   cargo build -p ros-z-msgs
    ```
 
 **Common Error Messages:**
@@ -46,8 +46,6 @@ Most issues fall into three categories: build configuration, runtime connectivit
 | "Package X not found" | Source ROS 2 environment |
 | "Cannot find ament_index" | Install ROS 2 or use bundled msgs |
 | "AMENT_PREFIX_PATH not set" | Run `source /opt/ros/jazzy/setup.bash` |
-
-**Note:** Always source ROS 2 before building with `external_msgs`. The build system reads environment variables at build time, not runtime.
 ````
 
 ````admonish question collapsible=true title="Compiler error: cannot find crate ros_z_msgs"
@@ -59,11 +57,8 @@ Most issues fall into three categories: build configuration, runtime connectivit
 # Build ros-z-msgs explicitly
 cargo build -p ros-z-msgs
 
-# For external messages
-cargo build -p ros-z-msgs --features external_msgs
-
 # Then build your example
-cargo build --example z_srvcli --features external_msgs
+cargo build --example z_srvcli
 ```
 
 **Note:** `ros-z-msgs` is excluded from default builds to avoid requiring ROS 2 for core development. Build it explicitly when needed.

@@ -1,0 +1,57 @@
+{
+  "format_version": "1.0",
+  "ros_distro": "jazzy",
+  "generated": "2026-01-19T03:45:34Z",
+  "packages": {
+    "builtin_interfaces": {
+      "dependencies": []
+    },
+    "service_msgs": {
+      "dependencies": [
+        "builtin_interfaces"
+      ]
+    },
+    "action_msgs": {
+      "dependencies": [
+        "builtin_interfaces",
+        "service_msgs",
+        "unique_identifier_msgs"
+      ]
+    },
+    "std_msgs": {
+      "dependencies": [
+        "builtin_interfaces"
+      ]
+    },
+    "geometry_msgs": {
+      "dependencies": [
+        "std_msgs"
+      ]
+    },
+    "sensor_msgs": {
+      "dependencies": [
+        "builtin_interfaces",
+        "geometry_msgs",
+        "std_msgs"
+      ]
+    },
+    "nav_msgs": {
+      "dependencies": [
+        "builtin_interfaces",
+        "geometry_msgs",
+        "std_msgs"
+      ]
+    },
+    "example_interfaces": {
+      "dependencies": []
+    },
+    "action_tutorials_interfaces": {
+      "dependencies": []
+    },
+    "test_msgs": {
+      "dependencies": [
+        "builtin_interfaces"
+      ]
+    }
+  }
+}

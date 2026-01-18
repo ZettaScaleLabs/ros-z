@@ -1,6 +1,8 @@
-use super::{GoalId, GoalInfo, GoalStatus, ZAction};
-use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
+
+use serde::{Deserialize, Serialize};
+
+use super::{GoalId, GoalInfo, GoalStatus, ZAction};
 
 // Standard ROS 2 cancel messages
 
@@ -228,10 +230,25 @@ pub struct GoalStatusInfo {
 }
 
 // Internal service type wrappers
+/// SendGoal service request message matching ROS2 IDL
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SendGoalRequest<A: ZAction> {
+    pub goal_id: GoalId,
+    pub goal: A::Goal,
+}
+
+/// SendGoal service response message matching ROS2 IDL
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SendGoalResponse {
+    pub accepted: bool,
+    pub stamp_sec: i32,
+    pub stamp_nanosec: u32,
+}
+
 pub struct GoalService<A: ZAction>(PhantomData<A>);
 impl<A: ZAction> crate::msg::ZService for GoalService<A> {
-    type Request = GoalRequest<A>;
-    type Response = GoalResponse;
+    type Request = SendGoalRequest<A>;
+    type Response = SendGoalResponse;
 }
 
 impl<A: ZAction> crate::ServiceTypeInfo for GoalService<A> {
@@ -241,10 +258,23 @@ impl<A: ZAction> crate::ServiceTypeInfo for GoalService<A> {
     }
 }
 
+/// GetResult service request message matching ROS2 IDL
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GetResultRequest {
+    pub goal_id: GoalId,
+}
+
+/// GetResult service response message matching ROS2 IDL
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GetResultResponse<A: ZAction> {
+    pub status: i8,
+    pub result: A::Result,
+}
+
 pub struct ResultService<A: ZAction>(PhantomData<A>);
 impl<A: ZAction> crate::msg::ZService for ResultService<A> {
-    type Request = ResultRequest;
-    type Response = ResultResponse<A>;
+    type Request = GetResultRequest;
+    type Response = GetResultResponse<A>;
 }
 
 impl<A: ZAction> crate::ServiceTypeInfo for ResultService<A> {
@@ -254,10 +284,23 @@ impl<A: ZAction> crate::ServiceTypeInfo for ResultService<A> {
     }
 }
 
+/// CancelGoal service request message matching ROS2 IDL
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CancelGoalServiceRequest {
+    pub goal_info: GoalInfo,
+}
+
+/// CancelGoal service response message matching ROS2 IDL
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CancelGoalServiceResponse {
+    pub return_code: i8,
+    pub goals_canceling: Vec<GoalInfo>,
+}
+
 pub struct CancelService<A: ZAction>(PhantomData<A>);
 impl<A: ZAction> crate::msg::ZService for CancelService<A> {
-    type Request = CancelGoalRequest;
-    type Response = CancelGoalResponse;
+    type Request = CancelGoalServiceRequest;
+    type Response = CancelGoalServiceResponse;
 }
 
 impl<A: ZAction> crate::ServiceTypeInfo for CancelService<A> {

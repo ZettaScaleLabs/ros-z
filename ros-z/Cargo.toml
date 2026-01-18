@@ -14,6 +14,7 @@ zenoh = { workspace = true, default-features = false, features = [
   "unstable",
 ] }
 zenoh-ext = { workspace = true }
+zenoh-buffers = { workspace = true }
 strum = { workspace = true, features = ["derive"] }
 sha2 = { workspace = true }
 parking_lot = { workspace = true }
@@ -32,6 +33,7 @@ paste = "1.0"
 
 [dev-dependencies]
 ros-z-msgs = { path = "../ros-z-msgs" }
+ros-z-codegen = { path = "../ros-z-codegen" }
 
 [build-dependencies]
 serde = { workspace = true, features = ["serde_derive"] }
@@ -48,21 +50,26 @@ config-builders = []
 generate-configs = []
 protobuf = ["prost", "prost-build"]
 rcl-z = []
-# Feature to enable examples that require external ROS message packages
-external_msgs = ["ros-z-msgs/external_msgs"]
 
 # ROS 2 distro compatibility features
 # Default is jazzy (recommended for new projects)
 # For humble, use: --no-default-features --features humble,...
-humble = ["humble-compat", "no-type-hash"]
-jazzy = ["type-hash"]
-rolling = ["type-hash"]
-iron = ["humble-compat", "type-hash"]
+# Note: Distro features are mutually exclusive - enabling multiple may cause conflicts
+humble = ["no-type-hash", "no-jazzy", "no-rolling", "no-iron"]
+jazzy = ["type-hash", "no-humble", "no-rolling", "no-iron"]
+rolling = ["type-hash", "no-humble", "no-jazzy", "no-iron"]
+iron = ["type-hash", "no-humble", "no-jazzy", "no-rolling"]
 
 # Internal features for distro compatibility
 humble-compat = []
 type-hash = []
 no-type-hash = []
+
+# Feature conflict markers (empty features to mark mutual exclusion)
+no-humble = []
+no-jazzy = []
+no-rolling = []
+no-iron = []
 
 # NOTE: Examples that use ros-z-msgs must be built from workspace root
 # since ros-z-msgs depends on ros-z (circular dependency prevents direct dependency)
@@ -73,7 +80,7 @@ name = "z_custom_message"
 required-features = []
 
 # Examples using ros-z-msgs with bundled messages (no ROS installation required)
-# These use messages from roslibrust assets: std_msgs, geometry_msgs, sensor_msgs
+# These use messages from ros-z-codegen/assets/jazzy: std_msgs, geometry_msgs, sensor_msgs
 [[example]]
 name = "z_pubsub"
 required-features = []
@@ -107,29 +114,21 @@ required-features = []
 [[example]]
 name = "demo_nodes_add_two_ints_server"
 path = "examples/demo_nodes/add_two_ints_server.rs"
-required-features = ["external_msgs"]
 
 [[example]]
 name = "demo_nodes_add_two_ints_client"
 path = "examples/demo_nodes/add_two_ints_client.rs"
-required-features = ["external_msgs"]
 
 [[example]]
 name = "demo_nodes_fibonacci_action_client"
 path = "examples/demo_nodes/fibonacci_action_client.rs"
-required-features = ["external_msgs"]
 
 [[example]]
 name = "demo_nodes_fibonacci_action_server"
 path = "examples/demo_nodes/fibonacci_action_server.rs"
-required-features = ["external_msgs"]
 
-# Examples using external messages (requires ROS 2 installation)
-# Note: z_srvcli uses example_interfaces which requires ROS 2.
-# Build with: cargo build --example z_srvcli --features external_msgs
 [[example]]
 name = "z_srvcli"
-required-features = ["external_msgs"]
 
 [[example]]
 name = "zenoh_router"

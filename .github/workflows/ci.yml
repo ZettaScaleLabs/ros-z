@@ -157,15 +157,10 @@ jobs:
           source /tmp/nix-dev-env.sh
           nu scripts/test-ros.nu ${{ matrix.distro }} clippy-workspace
 
-      - name: Clippy bundled examples
+      - name: Clippy examples
         run: |
           source /tmp/nix-dev-env.sh
-          nu scripts/test-ros.nu ${{ matrix.distro }} clippy-bundled-examples
-
-      - name: Clippy external examples
-        run: |
-          source /tmp/nix-dev-env.sh
-          nu scripts/test-ros.nu ${{ matrix.distro }} clippy-external-examples
+          nu scripts/test-ros.nu ${{ matrix.distro }} clippy-examples
 
       - name: Clippy rcl-z
         run: |

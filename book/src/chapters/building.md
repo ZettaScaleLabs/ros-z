@@ -36,60 +36,59 @@ tokio = { version = "1", features = ["full"] }  # Async runtime required
 
 ### Scenario 2: Using Bundled ROS Messages
 
-**Use when:** You need standard ROS 2 message types but don't have ROS 2 installed
+**Use when:** You need standard ROS 2 message types (no ROS 2 installation required)
 
 **Add to your `Cargo.toml`:**
 
 ```toml
 [dependencies]
 ros-z = "0.x"
-ros-z-msgs = "0.x"  # Includes std_msgs, geometry_msgs, sensor_msgs, nav_msgs
+ros-z-msgs = "0.x"  # Includes core_msgs by default
 tokio = { version = "1", features = ["full"] }
 ```
 
-**Bundled message packages:**
+**Default message packages (core_msgs):**
 
 - `std_msgs` - Primitive types (String, Int32, Float64, etc.)
 - `geometry_msgs` - Spatial data (Point, Pose, Transform, Twist)
 - `sensor_msgs` - Sensor data (LaserScan, Image, Imu, PointCloud2)
 - `nav_msgs` - Navigation (Path, OccupancyGrid, Odometry)
+- `example_interfaces` - Tutorial services (AddTwoInts)
+- `action_tutorials_interfaces` - Tutorial actions (Fibonacci)
 
-### Scenario 3: Full ROS 2 Integration
+### Scenario 3: All Message Packages
 
-**Use when:** You need all ROS 2 message types or custom packages from your workspace
+**Use when:** You need all available message types including test messages
 
-**Requirements:** ROS 2 installation (Jazzy, Humble, Rolling, etc.)
+**Requirements:** None (all messages are vendored)
 
 **Add to your `Cargo.toml`:**
 
 ```toml
 [dependencies]
 ros-z = "0.x"
-ros-z-msgs = { version = "0.x", features = ["external_msgs"] }
+ros-z-msgs = { version = "0.x", features = ["all_msgs"] }
 tokio = { version = "1", features = ["full"] }
 ```
-
-**The `external_msgs` feature flag tells ros-z-msgs to generate bindings for all message types found in your ROS 2 installation.** Without this flag, only bundled messages are included (Scenario 2).
 
 **Build your project:**
 
 ```bash
-# Ensure ROS 2 is sourced (Jazzy as an example)
-source /opt/ros/jazzy/setup.bash
-
-# Build your project with external_msgs feature
-# This feature enables access to all ROS 2 message types from your installation
-cargo build --features external_msgs
+cargo build
 ```
 
-**Additional packages available:**
+**All available packages:**
 
-- `example_interfaces` - Tutorial services and actions
-- `action_msgs` - Action communication types
-- Any custom messages from your ROS 2 workspace
+- `std_msgs` - Basic types
+- `geometry_msgs` - Spatial data
+- `sensor_msgs` - Sensor data
+- `nav_msgs` - Navigation
+- `example_interfaces` - Tutorial services (AddTwoInts)
+- `action_tutorials_interfaces` - Tutorial actions (Fibonacci)
+- `test_msgs` - Test types
 
 ```admonish tip
-Start with Scenario 1 or 2 for development, then move to Scenario 3 when you need full ROS 2 interoperability.
+The default `core_msgs` feature includes everything except `test_msgs`. Use `all_msgs` only if you need test message types.
 ```
 
 ## ROS 2 Distribution Compatibility
@@ -123,7 +122,7 @@ The ros-z repository is organized as a Cargo workspace with multiple packages:
 |---------|---------------|---------|--------------|
 | **ros-z** | Yes | Core Zenoh-native ROS 2 library | None |
 | **ros-z-codegen** | Yes | Message generation utilities | None |
-| **ros-z-msgs** | No | Pre-generated message types | Optional ROS 2 |
+| **ros-z-msgs** | No | Pre-generated message types | None (all vendored) |
 | **ros-z-tests** | No | Integration tests | ros-z-msgs |
 | **rcl-z** | No | RCL C bindings | ROS 2 required |
 

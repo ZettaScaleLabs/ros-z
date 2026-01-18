@@ -3,9 +3,17 @@ name = "ros-z-codegen"
 version.workspace = true
 edition.workspace = true
 
+# Include vendored assets in published crate
+include = [
+  "src/**/*",
+  "assets/**/*.msg",
+  "assets/**/*.srv",
+  "assets/**/*.action",
+  "assets/**/dependencies.json",
+  "Cargo.toml",
+]
+
 [dependencies]
-# Use local roslibrust for message parsing and code generation
-roslibrust_codegen = { workspace = true }
 # For code manipulation
 quote = { workspace = true }
 prost-build = { workspace = true, optional = true }
@@ -14,6 +22,14 @@ proc-macro2 = { workspace = true }
 prettyplease = "0.2"
 # For error handling
 anyhow = { workspace = true }
+# For type hashing (RIHS01)
+hex = "0.4"
+sha2 = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.0"
 
 [features]
 default = []

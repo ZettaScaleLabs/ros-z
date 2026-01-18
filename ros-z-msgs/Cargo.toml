@@ -7,11 +7,10 @@ edition.workspace = true
 ros-z = { path = "../ros-z", default-features = false }
 serde = { workspace = true }
 serde_bytes = { workspace = true }
-# Required by roslibrust-generated code
-roslibrust = { workspace = true, features = ["codegen"] }
-roslibrust_codegen = { workspace = true }
+# Required by pure-Rust codegen
 smart-default = { workspace = true }
 serde-big-array = { workspace = true }
+zenoh-buffers = { workspace = true }
 
 prost = { workspace = true, optional = true }
 
@@ -24,35 +23,41 @@ anyhow = { workspace = true }
 glob = { workspace = true }
 
 [features]
-default = ["bundled_msgs", "jazzy"]
+default = ["core_msgs", "jazzy"]
 
-# Bundled messages - available without ROS installation via roslibrust assets
-# These are included in the roslibrust git repository and work offline
-bundled_msgs = ["std_msgs", "geometry_msgs", "sensor_msgs", "nav_msgs"]
-std_msgs = []
-geometry_msgs = ["std_msgs"]
-sensor_msgs = [
+# Core messages - commonly used ROS 2 interfaces
+core_msgs = [
   "std_msgs",
   "geometry_msgs",
-] # sensor_msgs depends on geometry_msgs types
-nav_msgs = ["std_msgs", "geometry_msgs"]
-
-# External messages - require ROS 2 installation
-# These packages are not bundled with roslibrust and must be found in the system
-external_msgs = [
+  "sensor_msgs",
+  "nav_msgs",
   "example_interfaces",
   "action_tutorials_interfaces",
-  "test_msgs",
 ]
+
+# Individual packages (all vendored in assets)
+std_msgs = []
+geometry_msgs = ["std_msgs"]
+sensor_msgs = ["std_msgs", "geometry_msgs"]
+nav_msgs = ["std_msgs", "geometry_msgs"]
 example_interfaces = []
 action_tutorials_interfaces = []
 test_msgs = []
 
-# Convenience feature for common ROS 2 interfaces (bundled only)
+# Convenience aliases
 common_interfaces = ["std_msgs", "geometry_msgs", "sensor_msgs"]
+robotics = ["core_msgs"]
+all_msgs = [
+  "std_msgs",
+  "geometry_msgs",
+  "sensor_msgs",
+  "nav_msgs",
+  "example_interfaces",
+  "action_tutorials_interfaces",
+  "test_msgs",
+]
 
-# All messages (bundled + external) - requires ROS 2 installation
-all_msgs = ["bundled_msgs", "external_msgs"]
+bundled_msgs = ["std_msgs", "geometry_msgs", "sensor_msgs", "nav_msgs"]
 
 protobuf = ["prost", "ros-z/protobuf", "ros-z-codegen/protobuf"]
 

@@ -13,7 +13,7 @@ Feature flags enable pay-per-use dependencies. Start minimal and enable features
 | **Distribution** | Target specific ROS 2 versions | `humble`, `jazzy`, `rolling` |
 | **Message Packages** | Enable ROS 2 message types | `std_msgs`, `geometry_msgs` |
 | **Serialization** | Additional encoding formats | `protobuf` |
-| **Integration** | External system bindings | `rcl-z`, `external_msgs` |
+| **Integration** | External system bindings | `rcl-z` |
 
 ## ros-z Core Features
 
@@ -112,22 +112,11 @@ cargo build -p ros-z --features rcl-z
 This feature requires ROS 2 to be sourced before building. See [Building Guide](./building.md) for setup instructions.
 ```
 
-### `external_msgs`
-
-Propagates to `ros-z-msgs/external_msgs` for examples using external message packages.
-
-```bash
-cargo build -p ros-z --features external_msgs
-cargo run --example z_srvcli --features external_msgs
-```
-
-**Enables:** Examples requiring `example_interfaces` and other external packages
-
 ## ros-z-msgs Features
 
 ### Default Features
 
-The default build includes commonly used message types:
+The default build includes commonly used message types via `core_msgs`:
 
 ```bash
 cargo build -p ros-z-msgs
@@ -135,33 +124,20 @@ cargo build -p ros-z-msgs
 
 **Includes:**
 
-- `common_interfaces` meta-feature
-  - `std_msgs` - Basic types (String, Int32, etc.)
-  - `geometry_msgs` - Spatial types (Point, Pose, Transform)
-  - `sensor_msgs` - Sensor data (LaserScan, Image, Imu)
+- `std_msgs` - Basic types (String, Int32, etc.)
+- `geometry_msgs` - Spatial types (Point, Pose, Transform)
+- `sensor_msgs` - Sensor data (LaserScan, Image, Imu)
+- `nav_msgs` - Navigation (Path, Odometry, OccupancyGrid)
+- `example_interfaces` - Tutorial services (AddTwoInts)
+- `action_tutorials_interfaces` - Tutorial actions (Fibonacci)
 
 ```admonish tip
-Default features require no ROS 2 installation. Message definitions come bundled via roslibrust.
+All messages are vendored in assets - no ROS 2 installation required. Feature flags simply control which packages to include in your build.
 ```
 
-### Bundled Message Features
+### Individual Package Features
 
-Work without ROS 2 installation:
-
-```mermaid
-graph LR
-    A[Bundled Features] --> B[std_msgs]
-    A --> C[geometry_msgs]
-    A --> D[sensor_msgs]
-    A --> E[nav_msgs]
-
-    B --> F[roslibrust assets]
-    C --> F
-    D --> F
-    E --> F
-```
-
-**Individual packages:**
+All packages are bundled in assets and work without ROS 2:
 
 | Feature | Package | Use Case |
 |---------|---------|----------|
@@ -169,61 +145,36 @@ graph LR
 | `geometry_msgs` | Geometric primitives | Points, poses, transforms |
 | `sensor_msgs` | Sensor data | Cameras, lidars, IMUs |
 | `nav_msgs` | Navigation | Paths, maps, odometry |
+| `example_interfaces` | Tutorial services | AddTwoInts, Fibonacci |
+| `action_tutorials_interfaces` | Tutorial actions | Fibonacci action |
+| `test_msgs` | Test types | Testing and validation |
 
 **Usage:**
 
 ```bash
 # Single package
-cargo build -p ros-z-msgs --features std_msgs
+cargo build -p ros-z-msgs --no-default-features --features std_msgs
 
 # Multiple packages
-cargo build -p ros-z-msgs --features "std_msgs,geometry_msgs"
+cargo build -p ros-z-msgs --no-default-features --features "std_msgs,geometry_msgs"
 
-# All bundled
-cargo build -p ros-z-msgs --features bundled_msgs
+# Default (core_msgs)
+cargo build -p ros-z-msgs
 ```
 
-### External Message Features
+### Convenience Aliases
 
-Require ROS 2 installation:
+**`core_msgs` (default):**
 
-```mermaid
-graph LR
-    A[External Features] --> B[example_interfaces]
-    B --> C[ROS 2 Installation]
-    C --> D[AMENT_PREFIX_PATH]
-```
-
-**Available packages:**
-
-| Feature | Package | Use Case |
-|---------|---------|----------|
-| `example_interfaces` | Tutorial services | AddTwoInts, Fibonacci |
-| `action_msgs` | Action types | GoalStatus, ActionFeedback |
-| *(custom)* | Your packages | Domain-specific types |
-
-**Usage:**
+The most commonly used packages for ROS 2 development.
 
 ```bash
-# Ensure ROS 2 is sourced
-source /opt/ros/jazzy/setup.bash
-
-# Build with external messages
-cargo build -p ros-z-msgs --features external_msgs
-
-# Or specific package
-cargo build -p ros-z-msgs --features example_interfaces
+cargo build -p ros-z-msgs  # Uses core_msgs by default
 ```
 
-```admonish warning
-External message features fail without ROS 2. Source your ROS 2 installation before building.
-```
+Enables: `std_msgs`, `geometry_msgs`, `sensor_msgs`, `nav_msgs`, `example_interfaces`, `action_tutorials_interfaces`
 
-### Meta Features
-
-Convenience features that enable multiple packages:
-
-**`common_interfaces` (default):**
+**`common_interfaces`:**
 
 ```bash
 cargo build -p ros-z-msgs --features common_interfaces
@@ -239,13 +190,17 @@ cargo build -p ros-z-msgs --features bundled_msgs
 
 Enables: `std_msgs`, `geometry_msgs`, `sensor_msgs`, `nav_msgs`
 
+**`robotics`:**
+
+Alias for `core_msgs`.
+
 **`all_msgs`:**
 
 ```bash
 cargo build -p ros-z-msgs --features all_msgs
 ```
 
-Enables: All bundled + all external messages
+Enables: All available packages including `test_msgs`
 
 ### Protobuf Types
 
@@ -274,18 +229,21 @@ cargo build -p ros-z-codegen --features protobuf
 ```mermaid
 graph TD
     A[all_msgs] --> B[bundled_msgs]
-    A --> C[external_msgs]
+    A --> C[example_interfaces]
+    A --> D[action_tutorials_interfaces]
+    A --> E[test_msgs]
 
-    B --> D[std_msgs]
-    B --> E[geometry_msgs]
-    B --> F[sensor_msgs]
-    B --> G[nav_msgs]
+    B --> F[std_msgs]
+    B --> G[geometry_msgs]
+    B --> H[sensor_msgs]
+    B --> I[nav_msgs]
 
-    C --> H[example_interfaces]
-
-    I[common_interfaces] --> D
-    I --> E
-    I --> F
+    J[core_msgs] --> F
+    J --> G
+    J --> H
+    J --> I
+    J --> C
+    J --> D
 ```
 
 ## Common Feature Combinations
@@ -313,19 +271,28 @@ cargo build -p ros-z
 **Dependencies:** Rust, Cargo
 **Use case:** Most applications
 
-### Full ROS 2 Integration
+### Full Message Set
 
-Everything including external messages:
+All available message packages:
+
+```bash
+cargo build -p ros-z-msgs --features all_msgs
+```
+
+**Dependencies:** Rust, Cargo
+**Use case:** Access to all bundled message types including test_msgs
+
+### RCL Integration
+
+For C/C++ ROS 2 interoperability:
 
 ```bash
 source /opt/ros/jazzy/setup.bash
-cargo build -p ros-z-msgs --features all_msgs
-cargo build -p ros-z --features external_msgs
 cargo build -p rcl-z
 ```
 
 **Dependencies:** Rust, Cargo, ROS 2
-**Use case:** Complete ROS 2 ecosystem integration
+**Use case:** Hybrid Rust/C++ applications
 
 ### Protobuf Development
 
@@ -350,10 +317,9 @@ cargo build -p ros-z --features protobuf
 | ros-z | rolling | No | None |
 | ros-z | protobuf | No | prost, prost-types |
 | ros-z | rcl-z | Yes | RCL libraries |
-| ros-z | external_msgs | Yes (propagated) | None |
-| ros-z-msgs | common_interfaces | No | None (bundled) |
+| ros-z-msgs | core_msgs (default) | No | None (bundled) |
 | ros-z-msgs | bundled_msgs | No | None (bundled) |
-| ros-z-msgs | external_msgs | Yes | None (uses system) |
+| ros-z-msgs | all_msgs | No | None (bundled) |
 | ros-z-msgs | protobuf | No | prost, prost-types |
 | ros-z-msgs | jazzy (default) | No | None |
 | ros-z-msgs | humble | No | None |
@@ -386,25 +352,27 @@ flowchart TD
     B -->|No| C[Zero features<br/>Custom messages]
     B -->|Yes| D{Which messages?}
 
-    D -->|Common| E{ROS 2 available?}
-    E -->|No| F[bundled_msgs<br/>No ROS required]
-    E -->|Yes| G[bundled_msgs<br/>Or all_msgs]
+    D -->|Common| E[core_msgs<br/>default]
+    D -->|Minimal| F[bundled_msgs or<br/>individual packages]
+    D -->|All| G[all_msgs]
 
-    D -->|All/External| H[all_msgs<br/>Requires ROS 2]
-
-    C --> I[Minimal dependencies]
-    F --> J[Standard dependencies]
-    G --> K[Standard dependencies]
-    H --> L[Full dependencies]
+    C --> H[Minimal dependencies]
+    E --> I[Standard dependencies]
+    F --> I
+    G --> I
 ```
 
 **Decision guide:**
 
-1. **Prototyping?** → Use bundled_msgs (no ROS 2 required)
-2. **Need external packages?** → Use all_msgs (requires ROS 2)
+1. **Most projects?** → Use defaults (`core_msgs`) - includes common packages
+2. **Minimal build?** → Use `--no-default-features` with specific packages
 3. **Custom messages only?** → No message features
 4. **Cross-language data?** → Add protobuf feature
-5. **C++ integration?** → Add rcl-z feature
+5. **C++ integration?** → Add rcl-z feature (requires ROS 2)
+
+```admonish note
+All message packages are vendored - no ROS 2 installation required for any message feature.
+```
 
 ```admonish info
 First build with message generation is slow. Incremental builds are fast. Choose the minimal feature set that meets your needs.
@@ -412,19 +380,14 @@ First build with message generation is slow. Incremental builds are fast. Choose
 
 ## Examples by Feature
 
-### Bundled Messages Only
+### Bundled Messages (Default)
 
 ```bash
 cargo run --example z_pubsub          # std_msgs
 cargo run --example twist_pub         # geometry_msgs
 cargo run --example battery_state_sub # sensor_msgs
 cargo run --example z_pingpong        # std_msgs
-```
-
-### External Messages Required
-
-```bash
-cargo run --example z_srvcli --features external_msgs  # example_interfaces
+cargo run --example z_srvcli          # example_interfaces (now bundled)
 ```
 
 ### Custom Messages

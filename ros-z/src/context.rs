@@ -67,6 +67,7 @@ pub struct ZContextBuilder {
     config_file: Option<PathBuf>,
     config_overrides: Vec<(String, serde_json::Value)>,
     remap_rules: RemapRules,
+    enable_logging: bool,
 }
 
 impl ZContextBuilder {
@@ -214,6 +215,12 @@ impl ZContextBuilder {
         Ok(self)
     }
 
+    /// Enable Zenoh logging initialization with default level "error"
+    pub fn with_logging_enabled(mut self) -> Self {
+        self.enable_logging = true;
+        self
+    }
+
     /// Parse and apply overrides from environment variable
     ///
     /// Expected format: `key1=value1;key2=value2`
@@ -295,6 +302,11 @@ impl Builder for ZContextBuilder {
         let has_custom_config = builder.zenoh_config.is_some();
         let has_config_file = builder.config_file.is_some();
         let has_env_config = std::env::var("ROSZ_CONFIG_FILE").is_ok();
+
+        // Initialize logging if enabled
+        if builder.enable_logging {
+            zenoh::init_log_from_env_or("error");
+        }
 
         let mut config = if let Some(config) = builder.zenoh_config {
             config

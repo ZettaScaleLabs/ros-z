@@ -55,11 +55,33 @@ fn main() {
 
     if !is_humble && humble_compat {
         panic!(
-            "humble_compat feature enabled but ROS Jazzy+ detected.\n\
-             The humble_compat feature is only for use without ROS installed or with ROS Humble.\n\
-             When building with ROS Jazzy+, do not enable the humble_compat feature.\n\
-             If running clippy with --all-features, use --exclude rcl-z or filter features appropriately."
+            "humble_compat feature enabled but ROS Jazzy+ detected. The humble_compat feature is only for ROS Humble."
         );
+    }
+
+    // Check for distro feature conflicts
+    if !is_humble && env::var("CARGO_FEATURE_HUMBLE").is_ok() {
+        panic!(
+            "humble feature enabled but ROS Jazzy+ detected. The humble feature is only for ROS Humble."
+        );
+    }
+
+    if has_type_description {
+        println!("cargo:rustc-cfg=has_type_description_interfaces");
+        println!("cargo:warning=type_description_interfaces found - ROS Jazzy+ detected");
+    } else {
+        println!("cargo:warning=type_description_interfaces not found - ROS Humble detected");
+    }
+
+    // Emit cfg based on what mode we're in
+    if is_humble {
+        println!("cargo:rustc-cfg=ros_humble");
+        println!("cargo:warning=Using Humble-compatible codegen");
+        if humble_compat {
+            println!("cargo:rustc-cfg=humble_compat_enabled");
+        }
+    } else {
+        println!("cargo:warning=Using modern codegen");
     }
 
     if has_type_description {
@@ -89,9 +111,15 @@ fn main() {
         }
     });
 
-    if has_fastcdr_v2 {
+    if has_fastcdr_v2 || !is_humble {
         println!("cargo:rustc-cfg=has_fastcdr_v2");
-        println!("cargo:warning=FastCDR v1.1+ detected - using CdrVersion API");
+        if has_fastcdr_v2 {
+            println!("cargo:warning=FastCDR v1.1+ detected - using CdrVersion API");
+        } else {
+            println!(
+                "cargo:warning=ROS Jazzy+ detected - using CdrVersion API despite FastCDR version"
+            );
+        }
     } else {
         println!("cargo:warning=FastCDR v1.0 detected - using legacy API (Humble)");
     }
