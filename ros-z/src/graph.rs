@@ -4,6 +4,7 @@ use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, Weak},
 };
+use tracing::{info, debug};
 
 use crate::entity::{
     ADMIN_SPACE, EndpointEntity, Entity, EntityKind, LivelinessKE, NodeKey, Topic,
@@ -32,10 +33,11 @@ impl GraphData {
     }
 
     fn remove(&mut self, ke: &LivelinessKE) {
-        let in_cached = self.cached.remove(ke);
-        let in_parsed = self.parsed.remove(ke);
+        let was_cached = self.cached.remove(ke);
+        let was_parsed = self.parsed.remove(ke);
+        debug!("[GRF] Removed KE: {}, cached={}, parsed={}", ke.0, was_cached, was_parsed.is_some());
 
-        match (in_cached, in_parsed) {
+        match (was_cached, was_parsed) {
             // Both should not be present at the same time
             (true, Some(_)) => {
                 eprintln!(
@@ -54,12 +56,17 @@ impl GraphData {
     }
 
     fn parse(&mut self) {
+        let count = self.cached.len();
+        info!("[GRF] Parsing {} cached entities", count);
+
         for ke in self.cached.drain() {
             // FIXME: unwrap
             let arc = Arc::new(Entity::try_from(&ke).unwrap());
             let weak = Arc::downgrade(&arc);
             match &*arc {
                 Entity::Node(x) => {
+                    debug!("[GRF] Parsed node: {}/{}", x.namespace, x.name);
+
                     // TODO: omit the clone of node key
                     let slab = self
                         .by_node
@@ -74,6 +81,8 @@ impl GraphData {
                     slab.insert(weak);
                 }
                 Entity::Endpoint(x) => {
+                    debug!("[GRF] Parsed endpoint: kind={:?}, topic={}, node={}/{}",
+                        x.kind, x.topic, x.node.namespace, x.node.name);
                     // Index by topic for Publisher/Subscription entities
                     if matches!(x.kind, EntityKind::Publisher | EntityKind::Subscription) {
                         // TODO: omit the clone of topic
@@ -209,6 +218,7 @@ impl Graph {
                 let ke = LivelinessKE(key_expr);
                 match sample.kind() {
                     SampleKind::Put => {
+                        info!("[GRF] Entity appeared: {}", ke.0);
                         graph_data_guard.insert(ke.clone());
                         // Trigger graph change events
                         if let Ok(entity) = Entity::try_from(&ke) {
@@ -216,6 +226,7 @@ impl Graph {
                         }
                     }
                     SampleKind::Delete => {
+                        info!("[GRF] Entity disappeared: {}", ke.0);
                         // Trigger graph change events before removal
                         if let Ok(entity) = Entity::try_from(&ke) {
                             c_event_manager.trigger_graph_change(&entity, false, c_zid);
