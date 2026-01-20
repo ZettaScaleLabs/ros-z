@@ -41,52 +41,48 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.9
 
+      - name: Install Nushell
+        run: |
+          nix profile install nixpkgs#nushell
+          chmod +x scripts/test-pure-rust.nu
+
       - name: Setup nix environment
         run: |
           nix print-dev-env '.#pureRust-ci' --accept-flake-config > /tmp/nix-dev-env.sh
           echo "export SCCACHE_GHA_ENABLED=true" >> /tmp/nix-dev-env.sh
           echo "export SCCACHE_CACHE_SIZE=2G" >> /tmp/nix-dev-env.sh
           echo "export RUSTC_WRAPPER=sccache" >> /tmp/nix-dev-env.sh
+          echo "export CI=true" >> /tmp/nix-dev-env.sh
 
       - name: Clippy (default workspace)
         run: |
           source /tmp/nix-dev-env.sh
-          cargo clippy --lib --bins --tests -- -D warnings
+          nu scripts/test-pure-rust.nu clippy-workspace
 
       - name: Check default workspace
         run: |
           source /tmp/nix-dev-env.sh
-          cargo check
+          nu scripts/test-pure-rust.nu check-workspace
 
       - name: Build default workspace
         run: |
           source /tmp/nix-dev-env.sh
-          cargo build
+          nu scripts/test-pure-rust.nu build-workspace
 
       - name: Build examples without ROS dependencies
         run: |
           source /tmp/nix-dev-env.sh
-          cargo build --examples
+          nu scripts/test-pure-rust.nu build-examples
 
       - name: Run tests
         run: |
           source /tmp/nix-dev-env.sh
-          cargo nextest run
+          nu scripts/test-pure-rust.nu run-tests
 
       - name: Check ros-z-msgs with bundled messages (no ROS required)
         run: |
           source /tmp/nix-dev-env.sh
-          cargo check -p ros-z-msgs
-          cargo check -p ros-z-msgs --features bundled_msgs
-          cargo check -p ros-z-msgs --features common_interfaces
-
-      - name: Build ros-z-msgs with individual bundled packages
-        run: |
-          source /tmp/nix-dev-env.sh
-          cargo build -p ros-z-msgs --no-default-features --features std_msgs
-          cargo build -p ros-z-msgs --no-default-features --features geometry_msgs
-          cargo build -p ros-z-msgs --no-default-features --features sensor_msgs
-          cargo build -p ros-z-msgs --no-default-features --features nav_msgs
+          nu scripts/test-pure-rust.nu check-bundled-msgs
 
   with-ros:
     name: ROS-dependent Test (${{ matrix.distro }})

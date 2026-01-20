@@ -52,6 +52,9 @@
       "dependencies": [
         "builtin_interfaces"
       ]
+    },
+    "unique_identifier_msgs": {
+      "dependencies": []
     }
   }
 }

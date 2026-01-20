@@ -39,12 +39,6 @@ git clone --depth 1 --branch $DISTRO \
   https://github.com/ros2/unique_identifier_msgs.git \
   "$TEMP_DIR/unique_identifier_msgs" 2>/dev/null || true
 
-# Clone unique_identifier_msgs
-echo "==> Cloning ros2/unique_identifier_msgs..."
-git clone --depth 1 --branch $DISTRO \
-  https://github.com/ros2/unique_identifier_msgs.git \
-  "$TEMP_DIR/unique_identifier_msgs" 2>/dev/null || true
-
 # Clear old assets (but keep any non-symlink directories first)
 echo "==> Clearing old assets..."
 if [ -d "$ASSETS_DIR" ]; then
@@ -95,12 +89,6 @@ fi
 if [ -d "$TEMP_DIR/rcl_interfaces/test_msgs" ]; then
   echo "==> Copying test_msgs..."
   cp -r "$TEMP_DIR/rcl_interfaces/test_msgs" "$ASSETS_DIR/"
-fi
-
-# Copy unique_identifier_msgs
-if [ -d "$TEMP_DIR/unique_identifier_msgs/unique_identifier_msgs" ]; then
-  echo "==> Copying unique_identifier_msgs..."
-  cp -r "$TEMP_DIR/unique_identifier_msgs/unique_identifier_msgs" "$ASSETS_DIR/"
 fi
 
 # Record provenance
