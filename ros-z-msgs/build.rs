@@ -9,10 +9,10 @@ fn main() -> Result<()> {
     println!("cargo:rustc-check-cfg=cfg(ros_humble)");
 
     // Detect ROS version and emit cfg
-    detect_ros_version();
+    let is_humble = detect_ros_version();
 
     // Discover ROS packages
-    let ros_packages = discover_ros_packages()?;
+    let ros_packages = discover_ros_packages(is_humble)?;
 
     println!(
         "cargo:warning=protobuf feature: {}",
@@ -26,6 +26,7 @@ fn main() -> Result<()> {
             generate_cdr: true, // Always generate for ROS2 compatibility
             generate_protobuf: cfg!(feature = "protobuf"),
             generate_type_info: true,
+            is_humble,
             output_dir: out_dir.clone(),
         };
 
@@ -57,13 +58,13 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn discover_ros_packages() -> Result<Vec<PathBuf>> {
+fn discover_ros_packages(is_humble: bool) -> Result<Vec<PathBuf>> {
     use std::collections::HashMap;
 
     // Use HashMap to track packages by name and deduplicate
     let mut package_map: HashMap<String, PathBuf> = HashMap::new();
 
-    let all_packages = get_all_packages();
+    let all_packages = get_all_packages(is_humble);
 
     // Priority 1: System ROS installation (highest priority - most up-to-date)
     let system_packages = discover_system_packages(&all_packages)?;
@@ -119,13 +120,17 @@ fn discover_package_name_from_path(package_path: &std::path::Path) -> Result<Str
 
 /// Get list of all package names based on enabled features
 /// All packages are now bundled in ros-z-codegen/assets/jazzy
-fn get_all_packages() -> Vec<&'static str> {
+fn get_all_packages(is_humble: bool) -> Vec<&'static str> {
     let mut names = vec![
         "builtin_interfaces",     // Always required
-        "service_msgs",           // Required for service type hashing
         "action_msgs",            // Required for ROS 2 actions
         "unique_identifier_msgs", // Required by action_msgs
     ];
+
+    // service_msgs is only available in Jazzy+ (contains ServiceEventInfo)
+    if !is_humble {
+        names.push("service_msgs");
+    }
 
     #[cfg(feature = "std_msgs")]
     names.push("std_msgs");
@@ -267,7 +272,15 @@ fn discover_local_assets(package_names: &[&str]) -> Result<Vec<PathBuf>> {
 }
 
 /// Detect ROS version and emit cfg(ros_humble) if Humble is detected
-fn detect_ros_version() {
+/// Returns true if Humble is detected
+fn detect_ros_version() -> bool {
+    // Check feature flag first (explicitly requested Humble)
+    if cfg!(feature = "humble") {
+        println!("cargo:rustc-cfg=ros_humble");
+        println!("cargo:warning=ROS Humble detected - using Humble-compatible codegen");
+        return true;
+    }
+
     // Check if ROS is installed by looking for AMENT_PREFIX_PATH
     if let Ok(ament_prefix) = env::var("AMENT_PREFIX_PATH") {
         // Jazzy and newer have type_description_interfaces, Humble doesn't
@@ -281,12 +294,14 @@ fn detect_ros_version() {
             // No type_description_interfaces means Humble
             println!("cargo:rustc-cfg=ros_humble");
             println!("cargo:warning=ROS Humble detected - using Humble-compatible codegen");
+            return true;
         } else {
             println!("cargo:warning=ROS Jazzy+ detected - using modern codegen");
+            return false;
         }
-    } else if env::var("CARGO_FEATURE_HUMBLE_COMPAT").is_ok() {
-        // Pure Rust mode: user explicitly requested Humble compatibility
-        println!("cargo:rustc-cfg=ros_humble");
-        println!("cargo:warning=humble_compat feature enabled - using Humble-compatible codegen");
     }
+
+    // Default to Jazzy (modern)
+    println!("cargo:warning=ROS Jazzy+ detected - using modern codegen");
+    false
 }

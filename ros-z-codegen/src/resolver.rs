@@ -12,14 +12,17 @@ pub struct Resolver {
     type_descriptions: BTreeMap<String, TypeDescription>,
     /// Map of package/name -> ResolvedMessage for fully resolved messages
     resolved_messages: HashMap<String, ResolvedMessage>,
+    /// Humble compatibility mode (no ServiceEventInfo, placeholder type hashes)
+    is_humble: bool,
 }
 
 impl Resolver {
     /// Create a new resolver
-    pub fn new() -> Self {
+    pub fn new(is_humble: bool) -> Self {
         Self {
             type_descriptions: BTreeMap::new(),
             resolved_messages: HashMap::new(),
+            is_humble,
         }
     }
 
@@ -130,33 +133,38 @@ impl Resolver {
         self.type_descriptions
             .insert(response_key.clone(), response.type_description().clone());
 
-        // Get ServiceEventInfo and its dependencies for service hash
-        let service_event_info_desc = self
-            .type_descriptions
-            .get("service_msgs/ServiceEventInfo")
-            .ok_or_else(|| anyhow::anyhow!("ServiceEventInfo not found in builtin types"))?;
+        // For Humble, use placeholder type hash (no ServiceEventInfo support)
+        let type_hash = if self.is_humble {
+            TypeHash::zero()
+        } else {
+            // Get ServiceEventInfo and its dependencies for service hash
+            let service_event_info_desc = self
+                .type_descriptions
+                .get("service_msgs/ServiceEventInfo")
+                .ok_or_else(|| anyhow::anyhow!("ServiceEventInfo not found in builtin types"))?;
 
-        // Collect dependencies of ServiceEventInfo (like Time)
-        let mut service_deps = BTreeMap::new();
-        service_deps.insert(
-            service_event_info_desc.type_name.clone(),
-            service_event_info_desc.clone(),
-        );
+            // Collect dependencies of ServiceEventInfo (like Time)
+            let mut service_deps = BTreeMap::new();
+            service_deps.insert(
+                service_event_info_desc.type_name.clone(),
+                service_event_info_desc.clone(),
+            );
 
-        // Add Time dependency
-        if let Some(time_desc) = self.type_descriptions.get("builtin_interfaces/Time") {
-            service_deps.insert(time_desc.type_name.clone(), time_desc.clone());
-        }
+            // Add Time dependency
+            if let Some(time_desc) = self.type_descriptions.get("builtin_interfaces/Time") {
+                service_deps.insert(time_desc.type_name.clone(), time_desc.clone());
+            }
 
-        // Calculate proper service type hash (Request + Response + Event)
-        let type_hash = crate::hashing::calculate_service_type_hash(
-            &srv.package,
-            &srv.name,
-            &request.type_description(),
-            &response.type_description(),
-            service_event_info_desc,
-            &service_deps,
-        )?;
+            // Calculate proper service type hash (Request + Response + Event)
+            crate::hashing::calculate_service_type_hash(
+                &srv.package,
+                &srv.name,
+                &request.type_description(),
+                &response.type_description(),
+                service_event_info_desc,
+                &service_deps,
+            )?
+        };
 
         Ok(ResolvedService {
             parsed: srv,
@@ -356,6 +364,11 @@ impl Resolver {
         action: &crate::types::ParsedAction,
         goal: &crate::types::ResolvedMessage,
     ) -> Result<crate::types::TypeHash> {
+        // For Humble, use placeholder hash (no ServiceEventInfo)
+        if self.is_humble {
+            return Ok(TypeHash::zero());
+        }
+
         use crate::hashing::{FieldDescription, FieldTypeDescription, TypeDescription};
 
         // SendGoal_Request type description
@@ -467,6 +480,11 @@ impl Resolver {
         action: &crate::types::ParsedAction,
         result: &crate::types::ResolvedMessage,
     ) -> Result<crate::types::TypeHash> {
+        // For Humble, use placeholder hash (no ServiceEventInfo)
+        if self.is_humble {
+            return Ok(TypeHash::zero());
+        }
+
         use crate::hashing::{FieldDescription, FieldTypeDescription, TypeDescription};
 
         // GetResult_Request type description
@@ -636,6 +654,11 @@ impl Resolver {
     /// Calculate type hash for CancelGoal service (action_msgs/srv/CancelGoal)
     /// This is a standard ROS2 action protocol type shared by all actions
     fn calculate_cancel_goal_hash(&self) -> Result<crate::types::TypeHash> {
+        // For Humble, use placeholder hash (no ServiceEventInfo)
+        if self.is_humble {
+            return Ok(TypeHash::zero());
+        }
+
         use crate::hashing::{FieldDescription, FieldTypeDescription, TypeDescription};
 
         // CancelGoal_Request: goal_info (GoalInfo)
@@ -827,7 +850,7 @@ impl Resolver {
 
 impl Default for Resolver {
     fn default() -> Self {
-        Self::new()
+        Self::new(false)
     }
 }
 
@@ -925,7 +948,7 @@ mod tests {
 
     #[test]
     fn test_resolver_new() {
-        let resolver = Resolver::new();
+        let resolver = Resolver::new(false);
         // Resolver starts empty - builtin types come from assets
         assert!(resolver.type_descriptions.is_empty());
         assert!(resolver.resolved_messages.is_empty());
@@ -950,7 +973,7 @@ mod tests {
             path: PathBuf::new(),
         };
 
-        let mut resolver = Resolver::new();
+        let mut resolver = Resolver::new(false);
         let resolved = resolver.resolve_messages(vec![msg]).unwrap();
 
         assert_eq!(resolved.len(), 1);
@@ -969,7 +992,7 @@ mod tests {
             path: PathBuf::new(),
         };
 
-        let mut resolver = Resolver::new();
+        let mut resolver = Resolver::new(false);
         let resolved = resolver.resolve_messages(vec![msg]).unwrap();
 
         assert_eq!(resolved.len(), 1);
@@ -1035,7 +1058,7 @@ mod tests {
             path: PathBuf::new(),
         };
 
-        let mut resolver = Resolver::new();
+        let mut resolver = Resolver::new(false);
         // Resolve both messages - Time first, then Stamped
         let resolved = resolver.resolve_messages(vec![time_msg, msg]).unwrap();
 
@@ -1092,7 +1115,7 @@ mod tests {
             path: PathBuf::new(),
         };
 
-        let mut resolver = Resolver::new();
+        let mut resolver = Resolver::new(false);
         let resolved = resolver.resolve_messages(vec![point, pose]).unwrap();
 
         assert_eq!(resolved.len(), 2);
@@ -1125,10 +1148,10 @@ mod tests {
             path: PathBuf::new(),
         };
 
-        let mut resolver1 = Resolver::new();
+        let mut resolver1 = Resolver::new(false);
         let resolved1 = resolver1.resolve_messages(vec![msg.clone()]).unwrap();
 
-        let mut resolver2 = Resolver::new();
+        let mut resolver2 = Resolver::new(false);
         let resolved2 = resolver2.resolve_messages(vec![msg]).unwrap();
 
         assert_eq!(resolved1[0].type_hash, resolved2[0].type_hash);

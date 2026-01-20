@@ -141,6 +141,11 @@ impl TypeHash {
         hash.copy_from_slice(&bytes);
         Ok(TypeHash(hash))
     }
+
+    /// Create a zero (placeholder) type hash for Humble compatibility
+    pub fn zero() -> Self {
+        TypeHash([0u8; 32])
+    }
 }
 
 impl std::fmt::Display for TypeHash {

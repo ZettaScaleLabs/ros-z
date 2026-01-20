@@ -27,6 +27,9 @@ pub struct GeneratorConfig {
     /// Generate MessageTypeInfo trait impls
     pub generate_type_info: bool,
 
+    /// Humble compatibility mode (no ServiceEventInfo, placeholder type hashes)
+    pub is_humble: bool,
+
     pub output_dir: PathBuf,
 }
 
@@ -58,7 +61,7 @@ impl MessageGenerator {
         );
 
         // Resolve dependencies and calculate type hashes
-        let mut resolver = resolver::Resolver::new();
+        let mut resolver = resolver::Resolver::new(self.config.is_humble);
         let resolved_messages = resolver
             .resolve_messages(messages)
             .context("Failed to resolve message dependencies")?;
