@@ -1,0 +1,5 @@
+geometry_msgs/Point target
+float64 max_speed
+---
+bool success
+string message

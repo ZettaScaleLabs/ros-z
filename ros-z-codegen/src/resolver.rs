@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
 use anyhow::{Result, bail};
 
@@ -14,6 +14,9 @@ pub struct Resolver {
     resolved_messages: HashMap<String, ResolvedMessage>,
     /// Humble compatibility mode (no ServiceEventInfo, placeholder type hashes)
     is_humble: bool,
+    /// External packages whose types are assumed resolved (from ros_z_msgs)
+    /// Types from these packages are treated as resolved without needing type descriptions
+    external_packages: HashSet<String>,
 }
 
 impl Resolver {
@@ -23,7 +26,24 @@ impl Resolver {
             type_descriptions: BTreeMap::new(),
             resolved_messages: HashMap::new(),
             is_humble,
+            external_packages: HashSet::new(),
         }
+    }
+
+    /// Create a resolver with external packages
+    /// External packages are treated as already resolved (types come from another crate)
+    pub fn with_external_packages(is_humble: bool, external_packages: HashSet<String>) -> Self {
+        Self {
+            type_descriptions: BTreeMap::new(),
+            resolved_messages: HashMap::new(),
+            is_humble,
+            external_packages,
+        }
+    }
+
+    /// Check if a package is external (types come from another crate)
+    fn is_external_package(&self, package: &str) -> bool {
+        self.external_packages.contains(package)
     }
 
     /// Resolve a list of messages, calculating their type hashes and dependencies
@@ -133,8 +153,10 @@ impl Resolver {
         self.type_descriptions
             .insert(response_key.clone(), response.type_description().clone());
 
-        // For Humble, use placeholder type hash (no ServiceEventInfo support)
-        let type_hash = if self.is_humble {
+        // For Humble or when we have external packages, use placeholder type hash
+        // (no ServiceEventInfo support when types are external)
+        let has_external_deps = !self.external_packages.is_empty();
+        let type_hash = if self.is_humble || has_external_deps {
             TypeHash::zero()
         } else {
             // Get ServiceEventInfo and its dependencies for service hash
@@ -291,7 +313,7 @@ impl Resolver {
         }
     }
 
-    /// Check if a type is resolved, considering same-package references
+    /// Check if a type is resolved, considering same-package references and external packages
     fn is_type_resolved_in_context(
         &self,
         package: &Option<String>,
@@ -299,6 +321,10 @@ impl Resolver {
         source_package: &str,
     ) -> bool {
         if let Some(pkg) = package {
+            // External packages are treated as already resolved
+            if self.is_external_package(pkg) {
+                return true;
+            }
             let key = format!("{}/{}", pkg, base_type);
             self.type_descriptions.contains_key(&key)
         } else {

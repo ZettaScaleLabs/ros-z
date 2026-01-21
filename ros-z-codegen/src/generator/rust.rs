@@ -2,6 +2,31 @@ use crate::types::{ArrayType, Field, FieldType, ResolvedMessage, ResolvedService
 use anyhow::Result;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
+use std::collections::HashSet;
+
+/// Context for code generation, tracking external vs local packages
+#[derive(Default, Clone)]
+pub struct GenerationContext {
+    /// External crate path for standard message types (e.g., "ros_z_msgs")
+    pub external_crate: Option<String>,
+    /// Set of local package names (packages being generated in this crate)
+    pub local_packages: HashSet<String>,
+}
+
+impl GenerationContext {
+    /// Create a new generation context
+    pub fn new(external_crate: Option<String>, local_packages: HashSet<String>) -> Self {
+        Self {
+            external_crate,
+            local_packages,
+        }
+    }
+
+    /// Check if a package is local (being generated in this crate)
+    pub fn is_local_package(&self, package: &str) -> bool {
+        self.local_packages.is_empty() || self.local_packages.contains(package)
+    }
+}
 
 /// Generate Rust module for a package containing messages
 pub fn generate_package_module(
@@ -23,15 +48,29 @@ pub fn generate_package_module(
 
 /// Generate Rust implementation for a single message
 pub fn generate_message_impl(msg: &ResolvedMessage) -> Result<TokenStream> {
+    generate_message_impl_with_context(msg, &GenerationContext::default())
+}
+
+/// Generate Rust implementation for a single message with external type support
+pub fn generate_message_impl_with_context(
+    msg: &ResolvedMessage,
+    ctx: &GenerationContext,
+) -> Result<TokenStream> {
     let name = format_ident!("{}", msg.parsed.name);
     let has_zbuf = msg.parsed.fields.iter().any(is_zbuf_field);
 
-    let struct_def = generate_struct(&msg.parsed.package, &msg.parsed.name, &msg.parsed.fields, &msg.parsed.constants)?;
+    let struct_def = generate_struct_with_context(
+        &msg.parsed.package,
+        &msg.parsed.name,
+        &msg.parsed.fields,
+        &msg.parsed.constants,
+        ctx,
+    )?;
     let type_info = generate_message_type_info(&msg.parsed.package, &msg.parsed.name, &msg.type_hash);
 
     // Generate custom serde for ZBuf-containing messages
     let serde_impl = if has_zbuf {
-        generate_zbuf_serde(&name, &msg.parsed.fields, &msg.parsed.package)?
+        generate_zbuf_serde_with_context(&name, &msg.parsed.fields, &msg.parsed.package, ctx)?
     } else {
         quote! {}
     };
@@ -45,10 +84,21 @@ pub fn generate_message_impl(msg: &ResolvedMessage) -> Result<TokenStream> {
 
 /// Generate struct definition with constants
 fn generate_struct(package: &str, name: &str, fields: &[Field], constants: &[crate::types::Constant]) -> Result<TokenStream> {
+    generate_struct_with_context(package, name, fields, constants, &GenerationContext::default())
+}
+
+/// Generate struct definition with constants (with external type support)
+fn generate_struct_with_context(
+    package: &str,
+    name: &str,
+    fields: &[Field],
+    constants: &[crate::types::Constant],
+    ctx: &GenerationContext,
+) -> Result<TokenStream> {
     let name_ident = format_ident!("{}", name);
     let field_defs: Vec<TokenStream> = fields
         .iter()
-        .map(|f| generate_field_def(f, package))
+        .map(|f| generate_field_def_with_context(f, package, ctx))
         .collect::<Result<Vec<_>>>()?;
 
     // Check if we have large arrays (>32 elements) that need smart-default
@@ -153,13 +203,22 @@ fn generate_constant_value_from_string(const_type: &str, value: &str) -> TokenSt
 
 /// Generate a field definition
 fn generate_field_def(field: &Field, source_package: &str) -> Result<TokenStream> {
+    generate_field_def_with_context(field, source_package, &GenerationContext::default())
+}
+
+/// Generate a field definition (with external type support)
+fn generate_field_def_with_context(
+    field: &Field,
+    source_package: &str,
+    ctx: &GenerationContext,
+) -> Result<TokenStream> {
     // Escape Rust keywords with r# prefix
     let name = if is_rust_keyword(&field.name) {
         format_ident!("r#{}", field.name)
     } else {
         format_ident!("{}", field.name)
     };
-    let field_type = generate_field_type_tokens(&field.field_type, source_package)?;
+    let field_type = generate_field_type_tokens_with_context(&field.field_type, source_package, ctx)?;
 
     // Add attributes for large fixed arrays (>32 elements)
     let attributes = if let ArrayType::Fixed(n) = &field.field_type.array {
@@ -212,7 +271,16 @@ fn is_rust_keyword(name: &str) -> bool {
 
 /// Generate Rust type tokens for a field type
 fn generate_field_type_tokens(field_type: &FieldType, source_package: &str) -> Result<TokenStream> {
-    let base = generate_base_type_tokens(field_type, source_package)?;
+    generate_field_type_tokens_with_context(field_type, source_package, &GenerationContext::default())
+}
+
+/// Generate Rust type tokens for a field type (with external type support)
+fn generate_field_type_tokens_with_context(
+    field_type: &FieldType,
+    source_package: &str,
+    ctx: &GenerationContext,
+) -> Result<TokenStream> {
+    let base = generate_base_type_tokens_with_context(field_type, source_package, ctx)?;
 
     Ok(match &field_type.array {
         ArrayType::Single => base,
@@ -238,6 +306,15 @@ fn generate_field_type_tokens(field_type: &FieldType, source_package: &str) -> R
 
 /// Generate base type tokens
 fn generate_base_type_tokens(field_type: &FieldType, source_package: &str) -> Result<TokenStream> {
+    generate_base_type_tokens_with_context(field_type, source_package, &GenerationContext::default())
+}
+
+/// Generate base type tokens (with external type support)
+fn generate_base_type_tokens_with_context(
+    field_type: &FieldType,
+    source_package: &str,
+    ctx: &GenerationContext,
+) -> Result<TokenStream> {
     Ok(match field_type.base_type.as_str() {
         "bool" => quote! { bool },
         "byte" | "uint8" => quote! { u8 },
@@ -256,6 +333,17 @@ fn generate_base_type_tokens(field_type: &FieldType, source_package: &str) -> Re
             let pkg = field_type.package.as_deref().unwrap_or(source_package);
             let pkg_ident = format_ident!("{}", pkg);
             let type_ident = format_ident!("{}", custom);
+
+            // Check if this is an external package reference
+            if let Some(ref ext_crate) = ctx.external_crate {
+                if !ctx.is_local_package(pkg) {
+                    // External package - use fully qualified path
+                    let crate_ident = format_ident!("{}", ext_crate);
+                    return Ok(quote! { ::#crate_ident::ros::#pkg_ident::#type_ident });
+                }
+            }
+
+            // Local package - use super:: as before
             quote! { super::#pkg_ident::#type_ident }
         }
     })
@@ -288,7 +376,17 @@ fn generate_message_type_info(
 }
 
 /// Generate custom serde implementation for ZBuf-containing messages
-fn generate_zbuf_serde(name: &proc_macro2::Ident, fields: &[Field], _source_package: &str) -> Result<TokenStream> {
+fn generate_zbuf_serde(name: &proc_macro2::Ident, fields: &[Field], source_package: &str) -> Result<TokenStream> {
+    generate_zbuf_serde_with_context(name, fields, source_package, &GenerationContext::default())
+}
+
+/// Generate custom serde implementation for ZBuf-containing messages (with external type support)
+fn generate_zbuf_serde_with_context(
+    name: &proc_macro2::Ident,
+    fields: &[Field],
+    _source_package: &str,
+    _ctx: &GenerationContext,
+) -> Result<TokenStream> {
     let serialize_fields: Vec<TokenStream> = fields
         .iter()
         .map(|f| {

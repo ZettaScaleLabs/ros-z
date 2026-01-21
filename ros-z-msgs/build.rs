@@ -28,6 +28,8 @@ fn main() -> Result<()> {
             generate_type_info: true,
             is_humble,
             output_dir: out_dir.clone(),
+            external_crate: None, // All packages are local in ros-z-msgs
+            local_packages: std::collections::HashSet::new(), // All packages are local
         };
 
         let generator = ros_z_codegen::MessageGenerator::new(config);

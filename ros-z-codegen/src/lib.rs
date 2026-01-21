@@ -31,6 +31,15 @@ pub struct GeneratorConfig {
     pub is_humble: bool,
 
     pub output_dir: PathBuf,
+
+    /// External crate path for standard message types (e.g., "ros_z_msgs").
+    /// When set, references to packages NOT in the local package set will use
+    /// fully qualified paths: `::{external_crate}::ros::{package}::{Type}`
+    pub external_crate: Option<String>,
+
+    /// Set of local package names (used with external_crate to determine
+    /// which types need external references)
+    pub local_packages: std::collections::HashSet<String>,
 }
 
 /// Message generator that orchestrates parsing, resolution, and code generation
@@ -61,7 +70,37 @@ impl MessageGenerator {
         );
 
         // Resolve dependencies and calculate type hashes
-        let mut resolver = resolver::Resolver::new(self.config.is_humble);
+        // If external_crate is set, determine which packages are external (not local)
+        let external_packages = if self.config.external_crate.is_some() {
+            // Standard ROS2 packages that are provided by ros_z_msgs
+            let standard_packages: std::collections::HashSet<String> = [
+                "builtin_interfaces",
+                "std_msgs",
+                "geometry_msgs",
+                "sensor_msgs",
+                "nav_msgs",
+                "action_msgs",
+                "unique_identifier_msgs",
+                "service_msgs",
+                "example_interfaces",
+                "action_tutorials_interfaces",
+                "test_msgs",
+            ]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+
+            // External packages = standard packages - local packages
+            standard_packages
+                .difference(&self.config.local_packages)
+                .cloned()
+                .collect()
+        } else {
+            std::collections::HashSet::new()
+        };
+
+        let mut resolver =
+            resolver::Resolver::with_external_packages(self.config.is_humble, external_packages);
         let resolved_messages = resolver
             .resolve_messages(messages)
             .context("Failed to resolve message dependencies")?;
@@ -239,6 +278,12 @@ impl MessageGenerator {
         all_package_names.extend(package_services.keys().cloned());
         all_package_names.extend(package_actions.keys().cloned());
 
+        // Create generation context for external type references
+        let gen_ctx = generator::rust::GenerationContext::new(
+            self.config.external_crate.clone(),
+            self.config.local_packages.clone(),
+        );
+
         for package_name in all_package_names {
             let package_ident = quote::format_ident!("{}", &package_name);
 
@@ -247,7 +292,9 @@ impl MessageGenerator {
                 .get(&package_name)
                 .map(|msgs| {
                     msgs.iter()
-                        .map(|msg| generator::rust::generate_message_impl(msg))
+                        .map(|msg| {
+                            generator::rust::generate_message_impl_with_context(msg, &gen_ctx)
+                        })
                         .collect::<Result<Vec<_>>>()
                 })
                 .transpose()
@@ -358,5 +405,277 @@ impl MessageGenerator {
 
         println!("cargo:info=Protobuf generation complete");
         Ok(())
+    }
+}
+
+/// Discover user message packages from the ROS_Z_MSG_PATH environment variable.
+///
+/// The environment variable should contain a colon-separated list of paths,
+/// where each path is a ROS2 package directory containing msg/, srv/, or action/ subdirs.
+///
+/// # Example
+/// ```bash
+/// export ROS_Z_MSG_PATH="/path/to/my_msgs:/path/to/other_msgs"
+/// ```
+pub fn discover_user_packages() -> Result<Vec<PathBuf>> {
+    let msg_path =
+        std::env::var("ROS_Z_MSG_PATH").context("ROS_Z_MSG_PATH environment variable not set")?;
+
+    let mut packages = Vec::new();
+
+    for path_str in msg_path.split(':') {
+        let path = PathBuf::from(path_str.trim());
+        if path_str.trim().is_empty() {
+            continue;
+        }
+
+        if !path.exists() {
+            println!(
+                "cargo:warning=ROS_Z_MSG_PATH entry does not exist: {:?}",
+                path
+            );
+            continue;
+        }
+
+        // Check if this path has msg/, srv/, or action/ subdirectories
+        let has_messages =
+            path.join("msg").exists() || path.join("srv").exists() || path.join("action").exists();
+
+        if has_messages {
+            println!("cargo:info=Found user package at: {:?}", path);
+            packages.push(path);
+        } else {
+            println!(
+                "cargo:warning=Path {:?} has no msg/, srv/, or action/ directory",
+                path
+            );
+        }
+    }
+
+    if packages.is_empty() {
+        anyhow::bail!("No valid message packages found in ROS_Z_MSG_PATH");
+    }
+
+    Ok(packages)
+}
+
+/// High-level API for user crates to generate messages from ROS_Z_MSG_PATH.
+///
+/// This function:
+/// 1. Discovers packages from ROS_Z_MSG_PATH environment variable
+/// 2. Generates Rust code with external references to ros_z_msgs for standard types
+///
+/// # Arguments
+/// * `output_dir` - Directory where generated.rs will be written
+/// * `is_humble` - Set to true for ROS2 Humble compatibility mode
+///
+/// # Example
+/// ```rust,ignore
+/// // In build.rs
+/// fn main() -> anyhow::Result<()> {
+///     let out_dir = std::env::var("OUT_DIR")?;
+///     ros_z_codegen::generate_user_messages(&out_dir.into(), false)?;
+///     println!("cargo:rerun-if-env-changed=ROS_Z_MSG_PATH");
+///     Ok(())
+/// }
+/// ```
+pub fn generate_user_messages(output_dir: &Path, is_humble: bool) -> Result<()> {
+    let packages = discover_user_packages()?;
+
+    // Collect local package names
+    let local_packages: std::collections::HashSet<String> = packages
+        .iter()
+        .filter_map(|p| discovery::discover_package_name(p).ok())
+        .collect();
+
+    println!(
+        "cargo:info=Generating user messages for packages: {:?}",
+        local_packages
+    );
+
+    let config = GeneratorConfig {
+        generate_cdr: true,
+        generate_protobuf: false,
+        generate_type_info: true,
+        is_humble,
+        output_dir: output_dir.to_path_buf(),
+        external_crate: Some("ros_z_msgs".to_string()),
+        local_packages,
+    };
+
+    let generator = MessageGenerator::new(config);
+    let package_refs: Vec<&Path> = packages.iter().map(|p| p.as_path()).collect();
+    generator.generate_from_msg_files(&package_refs)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use serial_test::serial;
+
+    use super::*;
+
+    // Helper to safely set/remove env vars in Rust 2024
+    // SAFETY: Tests using these are marked #[serial] to prevent data races
+    fn set_env(key: &str, value: &str) {
+        unsafe { std::env::set_var(key, value) };
+    }
+
+    fn remove_env(key: &str) {
+        unsafe { std::env::remove_var(key) };
+    }
+
+    /// Test that user-defined messages with external dependencies generate correct code
+    #[test]
+    #[serial]
+    fn test_generate_user_messages_with_external_deps() {
+        // Create a temp directory structure
+        let temp_dir = tempfile::tempdir().unwrap();
+        let pkg_dir = temp_dir.path().join("my_test_msgs");
+        let msg_dir = pkg_dir.join("msg");
+        fs::create_dir_all(&msg_dir).unwrap();
+
+        // Create a message that references external types (geometry_msgs/Point)
+        let msg_content = r#"
+string robot_id
+geometry_msgs/Point position
+bool is_active
+"#;
+        fs::write(msg_dir.join("TestStatus.msg"), msg_content).unwrap();
+
+        // Create output directory
+        let out_dir = temp_dir.path().join("out");
+        fs::create_dir_all(&out_dir).unwrap();
+
+        // Set the environment variable
+        set_env("ROS_Z_MSG_PATH", pkg_dir.to_str().unwrap());
+
+        // Generate messages
+        let result = generate_user_messages(&out_dir, false);
+        assert!(
+            result.is_ok(),
+            "generate_user_messages failed: {:?}",
+            result
+        );
+
+        // Read the generated file
+        let generated_path = out_dir.join("generated.rs");
+        assert!(generated_path.exists(), "generated.rs was not created");
+
+        let generated_code = fs::read_to_string(&generated_path).unwrap();
+
+        // Verify external type reference uses fully qualified path
+        assert!(
+            generated_code.contains("::ros_z_msgs::ros::geometry_msgs::Point"),
+            "Generated code should use fully qualified path for external types.\nGenerated:\n{}",
+            generated_code
+        );
+
+        // Verify struct was generated
+        assert!(
+            generated_code.contains("pub struct TestStatus"),
+            "Generated code should contain TestStatus struct.\nGenerated:\n{}",
+            generated_code
+        );
+
+        // Verify it's in the correct module
+        assert!(
+            generated_code.contains("pub mod my_test_msgs"),
+            "Generated code should have my_test_msgs module.\nGenerated:\n{}",
+            generated_code
+        );
+
+        // Clean up env var
+        remove_env("ROS_Z_MSG_PATH");
+    }
+
+    /// Test that services with external dependencies generate correct code
+    #[test]
+    #[serial]
+    fn test_generate_user_services_with_external_deps() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let pkg_dir = temp_dir.path().join("my_test_srvs");
+        let srv_dir = pkg_dir.join("srv");
+        fs::create_dir_all(&srv_dir).unwrap();
+
+        // Create a service that references external types
+        let srv_content = r#"
+geometry_msgs/Point target
+float64 speed
+---
+bool success
+"#;
+        fs::write(srv_dir.join("MoveTo.srv"), srv_content).unwrap();
+
+        let out_dir = temp_dir.path().join("out");
+        fs::create_dir_all(&out_dir).unwrap();
+
+        set_env("ROS_Z_MSG_PATH", pkg_dir.to_str().unwrap());
+
+        let result = generate_user_messages(&out_dir, false);
+        assert!(
+            result.is_ok(),
+            "generate_user_messages failed: {:?}",
+            result
+        );
+
+        let generated_code = fs::read_to_string(out_dir.join("generated.rs")).unwrap();
+
+        // Verify service request has external type reference
+        assert!(
+            generated_code.contains("pub struct MoveToRequest"),
+            "Generated code should contain MoveToRequest struct"
+        );
+        assert!(
+            generated_code.contains("::ros_z_msgs::ros::geometry_msgs::Point"),
+            "Service request should use fully qualified path for external types"
+        );
+
+        // Verify service module
+        assert!(
+            generated_code.contains("pub mod srv"),
+            "Generated code should have srv submodule"
+        );
+
+        remove_env("ROS_Z_MSG_PATH");
+    }
+
+    /// Test discover_user_packages with missing env var
+    #[test]
+    #[serial]
+    fn test_discover_user_packages_missing_env() {
+        remove_env("ROS_Z_MSG_PATH");
+        let result = discover_user_packages();
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("ROS_Z_MSG_PATH environment variable not set")
+        );
+    }
+
+    /// Test discover_user_packages with invalid path
+    #[test]
+    #[serial]
+    fn test_discover_user_packages_no_valid_packages() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        // Create a directory without msg/srv/action subdirs
+        let empty_pkg = temp_dir.path().join("empty_pkg");
+        fs::create_dir_all(&empty_pkg).unwrap();
+
+        set_env("ROS_Z_MSG_PATH", empty_pkg.to_str().unwrap());
+
+        let result = discover_user_packages();
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("No valid message packages found")
+        );
+
+        remove_env("ROS_Z_MSG_PATH");
     }
 }

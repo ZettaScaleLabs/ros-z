@@ -1,12 +1,33 @@
 # Custom Messages
 
-**Define domain-specific message types by implementing required traits on Rust structs.** Custom messages give you full control over data structures while maintaining ROS 2 compatibility for ros-z-to-ros-z communication.
+ros-z supports two approaches for defining custom message types:
 
-```admonish tip
-Use custom messages for rapid prototyping and standalone applications. For production systems requiring ROS 2 interoperability, use auto-generated messages from `.msg` definitions.
+| Approach | Definition | Best For |
+|----------|------------|----------|
+| **Rust-Native** | Write Rust structs directly | Prototyping, ros-z-only systems |
+| **Schema-Generated** | Write `.msg`/`.srv` files, generate Rust | Production, ROS 2 interop |
+
+```mermaid
+flowchart TD
+    A[Need Custom Messages?] -->|Yes| B{ROS 2 Interop Needed?}
+    B -->|Yes| C[Schema-Generated]
+    B -->|No| D{Quick Prototype?}
+    D -->|Yes| E[Rust-Native]
+    D -->|No| C
+    A -->|No| F[Use Standard Messages]
 ```
 
-## Implementation Workflow
+---
+
+## Rust-Native Messages
+
+**Define messages directly in Rust by implementing required traits.** This approach is fast for prototyping but only works between ros-z nodes.
+
+```admonish warning
+Rust-Native messages use `TypeHash::zero()` and won't interoperate with ROS 2 C++/Python nodes.
+```
+
+### Workflow of Rust-Native Messages
 
 ```mermaid
 graph LR
@@ -16,27 +37,21 @@ graph LR
     D --> E[Use in Pub/Sub]
 ```
 
-## Complete Example
-
-The `z_custom_message` example demonstrates both custom messages and services:
-
-```rust,ignore
-{{#include ../../../ros-z/examples/z_custom_message.rs}}
-```
-
-## Required Traits
+### Required Traits
 
 | Trait | Purpose | Key Method |
 |-------|---------|------------|
 | **MessageTypeInfo** | Type identification | `type_name()`, `type_hash()` |
-| **WithTypeInfo** | ros-z integration | Automatic with `#[derive]` |
+| **WithTypeInfo** | ros-z integration | `type_info()` |
 | **Serialize/Deserialize** | Data encoding | From `serde` |
 
-## Message Implementation
-
-**Step 1 - Define the Struct:**
+### Message Example
 
 ```rust,ignore
+use ros_z::{MessageTypeInfo, entity::{TypeHash, TypeInfo}};
+use ros_z::ros_msg::WithTypeInfo;
+use serde::{Serialize, Deserialize};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct RobotStatus {
     battery_level: f32,
@@ -44,25 +59,17 @@ struct RobotStatus {
     position_y: f32,
     is_moving: bool,
 }
-```
 
-**Step 2 - Implement MessageTypeInfo:**
-
-```rust,ignore
 impl MessageTypeInfo for RobotStatus {
     fn type_name() -> &'static str {
-        "custom_msgs::msg::dds_::RobotStatus_"
+        "my_msgs::msg::dds_::RobotStatus_"
     }
 
     fn type_hash() -> TypeHash {
-        TypeHash::zero()  // For ros-z-to-ros-z only
+        TypeHash::zero()  // ros-z-to-ros-z only
     }
 }
-```
 
-**Step 3 - Add WithTypeInfo:**
-
-```rust,ignore
 impl WithTypeInfo for RobotStatus {
     fn type_info() -> TypeInfo {
         TypeInfo::new(Self::type_name(), Self::type_hash())
@@ -70,40 +77,27 @@ impl WithTypeInfo for RobotStatus {
 }
 ```
 
-```admonish note
-`TypeHash::zero()` works for ros-z-to-ros-z communication. For full ROS 2 compatibility, generate proper type hashes from message definitions.
-```
-
-## Service Implementation
-
-**Define Request and Response:**
+### Service Example
 
 ```rust,ignore
+use ros_z::{ServiceTypeInfo, msg::ZService};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct NavigateToRequest {
     target_x: f32,
     target_y: f32,
-    max_speed: f32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct NavigateToResponse {
     success: bool,
-    distance_traveled: f32,
 }
-```
 
-**Implement Service Traits:**
-
-```rust,ignore
 struct NavigateTo;
 
 impl ServiceTypeInfo for NavigateTo {
     fn service_type_info() -> TypeInfo {
-        TypeInfo::new(
-            "custom_msgs::srv::dds_::NavigateTo_",
-            TypeHash::zero()
-        )
+        TypeInfo::new("my_msgs::srv::dds_::NavigateTo_", TypeHash::zero())
     }
 }
 
@@ -113,100 +107,205 @@ impl ZService for NavigateTo {
 }
 ```
 
-## Running the Example
-
-```admonish note
-All examples require a Zenoh router to be running first. Start it with:
-`cargo run --example zenoh_router`
-```
-
-**Publisher/Subscriber Mode:**
-
-Terminal 1 - Start Zenoh Router:
+See the `z_custom_message` example:
 
 ```bash
+# Terminal 1: Router
 cargo run --example zenoh_router
-```
 
-Terminal 2 - Start Subscriber:
-
-```bash
+# Terminal 2: Subscriber
 cargo run --example z_custom_message -- --mode status-sub
-```
 
-Terminal 3 - Start Publisher:
-
-```bash
+# Terminal 3: Publisher
 cargo run --example z_custom_message -- --mode status-pub
 ```
 
-**Service Client/Server Mode:**
+---
 
-Terminal 1 - Start Zenoh Router:
+## Schema-Generated Messages
 
-```bash
-cargo run --example zenoh_router
+**Define messages in `.msg`/`.srv` files and generate Rust code using `ros-z-codegen`.** This approach provides proper type hashes and can reference standard ROS 2 types.
+
+```admonish tip
+Schema-Generated messages get proper RIHS01 type hashes and can reference types from `ros_z_msgs` like `geometry_msgs/Point`.
 ```
 
-Terminal 2 - Start Server:
-
-```bash
-cargo run --example z_custom_message -- --mode nav-server
-```
-
-Terminal 3 - Send Requests:
-
-```bash
-cargo run --example z_custom_message -- --mode nav-client \
-  --target_x 10.0 --target_y 20.0 --max_speed 1.5
-```
-
-```admonish success
-You should see the server processing navigation requests and returning results with calculated distances.
-```
-
-## Decision Guide
+### Workflow of Schema-Generated Messages
 
 ```mermaid
-flowchart TD
-    A[Need Custom Messages?] -->|Yes| B{Production or Prototype?}
-    B -->|Prototype| C[Manual Implementation]
-    B -->|Production| D{ROS 2 Interop?}
-    D -->|Yes| E[Generate from .msg]
-    D -->|No| C
-    A -->|No| F[Use Standard Messages]
+graph LR
+    A[Write .msg files] --> B[Create Rust crate]
+    B --> C[Add build.rs]
+    C --> D[Set ROS_Z_MSG_PATH]
+    D --> E[cargo build]
+    E --> F[Use generated types]
 ```
 
-| Approach | Use When | Benefits | Limitations |
-|----------|----------|----------|-------------|
-| **Manual Custom** | Prototyping, standalone apps | Fast iteration, full control | No ROS 2 interop |
-| **Generated** | Production, ROS 2 systems | Proper type hashing, interop | Build complexity |
-| **Standard** | Common data types | Zero setup, universal | Limited to ROS 2 standard types |
+### Step 1: Create Message Package
 
-```admonish warning
-Manual custom messages work only between ros-z nodes. They won't interoperate with ROS 2 C++/Python nodes due to missing type hashes and metadata.
+Create a ROS 2 style directory structure:
+
+```text
+my_robot_msgs/
+├── msg/
+│   ├── RobotStatus.msg
+│   └── SensorReading.msg
+└── srv/
+    └── NavigateTo.srv
 ```
+
+### Step 2: Define Messages
+
+Messages can reference standard ROS 2 types:
+
+```text
+# RobotStatus.msg
+string robot_id
+geometry_msgs/Point position
+bool is_moving
+```
+
+```text
+# SensorReading.msg
+builtin_interfaces/Time timestamp
+float64[] values
+string sensor_id
+```
+
+```text
+# NavigateTo.srv
+geometry_msgs/Point target
+float64 max_speed
+---
+bool success
+string message
+```
+
+### Step 3: Create Rust Crate
+
+**Cargo.toml:**
+
+```toml
+[package]
+name = "my-robot-msgs"
+version = "0.1.0"
+edition = "2021"
+
+# Standalone package (not part of parent workspace)
+[workspace]
+
+[dependencies]
+ros-z-msgs = { version = "0.1" }
+ros-z = { version = "0.1", default-features = false }
+serde = { version = "1", features = ["derive"] }
+smart-default = "0.7"
+zenoh-buffers = "1"
+
+[build-dependencies]
+ros-z-codegen = { version = "0.1" }
+anyhow = "1"
+```
+
+**build.rs:**
+
+```rust,ignore
+use std::path::PathBuf;
+use std::env;
+
+fn main() -> anyhow::Result<()> {
+    let out_dir = PathBuf::from(env::var("OUT_DIR")?);
+    ros_z_codegen::generate_user_messages(&out_dir, false)?;
+    println!("cargo:rerun-if-env-changed=ROS_Z_MSG_PATH");
+    Ok(())
+}
+```
+
+**src/lib.rs:**
+
+```rust,ignore
+// Re-export standard types from ros-z-msgs
+pub use ros_z_msgs::*;
+
+// Include generated user messages
+include!(concat!(env!("OUT_DIR"), "/generated.rs"));
+```
+
+### Step 4: Build
+
+Set `ROS_Z_MSG_PATH` and build:
+
+```bash
+ROS_Z_MSG_PATH="./my_robot_msgs" cargo build
+```
+
+For multiple packages, use colon-separated paths:
+
+```bash
+ROS_Z_MSG_PATH="./my_msgs:./other_msgs" cargo build
+```
+
+### Step 5: Use Generated Types
+
+```rust,ignore
+use my_robot_msgs::ros::my_robot_msgs::{RobotStatus, SensorReading};
+use my_robot_msgs::ros::my_robot_msgs::srv::NavigateTo;
+use ros_z_msgs::ros::geometry_msgs::Point;
+use ros_z_msgs::ros::builtin_interfaces::Time;
+
+let status = RobotStatus {
+    robot_id: "robot_1".to_string(),
+    position: Point { x: 1.0, y: 2.0, z: 0.0 },
+    is_moving: true,
+};
+
+let reading = SensorReading {
+    timestamp: Time { sec: 1234, nanosec: 0 },
+    values: vec![1.0, 2.0, 3.0],
+    sensor_id: "lidar_1".to_string(),
+};
+```
+
+See `ros-z/examples/custom_msgs_demo/` for a working example:
+
+```bash
+cd ros-z/examples/custom_msgs_demo
+ROS_Z_MSG_PATH="./my_robot_msgs" cargo build
+```
+
+---
+
+## Comparison
+
+| Feature | Rust-Native | Schema-Generated |
+|---------|-------------|------------------|
+| **Definition** | Rust structs | `.msg`/`.srv` files |
+| **Type Hashes** | `TypeHash::zero()` | Proper RIHS01 hashes |
+| **Standard Type Refs** | Manual | Automatic (`geometry_msgs`, etc.) |
+| **ROS 2 Interop** | No | Partial (messages yes, services limited) |
+| **Setup Complexity** | Low | Medium (build.rs required) |
+| **Best For** | Prototyping | Production |
+
+---
 
 ## Type Naming Convention
 
-Follow ROS 2 DDS naming conventions for consistency:
+Both approaches should follow ROS 2 DDS naming:
 
-```rust,ignore
-// Pattern: package::msg::dds_::MessageName_
-"custom_msgs::msg::dds_::RobotStatus_"
+```text
+# Messages
+package::msg::dds_::MessageName_
 
-// Pattern: package::srv::dds_::ServiceName_
-"custom_msgs::srv::dds_::NavigateTo_"
+# Services
+package::srv::dds_::ServiceName_
 ```
 
-The trailing underscore and `dds_` infix match ROS 2's internal naming scheme used by DDS middleware.
+The trailing underscore and `dds_` infix match ROS 2's internal naming scheme.
+
+---
 
 ## Resources
 
-- **[Message Generation](./message_generation.md)** - Understanding message architecture
-- **[Protobuf Serialization](./protobuf.md)** - Using protobuf with custom messages
+- **[Message Generation](./message_generation.md)** - How ros-z-msgs generates standard types
+- **[Protobuf Serialization](./protobuf.md)** - Alternative serialization format
 - **[Publishers & Subscribers](./pubsub.md)** - Using messages in pub-sub
 - **[Services](./services.md)** - Using messages in services
-- **[Feature Flags](./feature_flags.md)** - Pre-generated message packages
-
-**Start experimenting with custom messages, then transition to generated messages when you need ROS 2 interoperability.**
