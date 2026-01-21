@@ -2187,7 +2187,114 @@ ls ~/.cargo/git/checkouts/roslibrust-*/assets/
 </ul>
 <p><strong>Message generation is transparent. Focus on writing ROS 2 message definitions and let ros-z handle the Rust code generation.</strong></p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="custom-messages"><a class="header" href="#custom-messages">Custom Messages</a></h1>
-<p><strong>Define domain-specific message types by implementing required traits on Rust structs.</strong> Custom messages give you full control over data structures while maintaining ROS 2 compatibility for ros-z-to-ros-z communication.</p>
+<p>ros-z supports two approaches for defining custom message types:</p>
+<div class="table-wrapper"><table><thead><tr><th>Approach</th><th>Definition</th><th>Best For</th></tr></thead><tbody>
+<tr><td><strong>Rust-Native</strong></td><td>Write Rust structs directly</td><td>Prototyping, ros-z-only systems</td></tr>
+<tr><td><strong>Schema-Generated</strong></td><td>Write <code>.msg</code>/<code>.srv</code> files, generate Rust</td><td>Production, ROS 2 interop</td></tr>
+</tbody></table>
+</div><pre class="mermaid">flowchart TD
+    A[Need Custom Messages?] --&gt;|Yes| B{ROS 2 Interop Needed?}
+    B --&gt;|Yes| C[Schema-Generated]
+    B --&gt;|No| D{Quick Prototype?}
+    D --&gt;|Yes| E[Rust-Native]
+    D --&gt;|No| C
+    A --&gt;|No| F[Use Standard Messages]
+</pre>
+<hr />
+<h2 id="rust-native-messages"><a class="header" href="#rust-native-messages">Rust-Native Messages</a></h2>
+<p><strong>Define messages directly in Rust by implementing required traits.</strong> This approach is fast for prototyping but only works between ros-z nodes.</p>
+<div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
+<div class="admonition-title">
+<div id="admonition-warning-title">
+<p>Warning</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/custom_messages.html#admonition-warning"></a>
+</div>
+<div>
+<p>Rust-Native messages use <code>TypeHash::zero()</code> and won't interoperate with ROS 2 C++/Python nodes.</p>
+</div>
+</div>
+<h3 id="workflow-of-rust-native-messages"><a class="header" href="#workflow-of-rust-native-messages">Workflow of Rust-Native Messages</a></h3>
+<pre class="mermaid">graph LR
+    A[Define Struct] --&gt; B[Impl MessageTypeInfo]
+    B --&gt; C[Add Serde Traits]
+    C --&gt; D[Impl WithTypeInfo]
+    D --&gt; E[Use in Pub/Sub]
+</pre>
+<h3 id="required-traits"><a class="header" href="#required-traits">Required Traits</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Trait</th><th>Purpose</th><th>Key Method</th></tr></thead><tbody>
+<tr><td><strong>MessageTypeInfo</strong></td><td>Type identification</td><td><code>type_name()</code>, <code>type_hash()</code></td></tr>
+<tr><td><strong>WithTypeInfo</strong></td><td>ros-z integration</td><td><code>type_info()</code></td></tr>
+<tr><td><strong>Serialize/Deserialize</strong></td><td>Data encoding</td><td>From <code>serde</code></td></tr>
+</tbody></table>
+</div>
+<h3 id="message-example"><a class="header" href="#message-example">Message Example</a></h3>
+<pre><code class="language-rust ignore">use ros_z::{MessageTypeInfo, entity::{TypeHash, TypeInfo}};
+use ros_z::ros_msg::WithTypeInfo;
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RobotStatus {
+    battery_level: f32,
+    position_x: f32,
+    position_y: f32,
+    is_moving: bool,
+}
+
+impl MessageTypeInfo for RobotStatus {
+    fn type_name() -&gt; &amp;'static str {
+        "my_msgs::msg::dds_::RobotStatus_"
+    }
+
+    fn type_hash() -&gt; TypeHash {
+        TypeHash::zero()  // ros-z-to-ros-z only
+    }
+}
+
+impl WithTypeInfo for RobotStatus {
+    fn type_info() -&gt; TypeInfo {
+        TypeInfo::new(Self::type_name(), Self::type_hash())
+    }
+}</code></pre>
+<h3 id="service-example"><a class="header" href="#service-example">Service Example</a></h3>
+<pre><code class="language-rust ignore">use ros_z::{ServiceTypeInfo, msg::ZService};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct NavigateToRequest {
+    target_x: f32,
+    target_y: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct NavigateToResponse {
+    success: bool,
+}
+
+struct NavigateTo;
+
+impl ServiceTypeInfo for NavigateTo {
+    fn service_type_info() -&gt; TypeInfo {
+        TypeInfo::new("my_msgs::srv::dds_::NavigateTo_", TypeHash::zero())
+    }
+}
+
+impl ZService for NavigateTo {
+    type Request = NavigateToRequest;
+    type Response = NavigateToResponse;
+}</code></pre>
+<p>See the <code>z_custom_message</code> example:</p>
+<pre><code class="language-bash"># Terminal 1: Router
+cargo run --example zenoh_router
+
+# Terminal 2: Subscriber
+cargo run --example z_custom_message -- --mode status-sub
+
+# Terminal 3: Publisher
+cargo run --example z_custom_message -- --mode status-pub
+</code></pre>
+<hr />
+<h2 id="schema-generated-messages"><a class="header" href="#schema-generated-messages">Schema-Generated Messages</a></h2>
+<p><strong>Define messages in <code>.msg</code>/<code>.srv</code> files and generate Rust code using <code>ros-z-codegen</code>.</strong> This approach provides proper type hashes and can reference standard ROS 2 types.</p>
 <div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
 <div class="admonition-title">
 <div id="admonition-tip-title">
@@ -2196,470 +2303,139 @@ ls ~/.cargo/git/checkouts/roslibrust-*/assets/
 <a class="admonition-anchor-link" href="chapters/custom_messages.html#admonition-tip"></a>
 </div>
 <div>
-<p>Use custom messages for rapid prototyping and standalone applications. For production systems requiring ROS 2 interoperability, use auto-generated messages from <code>.msg</code> definitions.</p>
+<p>Schema-Generated messages get proper RIHS01 type hashes and can reference types from <code>ros_z_msgs</code> like <code>geometry_msgs/Point</code>.</p>
 </div>
 </div>
-<h2 id="implementation-workflow"><a class="header" href="#implementation-workflow">Implementation Workflow</a></h2>
+<h3 id="workflow-of-schema-generated-messages"><a class="header" href="#workflow-of-schema-generated-messages">Workflow of Schema-Generated Messages</a></h3>
 <pre class="mermaid">graph LR
-    A[Define Struct] --&gt; B[Impl MessageTypeInfo]
-    B --&gt; C[Add Serde Traits]
-    C --&gt; D[Impl WithTypeInfo]
-    D --&gt; E[Use in Pub/Sub]
+    A[Write .msg files] --&gt; B[Create Rust crate]
+    B --&gt; C[Add build.rs]
+    C --&gt; D[Set ROS_Z_MSG_PATH]
+    D --&gt; E[cargo build]
+    E --&gt; F[Use generated types]
 </pre>
-<h2 id="complete-example"><a class="header" href="#complete-example">Complete Example</a></h2>
-<p>The <code>z_custom_message</code> example demonstrates both custom messages and services:</p>
-<pre><code class="language-rust ignore">use std::time::Duration;
+<h3 id="step-1-create-message-package"><a class="header" href="#step-1-create-message-package">Step 1: Create Message Package</a></h3>
+<p>Create a ROS 2 style directory structure:</p>
+<pre><code class="language-text">my_robot_msgs/
+├── msg/
+│   ├── RobotStatus.msg
+│   └── SensorReading.msg
+└── srv/
+    └── NavigateTo.srv
+</code></pre>
+<h3 id="step-2-define-messages"><a class="header" href="#step-2-define-messages">Step 2: Define Messages</a></h3>
+<p>Messages can reference standard ROS 2 types:</p>
+<pre><code class="language-text"># RobotStatus.msg
+string robot_id
+geometry_msgs/Point position
+bool is_moving
+</code></pre>
+<pre><code class="language-text"># SensorReading.msg
+builtin_interfaces/Time timestamp
+float64[] values
+string sensor_id
+</code></pre>
+<pre><code class="language-text"># NavigateTo.srv
+geometry_msgs/Point target
+float64 max_speed
+---
+bool success
+string message
+</code></pre>
+<h3 id="step-3-create-rust-crate"><a class="header" href="#step-3-create-rust-crate">Step 3: Create Rust Crate</a></h3>
+<p><strong>Cargo.toml:</strong></p>
+<pre><code class="language-toml">[package]
+name = "my-robot-msgs"
+version = "0.1.0"
+edition = "2021"
 
-use clap::Parser;
-use ros_z::{
-    Builder, MessageTypeInfo, Result, ServiceTypeInfo, context::ZContextBuilder, entity::TypeHash,
-    msg::ZService,
-};
-use serde::{Deserialize, Serialize};
+# Standalone package (not part of parent workspace)
+[workspace]
 
-// Custom message for pub/sub example
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct RobotStatus {
-    pub robot_id: String,
-    pub battery_percentage: f64,
-    pub position_x: f64,
-    pub position_y: f64,
-    pub is_moving: bool,
-}
+[dependencies]
+ros-z-msgs = { version = "0.1" }
+ros-z = { version = "0.1", default-features = false }
+serde = { version = "1", features = ["derive"] }
+smart-default = "0.7"
+zenoh-buffers = "1"
 
-impl MessageTypeInfo for RobotStatus {
-    fn type_name() -&gt; &amp;'static str {
-        "custom_msgs::msg::dds_::RobotStatus_"
-    }
+[build-dependencies]
+ros-z-codegen = { version = "0.1" }
+anyhow = "1"
+</code></pre>
+<p><strong>build.rs:</strong></p>
+<pre><code class="language-rust ignore">use std::path::PathBuf;
+use std::env;
 
-    fn type_hash() -&gt; TypeHash {
-        TypeHash::zero()
-    }
-}
-
-impl ros_z::WithTypeInfo for RobotStatus {}
-
-// Custom service request
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct NavigateToRequest {
-    pub target_x: f64,
-    pub target_y: f64,
-    pub max_speed: f64,
-}
-
-impl MessageTypeInfo for NavigateToRequest {
-    fn type_name() -&gt; &amp;'static str {
-        "custom_msgs::srv::dds_::NavigateTo_Request_"
-    }
-
-    fn type_hash() -&gt; TypeHash {
-        TypeHash::zero()
-    }
-}
-
-impl ros_z::WithTypeInfo for NavigateToRequest {}
-
-// Custom service response
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct NavigateToResponse {
-    pub success: bool,
-    pub estimated_duration: f64,
-    pub message: String,
-}
-
-impl MessageTypeInfo for NavigateToResponse {
-    fn type_name() -&gt; &amp;'static str {
-        "custom_msgs::srv::dds_::NavigateTo_Response_"
-    }
-
-    fn type_hash() -&gt; TypeHash {
-        TypeHash::zero()
-    }
-}
-
-impl ros_z::WithTypeInfo for NavigateToResponse {}
-
-// Service type definition
-pub struct NavigateTo;
-
-impl ServiceTypeInfo for NavigateTo {
-    fn service_type_info() -&gt; ros_z::entity::TypeInfo {
-        ros_z::entity::TypeInfo::new("custom_msgs::srv::dds_::NavigateTo_", TypeHash::zero())
-    }
-}
-
-impl ZService for NavigateTo {
-    type Request = NavigateToRequest;
-    type Response = NavigateToResponse;
-}
-
-#[derive(Debug, Parser)]
-struct Args {
-    #[arg(
-        short,
-        long,
-        default_value = "status-pub",
-        help = "Mode: status-pub, status-sub, nav-server, or nav-client"
-    )]
-    mode: String,
-
-    #[arg(
-        long,
-        default_value = "robot_1",
-        help = "Robot ID (for status-pub mode)"
-    )]
-    robot_id: String,
-
-    #[arg(long, default_value = "10.0", help = "Target X coordinate")]
-    target_x: f64,
-
-    #[arg(long, default_value = "20.0", help = "Target Y coordinate")]
-    target_y: f64,
-
-    #[arg(long, default_value = "1.5", help = "Maximum speed")]
-    max_speed: f64,
-}
-
-#[tokio::main]
-async fn main() -&gt; Result&lt;()&gt; {
-    match Args::parse().mode.as_str() {
-        "status-pub" =&gt; run_status_publisher(Args::parse().robot_id).await,
-        "status-sub" =&gt; run_status_subscriber().await,
-        "nav-server" =&gt; run_navigation_server(),
-        "nav-client" =&gt; {
-            let args = Args::parse();
-            run_navigation_client(args.target_x, args.target_y, args.max_speed)
-        }
-        mode =&gt; {
-            eprintln!(
-                "Invalid mode: {mode}. Use 'status-pub', 'status-sub', 'nav-server', or 'nav-client'"
-            );
-            std::process::exit(1);
-        }
-    }
-}
-
-async fn run_status_publisher(robot_id: String) -&gt; Result&lt;()&gt; {
-    println!("Starting robot status publisher for robot: {robot_id}");
-
-    let ctx = ZContextBuilder::default().build()?;
-    let node = ctx.create_node("robot_status_publisher").build()?;
-    let zpub = node.create_pub::&lt;RobotStatus&gt;("/robot_status").build()?;
-
-    let mut position_x = 0.0;
-    let mut position_y = 0.0;
-    let mut battery = 100.0;
-    let mut moving = true;
-
-    loop {
-        // Simulate robot movement and battery drain
-        if moving {
-            position_x += 0.5;
-            position_y += 0.3;
-            battery -= 0.1;
-
-            if battery &lt; 20.0 {
-                moving = false;
-                println!("Low battery! Robot stopped.");
-            }
-        }
-
-        let status = RobotStatus {
-            robot_id: robot_id.clone(),
-            battery_percentage: battery,
-            position_x,
-            position_y,
-            is_moving: moving,
-        };
-
-        println!(
-            "Publishing status: pos=({:.1}, {:.1}), battery={:.1}%, moving={}",
-            status.position_x, status.position_y, status.battery_percentage, status.is_moving
-        );
-
-        zpub.async_publish(&amp;status).await?;
-
-        tokio::time::sleep(Duration::from_secs(1)).await;
-
-        // Reset simulation when battery too low
-        if battery &lt; 10.0 {
-            battery = 100.0;
-            moving = true;
-            println!("Battery recharged! Resuming movement.");
-        }
-    }
-}
-
-async fn run_status_subscriber() -&gt; Result&lt;()&gt; {
-    println!("Starting robot status subscriber...");
-
-    let ctx = ZContextBuilder::default().build()?;
-    let node = ctx.create_node("robot_status_subscriber").build()?;
-    let zsub = node.create_sub::&lt;RobotStatus&gt;("/robot_status").build()?;
-
-    loop {
-        if let Ok(status) = zsub.recv() {
-            println!(
-                "Received status from {}: pos=({:.1}, {:.1}), battery={:.1}%, moving={}",
-                status.robot_id,
-                status.position_x,
-                status.position_y,
-                status.battery_percentage,
-                status.is_moving
-            );
-
-            if status.battery_percentage &lt; 20.0 {
-                println!("WARNING: {} has low battery!", status.robot_id);
-            }
-        }
-        tokio::time::sleep(Duration::from_millis(100)).await;
-    }
-}
-
-fn run_navigation_server() -&gt; Result&lt;()&gt; {
-    println!("Starting navigation service server...");
-
-    let ctx = ZContextBuilder::default().build()?;
-    let node = ctx.create_node("navigation_server").build()?;
-    let mut zsrv = node.create_service::&lt;NavigateTo&gt;("/navigate_to").build()?;
-
-    println!("Navigation server ready, waiting for requests...");
-
-    loop {
-        if let Ok((request_id, request)) = zsrv.take_request() {
-            println!(
-                "Received navigation request: target=({:.1}, {:.1}), max_speed={:.1}",
-                request.target_x, request.target_y, request.max_speed
-            );
-
-            // Simulate path planning
-            std::thread::sleep(Duration::from_millis(500));
-
-            let distance = (request.target_x.powi(2) + request.target_y.powi(2)).sqrt();
-            let duration = distance / request.max_speed;
-
-            let response = if request.max_speed &gt; 0.0 &amp;&amp; request.max_speed &lt; 5.0 {
-                NavigateToResponse {
-                    success: true,
-                    estimated_duration: duration,
-                    message: format!(
-                        "Path planned successfully. Distance: {:.2}m, ETA: {:.2}s",
-                        distance, duration
-                    ),
-                }
-            } else {
-                NavigateToResponse {
-                    success: false,
-                    estimated_duration: 0.0,
-                    message: "Invalid max_speed. Must be between 0 and 5 m/s.".to_string(),
-                }
-            };
-
-            println!("Sending response: {:?}", response);
-            zsrv.send_response(&amp;response, &amp;request_id)?;
-        }
-
-        std::thread::sleep(Duration::from_millis(100));
-    }
-}
-
-fn run_navigation_client(target_x: f64, target_y: f64, max_speed: f64) -&gt; Result&lt;()&gt; {
-    println!("Starting navigation client...");
-
-    let ctx = ZContextBuilder::default().build()?;
-    let node = ctx.create_node("navigation_client").build()?;
-    let zcli = node.create_client::&lt;NavigateTo&gt;("/navigate_to").build()?;
-
-    let request = NavigateToRequest {
-        target_x,
-        target_y,
-        max_speed,
-    };
-
-    println!(
-        "Sending navigation request: target=({:.1}, {:.1}), max_speed={:.1}",
-        request.target_x, request.target_y, request.max_speed
-    );
-
-    tokio::runtime::Runtime::new()
-        .unwrap()
-        .block_on(async { zcli.send_request(&amp;request).await })?;
-
-    println!("Waiting for response...");
-
-    loop {
-        if let Ok(response) = zcli.take_response() {
-            println!("Received response:");
-            println!("Success: {}", response.success);
-            println!("Duration: {:.2}s", response.estimated_duration);
-            println!("Message: {}", response.message);
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(100));
-    }
-
+fn main() -&gt; anyhow::Result&lt;()&gt; {
+    let out_dir = PathBuf::from(env::var("OUT_DIR")?);
+    ros_z_codegen::generate_user_messages(&amp;out_dir, false)?;
+    println!("cargo:rerun-if-env-changed=ROS_Z_MSG_PATH");
     Ok(())
 }</code></pre>
-<h2 id="required-traits"><a class="header" href="#required-traits">Required Traits</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Trait</th><th>Purpose</th><th>Key Method</th></tr></thead><tbody>
-<tr><td><strong>MessageTypeInfo</strong></td><td>Type identification</td><td><code>type_name()</code>, <code>type_hash()</code></td></tr>
-<tr><td><strong>WithTypeInfo</strong></td><td>ros-z integration</td><td>Automatic with <code>#[derive]</code></td></tr>
-<tr><td><strong>Serialize/Deserialize</strong></td><td>Data encoding</td><td>From <code>serde</code></td></tr>
+<p><strong>src/lib.rs:</strong></p>
+<pre><code class="language-rust ignore">// Re-export standard types from ros-z-msgs
+pub use ros_z_msgs::*;
+
+// Include generated user messages
+include!(concat!(env!("OUT_DIR"), "/generated.rs"));</code></pre>
+<h3 id="step-4-build"><a class="header" href="#step-4-build">Step 4: Build</a></h3>
+<p>Set <code>ROS_Z_MSG_PATH</code> and build:</p>
+<pre><code class="language-bash">ROS_Z_MSG_PATH="./my_robot_msgs" cargo build
+</code></pre>
+<p>For multiple packages, use colon-separated paths:</p>
+<pre><code class="language-bash">ROS_Z_MSG_PATH="./my_msgs:./other_msgs" cargo build
+</code></pre>
+<h3 id="step-5-use-generated-types"><a class="header" href="#step-5-use-generated-types">Step 5: Use Generated Types</a></h3>
+<pre><code class="language-rust ignore">use my_robot_msgs::ros::my_robot_msgs::{RobotStatus, SensorReading};
+use my_robot_msgs::ros::my_robot_msgs::srv::NavigateTo;
+use ros_z_msgs::ros::geometry_msgs::Point;
+use ros_z_msgs::ros::builtin_interfaces::Time;
+
+let status = RobotStatus {
+    robot_id: "robot_1".to_string(),
+    position: Point { x: 1.0, y: 2.0, z: 0.0 },
+    is_moving: true,
+};
+
+let reading = SensorReading {
+    timestamp: Time { sec: 1234, nanosec: 0 },
+    values: vec![1.0, 2.0, 3.0],
+    sensor_id: "lidar_1".to_string(),
+};</code></pre>
+<p>See <code>ros-z/examples/custom_msgs_demo/</code> for a working example:</p>
+<pre><code class="language-bash">cd ros-z/examples/custom_msgs_demo
+ROS_Z_MSG_PATH="./my_robot_msgs" cargo build
+</code></pre>
+<hr />
+<h2 id="comparison"><a class="header" href="#comparison">Comparison</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Feature</th><th>Rust-Native</th><th>Schema-Generated</th></tr></thead><tbody>
+<tr><td><strong>Definition</strong></td><td>Rust structs</td><td><code>.msg</code>/<code>.srv</code> files</td></tr>
+<tr><td><strong>Type Hashes</strong></td><td><code>TypeHash::zero()</code></td><td>Proper RIHS01 hashes</td></tr>
+<tr><td><strong>Standard Type Refs</strong></td><td>Manual</td><td>Automatic (<code>geometry_msgs</code>, etc.)</td></tr>
+<tr><td><strong>ROS 2 Interop</strong></td><td>No</td><td>Partial (messages yes, services limited)</td></tr>
+<tr><td><strong>Setup Complexity</strong></td><td>Low</td><td>Medium (build.rs required)</td></tr>
+<tr><td><strong>Best For</strong></td><td>Prototyping</td><td>Production</td></tr>
 </tbody></table>
 </div>
-<h2 id="message-implementation"><a class="header" href="#message-implementation">Message Implementation</a></h2>
-<p><strong>Step 1 - Define the Struct:</strong></p>
-<pre><code class="language-rust ignore">#[derive(Debug, Clone, Serialize, Deserialize)]
-struct RobotStatus {
-    battery_level: f32,
-    position_x: f32,
-    position_y: f32,
-    is_moving: bool,
-}</code></pre>
-<p><strong>Step 2 - Implement MessageTypeInfo:</strong></p>
-<pre><code class="language-rust ignore">impl MessageTypeInfo for RobotStatus {
-    fn type_name() -&gt; &amp;'static str {
-        "custom_msgs::msg::dds_::RobotStatus_"
-    }
-
-    fn type_hash() -&gt; TypeHash {
-        TypeHash::zero()  // For ros-z-to-ros-z only
-    }
-}</code></pre>
-<p><strong>Step 3 - Add WithTypeInfo:</strong></p>
-<pre><code class="language-rust ignore">impl WithTypeInfo for RobotStatus {
-    fn type_info() -&gt; TypeInfo {
-        TypeInfo::new(Self::type_name(), Self::type_hash())
-    }
-}</code></pre>
-<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
-<div class="admonition-title">
-<div id="admonition-note-title">
-<p>Note</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/custom_messages.html#admonition-note"></a>
-</div>
-<div>
-<p><code>TypeHash::zero()</code> works for ros-z-to-ros-z communication. For full ROS 2 compatibility, generate proper type hashes from message definitions.</p>
-</div>
-</div>
-<h2 id="service-implementation"><a class="header" href="#service-implementation">Service Implementation</a></h2>
-<p><strong>Define Request and Response:</strong></p>
-<pre><code class="language-rust ignore">#[derive(Debug, Clone, Serialize, Deserialize)]
-struct NavigateToRequest {
-    target_x: f32,
-    target_y: f32,
-    max_speed: f32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct NavigateToResponse {
-    success: bool,
-    distance_traveled: f32,
-}</code></pre>
-<p><strong>Implement Service Traits:</strong></p>
-<pre><code class="language-rust ignore">struct NavigateTo;
-
-impl ServiceTypeInfo for NavigateTo {
-    fn service_type_info() -&gt; TypeInfo {
-        TypeInfo::new(
-            "custom_msgs::srv::dds_::NavigateTo_",
-            TypeHash::zero()
-        )
-    }
-}
-
-impl ZService for NavigateTo {
-    type Request = NavigateToRequest;
-    type Response = NavigateToResponse;
-}</code></pre>
-<h2 id="running-the-example"><a class="header" href="#running-the-example">Running the Example</a></h2>
-<div id="admonition-note-1" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-1-title">
-<div class="admonition-title">
-<div id="admonition-note-1-title">
-<p>Note</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/custom_messages.html#admonition-note-1"></a>
-</div>
-<div>
-<p>All examples require a Zenoh router to be running first. Start it with:
-<code>cargo run --example zenoh_router</code></p>
-</div>
-</div>
-<p><strong>Publisher/Subscriber Mode:</strong></p>
-<p>Terminal 1 - Start Zenoh Router:</p>
-<pre><code class="language-bash">cargo run --example zenoh_router
-</code></pre>
-<p>Terminal 2 - Start Subscriber:</p>
-<pre><code class="language-bash">cargo run --example z_custom_message -- --mode status-sub
-</code></pre>
-<p>Terminal 3 - Start Publisher:</p>
-<pre><code class="language-bash">cargo run --example z_custom_message -- --mode status-pub
-</code></pre>
-<p><strong>Service Client/Server Mode:</strong></p>
-<p>Terminal 1 - Start Zenoh Router:</p>
-<pre><code class="language-bash">cargo run --example zenoh_router
-</code></pre>
-<p>Terminal 2 - Start Server:</p>
-<pre><code class="language-bash">cargo run --example z_custom_message -- --mode nav-server
-</code></pre>
-<p>Terminal 3 - Send Requests:</p>
-<pre><code class="language-bash">cargo run --example z_custom_message -- --mode nav-client \
-  --target_x 10.0 --target_y 20.0 --max_speed 1.5
-</code></pre>
-<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
-<div class="admonition-title">
-<div id="admonition-success-title">
-<p>Success</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/custom_messages.html#admonition-success"></a>
-</div>
-<div>
-<p>You should see the server processing navigation requests and returning results with calculated distances.</p>
-</div>
-</div>
-<h2 id="decision-guide"><a class="header" href="#decision-guide">Decision Guide</a></h2>
-<pre class="mermaid">flowchart TD
-    A[Need Custom Messages?] --&gt;|Yes| B{Production or Prototype?}
-    B --&gt;|Prototype| C[Manual Implementation]
-    B --&gt;|Production| D{ROS 2 Interop?}
-    D --&gt;|Yes| E[Generate from .msg]
-    D --&gt;|No| C
-    A --&gt;|No| F[Use Standard Messages]
-</pre>
-<div class="table-wrapper"><table><thead><tr><th>Approach</th><th>Use When</th><th>Benefits</th><th>Limitations</th></tr></thead><tbody>
-<tr><td><strong>Manual Custom</strong></td><td>Prototyping, standalone apps</td><td>Fast iteration, full control</td><td>No ROS 2 interop</td></tr>
-<tr><td><strong>Generated</strong></td><td>Production, ROS 2 systems</td><td>Proper type hashing, interop</td><td>Build complexity</td></tr>
-<tr><td><strong>Standard</strong></td><td>Common data types</td><td>Zero setup, universal</td><td>Limited to ROS 2 standard types</td></tr>
-</tbody></table>
-</div><div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
-<div class="admonition-title">
-<div id="admonition-warning-title">
-<p>Warning</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/custom_messages.html#admonition-warning"></a>
-</div>
-<div>
-<p>Manual custom messages work only between ros-z nodes. They won't interoperate with ROS 2 C++/Python nodes due to missing type hashes and metadata.</p>
-</div>
-</div>
+<hr />
 <h2 id="type-naming-convention"><a class="header" href="#type-naming-convention">Type Naming Convention</a></h2>
-<p>Follow ROS 2 DDS naming conventions for consistency:</p>
-<pre><code class="language-rust ignore">// Pattern: package::msg::dds_::MessageName_
-"custom_msgs::msg::dds_::RobotStatus_"
+<p>Both approaches should follow ROS 2 DDS naming:</p>
+<pre><code class="language-text"># Messages
+package::msg::dds_::MessageName_
 
-// Pattern: package::srv::dds_::ServiceName_
-"custom_msgs::srv::dds_::NavigateTo_"</code></pre>
-<p>The trailing underscore and <code>dds_</code> infix match ROS 2's internal naming scheme used by DDS middleware.</p>
+# Services
+package::srv::dds_::ServiceName_
+</code></pre>
+<p>The trailing underscore and <code>dds_</code> infix match ROS 2's internal naming scheme.</p>
+<hr />
 <h2 id="resources-4"><a class="header" href="#resources-4">Resources</a></h2>
 <ul>
-<li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - Understanding message architecture</li>
-<li><strong><a href="chapters/./protobuf.html">Protobuf Serialization</a></strong> - Using protobuf with custom messages</li>
+<li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - How ros-z-msgs generates standard types</li>
+<li><strong><a href="chapters/./protobuf.html">Protobuf Serialization</a></strong> - Alternative serialization format</li>
 <li><strong><a href="chapters/./pubsub.html">Publishers &amp; Subscribers</a></strong> - Using messages in pub-sub</li>
 <li><strong><a href="chapters/./services.html">Services</a></strong> - Using messages in services</li>
-<li><strong><a href="chapters/./feature_flags.html">Feature Flags</a></strong> - Pre-generated message packages</li>
 </ul>
-<p><strong>Start experimenting with custom messages, then transition to generated messages when you need ROS 2 interoperability.</strong></p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="protobuf-serialization"><a class="header" href="#protobuf-serialization">Protobuf Serialization</a></h1>
 <p><strong>Use Protocol Buffers as an alternative serialization format for ros-z messages.</strong> While CDR is the default ROS 2-compatible format, protobuf offers schema evolution, cross-language compatibility, and familiar tooling for teams already using the protobuf ecosystem.</p>
 <div id="admonition-info" class="admonition admonish-info" role="note" aria-labelledby="admonition-info-title">
@@ -2796,7 +2572,7 @@ let msg = SensorData {
 };
 
 pub.publish(&amp;msg)?;</code></pre>
-<h2 id="complete-example-1"><a class="header" href="#complete-example-1">Complete Example</a></h2>
+<h2 id="complete-example"><a class="header" href="#complete-example">Complete Example</a></h2>
 <p>The <code>protobuf_demo</code> example demonstrates both approaches:</p>
 <pre><code class="language-rust ignore">use clap::Parser;
 use protobuf_demo::{run_pubsub_demo, run_service_client, run_service_server};
