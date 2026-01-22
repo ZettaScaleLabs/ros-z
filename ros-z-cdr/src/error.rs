@@ -13,10 +13,6 @@ pub enum Error {
     #[error("{0}")]
     Message(String),
 
-    /// Wrapper for `std::io::Error`
-    #[error("io::Error: {0}")]
-    Io(#[from] std::io::Error),
-
     /// CDR is not self-describing format, cannot deserialize 'Any' type.
     #[error("CDR is not self-describing format: {0}")]
     NotSelfDescribingFormat(String),
