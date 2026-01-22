@@ -113,7 +113,7 @@ where
         writer.extend_from_slice(&CDR_HEADER_LE);
 
         // Serialize payload directly to ZBufWriter
-        let mut serializer = CdrSerializer::<LittleEndian, ZBufWriter>::new_borrowed_generic(&mut writer);
+        let mut serializer = CdrSerializer::<LittleEndian, ZBufWriter>::new(&mut writer);
         input.serialize(&mut serializer).unwrap();
 
         // Convert to ZBuf (transfers ownership, no copy)
@@ -133,9 +133,9 @@ where
         // This avoids the O(n) memmove that would be needed if we prepended it later
         buffer.extend_from_slice(&CDR_HEADER_LE);
 
-        // STEP 2: Serialize payload using CdrSerializer in borrowed mode
+        // STEP 2: Serialize payload using CdrSerializer
         // Zero buffer swaps - the serializer works directly on our buffer!
-        let mut fast_ser = CdrSerializer::<LittleEndian>::new_borrowed(buffer);
+        let mut fast_ser = CdrSerializer::<LittleEndian>::new(buffer);
         input.serialize(&mut fast_ser).unwrap();
         // Buffer is automatically updated through the mutable reference
 
