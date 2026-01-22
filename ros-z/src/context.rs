@@ -1,8 +1,10 @@
-use std::sync::{Arc, atomic::AtomicUsize};
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::{Arc, atomic::AtomicUsize},
+};
 
+use tracing::{debug, info, warn};
 use zenoh::{Result, Session, Wait};
-use tracing::{info, debug, warn};
 
 use crate::{Builder, graph::Graph, node::ZNodeBuilder};
 
@@ -15,8 +17,9 @@ impl GlobalCounter {
     }
 }
 
-use serde_json::json;
 use std::path::PathBuf;
+
+use serde_json::json;
 
 /// Remapping rules for ROS names
 #[derive(Debug, Clone, Default)]
@@ -292,12 +295,18 @@ impl Builder for ZContextBuilder {
         // 4. **NEW DEFAULT**: ROS session config (connects to router at tcp/localhost:7447)
         //    This matches rmw_zenoh_cpp behavior
 
-        info!("[CTX] Building context: domain_id={}, has_config={}",
-            self.domain_id, self.config_file.is_some());
+        info!(
+            "[CTX] Building context: domain_id={}, has_config={}",
+            self.domain_id,
+            self.config_file.is_some()
+        );
 
         // Apply environment variable overrides first
         let builder = self.apply_env_overrides()?;
-        debug!("[CTX] Applied {} env overrides", builder.config_overrides.len());
+        debug!(
+            "[CTX] Applied {} env overrides",
+            builder.config_overrides.len()
+        );
 
         let has_custom_config = builder.zenoh_config.is_some();
         let has_config_file = builder.config_file.is_some();
@@ -362,8 +371,9 @@ impl Builder for ZContextBuilder {
     }
 }
 
+#[derive(Clone)]
 pub struct ZContext {
-    session: Arc<Session>,
+    pub(crate) session: Arc<Session>,
     // Global counter for the participants
     counter: Arc<GlobalCounter>,
     domain_id: usize,

@@ -81,7 +81,7 @@ impl DataLogger {
 }
 
 fn run_ping(args: &Args) -> Result<()> {
-    let ctx = ZContextBuilder::default().build()?;
+    let ctx = ZContextBuilder::default().with_logging_enabled().build()?;
     let node = ctx.create_node("ping_node").build()?;
     let zpub = node.create_pub::<ByteMultiArray>("ping").build()?;
     let zsub = node.create_sub::<ByteMultiArray>("pong").build()?;
@@ -141,7 +141,7 @@ fn run_ping(args: &Args) -> Result<()> {
 }
 
 fn run_pong() -> Result<()> {
-    let ctx = ZContextBuilder::default().build()?;
+    let ctx = ZContextBuilder::default().with_logging_enabled().build()?;
     let node = ctx.create_node("pong_node").build()?;
     let zsub = node.create_sub::<ByteMultiArray>("ping").build()?;
     let zpub = node.create_pub::<ByteMultiArray>("pong").build()?;
@@ -150,19 +150,16 @@ fn run_pong() -> Result<()> {
 
     let mut message_count = 0u64;
     let mut last_print_time = Instant::now();
-    let mut last_timestamp = 0u64;
-    let mut last_payload_size = 0usize;
 
     loop {
-        if let Ok(msg) = zsub.recv() {
-            message_count += 1;
+        let msg = zsub.recv()?;
+        message_count += 1;
 
-            let data_bytes = msg.data.contiguous();
-            last_timestamp = u64::from_le_bytes(data_bytes[0..8].try_into().unwrap());
-            last_payload_size = msg.data.len();
+        let data_bytes = msg.data.contiguous();
+        let last_timestamp = u64::from_le_bytes(data_bytes[0..8].try_into().unwrap());
+        let last_payload_size = msg.data.len();
 
-            zpub.publish(&msg)?;
-        }
+        zpub.publish(&msg)?;
 
         let current_time = Instant::now();
         if current_time.duration_since(last_print_time) >= Duration::from_secs(2) {

@@ -1,8 +1,10 @@
-use crate::types::{ArrayType, Field, FieldType, ResolvedMessage, ResolvedService};
+use std::collections::HashSet;
+
 use anyhow::Result;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use std::collections::HashSet;
+
+use crate::types::{ArrayType, Field, FieldType, ResolvedMessage, ResolvedService};
 
 /// Context for code generation, tracking external vs local packages
 #[derive(Default, Clone)]
@@ -29,10 +31,7 @@ impl GenerationContext {
 }
 
 /// Generate Rust module for a package containing messages
-pub fn generate_package_module(
-    package: &str,
-    messages: &[ResolvedMessage],
-) -> Result<TokenStream> {
+pub fn generate_package_module(package: &str, messages: &[ResolvedMessage]) -> Result<TokenStream> {
     let package_ident = format_ident!("{}", package);
     let message_impls: Vec<TokenStream> = messages
         .iter()
@@ -66,7 +65,8 @@ pub fn generate_message_impl_with_context(
         &msg.parsed.constants,
         ctx,
     )?;
-    let type_info = generate_message_type_info(&msg.parsed.package, &msg.parsed.name, &msg.type_hash);
+    let type_info =
+        generate_message_type_info(&msg.parsed.package, &msg.parsed.name, &msg.type_hash);
 
     // Generate custom serde for ZBuf-containing messages
     let serde_impl = if has_zbuf {
@@ -83,8 +83,20 @@ pub fn generate_message_impl_with_context(
 }
 
 /// Generate struct definition with constants
-fn generate_struct(package: &str, name: &str, fields: &[Field], constants: &[crate::types::Constant]) -> Result<TokenStream> {
-    generate_struct_with_context(package, name, fields, constants, &GenerationContext::default())
+#[allow(dead_code)]
+fn generate_struct(
+    package: &str,
+    name: &str,
+    fields: &[Field],
+    constants: &[crate::types::Constant],
+) -> Result<TokenStream> {
+    generate_struct_with_context(
+        package,
+        name,
+        fields,
+        constants,
+        &GenerationContext::default(),
+    )
 }
 
 /// Generate struct definition with constants (with external type support)
@@ -102,9 +114,9 @@ fn generate_struct_with_context(
         .collect::<Result<Vec<_>>>()?;
 
     // Check if we have large arrays (>32 elements) that need smart-default
-    let has_large_array = fields.iter().any(|f| {
-        matches!(&f.field_type.array, ArrayType::Fixed(n) if *n > 32)
-    });
+    let has_large_array = fields
+        .iter()
+        .any(|f| matches!(&f.field_type.array, ArrayType::Fixed(n) if *n > 32));
 
     // Check if we have ZBuf fields (need custom serde)
     let has_zbuf = fields.iter().any(is_zbuf_field);
@@ -188,8 +200,8 @@ fn generate_constant_value_from_string(const_type: &str, value: &str) -> TokenSt
             let b: bool = value.parse().unwrap_or(false);
             quote! { #b }
         }
-        "byte" | "uint8" | "char" | "int8" | "uint16" | "int16"
-        | "uint32" | "int32" | "uint64" | "int64" => {
+        "byte" | "uint8" | "char" | "int8" | "uint16" | "int16" | "uint32" | "int32" | "uint64"
+        | "int64" => {
             let lit = syn::parse_str::<syn::LitInt>(value).unwrap();
             quote! { #lit }
         }
@@ -202,6 +214,7 @@ fn generate_constant_value_from_string(const_type: &str, value: &str) -> TokenSt
 }
 
 /// Generate a field definition
+#[allow(dead_code)]
 fn generate_field_def(field: &Field, source_package: &str) -> Result<TokenStream> {
     generate_field_def_with_context(field, source_package, &GenerationContext::default())
 }
@@ -218,7 +231,8 @@ fn generate_field_def_with_context(
     } else {
         format_ident!("{}", field.name)
     };
-    let field_type = generate_field_type_tokens_with_context(&field.field_type, source_package, ctx)?;
+    let field_type =
+        generate_field_type_tokens_with_context(&field.field_type, source_package, ctx)?;
 
     // Add attributes for large fixed arrays (>32 elements)
     let attributes = if let ArrayType::Fixed(n) = &field.field_type.array {
@@ -246,10 +260,13 @@ fn generate_field_def_with_context(
 fn generate_array_default_code(field_type: &FieldType, size: usize) -> Result<String> {
     let elem_default = match field_type.base_type.as_str() {
         "bool" => "false",
-        "byte" | "uint8" | "char" | "int8" | "uint16" | "int16"
-        | "uint32" | "int32" | "uint64" | "int64" => "0",
+        "byte" | "uint8" | "char" | "int8" | "uint16" | "int16" | "uint32" | "int32" | "uint64"
+        | "int64" => "0",
         "float32" | "float64" => "0.0",
-        _ => anyhow::bail!("Cannot generate default for large array of type {}", field_type.base_type),
+        _ => anyhow::bail!(
+            "Cannot generate default for large array of type {}",
+            field_type.base_type
+        ),
     };
 
     Ok(format!("[{}; {}]", elem_default, size))
@@ -259,19 +276,67 @@ fn generate_array_default_code(field_type: &FieldType, size: usize) -> Result<St
 fn is_rust_keyword(name: &str) -> bool {
     matches!(
         name,
-        "as" | "break" | "const" | "continue" | "crate" | "else" | "enum" | "extern"
-            | "false" | "fn" | "for" | "if" | "impl" | "in" | "let" | "loop" | "match"
-            | "mod" | "move" | "mut" | "pub" | "ref" | "return" | "self" | "Self"
-            | "static" | "struct" | "super" | "trait" | "true" | "type" | "unsafe"
-            | "use" | "where" | "while" | "async" | "await" | "dyn" | "abstract"
-            | "become" | "box" | "do" | "final" | "macro" | "override" | "priv"
-            | "typeof" | "unsized" | "virtual" | "yield" | "try"
+        "as" | "break"
+            | "const"
+            | "continue"
+            | "crate"
+            | "else"
+            | "enum"
+            | "extern"
+            | "false"
+            | "fn"
+            | "for"
+            | "if"
+            | "impl"
+            | "in"
+            | "let"
+            | "loop"
+            | "match"
+            | "mod"
+            | "move"
+            | "mut"
+            | "pub"
+            | "ref"
+            | "return"
+            | "self"
+            | "Self"
+            | "static"
+            | "struct"
+            | "super"
+            | "trait"
+            | "true"
+            | "type"
+            | "unsafe"
+            | "use"
+            | "where"
+            | "while"
+            | "async"
+            | "await"
+            | "dyn"
+            | "abstract"
+            | "become"
+            | "box"
+            | "do"
+            | "final"
+            | "macro"
+            | "override"
+            | "priv"
+            | "typeof"
+            | "unsized"
+            | "virtual"
+            | "yield"
+            | "try"
     )
 }
 
 /// Generate Rust type tokens for a field type
+#[allow(dead_code)]
 fn generate_field_type_tokens(field_type: &FieldType, source_package: &str) -> Result<TokenStream> {
-    generate_field_type_tokens_with_context(field_type, source_package, &GenerationContext::default())
+    generate_field_type_tokens_with_context(
+        field_type,
+        source_package,
+        &GenerationContext::default(),
+    )
 }
 
 /// Generate Rust type tokens for a field type (with external type support)
@@ -289,7 +354,7 @@ fn generate_field_type_tokens_with_context(
             quote! { [#base; #n_lit] }
         }
         ArrayType::Unbounded => {
-            // Optimize uint8[]/byte[] to use ZBuf for zero-copy
+            // Use ZBuf for uint8[]/byte[] (zero-copy optimization)
             if matches!(field_type.base_type.as_str(), "uint8" | "byte") {
                 quote! { ::zenoh_buffers::ZBuf }
             } else {
@@ -305,8 +370,13 @@ fn generate_field_type_tokens_with_context(
 }
 
 /// Generate base type tokens
+#[allow(dead_code)]
 fn generate_base_type_tokens(field_type: &FieldType, source_package: &str) -> Result<TokenStream> {
-    generate_base_type_tokens_with_context(field_type, source_package, &GenerationContext::default())
+    generate_base_type_tokens_with_context(
+        field_type,
+        source_package,
+        &GenerationContext::default(),
+    )
 }
 
 /// Generate base type tokens (with external type support)
@@ -335,12 +405,12 @@ fn generate_base_type_tokens_with_context(
             let type_ident = format_ident!("{}", custom);
 
             // Check if this is an external package reference
-            if let Some(ref ext_crate) = ctx.external_crate {
-                if !ctx.is_local_package(pkg) {
-                    // External package - use fully qualified path
-                    let crate_ident = format_ident!("{}", ext_crate);
-                    return Ok(quote! { ::#crate_ident::ros::#pkg_ident::#type_ident });
-                }
+            if let Some(ref ext_crate) = ctx.external_crate
+                && !ctx.is_local_package(pkg)
+            {
+                // External package - use fully qualified path
+                let crate_ident = format_ident!("{}", ext_crate);
+                return Ok(quote! { ::#crate_ident::ros::#pkg_ident::#type_ident });
             }
 
             // Local package - use super:: as before
@@ -376,7 +446,12 @@ fn generate_message_type_info(
 }
 
 /// Generate custom serde implementation for ZBuf-containing messages
-fn generate_zbuf_serde(name: &proc_macro2::Ident, fields: &[Field], source_package: &str) -> Result<TokenStream> {
+#[allow(dead_code)]
+fn generate_zbuf_serde(
+    name: &proc_macro2::Ident,
+    fields: &[Field],
+    source_package: &str,
+) -> Result<TokenStream> {
     generate_zbuf_serde_with_context(name, fields, source_package, &GenerationContext::default())
 }
 
@@ -384,8 +459,8 @@ fn generate_zbuf_serde(name: &proc_macro2::Ident, fields: &[Field], source_packa
 fn generate_zbuf_serde_with_context(
     name: &proc_macro2::Ident,
     fields: &[Field],
-    _source_package: &str,
-    _ctx: &GenerationContext,
+    source_package: &str,
+    ctx: &GenerationContext,
 ) -> Result<TokenStream> {
     let serialize_fields: Vec<TokenStream> = fields
         .iter()
@@ -412,24 +487,25 @@ fn generate_zbuf_serde_with_context(
         })
         .collect();
 
-    let deserialize_fields: Vec<TokenStream> = fields
+    // Generate sequential field deserialization for CDR (positional binary format)
+    let seq_deserialize_fields: Vec<TokenStream> = fields
         .iter()
-        .map(|f| {
+        .enumerate()
+        .map(|(i, f)| {
             let field_name = format_ident!("{}", f.name);
-            let field_name_str = &f.name;
+            let field_type = generate_field_type_tokens_with_context(&f.field_type, source_package, ctx).unwrap();
             if is_zbuf_field(f) {
                 quote! {
-                    #field_name_str => {
-                        let bytes: ::std::vec::Vec<u8> = map.next_value()?;
-                        // Convert Vec<u8> to ZBuf using From trait
-                        #field_name = Some(::zenoh_buffers::ZBuf::from(bytes));
-                    }
+                    let #field_name: #field_type = {
+                        let bytes: ::std::vec::Vec<u8> = seq.next_element()?
+                            .ok_or_else(|| ::serde::de::Error::invalid_length(#i, &self))?;
+                        ::zenoh_buffers::ZBuf::from(bytes)
+                    };
                 }
             } else {
                 quote! {
-                    #field_name_str => {
-                        #field_name = Some(map.next_value()?);
-                    }
+                    let #field_name: #field_type = seq.next_element()?
+                        .ok_or_else(|| ::serde::de::Error::invalid_length(#i, &self))?;
                 }
             }
         })
@@ -438,18 +514,6 @@ fn generate_zbuf_serde_with_context(
     let field_names: Vec<_> = fields.iter().map(|f| format_ident!("{}", f.name)).collect();
     let field_name_strs: Vec<_> = fields.iter().map(|f| &f.name).collect();
     let num_fields = fields.len();
-
-    let default_field_values: Vec<TokenStream> = fields
-        .iter()
-        .map(|f| {
-            let field_name = format_ident!("{}", f.name);
-            if is_zbuf_field(f) {
-                quote! { #field_name.unwrap_or_else(::zenoh_buffers::ZBuf::empty) }
-            } else {
-                quote! { #field_name.unwrap_or_default() }
-            }
-        })
-        .collect();
 
     Ok(quote! {
         impl ::serde::Serialize for #name {
@@ -469,7 +533,7 @@ fn generate_zbuf_serde_with_context(
             where
                 D: ::serde::Deserializer<'de>,
             {
-                use ::serde::de::{MapAccess, Visitor};
+                use ::serde::de::{SeqAccess, Visitor};
                 use ::std::fmt;
 
                 struct FieldVisitor;
@@ -481,23 +545,14 @@ fn generate_zbuf_serde_with_context(
                         formatter.write_str(concat!("struct ", stringify!(#name)))
                     }
 
-                    fn visit_map<V>(self, mut map: V) -> ::std::result::Result<Self::Value, V::Error>
+                    fn visit_seq<V>(self, mut seq: V) -> ::std::result::Result<Self::Value, V::Error>
                     where
-                        V: MapAccess<'de>,
+                        V: SeqAccess<'de>,
                     {
-                        #(let mut #field_names: Option<_> = None;)*
-
-                        while let Some(key) = map.next_key::<&str>()? {
-                            match key {
-                                #(#deserialize_fields)*
-                                _ => {
-                                    let _: ::serde::de::IgnoredAny = map.next_value()?;
-                                }
-                            }
-                        }
+                        #(#seq_deserialize_fields)*
 
                         Ok(#name {
-                            #(#field_names: #default_field_values),*
+                            #(#field_names),*
                         })
                     }
                 }
@@ -547,15 +602,23 @@ pub fn generate_action_impl(action: &crate::types::ResolvedAction) -> Result<Tok
     let feedback_type = format_ident!("{}Feedback", action.parsed.name);
     let action_type_name = format!(
         "{}::action::dds_::{}_",
-        action.parsed.package,
-        action.parsed.name
+        action.parsed.package, action.parsed.name
     );
     let hash_str = action.type_hash.to_rihs_string();
 
     // Type names for action-related services and messages (ROS2 format with underscore)
-    let send_goal_type_name = format!("{}::action::dds_::{}_SendGoal_", action.parsed.package, action.parsed.name);
-    let get_result_type_name = format!("{}::action::dds_::{}_GetResult_", action.parsed.package, action.parsed.name);
-    let feedback_msg_type_name = format!("{}::action::dds_::{}_FeedbackMessage_", action.parsed.package, action.parsed.name);
+    let send_goal_type_name = format!(
+        "{}::action::dds_::{}_SendGoal_",
+        action.parsed.package, action.parsed.name
+    );
+    let get_result_type_name = format!(
+        "{}::action::dds_::{}_GetResult_",
+        action.parsed.package, action.parsed.name
+    );
+    let feedback_msg_type_name = format!(
+        "{}::action::dds_::{}_FeedbackMessage_",
+        action.parsed.package, action.parsed.name
+    );
 
     // Get type hashes from resolved action service hashes (not the Goal/Result/Feedback hashes)
     let send_goal_hash_str = action.send_goal_hash.to_rihs_string();
@@ -639,9 +702,10 @@ fn is_zbuf_field(field: &Field) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
     use crate::types::{ParsedMessage, TypeHash};
-    use std::path::PathBuf;
 
     #[test]
     fn test_is_zbuf_field() {
