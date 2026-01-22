@@ -1401,7 +1401,7 @@ cargo build --all
 <ol>
 <li>System ROS installation (<code>AMENT_PREFIX_PATH</code>, <code>CMAKE_PREFIX_PATH</code>)</li>
 <li>Common ROS paths (<code>/opt/ros/{rolling,jazzy,iron,humble}</code>)</li>
-<li>Roslibrust git checkout (<code>~/.cargo/git/checkouts/roslibrust-*/assets/</code>)</li>
+<li>Bundled assets (built-in message definitions in ros-z-codegen)</li>
 </ol>
 <p>This fallback mechanism enables builds without ROS 2 installed.</p>
 <h3 id="common-development-commands"><a class="header" href="#common-development-commands">Common Development Commands</a></h3>
@@ -1766,10 +1766,10 @@ let ctx = ZContextBuilder::default()
 </div>
 <h2 id="system-architecture"><a class="header" href="#system-architecture">System Architecture</a></h2>
 <pre class="mermaid">graph LR
-    A[.msg/.srv files] --&gt; B[roslibrust_codegen]
+    A[.msg/.srv files] --&gt; B[ros-z-codegen]
     B --&gt; C[Parse &amp; Resolve]
     C --&gt; D[Type Hashing]
-    D --&gt; E[ros-z-codegen]
+    D --&gt; E[Code Generation]
     E --&gt; F[CDR Adapter]
     E --&gt; G[Protobuf Adapter]
     F --&gt; H[Rust Structs + Traits]
@@ -1787,13 +1787,13 @@ let ctx = ZContextBuilder::default()
 </tbody></table>
 </div>
 <h2 id="component-stack"><a class="header" href="#component-stack">Component Stack</a></h2>
-<h3 id="roslibrust_codegen"><a class="header" href="#roslibrust_codegen">roslibrust_codegen</a></h3>
-<p>Third-party foundation for ROS message parsing:</p>
+<h3 id="ros-z-codegen"><a class="header" href="#ros-z-codegen">ros-z-codegen</a></h3>
+<p>Internal message generation library for ros-z:</p>
 <ul>
-<li>Parses <code>.msg</code> and <code>.srv</code> file syntax</li>
+<li>Parses <code>.msg</code>, <code>.srv</code>, and <code>.action</code> file syntax</li>
 <li>Resolves message dependencies across packages</li>
 <li>Calculates ROS 2 type hashes (RIHS algorithm)</li>
-<li>Generates base Rust structs with serde</li>
+<li>Generates Rust structs with serde</li>
 <li>Bundles common message definitions</li>
 </ul>
 <div id="admonition-info" class="admonition admonish-info" role="note" aria-labelledby="admonition-info-title">
@@ -1804,11 +1804,11 @@ let ctx = ZContextBuilder::default()
 <a class="admonition-anchor-link" href="chapters/message_generation.html#admonition-info"></a>
 </div>
 <div>
-<p>roslibrust provides bundled messages for <code>std_msgs</code>, <code>geometry_msgs</code>, <code>sensor_msgs</code>, and <code>nav_msgs</code>. These work without ROS 2 installation.</p>
+<p>ros-z-codegen provides bundled messages for <code>std_msgs</code>, <code>geometry_msgs</code>, <code>sensor_msgs</code>, and <code>nav_msgs</code>. These work without ROS 2 installation.</p>
 </div>
 </div>
-<h3 id="ros-z-codegen"><a class="header" href="#ros-z-codegen">ros-z-codegen</a></h3>
-<p>ros-z's orchestration layer:</p>
+<h3 id="orchestration-layer"><a class="header" href="#orchestration-layer">Orchestration Layer</a></h3>
+<p>ros-z-codegen's orchestration capabilities:</p>
 <ul>
 <li>Coordinates message discovery across sources</li>
 <li>Manages build-time code generation</li>
@@ -1830,7 +1830,7 @@ let ctx = ZContextBuilder::default()
         alt Found in standard path
             S--&gt;&gt;D: System messages
         else Not found
-            D-&gt;&gt;S: Check roslibrust assets
+            D-&gt;&gt;S: Check bundled assets
             S--&gt;&gt;D: Bundled messages
         end
     end
@@ -1921,7 +1921,7 @@ impl WithTypeInfo for std_msgs::String {
     B --&gt;|Found| C[AMENT_PREFIX_PATH]
     B --&gt;|Not Found| D{/opt/ros/distro?}
     D --&gt;|Found| E[Standard paths]
-    D --&gt;|Not Found| F[roslibrust assets]
+    D --&gt;|Not Found| F[Bundled assets]
 
     C --&gt; G[Generate from system]
     E --&gt; G
@@ -1930,7 +1930,7 @@ impl WithTypeInfo for std_msgs::String {
 <ol>
 <li><strong>System ROS:</strong> <code>$AMENT_PREFIX_PATH</code>, <code>$CMAKE_PREFIX_PATH</code></li>
 <li><strong>Standard paths:</strong> <code>/opt/ros/{rolling,jazzy,iron,humble}</code></li>
-<li><strong>Bundled assets:</strong> <code>~/.cargo/git/checkouts/roslibrust-*/assets/</code></li>
+<li><strong>Bundled assets:</strong> Built-in message definitions in ros-z-codegen</li>
 </ol>
 <p>This fallback enables development without ROS 2 installation.</p>
 <h2 id="using-generated-messages"><a class="header" href="#using-generated-messages">Using Generated Messages</a></h2>
@@ -2167,14 +2167,14 @@ ros2 pkg list | grep your_package
 # Install if missing
 sudo apt install ros-jazzy-your-package
 
-# For bundled packages, check roslibrust
-ls ~/.cargo/git/checkouts/roslibrust-*/assets/
+# Bundled packages are built into ros-z-codegen
+cargo build -p ros-z-msgs --features bundled_msgs
 </code></pre>
 <h3 id="build-failures"><a class="header" href="#build-failures">Build Failures</a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Error</th><th>Cause</th><th>Solution</th></tr></thead><tbody>
 <tr><td>"Cannot find package"</td><td>Missing dependency</td><td>Enable feature or install ROS 2 package</td></tr>
 <tr><td>"Type conflict"</td><td>Duplicate definition</td><td>Remove manual implementation</td></tr>
-<tr><td>"Hash error"</td><td>Version mismatch</td><td>Update roslibrust dependency</td></tr>
+<tr><td>"Hash error"</td><td>Version mismatch</td><td>Update ros-z-codegen dependency</td></tr>
 </tbody></table>
 </div>
 <p>See <a href="chapters/./troubleshooting.html">Troubleshooting Guide</a> for detailed solutions.</p>
