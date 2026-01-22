@@ -14,9 +14,7 @@ use ros_z::{
     context::ZContextBuilder,
     entity::{EntityKind, NodeKey},
 };
-#[cfg(feature = "external_msgs")]
-use ros_z_msgs::ros::test_msgs::BasicTypes;
-use ros_z_msgs::std_msgs::String as RosString;
+use ros_z_msgs::{example_interfaces::srv::AddTwoInts, std_msgs::String as RosString};
 
 /// Helper to create a test context and node
 async fn setup_test_node(
@@ -177,7 +175,6 @@ mod tests {
     }
 
     /// Tests counting clients on a service
-    #[cfg(feature = "external_msgs")]
     #[tokio::test(flavor = "multi_thread")]
     async fn test_count_clients() -> Result<()> {
         let (_ctx, node) = setup_test_node("test_graph_node").await?;
@@ -191,7 +188,7 @@ mod tests {
         assert_eq!(count, 0, "Expected 0 clients on non-existent service");
 
         // Create a client
-        let _client = node.create_client::<BasicTypes>(service_name).build()?;
+        let _client = node.create_client::<AddTwoInts>(service_name).build()?;
 
         // Allow discovery
         tokio::time::sleep(Duration::from_millis(200)).await;
@@ -204,7 +201,6 @@ mod tests {
     }
 
     /// Tests counting services on a service name
-    #[cfg(feature = "external_msgs")]
     #[tokio::test(flavor = "multi_thread")]
     async fn test_count_services() -> Result<()> {
         let (_ctx, node) = setup_test_node("test_graph_node").await?;
@@ -218,7 +214,7 @@ mod tests {
         assert_eq!(count, 0, "Expected 0 services on non-existent service");
 
         // Create a service
-        let _service = node.create_service::<BasicTypes>(service_name).build()?;
+        let _service = node.create_service::<AddTwoInts>(service_name).build()?;
 
         // Allow discovery
         tokio::time::sleep(Duration::from_millis(200)).await;
@@ -297,14 +293,13 @@ mod tests {
     }
 
     /// Tests getting service names and types for a specific node
-    #[cfg(feature = "external_msgs")]
     #[tokio::test(flavor = "multi_thread")]
     async fn test_get_service_names_and_types_by_node() -> Result<()> {
         let (_ctx, node) = setup_test_node("test_graph_node").await?;
         let service_name = "/test_service_by_node";
 
         // Create a service
-        let _service = node.create_service::<BasicTypes>(service_name).build()?;
+        let _service = node.create_service::<AddTwoInts>(service_name).build()?;
 
         // Allow discovery
         tokio::time::sleep(Duration::from_millis(200)).await;
@@ -328,14 +323,13 @@ mod tests {
     }
 
     /// Tests getting client names and types for a specific node
-    #[cfg(feature = "external_msgs")]
     #[tokio::test(flavor = "multi_thread")]
     async fn test_get_client_names_and_types_by_node() -> Result<()> {
         let (_ctx, node) = setup_test_node("test_graph_node").await?;
         let service_name = "/test_client_by_node";
 
         // Create a client
-        let _client = node.create_client::<BasicTypes>(service_name).build()?;
+        let _client = node.create_client::<AddTwoInts>(service_name).build()?;
 
         // Allow discovery
         tokio::time::sleep(Duration::from_millis(200)).await;
@@ -537,7 +531,6 @@ mod tests {
     }
 
     /// Tests discovering services from multiple nodes
-    #[cfg(feature = "external_msgs")]
     #[tokio::test(flavor = "multi_thread")]
     async fn test_multi_node_services() -> Result<()> {
         // Create a single context and multiple nodes to share the graph
@@ -549,8 +542,8 @@ mod tests {
         let service_name2 = "/test_multi_node_service_2";
 
         // Create services on different nodes
-        let _srv1 = node1.create_service::<BasicTypes>(service_name1).build()?;
-        let _srv2 = node2.create_service::<BasicTypes>(service_name2).build()?;
+        let _srv1 = node1.create_service::<AddTwoInts>(service_name1).build()?;
+        let _srv2 = node2.create_service::<AddTwoInts>(service_name2).build()?;
 
         tokio::time::sleep(Duration::from_millis(300)).await;
 
@@ -572,7 +565,6 @@ mod tests {
     }
 
     /// Tests discovering clients from multiple nodes
-    #[cfg(feature = "external_msgs")]
     #[tokio::test(flavor = "multi_thread")]
     async fn test_multi_node_clients() -> Result<()> {
         // Create a single context and multiple nodes to share the graph
@@ -583,9 +575,9 @@ mod tests {
         let service_name = "/test_multi_node_client";
 
         // Create service and clients
-        let _srv = node1.create_service::<BasicTypes>(service_name).build()?;
-        let _client1 = node1.create_client::<BasicTypes>(service_name).build()?;
-        let _client2 = node2.create_client::<BasicTypes>(service_name).build()?;
+        let _srv = node1.create_service::<AddTwoInts>(service_name).build()?;
+        let _client1 = node1.create_client::<AddTwoInts>(service_name).build()?;
+        let _client2 = node2.create_client::<AddTwoInts>(service_name).build()?;
 
         tokio::time::sleep(Duration::from_millis(300)).await;
 
@@ -598,14 +590,13 @@ mod tests {
     }
 
     /// Tests checking if a service server is available
-    #[cfg(feature = "external_msgs")]
     #[tokio::test(flavor = "multi_thread")]
     async fn test_service_server_is_available() -> Result<()> {
         let (_ctx, node) = setup_test_node("test_graph_node").await?;
         let service_name = "/test_service_available";
 
         // Create client
-        let client = node.create_client::<BasicTypes>(service_name).build()?;
+        let client = node.create_client::<AddTwoInts>(service_name).build()?;
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -615,7 +606,7 @@ mod tests {
         assert_eq!(count, 0, "Expected 0 services before creating server");
 
         // Create the service
-        let _service = node.create_service::<BasicTypes>(service_name).build()?;
+        let _service = node.create_service::<AddTwoInts>(service_name).build()?;
 
         tokio::time::sleep(Duration::from_millis(300)).await;
 

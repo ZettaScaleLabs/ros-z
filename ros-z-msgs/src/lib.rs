@@ -27,6 +27,15 @@ pub mod proto {
     include!(concat!(env!("OUT_DIR"), "/generated_proto.rs"));
 }
 
+// Include the protobuf type info implementations if feature is enabled
+#[cfg(feature = "protobuf")]
+include!(concat!(env!("OUT_DIR"), "/protobuf_type_info.rs"));
+
+#[cfg(not(feature = "protobuf"))]
+pub mod proto {
+    //! Placeholder module when protobuf feature is not enabled
+}
+
 // Re-export commonly used items from ros-z for convenience
 pub use ros_z::{
     MessageTypeInfo,

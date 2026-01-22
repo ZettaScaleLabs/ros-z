@@ -12,6 +12,10 @@ use clap::Parser;
 use csv::Writer;
 use ros_z::{Builder, Result, context::ZContextBuilder};
 use ros_z_msgs::std_msgs::ByteMultiArray;
+use zenoh_buffers::{
+    ZBuf,
+    buffer::{Buffer, SplitBuffer},
+};
 
 #[derive(Debug, Parser)]
 struct Args {
@@ -77,7 +81,7 @@ impl DataLogger {
 }
 
 fn run_ping(args: &Args) -> Result<()> {
-    let ctx = ZContextBuilder::default().build()?;
+    let ctx = ZContextBuilder::default().with_logging_enabled().build()?;
     let node = ctx.create_node("ping_node").build()?;
     let zpub = node.create_pub::<ByteMultiArray>("ping").build()?;
     let zsub = node.create_sub::<ByteMultiArray>("pong").build()?;
@@ -106,7 +110,8 @@ fn run_ping(args: &Args) -> Result<()> {
         let mut rtts = Vec::with_capacity(sample_count);
         while rtts.len() < sample_count {
             if let Ok(msg) = zsub.recv() {
-                let sent_time = u64::from_le_bytes(msg.data[0..8].try_into().unwrap());
+                let data_bytes = msg.data.contiguous();
+                let sent_time = u64::from_le_bytes(data_bytes[0..8].try_into().unwrap());
                 let rtt = start.elapsed().as_nanos() as u64 - sent_time;
                 rtts.push(rtt);
             }
@@ -118,13 +123,17 @@ fn run_ping(args: &Args) -> Result<()> {
         c_finished.store(true, SeqCst);
     });
 
-    let mut msg = ByteMultiArray {
-        data: vec![0xAA; args.payload],
-        ..Default::default()
-    };
     while !finished.load(SeqCst) {
         let now = start.elapsed().as_nanos() as u64;
-        msg.data[0..8].copy_from_slice(&now.to_le_bytes());
+
+        // Create buffer with timestamp embedded (no clone needed - ZBuf takes ownership)
+        let mut buffer = vec![0xAA; args.payload];
+        buffer[0..8].copy_from_slice(&now.to_le_bytes());
+
+        let msg = ByteMultiArray {
+            data: ZBuf::from(buffer),
+            ..Default::default()
+        };
         zpub.publish(&msg)?;
         std::thread::sleep(period);
     }
@@ -132,7 +141,7 @@ fn run_ping(args: &Args) -> Result<()> {
 }
 
 fn run_pong() -> Result<()> {
-    let ctx = ZContextBuilder::default().build()?;
+    let ctx = ZContextBuilder::default().with_logging_enabled().build()?;
     let node = ctx.create_node("pong_node").build()?;
     let zsub = node.create_sub::<ByteMultiArray>("ping").build()?;
     let zpub = node.create_pub::<ByteMultiArray>("pong").build()?;
@@ -141,18 +150,16 @@ fn run_pong() -> Result<()> {
 
     let mut message_count = 0u64;
     let mut last_print_time = Instant::now();
-    let mut last_timestamp = 0u64;
-    let mut last_payload_size = 0usize;
 
     loop {
-        if let Ok(msg) = zsub.recv() {
-            message_count += 1;
+        let msg = zsub.recv()?;
+        message_count += 1;
 
-            last_timestamp = u64::from_le_bytes(msg.data[0..8].try_into().unwrap());
-            last_payload_size = msg.data.len();
+        let data_bytes = msg.data.contiguous();
+        let last_timestamp = u64::from_le_bytes(data_bytes[0..8].try_into().unwrap());
+        let last_payload_size = msg.data.len();
 
-            zpub.publish(&msg)?;
-        }
+        zpub.publish(&msg)?;
 
         let current_time = Instant::now();
         if current_time.duration_since(last_print_time) >= Duration::from_secs(2) {

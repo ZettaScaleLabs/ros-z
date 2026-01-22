@@ -10,10 +10,10 @@ Message generation happens automatically during builds. You write ROS 2 message 
 
 ```mermaid
 graph LR
-    A[.msg/.srv files] --> B[roslibrust_codegen]
+    A[.msg/.srv files] --> B[ros-z-codegen]
     B --> C[Parse & Resolve]
     C --> D[Type Hashing]
-    D --> E[ros-z-codegen]
+    D --> E[Code Generation]
     E --> F[CDR Adapter]
     E --> G[Protobuf Adapter]
     F --> H[Rust Structs + Traits]
@@ -34,23 +34,23 @@ graph LR
 
 ## Component Stack
 
-### roslibrust_codegen
+### ros-z-codegen
 
-Third-party foundation for ROS message parsing:
+Internal message generation library for ros-z:
 
-- Parses `.msg` and `.srv` file syntax
+- Parses `.msg`, `.srv`, and `.action` file syntax
 - Resolves message dependencies across packages
 - Calculates ROS 2 type hashes (RIHS algorithm)
-- Generates base Rust structs with serde
+- Generates Rust structs with serde
 - Bundles common message definitions
 
 ```admonish info
-roslibrust provides bundled messages for `std_msgs`, `geometry_msgs`, `sensor_msgs`, and `nav_msgs`. These work without ROS 2 installation.
+ros-z-codegen provides bundled messages for `std_msgs`, `geometry_msgs`, `sensor_msgs`, and `nav_msgs`. These work without ROS 2 installation.
 ```
 
-### ros-z-codegen
+### Orchestration Layer
 
-ros-z's orchestration layer:
+ros-z-codegen's orchestration capabilities:
 
 - Coordinates message discovery across sources
 - Manages build-time code generation
@@ -74,7 +74,7 @@ sequenceDiagram
         alt Found in standard path
             S-->>D: System messages
         else Not found
-            D->>S: Check roslibrust assets
+            D->>S: Check bundled assets
             S-->>D: Bundled messages
         end
     end
@@ -181,7 +181,7 @@ flowchart LR
     B -->|Found| C[AMENT_PREFIX_PATH]
     B -->|Not Found| D{/opt/ros/distro?}
     D -->|Found| E[Standard paths]
-    D -->|Not Found| F[roslibrust assets]
+    D -->|Not Found| F[Bundled assets]
 
     C --> G[Generate from system]
     E --> G
@@ -190,7 +190,7 @@ flowchart LR
 
 1. **System ROS:** `$AMENT_PREFIX_PATH`, `$CMAKE_PREFIX_PATH`
 2. **Standard paths:** `/opt/ros/{rolling,jazzy,iron,humble}`
-3. **Bundled assets:** `~/.cargo/git/checkouts/roslibrust-*/assets/`
+3. **Bundled assets:** Built-in message definitions in ros-z-codegen
 
 This fallback enables development without ROS 2 installation.
 
@@ -253,19 +253,19 @@ Available without ROS 2:
 cargo build -p ros-z-msgs --features bundled_msgs
 ```
 
-### External Packages
+### Additional Packages
 
-Require ROS 2 installation:
+These packages are bundled and available without ROS 2 installation:
 
 | Package | Messages | Use Cases |
 |---------|----------|-----------|
 | **example_interfaces** | AddTwoInts, Fibonacci | Tutorials |
-| **action_msgs** | GoalStatus, GoalInfo | Action support |
-| **(custom)** | Your messages | Domain-specific |
+| **action_tutorials_interfaces** | Fibonacci action | Action tutorials |
+| **test_msgs** | Test types | Testing |
 
 ```bash
-source /opt/ros/jazzy/setup.bash
-cargo build -p ros-z-msgs --features external_msgs
+# All packages are bundled by default
+cargo build -p ros-z-msgs --features all_msgs
 ```
 
 ## Manual Custom Messages
@@ -483,8 +483,8 @@ ros2 pkg list | grep your_package
 # Install if missing
 sudo apt install ros-jazzy-your-package
 
-# For bundled packages, check roslibrust
-ls ~/.cargo/git/checkouts/roslibrust-*/assets/
+# Bundled packages are built into ros-z-codegen
+cargo build -p ros-z-msgs --features bundled_msgs
 ```
 
 ### Build Failures
@@ -493,7 +493,7 @@ ls ~/.cargo/git/checkouts/roslibrust-*/assets/
 |-------|-------|----------|
 | "Cannot find package" | Missing dependency | Enable feature or install ROS 2 package |
 | "Type conflict" | Duplicate definition | Remove manual implementation |
-| "Hash error" | Version mismatch | Update roslibrust dependency |
+| "Hash error" | Version mismatch | Update ros-z-codegen dependency |
 
 See [Troubleshooting Guide](./troubleshooting.md) for detailed solutions.
 

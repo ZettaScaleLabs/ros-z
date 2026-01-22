@@ -1,7 +1,9 @@
 use anyhow::{Context, Result};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+
+use crate::types::{ResolvedMessage, Field, ArrayType};
 
 /// Adapter for generating protobuf definitions and Rust code from ROS messages
 pub struct ProtobufMessageGenerator {
@@ -15,10 +17,10 @@ impl ProtobufMessageGenerator {
         }
     }
 
-    /// Generate .proto files from parsed ROS message files
+    /// Generate .proto files from resolved ROS messages
     pub fn generate_proto_files(
         &self,
-        messages: &[roslibrust_codegen::MessageFile],
+        messages: &[ResolvedMessage],
     ) -> Result<Vec<PathBuf>> {
         // Create proto directory if it doesn't exist
         fs::create_dir_all(&self.proto_dir).context("Failed to create proto directory")?;
@@ -26,7 +28,7 @@ impl ProtobufMessageGenerator {
         let mut proto_files = Vec::new();
 
         // Group messages by package
-        let mut packages: BTreeMap<String, Vec<&roslibrust_codegen::MessageFile>> = BTreeMap::new();
+        let mut packages: BTreeMap<String, Vec<&ResolvedMessage>> = BTreeMap::new();
         for msg in messages {
             packages
                 .entry(msg.parsed.package.clone())
@@ -53,7 +55,7 @@ impl ProtobufMessageGenerator {
     fn generate_proto_for_package(
         &self,
         package: &str,
-        messages: &[&roslibrust_codegen::MessageFile],
+        messages: &[&ResolvedMessage],
     ) -> Result<String> {
         let mut proto = String::new();
 
@@ -64,7 +66,7 @@ impl ProtobufMessageGenerator {
         proto.push_str(&format!("package {};\n\n", package.replace("-", "_")));
 
         // Collect all dependencies
-        let mut dependencies = std::collections::BTreeSet::new();
+        let mut dependencies = BTreeSet::new();
         for msg in messages {
             self.collect_dependencies(msg, &mut dependencies);
         }
@@ -88,8 +90,8 @@ impl ProtobufMessageGenerator {
         Ok(proto)
     }
 
-    /// Generate a single protobuf message definition from a parsed ROS message
-    fn generate_proto_message(&self, msg: &roslibrust_codegen::MessageFile) -> Result<String> {
+    /// Generate a single protobuf message definition from a resolved ROS message
+    fn generate_proto_message(&self, msg: &ResolvedMessage) -> Result<String> {
         let mut proto = String::new();
 
         proto.push_str(&format!("message {} {{\n", msg.parsed.name));
@@ -97,8 +99,8 @@ impl ProtobufMessageGenerator {
         // Generate fields
         for (index, field) in msg.parsed.fields.iter().enumerate() {
             let field_number = index + 1;
-            let proto_type = self.ros_field_to_proto_type(field)?;
-            let field_name = &field.field_name;
+            let proto_type = self.ros_field_to_proto_type(field, &msg.parsed.package)?;
+            let field_name = &field.name;
 
             proto.push_str(&format!(
                 "  {} {} = {};\n",
@@ -114,27 +116,37 @@ impl ProtobufMessageGenerator {
     /// Collect all package dependencies for a message
     fn collect_dependencies(
         &self,
-        msg: &roslibrust_codegen::MessageFile,
-        dependencies: &mut std::collections::BTreeSet<String>,
+        msg: &ResolvedMessage,
+        dependencies: &mut BTreeSet<String>,
     ) {
         for field in &msg.parsed.fields {
-            if let Some(ref package_name) = field.field_type.package_name {
+            // Check if field has an explicit package reference
+            if let Some(ref package_name) = field.field_type.package {
                 if package_name != &msg.parsed.package {
                     dependencies.insert(package_name.clone());
                 }
-            } else if field.field_type.source_package != msg.parsed.package {
-                dependencies.insert(field.field_type.source_package.clone());
+            }
+            // Also check builtin types that might have packages
+            else if !Self::is_primitive(&field.field_type.base_type) {
+                // If it's not a primitive and no package specified, it's from the same package
+                // No dependency needed
             }
         }
     }
 
+    /// Check if a type is a primitive
+    fn is_primitive(type_name: &str) -> bool {
+        matches!(
+            type_name,
+            "bool" | "byte" | "uint8" | "char" | "int8" | "int16" | "uint16"
+                | "int32" | "uint32" | "int64" | "uint64" | "float32" | "float64" | "string"
+        )
+    }
+
     /// Convert ROS field type to protobuf type
-    fn ros_field_to_proto_type(&self, field: &roslibrust_codegen::FieldInfo) -> Result<String> {
-        let base_type = &field.field_type.field_type;
-        let is_array = !matches!(
-            field.field_type.array_info,
-            roslibrust_codegen::ArrayType::NotArray
-        );
+    fn ros_field_to_proto_type(&self, field: &Field, source_package: &str) -> Result<String> {
+        let base_type = &field.field_type.base_type;
+        let is_array = !matches!(field.field_type.array, ArrayType::Single);
 
         // Map ROS primitive types to protobuf types
         let proto_type = match base_type.as_str() {
@@ -152,17 +164,11 @@ impl ProtobufMessageGenerator {
             // Complex types (other messages)
             _ => {
                 // If it has a package name, it's a message type from another package
-                if let Some(ref package_name) = field.field_type.package_name {
+                if let Some(ref package_name) = field.field_type.package {
                     format!("{}.{}", package_name.replace("-", "_"), base_type)
-                } else if field.field_type.source_package != field.field_type.field_type {
-                    format!(
-                        "{}.{}",
-                        field.field_type.source_package.replace("-", "_"),
-                        base_type
-                    )
                 } else {
                     // Same package message type
-                    base_type.clone()
+                    format!("{}.{}", source_package.replace("-", "_"), base_type)
                 }
             }
         };
@@ -171,7 +177,7 @@ impl ProtobufMessageGenerator {
         if is_array {
             Ok(format!("repeated {}", proto_type))
         } else {
-            Ok(proto_type.to_string())
+            Ok(proto_type)
         }
     }
 
@@ -215,7 +221,7 @@ impl ProtobufMessageGenerator {
             .context("Failed to compile proto files with prost_build")?;
 
         // Read all generated files and organize them by package
-        let mut package_modules = std::collections::BTreeMap::new();
+        let mut package_modules = BTreeMap::new();
 
         for entry in fs::read_dir(&temp_dir)? {
             let entry = entry?;
@@ -228,7 +234,7 @@ impl ProtobufMessageGenerator {
                     .file_stem()
                     .and_then(|s| s.to_str())
                     .unwrap_or("unknown")
-                    .to_string(); // Convert to owned String
+                    .to_string();
 
                 // Map common file patterns to package names
                 let package_name = match file_stem.as_str() {
@@ -257,18 +263,13 @@ impl ProtobufMessageGenerator {
         fs::write(output_file, combined_output)
             .with_context(|| format!("Failed to write combined output: {:?}", output_file))?;
 
-        // Note: Temp directory left for debugging
-        // if temp_dir.exists() {
-        //     fs::remove_dir_all(&temp_dir).ok();
-        // }
-
         Ok(())
     }
 
     /// Generate MessageTypeInfo implementations for protobuf types
     pub fn generate_type_info_impls(
         &self,
-        messages: &[roslibrust_codegen::MessageFile],
+        messages: &[ResolvedMessage],
     ) -> Result<String> {
         let mut impls = String::new();
 
@@ -279,17 +280,16 @@ impl ProtobufMessageGenerator {
             let msg_name = &msg.parsed.name;
 
             // Convert ROS message name to prost naming convention
-            // Prost converts camelCase to snake_case differently for acronyms
             let proto_struct_name = self.convert_to_prost_naming(msg_name);
 
-            // Rust type name for the protobuf struct
-            let proto_type = format!("{}::{}", package.replace("-", "_"), proto_struct_name);
+        // Rust type name for the protobuf struct
+        let proto_type = format!("proto::{}::{}", package.replace("-", "_"), proto_struct_name);
 
             // ROS2 type name
             let ros2_type_name = format!("{}::msg::dds_::{}_", package, msg_name);
 
             // Get hash
-            let hash = msg.ros2_hash.to_hash_string();
+            let hash = msg.type_hash.to_rihs_string();
 
             impls.push_str(&format!(
                 r#"impl ::ros_z::MessageTypeInfo for {proto_type} {{

@@ -152,6 +152,7 @@ pub fn create_ros_z_context_with_endpoint(endpoint: &str) -> ros_z::Result<ros_z
     ZContextBuilder::default()
         .disable_multicast_scouting()
         .with_connect_endpoints([endpoint])
+        .with_logging_enabled()
         .build()
 }
 

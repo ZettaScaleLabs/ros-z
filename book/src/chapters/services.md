@@ -51,13 +51,13 @@ This example demonstrates a service server that adds two integers. The server wa
 
 ```bash
 # Basic usage - runs indefinitely
-cargo run --example demo_nodes_add_two_ints_server -F external_msgs
+cargo run --example demo_nodes_add_two_ints_server
 
 # Handle 5 requests then exit
-cargo run --example demo_nodes_add_two_ints_server -F external_msgs -- --count 5
+cargo run --example demo_nodes_add_two_ints_server -- --count 5
 
 # Connect to specific Zenoh router
-cargo run --example demo_nodes_add_two_ints_server -F external_msgs -- --endpoint tcp/localhost:7447
+cargo run --example demo_nodes_add_two_ints_server -- --endpoint tcp/localhost:7447
 ```
 
 ## Service Client Example
@@ -79,13 +79,13 @@ This example demonstrates a service client that sends addition requests to the s
 
 ```bash
 # Basic usage
-cargo run --example demo_nodes_add_two_ints_client -F external_msgs -- --a 10 --b 20
+cargo run --example demo_nodes_add_two_ints_client -- --a 10 --b 20
 
 # Using async mode
-cargo run --example demo_nodes_add_two_ints_client -F external_msgs -- --a 5 --b 3 --async-mode
+cargo run --example demo_nodes_add_two_ints_client -- --a 5 --b 3 --async-mode
 
 # Connect to specific Zenoh router
-cargo run --example demo_nodes_add_two_ints_client -F external_msgs -- --a 100 --b 200 --endpoint tcp/localhost:7447
+cargo run --example demo_nodes_add_two_ints_client -- --a 100 --b 200 --endpoint tcp/localhost:7447
 ```
 
 ## Complete Service Workflow
@@ -101,17 +101,17 @@ cargo run --example zenoh_router
 **Terminal 2 - Start Server:**
 
 ```bash
-cargo run --example demo_nodes_add_two_ints_server -F external_msgs
+cargo run --example demo_nodes_add_two_ints_server
 ```
 
 **Terminal 3 - Send Client Requests:**
 
 ```bash
 # Request 1
-cargo run --example demo_nodes_add_two_ints_client -F external_msgs -- --a 10 --b 20
+cargo run --example demo_nodes_add_two_ints_client -- --a 10 --b 20
 
 # Request 2
-cargo run --example demo_nodes_add_two_ints_client -F external_msgs -- --a 100 --b 200
+cargo run --example demo_nodes_add_two_ints_client -- --a 100 --b 200
 ```
 
 <script src="https://asciinema.org/a/yChRkMOyYKoKBPqM.js" id="asciicast-yChRkMOyYKoKBPqM" async="true"></script>

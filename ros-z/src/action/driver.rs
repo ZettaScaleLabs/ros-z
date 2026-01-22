@@ -4,24 +4,24 @@
 //! action protocol events (goal requests, cancel requests, result requests)
 //! in a sequential, race-condition-free manner.
 
-use std::future::Future;
-use std::marker::PhantomData;
-use std::sync::{Arc, Weak};
-use std::time::Duration;
+use std::{
+    future::Future,
+    marker::PhantomData,
+    sync::{Arc, Weak},
+    time::Duration,
+};
 
-use tokio::task::JoinSet;
-use tokio::time;
+use tokio::{task::JoinSet, time};
 use tokio_util::sync::CancellationToken;
 use zenoh::Wait;
 
-use crate::attachment::Attachment;
-use crate::msg::ZMessage;
-
-use super::ZAction;
-use super::messages::*;
-use super::server::{InnerServer, ZActionServer, GoalHandle, Requested, Executing};
-use super::state::ServerGoalState;
-use super::GoalInfo;
+use super::{
+    GoalInfo, ZAction,
+    messages::*,
+    server::{Executing, GoalHandle, InnerServer, Requested, ZActionServer},
+    state::ServerGoalState,
+};
+use crate::{attachment::Attachment, msg::ZMessage};
 
 /// Runs the unified driver loop for an action server with automatic goal handling.
 ///
@@ -175,7 +175,7 @@ async fn handle_cancel_request<A: ZAction>(
 ) {
     tracing::debug!("Received cancel request");
     let payload = query.payload().unwrap().to_bytes();
-    let request = match <CancelGoalRequest as ZMessage>::deserialize(&payload) {
+    let request = match <CancelGoalServiceRequest as ZMessage>::deserialize(&payload) {
         Ok(r) => r,
         Err(e) => {
             tracing::error!("Failed to deserialize cancel request: {}", e);
@@ -185,7 +185,9 @@ async fn handle_cancel_request<A: ZAction>(
 
     // Mark goal as canceling using the atomic flag
     let cancelled = inner.goal_manager.read(|manager| {
-        if let Some(ServerGoalState::Executing { cancel_flag, .. }) = manager.goals.get(&request.goal_info.goal_id) {
+        if let Some(ServerGoalState::Executing { cancel_flag, .. }) =
+            manager.goals.get(&request.goal_info.goal_id)
+        {
             cancel_flag.store(true, std::sync::atomic::Ordering::Relaxed);
             true
         } else {
@@ -194,7 +196,7 @@ async fn handle_cancel_request<A: ZAction>(
     });
 
     // Send response
-    let response = CancelGoalResponse {
+    let response = CancelGoalServiceResponse {
         return_code: if cancelled { 1 } else { 0 },
         goals_canceling: if cancelled {
             vec![request.goal_info]
@@ -203,10 +205,11 @@ async fn handle_cancel_request<A: ZAction>(
         },
     };
 
-    let response_bytes = <CancelGoalResponse as ZMessage>::serialize(&response);
+    let response_bytes = <CancelGoalServiceResponse as ZMessage>::serialize(&response);
     let attachment: Attachment = query.attachment().unwrap().try_into().unwrap();
     // FIXME: address the result
-    let _ = query.reply(query.key_expr().clone(), response_bytes)
+    let _ = query
+        .reply(query.key_expr().clone(), response_bytes)
         .attachment(attachment)
         .wait();
 
@@ -220,7 +223,7 @@ async fn handle_result_request<A: ZAction>(
 ) {
     tracing::debug!("Received result request");
     let payload = query.payload().unwrap().to_bytes();
-    let request = match <ResultRequest as ZMessage>::deserialize(&payload) {
+    let request = match <GetResultRequest as ZMessage>::deserialize(&payload) {
         Ok(r) => r,
         Err(e) => {
             tracing::error!("Failed to deserialize result request: {}", e);
@@ -244,7 +247,8 @@ async fn handle_result_request<A: ZAction>(
             (ResultState::Terminated, Some((result.clone(), *status)))
         } else if manager.goals.contains_key(&request.goal_id) {
             // Goal exists but not terminated yet - register waiter
-            manager.result_futures
+            manager
+                .result_futures
                 .entry(request.goal_id)
                 .or_default()
                 .push(tx);
@@ -258,12 +262,19 @@ async fn handle_result_request<A: ZAction>(
     let (result, status) = match result_state {
         ResultState::Terminated => {
             let (r, s) = result_data.unwrap();
-            tracing::debug!("Goal {:?} is already terminated with status {:?}", request.goal_id, s);
+            tracing::debug!(
+                "Goal {:?} is already terminated with status {:?}",
+                request.goal_id,
+                s
+            );
             (r, s)
         }
         ResultState::Waiting => {
             // Wait for goal to complete
-            tracing::debug!("Goal {:?} not terminated yet, waiting for result...", request.goal_id);
+            tracing::debug!(
+                "Goal {:?} not terminated yet, waiting for result...",
+                request.goal_id
+            );
             match rx.await {
                 Ok((r, s)) => {
                     tracing::debug!("Goal {:?} completed with status {:?}", request.goal_id, s);
@@ -282,13 +293,14 @@ async fn handle_result_request<A: ZAction>(
     };
 
     // Send result response
-    let response = ResultResponse::<A> {
-        status,
+    let response = GetResultResponse::<A> {
+        status: status as i8,
         result,
     };
-    let response_bytes = <ResultResponse<A> as ZMessage>::serialize(&response);
+    let response_bytes = <GetResultResponse<A> as ZMessage>::serialize(&response);
     let attachment: Attachment = query.attachment().unwrap().try_into().unwrap();
-    let _ = query.reply(query.key_expr().clone(), response_bytes)
+    let _ = query
+        .reply(query.key_expr().clone(), response_bytes)
         .attachment(attachment)
         .wait();
     tracing::debug!("Sent result response");

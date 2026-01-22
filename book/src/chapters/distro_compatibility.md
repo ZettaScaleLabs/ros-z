@@ -72,9 +72,6 @@ To build for Humble, use `--no-default-features --features humble`:
 # Build for Humble
 cargo build --no-default-features --features humble
 
-# Build with additional features
-cargo build --no-default-features --features humble,external_msgs
-
 # Run examples for Humble
 cargo run --no-default-features --features humble --example demo_nodes_talker
 

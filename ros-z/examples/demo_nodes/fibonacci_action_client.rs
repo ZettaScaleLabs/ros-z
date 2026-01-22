@@ -36,10 +36,27 @@ pub async fn run_fibonacci_action_client(ctx: ZContext, order: i32) -> Result<Ve
         });
     }
 
-    // Wait for the result
-    println!("Waiting for result...");
-    let result = goal_handle.result().await?;
-    println!("Final result: {:?}", result.sequence);
+    // Wait for the result with timeout
+    println!("Waiting for result (timeout: 10s)...");
+    let result = match tokio::time::timeout(
+        tokio::time::Duration::from_secs(10),
+        goal_handle.result(),
+    )
+    .await
+    {
+        Ok(Ok(result)) => {
+            println!("Final result: {:?}", result.sequence);
+            result
+        }
+        Ok(Err(e)) => {
+            eprintln!("Action failed: {}", e);
+            return Err(e);
+        }
+        Err(_) => {
+            eprintln!("Timeout waiting for action result");
+            return Err(zenoh::Error::from("Timeout waiting for action result"));
+        }
+    };
 
     Ok(result.sequence)
 }
