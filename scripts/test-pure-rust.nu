@@ -54,16 +54,6 @@ def clippy-workspace [] {
     run-cmd "cargo clippy --lib --bins --tests -- -D warnings"
 }
 
-def check-workspace [] {
-    log-step "Check default workspace"
-    run-cmd "cargo check"
-}
-
-def build-workspace [] {
-    log-step "Build default workspace"
-    run-cmd "cargo build"
-}
-
 def build-examples [] {
     log-step "Build examples without ROS dependencies"
     run-cmd "cargo build --examples"
@@ -92,8 +82,6 @@ def check-bundled-msgs [] {
 def get-test-pipeline [] {
     [
         "clippy-workspace"
-        "check-workspace"
-        "build-workspace"
         "build-examples"
         "run-tests"
         "check-bundled-msgs"
@@ -117,8 +105,6 @@ def run-all-tests [] {
     get-test-pipeline | each { |test_name|
         match $test_name {
             "clippy-workspace" => { clippy-workspace }
-            "check-workspace" => { check-workspace }
-            "build-workspace" => { build-workspace }
             "build-examples" => { build-examples }
             "run-tests" => { run-tests }
             "check-bundled-msgs" => { check-bundled-msgs }
@@ -149,8 +135,6 @@ def run-specific-tests [
 
         match $test_name {
             "clippy-workspace" => { clippy-workspace }
-            "check-workspace" => { check-workspace }
-            "build-workspace" => { build-workspace }
             "build-examples" => { build-examples }
             "run-tests" => { run-tests }
             "check-bundled-msgs" => { check-bundled-msgs }

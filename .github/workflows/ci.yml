@@ -59,17 +59,7 @@ jobs:
           source /tmp/nix-dev-env.sh
           nu scripts/test-pure-rust.nu clippy-workspace
 
-      - name: Check default workspace
-        run: |
-          source /tmp/nix-dev-env.sh
-          nu scripts/test-pure-rust.nu check-workspace
-
-      - name: Build default workspace
-        run: |
-          source /tmp/nix-dev-env.sh
-          nu scripts/test-pure-rust.nu build-workspace
-
-      - name: Build examples without ROS dependencies
+      - name: Build examples
         run: |
           source /tmp/nix-dev-env.sh
           nu scripts/test-pure-rust.nu build-examples
@@ -79,7 +69,7 @@ jobs:
           source /tmp/nix-dev-env.sh
           nu scripts/test-pure-rust.nu run-tests
 
-      - name: Check ros-z-msgs with bundled messages (no ROS required)
+      - name: Check ros-z-msgs feature flags
         run: |
           source /tmp/nix-dev-env.sh
           nu scripts/test-pure-rust.nu check-bundled-msgs
@@ -132,11 +122,6 @@ jobs:
         run: |
           source /tmp/nix-dev-env.sh
           nu scripts/test-ros.nu ${{ matrix.distro }} clippy-rclz
-
-      - name: Check rcl-z
-        run: |
-          source /tmp/nix-dev-env.sh
-          nu scripts/test-ros.nu ${{ matrix.distro }} check-rclz
 
       - name: Build rcl-z
         run: |

@@ -73,19 +73,6 @@ def clippy-rclz [] {
     run-cmd $cmd
 }
 
-def check-rclz [] {
-    log-step "Check rcl-z"
-
-    let distro = get-distro
-    let cmd = if $distro == "humble" {
-        "cargo check -p rcl-z --features humble_compat"
-    } else {
-        "cargo check -p rcl-z"
-    }
-
-    run-cmd $cmd
-}
-
 def build-rclz [] {
     log-step "Build rcl-z"
 
@@ -127,7 +114,6 @@ def run-interop-tests [] {
 def get-test-pipeline [] {
     [
         "clippy-rclz"
-        "check-rclz"
         "build-rclz"
         "run-interop-tests"
     ]
@@ -151,7 +137,6 @@ def run-all-tests [] {
     get-test-pipeline | each { |test_name|
         match $test_name {
             "clippy-rclz" => { clippy-rclz }
-            "check-rclz" => { check-rclz }
             "build-rclz" => { build-rclz }
             "run-interop-tests" => { run-interop-tests }
         }
@@ -181,7 +166,6 @@ def run-specific-tests [
 
         match $test_name {
             "clippy-rclz" => { clippy-rclz }
-            "check-rclz" => { check-rclz }
             "build-rclz" => { build-rclz }
             "run-interop-tests" => { run-interop-tests }
         }
