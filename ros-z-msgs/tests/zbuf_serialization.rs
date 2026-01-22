@@ -1,10 +1,11 @@
-use cdr::{CdrLe, Infinite};
-/// Test ZBuf serialization with CDR
-///
-/// This test verifies that messages with ZBuf fields can be created,
-/// serialized, and that the zero-copy optimization works correctly.
-use ros_z_msgs::sensor_msgs::CompressedImage;
-use ros_z_msgs::std_msgs::Header;
+//! Test ZBuf serialization with CDR
+//!
+//! This test verifies that messages with ZBuf fields can be created,
+//! serialized, and that the zero-copy optimization works correctly.
+
+use byteorder::LittleEndian;
+use ros_z_cdr::to_vec;
+use ros_z_msgs::{sensor_msgs::CompressedImage, std_msgs::Header};
 use zenoh_buffers::{
     ZBuf,
     buffer::{Buffer, SplitBuffer},
@@ -24,8 +25,7 @@ fn test_zbuf_field_serialization() {
     assert_eq!(img.data.contiguous().as_ref(), &[1u8, 2, 3, 4, 5, 6, 7, 8]);
 
     // Serialize using CDR - this verifies that our custom serde implementation works
-    let serialized = cdr::serialize::<_, _, CdrLe>(&img, Infinite)
-        .expect("Serialization should succeed with ZBuf field");
+    let serialized = to_vec::<_, LittleEndian>(&img, 256).expect("Serialization should succeed");
 
     // Verify serialized data contains the byte array
     // CDR format: [header][format string][byte array length][byte array data]
@@ -47,8 +47,7 @@ fn test_zbuf_empty() {
     assert!(img.data.contiguous().as_ref().is_empty());
 
     // Verify empty ZBuf serializes correctly
-    let serialized = cdr::serialize::<_, _, CdrLe>(&img, Infinite)
-        .expect("Serialization should succeed with empty ZBuf");
+    let serialized = to_vec::<_, LittleEndian>(&img, 256).expect("Serialization should succeed");
 
     assert!(!serialized.is_empty(), "Should serialize empty ZBuf");
 }
@@ -69,8 +68,7 @@ fn test_zbuf_large_data() {
     assert_eq!(img.data.contiguous().as_ref(), large_data.as_slice());
 
     // Serialize - this exercises the contiguous() method for larger data
-    let serialized = cdr::serialize::<_, _, CdrLe>(&img, Infinite)
-        .expect("Serialization should succeed with large ZBuf");
+    let serialized = to_vec::<_, LittleEndian>(&img, 16384).expect("Serialization should succeed");
 
     // Serialized size should be roughly: header + format string + 4 bytes (length) + 10000 bytes (data)
     assert!(
@@ -98,6 +96,5 @@ fn test_zbuf_zero_copy_property() {
         data: zbuf,
     };
 
-    let _serialized =
-        cdr::serialize::<_, _, CdrLe>(&img, Infinite).expect("Serialization should succeed");
+    let _serialized = to_vec::<_, LittleEndian>(&img, 256).expect("Serialization should succeed");
 }

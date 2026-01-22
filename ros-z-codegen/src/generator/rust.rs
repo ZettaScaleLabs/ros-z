@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use anyhow::Result;
-use proc_macro2::TokenStream;
+use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 
 use crate::types::{ArrayType, Field, FieldType, ResolvedMessage, ResolvedService};
@@ -226,11 +226,7 @@ fn generate_field_def_with_context(
     ctx: &GenerationContext,
 ) -> Result<TokenStream> {
     // Escape Rust keywords with r# prefix
-    let name = if is_rust_keyword(&field.name) {
-        format_ident!("r#{}", field.name)
-    } else {
-        format_ident!("{}", field.name)
-    };
+    let name = escape_field_name(&field.name);
     let field_type =
         generate_field_type_tokens_with_context(&field.field_type, source_package, ctx)?;
 
@@ -327,6 +323,15 @@ fn is_rust_keyword(name: &str) -> bool {
             | "yield"
             | "try"
     )
+}
+
+/// Escape a field name if it's a Rust keyword
+fn escape_field_name(name: &str) -> Ident {
+    if is_rust_keyword(name) {
+        format_ident!("r#{}", name)
+    } else {
+        format_ident!("{}", name)
+    }
 }
 
 /// Generate Rust type tokens for a field type
@@ -465,18 +470,24 @@ fn generate_zbuf_serde_with_context(
     let serialize_fields: Vec<TokenStream> = fields
         .iter()
         .map(|f| {
-            let field_name = format_ident!("{}", f.name);
+            let field_name = escape_field_name(&f.name);
             let field_name_str = &f.name;
             if is_zbuf_field(f) {
+                // OPTIMIZED: Use a wrapper type that calls serialize_bytes() directly
+                // instead of serialize_field() which treats &[u8] as a sequence.
+                // This is critical for performance with large byte arrays!
                 quote! {
                     {
-                        // Convert ZBuf to bytes for CDR serialization
-                        // Use contiguous() which returns Cow<'_, [u8]>
-                        // - Returns Borrowed if already contiguous (zero-copy!)
-                        // - Returns Owned if needs to collect from multiple slices
                         use ::zenoh_buffers::buffer::SplitBuffer;
                         let bytes = self.#field_name.contiguous();
-                        state.serialize_field(#field_name_str, bytes.as_ref())?;
+                        // Wrapper that calls serialize_bytes() directly for efficiency
+                        struct BytesSerializer<'a>(&'a [u8]);
+                        impl<'a> ::serde::Serialize for BytesSerializer<'a> {
+                            fn serialize<S: ::serde::Serializer>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error> {
+                                serializer.serialize_bytes(self.0)
+                            }
+                        }
+                        state.serialize_field(#field_name_str, &BytesSerializer(bytes.as_ref()))?;
                     }
                 }
             } else {
@@ -492,12 +503,48 @@ fn generate_zbuf_serde_with_context(
         .iter()
         .enumerate()
         .map(|(i, f)| {
-            let field_name = format_ident!("{}", f.name);
+            let field_name = escape_field_name(&f.name);
             let field_type = generate_field_type_tokens_with_context(&f.field_type, source_package, ctx).unwrap();
             if is_zbuf_field(f) {
+                // OPTIMIZED: Use a wrapper type that calls deserialize_bytes() directly
+                // instead of the default Vec<u8> deserialization which uses deserialize_seq().
+                // This is critical for performance with large byte arrays!
                 quote! {
                     let #field_name: #field_type = {
-                        let bytes: ::std::vec::Vec<u8> = seq.next_element()?
+                        // Wrapper that uses deserialize_bytes for efficient bulk reading
+                        struct BytesDeserializer;
+                        impl<'de> ::serde::de::DeserializeSeed<'de> for BytesDeserializer {
+                            type Value = ::std::vec::Vec<u8>;
+                            fn deserialize<D: ::serde::Deserializer<'de>>(self, deserializer: D) -> ::std::result::Result<Self::Value, D::Error> {
+                                struct BytesVisitor;
+                                impl<'de> ::serde::de::Visitor<'de> for BytesVisitor {
+                                    type Value = ::std::vec::Vec<u8>;
+                                    fn expecting(&self, formatter: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                                        formatter.write_str("byte array")
+                                    }
+                                    fn visit_bytes<E: ::serde::de::Error>(self, v: &[u8]) -> ::std::result::Result<Self::Value, E> {
+                                        Ok(v.to_vec())
+                                    }
+                                    fn visit_borrowed_bytes<E: ::serde::de::Error>(self, v: &'de [u8]) -> ::std::result::Result<Self::Value, E> {
+                                        Ok(v.to_vec())
+                                    }
+                                    fn visit_byte_buf<E: ::serde::de::Error>(self, v: ::std::vec::Vec<u8>) -> ::std::result::Result<Self::Value, E> {
+                                        Ok(v)
+                                    }
+                                    // Fallback for formats that don't support bytes natively
+                                    fn visit_seq<A: ::serde::de::SeqAccess<'de>>(self, mut seq: A) -> ::std::result::Result<Self::Value, A::Error> {
+                                        let len = seq.size_hint().unwrap_or(0);
+                                        let mut bytes = ::std::vec::Vec::with_capacity(len);
+                                        while let Some(b) = seq.next_element()? {
+                                            bytes.push(b);
+                                        }
+                                        Ok(bytes)
+                                    }
+                                }
+                                deserializer.deserialize_bytes(BytesVisitor)
+                            }
+                        }
+                        let bytes: ::std::vec::Vec<u8> = seq.next_element_seed(BytesDeserializer)?
                             .ok_or_else(|| ::serde::de::Error::invalid_length(#i, &self))?;
                         ::zenoh_buffers::ZBuf::from(bytes)
                     };
@@ -511,7 +558,7 @@ fn generate_zbuf_serde_with_context(
         })
         .collect();
 
-    let field_names: Vec<_> = fields.iter().map(|f| format_ident!("{}", f.name)).collect();
+    let field_names: Vec<_> = fields.iter().map(|f| escape_field_name(&f.name)).collect();
     let field_name_strs: Vec<_> = fields.iter().map(|f| &f.name).collect();
     let num_fields = fields.len();
 
