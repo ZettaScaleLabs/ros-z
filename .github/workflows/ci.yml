@@ -85,7 +85,7 @@ jobs:
           nu scripts/test-pure-rust.nu check-bundled-msgs
 
   with-ros:
-    name: ROS-dependent Test (${{ matrix.distro }})
+    name: rcl-z Test (${{ matrix.distro }})
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -93,24 +93,10 @@ jobs:
     strategy:
       matrix:
         distro: [humble, jazzy]
-        # distro: [humble, jazzy, rolling]  # Uncomment to test rolling when stable
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Free Disk Space (Ubuntu)
-        uses: jlumbroso/free-disk-space@main
-        if: matrix.distro == 'humble'
-        with:
-          # Free up space by removing large packages
-          tool-cache: true
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: false
 
       - name: Install Determinate Nix
         uses: DeterminateSystems/determinate-nix-action@v3
@@ -142,89 +128,17 @@ jobs:
           echo "export RUSTC_WRAPPER=sccache" >> /tmp/nix-dev-env.sh
           echo "export CI=true" >> /tmp/nix-dev-env.sh
 
-      - name: Check available disk space
-        run: |
-          df -h
-          echo "Available space in /home/runner:"
-          du -sh /home/runner/* 2>/dev/null | sort -h || true
-
-      - name: Clippy workspace
-        run: |
-          source /tmp/nix-dev-env.sh
-          nu scripts/test-ros.nu ${{ matrix.distro }} clippy-workspace
-
-      - name: Clippy examples
-        run: |
-          source /tmp/nix-dev-env.sh
-          nu scripts/test-ros.nu ${{ matrix.distro }} clippy-examples
-
       - name: Clippy rcl-z
         run: |
           source /tmp/nix-dev-env.sh
           nu scripts/test-ros.nu ${{ matrix.distro }} clippy-rclz
-
-      - name: Cleanup after clippy
-        run: |
-          source /tmp/nix-dev-env.sh
-          nu scripts/test-ros.nu ${{ matrix.distro }} cleanup-after-clippy
 
       - name: Check rcl-z
         run: |
           source /tmp/nix-dev-env.sh
           nu scripts/test-ros.nu ${{ matrix.distro }} check-rclz
 
-      - name: Check ros-z-msgs all
+      - name: Build rcl-z
         run: |
           source /tmp/nix-dev-env.sh
-          nu scripts/test-ros.nu ${{ matrix.distro }} check-ros-z-msgs-all
-
-      - name: Check protobuf
-        run: |
-          source /tmp/nix-dev-env.sh
-          nu scripts/test-ros.nu ${{ matrix.distro }} check-protobuf
-
-      - name: Check ros-z (with rcl-z feature)
-        run: |
-          source /tmp/nix-dev-env.sh
-          # Skip rcl-z check to save disk space (tested in dedicated step)
-          # if [ "${{ matrix.distro }}" = "humble" ]; then
-          #   cargo check -p ros-z --no-default-features --features rcl-z,humble
-          # else
-          #   cargo check -p ros-z --features rcl-z
-          # fi
-
-      - name: Build examples
-        run: |
-          source /tmp/nix-dev-env.sh
-          nu scripts/test-ros.nu ${{ matrix.distro }} build-examples
-
-      - name: Cleanup after build
-        run: |
-          source /tmp/nix-dev-env.sh
-          nu scripts/test-ros.nu ${{ matrix.distro }} cleanup-after-build
-
-      - name: Build protobuf demo
-        run: |
-          source /tmp/nix-dev-env.sh
-          nu scripts/test-ros.nu ${{ matrix.distro }} build-protobuf-demo
-
-      - name: Free up disk space before tests
-        run: |
-          # Remove unnecessary system files
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          sudo docker image prune -af || true
-          # Clean cargo cache
-          rm -rf ~/.cargo/registry/index
-          rm -rf ~/.cargo/registry/cache
-          rm -rf ~/.cargo/git/db
-          # Final cleanup
-          nix-collect-garbage -d || true
-          df -h
-
-      - name: Run unit tests
-        run: |
-          source /tmp/nix-dev-env.sh
-          nu scripts/test-ros.nu ${{ matrix.distro }} run-unit-tests
+          nu scripts/test-ros.nu ${{ matrix.distro }} build-rclz

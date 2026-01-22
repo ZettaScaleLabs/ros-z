@@ -22,8 +22,6 @@ default-members = ["ros-z", "ros-z-codegen"]
 ros-z = { version = "*", path = "ros-z" }
 rcl-z = { version = "*", path = "rcl-z" }
 
-roslibrust = { git = "https://github.com/YuanYuYuan/roslibrust", branch = "feat/ros2-action-hash" }
-roslibrust_codegen = { git = "https://github.com/YuanYuYuan/roslibrust", branch = "feat/ros2-action-hash" }
 
 # Serialization
 cdr = "0.2.4"
@@ -73,7 +71,7 @@ glob = "0.3"
 prost = "0.14"
 prost-build = "0.14"
 
-# roslibrust dependencies
+# Derive macros
 smart-default = "0.7"
 serde-big-array = "0.5"
 

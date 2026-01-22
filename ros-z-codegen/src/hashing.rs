@@ -106,7 +106,7 @@ pub fn calculate_type_hash(
 }
 
 /// Calculate RIHS01 hash for a service (Request + Response + Event)
-/// Based on ROS2 RIHS01 specification and roslibrust implementation
+/// Based on ROS2 RIHS01 specification
 pub fn calculate_service_type_hash(
     package: &str,
     service_name: &str,
