@@ -299,7 +299,7 @@ where
     #[inline]
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq> {
         match len {
-            None => Err(Error::SequenceLengthUnknown),
+            None => Err(Error::UnknownLength),
             Some(elem_count) => {
                 self.serialize_u32(elem_count as u32)?;
                 Ok(self)
@@ -336,7 +336,7 @@ where
     #[inline]
     fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap> {
         match len {
-            None => Err(Error::SequenceLengthUnknown),
+            None => Err(Error::UnknownLength),
             Some(elem_count) => {
                 self.serialize_u32(elem_count as u32)?;
                 Ok(self)

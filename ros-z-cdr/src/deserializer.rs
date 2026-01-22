@@ -51,7 +51,7 @@ where
             self.serialized_data_count += count;
             Ok(head)
         } else {
-            Err(Error::Eof)
+            Err(Error::UnexpectedEof)
         }
     }
 
@@ -115,9 +115,7 @@ where
     where
         V: Visitor<'de>,
     {
-        Err(Error::NotSelfDescribingFormat(
-            "CDR cannot deserialize \"any\" type.".to_string(),
-        ))
+        Err(Error::UnsupportedAny)
     }
 
     /// Boolean values are encoded as single octets (0 or 1).
@@ -128,7 +126,7 @@ where
         match self.next_bytes(1)?.first().unwrap() {
             0 => visitor.visit_bool(false),
             1 => visitor.visit_bool(true),
-            x => Err(Error::BadBoolean(*x)),
+            x => Err(Error::InvalidBool(*x)),
         }
     }
 
@@ -219,7 +217,7 @@ where
         let codepoint = self.next_bytes(4)?.read_u32::<BO>().unwrap();
         match char::from_u32(codepoint) {
             Some(c) => visitor.visit_char(c),
-            None => Err(Error::BadChar(codepoint)),
+            None => Err(Error::InvalidChar(codepoint)),
         }
     }
 
@@ -244,7 +242,7 @@ where
         };
 
         std::str::from_utf8(bytes_without_null)
-            .map_err(Error::BadUTF8)
+            .map_err(Error::Utf8)
             .and_then(|s| visitor.visit_borrowed_str(s))
     }
 
@@ -295,7 +293,7 @@ where
         match enum_tag {
             0 => visitor.visit_none(),
             1 => visitor.visit_some(self),
-            wtf => Err(Error::BadOption(wtf)),
+            wtf => Err(Error::InvalidOptionTag(wtf)),
         }
     }
 
