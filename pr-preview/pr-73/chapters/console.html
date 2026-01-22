@@ -196,25 +196,52 @@
 <p>ros-z-console uses zero-interference monitoring via pure Zenoh subscribers - it never pollutes the ROS graph with its own presence.</p>
 </div>
 </div>
-<h2 id="quick-start"><a class="header" href="#quick-start">Quick Start</a></h2>
-<div id="admonition-important" class="admonition admonish-tip" role="note" aria-labelledby="admonition-important-title">
+<h2 id="network-topology"><a class="header" href="#network-topology">Network Topology</a></h2>
+<p>ros-z-console connects to the ROS 2 graph via a Zenoh router. All ROS 2 nodes using <code>rmw_zenoh_cpp</code> communicate through the same router, enabling ros-z-console to observe the entire system.</p>
+<pre class="mermaid">graph LR
+    subgraph &quot;ROS 2 System&quot;
+        T[talker&lt;br/&gt;rmw_zenoh_cpp]
+        L[listener&lt;br/&gt;rmw_zenoh_cpp]
+    end
+
+    R[Zenoh Router&lt;br/&gt;rmw_zenohd]
+    C[ros-z-console]
+
+    T &lt;--&gt; R
+    L &lt;--&gt; R
+    C --&gt; R
+
+    style C fill:#2ecc71,color:#fff
+    style R fill:#3498db,color:#fff
+</pre>
+<h2 id="quick-start-monitoring-demo_nodes_cpp"><a class="header" href="#quick-start-monitoring-demo_nodes_cpp">Quick Start: Monitoring demo_nodes_cpp</a></h2>
+<p>This example shows ros-z-console monitoring the classic talker/listener demo from <code>demo_nodes_cpp</code>.</p>
+<p><strong>Terminal 1 - Start the Zenoh router:</strong></p>
+<pre><code class="language-bash">ros2 run rmw_zenoh_cpp rmw_zenohd
+</code></pre>
+<p><strong>Terminal 2 - Start the talker:</strong></p>
+<pre><code class="language-bash">export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+ros2 run demo_nodes_cpp talker
+</code></pre>
+<p><strong>Terminal 3 - Start the listener:</strong></p>
+<pre><code class="language-bash">export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+ros2 run demo_nodes_cpp listener
+</code></pre>
+<p><strong>Terminal 4 - Monitor with ros-z-console:</strong></p>
+<pre><code class="language-bash">ros-z-console tcp/127.0.0.1:7447 0
+</code></pre>
+<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
 <div class="admonition-title">
-<div id="admonition-important-title">
-<p>Important</p>
+<div id="admonition-success-title">
+<p>Success</p>
 </div>
-<a class="admonition-anchor-link" href="#admonition-important"></a>
+<a class="admonition-anchor-link" href="#admonition-success"></a>
 </div>
 <div>
-<p><strong>A Zenoh router must be running first.</strong> ros-z-console connects to a Zenoh router to discover the ROS 2 graph:</p>
-<pre><code class="language-bash"># Using ros-z's built-in router
-cargo run --example zenoh_router
-
-# Or using ROS 2's rmw_zenoh router
-ros2 run rmw_zenoh_cpp rmw_zenohd
-</code></pre>
+<p>You should see the <code>/chatter</code> topic, the <code>talker</code> and <code>listener</code> nodes, and their services appear in ros-z-console. Use the TUI to browse topics, check message rates, and inspect QoS settings.</p>
 </div>
 </div>
-<p>Leave the router running in a separate terminal, then start ros-z-console:</p>
+<h2 id="building-and-running"><a class="header" href="#building-and-running">Building and Running</a></h2>
 <pre><code class="language-bash"># Build the console
 cargo build -p ros-z-console --release
 
@@ -376,76 +403,21 @@ dot -Tpng graph.dot -o graph.png
 <pre><code class="language-bash"># After running TUI mode with measurements
 sqlite3 ros-z-metrics.db "SELECT topic, AVG(msgs_sec) FROM metrics GROUP BY topic"
 </code></pre>
-<h2 id="architecture"><a class="header" href="#architecture">Architecture</a></h2>
-<pre class="mermaid">graph TB
-    subgraph ros-z-console
-        CLI[CLI Parser]
-        Core[CoreEngine]
-        TUI[TUI Mode]
-        HL[Headless Mode]
-        Export[Export]
-    end
-
-    CLI --&gt; Core
-    Core --&gt; TUI
-    Core --&gt; HL
-    Core --&gt; Export
-    Core --&gt; |subscribe| Zenoh[Zenoh Network]
-    Zenoh --&gt; |events| Core
-</pre>
-<p><strong>CoreEngine</strong> is the central orchestrator that:</p>
-<ul>
-<li>Maintains an <code>Arc&lt;Session&gt;</code> for Zenoh communication</li>
-<li>Manages the graph state with <code>Arc&lt;Mutex&lt;Graph&gt;&gt;</code></li>
-<li>Collects metrics via <code>Arc&lt;Mutex&lt;MetricsCollector&gt;&gt;</code></li>
-<li>Broadcasts events through a <code>broadcast::Sender&lt;SystemEvent&gt;</code></li>
-</ul>
-<p>Both TUI and headless modes subscribe to this event stream for real-time updates.</p>
-<h2 id="monitoring-ros-2-with-rmw_zenoh_cpp"><a class="header" href="#monitoring-ros-2-with-rmw_zenoh_cpp">Monitoring ROS 2 with rmw_zenoh_cpp</a></h2>
-<p>ros-z-console can monitor any ROS 2 system using <code>rmw_zenoh_cpp</code> (the official Zenoh RMW implementation). This allows you to inspect nodes running standard ROS 2 packages.</p>
-<h3 id="example-monitoring-demo_nodes_cpp"><a class="header" href="#example-monitoring-demo_nodes_cpp">Example: Monitoring demo_nodes_cpp</a></h3>
-<p>This example shows ros-z-console monitoring the classic talker/listener demo from <code>demo_nodes_cpp</code>.</p>
-<p><strong>Terminal 1 - Start the Zenoh router:</strong></p>
-<pre><code class="language-bash">ros2 run rmw_zenoh_cpp rmw_zenohd
-</code></pre>
-<p><strong>Terminal 2 - Start the talker:</strong></p>
-<pre><code class="language-bash">export RMW_IMPLEMENTATION=rmw_zenoh_cpp
-ros2 run demo_nodes_cpp talker
-</code></pre>
-<p><strong>Terminal 3 - Start the listener:</strong></p>
-<pre><code class="language-bash">export RMW_IMPLEMENTATION=rmw_zenoh_cpp
-ros2 run demo_nodes_cpp listener
-</code></pre>
-<p><strong>Terminal 4 - Monitor with ros-z-console:</strong></p>
-<pre><code class="language-bash">ros-z-console tcp/127.0.0.1:7447 0
-</code></pre>
-<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
-<div class="admonition-title">
-<div id="admonition-success-title">
-<p>Success</p>
-</div>
-<a class="admonition-anchor-link" href="#admonition-success"></a>
-</div>
-<div>
-<p>You should see the <code>/chatter</code> topic, the <code>talker</code> and <code>listener</code> nodes, and their services appear in ros-z-console. Use the TUI to browse topics, check message rates, and inspect QoS settings.</p>
-</div>
-</div>
-<h3 id="headless-monitoring"><a class="header" href="#headless-monitoring">Headless Monitoring</a></h3>
-<p>For scripted or automated monitoring of rmw_zenoh_cpp systems:</p>
+<h2 id="headless-monitoring"><a class="header" href="#headless-monitoring">Headless Monitoring</a></h2>
+<p>For scripted or automated monitoring:</p>
 <pre><code class="language-bash">ros-z-console --headless --json tcp/127.0.0.1:7447 0
 </code></pre>
 <p>Example output:</p>
 <pre><code class="language-json">{"TopicDiscovered":{"topic":"/chatter","type_name":"std_msgs/msg/String","timestamp":"..."}}
 {"NodeDiscovered":{"namespace":"/","name":"talker","timestamp":"..."}}
 {"NodeDiscovered":{"namespace":"/","name":"listener","timestamp":"..."}}
-{"ServiceDiscovered":{"service":"/talker/describe_parameters","type_name":"rcl_interfaces/srv/DescribeParameters","timestamp":"..."}}
 </code></pre>
-<div id="admonition-why-this-works" class="admonition admonish-tip" role="note" aria-labelledby="admonition-why-this-works-title">
+<div id="admonition-interoperability" class="admonition admonish-tip" role="note" aria-labelledby="admonition-interoperability-title">
 <div class="admonition-title">
-<div id="admonition-why-this-works-title">
-<p>Why this works</p>
+<div id="admonition-interoperability-title">
+<p>Interoperability</p>
 </div>
-<a class="admonition-anchor-link" href="#admonition-why-this-works"></a>
+<a class="admonition-anchor-link" href="#admonition-interoperability"></a>
 </div>
 <div>
 <p>Both ros-z and rmw_zenoh_cpp use the same Zenoh-based discovery protocol. ros-z-console subscribes to the graph liveliness tokens that rmw_zenoh_cpp nodes publish, enabling seamless interoperability without any configuration changes.</p>
