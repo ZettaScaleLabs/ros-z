@@ -1,7 +1,7 @@
 //! Integration tests for ros-z-cdr
 
 use byteorder::{BigEndian, LittleEndian};
-use ros_z_cdr::{CdrBuffer, CdrDeserializer, ZBufWriter, from_bytes, to_vec_fast, to_vec_reuse};
+use ros_z_cdr::{CdrBuffer, CdrDeserializer, ZBufWriter, from_bytes, to_vec, to_vec_reuse};
 use serde::{Deserialize, Serialize};
 use zenoh_buffers::{ZSlice, buffer::SplitBuffer};
 
@@ -88,14 +88,14 @@ fn test_serializer_basic() {
 
     let expected: Vec<u8> = vec![0x01, 0x00, 0x00, 0x00, 0x61, 0x62, 0x63, 0x64];
 
-    let serialized = to_vec_fast::<_, LittleEndian>(&o, 16).unwrap();
+    let serialized = to_vec::<_, LittleEndian>(&o, 16).unwrap();
     assert_eq!(serialized, expected);
 }
 
 #[test]
 fn test_serializer_bytes() {
     let data = vec![0u8, 1, 2, 3, 4, 5];
-    let serialized = to_vec_fast::<_, LittleEndian>(&data, 16).unwrap();
+    let serialized = to_vec::<_, LittleEndian>(&data, 16).unwrap();
 
     assert_eq!(serialized.len(), 4 + 6);
     assert_eq!(&serialized[0..4], &[6, 0, 0, 0]);
@@ -200,7 +200,7 @@ fn test_vec() {
 #[test]
 fn test_round_trip() {
     let original = SimpleStruct { x: 42, y: -100 };
-    let serialized = to_vec_fast::<_, LittleEndian>(&original, 64).unwrap();
+    let serialized = to_vec::<_, LittleEndian>(&original, 64).unwrap();
     let (deserialized, bytes_consumed): (SimpleStruct, usize) =
         from_bytes::<SimpleStruct, LittleEndian>(&serialized).unwrap();
     assert_eq!(original, deserialized);
@@ -210,8 +210,8 @@ fn test_round_trip() {
 #[test]
 fn test_endianness() {
     let val: i32 = 0x12345678;
-    let le_bytes = to_vec_fast::<_, LittleEndian>(&val, 16).unwrap();
-    let be_bytes = to_vec_fast::<_, BigEndian>(&val, 16).unwrap();
+    let le_bytes = to_vec::<_, LittleEndian>(&val, 16).unwrap();
+    let be_bytes = to_vec::<_, BigEndian>(&val, 16).unwrap();
 
     let le_result: i32 = deserialize_from_little_endian(&le_bytes).unwrap();
     let be_result: i32 = deserialize_from_big_endian(&be_bytes).unwrap();

@@ -125,8 +125,8 @@ impl<BO: ByteOrder> CdrSerializer<BO, ZBufWriter> {
     }
 }
 
-/// Fast serialization to Vec<u8>.
-pub fn to_vec_fast<T, BO>(value: &T, capacity_hint: usize) -> Result<Vec<u8>>
+/// Serialize to a new Vec<u8>.
+pub fn to_vec<T, BO>(value: &T, capacity_hint: usize) -> Result<Vec<u8>>
 where
     T: Serialize,
     BO: ByteOrder,

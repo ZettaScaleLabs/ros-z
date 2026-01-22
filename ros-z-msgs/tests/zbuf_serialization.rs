@@ -4,7 +4,7 @@
 //! serialized, and that the zero-copy optimization works correctly.
 
 use byteorder::LittleEndian;
-use ros_z_cdr::to_vec_fast;
+use ros_z_cdr::to_vec;
 use ros_z_msgs::{sensor_msgs::CompressedImage, std_msgs::Header};
 use zenoh_buffers::{
     ZBuf,
@@ -25,8 +25,7 @@ fn test_zbuf_field_serialization() {
     assert_eq!(img.data.contiguous().as_ref(), &[1u8, 2, 3, 4, 5, 6, 7, 8]);
 
     // Serialize using CDR - this verifies that our custom serde implementation works
-    let serialized =
-        to_vec_fast::<_, LittleEndian>(&img, 256).expect("Serialization should succeed");
+    let serialized = to_vec::<_, LittleEndian>(&img, 256).expect("Serialization should succeed");
 
     // Verify serialized data contains the byte array
     // CDR format: [header][format string][byte array length][byte array data]
@@ -48,8 +47,7 @@ fn test_zbuf_empty() {
     assert!(img.data.contiguous().as_ref().is_empty());
 
     // Verify empty ZBuf serializes correctly
-    let serialized =
-        to_vec_fast::<_, LittleEndian>(&img, 256).expect("Serialization should succeed");
+    let serialized = to_vec::<_, LittleEndian>(&img, 256).expect("Serialization should succeed");
 
     assert!(!serialized.is_empty(), "Should serialize empty ZBuf");
 }
@@ -70,8 +68,7 @@ fn test_zbuf_large_data() {
     assert_eq!(img.data.contiguous().as_ref(), large_data.as_slice());
 
     // Serialize - this exercises the contiguous() method for larger data
-    let serialized =
-        to_vec_fast::<_, LittleEndian>(&img, 16384).expect("Serialization should succeed");
+    let serialized = to_vec::<_, LittleEndian>(&img, 16384).expect("Serialization should succeed");
 
     // Serialized size should be roughly: header + format string + 4 bytes (length) + 10000 bytes (data)
     assert!(
@@ -99,6 +96,5 @@ fn test_zbuf_zero_copy_property() {
         data: zbuf,
     };
 
-    let _serialized =
-        to_vec_fast::<_, LittleEndian>(&img, 256).expect("Serialization should succeed");
+    let _serialized = to_vec::<_, LittleEndian>(&img, 256).expect("Serialization should succeed");
 }

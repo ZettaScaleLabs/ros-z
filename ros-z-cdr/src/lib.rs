@@ -15,7 +15,7 @@ pub use buffer::CdrBuffer;
 pub use byteorder::{BigEndian, LittleEndian};
 pub use deserializer::{CdrDeserializer, from_bytes, from_bytes_with};
 pub use error::{Error, Result};
-pub use serializer::{CdrSerializer, to_buffer, to_vec_fast, to_vec_reuse};
+pub use serializer::{CdrSerializer, to_buffer, to_vec, to_vec_reuse};
 pub use zbuf_writer::ZBufWriter;
 
 /// Native endian type alias for the current platform.
