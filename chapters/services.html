@@ -221,7 +221,7 @@
 <h2 id="service-server-example"><a class="header" href="#service-server-example">Service Server Example</a></h2>
 <p>This example demonstrates a service server that adds two integers. The server waits for requests, processes them, and sends responses back to clients.</p>
 <pre><code class="language-rust ignore">use ros_z::{Builder, Result, context::ZContext};
-use ros_z_msgs::example_interfaces::{AddTwoInts, AddTwoIntsResponse};
+use ros_z_msgs::example_interfaces::{AddTwoIntsResponse, srv::AddTwoInts};
 
 /// AddTwoInts server node that provides a service to add two integers
 ///
@@ -276,20 +276,20 @@ pub fn run_add_two_ints_server(ctx: ZContext, max_requests: Option&lt;usize&gt;)
 </ul>
 <p><strong>Running the server:</strong></p>
 <pre><code class="language-bash"># Basic usage - runs indefinitely
-cargo run --example demo_nodes_add_two_ints_server -F external_msgs
+cargo run --example demo_nodes_add_two_ints_server
 
 # Handle 5 requests then exit
-cargo run --example demo_nodes_add_two_ints_server -F external_msgs -- --count 5
+cargo run --example demo_nodes_add_two_ints_server -- --count 5
 
 # Connect to specific Zenoh router
-cargo run --example demo_nodes_add_two_ints_server -F external_msgs -- --endpoint tcp/localhost:7447
+cargo run --example demo_nodes_add_two_ints_server -- --endpoint tcp/localhost:7447
 </code></pre>
 <h2 id="service-client-example"><a class="header" href="#service-client-example">Service Client Example</a></h2>
 <p>This example demonstrates a service client that sends addition requests to the server and displays the results.</p>
 <pre><code class="language-rust ignore">use std::time::Duration;
 
 use ros_z::{Builder, Result, context::ZContext};
-use ros_z_msgs::example_interfaces::{AddTwoInts, AddTwoIntsRequest};
+use ros_z_msgs::example_interfaces::{AddTwoIntsRequest, srv::AddTwoInts};
 
 /// AddTwoInts client node that calls the service to add two integers
 ///
@@ -340,13 +340,13 @@ pub fn run_add_two_ints_client(ctx: ZContext, a: i64, b: i64, async_mode: bool) 
 </ul>
 <p><strong>Running the client:</strong></p>
 <pre><code class="language-bash"># Basic usage
-cargo run --example demo_nodes_add_two_ints_client -F external_msgs -- --a 10 --b 20
+cargo run --example demo_nodes_add_two_ints_client -- --a 10 --b 20
 
 # Using async mode
-cargo run --example demo_nodes_add_two_ints_client -F external_msgs -- --a 5 --b 3 --async-mode
+cargo run --example demo_nodes_add_two_ints_client -- --a 5 --b 3 --async-mode
 
 # Connect to specific Zenoh router
-cargo run --example demo_nodes_add_two_ints_client -F external_msgs -- --a 100 --b 200 --endpoint tcp/localhost:7447
+cargo run --example demo_nodes_add_two_ints_client -- --a 100 --b 200 --endpoint tcp/localhost:7447
 </code></pre>
 <h2 id="complete-service-workflow"><a class="header" href="#complete-service-workflow">Complete Service Workflow</a></h2>
 <p>To see services in action, you'll need to start a Zenoh router first:</p>
@@ -354,14 +354,14 @@ cargo run --example demo_nodes_add_two_ints_client -F external_msgs -- --a 100 -
 <pre><code class="language-bash">cargo run --example zenoh_router
 </code></pre>
 <p><strong>Terminal 2 - Start Server:</strong></p>
-<pre><code class="language-bash">cargo run --example demo_nodes_add_two_ints_server -F external_msgs
+<pre><code class="language-bash">cargo run --example demo_nodes_add_two_ints_server
 </code></pre>
 <p><strong>Terminal 3 - Send Client Requests:</strong></p>
 <pre><code class="language-bash"># Request 1
-cargo run --example demo_nodes_add_two_ints_client -F external_msgs -- --a 10 --b 20
+cargo run --example demo_nodes_add_two_ints_client -- --a 10 --b 20
 
 # Request 2
-cargo run --example demo_nodes_add_two_ints_client -F external_msgs -- --a 100 --b 200
+cargo run --example demo_nodes_add_two_ints_client -- --a 100 --b 200
 </code></pre>
 <script src="https://asciinema.org/a/yChRkMOyYKoKBPqM.js" id="asciicast-yChRkMOyYKoKBPqM" async="true"></script>
 <div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">

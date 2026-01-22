@@ -201,7 +201,7 @@
 <tr><td><strong>Distribution</strong></td><td>Target specific ROS 2 versions</td><td><code>humble</code>, <code>jazzy</code>, <code>rolling</code></td></tr>
 <tr><td><strong>Message Packages</strong></td><td>Enable ROS 2 message types</td><td><code>std_msgs</code>, <code>geometry_msgs</code></td></tr>
 <tr><td><strong>Serialization</strong></td><td>Additional encoding formats</td><td><code>protobuf</code></td></tr>
-<tr><td><strong>Integration</strong></td><td>External system bindings</td><td><code>rcl-z</code>, <code>external_msgs</code></td></tr>
+<tr><td><strong>Integration</strong></td><td>External system bindings</td><td><code>rcl-z</code></td></tr>
 </tbody></table>
 </div>
 <h2 id="ros-z-core-features"><a class="header" href="#ros-z-core-features">ros-z Core Features</a></h2>
@@ -288,26 +288,19 @@ cargo build --features iron
 <p>This feature requires ROS 2 to be sourced before building. See <a href="./building.html">Building Guide</a> for setup instructions.</p>
 </div>
 </div>
-<h3 id="external_msgs"><a class="header" href="#external_msgs"><code>external_msgs</code></a></h3>
-<p>Propagates to <code>ros-z-msgs/external_msgs</code> for examples using external message packages.</p>
-<pre><code class="language-bash">cargo build -p ros-z --features external_msgs
-cargo run --example z_srvcli --features external_msgs
-</code></pre>
-<p><strong>Enables:</strong> Examples requiring <code>example_interfaces</code> and other external packages</p>
 <h2 id="ros-z-msgs-features"><a class="header" href="#ros-z-msgs-features">ros-z-msgs Features</a></h2>
 <h3 id="default-features"><a class="header" href="#default-features">Default Features</a></h3>
-<p>The default build includes commonly used message types:</p>
+<p>The default build includes commonly used message types via <code>core_msgs</code>:</p>
 <pre><code class="language-bash">cargo build -p ros-z-msgs
 </code></pre>
 <p><strong>Includes:</strong></p>
 <ul>
-<li><code>common_interfaces</code> meta-feature
-<ul>
 <li><code>std_msgs</code> - Basic types (String, Int32, etc.)</li>
 <li><code>geometry_msgs</code> - Spatial types (Point, Pose, Transform)</li>
 <li><code>sensor_msgs</code> - Sensor data (LaserScan, Image, Imu)</li>
-</ul>
-</li>
+<li><code>nav_msgs</code> - Navigation (Path, Odometry, OccupancyGrid)</li>
+<li><code>example_interfaces</code> - Tutorial services (AddTwoInts)</li>
+<li><code>action_tutorials_interfaces</code> - Tutorial actions (Fibonacci)</li>
 </ul>
 <div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
 <div class="admonition-title">
@@ -317,78 +310,38 @@ cargo run --example z_srvcli --features external_msgs
 <a class="admonition-anchor-link" href="#admonition-tip"></a>
 </div>
 <div>
-<p>Default features require no ROS 2 installation. Message definitions come bundled via roslibrust.</p>
+<p>All messages are vendored in assets - no ROS 2 installation required. Feature flags simply control which packages to include in your build.</p>
 </div>
 </div>
-<h3 id="bundled-message-features"><a class="header" href="#bundled-message-features">Bundled Message Features</a></h3>
-<p>Work without ROS 2 installation:</p>
-<pre class="mermaid">graph LR
-    A[Bundled Features] --&gt; B[std_msgs]
-    A --&gt; C[geometry_msgs]
-    A --&gt; D[sensor_msgs]
-    A --&gt; E[nav_msgs]
-
-    B --&gt; F[roslibrust assets]
-    C --&gt; F
-    D --&gt; F
-    E --&gt; F
-</pre>
-<p><strong>Individual packages:</strong></p>
+<h3 id="individual-package-features"><a class="header" href="#individual-package-features">Individual Package Features</a></h3>
+<p>All packages are bundled in assets and work without ROS 2:</p>
 <div class="table-wrapper"><table><thead><tr><th>Feature</th><th>Package</th><th>Use Case</th></tr></thead><tbody>
 <tr><td><code>std_msgs</code></td><td>Standard messages</td><td>Strings, numbers, arrays</td></tr>
 <tr><td><code>geometry_msgs</code></td><td>Geometric primitives</td><td>Points, poses, transforms</td></tr>
 <tr><td><code>sensor_msgs</code></td><td>Sensor data</td><td>Cameras, lidars, IMUs</td></tr>
 <tr><td><code>nav_msgs</code></td><td>Navigation</td><td>Paths, maps, odometry</td></tr>
+<tr><td><code>example_interfaces</code></td><td>Tutorial services</td><td>AddTwoInts, Fibonacci</td></tr>
+<tr><td><code>action_tutorials_interfaces</code></td><td>Tutorial actions</td><td>Fibonacci action</td></tr>
+<tr><td><code>test_msgs</code></td><td>Test types</td><td>Testing and validation</td></tr>
 </tbody></table>
 </div>
 <p><strong>Usage:</strong></p>
 <pre><code class="language-bash"># Single package
-cargo build -p ros-z-msgs --features std_msgs
+cargo build -p ros-z-msgs --no-default-features --features std_msgs
 
 # Multiple packages
-cargo build -p ros-z-msgs --features "std_msgs,geometry_msgs"
+cargo build -p ros-z-msgs --no-default-features --features "std_msgs,geometry_msgs"
 
-# All bundled
-cargo build -p ros-z-msgs --features bundled_msgs
+# Default (core_msgs)
+cargo build -p ros-z-msgs
 </code></pre>
-<h3 id="external-message-features"><a class="header" href="#external-message-features">External Message Features</a></h3>
-<p>Require ROS 2 installation:</p>
-<pre class="mermaid">graph LR
-    A[External Features] --&gt; B[example_interfaces]
-    B --&gt; C[ROS 2 Installation]
-    C --&gt; D[AMENT_PREFIX_PATH]
-</pre>
-<p><strong>Available packages:</strong></p>
-<div class="table-wrapper"><table><thead><tr><th>Feature</th><th>Package</th><th>Use Case</th></tr></thead><tbody>
-<tr><td><code>example_interfaces</code></td><td>Tutorial services</td><td>AddTwoInts, Fibonacci</td></tr>
-<tr><td><code>action_msgs</code></td><td>Action types</td><td>GoalStatus, ActionFeedback</td></tr>
-<tr><td><em>(custom)</em></td><td>Your packages</td><td>Domain-specific types</td></tr>
-</tbody></table>
-</div>
-<p><strong>Usage:</strong></p>
-<pre><code class="language-bash"># Ensure ROS 2 is sourced
-source /opt/ros/jazzy/setup.bash
-
-# Build with external messages
-cargo build -p ros-z-msgs --features external_msgs
-
-# Or specific package
-cargo build -p ros-z-msgs --features example_interfaces
+<h3 id="convenience-aliases"><a class="header" href="#convenience-aliases">Convenience Aliases</a></h3>
+<p><strong><code>core_msgs</code> (default):</strong></p>
+<p>The most commonly used packages for ROS 2 development.</p>
+<pre><code class="language-bash">cargo build -p ros-z-msgs  # Uses core_msgs by default
 </code></pre>
-<div id="admonition-warning-1" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-1-title">
-<div class="admonition-title">
-<div id="admonition-warning-1-title">
-<p>Warning</p>
-</div>
-<a class="admonition-anchor-link" href="#admonition-warning-1"></a>
-</div>
-<div>
-<p>External message features fail without ROS 2. Source your ROS 2 installation before building.</p>
-</div>
-</div>
-<h3 id="meta-features"><a class="header" href="#meta-features">Meta Features</a></h3>
-<p>Convenience features that enable multiple packages:</p>
-<p><strong><code>common_interfaces</code> (default):</strong></p>
+<p>Enables: <code>std_msgs</code>, <code>geometry_msgs</code>, <code>sensor_msgs</code>, <code>nav_msgs</code>, <code>example_interfaces</code>, <code>action_tutorials_interfaces</code></p>
+<p><strong><code>common_interfaces</code>:</strong></p>
 <pre><code class="language-bash">cargo build -p ros-z-msgs --features common_interfaces
 </code></pre>
 <p>Enables: <code>std_msgs</code>, <code>geometry_msgs</code>, <code>sensor_msgs</code></p>
@@ -396,10 +349,12 @@ cargo build -p ros-z-msgs --features example_interfaces
 <pre><code class="language-bash">cargo build -p ros-z-msgs --features bundled_msgs
 </code></pre>
 <p>Enables: <code>std_msgs</code>, <code>geometry_msgs</code>, <code>sensor_msgs</code>, <code>nav_msgs</code></p>
+<p><strong><code>robotics</code>:</strong></p>
+<p>Alias for <code>core_msgs</code>.</p>
 <p><strong><code>all_msgs</code>:</strong></p>
 <pre><code class="language-bash">cargo build -p ros-z-msgs --features all_msgs
 </code></pre>
-<p>Enables: All bundled + all external messages</p>
+<p>Enables: All available packages including <code>test_msgs</code></p>
 <h3 id="protobuf-types"><a class="header" href="#protobuf-types">Protobuf Types</a></h3>
 <p>Generate protobuf types alongside ROS messages:</p>
 <pre><code class="language-bash">cargo build -p ros-z-msgs --features protobuf
@@ -414,18 +369,21 @@ cargo build -p ros-z-msgs --features example_interfaces
 <h2 id="feature-dependency-graph"><a class="header" href="#feature-dependency-graph">Feature Dependency Graph</a></h2>
 <pre class="mermaid">graph TD
     A[all_msgs] --&gt; B[bundled_msgs]
-    A --&gt; C[external_msgs]
+    A --&gt; C[example_interfaces]
+    A --&gt; D[action_tutorials_interfaces]
+    A --&gt; E[test_msgs]
 
-    B --&gt; D[std_msgs]
-    B --&gt; E[geometry_msgs]
-    B --&gt; F[sensor_msgs]
-    B --&gt; G[nav_msgs]
+    B --&gt; F[std_msgs]
+    B --&gt; G[geometry_msgs]
+    B --&gt; H[sensor_msgs]
+    B --&gt; I[nav_msgs]
 
-    C --&gt; H[example_interfaces]
-
-    I[common_interfaces] --&gt; D
-    I --&gt; E
-    I --&gt; F
+    J[core_msgs] --&gt; F
+    J --&gt; G
+    J --&gt; H
+    J --&gt; I
+    J --&gt; C
+    J --&gt; D
 </pre>
 <h2 id="common-feature-combinations"><a class="header" href="#common-feature-combinations">Common Feature Combinations</a></h2>
 <h3 id="minimal-development"><a class="header" href="#minimal-development">Minimal Development</a></h3>
@@ -441,15 +399,19 @@ cargo build -p ros-z
 </code></pre>
 <p><strong>Dependencies:</strong> Rust, Cargo
 <strong>Use case:</strong> Most applications</p>
-<h3 id="full-ros-2-integration"><a class="header" href="#full-ros-2-integration">Full ROS 2 Integration</a></h3>
-<p>Everything including external messages:</p>
+<h3 id="full-message-set"><a class="header" href="#full-message-set">Full Message Set</a></h3>
+<p>All available message packages:</p>
+<pre><code class="language-bash">cargo build -p ros-z-msgs --features all_msgs
+</code></pre>
+<p><strong>Dependencies:</strong> Rust, Cargo
+<strong>Use case:</strong> Access to all bundled message types including test_msgs</p>
+<h3 id="rcl-integration"><a class="header" href="#rcl-integration">RCL Integration</a></h3>
+<p>For C/C++ ROS 2 interoperability:</p>
 <pre><code class="language-bash">source /opt/ros/jazzy/setup.bash
-cargo build -p ros-z-msgs --features all_msgs
-cargo build -p ros-z --features external_msgs
 cargo build -p rcl-z
 </code></pre>
 <p><strong>Dependencies:</strong> Rust, Cargo, ROS 2
-<strong>Use case:</strong> Complete ROS 2 ecosystem integration</p>
+<strong>Use case:</strong> Hybrid Rust/C++ applications</p>
 <h3 id="protobuf-development"><a class="header" href="#protobuf-development">Protobuf Development</a></h3>
 <p>Core with protobuf serialization:</p>
 <pre><code class="language-bash">cargo build -p ros-z-codegen --features protobuf
@@ -466,10 +428,9 @@ cargo build -p ros-z --features protobuf
 <tr><td>ros-z</td><td>rolling</td><td>No</td><td>None</td></tr>
 <tr><td>ros-z</td><td>protobuf</td><td>No</td><td>prost, prost-types</td></tr>
 <tr><td>ros-z</td><td>rcl-z</td><td>Yes</td><td>RCL libraries</td></tr>
-<tr><td>ros-z</td><td>external_msgs</td><td>Yes (propagated)</td><td>None</td></tr>
-<tr><td>ros-z-msgs</td><td>common_interfaces</td><td>No</td><td>None (bundled)</td></tr>
+<tr><td>ros-z-msgs</td><td>core_msgs (default)</td><td>No</td><td>None (bundled)</td></tr>
 <tr><td>ros-z-msgs</td><td>bundled_msgs</td><td>No</td><td>None (bundled)</td></tr>
-<tr><td>ros-z-msgs</td><td>external_msgs</td><td>Yes</td><td>None (uses system)</td></tr>
+<tr><td>ros-z-msgs</td><td>all_msgs</td><td>No</td><td>None (bundled)</td></tr>
 <tr><td>ros-z-msgs</td><td>protobuf</td><td>No</td><td>prost, prost-types</td></tr>
 <tr><td>ros-z-msgs</td><td>jazzy (default)</td><td>No</td><td>None</td></tr>
 <tr><td>ros-z-msgs</td><td>humble</td><td>No</td><td>None</td></tr>
@@ -504,25 +465,34 @@ cargo build -p ros-z-msgs --features std_msgs,geometry_msgs -v
     B --&gt;|No| C[Zero features&lt;br/&gt;Custom messages]
     B --&gt;|Yes| D{Which messages?}
 
-    D --&gt;|Common| E{ROS 2 available?}
-    E --&gt;|No| F[bundled_msgs&lt;br/&gt;No ROS required]
-    E --&gt;|Yes| G[bundled_msgs&lt;br/&gt;Or all_msgs]
+    D --&gt;|Common| E[core_msgs&lt;br/&gt;default]
+    D --&gt;|Minimal| F[bundled_msgs or&lt;br/&gt;individual packages]
+    D --&gt;|All| G[all_msgs]
 
-    D --&gt;|All/External| H[all_msgs&lt;br/&gt;Requires ROS 2]
-
-    C --&gt; I[Minimal dependencies]
-    F --&gt; J[Standard dependencies]
-    G --&gt; K[Standard dependencies]
-    H --&gt; L[Full dependencies]
+    C --&gt; H[Minimal dependencies]
+    E --&gt; I[Standard dependencies]
+    F --&gt; I
+    G --&gt; I
 </pre>
 <p><strong>Decision guide:</strong></p>
 <ol>
-<li><strong>Prototyping?</strong> → Use bundled_msgs (no ROS 2 required)</li>
-<li><strong>Need external packages?</strong> → Use all_msgs (requires ROS 2)</li>
+<li><strong>Most projects?</strong> → Use defaults (<code>core_msgs</code>) - includes common packages</li>
+<li><strong>Minimal build?</strong> → Use <code>--no-default-features</code> with specific packages</li>
 <li><strong>Custom messages only?</strong> → No message features</li>
 <li><strong>Cross-language data?</strong> → Add protobuf feature</li>
-<li><strong>C++ integration?</strong> → Add rcl-z feature</li>
+<li><strong>C++ integration?</strong> → Add rcl-z feature (requires ROS 2)</li>
 </ol>
+<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+<div class="admonition-title">
+<div id="admonition-note-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-note"></a>
+</div>
+<div>
+<p>All message packages are vendored - no ROS 2 installation required for any message feature.</p>
+</div>
+</div>
 <div id="admonition-info-1" class="admonition admonish-info" role="note" aria-labelledby="admonition-info-1-title">
 <div class="admonition-title">
 <div id="admonition-info-1-title">
@@ -535,14 +505,12 @@ cargo build -p ros-z-msgs --features std_msgs,geometry_msgs -v
 </div>
 </div>
 <h2 id="examples-by-feature"><a class="header" href="#examples-by-feature">Examples by Feature</a></h2>
-<h3 id="bundled-messages-only"><a class="header" href="#bundled-messages-only">Bundled Messages Only</a></h3>
+<h3 id="bundled-messages-default"><a class="header" href="#bundled-messages-default">Bundled Messages (Default)</a></h3>
 <pre><code class="language-bash">cargo run --example z_pubsub          # std_msgs
 cargo run --example twist_pub         # geometry_msgs
 cargo run --example battery_state_sub # sensor_msgs
 cargo run --example z_pingpong        # std_msgs
-</code></pre>
-<h3 id="external-messages-required"><a class="header" href="#external-messages-required">External Messages Required</a></h3>
-<pre><code class="language-bash">cargo run --example z_srvcli --features external_msgs  # example_interfaces
+cargo run --example z_srvcli          # example_interfaces (now bundled)
 </code></pre>
 <h3 id="custom-messages"><a class="header" href="#custom-messages">Custom Messages</a></h3>
 <pre><code class="language-bash">cargo run --example z_custom_message  # No features needed

@@ -231,7 +231,7 @@ sudo apt install ros-jazzy-example-interfaces
 <li>
 <p><strong>Clean and rebuild:</strong></p>
 <pre><code class="language-bash">cargo clean -p ros-z-msgs
-cargo build -p ros-z-msgs --features external_msgs
+cargo build -p ros-z-msgs
 </code></pre>
 </li>
 </ol>
@@ -241,9 +241,7 @@ cargo build -p ros-z-msgs --features external_msgs
 <tr><td>"Cannot find ament_index"</td><td>Install ROS 2 or use bundled msgs</td></tr>
 <tr><td>"AMENT_PREFIX_PATH not set"</td><td>Run <code>source /opt/ros/jazzy/setup.bash</code></td></tr>
 </tbody></table>
-</div>
-<p><strong>Note:</strong> Always source ROS 2 before building with <code>external_msgs</code>. The build system reads environment variables at build time, not runtime.</p>
-</div>
+</div></div>
 </details>
 <details id="admonition-compiler-error-cannot-find-crate-ros_z_msgs" class="admonition admonish-question" role="note" aria-labelledby="admonition-compiler-error-cannot-find-crate-ros_z_msgs-title">
 <summary class="admonition-title">
@@ -258,11 +256,8 @@ cargo build -p ros-z-msgs --features external_msgs
 <pre><code class="language-bash"># Build ros-z-msgs explicitly
 cargo build -p ros-z-msgs
 
-# For external messages
-cargo build -p ros-z-msgs --features external_msgs
-
 # Then build your example
-cargo build --example z_srvcli --features external_msgs
+cargo build --example z_srvcli
 </code></pre>
 <p><strong>Note:</strong> <code>ros-z-msgs</code> is excluded from default builds to avoid requiring ROS 2 for core development. Build it explicitly when needed.</p>
 </div>

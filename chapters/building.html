@@ -210,43 +210,43 @@ tokio = { version = "1", features = ["full"] }  # Async runtime required
 <li>Fast build times</li>
 </ul>
 <h3 id="scenario-2-using-bundled-ros-messages"><a class="header" href="#scenario-2-using-bundled-ros-messages">Scenario 2: Using Bundled ROS Messages</a></h3>
-<p><strong>Use when:</strong> You need standard ROS 2 message types but don't have ROS 2 installed</p>
+<p><strong>Use when:</strong> You need standard ROS 2 message types (no ROS 2 installation required)</p>
 <p><strong>Add to your <code>Cargo.toml</code>:</strong></p>
 <pre><code class="language-toml">[dependencies]
 ros-z = "0.x"
-ros-z-msgs = "0.x"  # Includes std_msgs, geometry_msgs, sensor_msgs, nav_msgs
+ros-z-msgs = "0.x"  # Includes core_msgs by default
 tokio = { version = "1", features = ["full"] }
 </code></pre>
-<p><strong>Bundled message packages:</strong></p>
+<p><strong>Default message packages (core_msgs):</strong></p>
 <ul>
 <li><code>std_msgs</code> - Primitive types (String, Int32, Float64, etc.)</li>
 <li><code>geometry_msgs</code> - Spatial data (Point, Pose, Transform, Twist)</li>
 <li><code>sensor_msgs</code> - Sensor data (LaserScan, Image, Imu, PointCloud2)</li>
 <li><code>nav_msgs</code> - Navigation (Path, OccupancyGrid, Odometry)</li>
+<li><code>example_interfaces</code> - Tutorial services (AddTwoInts)</li>
+<li><code>action_tutorials_interfaces</code> - Tutorial actions (Fibonacci)</li>
 </ul>
-<h3 id="scenario-3-full-ros-2-integration"><a class="header" href="#scenario-3-full-ros-2-integration">Scenario 3: Full ROS 2 Integration</a></h3>
-<p><strong>Use when:</strong> You need all ROS 2 message types or custom packages from your workspace</p>
-<p><strong>Requirements:</strong> ROS 2 installation (Jazzy, Humble, Rolling, etc.)</p>
+<h3 id="scenario-3-all-message-packages"><a class="header" href="#scenario-3-all-message-packages">Scenario 3: All Message Packages</a></h3>
+<p><strong>Use when:</strong> You need all available message types including test messages</p>
+<p><strong>Requirements:</strong> None (all messages are vendored)</p>
 <p><strong>Add to your <code>Cargo.toml</code>:</strong></p>
 <pre><code class="language-toml">[dependencies]
 ros-z = "0.x"
-ros-z-msgs = { version = "0.x", features = ["external_msgs"] }
+ros-z-msgs = { version = "0.x", features = ["all_msgs"] }
 tokio = { version = "1", features = ["full"] }
 </code></pre>
-<p><strong>The <code>external_msgs</code> feature flag tells ros-z-msgs to generate bindings for all message types found in your ROS 2 installation.</strong> Without this flag, only bundled messages are included (Scenario 2).</p>
 <p><strong>Build your project:</strong></p>
-<pre><code class="language-bash"># Ensure ROS 2 is sourced (Jazzy as an example)
-source /opt/ros/jazzy/setup.bash
-
-# Build your project with external_msgs feature
-# This feature enables access to all ROS 2 message types from your installation
-cargo build --features external_msgs
+<pre><code class="language-bash">cargo build
 </code></pre>
-<p><strong>Additional packages available:</strong></p>
+<p><strong>All available packages:</strong></p>
 <ul>
-<li><code>example_interfaces</code> - Tutorial services and actions</li>
-<li><code>action_msgs</code> - Action communication types</li>
-<li>Any custom messages from your ROS 2 workspace</li>
+<li><code>std_msgs</code> - Basic types</li>
+<li><code>geometry_msgs</code> - Spatial data</li>
+<li><code>sensor_msgs</code> - Sensor data</li>
+<li><code>nav_msgs</code> - Navigation</li>
+<li><code>example_interfaces</code> - Tutorial services (AddTwoInts)</li>
+<li><code>action_tutorials_interfaces</code> - Tutorial actions (Fibonacci)</li>
+<li><code>test_msgs</code> - Test types</li>
 </ul>
 <div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
 <div class="admonition-title">
@@ -256,7 +256,7 @@ cargo build --features external_msgs
 <a class="admonition-anchor-link" href="#admonition-tip"></a>
 </div>
 <div>
-<p>Start with Scenario 1 or 2 for development, then move to Scenario 3 when you need full ROS 2 interoperability.</p>
+<p>The default <code>core_msgs</code> feature includes everything except <code>test_msgs</code>. Use <code>all_msgs</code> only if you need test message types.</p>
 </div>
 </div>
 <h2 id="ros-2-distribution-compatibility"><a class="header" href="#ros-2-distribution-compatibility">ROS 2 Distribution Compatibility</a></h2>
@@ -279,7 +279,7 @@ cargo build --features rolling
 <div class="table-wrapper"><table><thead><tr><th>Package</th><th>Default Build</th><th>Purpose</th><th>Dependencies</th></tr></thead><tbody>
 <tr><td><strong>ros-z</strong></td><td>Yes</td><td>Core Zenoh-native ROS 2 library</td><td>None</td></tr>
 <tr><td><strong>ros-z-codegen</strong></td><td>Yes</td><td>Message generation utilities</td><td>None</td></tr>
-<tr><td><strong>ros-z-msgs</strong></td><td>No</td><td>Pre-generated message types</td><td>Optional ROS 2</td></tr>
+<tr><td><strong>ros-z-msgs</strong></td><td>No</td><td>Pre-generated message types</td><td>None (all vendored)</td></tr>
 <tr><td><strong>ros-z-tests</strong></td><td>No</td><td>Integration tests</td><td>ros-z-msgs</td></tr>
 <tr><td><strong>rcl-z</strong></td><td>No</td><td>RCL C bindings</td><td>ROS 2 required</td></tr>
 </tbody></table>
@@ -315,7 +315,7 @@ cargo build --all
 <ol>
 <li>System ROS installation (<code>AMENT_PREFIX_PATH</code>, <code>CMAKE_PREFIX_PATH</code>)</li>
 <li>Common ROS paths (<code>/opt/ros/{rolling,jazzy,iron,humble}</code>)</li>
-<li>Roslibrust git checkout (<code>~/.cargo/git/checkouts/roslibrust-*/assets/</code>)</li>
+<li>Bundled assets (built-in message definitions in ros-z-codegen)</li>
 </ol>
 <p>This fallback mechanism enables builds without ROS 2 installed.</p>
 <h3 id="common-development-commands"><a class="header" href="#common-development-commands">Common Development Commands</a></h3>
