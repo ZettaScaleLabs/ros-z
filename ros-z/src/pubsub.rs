@@ -28,7 +28,6 @@ pub struct ZPub<T: ZMessage, S: ZSerializer> {
     _lv_token: LivelinessToken,
     with_attachment: bool,
     events_mgr: Arc<Mutex<EventsManager>>,
-    typical_msg_size: AtomicUsize,
     _phantom_data: PhantomData<(T, S)>,
 }
 
@@ -136,7 +135,6 @@ where
             gid,
             events_mgr: Arc::new(Mutex::new(EventsManager::new(gid))),
             with_attachment: self.with_attachment,
-            typical_msg_size: AtomicUsize::new(4096),
             _phantom_data: Default::default(),
         })
     }
@@ -162,11 +160,8 @@ where
         // Serialize directly to ZBuf for zero-copy publishing
         let zbuf = S::serialize_to_zbuf(msg);
 
-        // Update size estimate for next publish (used for metrics/debugging)
         use zenoh_buffers::buffer::Buffer;
         let actual_size = zbuf.len();
-        self.typical_msg_size.store(actual_size, Ordering::Relaxed);
-
         tracing::Span::current().record("payload_len", actual_size);
         debug!("[PUB] Publishing message");
 
@@ -186,11 +181,6 @@ where
     pub async fn async_publish(&self, msg: &T) -> Result<()> {
         // Serialize directly to ZBuf for zero-copy publishing
         let zbuf = S::serialize_to_zbuf(msg);
-
-        // Update size estimate
-        use zenoh_buffers::buffer::Buffer;
-        let actual_size = zbuf.len();
-        self.typical_msg_size.store(actual_size, Ordering::Relaxed);
 
         // Convert ZBuf to ZBytes and publish
         let zbytes = zenoh::bytes::ZBytes::from(zbuf);
