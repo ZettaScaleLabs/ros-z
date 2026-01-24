@@ -12,6 +12,7 @@ use crate::common::DataHandler;
 use crate::entity::EndpointEntity;
 use crate::event::EventsManager;
 use crate::impl_with_type_info;
+use crate::queue::BoundedQueue;
 use crate::topic_name;
 
 use crate::msg::{CdrSerdes, ZDeserializer, ZMessage, ZSerializer};
@@ -241,7 +242,7 @@ where
     fn build_internal<Q>(
         mut self,
         handler: DataHandler<Sample>,
-        create_queue: impl FnOnce() -> Option<flume::Receiver<Q>>,
+        queue: Option<Arc<BoundedQueue<Q>>>,
     ) -> Result<ZSub<T, Q, S>>
     where
         S: ZDeserializer,
@@ -278,7 +279,7 @@ where
             entity: self.entity,
             _inner: inner,
             _lv_token: lv_token,
-            queue: create_queue(),
+            queue,
             events_mgr: Arc::new(Mutex::new(EventsManager::new(gid))),
             _phantom_data: Default::default(),
         })
@@ -311,7 +312,7 @@ where
             }
         });
 
-        self.build_internal(DataHandler::Callback(callback), || None)
+        self.build_internal(DataHandler::Callback(callback), None)
     }
 
     #[cfg(feature = "rcl-z")]
@@ -324,14 +325,14 @@ where
             QosHistory::KeepLast(depth) => depth,
             QosHistory::KeepAll => usize::MAX,
         };
-        let (tx, rx) = flume::bounded(queue_size);
+        let queue = Arc::new(BoundedQueue::new(queue_size));
 
         self.build_internal(
             DataHandler::QueueWithNotifier {
-                sender: tx,
+                queue: queue.clone(),
                 notifier: Arc::new(notify),
             },
-            || Some(rx),
+            Some(queue),
         )
     }
 }
@@ -348,15 +349,15 @@ where
             QosHistory::KeepLast(depth) => depth,
             QosHistory::KeepAll => usize::MAX,
         };
-        let (tx, rx) = flume::bounded(queue_size);
+        let queue = Arc::new(BoundedQueue::new(queue_size));
 
-        self.build_internal(DataHandler::Queue(tx), || Some(rx))
+        self.build_internal(DataHandler::Queue(queue.clone()), Some(queue))
     }
 }
 
 pub struct ZSub<T: ZMessage, Q, S: ZDeserializer> {
     pub entity: EndpointEntity,
-    pub queue: Option<flume::Receiver<Q>>,
+    pub queue: Option<Arc<BoundedQueue<Q>>>,
     _inner: zenoh::pubsub::Subscriber<()>,
     _lv_token: LivelinessToken,
     events_mgr: Arc<Mutex<EventsManager>>,
@@ -372,20 +373,31 @@ where
     pub fn recv_serialized(&self) -> Result<Sample> {
         let queue = self.queue.as_ref()
             .ok_or_else(|| zenoh::Error::from("Subscriber was built with callback, no queue available"))?;
-        let msg = queue.recv()?;
-        Ok(msg)
+        Ok(queue.recv())
     }
 
     /// Async receive the next serialized message (raw sample)
     pub async fn async_recv_serialized(&self) -> Result<Sample> {
         let queue = self.queue.as_ref()
             .ok_or_else(|| zenoh::Error::from("Subscriber was built with callback, no queue available"))?;
-        let msg = queue.recv_async().await?;
-        Ok(msg)
+        Ok(queue.recv_async().await)
+    }
+
+    /// Receive the next serialized message with timeout
+    pub fn recv_serialized_timeout(&self, timeout: Duration) -> Result<Sample> {
+        let queue = self.queue.as_ref()
+            .ok_or_else(|| zenoh::Error::from("Subscriber was built with callback, no queue available"))?;
+        queue.recv_timeout(timeout)
+            .ok_or_else(|| zenoh::Error::from("Receive timed out"))
     }
 
     pub fn events_mgr(&self) -> &Arc<Mutex<EventsManager>> {
         &self.events_mgr
+    }
+
+    /// Check if there are messages available in the queue
+    pub fn is_ready(&self) -> bool {
+        self.queue.as_ref().map(|q| !q.is_empty()).unwrap_or(false)
     }
 }
 
@@ -404,7 +416,7 @@ where
 
         let queue = self.queue.as_ref()
             .ok_or_else(|| zenoh::Error::from("Subscriber was built with callback, no queue available"))?;
-        let sample = queue.recv()?;
+        let sample = queue.recv();
         let payload = sample.payload().to_bytes();
 
         tracing::Span::current().record("payload_len", payload.len());
@@ -416,7 +428,8 @@ where
     pub fn recv_timeout(&self, timeout: Duration) -> Result<S::Output> {
         let queue = self.queue.as_ref()
             .ok_or_else(|| zenoh::Error::from("Subscriber was built with callback, no queue available"))?;
-        let sample = queue.recv_timeout(timeout)?;
+        let sample = queue.recv_timeout(timeout)
+            .ok_or_else(|| zenoh::Error::from("Receive timed out"))?;
         let payload = sample.payload().to_bytes();
         S::deserialize(&payload).map_err(|e| zenoh::Error::from(e.to_string()))
     }
@@ -425,7 +438,7 @@ where
     pub async fn async_recv(&self) -> Result<S::Output> {
         let queue = self.queue.as_ref()
             .ok_or_else(|| zenoh::Error::from("Subscriber was built with callback, no queue available"))?;
-        let sample = queue.recv_async().await?;
+        let sample = queue.recv_async().await;
         let payload = sample.payload().to_bytes();
         S::deserialize(&payload).map_err(|e| zenoh::Error::from(e.to_string()))
     }

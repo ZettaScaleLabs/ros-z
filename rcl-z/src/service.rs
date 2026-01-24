@@ -91,7 +91,7 @@ impl ServiceImpl {
 
 impl Waitable for ServiceImpl {
     fn is_ready(&self) -> bool {
-        !self.inner.rx().is_empty()
+        !self.inner.queue().is_empty()
     }
 }
 

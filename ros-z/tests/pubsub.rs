@@ -1,7 +1,13 @@
-use std::time::Duration;
+use std::{thread, time::Duration};
 
 use ros_z::{Builder, TypeHash, context::ZContextBuilder, ros_msg::MessageTypeInfo};
+use ros_z_msgs::std_msgs::ByteMultiArray;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
+use zenoh_buffers::{
+    ZBuf,
+    buffer::{Buffer, SplitBuffer},
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct TestMessage {
@@ -31,29 +37,24 @@ async fn test_basic_pubsub() {
         .build()
         .expect("Failed to create node");
 
-    // Create publisher
     let publisher = node
         .create_pub::<TestMessage>("/test_topic")
         .build()
         .unwrap();
 
-    // Create subscriber
     let subscriber = node
         .create_sub::<TestMessage>("/test_topic")
         .build()
         .unwrap();
 
-    // Give some time for discovery
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    // Publish message
     let msg = TestMessage {
         data: vec![1, 2, 3, 4, 5],
         counter: 42,
     };
     publisher.publish(&msg).unwrap();
 
-    // Receive message
     let received = subscriber.recv_timeout(Duration::from_secs(1));
     assert!(received.is_ok());
     let received_msg = received.unwrap();
@@ -82,7 +83,6 @@ async fn test_multiple_messages() {
 
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    // Publish multiple messages
     for i in 0..5 {
         let msg = TestMessage {
             data: vec![i as u8; 100],
@@ -91,7 +91,6 @@ async fn test_multiple_messages() {
         publisher.publish(&msg).unwrap();
     }
 
-    // Receive all messages
     for i in 0..5 {
         let received = subscriber.recv_timeout(Duration::from_secs(1));
         assert!(received.is_ok());
@@ -122,7 +121,6 @@ async fn test_large_payload() {
 
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    // Publish 1MB message
     let msg = TestMessage {
         data: vec![0xAB; 1024 * 1024],
         counter: 999,
@@ -135,4 +133,68 @@ async fn test_large_payload() {
     assert_eq!(received_msg.counter, 999);
     assert_eq!(received_msg.data.len(), 1024 * 1024);
     assert_eq!(received_msg.data[0], 0xAB);
+}
+
+#[test]
+fn test_bytemultiarray_pubsub_with_zbuf() {
+    let ctx = ZContextBuilder::default()
+        .disable_multicast_scouting()
+        .with_json("connect/endpoints", json!([]))
+        .build()
+        .expect("Failed to create context");
+
+    let publisher_handle = thread::spawn({
+        let ctx = ctx.clone();
+        move || {
+            let node = ctx
+                .create_node("test_publisher")
+                .build()
+                .expect("Failed to create node");
+
+            let publisher = node
+                .create_pub::<ByteMultiArray>("zbuf_topic")
+                .build()
+                .expect("Failed to create publisher");
+
+            let mut buffer = vec![0xAA; 16];
+            buffer[0..8].copy_from_slice(&42u64.to_le_bytes());
+
+            let msg = ByteMultiArray {
+                data: ZBuf::from(buffer),
+                ..Default::default()
+            };
+
+            publisher.publish(&msg).expect("Failed to publish");
+            thread::sleep(Duration::from_millis(100));
+        }
+    });
+
+    let subscriber_handle = thread::spawn({
+        let ctx = ctx.clone();
+        move || {
+            let node = ctx
+                .create_node("test_subscriber")
+                .build()
+                .expect("Failed to create node");
+
+            let subscriber = node
+                .create_sub::<ByteMultiArray>("zbuf_topic")
+                .build()
+                .expect("Failed to create subscriber");
+
+            let received_msg = subscriber
+                .recv_timeout(Duration::from_secs(2))
+                .expect("Failed to receive message");
+
+            assert_eq!(received_msg.data.len(), 16);
+            let timestamp_bytes = &received_msg.data.contiguous()[0..8];
+            let timestamp = u64::from_le_bytes(timestamp_bytes.try_into().unwrap());
+            assert_eq!(timestamp, 42);
+        }
+    });
+
+    publisher_handle.join().expect("Publisher thread panicked");
+    subscriber_handle
+        .join()
+        .expect("Subscriber thread panicked");
 }

@@ -10,6 +10,7 @@ pub mod msg;
 pub mod node;
 pub mod pubsub;
 pub mod qos;
+pub mod queue;
 pub mod ros_msg;
 pub mod service;
 pub mod topic_name;

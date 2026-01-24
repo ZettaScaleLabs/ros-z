@@ -21,6 +21,7 @@ parking_lot = { workspace = true }
 csv = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "signal"] }
 tokio-util = { workspace = true }
+event-listener = { workspace = true }
 slab = { workspace = true }
 serde_json = { workspace = true }
 dashmap = "5.5"
