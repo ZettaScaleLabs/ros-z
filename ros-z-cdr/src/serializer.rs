@@ -1,46 +1,34 @@
 //! Fast CDR serializer optimized for direct buffer output.
 
-use std::marker::PhantomData;
-
 use byteorder::ByteOrder;
 use serde::{ser, Serialize};
 use zenoh_buffers::ZBuf;
 
 use crate::buffer::CdrBuffer;
 use crate::error::{Error, Result};
+use crate::primitives::CdrWriter;
 use crate::zbuf_writer::ZBufWriter;
 
 /// Fast CDR serializer that writes directly to a buffer.
+///
+/// This is a serde-based serializer that uses `CdrWriter` internally
+/// for the actual byte-level operations.
 pub struct CdrSerializer<'a, BO, B: CdrBuffer = Vec<u8>> {
-    buffer: &'a mut B,
-    start_offset: usize,
-    phantom: PhantomData<BO>,
+    writer: CdrWriter<'a, BO, B>,
 }
 
 impl<'a, BO: ByteOrder, B: CdrBuffer> CdrSerializer<'a, BO, B> {
     /// Create a new serializer writing to the given buffer.
     pub fn new(buffer: &'a mut B) -> Self {
-        let start_offset = buffer.len();
         Self {
-            buffer,
-            start_offset,
-            phantom: PhantomData,
+            writer: CdrWriter::new(buffer),
         }
     }
 
+    /// Get the current position in the buffer.
     #[inline(always)]
-    fn position(&self) -> usize {
-        self.buffer.len() - self.start_offset
-    }
-
-    #[inline(always)]
-    fn add_padding(&mut self, alignment: usize) {
-        let modulo = self.position() % alignment;
-        if modulo != 0 {
-            let padding_need = alignment - modulo;
-            const ZEROS: [u8; 8] = [0; 8];
-            self.buffer.extend_from_slice(&ZEROS[..padding_need]);
-        }
+    pub fn position(&self) -> usize {
+        self.writer.position()
     }
 }
 
@@ -49,14 +37,8 @@ impl<'a, BO: ByteOrder> CdrSerializer<'a, BO, ZBufWriter> {
     #[inline]
     pub fn serialize_zbuf(&mut self, zbuf: &ZBuf) -> Result<()> {
         let len: usize = zbuf.zslices().map(|s| s.len()).sum();
-
-        self.add_padding(4);
-        let mut buf = [0u8; 4];
-        BO::write_u32(&mut buf, len as u32);
-        self.buffer.extend_from_slice(&buf);
-
-        self.buffer.append_zbuf(zbuf);
-
+        self.writer.write_u32(len as u32);
+        self.writer.buffer_mut().append_zbuf(zbuf);
         Ok(())
     }
 }
@@ -121,100 +103,76 @@ where
 
     #[inline]
     fn serialize_bool(self, v: bool) -> Result<()> {
-        self.buffer.push(if v { 1 } else { 0 });
+        self.writer.write_bool(v);
         Ok(())
     }
 
     #[inline]
     fn serialize_u8(self, v: u8) -> Result<()> {
-        self.buffer.push(v);
+        self.writer.write_u8(v);
         Ok(())
     }
 
     #[inline]
     fn serialize_u16(self, v: u16) -> Result<()> {
-        self.add_padding(2);
-        let mut buf = [0u8; 2];
-        BO::write_u16(&mut buf, v);
-        self.buffer.extend_from_slice(&buf);
+        self.writer.write_u16(v);
         Ok(())
     }
 
     #[inline]
     fn serialize_u32(self, v: u32) -> Result<()> {
-        self.add_padding(4);
-        let mut buf = [0u8; 4];
-        BO::write_u32(&mut buf, v);
-        self.buffer.extend_from_slice(&buf);
+        self.writer.write_u32(v);
         Ok(())
     }
 
     #[inline]
     fn serialize_u64(self, v: u64) -> Result<()> {
-        self.add_padding(8);
-        let mut buf = [0u8; 8];
-        BO::write_u64(&mut buf, v);
-        self.buffer.extend_from_slice(&buf);
+        self.writer.write_u64(v);
         Ok(())
     }
 
     #[inline]
     fn serialize_u128(self, v: u128) -> Result<()> {
-        self.add_padding(16);
+        self.writer.align(16);
         let mut buf = [0u8; 16];
         BO::write_u128(&mut buf, v);
-        self.buffer.extend_from_slice(&buf);
+        self.writer.buffer_mut().extend_from_slice(&buf);
         Ok(())
     }
 
     #[inline]
     fn serialize_i8(self, v: i8) -> Result<()> {
-        self.buffer.push(v as u8);
+        self.writer.write_i8(v);
         Ok(())
     }
 
     #[inline]
     fn serialize_i16(self, v: i16) -> Result<()> {
-        self.add_padding(2);
-        let mut buf = [0u8; 2];
-        BO::write_i16(&mut buf, v);
-        self.buffer.extend_from_slice(&buf);
+        self.writer.write_i16(v);
         Ok(())
     }
 
     #[inline]
     fn serialize_i32(self, v: i32) -> Result<()> {
-        self.add_padding(4);
-        let mut buf = [0u8; 4];
-        BO::write_i32(&mut buf, v);
-        self.buffer.extend_from_slice(&buf);
+        self.writer.write_i32(v);
         Ok(())
     }
 
     #[inline]
     fn serialize_i64(self, v: i64) -> Result<()> {
-        self.add_padding(8);
-        let mut buf = [0u8; 8];
-        BO::write_i64(&mut buf, v);
-        self.buffer.extend_from_slice(&buf);
+        self.writer.write_i64(v);
         Ok(())
     }
 
     #[inline]
     fn serialize_f32(self, v: f32) -> Result<()> {
-        self.add_padding(4);
-        let mut buf = [0u8; 4];
-        BO::write_f32(&mut buf, v);
-        self.buffer.extend_from_slice(&buf);
+        self.writer.write_f32(v);
         Ok(())
     }
 
     #[inline]
     fn serialize_f64(self, v: f64) -> Result<()> {
-        self.add_padding(8);
-        let mut buf = [0u8; 8];
-        BO::write_f64(&mut buf, v);
-        self.buffer.extend_from_slice(&buf);
+        self.writer.write_f64(v);
         Ok(())
     }
 
@@ -225,17 +183,13 @@ where
 
     #[inline]
     fn serialize_str(self, v: &str) -> Result<()> {
-        let byte_count = v.len() as u32 + 1;
-        self.serialize_u32(byte_count)?;
-        self.buffer.extend_from_slice(v.as_bytes());
-        self.buffer.push(0);
+        self.writer.write_string(v);
         Ok(())
     }
 
     #[inline]
     fn serialize_bytes(self, v: &[u8]) -> Result<()> {
-        self.serialize_u32(v.len() as u32)?;
-        self.buffer.extend_from_slice(v);
+        self.writer.write_bytes(v);
         Ok(())
     }
 
@@ -301,7 +255,7 @@ where
         match len {
             None => Err(Error::UnknownLength),
             Some(elem_count) => {
-                self.serialize_u32(elem_count as u32)?;
+                self.writer.write_sequence_length(elem_count);
                 Ok(self)
             }
         }
@@ -338,7 +292,7 @@ where
         match len {
             None => Err(Error::UnknownLength),
             Some(elem_count) => {
-                self.serialize_u32(elem_count as u32)?;
+                self.writer.write_sequence_length(elem_count);
                 Ok(self)
             }
         }

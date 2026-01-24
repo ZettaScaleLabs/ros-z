@@ -22,6 +22,7 @@ default-members = ["ros-z", "ros-z-codegen"]
 # Workspace members
 ros-z = { version = "*", path = "ros-z" }
 rcl-z = { version = "*", path = "rcl-z" }
+ros-z-codegen = { version = "*", path = "ros-z-codegen" }
 
 
 # Serialization

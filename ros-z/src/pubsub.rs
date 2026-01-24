@@ -218,6 +218,7 @@ where
 pub struct ZSubBuilder<T, S = CdrSerdes<T>> {
     pub entity: EndpointEntity,
     pub session: Arc<Session>,
+    pub dyn_schema: Option<Arc<crate::dynamic::schema::MessageSchema>>,
     pub _phantom_data: PhantomData<(T, S)>,
 }
 
@@ -234,8 +235,28 @@ where
         ZSubBuilder {
             entity: self.entity,
             session: self.session,
+            dyn_schema: self.dyn_schema,
             _phantom_data: PhantomData,
         }
+    }
+
+    /// Set the dynamic message schema for runtime-typed messages.
+    ///
+    /// This is required when using `DynamicMessage` with `DynamicCdrSerdes`.
+    /// The schema will be used to deserialize incoming messages.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let subscriber = node
+    ///     .create_sub::<DynamicMessage>("/topic")
+    ///     .with_serdes::<DynamicCdrSerdes>()
+    ///     .with_dyn_schema(schema)
+    ///     .build()?;
+    /// ```
+    pub fn with_dyn_schema(mut self, schema: Arc<crate::dynamic::schema::MessageSchema>) -> Self {
+        self.dyn_schema = Some(schema);
+        self
     }
 
     /// Internal method that all build variants use.
@@ -281,6 +302,7 @@ where
             _lv_token: lv_token,
             queue,
             events_mgr: Arc::new(Mutex::new(EventsManager::new(gid))),
+            dyn_schema: self.dyn_schema,
             _phantom_data: Default::default(),
         })
     }
@@ -361,6 +383,9 @@ pub struct ZSub<T: ZMessage, Q, S: ZDeserializer> {
     _inner: zenoh::pubsub::Subscriber<()>,
     _lv_token: LivelinessToken,
     events_mgr: Arc<Mutex<EventsManager>>,
+    /// Schema for dynamic message deserialization.
+    /// Required when using `DynamicMessage` with `DynamicCdrSerdes`.
+    pub dyn_schema: Option<Arc<crate::dynamic::schema::MessageSchema>>,
     _phantom_data: PhantomData<(T, Q, S)>,
 }
 
@@ -441,5 +466,100 @@ where
         let sample = queue.recv_async().await;
         let payload = sample.payload().to_bytes();
         S::deserialize(&payload).map_err(|e| zenoh::Error::from(e.to_string()))
+    }
+}
+
+// Specialized implementation for DynamicMessage
+impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicCdrSerdes> {
+    /// Receive and deserialize the next dynamic message.
+    ///
+    /// This method requires that the subscriber was built with `.with_dyn_schema()`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The subscriber was built with a callback (no queue available)
+    /// - The `dyn_schema` was not set via `.with_dyn_schema()`
+    /// - Deserialization fails
+    #[tracing::instrument(name = "recv_dynamic", skip(self), fields(
+        topic = %self.entity.topic,
+        payload_len = tracing::field::Empty
+    ))]
+    pub fn recv(&self) -> Result<crate::dynamic::DynamicMessage> {
+        let schema = self.dyn_schema.as_ref().ok_or_else(|| {
+            zenoh::Error::from(
+                "dyn_schema required for DynamicMessage (use .with_dyn_schema() when building)",
+            )
+        })?;
+
+        let queue = self.queue.as_ref().ok_or_else(|| {
+            zenoh::Error::from("Subscriber was built with callback, no queue available")
+        })?;
+
+        trace!("[SUB] Waiting for dynamic message");
+        let sample = queue.recv()?;
+        let payload = sample.payload().to_bytes();
+
+        tracing::Span::current().record("payload_len", payload.len());
+        debug!("[SUB] Received dynamic message");
+
+        crate::dynamic::DynamicCdrSerdes::deserialize((&payload, schema))
+            .map_err(|e| zenoh::Error::from(e.to_string()))
+    }
+
+    /// Receive a dynamic message with timeout.
+    pub fn recv_timeout(&self, timeout: Duration) -> Result<crate::dynamic::DynamicMessage> {
+        let schema = self.dyn_schema.as_ref().ok_or_else(|| {
+            zenoh::Error::from("dyn_schema required for DynamicMessage")
+        })?;
+
+        let queue = self.queue.as_ref().ok_or_else(|| {
+            zenoh::Error::from("Subscriber was built with callback, no queue available")
+        })?;
+
+        let sample = queue.recv_timeout(timeout)?;
+        let payload = sample.payload().to_bytes();
+
+        crate::dynamic::DynamicCdrSerdes::deserialize((&payload, schema))
+            .map_err(|e| zenoh::Error::from(e.to_string()))
+    }
+
+    /// Async receive a dynamic message.
+    pub async fn async_recv(&self) -> Result<crate::dynamic::DynamicMessage> {
+        let schema = self.dyn_schema.as_ref().ok_or_else(|| {
+            zenoh::Error::from("dyn_schema required for DynamicMessage")
+        })?;
+
+        let queue = self.queue.as_ref().ok_or_else(|| {
+            zenoh::Error::from("Subscriber was built with callback, no queue available")
+        })?;
+
+        let sample = queue.recv_async().await?;
+        let payload = sample.payload().to_bytes();
+
+        crate::dynamic::DynamicCdrSerdes::deserialize((&payload, schema))
+            .map_err(|e| zenoh::Error::from(e.to_string()))
+    }
+
+    /// Try to receive a dynamic message without blocking.
+    pub fn try_recv(&self) -> Option<Result<crate::dynamic::DynamicMessage>> {
+        let schema = self.dyn_schema.as_ref()?;
+        let queue = self.queue.as_ref()?;
+
+        match queue.try_recv() {
+            Ok(sample) => {
+                let payload = sample.payload().to_bytes();
+                Some(
+                    crate::dynamic::DynamicCdrSerdes::deserialize((&payload, schema))
+                        .map_err(|e| zenoh::Error::from(e.to_string())),
+                )
+            }
+            Err(_) => None,
+        }
+    }
+
+    /// Get the dynamic schema.
+    pub fn schema(&self) -> Option<&crate::dynamic::schema::MessageSchema> {
+        self.dyn_schema.as_ref().map(|s| s.as_ref())
     }
 }

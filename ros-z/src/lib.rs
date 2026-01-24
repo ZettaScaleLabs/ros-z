@@ -3,6 +3,7 @@ pub mod attachment;
 mod common;
 pub mod config;
 pub mod context;
+pub mod dynamic;
 pub mod entity;
 pub mod event;
 pub mod graph;
