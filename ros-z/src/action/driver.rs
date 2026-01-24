@@ -92,31 +92,25 @@ pub(crate) async fn run_driver_loop<A, F, Fut>(
             }
 
             // 4. New Goal Requests
-            res = inner.goal_server.rx().recv_async() => {
-                if let Ok(query) = res {
-                    let inner = inner.clone();
-                    let handler = handler.clone();
+            query = inner.goal_server.queue().recv_async() => {
+                let inner = inner.clone();
+                let handler = handler.clone();
 
-                    // Spawn into the SET, not globally detached
-                    goal_tasks.spawn(async move {
-                        // This is now safe. If it hangs, abort_all() kills it.
-                        handle_goal_request(inner, query, handler).await;
-                    });
-                }
+                // Spawn into the SET, not globally detached
+                goal_tasks.spawn(async move {
+                    // This is now safe. If it hangs, abort_all() kills it.
+                    handle_goal_request(inner, query, handler).await;
+                });
             }
 
             // 5. Cancel Requests
-            res = inner.cancel_server.rx().recv_async() => {
-                if let Ok(query) = res {
-                    handle_cancel_request(&inner, query).await;
-                }
+            query = inner.cancel_server.queue().recv_async() => {
+                handle_cancel_request(&inner, query).await;
             }
 
             // 6. Result Requests
-            res = inner.result_server.rx().recv_async() => {
-                if let Ok(query) = res {
-                    handle_result_request(&inner, query).await;
-                }
+            query = inner.result_server.queue().recv_async() => {
+                handle_result_request(&inner, query).await;
             }
         }
     }

@@ -46,6 +46,7 @@ flume = "0.11.1"
 parking_lot = "0.12.4"
 tokio = "1.47.1"
 tokio-util = "0.7"
+event-listener = "5"
 
 # Utilities
 tracing = "0.1.41"

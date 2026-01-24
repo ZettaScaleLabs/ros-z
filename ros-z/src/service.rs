@@ -29,6 +29,8 @@ use crate::{
     entity::EndpointEntity,
     impl_with_type_info,
     msg::{CdrSerdes, ZDeserializer, ZMessage, ZService},
+    qos::QosHistory,
+    queue::BoundedQueue,
 };
 
 #[derive(Debug)]
@@ -242,7 +244,7 @@ pub struct ZServer<T: ZService, Q = Query> {
     gid: GidArray,
     inner: zenoh::query::Queryable<()>,
     lv_token: LivelinessToken,
-    pub rx: Option<flume::Receiver<Q>>,
+    pub queue: Option<Arc<BoundedQueue<Q>>>,
     pub map: HashMap<QueryKey, Query>,
     _phantom_data: PhantomData<T>,
 }
@@ -257,8 +259,8 @@ where
     ///
     /// Panics if the server was built with `build_with_callback()` and has no queue.
     /// Action servers always have queues and will never panic.
-    pub fn rx(&self) -> &flume::Receiver<Q> {
-        self.rx.as_ref().expect("Server was built with callback mode, no queue available")
+    pub fn queue(&self) -> &Arc<BoundedQueue<Q>> {
+        self.queue.as_ref().expect("Server was built with callback mode, no queue available")
     }
 }
 
@@ -270,7 +272,7 @@ where
     fn build_internal<Q>(
         mut self,
         handler: DataHandler<Query>,
-        create_queue: impl FnOnce() -> Option<flume::Receiver<Q>>,
+        queue: Option<Arc<BoundedQueue<Q>>>,
     ) -> Result<ZServer<T, Q>> {
         let qualified_service = topic_name::qualify_service_name(
             &self.entity.topic,
@@ -312,7 +314,7 @@ where
             inner,
             lv_token,
             gid: self.entity.gid(),
-            rx: create_queue(),
+            queue,
             map: HashMap::new(),
             _phantom_data: Default::default(),
         })
@@ -322,7 +324,7 @@ where
     where
         F: Fn(Query) + Send + Sync + 'static,
     {
-        self.build_internal(DataHandler::Callback(Arc::new(callback)), || None)
+        self.build_internal(DataHandler::Callback(Arc::new(callback)), None)
     }
 
     #[cfg(feature = "rcl-z")]
@@ -330,13 +332,17 @@ where
     where
         F: Fn() + Send + Sync + 'static,
     {
-        let (tx, rx) = flume::unbounded();
+        let queue_size = match self.entity.qos.history {
+            QosHistory::KeepLast(depth) => depth,
+            QosHistory::KeepAll => usize::MAX,
+        };
+        let queue = Arc::new(BoundedQueue::new(queue_size));
         self.build_internal(
             DataHandler::QueueWithNotifier {
-                sender: tx,
+                queue: queue.clone(),
                 notifier: Arc::new(notify),
             },
-            || Some(rx),
+            Some(queue),
         )
     }
 }
@@ -348,8 +354,12 @@ where
     type Output = ZServer<T>;
 
     fn build(self) -> Result<Self::Output> {
-        let (tx, rx) = flume::unbounded();
-        self.build_internal(DataHandler::Queue(tx), || Some(rx))
+        let queue_size = match self.entity.qos.history {
+            QosHistory::KeepLast(depth) => depth,
+            QosHistory::KeepAll => usize::MAX,
+        };
+        let queue = Arc::new(BoundedQueue::new(queue_size));
+        self.build_internal(DataHandler::Queue(queue.clone()), Some(queue))
     }
 }
 
@@ -380,13 +390,10 @@ where
     ///
     /// This method is useful when custom deserialization logic is needed.
     pub fn take_query(&self) -> Result<Query> {
-        let rx = self.rx.as_ref()
+        let queue = self.queue.as_ref()
             .ok_or_else(|| zenoh::Error::from("Server was built with callback, no queue available"))?;
-        match rx.try_recv() {
-            Ok(query) => Ok(query),
-            Err(flume::TryRecvError::Empty) => Err("No query available".into()),
-            Err(flume::TryRecvError::Disconnected) => Err("Channel disconnected".into()),
-        }
+        queue.try_recv()
+            .ok_or_else(|| zenoh::Error::from("No query available"))
     }
 
     /// Blocks waiting to receive the next request on the service and then deserializes the payload.
@@ -404,9 +411,9 @@ where
     {
         trace!("[SRV] Waiting for request");
 
-        let rx = self.rx.as_ref()
+        let queue = self.queue.as_ref()
             .ok_or_else(|| zenoh::Error::from("Server was built with callback, no queue available"))?;
-        let query = rx.recv()?;
+        let query = queue.recv();
         let attachment: Attachment = query.attachment().unwrap().try_into()?;
         let key: QueryKey = attachment.into();
 
@@ -437,9 +444,9 @@ where
         T::Request: ZMessage + Send + Sync + 'static,
         for<'a> <T::Request as ZMessage>::Serdes: ZDeserializer<Output = T::Request, Input<'a> = &'a [u8]>,
     {
-        let rx = self.rx.as_ref()
+        let queue = self.queue.as_ref()
             .ok_or_else(|| zenoh::Error::from("Server was built with callback, no queue available"))?;
-        let query = rx.recv_async().await?;
+        let query = queue.recv_async().await;
         let attachment: Attachment = query.attachment().unwrap().try_into()?;
         let key: QueryKey = attachment.into();
         if self.map.contains_key(&key) {
