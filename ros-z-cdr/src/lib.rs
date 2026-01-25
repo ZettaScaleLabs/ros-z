@@ -2,10 +2,22 @@
 //!
 //! This crate provides CDR serialization and deserialization compatible with
 //! RMW Zenoh for ROS 2 communication.
+//!
+//! # Architecture
+//!
+//! The crate provides two levels of API:
+//!
+//! 1. **Low-level primitives** (`CdrWriter`, `CdrReader`): Direct byte-level
+//!    operations with CDR alignment handling. Used for schema-driven (dynamic)
+//!    message serialization.
+//!
+//! 2. **Serde integration** (`CdrSerializer`, `CdrDeserializer`): Type-driven
+//!    serialization using Rust's serde framework. Used for static message types.
 
 pub mod buffer;
 pub mod deserializer;
 pub mod error;
+pub mod primitives;
 pub mod serializer;
 pub mod zbuf_writer;
 
@@ -15,6 +27,7 @@ pub use buffer::CdrBuffer;
 pub use byteorder::{BigEndian, LittleEndian};
 pub use deserializer::{CdrDeserializer, from_bytes, from_bytes_with};
 pub use error::{Error, Result};
+pub use primitives::{CdrReader, CdrWriter};
 pub use serializer::{CdrSerializer, to_buffer, to_vec, to_vec_reuse};
 pub use zbuf_writer::ZBufWriter;
 

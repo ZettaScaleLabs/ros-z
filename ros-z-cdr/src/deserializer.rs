@@ -2,21 +2,21 @@
 
 use std::marker::PhantomData;
 
-use byteorder::{ByteOrder, ReadBytesExt};
+use byteorder::ByteOrder;
 use serde::de::{
     self, DeserializeSeed, EnumAccess, IntoDeserializer, MapAccess, SeqAccess, VariantAccess,
     Visitor,
 };
 
 use crate::error::{Error, Result};
+use crate::primitives::CdrReader;
 
 /// Deserializer type for converting CDR data stream to Rust objects.
 ///
-/// `CdrDeserializer` is about three machine words of data, so fairly cheap to create.
+/// This is a serde-based deserializer that uses `CdrReader` internally
+/// for the actual byte-level operations.
 pub struct CdrDeserializer<'i, BO> {
-    phantom: PhantomData<BO>,
-    input: &'i [u8],
-    serialized_data_count: usize,
+    reader: CdrReader<'i, BO>,
 }
 
 impl<'de, BO> CdrDeserializer<'de, BO>
@@ -26,52 +26,15 @@ where
     /// Create a new deserializer from input bytes.
     #[inline]
     pub fn new(input: &'de [u8]) -> CdrDeserializer<'de, BO> {
-        CdrDeserializer::<BO> {
-            phantom: PhantomData,
-            input,
-            serialized_data_count: 0,
+        CdrDeserializer {
+            reader: CdrReader::new(input),
         }
     }
 
     /// How many bytes of input stream have been consumed.
     #[inline]
     pub fn bytes_consumed(&self) -> usize {
-        self.serialized_data_count
-    }
-
-    /// Read the first bytes in the input.
-    ///
-    /// Returns a slice with lifetime `'de` (the input data lifetime),
-    /// enabling zero-copy borrowed deserialization.
-    #[inline]
-    fn next_bytes(&mut self, count: usize) -> Result<&'de [u8]> {
-        if count <= self.input.len() {
-            let (head, tail) = self.input.split_at(count);
-            self.input = tail;
-            self.serialized_data_count += count;
-            Ok(head)
-        } else {
-            Err(Error::UnexpectedEof)
-        }
-    }
-
-    /// Consume and discard bytes (for padding).
-    #[inline]
-    fn remove_bytes_from_input(&mut self, count: usize) -> Result<()> {
-        let _pad = self.next_bytes(count)?;
-        Ok(())
-    }
-
-    /// Calculate and remove alignment padding.
-    #[inline]
-    fn align(&mut self, type_octet_alignment: usize) -> Result<()> {
-        let modulo = self.serialized_data_count % type_octet_alignment;
-        if modulo == 0 {
-            Ok(())
-        } else {
-            let padding = type_octet_alignment - modulo;
-            self.remove_bytes_from_input(padding)
-        }
+        self.reader.position()
     }
 }
 
@@ -101,7 +64,7 @@ where
 {
     let mut deserializer = CdrDeserializer::<BO>::new(input_bytes);
     let t = decoder.deserialize(&mut deserializer)?;
-    Ok((t, deserializer.serialized_data_count))
+    Ok((t, deserializer.bytes_consumed()))
 }
 
 impl<'de, BO> de::Deserializer<'de> for &mut CdrDeserializer<'de, BO>
@@ -123,89 +86,77 @@ where
     where
         V: Visitor<'de>,
     {
-        match self.next_bytes(1)?.first().unwrap() {
-            0 => visitor.visit_bool(false),
-            1 => visitor.visit_bool(true),
-            x => Err(Error::InvalidBool(*x)),
-        }
+        visitor.visit_bool(self.reader.read_bool()?)
     }
 
     fn deserialize_i8<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        visitor.visit_i8(self.next_bytes(1)?.read_i8().unwrap())
+        visitor.visit_i8(self.reader.read_i8()?)
     }
 
     fn deserialize_u8<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        visitor.visit_u8(self.next_bytes(1)?.read_u8().unwrap())
+        visitor.visit_u8(self.reader.read_u8()?)
     }
 
     fn deserialize_i16<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        self.align(2)?;
-        visitor.visit_i16(self.next_bytes(2)?.read_i16::<BO>().unwrap())
+        visitor.visit_i16(self.reader.read_i16()?)
     }
 
     fn deserialize_u16<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        self.align(2)?;
-        visitor.visit_u16(self.next_bytes(2)?.read_u16::<BO>().unwrap())
+        visitor.visit_u16(self.reader.read_u16()?)
     }
 
     fn deserialize_i32<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        self.align(4)?;
-        visitor.visit_i32(self.next_bytes(4)?.read_i32::<BO>().unwrap())
+        visitor.visit_i32(self.reader.read_i32()?)
     }
 
     fn deserialize_u32<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        self.align(4)?;
-        visitor.visit_u32(self.next_bytes(4)?.read_u32::<BO>().unwrap())
+        visitor.visit_u32(self.reader.read_u32()?)
     }
 
     fn deserialize_i64<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        self.align(8)?;
-        visitor.visit_i64(self.next_bytes(8)?.read_i64::<BO>().unwrap())
+        visitor.visit_i64(self.reader.read_i64()?)
     }
 
     fn deserialize_u64<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        self.align(8)?;
-        visitor.visit_u64(self.next_bytes(8)?.read_u64::<BO>().unwrap())
+        visitor.visit_u64(self.reader.read_u64()?)
     }
 
     fn deserialize_f32<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        self.align(4)?;
-        visitor.visit_f32(self.next_bytes(4)?.read_f32::<BO>().unwrap())
+        visitor.visit_f32(self.reader.read_f32()?)
     }
 
     fn deserialize_f64<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        self.align(8)?;
-        visitor.visit_f64(self.next_bytes(8)?.read_f64::<BO>().unwrap())
+        visitor.visit_f64(self.reader.read_f64()?)
     }
 
     /// Since this is Rust, a char is 32-bit Unicode codepoint.
@@ -213,8 +164,7 @@ where
     where
         V: Visitor<'de>,
     {
-        self.align(4)?;
-        let codepoint = self.next_bytes(4)?.read_u32::<BO>().unwrap();
+        let codepoint = self.reader.read_u32()?;
         match char::from_u32(codepoint) {
             Some(c) => visitor.visit_char(c),
             None => Err(Error::InvalidChar(codepoint)),
@@ -225,25 +175,8 @@ where
     where
         V: Visitor<'de>,
     {
-        // Align and read string length (includes null terminator)
-        self.align(4)?;
-        let bytes_len = self.next_bytes(4)?.read_u32::<BO>().unwrap() as usize;
-        let bytes = self.next_bytes(bytes_len)?;
-
-        // Remove the null terminating character
-        let bytes_without_null = match bytes.split_last() {
-            None => bytes, // Empty string edge case
-            Some((null_char, contents)) => {
-                if *null_char != 0 {
-                    // Warn but continue - some implementations may not null-terminate
-                }
-                contents
-            }
-        };
-
-        std::str::from_utf8(bytes_without_null)
-            .map_err(Error::Utf8)
-            .and_then(|s| visitor.visit_borrowed_str(s))
+        let s = self.reader.read_str()?;
+        visitor.visit_borrowed_str(s)
     }
 
     fn deserialize_string<V>(self, visitor: V) -> Result<V::Value>
@@ -261,12 +194,7 @@ where
     where
         V: Visitor<'de>,
     {
-        // Align to 4 bytes (for the length prefix)
-        self.align(4)?;
-        // Read length prefix
-        let len = self.next_bytes(4)?.read_u32::<BO>().unwrap() as usize;
-        // Read the entire buffer at once - use borrowed slice (zero-copy)
-        let bytes = self.next_bytes(len)?;
+        let bytes = self.reader.read_byte_sequence()?;
         visitor.visit_borrowed_bytes(bytes)
     }
 
@@ -274,13 +202,8 @@ where
     where
         V: Visitor<'de>,
     {
-        // Align to 4 bytes
-        self.align(4)?;
-        // Length prefix
-        let len = self.next_bytes(4)?.read_u32::<BO>().unwrap() as usize;
-        // Read the entire buffer at once
-        let buf = self.next_bytes(len)?.to_vec();
-        visitor.visit_byte_buf(buf)
+        let bytes = self.reader.read_byte_sequence()?;
+        visitor.visit_byte_buf(bytes.to_vec())
     }
 
     #[inline]
@@ -288,8 +211,7 @@ where
     where
         V: Visitor<'de>,
     {
-        self.align(4)?;
-        let enum_tag = self.next_bytes(4)?.read_u32::<BO>().unwrap();
+        let enum_tag = self.reader.read_u32()?;
         match enum_tag {
             0 => visitor.visit_none(),
             1 => visitor.visit_some(self),
@@ -328,8 +250,7 @@ where
     where
         V: Visitor<'de>,
     {
-        self.align(4)?;
-        let element_count = self.next_bytes(4)?.read_u32::<BO>().unwrap() as usize;
+        let element_count = self.reader.read_sequence_length()?;
         visitor.visit_seq(SequenceHelper::new(self, element_count))
     }
 
@@ -360,8 +281,7 @@ where
     where
         V: Visitor<'de>,
     {
-        self.align(4)?;
-        let element_count = self.next_bytes(4)?.read_u32::<BO>().unwrap() as usize;
+        let element_count = self.reader.read_sequence_length()?;
         visitor.visit_map(SequenceHelper::new(self, element_count))
     }
 
@@ -389,7 +309,7 @@ where
     where
         V: Visitor<'de>,
     {
-        self.align(4)?;
+        self.reader.align(4)?;
         visitor.visit_enum(EnumerationHelper::<BO>::new(self))
     }
 
@@ -427,7 +347,7 @@ where
 {
     #[inline]
     fn new(de: &'a mut CdrDeserializer<'de, BO>) -> Self {
-        EnumerationHelper::<BO> { de }
+        EnumerationHelper { de }
     }
 }
 
@@ -444,7 +364,7 @@ where
         V: DeserializeSeed<'de>,
     {
         // preceding deserialize_enum aligned to 4
-        let enum_tag = self.de.next_bytes(4)?.read_u32::<BO>().unwrap();
+        let enum_tag = self.de.reader.read_u32()?;
         let val: Result<_> = seed.deserialize(enum_tag.into_deserializer());
         Ok((val?, self))
     }

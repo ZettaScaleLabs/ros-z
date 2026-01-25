@@ -160,6 +160,7 @@ impl ZNode {
         ZSubBuilder {
             entity,
             session: self.session.clone(),
+            dyn_schema: None,
             _phantom_data: Default::default(),
         }
     }
