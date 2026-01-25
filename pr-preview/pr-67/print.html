@@ -496,525 +496,6 @@ struct Args {
 <li><strong><a href="chapters/./building.html">Building</a></strong> - Build configurations and dependencies</li>
 <li><strong><a href="chapters/./config.html">Networking</a></strong> - Zenoh router setup and options</li>
 </ul>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="python-bindings"><a class="header" href="#python-bindings">Python Bindings</a></h1>
-<p><strong>ros-z provides Python bindings via <code>ros-z-py</code>, enabling Python applications to communicate with Rust and ROS 2 nodes using the same Zenoh transport.</strong> The bindings use PyO3 for Rust-Python interop and msgspec for efficient message serialization.</p>
-<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
-<div class="admonition-title">
-<div id="admonition-note-title">
-<p>Note</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/python.html#admonition-note"></a>
-</div>
-<div>
-<p>Python bindings provide the same pub/sub and service patterns as Rust, with Pythonic APIs. Messages are automatically serialized/deserialized between Python objects and CDR format for ROS 2 compatibility.</p>
-</div>
-</div>
-<h2 id="visual-flow"><a class="header" href="#visual-flow">Visual Flow</a></h2>
-<pre class="mermaid">graph TD
-    A[Python Code] --&gt;|import| B[ros_z_py]
-    B --&gt;|PyO3| C[Rust ros-z]
-    C --&gt;|Zenoh| D[Network]
-    D --&gt;|Zenoh| E[ROS 2 / Rust Nodes]
-
-    F[Python Message] --&gt;|msgspec| G[Struct]
-    G --&gt;|serialize| H[CDR Bytes]
-    H --&gt;|deserialize| I[Rust Struct]
-</pre>
-<h2 id="installation"><a class="header" href="#installation">Installation</a></h2>
-<h3 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h3>
-<ul>
-<li>Python 3.8+</li>
-<li>Rust toolchain</li>
-<li>maturin (<code>pip install maturin</code>)</li>
-</ul>
-<h3 id="setup-1"><a class="header" href="#setup-1">Setup</a></h3>
-<pre><code class="language-bash"># Create and activate virtual environment
-cd ros-z-py
-python -m venv .venv
-source .venv/bin/activate
-
-# Install message types
-pip install -e ../ros-z-msgs/python/
-
-# Build and install ros-z-py
-maturin develop
-</code></pre>
-<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
-<div class="admonition-title">
-<div id="admonition-tip-title">
-<p>Tip</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/python.html#admonition-tip"></a>
-</div>
-<div>
-<p>Use <code>maturin develop --release</code> for optimized builds when benchmarking or running in production.</p>
-</div>
-</div>
-<h2 id="quick-start-1"><a class="header" href="#quick-start-1">Quick Start</a></h2>
-<p>Here's a complete publisher and subscriber example from <a href="https://github.com/ZettaScaleLabs/ros-z/blob/main/ros-z-py/examples/topic_demo.py"><code>ros-z-py/examples/topic_demo.py</code></a>:</p>
-<h3 id="publisher-talker"><a class="header" href="#publisher-talker">Publisher (Talker)</a></h3>
-<pre><code class="language-python">def run_talker(ctx, topic: str, count: int, interval: float):
-    """Run the talker (publisher)."""
-    node = ctx.create_node("talker").build()
-    pub = node.create_publisher(topic, std_msgs.String)
-
-    print(f"Talker started. Publishing to {topic}...")
-
-    i = 0
-    while count == 0 or i &lt; count:
-        message = f"Hello from Python {i}"
-        msg = std_msgs.String(data=message)
-        pub.publish(msg)
-        print(f"PUB:{i}", flush=True)
-        i += 1
-        time.sleep(interval)
-
-    print("PUB:DONE", flush=True)
-
-
-</code></pre>
-<h3 id="subscriber-listener"><a class="header" href="#subscriber-listener">Subscriber (Listener)</a></h3>
-<pre><code class="language-python">def run_listener(ctx, topic: str, timeout: float):
-    """Run the listener (subscriber)."""
-    node = ctx.create_node("listener").build()
-    sub = node.create_subscriber(topic, std_msgs.String)
-
-    print("SUB:READY", flush=True)
-
-    start = time.time()
-    received = 0
-
-    while timeout == 0 or (time.time() - start) &lt; timeout:
-        msg = sub.recv(timeout=1.0)
-        if msg is not None:
-            print(f"SUB:{msg.data}", flush=True)
-            received += 1
-
-    print(f"SUB:TOTAL:{received}", flush=True)
-
-
-</code></pre>
-<h2 id="key-components-1"><a class="header" href="#key-components-1">Key Components</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Component</th><th>Purpose</th><th>Python API</th></tr></thead><tbody>
-<tr><td><strong>ZContextBuilder</strong></td><td>Configure ros-z environment</td><td><code>ZContextBuilder().with_domain_id(0).build()</code></td></tr>
-<tr><td><strong>ZContext</strong></td><td>Manages ROS 2 connections</td><td>Entry point for creating nodes</td></tr>
-<tr><td><strong>Node</strong></td><td>Logical unit of computation</td><td><code>ctx.create_node("name").build()</code></td></tr>
-<tr><td><strong>Publisher</strong></td><td>Sends messages to topics</td><td><code>node.create_publisher(topic, type)</code></td></tr>
-<tr><td><strong>Subscriber</strong></td><td>Receives messages from topics</td><td><code>node.create_subscriber(topic, type)</code></td></tr>
-<tr><td><strong>Client</strong></td><td>Sends service requests</td><td><code>node.create_client(service, type)</code></td></tr>
-<tr><td><strong>Server</strong></td><td>Handles service requests</td><td><code>node.create_server(service, type)</code></td></tr>
-</tbody></table>
-</div>
-<h2 id="service-patterns"><a class="header" href="#service-patterns">Service Patterns</a></h2>
-<p>Examples from <a href="https://github.com/ZettaScaleLabs/ros-z/blob/main/ros-z-py/examples/service_demo.py"><code>ros-z-py/examples/service_demo.py</code></a>:</p>
-<h3 id="service-server"><a class="header" href="#service-server">Service Server</a></h3>
-<pre><code class="language-python">def run_server(ctx, service: str, max_requests: int):
-    """Run the AddTwoInts service server."""
-    node = ctx.create_node("add_two_ints_server").build()
-    server = node.create_server(service, example_interfaces.AddTwoIntsRequest)
-
-    print("SERVER:READY", flush=True)
-
-    handled = 0
-    while max_requests == 0 or handled &lt; max_requests:
-        request_id, req = server.take_request()
-        result = req.a + req.b
-        print(f"SERVER:{req.a}+{req.b}={result}", flush=True)
-
-        resp = example_interfaces.AddTwoIntsResponse(sum=result)
-        server.send_response(resp, request_id)
-        handled += 1
-
-    print("SERVER:DONE", flush=True)
-
-
-</code></pre>
-<h3 id="service-client"><a class="header" href="#service-client">Service Client</a></h3>
-<pre><code class="language-python">def run_client(ctx, service: str, a: int, b: int, timeout: float):
-    """Run the AddTwoInts service client."""
-    node = ctx.create_node("add_two_ints_client").build()
-    client = node.create_client(service, example_interfaces.AddTwoIntsRequest)
-
-    # Wait for service discovery
-    time.sleep(1.0)
-
-    print(f"CLIENT:REQUEST:{a}+{b}", flush=True)
-
-    req = example_interfaces.AddTwoIntsRequest(a=a, b=b)
-    client.send_request(req)
-
-    resp = client.take_response(timeout=timeout)
-
-    if resp is not None:
-        print(f"CLIENT:RESPONSE:{resp.sum}", flush=True)
-    else:
-        print("CLIENT:ERROR:no response", flush=True)
-        sys.exit(1)
-
-
-</code></pre>
-<div id="admonition-tip-1" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-1-title">
-<div class="admonition-title">
-<div id="admonition-tip-1-title">
-<p>Tip</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/python.html#admonition-tip-1"></a>
-</div>
-<div>
-<p>Service servers use a pull model: <code>take_request()</code> blocks until a request arrives. This gives you explicit control over when to process requests.</p>
-</div>
-</div>
-<h2 id="complex-messages"><a class="header" href="#complex-messages">Complex Messages</a></h2>
-<p>Python bindings support nested message types like <code>geometry_msgs/Twist</code>:</p>
-<pre><code class="language-python">from ros_z_py import geometry_msgs
-
-# Create a Twist message with nested Vector3
-twist = geometry_msgs.Twist(
-    linear=geometry_msgs.Vector3(x=1.0, y=0.0, z=0.0),
-    angular=geometry_msgs.Vector3(x=0.0, y=0.0, z=0.5)
-)
-
-pub = node.create_publisher("/cmd_vel", "geometry_msgs/msg/Twist")
-pub.publish(twist)
-</code></pre>
-<h2 id="context-configuration"><a class="header" href="#context-configuration">Context Configuration</a></h2>
-<h3 id="connect-to-specific-endpoint"><a class="header" href="#connect-to-specific-endpoint">Connect to Specific Endpoint</a></h3>
-<pre><code class="language-python">ctx = (
-    ros_z_py.ZContextBuilder()
-    .with_connect_endpoints(["tcp/192.168.1.100:7447"])
-    .build()
-)
-</code></pre>
-<h3 id="disable-multicast-scouting"><a class="header" href="#disable-multicast-scouting">Disable Multicast Scouting</a></h3>
-<pre><code class="language-python">ctx = (
-    ros_z_py.ZContextBuilder()
-    .with_domain_id(0)
-    .disable_multicast_scouting()
-    .build()
-)
-</code></pre>
-<h3 id="custom-namespace"><a class="header" href="#custom-namespace">Custom Namespace</a></h3>
-<pre><code class="language-python">node = ctx.create_node("my_node").with_namespace("/robot1").build()
-</code></pre>
-<h2 id="ros-2-interoperability"><a class="header" href="#ros-2-interoperability">ROS 2 Interoperability</a></h2>
-<p>Python nodes work seamlessly with Rust and ROS 2 nodes:</p>
-<pre><code class="language-bash"># Terminal 1: Start Zenoh router
-cargo run --example zenoh_router
-
-# Terminal 2: Run Python publisher (using topic_demo.py)
-cd ros-z-py
-source .venv/bin/activate
-python examples/topic_demo.py -r talker
-
-# Terminal 3: Listen with ROS 2 CLI
-ros2 topic echo /chatter std_msgs/msg/String
-</code></pre>
-<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
-<div class="admonition-title">
-<div id="admonition-success-title">
-<p>Success</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/python.html#admonition-success"></a>
-</div>
-<div>
-<p>Messages published from Python are received by ROS 2 CLI, Rust nodes, and any other ROS 2-compatible system connected via Zenoh.</p>
-</div>
-</div>
-<h2 id="running-tests"><a class="header" href="#running-tests">Running Tests</a></h2>
-<pre><code class="language-bash"># Python unit tests
-cd ros-z-py
-source .venv/bin/activate
-python -m pytest tests/ -v
-
-# Python-Rust interop tests
-cargo test --features python-interop -p ros-z-tests --test python_interop -- --test-threads=1
-</code></pre>
-<h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
-<details id="admonition-import-errors-when-using-ros_z_py" class="admonition admonish-question" role="note" aria-labelledby="admonition-import-errors-when-using-ros_z_py-title">
-<summary class="admonition-title">
-<div id="admonition-import-errors-when-using-ros_z_py-title">
-<p>Import errors when using ros_z_py</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/python.html#admonition-import-errors-when-using-ros_z_py"></a>
-</summary>
-<div>
-<p>This error occurs when the package hasn't been built or installed correctly.</p>
-<p><strong>Solution:</strong></p>
-<p>Rebuild and install the package:</p>
-<pre><code class="language-bash">cd ros-z-py
-source .venv/bin/activate
-pip install -e ../ros-z-msgs/python/
-maturin develop
-</code></pre>
-</div>
-</details>
-<details id="admonition-message-type-not-found" class="admonition admonish-question" role="note" aria-labelledby="admonition-message-type-not-found-title">
-<summary class="admonition-title">
-<div id="admonition-message-type-not-found-title">
-<p>Message type not found</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/python.html#admonition-message-type-not-found"></a>
-</summary>
-<div>
-<p>This error occurs when trying to use a message type that isn't registered.</p>
-<p><strong>Solution:</strong></p>
-<p>Check which message types are available:</p>
-<pre><code class="language-python">from ros_z_py import ros_z_msgs
-print(ros_z_msgs.list_registered_types())
-</code></pre>
-<p>Ensure the message package is enabled in <code>ros-z-msgs/Cargo.toml</code> features.</p>
-</div>
-</details>
-<details id="admonition-recv-always-returns-none" class="admonition admonish-question" role="note" aria-labelledby="admonition-recv-always-returns-none-title">
-<summary class="admonition-title">
-<div id="admonition-recv-always-returns-none-title">
-<p>recv() always returns None</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/python.html#admonition-recv-always-returns-none"></a>
-</summary>
-<div>
-<p>This happens when no messages are being received within the timeout period.</p>
-<p><strong>Solution:</strong></p>
-<ul>
-<li>Check the topic name matches exactly (including leading <code>/</code>)</li>
-<li>Verify the publisher is running and connected to the same Zenoh network</li>
-<li>Increase the timeout value</li>
-<li>Use <code>--nocapture</code> with pytest to see debug output: <code>python -m pytest tests/ -v --capture=no</code></li>
-</ul>
-</div>
-</details>
-<h2 id="resources"><a class="header" href="#resources">Resources</a></h2>
-<ul>
-<li><strong><a href="chapters/./python_codegen.html">Code Generation Internals</a></strong> - How Python bindings are generated</li>
-<li><strong><a href="chapters/./pubsub.html">Pub/Sub</a></strong> - Deep dive into pub-sub patterns</li>
-<li><strong><a href="chapters/./services.html">Services</a></strong> - Request-response communication</li>
-<li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - How message types work</li>
-<li><strong><a href="chapters/./config.html">Networking</a></strong> - Zenoh router setup and options</li>
-</ul>
-<p><strong>Start with the pub/sub example to understand the basics, then explore services for request-response patterns.</strong></p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="python-code-generation-internals"><a class="header" href="#python-code-generation-internals">Python Code Generation Internals</a></h1>
-<p>This chapter explains how ros-z generates Python bindings for ROS 2 messages, including the architecture, generated code structure, and design rationale.</p>
-<h2 id="architecture-overview"><a class="header" href="#architecture-overview">Architecture Overview</a></h2>
-<p>ros-z uses a <strong>hybrid approach</strong>: Python classes for ergonomics, Rust for serialization performance. The architecture uses <strong>derive macros</strong> for automatic Python-Rust conversion of arbitrarily nested message types.</p>
-<pre class="mermaid">graph TB
-    subgraph &quot;Build Time (cargo build)&quot;
-        ROS[&quot;.msg/.srv files&quot;] --&gt; Parser[&quot;ros-z-codegen&lt;br/&gt;Parser&quot;]
-        Parser --&gt; Resolver[&quot;Dependency&lt;br/&gt;Resolver&quot;]
-        Resolver --&gt; PyGen[&quot;Python Generator&quot;]
-        Resolver --&gt; RsGen[&quot;Rust Generator&quot;]
-        PyGen --&gt; PyFiles[&quot;*.py files&lt;br/&gt;(msgspec structs)&quot;]
-        RsGen --&gt; RsFile[&quot;Rust structs with&lt;br/&gt;derive macros&quot;]
-        RsGen --&gt; PyO3File[&quot;python_bindings.rs&lt;br/&gt;(serialize/deserialize)&quot;]
-    end
-
-    subgraph &quot;Derive Macros (ros-z-derive)&quot;
-        Derive[&quot;FromPyMessage&lt;br/&gt;IntoPyMessage&quot;]
-        Derive --&gt;|&quot;generates&quot;| Extract[&quot;Field extraction code&quot;]
-        Derive --&gt;|&quot;generates&quot;| Construct[&quot;Object construction code&quot;]
-    end
-
-    subgraph &quot;Runtime&quot;
-        PyFiles --&gt; PyObj[&quot;Python Object&quot;]
-        PyObj --&gt;|&quot;FromPyMessage::from_py()&quot;| RsStruct[&quot;Rust Struct&quot;]
-        RsStruct --&gt;|&quot;ros-z-cdr::to_vec()&quot;| CDR[&quot;CDR Bytes&quot;]
-        CDR --&gt;|&quot;Zenoh&quot;| Network[&quot;Network&quot;]
-    end
-</pre>
-<h3 id="key-components-2"><a class="header" href="#key-components-2">Key Components</a></h3>
-<div class="table-wrapper"><table><thead><tr><th>Component</th><th>Location</th><th>Purpose</th></tr></thead><tbody>
-<tr><td><strong>Python Generator</strong></td><td><code>ros-z-codegen/src/generator/python.rs</code></td><td>Generates msgspec struct classes</td></tr>
-<tr><td><strong>Rust Generator</strong></td><td><code>ros-z-codegen/src/generator/rust.rs</code></td><td>Generates Rust structs with derive attributes</td></tr>
-<tr><td><strong>PyO3 Generator</strong></td><td><code>ros-z-codegen/src/python_msgspec_generator.rs</code></td><td>Generates serialize/deserialize wrapper functions</td></tr>
-<tr><td><strong>Derive Macros</strong></td><td><code>ros-z-derive/src/lib.rs</code></td><td><code>FromPyMessage</code> and <code>IntoPyMessage</code> derive macros</td></tr>
-<tr><td><strong>Bridge Traits</strong></td><td><code>ros-z/src/python_bridge.rs</code></td><td>Core traits for Python-Rust conversion</td></tr>
-<tr><td><strong>Build Script</strong></td><td><code>ros-z-msgs/build.rs</code></td><td>Orchestrates code generation at build time</td></tr>
-<tr><td><strong>Generated Python</strong></td><td><code>ros-z-msgs/python/ros_z_msgs_py/types/*.py</code></td><td>One file per ROS package</td></tr>
-<tr><td><strong>Generated Rust</strong></td><td><code>$OUT_DIR/python_bindings.rs</code></td><td>Compiled into <code>ros-z-msgs</code> crate</td></tr>
-</tbody></table>
-</div>
-<h2 id="generated-code-examples"><a class="header" href="#generated-code-examples">Generated Code Examples</a></h2>
-<h3 id="python-msgspec-structs"><a class="header" href="#python-msgspec-structs">Python: msgspec Structs</a></h3>
-<p>For each ROS message, a frozen <code>msgspec.Struct</code> is generated:</p>
-<pre><code class="language-python"># Generated from std_msgs/msg/String.msg
-class String(msgspec.Struct, frozen=True, kw_only=True):
-    data: str = ""
-
-    __msgtype__: ClassVar[str] = 'std_msgs/msg/String'
-    __hash__: ClassVar[str] = 'RIHS01_df668c740482bbd48fb39d76a70dfd4bd59db1288021743503259e948f6b1a18'
-</code></pre>
-<p>Nested messages use forward references:</p>
-<pre><code class="language-python"># Generated from geometry_msgs/msg/Twist.msg
-class Twist(msgspec.Struct, frozen=True, kw_only=True):
-    linear: "geometry_msgs.Vector3 | None" = None
-    angular: "geometry_msgs.Vector3 | None" = None
-
-    __msgtype__: ClassVar[str] = 'geometry_msgs/msg/Twist'
-    __hash__: ClassVar[str] = 'RIHS01_9c45bf16fe0983d80e3cfe750d6835843d265a9a6c46bd2e609fcddde6fb8d2a'
-</code></pre>
-<p>Service request/response types use the service type hash in <code>__hash__</code>:</p>
-<pre><code class="language-python"># Generated from example_interfaces/srv/AddTwoInts.srv
-class AddTwoIntsRequest(msgspec.Struct, frozen=True, kw_only=True):
-    a: int = 0
-    b: int = 0
-
-    __msgtype__: ClassVar[str] = 'example_interfaces/msg/AddTwoIntsRequest'
-    __hash__: ClassVar[str] = 'RIHS01_e118de6bf5eeb66a2491b5bda11202e7b68f198d6f67922cf30364858239c81a'
-
-class AddTwoIntsResponse(msgspec.Struct, frozen=True, kw_only=True):
-    sum: int = 0
-
-    __msgtype__: ClassVar[str] = 'example_interfaces/msg/AddTwoIntsResponse'
-    __hash__: ClassVar[str] = 'RIHS01_e118de6bf5eeb66a2491b5bda11202e7b68f198d6f67922cf30364858239c81a'
-</code></pre>
-<p>For service types, <code>__hash__</code> contains the service type hash (computed from the combined request/response definition). Both request and response share the same hash since they belong to the same service. This differs from regular messages where <code>__hash__</code> contains the individual message type hash.</p>
-<h3 id="rust-generated-structs-with-derive-macros"><a class="header" href="#rust-generated-structs-with-derive-macros">Rust: Generated Structs with Derive Macros</a></h3>
-<p>The Rust code generator adds derive attributes to message structs:</p>
-<pre><code class="language-rust ignore">// Generated from std_msgs/msg/String.msg
-#[derive(Debug, Clone, Default, ::serde::Serialize, ::serde::Deserialize)]
-#[cfg_attr(feature = "python_registry", derive(::ros_z_derive::FromPyMessage, ::ros_z_derive::IntoPyMessage))]
-#[cfg_attr(feature = "python_registry", ros_msg(module = "ros_z_msgs_py.types.std_msgs"))]
-pub struct String {
-    pub data: std::string::String,
-}</code></pre>
-<p>For nested messages with optional fields:</p>
-<pre><code class="language-rust ignore">// Generated from geometry_msgs/msg/Twist.msg
-#[derive(Debug, Clone, Default, ::serde::Serialize, ::serde::Deserialize)]
-#[cfg_attr(feature = "python_registry", derive(::ros_z_derive::FromPyMessage, ::ros_z_derive::IntoPyMessage))]
-#[cfg_attr(feature = "python_registry", ros_msg(module = "ros_z_msgs_py.types.geometry_msgs"))]
-pub struct Twist {
-    pub linear: Vector3,
-    pub angular: Vector3,
-}</code></pre>
-<h3 id="rust-pyo3-serializedeserialize-functions"><a class="header" href="#rust-pyo3-serializedeserialize-functions">Rust: PyO3 Serialize/Deserialize Functions</a></h3>
-<p>The serialize/deserialize functions use the derive macro traits:</p>
-<pre><code class="language-rust ignore">// Generated serialize function - uses FromPyMessage trait
-#[pyfunction]
-pub fn serialize_string(py: Python, msg: &amp;Bound&lt;'_, PyAny&gt;) -&gt; PyResult&lt;Vec&lt;u8&gt;&gt; {
-    use ::pyo3::types::PyAnyMethods;
-    use ::ros_z::python_bridge::FromPyMessage;
-
-    // Derive macro handles all field extraction recursively
-    let rust_msg = &lt;ros::std_msgs::String&gt;::from_py(msg)?;
-
-    // CDR serialization with 4-byte encapsulation header
-    let mut cdr_data = ros_z_cdr::to_vec::&lt;_, ros_z_cdr::LittleEndian&gt;(&amp;rust_msg, 256)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
-    let mut result = vec![0x00, 0x01, 0x00, 0x00]; // CDR encapsulation header
-    result.append(&amp;mut cdr_data);
-    Ok(result)
-}
-
-// Generated deserialize function - uses IntoPyMessage trait
-#[pyfunction]
-pub fn deserialize_string(py: Python, bytes: &amp;[u8]) -&gt; PyResult&lt;PyObject&gt; {
-    use ::ros_z::python_bridge::IntoPyMessage;
-
-    // Skip 4-byte CDR encapsulation header
-    let cdr_data = &amp;bytes[4..];
-    let (rust_msg, _): (ros::std_msgs::String, _) = ros_z_cdr::from_bytes::&lt;_, ros_z_cdr::LittleEndian&gt;(cdr_data)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
-
-    // Derive macro handles all field construction recursively
-    rust_msg.into_py_message(py)
-}</code></pre>
-<h2 id="data-flow"><a class="header" href="#data-flow">Data Flow</a></h2>
-<h3 id="publishing-python-to-wire"><a class="header" href="#publishing-python-to-wire">Publishing (Python to Wire)</a></h3>
-<pre class="mermaid">sequenceDiagram
-    participant App as Python App
-    participant Msg as msgspec.Struct
-    participant PyO3 as PyO3 Layer
-    participant Rust as Rust Struct
-    participant CDR as CDR Encoder
-    participant Net as Zenoh Network
-
-    App-&gt;&gt;Msg: Create message
-    App-&gt;&gt;PyO3: publish(msg)
-    PyO3-&gt;&gt;PyO3: getattr() each field
-    PyO3-&gt;&gt;Rust: Construct Rust struct
-    Rust-&gt;&gt;CDR: cdr::serialize()
-    CDR-&gt;&gt;Net: Send bytes
-</pre>
-<h3 id="subscribing-wire-to-python"><a class="header" href="#subscribing-wire-to-python">Subscribing (Wire to Python)</a></h3>
-<pre class="mermaid">sequenceDiagram
-    participant Net as Zenoh Network
-    participant CDR as CDR Decoder
-    participant Rust as Rust Struct
-    participant PyO3 as PyO3 Layer
-    participant Msg as msgspec.Struct
-    participant App as Python App
-
-    Net-&gt;&gt;CDR: Receive bytes
-    CDR-&gt;&gt;Rust: cdr::deserialize()
-    Rust-&gt;&gt;PyO3: Build PyDict kwargs
-    PyO3-&gt;&gt;Msg: Call class(**kwargs)
-    Msg-&gt;&gt;App: Return message
-</pre>
-<h2 id="type-mapping"><a class="header" href="#type-mapping">Type Mapping</a></h2>
-<h3 id="ros-to-python-type-mapping"><a class="header" href="#ros-to-python-type-mapping">ROS to Python Type Mapping</a></h3>
-<div class="table-wrapper"><table><thead><tr><th>ROS Type</th><th>Python Type</th><th>Notes</th></tr></thead><tbody>
-<tr><td><code>bool</code></td><td><code>bool</code></td><td></td></tr>
-<tr><td><code>byte</code>, <code>uint8</code>, <code>int8</code>, <code>int16</code>, <code>uint16</code>, <code>int32</code>, <code>uint32</code>, <code>int64</code>, <code>uint64</code></td><td><code>int</code></td><td>Python has arbitrary precision</td></tr>
-<tr><td><code>float32</code>, <code>float64</code></td><td><code>float</code></td><td></td></tr>
-<tr><td><code>string</code></td><td><code>str</code></td><td></td></tr>
-<tr><td><code>T[]</code> (unbounded array)</td><td><code>list[T]</code></td><td></td></tr>
-<tr><td><code>T[N]</code> (fixed array)</td><td><code>list[T]</code></td><td>Size not enforced in Python</td></tr>
-<tr><td><code>uint8[]</code> / <code>byte[]</code></td><td><code>list[int]</code></td><td>Could optimize to <code>bytes</code></td></tr>
-<tr><td>Nested message</td><td><code>"pkg.MsgName | None"</code></td><td>Forward reference string</td></tr>
-</tbody></table>
-</div>
-<h2 id="design-hybrid-python--rust-with-derive-macros"><a class="header" href="#design-hybrid-python--rust-with-derive-macros">Design: Hybrid Python + Rust with Derive Macros</a></h2>
-<pre><code class="language-text">┌─────────────────────────────────────────────────────────────┐
-│                    Current Architecture                      │
-├─────────────────────────────────────────────────────────────┤
-│  Python Layer          │  Rust Layer (via PyO3)             │
-│  ─────────────         │  ──────────────────────            │
-│  • msgspec structs     │  • Derive macros                   │
-│  • Type annotations    │  • Trait-based conversion          │
-│  • IDE support         │  • CDR serialization               │
-│  • User-facing API     │  • Zenoh transport                 │
-│                        │  • Memory management               │
-└─────────────────────────────────────────────────────────────┘
-</code></pre>
-<p><strong>Features:</strong></p>
-<ul>
-<li>Fast serialization (Rust CDR implementation)</li>
-<li>Type-safe Python classes with IDE support</li>
-<li>Immutable messages (<code>frozen=True</code>)</li>
-<li>Automatic type hash validation</li>
-<li>Zero-copy where possible (ZBuf for byte arrays)</li>
-<li><strong>Derive macros handle arbitrary nesting depth automatically</strong></li>
-<li><strong>None handling for optional nested fields</strong></li>
-<li><strong>Minimal generated code (traits do the work)</strong></li>
-</ul>
-<h2 id="build-process"><a class="header" href="#build-process">Build Process</a></h2>
-<h3 id="step-by-step-flow"><a class="header" href="#step-by-step-flow">Step-by-step Flow</a></h3>
-<pre class="mermaid">flowchart TD
-    A[&quot;cargo build ros-z-msgs&lt;br/&gt;--features python_registry&quot;] --&gt; B[&quot;build.rs executes&quot;]
-    B --&gt; C[&quot;Discover ROS packages&lt;br/&gt;(AMENT_PREFIX_PATH or bundled)&quot;]
-    C --&gt; D[&quot;Parse .msg/.srv files&quot;]
-    D --&gt; E[&quot;Resolve dependencies&lt;br/&gt;(type hashes, nested types)&quot;]
-    E --&gt; F[&quot;Generate Python files&quot;]
-    E --&gt; G[&quot;Generate Rust PyO3 module&quot;]
-    F --&gt; H[&quot;ros-z-msgs/python/&lt;br/&gt;ros_z_msgs_py/types/*.py&quot;]
-    G --&gt; I[&quot;$OUT_DIR/python_bindings.rs&quot;]
-    I --&gt; J[&quot;include!() in lib.rs&quot;]
-    J --&gt; K[&quot;Compiled into ros-z-msgs&quot;]
-</pre>
-<h3 id="output-locations"><a class="header" href="#output-locations">Output Locations</a></h3>
-<div class="table-wrapper"><table><thead><tr><th>Output</th><th>Path</th><th>Committed?</th></tr></thead><tbody>
-<tr><td>Python msgspec classes</td><td><code>ros-z-msgs/python/ros_z_msgs_py/types/*.py</code></td><td>Yes</td></tr>
-<tr><td>Rust PyO3 bindings</td><td><code>target/.../ros-z-msgs-.../out/python_bindings.rs</code></td><td>No (generated)</td></tr>
-</tbody></table>
-</div>
-<h3 id="feature-flags"><a class="header" href="#feature-flags">Feature Flags</a></h3>
-<p>The Python codegen is gated behind the <code>python_registry</code> feature:</p>
-<pre><pre class="playground"><code class="language-rust edition2021"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// lib.rs
-#[cfg(feature = "python_registry")]
-include!(concat!(env!("OUT_DIR"), "/python_bindings.rs"));
-<span class="boring">}</span></code></pre></pre>
-<p>The <code>ros-z-derive</code> crate provides the derive macros, and <code>ros-z/python</code> enables the <code>FromPyMessage</code> and <code>IntoPyMessage</code> traits.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="publishers-and-subscribers"><a class="header" href="#publishers-and-subscribers">Publishers and Subscribers</a></h1>
 <p><strong>ros-z implements ROS 2's publish-subscribe pattern with type-safe, zero-copy messaging over Zenoh.</strong> This enables efficient, decoupled communication between nodes with minimal overhead.</p>
 <div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
@@ -1028,7 +509,7 @@ include!(concat!(env!("OUT_DIR"), "/python_bindings.rs"));
 <p>The pub-sub pattern forms the foundation of ROS 2 communication, allowing nodes to exchange data without direct coupling. ros-z leverages Zenoh's efficient transport layer for optimal performance.</p>
 </div>
 </div>
-<h2 id="visual-flow-1"><a class="header" href="#visual-flow-1">Visual Flow</a></h2>
+<h2 id="visual-flow"><a class="header" href="#visual-flow">Visual Flow</a></h2>
 <pre class="mermaid">graph TD
     A[ZContextBuilder] --&gt;|configure| B[ZContext]
     B --&gt;|create| C[Node]
@@ -1313,7 +794,7 @@ let publisher = node
 <p>Use <code>QosHistory::KeepLast(1)</code> for sensor data and <code>Reliability::Reliable</code> for critical commands. Match QoS profiles between publishers and subscribers for optimal message delivery.</p>
 </div>
 </div>
-<h2 id="ros-2-interoperability-1"><a class="header" href="#ros-2-interoperability-1">ROS 2 Interoperability</a></h2>
+<h2 id="ros-2-interoperability"><a class="header" href="#ros-2-interoperability">ROS 2 Interoperability</a></h2>
 <p>ros-z publishers and subscribers work seamlessly with ROS 2 C++ and Python nodes:</p>
 <pre><code class="language-bash"># List active topics
 ros2 topic list
@@ -1338,7 +819,7 @@ ros2 topic info /chatter
 <p>ros-z provides full ROS 2 compatibility via Zenoh bridge or rmw_zenoh, enabling cross-language communication.</p>
 </div>
 </div>
-<h2 id="resources-1"><a class="header" href="#resources-1">Resources</a></h2>
+<h2 id="resources"><a class="header" href="#resources">Resources</a></h2>
 <ul>
 <li><strong><a href="chapters/./custom_messages.html">Custom Messages</a></strong> - Defining and using custom message types</li>
 <li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - Generating Rust types from ROS 2 messages</li>
@@ -1358,7 +839,7 @@ ros2 topic info /chatter
 <p>Services provide request-response communication for operations that need immediate feedback. Unlike topics, services are bidirectional and ensure a response for each request. ros-z uses a pull model that gives you explicit control over when to process requests.</p>
 </div>
 </div>
-<h2 id="visual-flow-2"><a class="header" href="#visual-flow-2">Visual Flow</a></h2>
+<h2 id="visual-flow-1"><a class="header" href="#visual-flow-1">Visual Flow</a></h2>
 <pre class="mermaid">graph TD
     A[ZContextBuilder] --&gt;|configure| B[ZContext]
     B --&gt;|create| C[Client Node]
@@ -1611,7 +1092,7 @@ let response = client.take_response_async().await?;</code></pre>
 <p>Match your client and server patterns for consistency. Use blocking patterns for simple scripts and async patterns when integrating with async runtimes like tokio.</p>
 </div>
 </div>
-<h2 id="ros-2-interoperability-2"><a class="header" href="#ros-2-interoperability-2">ROS 2 Interoperability</a></h2>
+<h2 id="ros-2-interoperability-1"><a class="header" href="#ros-2-interoperability-1">ROS 2 Interoperability</a></h2>
 <p>ros-z services work seamlessly with ROS 2 C++ and Python nodes:</p>
 <pre><code class="language-bash"># List available services
 ros2 service list
@@ -1636,7 +1117,7 @@ ros2 service info /add_two_ints
 <p>ros-z service servers and clients are fully compatible with ROS 2 via Zenoh bridge or rmw_zenoh, enabling cross-language service calls.</p>
 </div>
 </div>
-<h2 id="resources-2"><a class="header" href="#resources-2">Resources</a></h2>
+<h2 id="resources-1"><a class="header" href="#resources-1">Resources</a></h2>
 <ul>
 <li><strong><a href="chapters/./custom_messages.html">Custom Messages</a></strong> - Defining and using custom service types</li>
 <li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - Generating service definitions</li>
@@ -1781,7 +1262,7 @@ println!("Final: {:?}", result.sequence);</code></pre>
 <tr><td><strong>Action</strong></td><td>Seconds to minutes</td><td>Yes</td><td>Yes</td><td>Long-running tasks</td></tr>
 </tbody></table>
 </div>
-<h2 id="resources-3"><a class="header" href="#resources-3">Resources</a></h2>
+<h2 id="resources-2"><a class="header" href="#resources-2">Resources</a></h2>
 <ul>
 <li><strong><a href="https://docs.ros.org/en/rolling/Tutorials/Intermediate/Writing-an-Action-Server-Client/Py.html">ROS 2 Actions Documentation</a></strong> - Official ROS 2 action guide</li>
 <li><strong><a href="https://github.com/ZettaScaleLabs/ros-z/tree/main/ros-z/examples">ros-z Examples</a></strong> - Working action implementations</li>
@@ -2059,7 +1540,7 @@ cargo run --example z_srvcli          # Service example with example_interfaces
 <tr><td><strong>Production Ready</strong></td><td>Battle-tested configuration used in real robotics systems</td></tr>
 </tbody></table>
 </div>
-<h2 id="quick-start-2"><a class="header" href="#quick-start-2">Quick Start</a></h2>
+<h2 id="quick-start-1"><a class="header" href="#quick-start-1">Quick Start</a></h2>
 <p>The simplest way to get started is using the built-in router example:</p>
 <p><strong>Terminal 1 - Start the Router:</strong></p>
 <pre><code class="language-bash">cargo run --example zenoh_router
@@ -2413,7 +1894,7 @@ impl WithTypeInfo for std_msgs::String {
 <p>Type hashes are critical for ROS 2 interoperability. They ensure nodes agree on message structure before exchanging data.</p>
 </div>
 </div>
-<h2 id="build-process-1"><a class="header" href="#build-process-1">Build Process</a></h2>
+<h2 id="build-process"><a class="header" href="#build-process">Build Process</a></h2>
 <h3 id="ros-z-msgs-build-script"><a class="header" href="#ros-z-msgs-build-script">ros-z-msgs Build Script</a></h3>
 <p>The generation happens in <code>build.rs</code>:</p>
 <pre class="mermaid">flowchart TD
@@ -2675,7 +2156,7 @@ let config = GeneratorConfig {
 
 let generator = MessageGenerator::new(config);
 generator.generate_from_msg_files(&amp;package_paths)?;</code></pre>
-<h2 id="troubleshooting-1"><a class="header" href="#troubleshooting-1">Troubleshooting</a></h2>
+<h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
 <h3 id="package-not-found"><a class="header" href="#package-not-found">Package Not Found</a></h3>
 <pre><code class="language-bash"># Check ROS 2 is sourced
 echo $AMENT_PREFIX_PATH
@@ -2697,7 +2178,7 @@ cargo build -p ros-z-msgs --features bundled_msgs
 </tbody></table>
 </div>
 <p>See <a href="chapters/./troubleshooting.html">Troubleshooting Guide</a> for detailed solutions.</p>
-<h2 id="resources-4"><a class="header" href="#resources-4">Resources</a></h2>
+<h2 id="resources-3"><a class="header" href="#resources-3">Resources</a></h2>
 <ul>
 <li><strong><a href="chapters/./feature_flags.html">Feature Flags</a></strong> - Available message packages</li>
 <li><strong><a href="chapters/./building.html">Building</a></strong> - Build configuration</li>
@@ -2948,7 +2429,7 @@ package::srv::dds_::ServiceName_
 </code></pre>
 <p>The trailing underscore and <code>dds_</code> infix match ROS 2's internal naming scheme.</p>
 <hr />
-<h2 id="resources-5"><a class="header" href="#resources-5">Resources</a></h2>
+<h2 id="resources-4"><a class="header" href="#resources-4">Resources</a></h2>
 <ul>
 <li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - How ros-z-msgs generates standard types</li>
 <li><strong><a href="chapters/./protobuf.html">Protobuf Serialization</a></strong> - Alternative serialization format</li>
@@ -2992,7 +2473,7 @@ package::srv::dds_::ServiceName_
 </div>
 </div>
 <h2 id="enabling-protobuf-support"><a class="header" href="#enabling-protobuf-support">Enabling Protobuf Support</a></h2>
-<h3 id="feature-flags-1"><a class="header" href="#feature-flags-1">Feature Flags</a></h3>
+<h3 id="feature-flags"><a class="header" href="#feature-flags">Feature Flags</a></h3>
 <p>Enable protobuf in your <code>Cargo.toml</code>:</p>
 <pre><code class="language-toml">[dependencies]
 ros-z = { version = "0.1", features = ["protobuf"] }
@@ -3409,7 +2890,7 @@ fn main() -&gt; Result&lt;()&gt; {
 
     Ok(())
 }</code></pre>
-<h2 id="troubleshooting-2"><a class="header" href="#troubleshooting-2">Troubleshooting</a></h2>
+<h2 id="troubleshooting-1"><a class="header" href="#troubleshooting-1">Troubleshooting</a></h2>
 <details id="admonition-error-protobuf-feature-not-enabled" class="admonition admonish-question" role="note" aria-labelledby="admonition-error-protobuf-feature-not-enabled-title">
 <summary class="admonition-title">
 <div id="admonition-error-protobuf-feature-not-enabled-title">
@@ -3540,7 +3021,7 @@ let sub = node
 </code></pre>
 </div>
 </details>
-<h2 id="resources-6"><a class="header" href="#resources-6">Resources</a></h2>
+<h2 id="resources-5"><a class="header" href="#resources-5">Resources</a></h2>
 <ul>
 <li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - Understanding message architecture</li>
 <li><strong><a href="chapters/./custom_messages.html">Custom Messages</a></strong> - Manual message implementation</li>
@@ -3548,6 +3029,525 @@ let sub = node
 <li><strong><a href="https://docs.rs/prost/">prost Crate</a></strong> - Rust protobuf library</li>
 </ul>
 <p><strong>Use protobuf when you need schema evolution or cross-language compatibility beyond the ROS 2 ecosystem. Stick with CDR for standard ROS 2 interoperability.</strong></p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="python-bindings"><a class="header" href="#python-bindings">Python Bindings</a></h1>
+<p><strong>ros-z provides Python bindings via <code>ros-z-py</code>, enabling Python applications to communicate with Rust and ROS 2 nodes using the same Zenoh transport.</strong> The bindings use PyO3 for Rust-Python interop and msgspec for efficient message serialization.</p>
+<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+<div class="admonition-title">
+<div id="admonition-note-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/python.html#admonition-note"></a>
+</div>
+<div>
+<p>Python bindings provide the same pub/sub and service patterns as Rust, with Pythonic APIs. Messages are automatically serialized/deserialized between Python objects and CDR format for ROS 2 compatibility.</p>
+</div>
+</div>
+<h2 id="visual-flow-2"><a class="header" href="#visual-flow-2">Visual Flow</a></h2>
+<pre class="mermaid">graph TD
+    A[Python Code] --&gt;|import| B[ros_z_py]
+    B --&gt;|PyO3| C[Rust ros-z]
+    C --&gt;|Zenoh| D[Network]
+    D --&gt;|Zenoh| E[ROS 2 / Rust Nodes]
+
+    F[Python Message] --&gt;|msgspec| G[Struct]
+    G --&gt;|serialize| H[CDR Bytes]
+    H --&gt;|deserialize| I[Rust Struct]
+</pre>
+<h2 id="installation"><a class="header" href="#installation">Installation</a></h2>
+<h3 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h3>
+<ul>
+<li>Python 3.8+</li>
+<li>Rust toolchain</li>
+<li>maturin (<code>pip install maturin</code>)</li>
+</ul>
+<h3 id="setup-1"><a class="header" href="#setup-1">Setup</a></h3>
+<pre><code class="language-bash"># Create and activate virtual environment
+cd ros-z-py
+python -m venv .venv
+source .venv/bin/activate
+
+# Install message types
+pip install -e ../ros-z-msgs/python/
+
+# Build and install ros-z-py
+maturin develop
+</code></pre>
+<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
+<div class="admonition-title">
+<div id="admonition-tip-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/python.html#admonition-tip"></a>
+</div>
+<div>
+<p>Use <code>maturin develop --release</code> for optimized builds when benchmarking or running in production.</p>
+</div>
+</div>
+<h2 id="quick-start-2"><a class="header" href="#quick-start-2">Quick Start</a></h2>
+<p>Here's a complete publisher and subscriber example from <a href="https://github.com/ZettaScaleLabs/ros-z/blob/main/ros-z-py/examples/topic_demo.py"><code>ros-z-py/examples/topic_demo.py</code></a>:</p>
+<h3 id="publisher-talker"><a class="header" href="#publisher-talker">Publisher (Talker)</a></h3>
+<pre><code class="language-python">def run_talker(ctx, topic: str, count: int, interval: float):
+    """Run the talker (publisher)."""
+    node = ctx.create_node("talker").build()
+    pub = node.create_publisher(topic, std_msgs.String)
+
+    print(f"Talker started. Publishing to {topic}...")
+
+    i = 0
+    while count == 0 or i &lt; count:
+        message = f"Hello from Python {i}"
+        msg = std_msgs.String(data=message)
+        pub.publish(msg)
+        print(f"PUB:{i}", flush=True)
+        i += 1
+        time.sleep(interval)
+
+    print("PUB:DONE", flush=True)
+
+
+</code></pre>
+<h3 id="subscriber-listener"><a class="header" href="#subscriber-listener">Subscriber (Listener)</a></h3>
+<pre><code class="language-python">def run_listener(ctx, topic: str, timeout: float):
+    """Run the listener (subscriber)."""
+    node = ctx.create_node("listener").build()
+    sub = node.create_subscriber(topic, std_msgs.String)
+
+    print("SUB:READY", flush=True)
+
+    start = time.time()
+    received = 0
+
+    while timeout == 0 or (time.time() - start) &lt; timeout:
+        msg = sub.recv(timeout=1.0)
+        if msg is not None:
+            print(f"SUB:{msg.data}", flush=True)
+            received += 1
+
+    print(f"SUB:TOTAL:{received}", flush=True)
+
+
+</code></pre>
+<h2 id="key-components-1"><a class="header" href="#key-components-1">Key Components</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Component</th><th>Purpose</th><th>Python API</th></tr></thead><tbody>
+<tr><td><strong>ZContextBuilder</strong></td><td>Configure ros-z environment</td><td><code>ZContextBuilder().with_domain_id(0).build()</code></td></tr>
+<tr><td><strong>ZContext</strong></td><td>Manages ROS 2 connections</td><td>Entry point for creating nodes</td></tr>
+<tr><td><strong>Node</strong></td><td>Logical unit of computation</td><td><code>ctx.create_node("name").build()</code></td></tr>
+<tr><td><strong>Publisher</strong></td><td>Sends messages to topics</td><td><code>node.create_publisher(topic, type)</code></td></tr>
+<tr><td><strong>Subscriber</strong></td><td>Receives messages from topics</td><td><code>node.create_subscriber(topic, type)</code></td></tr>
+<tr><td><strong>Client</strong></td><td>Sends service requests</td><td><code>node.create_client(service, type)</code></td></tr>
+<tr><td><strong>Server</strong></td><td>Handles service requests</td><td><code>node.create_server(service, type)</code></td></tr>
+</tbody></table>
+</div>
+<h2 id="service-patterns"><a class="header" href="#service-patterns">Service Patterns</a></h2>
+<p>Examples from <a href="https://github.com/ZettaScaleLabs/ros-z/blob/main/ros-z-py/examples/service_demo.py"><code>ros-z-py/examples/service_demo.py</code></a>:</p>
+<h3 id="service-server"><a class="header" href="#service-server">Service Server</a></h3>
+<pre><code class="language-python">def run_server(ctx, service: str, max_requests: int):
+    """Run the AddTwoInts service server."""
+    node = ctx.create_node("add_two_ints_server").build()
+    server = node.create_server(service, example_interfaces.AddTwoIntsRequest)
+
+    print("SERVER:READY", flush=True)
+
+    handled = 0
+    while max_requests == 0 or handled &lt; max_requests:
+        request_id, req = server.take_request()
+        result = req.a + req.b
+        print(f"SERVER:{req.a}+{req.b}={result}", flush=True)
+
+        resp = example_interfaces.AddTwoIntsResponse(sum=result)
+        server.send_response(resp, request_id)
+        handled += 1
+
+    print("SERVER:DONE", flush=True)
+
+
+</code></pre>
+<h3 id="service-client"><a class="header" href="#service-client">Service Client</a></h3>
+<pre><code class="language-python">def run_client(ctx, service: str, a: int, b: int, timeout: float):
+    """Run the AddTwoInts service client."""
+    node = ctx.create_node("add_two_ints_client").build()
+    client = node.create_client(service, example_interfaces.AddTwoIntsRequest)
+
+    # Wait for service discovery
+    time.sleep(1.0)
+
+    print(f"CLIENT:REQUEST:{a}+{b}", flush=True)
+
+    req = example_interfaces.AddTwoIntsRequest(a=a, b=b)
+    client.send_request(req)
+
+    resp = client.take_response(timeout=timeout)
+
+    if resp is not None:
+        print(f"CLIENT:RESPONSE:{resp.sum}", flush=True)
+    else:
+        print("CLIENT:ERROR:no response", flush=True)
+        sys.exit(1)
+
+
+</code></pre>
+<div id="admonition-tip-1" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-1-title">
+<div class="admonition-title">
+<div id="admonition-tip-1-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/python.html#admonition-tip-1"></a>
+</div>
+<div>
+<p>Service servers use a pull model: <code>take_request()</code> blocks until a request arrives. This gives you explicit control over when to process requests.</p>
+</div>
+</div>
+<h2 id="complex-messages"><a class="header" href="#complex-messages">Complex Messages</a></h2>
+<p>Python bindings support nested message types like <code>geometry_msgs/Twist</code>:</p>
+<pre><code class="language-python">from ros_z_py import geometry_msgs
+
+# Create a Twist message with nested Vector3
+twist = geometry_msgs.Twist(
+    linear=geometry_msgs.Vector3(x=1.0, y=0.0, z=0.0),
+    angular=geometry_msgs.Vector3(x=0.0, y=0.0, z=0.5)
+)
+
+pub = node.create_publisher("/cmd_vel", "geometry_msgs/msg/Twist")
+pub.publish(twist)
+</code></pre>
+<h2 id="context-configuration"><a class="header" href="#context-configuration">Context Configuration</a></h2>
+<h3 id="connect-to-specific-endpoint"><a class="header" href="#connect-to-specific-endpoint">Connect to Specific Endpoint</a></h3>
+<pre><code class="language-python">ctx = (
+    ros_z_py.ZContextBuilder()
+    .with_connect_endpoints(["tcp/192.168.1.100:7447"])
+    .build()
+)
+</code></pre>
+<h3 id="disable-multicast-scouting"><a class="header" href="#disable-multicast-scouting">Disable Multicast Scouting</a></h3>
+<pre><code class="language-python">ctx = (
+    ros_z_py.ZContextBuilder()
+    .with_domain_id(0)
+    .disable_multicast_scouting()
+    .build()
+)
+</code></pre>
+<h3 id="custom-namespace"><a class="header" href="#custom-namespace">Custom Namespace</a></h3>
+<pre><code class="language-python">node = ctx.create_node("my_node").with_namespace("/robot1").build()
+</code></pre>
+<h2 id="ros-2-interoperability-2"><a class="header" href="#ros-2-interoperability-2">ROS 2 Interoperability</a></h2>
+<p>Python nodes work seamlessly with Rust and ROS 2 nodes:</p>
+<pre><code class="language-bash"># Terminal 1: Start Zenoh router
+cargo run --example zenoh_router
+
+# Terminal 2: Run Python publisher (using topic_demo.py)
+cd ros-z-py
+source .venv/bin/activate
+python examples/topic_demo.py -r talker
+
+# Terminal 3: Listen with ROS 2 CLI
+ros2 topic echo /chatter std_msgs/msg/String
+</code></pre>
+<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
+<div class="admonition-title">
+<div id="admonition-success-title">
+<p>Success</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/python.html#admonition-success"></a>
+</div>
+<div>
+<p>Messages published from Python are received by ROS 2 CLI, Rust nodes, and any other ROS 2-compatible system connected via Zenoh.</p>
+</div>
+</div>
+<h2 id="running-tests"><a class="header" href="#running-tests">Running Tests</a></h2>
+<pre><code class="language-bash"># Python unit tests
+cd ros-z-py
+source .venv/bin/activate
+python -m pytest tests/ -v
+
+# Python-Rust interop tests
+cargo test --features python-interop -p ros-z-tests --test python_interop -- --test-threads=1
+</code></pre>
+<h2 id="troubleshooting-2"><a class="header" href="#troubleshooting-2">Troubleshooting</a></h2>
+<details id="admonition-import-errors-when-using-ros_z_py" class="admonition admonish-question" role="note" aria-labelledby="admonition-import-errors-when-using-ros_z_py-title">
+<summary class="admonition-title">
+<div id="admonition-import-errors-when-using-ros_z_py-title">
+<p>Import errors when using ros_z_py</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/python.html#admonition-import-errors-when-using-ros_z_py"></a>
+</summary>
+<div>
+<p>This error occurs when the package hasn't been built or installed correctly.</p>
+<p><strong>Solution:</strong></p>
+<p>Rebuild and install the package:</p>
+<pre><code class="language-bash">cd ros-z-py
+source .venv/bin/activate
+pip install -e ../ros-z-msgs/python/
+maturin develop
+</code></pre>
+</div>
+</details>
+<details id="admonition-message-type-not-found" class="admonition admonish-question" role="note" aria-labelledby="admonition-message-type-not-found-title">
+<summary class="admonition-title">
+<div id="admonition-message-type-not-found-title">
+<p>Message type not found</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/python.html#admonition-message-type-not-found"></a>
+</summary>
+<div>
+<p>This error occurs when trying to use a message type that isn't registered.</p>
+<p><strong>Solution:</strong></p>
+<p>Check which message types are available:</p>
+<pre><code class="language-python">from ros_z_py import ros_z_msgs
+print(ros_z_msgs.list_registered_types())
+</code></pre>
+<p>Ensure the message package is enabled in <code>ros-z-msgs/Cargo.toml</code> features.</p>
+</div>
+</details>
+<details id="admonition-recv-always-returns-none" class="admonition admonish-question" role="note" aria-labelledby="admonition-recv-always-returns-none-title">
+<summary class="admonition-title">
+<div id="admonition-recv-always-returns-none-title">
+<p>recv() always returns None</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/python.html#admonition-recv-always-returns-none"></a>
+</summary>
+<div>
+<p>This happens when no messages are being received within the timeout period.</p>
+<p><strong>Solution:</strong></p>
+<ul>
+<li>Check the topic name matches exactly (including leading <code>/</code>)</li>
+<li>Verify the publisher is running and connected to the same Zenoh network</li>
+<li>Increase the timeout value</li>
+<li>Use <code>--nocapture</code> with pytest to see debug output: <code>python -m pytest tests/ -v --capture=no</code></li>
+</ul>
+</div>
+</details>
+<h2 id="resources-6"><a class="header" href="#resources-6">Resources</a></h2>
+<ul>
+<li><strong><a href="chapters/./python_codegen.html">Code Generation Internals</a></strong> - How Python bindings are generated</li>
+<li><strong><a href="chapters/./pubsub.html">Pub/Sub</a></strong> - Deep dive into pub-sub patterns</li>
+<li><strong><a href="chapters/./services.html">Services</a></strong> - Request-response communication</li>
+<li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - How message types work</li>
+<li><strong><a href="chapters/./config.html">Networking</a></strong> - Zenoh router setup and options</li>
+</ul>
+<p><strong>Start with the pub/sub example to understand the basics, then explore services for request-response patterns.</strong></p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="python-code-generation-internals"><a class="header" href="#python-code-generation-internals">Python Code Generation Internals</a></h1>
+<p>This chapter explains how ros-z generates Python bindings for ROS 2 messages, including the architecture, generated code structure, and design rationale.</p>
+<h2 id="architecture-overview"><a class="header" href="#architecture-overview">Architecture Overview</a></h2>
+<p>ros-z uses a <strong>hybrid approach</strong>: Python classes for ergonomics, Rust for serialization performance. The architecture uses <strong>derive macros</strong> for automatic Python-Rust conversion of arbitrarily nested message types.</p>
+<pre class="mermaid">graph TB
+    subgraph &quot;Build Time (cargo build)&quot;
+        ROS[&quot;.msg/.srv files&quot;] --&gt; Parser[&quot;ros-z-codegen&lt;br/&gt;Parser&quot;]
+        Parser --&gt; Resolver[&quot;Dependency&lt;br/&gt;Resolver&quot;]
+        Resolver --&gt; PyGen[&quot;Python Generator&quot;]
+        Resolver --&gt; RsGen[&quot;Rust Generator&quot;]
+        PyGen --&gt; PyFiles[&quot;*.py files&lt;br/&gt;(msgspec structs)&quot;]
+        RsGen --&gt; RsFile[&quot;Rust structs with&lt;br/&gt;derive macros&quot;]
+        RsGen --&gt; PyO3File[&quot;python_bindings.rs&lt;br/&gt;(serialize/deserialize)&quot;]
+    end
+
+    subgraph &quot;Derive Macros (ros-z-derive)&quot;
+        Derive[&quot;FromPyMessage&lt;br/&gt;IntoPyMessage&quot;]
+        Derive --&gt;|&quot;generates&quot;| Extract[&quot;Field extraction code&quot;]
+        Derive --&gt;|&quot;generates&quot;| Construct[&quot;Object construction code&quot;]
+    end
+
+    subgraph &quot;Runtime&quot;
+        PyFiles --&gt; PyObj[&quot;Python Object&quot;]
+        PyObj --&gt;|&quot;FromPyMessage::from_py()&quot;| RsStruct[&quot;Rust Struct&quot;]
+        RsStruct --&gt;|&quot;ros-z-cdr::to_vec()&quot;| CDR[&quot;CDR Bytes&quot;]
+        CDR --&gt;|&quot;Zenoh&quot;| Network[&quot;Network&quot;]
+    end
+</pre>
+<h3 id="key-components-2"><a class="header" href="#key-components-2">Key Components</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Component</th><th>Location</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><strong>Python Generator</strong></td><td><code>ros-z-codegen/src/generator/python.rs</code></td><td>Generates msgspec struct classes</td></tr>
+<tr><td><strong>Rust Generator</strong></td><td><code>ros-z-codegen/src/generator/rust.rs</code></td><td>Generates Rust structs with derive attributes</td></tr>
+<tr><td><strong>PyO3 Generator</strong></td><td><code>ros-z-codegen/src/python_msgspec_generator.rs</code></td><td>Generates serialize/deserialize wrapper functions</td></tr>
+<tr><td><strong>Derive Macros</strong></td><td><code>ros-z-derive/src/lib.rs</code></td><td><code>FromPyMessage</code> and <code>IntoPyMessage</code> derive macros</td></tr>
+<tr><td><strong>Bridge Traits</strong></td><td><code>ros-z/src/python_bridge.rs</code></td><td>Core traits for Python-Rust conversion</td></tr>
+<tr><td><strong>Build Script</strong></td><td><code>ros-z-msgs/build.rs</code></td><td>Orchestrates code generation at build time</td></tr>
+<tr><td><strong>Generated Python</strong></td><td><code>ros-z-msgs/python/ros_z_msgs_py/types/*.py</code></td><td>One file per ROS package</td></tr>
+<tr><td><strong>Generated Rust</strong></td><td><code>$OUT_DIR/python_bindings.rs</code></td><td>Compiled into <code>ros-z-msgs</code> crate</td></tr>
+</tbody></table>
+</div>
+<h2 id="generated-code-examples"><a class="header" href="#generated-code-examples">Generated Code Examples</a></h2>
+<h3 id="python-msgspec-structs"><a class="header" href="#python-msgspec-structs">Python: msgspec Structs</a></h3>
+<p>For each ROS message, a frozen <code>msgspec.Struct</code> is generated:</p>
+<pre><code class="language-python"># Generated from std_msgs/msg/String.msg
+class String(msgspec.Struct, frozen=True, kw_only=True):
+    data: str = ""
+
+    __msgtype__: ClassVar[str] = 'std_msgs/msg/String'
+    __hash__: ClassVar[str] = 'RIHS01_df668c740482bbd48fb39d76a70dfd4bd59db1288021743503259e948f6b1a18'
+</code></pre>
+<p>Nested messages use forward references:</p>
+<pre><code class="language-python"># Generated from geometry_msgs/msg/Twist.msg
+class Twist(msgspec.Struct, frozen=True, kw_only=True):
+    linear: "geometry_msgs.Vector3 | None" = None
+    angular: "geometry_msgs.Vector3 | None" = None
+
+    __msgtype__: ClassVar[str] = 'geometry_msgs/msg/Twist'
+    __hash__: ClassVar[str] = 'RIHS01_9c45bf16fe0983d80e3cfe750d6835843d265a9a6c46bd2e609fcddde6fb8d2a'
+</code></pre>
+<p>Service request/response types use the service type hash in <code>__hash__</code>:</p>
+<pre><code class="language-python"># Generated from example_interfaces/srv/AddTwoInts.srv
+class AddTwoIntsRequest(msgspec.Struct, frozen=True, kw_only=True):
+    a: int = 0
+    b: int = 0
+
+    __msgtype__: ClassVar[str] = 'example_interfaces/msg/AddTwoIntsRequest'
+    __hash__: ClassVar[str] = 'RIHS01_e118de6bf5eeb66a2491b5bda11202e7b68f198d6f67922cf30364858239c81a'
+
+class AddTwoIntsResponse(msgspec.Struct, frozen=True, kw_only=True):
+    sum: int = 0
+
+    __msgtype__: ClassVar[str] = 'example_interfaces/msg/AddTwoIntsResponse'
+    __hash__: ClassVar[str] = 'RIHS01_e118de6bf5eeb66a2491b5bda11202e7b68f198d6f67922cf30364858239c81a'
+</code></pre>
+<p>For service types, <code>__hash__</code> contains the service type hash (computed from the combined request/response definition). Both request and response share the same hash since they belong to the same service. This differs from regular messages where <code>__hash__</code> contains the individual message type hash.</p>
+<h3 id="rust-generated-structs-with-derive-macros"><a class="header" href="#rust-generated-structs-with-derive-macros">Rust: Generated Structs with Derive Macros</a></h3>
+<p>The Rust code generator adds derive attributes to message structs:</p>
+<pre><code class="language-rust ignore">// Generated from std_msgs/msg/String.msg
+#[derive(Debug, Clone, Default, ::serde::Serialize, ::serde::Deserialize)]
+#[cfg_attr(feature = "python_registry", derive(::ros_z_derive::FromPyMessage, ::ros_z_derive::IntoPyMessage))]
+#[cfg_attr(feature = "python_registry", ros_msg(module = "ros_z_msgs_py.types.std_msgs"))]
+pub struct String {
+    pub data: std::string::String,
+}</code></pre>
+<p>For nested messages with optional fields:</p>
+<pre><code class="language-rust ignore">// Generated from geometry_msgs/msg/Twist.msg
+#[derive(Debug, Clone, Default, ::serde::Serialize, ::serde::Deserialize)]
+#[cfg_attr(feature = "python_registry", derive(::ros_z_derive::FromPyMessage, ::ros_z_derive::IntoPyMessage))]
+#[cfg_attr(feature = "python_registry", ros_msg(module = "ros_z_msgs_py.types.geometry_msgs"))]
+pub struct Twist {
+    pub linear: Vector3,
+    pub angular: Vector3,
+}</code></pre>
+<h3 id="rust-pyo3-serializedeserialize-functions"><a class="header" href="#rust-pyo3-serializedeserialize-functions">Rust: PyO3 Serialize/Deserialize Functions</a></h3>
+<p>The serialize/deserialize functions use the derive macro traits:</p>
+<pre><code class="language-rust ignore">// Generated serialize function - uses FromPyMessage trait
+#[pyfunction]
+pub fn serialize_string(py: Python, msg: &amp;Bound&lt;'_, PyAny&gt;) -&gt; PyResult&lt;Vec&lt;u8&gt;&gt; {
+    use ::pyo3::types::PyAnyMethods;
+    use ::ros_z::python_bridge::FromPyMessage;
+
+    // Derive macro handles all field extraction recursively
+    let rust_msg = &lt;ros::std_msgs::String&gt;::from_py(msg)?;
+
+    // CDR serialization with 4-byte encapsulation header
+    let mut cdr_data = ros_z_cdr::to_vec::&lt;_, ros_z_cdr::LittleEndian&gt;(&amp;rust_msg, 256)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let mut result = vec![0x00, 0x01, 0x00, 0x00]; // CDR encapsulation header
+    result.append(&amp;mut cdr_data);
+    Ok(result)
+}
+
+// Generated deserialize function - uses IntoPyMessage trait
+#[pyfunction]
+pub fn deserialize_string(py: Python, bytes: &amp;[u8]) -&gt; PyResult&lt;PyObject&gt; {
+    use ::ros_z::python_bridge::IntoPyMessage;
+
+    // Skip 4-byte CDR encapsulation header
+    let cdr_data = &amp;bytes[4..];
+    let (rust_msg, _): (ros::std_msgs::String, _) = ros_z_cdr::from_bytes::&lt;_, ros_z_cdr::LittleEndian&gt;(cdr_data)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+
+    // Derive macro handles all field construction recursively
+    rust_msg.into_py_message(py)
+}</code></pre>
+<h2 id="data-flow"><a class="header" href="#data-flow">Data Flow</a></h2>
+<h3 id="publishing-python-to-wire"><a class="header" href="#publishing-python-to-wire">Publishing (Python to Wire)</a></h3>
+<pre class="mermaid">sequenceDiagram
+    participant App as Python App
+    participant Msg as msgspec.Struct
+    participant PyO3 as PyO3 Layer
+    participant Rust as Rust Struct
+    participant CDR as CDR Encoder
+    participant Net as Zenoh Network
+
+    App-&gt;&gt;Msg: Create message
+    App-&gt;&gt;PyO3: publish(msg)
+    PyO3-&gt;&gt;PyO3: getattr() each field
+    PyO3-&gt;&gt;Rust: Construct Rust struct
+    Rust-&gt;&gt;CDR: cdr::serialize()
+    CDR-&gt;&gt;Net: Send bytes
+</pre>
+<h3 id="subscribing-wire-to-python"><a class="header" href="#subscribing-wire-to-python">Subscribing (Wire to Python)</a></h3>
+<pre class="mermaid">sequenceDiagram
+    participant Net as Zenoh Network
+    participant CDR as CDR Decoder
+    participant Rust as Rust Struct
+    participant PyO3 as PyO3 Layer
+    participant Msg as msgspec.Struct
+    participant App as Python App
+
+    Net-&gt;&gt;CDR: Receive bytes
+    CDR-&gt;&gt;Rust: cdr::deserialize()
+    Rust-&gt;&gt;PyO3: Build PyDict kwargs
+    PyO3-&gt;&gt;Msg: Call class(**kwargs)
+    Msg-&gt;&gt;App: Return message
+</pre>
+<h2 id="type-mapping"><a class="header" href="#type-mapping">Type Mapping</a></h2>
+<h3 id="ros-to-python-type-mapping"><a class="header" href="#ros-to-python-type-mapping">ROS to Python Type Mapping</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>ROS Type</th><th>Python Type</th><th>Notes</th></tr></thead><tbody>
+<tr><td><code>bool</code></td><td><code>bool</code></td><td></td></tr>
+<tr><td><code>byte</code>, <code>uint8</code>, <code>int8</code>, <code>int16</code>, <code>uint16</code>, <code>int32</code>, <code>uint32</code>, <code>int64</code>, <code>uint64</code></td><td><code>int</code></td><td>Python has arbitrary precision</td></tr>
+<tr><td><code>float32</code>, <code>float64</code></td><td><code>float</code></td><td></td></tr>
+<tr><td><code>string</code></td><td><code>str</code></td><td></td></tr>
+<tr><td><code>T[]</code> (unbounded array)</td><td><code>list[T]</code></td><td></td></tr>
+<tr><td><code>T[N]</code> (fixed array)</td><td><code>list[T]</code></td><td>Size not enforced in Python</td></tr>
+<tr><td><code>uint8[]</code> / <code>byte[]</code></td><td><code>list[int]</code></td><td>Could optimize to <code>bytes</code></td></tr>
+<tr><td>Nested message</td><td><code>"pkg.MsgName | None"</code></td><td>Forward reference string</td></tr>
+</tbody></table>
+</div>
+<h2 id="design-hybrid-python--rust-with-derive-macros"><a class="header" href="#design-hybrid-python--rust-with-derive-macros">Design: Hybrid Python + Rust with Derive Macros</a></h2>
+<pre><code class="language-text">┌─────────────────────────────────────────────────────────────┐
+│                    Current Architecture                      │
+├─────────────────────────────────────────────────────────────┤
+│  Python Layer          │  Rust Layer (via PyO3)             │
+│  ─────────────         │  ──────────────────────            │
+│  • msgspec structs     │  • Derive macros                   │
+│  • Type annotations    │  • Trait-based conversion          │
+│  • IDE support         │  • CDR serialization               │
+│  • User-facing API     │  • Zenoh transport                 │
+│                        │  • Memory management               │
+└─────────────────────────────────────────────────────────────┘
+</code></pre>
+<p><strong>Features:</strong></p>
+<ul>
+<li>Fast serialization (Rust CDR implementation)</li>
+<li>Type-safe Python classes with IDE support</li>
+<li>Immutable messages (<code>frozen=True</code>)</li>
+<li>Automatic type hash validation</li>
+<li>Zero-copy where possible (ZBuf for byte arrays)</li>
+<li><strong>Derive macros handle arbitrary nesting depth automatically</strong></li>
+<li><strong>None handling for optional nested fields</strong></li>
+<li><strong>Minimal generated code (traits do the work)</strong></li>
+</ul>
+<h2 id="build-process-1"><a class="header" href="#build-process-1">Build Process</a></h2>
+<h3 id="step-by-step-flow"><a class="header" href="#step-by-step-flow">Step-by-step Flow</a></h3>
+<pre class="mermaid">flowchart TD
+    A[&quot;cargo build ros-z-msgs&lt;br/&gt;--features python_registry&quot;] --&gt; B[&quot;build.rs executes&quot;]
+    B --&gt; C[&quot;Discover ROS packages&lt;br/&gt;(AMENT_PREFIX_PATH or bundled)&quot;]
+    C --&gt; D[&quot;Parse .msg/.srv files&quot;]
+    D --&gt; E[&quot;Resolve dependencies&lt;br/&gt;(type hashes, nested types)&quot;]
+    E --&gt; F[&quot;Generate Python files&quot;]
+    E --&gt; G[&quot;Generate Rust PyO3 module&quot;]
+    F --&gt; H[&quot;ros-z-msgs/python/&lt;br/&gt;ros_z_msgs_py/types/*.py&quot;]
+    G --&gt; I[&quot;$OUT_DIR/python_bindings.rs&quot;]
+    I --&gt; J[&quot;include!() in lib.rs&quot;]
+    J --&gt; K[&quot;Compiled into ros-z-msgs&quot;]
+</pre>
+<h3 id="output-locations"><a class="header" href="#output-locations">Output Locations</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Output</th><th>Path</th><th>Committed?</th></tr></thead><tbody>
+<tr><td>Python msgspec classes</td><td><code>ros-z-msgs/python/ros_z_msgs_py/types/*.py</code></td><td>Yes</td></tr>
+<tr><td>Rust PyO3 bindings</td><td><code>target/.../ros-z-msgs-.../out/python_bindings.rs</code></td><td>No (generated)</td></tr>
+</tbody></table>
+</div>
+<h3 id="feature-flags-1"><a class="header" href="#feature-flags-1">Feature Flags</a></h3>
+<p>The Python codegen is gated behind the <code>python_registry</code> feature:</p>
+<pre><pre class="playground"><code class="language-rust edition2021"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// lib.rs
+#[cfg(feature = "python_registry")]
+include!(concat!(env!("OUT_DIR"), "/python_bindings.rs"));
+<span class="boring">}</span></code></pre></pre>
+<p>The <code>ros-z-derive</code> crate provides the derive macros, and <code>ros-z/python</code> enables the <code>FromPyMessage</code> and <code>IntoPyMessage</code> traits.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="reproducible-development-with-nix"><a class="header" href="#reproducible-development-with-nix">Reproducible Development with Nix</a></h1>
 <div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
 <div class="admonition-title">
