@@ -497,7 +497,7 @@ impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicCdrSerd
         })?;
 
         trace!("[SUB] Waiting for dynamic message");
-        let sample = queue.recv()?;
+        let sample = queue.recv();
         let payload = sample.payload().to_bytes();
 
         tracing::Span::current().record("payload_len", payload.len());
@@ -517,7 +517,9 @@ impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicCdrSerd
             zenoh::Error::from("Subscriber was built with callback, no queue available")
         })?;
 
-        let sample = queue.recv_timeout(timeout)?;
+        let sample = queue
+            .recv_timeout(timeout)
+            .ok_or_else(|| zenoh::Error::from("Receive timed out"))?;
         let payload = sample.payload().to_bytes();
 
         crate::dynamic::DynamicCdrSerdes::deserialize((&payload, schema))
@@ -534,7 +536,7 @@ impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicCdrSerd
             zenoh::Error::from("Subscriber was built with callback, no queue available")
         })?;
 
-        let sample = queue.recv_async().await?;
+        let sample = queue.recv_async().await;
         let payload = sample.payload().to_bytes();
 
         crate::dynamic::DynamicCdrSerdes::deserialize((&payload, schema))
@@ -547,14 +549,14 @@ impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicCdrSerd
         let queue = self.queue.as_ref()?;
 
         match queue.try_recv() {
-            Ok(sample) => {
+            Some(sample) => {
                 let payload = sample.payload().to_bytes();
                 Some(
                     crate::dynamic::DynamicCdrSerdes::deserialize((&payload, schema))
                         .map_err(|e| zenoh::Error::from(e.to_string())),
                 )
             }
-            Err(_) => None,
+            None => None,
         }
     }
 
