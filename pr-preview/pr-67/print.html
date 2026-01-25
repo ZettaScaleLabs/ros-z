@@ -869,33 +869,25 @@ class AddTwoIntsResponse(msgspec.Struct, frozen=True, kw_only=True):
 <p>For service types, <code>__hash__</code> contains the service type hash (computed from the combined request/response definition). Both request and response share the same hash since they belong to the same service. This differs from regular messages where <code>__hash__</code> contains the individual message type hash.</p>
 <h3 id="rust-generated-structs-with-derive-macros"><a class="header" href="#rust-generated-structs-with-derive-macros">Rust: Generated Structs with Derive Macros</a></h3>
 <p>The Rust code generator adds derive attributes to message structs:</p>
-<pre><pre class="playground"><code class="language-rust edition2021"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Generated from std_msgs/msg/String.msg
+<pre><code class="language-rust ignore">// Generated from std_msgs/msg/String.msg
 #[derive(Debug, Clone, Default, ::serde::Serialize, ::serde::Deserialize)]
 #[cfg_attr(feature = "python_registry", derive(::ros_z_derive::FromPyMessage, ::ros_z_derive::IntoPyMessage))]
 #[cfg_attr(feature = "python_registry", ros_msg(module = "ros_z_msgs_py.types.std_msgs"))]
 pub struct String {
     pub data: std::string::String,
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <p>For nested messages with optional fields:</p>
-<pre><pre class="playground"><code class="language-rust edition2021"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Generated from geometry_msgs/msg/Twist.msg
+<pre><code class="language-rust ignore">// Generated from geometry_msgs/msg/Twist.msg
 #[derive(Debug, Clone, Default, ::serde::Serialize, ::serde::Deserialize)]
 #[cfg_attr(feature = "python_registry", derive(::ros_z_derive::FromPyMessage, ::ros_z_derive::IntoPyMessage))]
 #[cfg_attr(feature = "python_registry", ros_msg(module = "ros_z_msgs_py.types.geometry_msgs"))]
 pub struct Twist {
     pub linear: Vector3,
     pub angular: Vector3,
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="rust-pyo3-serializedeserialize-functions"><a class="header" href="#rust-pyo3-serializedeserialize-functions">Rust: PyO3 Serialize/Deserialize Functions</a></h3>
 <p>The serialize/deserialize functions use the derive macro traits:</p>
-<pre><pre class="playground"><code class="language-rust edition2021"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Generated serialize function - uses FromPyMessage trait
+<pre><code class="language-rust ignore">// Generated serialize function - uses FromPyMessage trait
 #[pyfunction]
 pub fn serialize_string(py: Python, msg: &amp;Bound&lt;'_, PyAny&gt;) -&gt; PyResult&lt;Vec&lt;u8&gt;&gt; {
     use ::pyo3::types::PyAnyMethods;
@@ -924,8 +916,7 @@ pub fn deserialize_string(py: Python, bytes: &amp;[u8]) -&gt; PyResult&lt;PyObje
 
     // Derive macro handles all field construction recursively
     rust_msg.into_py_message(py)
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="data-flow"><a class="header" href="#data-flow">Data Flow</a></h2>
 <h3 id="publishing-python-to-wire"><a class="header" href="#publishing-python-to-wire">Publishing (Python to Wire)</a></h3>
 <pre class="mermaid">sequenceDiagram
