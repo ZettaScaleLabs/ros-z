@@ -5,8 +5,6 @@
 # Getting Started
 
 - [Quick Start](./chapters/quick_start.md)
-- [Python Bindings](./chapters/python.md)
-  - [Code Generation Internals](./chapters/python_codegen.md)
 
 # Core Concepts
 
@@ -25,6 +23,11 @@
 - [Message Generation](./chapters/message_generation.md)
   - [Custom Messages](./chapters/custom_messages.md)
   - [Protobuf Serialization](./chapters/protobuf.md)
+
+# Experimental
+
+- [Python Bindings](./chapters/python.md)
+  - [Code Generation Internals](./chapters/python_codegen.md)
 
 # Appendix
 
