@@ -5,6 +5,7 @@ node_modules
 .cargo
 compile_commands.json
 _*
+!ros-z-py/python/**/__init__.py
 result*
 *.egg-info
 __pycache__/
