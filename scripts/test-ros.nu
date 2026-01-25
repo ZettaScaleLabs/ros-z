@@ -96,6 +96,8 @@ def run-ros-interop [] {
     }
 
     $env.RMW_IMPLEMENTATION = "rmw_zenoh_cpp"
+    # Treat warnings as errors
+    $env.RUSTFLAGS = "-D warnings"
 
     let distro = get-distro
     let cmd = if $distro == "humble" {

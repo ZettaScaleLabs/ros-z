@@ -60,6 +60,8 @@ def build-examples [] {
 }
 
 def run-tests [] {
+    # Treat warnings as errors
+    $env.RUSTFLAGS = "-D warnings"
     log-step "Run tests"
     run-cmd "cargo nextest run"
 }

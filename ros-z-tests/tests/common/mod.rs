@@ -239,6 +239,7 @@ pub fn check_action_tutorials_cpp_available() -> bool {
 // Python Interop Helpers
 // ============================================================================
 
+#[cfg(feature = "python-interop")]
 use std::path::PathBuf;
 
 /// Get the path to the Python executable in ros-z-py venv
