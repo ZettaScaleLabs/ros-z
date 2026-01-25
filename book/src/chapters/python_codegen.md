@@ -96,7 +96,7 @@ For service types, `__hash__` contains the service type hash (computed from the 
 
 The Rust code generator adds derive attributes to message structs:
 
-```rust
+```rust,ignore
 // Generated from std_msgs/msg/String.msg
 #[derive(Debug, Clone, Default, ::serde::Serialize, ::serde::Deserialize)]
 #[cfg_attr(feature = "python_registry", derive(::ros_z_derive::FromPyMessage, ::ros_z_derive::IntoPyMessage))]
@@ -108,7 +108,7 @@ pub struct String {
 
 For nested messages with optional fields:
 
-```rust
+```rust,ignore
 // Generated from geometry_msgs/msg/Twist.msg
 #[derive(Debug, Clone, Default, ::serde::Serialize, ::serde::Deserialize)]
 #[cfg_attr(feature = "python_registry", derive(::ros_z_derive::FromPyMessage, ::ros_z_derive::IntoPyMessage))]
@@ -123,7 +123,7 @@ pub struct Twist {
 
 The serialize/deserialize functions use the derive macro traits:
 
-```rust
+```rust,ignore
 // Generated serialize function - uses FromPyMessage trait
 #[pyfunction]
 pub fn serialize_string(py: Python, msg: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
