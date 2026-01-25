@@ -51,16 +51,47 @@ git-hooks.lib.${system}.run {
     rustfmt = rustfmtNightly;
   };
   hooks = {
+    # Rust tooling
     rustfmt.enable = true;
     taplo.enable = true;
+
+    # Python tooling
+    ruff = {
+      enable = true;
+      description = "Run ruff linter";
+      entry = "${pkgs.ruff}/bin/ruff check --fix";
+      files = "\\.py$";
+    };
+
+    ruff-format = {
+      enable = true;
+      description = "Run ruff formatter";
+      entry = "${pkgs.ruff}/bin/ruff format";
+      files = "\\.py$";
+    };
+
+    mypy = {
+      enable = true;
+      description = "Run mypy type checker";
+      entry = "${pkgs.mypy}/bin/mypy";
+      files = "ros-z-py/tests/.*\\.py$|ros-z-py/examples/.*\\.py$";
+      pass_filenames = true;
+      args = [
+        "--ignore-missing-imports"
+      ];
+    };
+
+    # General tooling
     yamllint = {
       enable = true;
       settings.configPath = "${yamllintConfig}";
     };
+
     markdownlint = {
       enable = true;
       settings.configuration = markdownlintConfig;
     };
+
     nixfmt-rfc-style.enable = true;
   };
 }

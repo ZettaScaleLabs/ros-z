@@ -26,6 +26,7 @@ slab = { workspace = true }
 serde_json = { workspace = true }
 dashmap = "5.5"
 prost = { workspace = true, optional = true }
+pyo3 = { workspace = true, optional = true }
 ros-z-cdr = { workspace = true }
 ros-z-codegen = { workspace = true, optional = true }
 byteorder = { workspace = true }
@@ -52,6 +53,7 @@ default = ["config-builders", "jazzy"]
 config-builders = []
 generate-configs = []
 protobuf = ["prost", "prost-build"]
+python = ["pyo3"]
 rcl-z = []
 # Dynamic message schema loading from .msg files (optional)
 dynamic-schema-loader = ["ros-z-codegen"]

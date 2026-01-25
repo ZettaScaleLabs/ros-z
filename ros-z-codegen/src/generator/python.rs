@@ -20,11 +20,11 @@ pub fn generate_python_package(
         code.push('\n');
     }
 
-    // Generate service Request/Response classes
+    // Generate service Request/Response classes with service type hash
     for srv in services {
-        code.push_str(&generate_python_message(&srv.request)?);
+        code.push_str(&generate_python_service_message(&srv.request, &srv.type_hash)?);
         code.push('\n');
-        code.push_str(&generate_python_message(&srv.response)?);
+        code.push_str(&generate_python_service_message(&srv.response, &srv.type_hash)?);
         code.push('\n');
     }
 
@@ -33,6 +33,16 @@ pub fn generate_python_package(
 
 /// Generate Python msgspec class for a single message
 fn generate_python_message(msg: &ResolvedMessage) -> Result<String> {
+    generate_python_message_with_svc_hash(msg, None)
+}
+
+/// Generate Python msgspec class for a service request/response message
+fn generate_python_service_message(msg: &ResolvedMessage, svc_hash: &crate::types::TypeHash) -> Result<String> {
+    generate_python_message_with_svc_hash(msg, Some(svc_hash))
+}
+
+/// Generate Python msgspec class for a message, optionally with service type hash
+fn generate_python_message_with_svc_hash(msg: &ResolvedMessage, svc_hash: Option<&crate::types::TypeHash>) -> Result<String> {
     let name = &msg.parsed.name;
     let package = &msg.parsed.package;
     let hash = msg.type_hash.to_rihs_string();
@@ -52,7 +62,13 @@ fn generate_python_message(msg: &ResolvedMessage) -> Result<String> {
 
     // Add metadata
     code.push_str(&format!("\n    __msgtype__: ClassVar[str] = '{}/msg/{}'\n", package, name));
-    code.push_str(&format!("    __hash__: ClassVar[str] = '{}'\n", hash));
+
+    // Use service type hash for service request/response, message type hash for regular messages
+    if let Some(srv_type_hash) = svc_hash {
+        code.push_str(&format!("    __hash__: ClassVar[str] = '{}'\n", srv_type_hash.to_rihs_string()));
+    } else {
+        code.push_str(&format!("    __hash__: ClassVar[str] = '{}'\n", hash));
+    }
 
     Ok(code)
 }

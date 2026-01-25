@@ -1,0 +1,29 @@
+[package]
+name = "ros-z-py"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "ros_z_py"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { workspace = true }
+ros-z = { path = "../ros-z" }
+ros-z-msgs = { path = "../ros-z-msgs", features = [
+  "python_registry",
+  "std_msgs",
+  "geometry_msgs",
+  "sensor_msgs",
+  "example_interfaces",
+] }
+zenoh = { workspace = true }
+zenoh-buffers = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+flume = { workspace = true }
+parking_lot = { workspace = true }
+once_cell = "1.19"
+
+[build-dependencies]
+anyhow = { workspace = true }

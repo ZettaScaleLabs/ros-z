@@ -86,7 +86,7 @@ def build-rclz [] {
     run-cmd $cmd
 }
 
-def run-interop-tests [] {
+def run-ros-interop [] {
     log-step "Run interop tests (requires rmw_zenoh_cpp)"
 
     # Check if ros2 is available
@@ -99,9 +99,9 @@ def run-interop-tests [] {
 
     let distro = get-distro
     let cmd = if $distro == "humble" {
-        "cargo nextest run -p ros-z-tests --no-default-features --features interop-tests,humble"
+        "cargo nextest run -p ros-z-tests --no-default-features --features ros-interop,humble"
     } else {
-        "cargo nextest run -p ros-z-tests --features interop-tests"
+        "cargo nextest run -p ros-z-tests --features ros-interop"
     }
 
     run-cmd $cmd
@@ -115,7 +115,7 @@ def get-test-pipeline [] {
     [
         "clippy-rclz"
         "build-rclz"
-        "run-interop-tests"
+        "run-ros-interop"
     ]
 }
 
@@ -138,7 +138,7 @@ def run-all-tests [] {
         match $test_name {
             "clippy-rclz" => { clippy-rclz }
             "build-rclz" => { build-rclz }
-            "run-interop-tests" => { run-interop-tests }
+            "run-ros-interop" => { run-ros-interop }
         }
     }
 
@@ -167,7 +167,7 @@ def run-specific-tests [
         match $test_name {
             "clippy-rclz" => { clippy-rclz }
             "build-rclz" => { build-rclz }
-            "run-interop-tests" => { run-interop-tests }
+            "run-ros-interop" => { run-ros-interop }
         }
     }
 }

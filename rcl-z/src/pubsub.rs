@@ -40,7 +40,7 @@ impl PublisherImpl {
     // }
 
     pub fn publish_serialized_message(&self, msg: &[u8]) -> Result<()> {
-        self.inner.publish_serialized_message(msg)
+        self.inner.publish_serialized(msg)
     }
 }
 

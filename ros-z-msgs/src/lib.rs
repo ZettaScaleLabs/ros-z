@@ -36,6 +36,10 @@ pub mod proto {
     //! Placeholder module when protobuf feature is not enabled
 }
 
+// Include generated Python bindings (complete module)
+#[cfg(feature = "python_registry")]
+include!(concat!(env!("OUT_DIR"), "/python_bindings.rs"));
+
 // Re-export commonly used items from ros-z for convenience
 pub use ros_z::{
     MessageTypeInfo,

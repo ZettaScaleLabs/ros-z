@@ -5,6 +5,8 @@
 # Getting Started
 
 - [Quick Start](./chapters/quick_start.md)
+- [Python Bindings](./chapters/python.md)
+  - [Code Generation Internals](./chapters/python_codegen.md)
 
 # Core Concepts
 

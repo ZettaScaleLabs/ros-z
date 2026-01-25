@@ -10,6 +10,8 @@ members = [
   "ros-z",
   "ros-z-cdr",
   "ros-z-codegen",
+  "ros-z-derive",
+  "ros-z-py",
   "rcl-z",
   "ros-z-msgs",
   "ros-z-tests",
@@ -61,6 +63,9 @@ once_cell = "1.19"
 
 # FFI
 cxx = "1.0.168"
+
+# Python
+pyo3 = { version = "0.22", features = ["extension-module", "abi3-py311"] }
 
 # Code generation
 quote = "1.0"

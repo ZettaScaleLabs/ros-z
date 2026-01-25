@@ -1,4 +1,4 @@
-#![cfg(feature = "interop-tests")]
+#![cfg(feature = "ros-interop")]
 
 mod common;
 
@@ -154,5 +154,3 @@ fn test_ros2_pub_to_ros_z_sub() {
 
     println!("Test passed: Received message from ROS2");
 }
-
-// Add more pubsub tests...

@@ -359,7 +359,7 @@ mod tests {
         writer.write_bool(true);
         writer.write_u8(42);
         writer.write_u32(12345);
-        writer.write_f64(3.14159);
+        writer.write_f64(1.23456);
         writer.write_string("hello");
 
         assert!(!buffer.is_empty());
@@ -373,15 +373,15 @@ mod tests {
             writer.write_bool(true);
             writer.write_u8(42);
             writer.write_u32(12345);
-            writer.write_f64(3.14159);
+            writer.write_f64(1.23456);
             writer.write_string("hello");
         }
 
         let mut reader = CdrReader::<LittleEndian>::new(&buffer);
-        assert_eq!(reader.read_bool().unwrap(), true);
+        assert!(reader.read_bool().unwrap());
         assert_eq!(reader.read_u8().unwrap(), 42);
         assert_eq!(reader.read_u32().unwrap(), 12345);
-        assert!((reader.read_f64().unwrap() - 3.14159).abs() < 0.00001);
+        assert!((reader.read_f64().unwrap() - 1.23456).abs() < 0.00001);
         assert_eq!(reader.read_string().unwrap(), "hello");
     }
 
@@ -415,13 +415,13 @@ mod tests {
             writer.write_u16(50000);
             writer.write_u32(3000000000);
             writer.write_u64(10000000000);
-            writer.write_f32(3.14);
-            writer.write_f64(2.718281828);
+            writer.write_f32(1.5);
+            writer.write_f64(9.87654321);
             writer.write_string("test string");
         }
 
         let mut reader = CdrReader::<LittleEndian>::new(&buffer);
-        assert_eq!(reader.read_bool().unwrap(), false);
+        assert!(!reader.read_bool().unwrap());
         assert_eq!(reader.read_i8().unwrap(), -42);
         assert_eq!(reader.read_i16().unwrap(), -1000);
         assert_eq!(reader.read_i32().unwrap(), -100000);
@@ -430,8 +430,8 @@ mod tests {
         assert_eq!(reader.read_u16().unwrap(), 50000);
         assert_eq!(reader.read_u32().unwrap(), 3000000000);
         assert_eq!(reader.read_u64().unwrap(), 10000000000);
-        assert!((reader.read_f32().unwrap() - 3.14).abs() < 0.001);
-        assert!((reader.read_f64().unwrap() - 2.718281828).abs() < 0.0000001);
+        assert!((reader.read_f32().unwrap() - 1.5).abs() < 0.001);
+        assert!((reader.read_f64().unwrap() - 9.87654321).abs() < 0.0000001);
         assert_eq!(reader.read_string().unwrap(), "test string");
     }
 }

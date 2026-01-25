@@ -165,9 +165,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Example 6: Full roundtrip
     println!("--- Example 6: Full Roundtrip ---");
     let original = Point {
-        x: 3.14159,
-        y: 2.71828,
-        z: 1.41421,
+        x: 1.5,
+        y: 2.5,
+        z: 3.5,
     };
     println!(
         "Original static: ({}, {}, {})",

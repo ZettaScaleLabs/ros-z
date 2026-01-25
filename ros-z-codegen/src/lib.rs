@@ -10,6 +10,7 @@ pub mod types;
 #[cfg(feature = "protobuf")]
 pub mod protobuf_adapter;
 
+pub mod python_msgspec_generator;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
