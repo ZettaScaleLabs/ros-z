@@ -6,6 +6,7 @@ node_modules
 compile_commands.json
 _*
 !ros-z-py/python/**/__init__.py
+!ros-z-msgs/python/ros_z_msgs_py/__init__.py
 result*
 *.egg-info
 __pycache__/

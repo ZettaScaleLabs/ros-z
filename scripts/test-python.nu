@@ -107,7 +107,7 @@ def typecheck-mypy [] {
 def build-package [] {
     log-step "Build Python package (ros-z-py)"
 
-    run-cmd "cd ros-z-py; source .venv/bin/activate && maturin build --release"
+    run-cmd "cd ros-z-py; source .venv/bin/activate && maturin build"
 }
 
 def clippy [] {
