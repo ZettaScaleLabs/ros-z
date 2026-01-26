@@ -127,6 +127,10 @@ def setup-venv [] {
         print "  ✓ Virtual environment exists"
     }
 
+    # Build ros-z-msgs with python_registry feature to generate Python types
+    run-cmd "cargo build -p ros-z-msgs --features python_registry"
+    print "  ✓ Generated Python message types"
+
     # Install ros-z-msgs-py (pure Python message definitions)
     run-cmd "cd ros-z-py; source .venv/bin/activate && pip install -e ../ros-z-msgs/python/"
     print "  ✓ Installed ros-z-msgs-py (message types)"

@@ -200,7 +200,9 @@ fn get_all_packages(is_humble: bool) -> Vec<&'static str> {
         "unique_identifier_msgs", // Required by action_msgs
     ];
 
-    // service_msgs is only available in Jazzy+ (contains ServiceEventInfo)
+    // service_msgs was introduced in ROS 2 Iron (May 2023) as part of the service
+    // introspection feature. It contains types like ServiceEventInfo for monitoring
+    // service calls. This package doesn't exist in Humble (May 2022).
     if !is_humble {
         names.push("service_msgs");
     }
