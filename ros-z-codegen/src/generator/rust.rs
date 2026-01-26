@@ -134,11 +134,16 @@ fn generate_struct_with_context(
         })
         .collect();
 
+    // Python bridge module path for derive macros
+    let py_module_path = format!("ros_z_msgs_py.types.{}", package);
+
     if has_zbuf {
         // Messages with ZBuf fields need custom serde (no derive)
         // But still need Default
         Ok(quote! {
             #[derive(Debug, Clone, Default)]
+            #[cfg_attr(feature = "python_registry", derive(::ros_z_derive::FromPyMessage, ::ros_z_derive::IntoPyMessage))]
+            #[cfg_attr(feature = "python_registry", ros_msg(module = #py_module_path))]
             pub struct #name_ident {
                 #(#field_defs),*
             }
@@ -151,6 +156,8 @@ fn generate_struct_with_context(
         // Large array messages need smart-default for arrays >32 elements
         Ok(quote! {
             #[derive(Debug, Clone, ::smart_default::SmartDefault, ::serde::Serialize, ::serde::Deserialize)]
+            #[cfg_attr(feature = "python_registry", derive(::ros_z_derive::FromPyMessage, ::ros_z_derive::IntoPyMessage))]
+            #[cfg_attr(feature = "python_registry", ros_msg(module = #py_module_path))]
             pub struct #name_ident {
                 #(#field_defs),*
             }
@@ -163,6 +170,8 @@ fn generate_struct_with_context(
         // Simple messages with standard Default
         Ok(quote! {
             #[derive(Debug, Clone, Default, ::serde::Serialize, ::serde::Deserialize)]
+            #[cfg_attr(feature = "python_registry", derive(::ros_z_derive::FromPyMessage, ::ros_z_derive::IntoPyMessage))]
+            #[cfg_attr(feature = "python_registry", ros_msg(module = #py_module_path))]
             pub struct #name_ident {
                 #(#field_defs),*
             }
@@ -230,8 +239,11 @@ fn generate_field_def_with_context(
     let field_type =
         generate_field_type_tokens_with_context(&field.field_type, source_package, ctx)?;
 
+    // Check if this is a ZBuf field (for Python bridge attribute)
+    let is_zbuf = is_zbuf_field(field);
+
     // Add attributes for large fixed arrays (>32 elements)
-    let attributes = if let ArrayType::Fixed(n) = &field.field_type.array {
+    let serde_attributes = if let ArrayType::Fixed(n) = &field.field_type.array {
         if *n > 32 {
             // Generate a default value code string for the array
             let default_code = generate_array_default_code(&field.field_type, *n)?;
@@ -246,8 +258,18 @@ fn generate_field_def_with_context(
         quote! {}
     };
 
+    // Add Python bridge attribute for ZBuf fields
+    let python_attributes = if is_zbuf {
+        quote! {
+            #[cfg_attr(feature = "python_registry", ros_msg(zbuf))]
+        }
+    } else {
+        quote! {}
+    };
+
     Ok(quote! {
-        #attributes
+        #serde_attributes
+        #python_attributes
         pub #name: #field_type
     })
 }

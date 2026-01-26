@@ -1,4 +1,4 @@
-#![cfg(feature = "interop-tests")]
+#![cfg(feature = "ros-interop")]
 
 mod common;
 

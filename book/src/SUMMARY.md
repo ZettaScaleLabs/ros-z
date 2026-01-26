@@ -24,6 +24,11 @@
   - [Custom Messages](./chapters/custom_messages.md)
   - [Protobuf Serialization](./chapters/protobuf.md)
 
+# Experimental
+
+- [Python Bindings](./chapters/python.md)
+  - [Code Generation Internals](./chapters/python_codegen.md)
+
 # Appendix
 
 - [Reproducible Development with Nix](./chapters/nix.md)

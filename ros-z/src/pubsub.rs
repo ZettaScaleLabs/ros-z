@@ -192,8 +192,15 @@ where
         put_builder.await
     }
 
-    pub fn publish_serialized_message(&self, msg: &[u8]) -> Result<()> {
-        let mut put_builder = self.inner.put(msg);
+    /// Publish pre-serialized data directly
+    ///
+    /// Accepts any type that implements `Into<ZBytes>`:
+    /// - `&[u8]` - byte slice
+    /// - `Vec<u8>` - owned bytes
+    /// - `ZBuf` - zero-copy buffer (preferred for performance)
+    /// - `ZBytes` - zenoh bytes
+    pub fn publish_serialized(&self, data: impl Into<zenoh::bytes::ZBytes>) -> Result<()> {
+        let mut put_builder = self.inner.put(data);
         if self.with_attachment {
             put_builder = put_builder.attachment(self.new_attchment());
         }

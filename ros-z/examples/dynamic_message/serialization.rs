@@ -170,8 +170,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     msg.set("uint16_val", 50000u16)?;
     msg.set("uint32_val", 3000000000u32)?;
     msg.set("uint64_val", 10000000000u64)?;
-    msg.set("float32_val", 3.14159f32)?;
-    msg.set("float64_val", 2.718281828f64)?;
+    msg.set("float32_val", 1.5f32)?;
+    msg.set("float64_val", 9.87654321f64)?;
     msg.set("string_val", "test")?;
 
     let cdr_bytes = msg.to_cdr()?;

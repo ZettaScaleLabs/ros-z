@@ -51,15 +51,12 @@ def run-cmd [cmd: string] {
 
 def clippy-workspace [] {
     log-step "Clippy (default workspace)"
-    run-cmd "cargo clippy --lib --bins --tests -- -D warnings"
-}
-
-def build-examples [] {
-    log-step "Build examples without ROS dependencies"
-    run-cmd "cargo build --examples"
+    run-cmd "cargo clippy --all-targets -- -D warnings"
 }
 
 def run-tests [] {
+    # Treat warnings as errors
+    $env.RUSTFLAGS = "-D warnings"
     log-step "Run tests"
     run-cmd "cargo nextest run"
 }
@@ -82,7 +79,6 @@ def check-bundled-msgs [] {
 def get-test-pipeline [] {
     [
         "clippy-workspace"
-        "build-examples"
         "run-tests"
         "check-bundled-msgs"
     ]
@@ -105,7 +101,6 @@ def run-all-tests [] {
     get-test-pipeline | each { |test_name|
         match $test_name {
             "clippy-workspace" => { clippy-workspace }
-            "build-examples" => { build-examples }
             "run-tests" => { run-tests }
             "check-bundled-msgs" => { check-bundled-msgs }
         }
@@ -135,7 +130,6 @@ def run-specific-tests [
 
         match $test_name {
             "clippy-workspace" => { clippy-workspace }
-            "build-examples" => { build-examples }
             "run-tests" => { run-tests }
             "check-bundled-msgs" => { check-bundled-msgs }
         }

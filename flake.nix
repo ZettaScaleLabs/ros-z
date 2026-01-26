@@ -155,6 +155,19 @@
           gdb
         ];
 
+        # Python tools (ros-z-py bindings)
+        pythonTools = with pkgs; [
+          maturin
+          uv
+          python3
+          ruff
+          python3Packages.mypy
+          python3Packages.pytest
+          python3Packages.pytest-cov
+          python3Packages.build
+          python3Packages.pip
+        ];
+
         # Documentation tools
         docTools = with pkgs; [
           mdbook
@@ -217,6 +230,7 @@
               ]
               ++ commonBuildInputs
               ++ devTools
+              ++ pythonTools
               ++ docTools
               ++ testTools
               ++ [ rosEnv.dev ]
@@ -235,7 +249,7 @@
 
             ci = mkDevShell {
               name = "ros-z-ci-${rosDistro}";
-              packages = commonBuildInputs ++ docTools ++ testTools ++ [ rosEnv.testFull ];
+              packages = commonBuildInputs ++ pythonTools ++ docTools ++ testTools ++ [ rosEnv.testFull ];
               extraShellHook = ''
                 mdbook-mermaid install book/ 2>/dev/null || true
                 mdbook-admonish install book/ 2>/dev/null || true
@@ -279,6 +293,7 @@
             ]
             ++ commonBuildInputs
             ++ devTools
+            ++ pythonTools
             ++ docTools
             ++ testTools
             ++ pre-commit-check.enabledPackages;
@@ -296,7 +311,7 @@
           # CI without ROS
           pureRust-ci = mkDevShell {
             name = "ros-z-ci-pure-rust";
-            packages = commonBuildInputs ++ docTools ++ testTools;
+            packages = commonBuildInputs ++ pythonTools ++ docTools ++ testTools;
             extraShellHook = ''
               mdbook-mermaid install book/ 2>/dev/null || true
               mdbook-admonish install book/ 2>/dev/null || true

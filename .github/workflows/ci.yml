@@ -35,6 +35,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          large-packages: true
+          tool-cache: false
+          android: false
+          dotnet: false
+          haskell: false
+          docker-images: false
+          swap-storage: false
+
       - name: Install Determinate Nix
         uses: DeterminateSystems/determinate-nix-action@v3
 
@@ -58,11 +69,6 @@ jobs:
         run: |
           source /tmp/nix-dev-env.sh
           nu scripts/test-pure-rust.nu clippy-workspace
-
-      - name: Build examples
-        run: |
-          source /tmp/nix-dev-env.sh
-          nu scripts/test-pure-rust.nu build-examples
 
       - name: Run tests
         run: |
@@ -127,3 +133,97 @@ jobs:
         run: |
           source /tmp/nix-dev-env.sh
           nu scripts/test-ros.nu ${{ matrix.distro }} build-rclz
+
+  python-tests:
+    name: Python Tests (ros-z-py) (${{ matrix.distro }})
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    strategy:
+      matrix:
+        distro: [humble, jazzy]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Determinate Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
+        with:
+          extra-conf: |
+            extra-substituters = https://ros.cachix.org
+            extra-trusted-public-keys = ros.cachix.org-1:dSyZxI8geDCJrwgvCOHDoAfOm5sV1wCPjBkKL+38Rvo=
+
+      - name: Setup Cachix
+        uses: cachix/cachix-action@v15
+        with:
+          name: ros
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          skipPush: true
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Install Nushell
+        run: |
+          nix profile install nixpkgs#nushell
+          chmod +x scripts/test-python.nu
+
+      - name: Setup nix environment
+        run: |
+          nix print-dev-env '.#ros-${{ matrix.distro }}-ci' --accept-flake-config > /tmp/nix-dev-env.sh
+          echo "export SCCACHE_GHA_ENABLED=true" >> /tmp/nix-dev-env.sh
+          echo "export SCCACHE_CACHE_SIZE=1G" >> /tmp/nix-dev-env.sh
+          echo "export RUSTC_WRAPPER=sccache" >> /tmp/nix-dev-env.sh
+          echo "export CI=true" >> /tmp/nix-dev-env.sh
+
+      - name: Setup venv
+        run: |
+          source /tmp/nix-dev-env.sh
+          nu scripts/test-python.nu ${{ matrix.distro }} setup-venv
+
+      - name: Clippy (ros-z-py)
+        run: |
+          source /tmp/nix-dev-env.sh
+          nu scripts/test-python.nu ${{ matrix.distro }} clippy
+
+      - name: Ruff linting
+        run: |
+          source /tmp/nix-dev-env.sh
+          nu scripts/test-python.nu ${{ matrix.distro }} lint-ruff
+
+      - name: Ruff format check
+        run: |
+          source /tmp/nix-dev-env.sh
+          nu scripts/test-python.nu ${{ matrix.distro }} format-ruff
+
+      - name: Build package
+        run: |
+          source /tmp/nix-dev-env.sh
+          nu scripts/test-python.nu ${{ matrix.distro }} build-package
+
+      - name: MyPy type checking
+        run: |
+          source /tmp/nix-dev-env.sh
+          nu scripts/test-python.nu ${{ matrix.distro }} typecheck-mypy
+
+      - name: Run pytest
+        run: |
+          source /tmp/nix-dev-env.sh
+          nu scripts/test-python.nu ${{ matrix.distro }} run-pytest
+
+      - name: Run examples
+        run: |
+           source /tmp/nix-dev-env.sh
+           nu scripts/test-python.nu ${{ matrix.distro }} run-examples
+
+      - name: Run Python-Rust interop tests
+        run: |
+          source /tmp/nix-dev-env.sh
+          nu scripts/test-python.nu ${{ matrix.distro }} run-python-interop
+
+      - name: Cleanup
+        run: |
+          source /tmp/nix-dev-env.sh
+          nu scripts/test-python.nu ${{ matrix.distro }} cleanup-python

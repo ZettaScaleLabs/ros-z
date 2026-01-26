@@ -12,7 +12,7 @@ use zenoh::Wait;
 /// Helper to manage background processes with automatic cleanup
 #[allow(dead_code)]
 pub struct ProcessGuard {
-    child: Option<Child>,
+    pub child: Option<Child>,
     name: String,
 }
 
@@ -141,6 +141,7 @@ impl TestRouter {
 }
 
 /// Create a ros-z context configured to connect to a specific Zenoh router
+#[allow(dead_code)]
 pub fn create_ros_z_context_with_router(router: &TestRouter) -> ros_z::Result<ros_z::context::ZContext> {
     create_ros_z_context_with_endpoint(router.endpoint())
 }
@@ -232,4 +233,123 @@ pub fn check_action_tutorials_cpp_available() -> bool {
         .status()
         .map(|status| status.success())
         .unwrap_or(false)
+}
+
+// ============================================================================
+// Python Interop Helpers
+// ============================================================================
+
+#[cfg(feature = "python-interop")]
+use std::path::PathBuf;
+
+/// Get the path to the Python executable in ros-z-py venv
+#[cfg(feature = "python-interop")]
+fn python_executable() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join("ros-z-py/.venv/bin/python")
+}
+
+/// Get the path to a Python example script
+#[cfg(feature = "python-interop")]
+fn example_script(name: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join("ros-z-py/examples")
+        .join(name)
+}
+
+/// Check if Python venv is available for interop tests
+#[cfg(feature = "python-interop")]
+#[allow(dead_code)]
+pub fn check_python_venv_available() -> bool {
+    python_executable().exists()
+}
+
+/// Spawn Python topic_demo.py as talker (publisher)
+#[cfg(feature = "python-interop")]
+#[allow(dead_code)]
+pub fn spawn_python_talker(endpoint: &str, topic: &str, count: u32) -> ProcessGuard {
+    use std::os::unix::process::CommandExt;
+
+    let child = Command::new(python_executable())
+        .arg(example_script("topic_demo.py"))
+        .args(["-r", "talker"])
+        .args(["-e", endpoint])
+        .args(["-t", topic])
+        .args(["-c", &count.to_string()])
+        .args(["--interval", "0.3"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .process_group(0)
+        .spawn()
+        .expect("Failed to spawn Python talker");
+
+    ProcessGuard::new(child, "python_talker")
+}
+
+/// Spawn Python topic_demo.py as listener (subscriber)
+#[cfg(feature = "python-interop")]
+#[allow(dead_code)]
+pub fn spawn_python_listener(endpoint: &str, topic: &str, timeout_sec: f32) -> ProcessGuard {
+    use std::os::unix::process::CommandExt;
+
+    let child = Command::new(python_executable())
+        .arg(example_script("topic_demo.py"))
+        .args(["-r", "listener"])
+        .args(["-e", endpoint])
+        .args(["-t", topic])
+        .args(["--timeout", &timeout_sec.to_string()])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .process_group(0)
+        .spawn()
+        .expect("Failed to spawn Python listener");
+
+    ProcessGuard::new(child, "python_listener")
+}
+
+/// Spawn Python service_demo.py as server
+#[cfg(feature = "python-interop")]
+#[allow(dead_code)]
+pub fn spawn_python_service_server(endpoint: &str, service_name: &str, max_requests: u32) -> ProcessGuard {
+    use std::os::unix::process::CommandExt;
+
+    let child = Command::new(python_executable())
+        .arg(example_script("service_demo.py"))
+        .args(["-r", "server"])
+        .args(["-e", endpoint])
+        .args(["-s", service_name])
+        .args(["-c", &max_requests.to_string()])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .process_group(0)
+        .spawn()
+        .expect("Failed to spawn Python service server");
+
+    ProcessGuard::new(child, "python_service_server")
+}
+
+/// Spawn Python service_demo.py as client
+#[cfg(feature = "python-interop")]
+#[allow(dead_code)]
+pub fn spawn_python_service_client(endpoint: &str, service_name: &str, a: i64, b: i64) -> ProcessGuard {
+    use std::os::unix::process::CommandExt;
+
+    let child = Command::new(python_executable())
+        .arg(example_script("service_demo.py"))
+        .args(["-r", "client"])
+        .args(["-e", endpoint])
+        .args(["-s", service_name])
+        .args(["-a", &a.to_string()])
+        .args(["-b", &b.to_string()])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .process_group(0)
+        .spawn()
+        .expect("Failed to spawn Python service client");
+
+    ProcessGuard::new(child, "python_service_client")
 }

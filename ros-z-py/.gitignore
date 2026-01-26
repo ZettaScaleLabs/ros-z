@@ -1,0 +1,20 @@
+# Python build artifacts
+*.so
+*.pyd
+*.egg-info/
+dist/
+build/
+__pycache__/
+
+# Virtual environment
+.venv/
+
+# Test artifacts
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Maturin build
+target/
