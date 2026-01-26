@@ -3029,6 +3029,237 @@ let sub = node
 <li><strong><a href="https://docs.rs/prost/">prost Crate</a></strong> - Rust protobuf library</li>
 </ul>
 <p><strong>Use protobuf when you need schema evolution or cross-language compatibility beyond the ROS 2 ecosystem. Stick with CDR for standard ROS 2 interoperability.</strong></p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="ros-z-console"><a class="header" href="#ros-z-console">ros-z-console</a></h1>
+<p><strong>ros-z-console</strong> is a monitoring tool for ROS 2 systems built on Zenoh. It provides real-time graph inspection, dataflow monitoring, and metrics collection through two interfaces: an interactive TUI (Terminal User Interface) and a headless JSON streaming mode.</p>
+<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
+<div class="admonition-title">
+<div id="admonition-tip-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/console.html#admonition-tip"></a>
+</div>
+<div>
+<p>ros-z-console uses zero-interference monitoring via pure Zenoh subscribers - it never pollutes the ROS graph with its own presence.</p>
+</div>
+</div>
+<h2 id="network-topology"><a class="header" href="#network-topology">Network Topology</a></h2>
+<p>ros-z-console connects to the ROS 2 graph via a Zenoh router. All ROS 2 nodes using <code>rmw_zenoh_cpp</code> communicate through the same router, enabling ros-z-console to observe the entire system.</p>
+<pre class="mermaid">graph LR
+    subgraph &quot;ROS 2 System&quot;
+        T[talker&lt;br/&gt;rmw_zenoh_cpp]
+        L[listener&lt;br/&gt;rmw_zenoh_cpp]
+    end
+
+    R[Zenoh Router&lt;br/&gt;rmw_zenohd]
+    C[ros-z-console]
+
+    T &lt;--&gt; R
+    L &lt;--&gt; R
+    C --&gt; R
+
+    style C fill:#2ecc71,color:#fff
+    style R fill:#3498db,color:#fff
+</pre>
+<h2 id="quick-start-monitoring-demo_nodes_cpp"><a class="header" href="#quick-start-monitoring-demo_nodes_cpp">Quick Start: Monitoring demo_nodes_cpp</a></h2>
+<p>This example shows ros-z-console monitoring the classic talker/listener demo from <code>demo_nodes_cpp</code>.</p>
+<p><strong>Terminal 1 - Start the Zenoh router:</strong></p>
+<pre><code class="language-bash">ros2 run rmw_zenoh_cpp rmw_zenohd
+</code></pre>
+<p><strong>Terminal 2 - Start the talker:</strong></p>
+<pre><code class="language-bash">export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+ros2 run demo_nodes_cpp talker
+</code></pre>
+<p><strong>Terminal 3 - Start the listener:</strong></p>
+<pre><code class="language-bash">export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+ros2 run demo_nodes_cpp listener
+</code></pre>
+<p><strong>Terminal 4 - Monitor with ros-z-console:</strong></p>
+<pre><code class="language-bash">ros-z-console tcp/127.0.0.1:7447 0
+</code></pre>
+<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
+<div class="admonition-title">
+<div id="admonition-success-title">
+<p>Success</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/console.html#admonition-success"></a>
+</div>
+<div>
+<p>You should see the <code>/chatter</code> topic, the <code>talker</code> and <code>listener</code> nodes, and their services appear in ros-z-console. Use the TUI to browse topics, check message rates, and inspect QoS settings.</p>
+</div>
+</div>
+<h2 id="building-and-running"><a class="header" href="#building-and-running">Building and Running</a></h2>
+<pre><code class="language-bash"># Build the console
+cargo build -p ros-z-console --release
+
+# Run with default settings (TUI mode)
+ros-z-console tcp/127.0.0.1:7447 0
+
+# Headless JSON streaming
+ros-z-console --headless --json tcp/127.0.0.1:7447 0
+
+# Export graph snapshot and exit
+ros-z-console --export graph.json tcp/127.0.0.1:7447 0
+</code></pre>
+<h2 id="command-line-interface"><a class="header" href="#command-line-interface">Command Line Interface</a></h2>
+<pre><code class="language-bash">ros-z-console [OPTIONS] [ROUTER] [DOMAIN]
+</code></pre>
+<h3 id="arguments"><a class="header" href="#arguments">Arguments</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Argument</th><th>Default</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>ROUTER</code></td><td><code>tcp/127.0.0.1:7447</code></td><td>Zenoh router address</td></tr>
+<tr><td><code>DOMAIN</code></td><td><code>0</code></td><td>ROS domain ID</td></tr>
+</tbody></table>
+</div>
+<h3 id="options"><a class="header" href="#options">Options</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Flag</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>--tui</code></td><td>Enable TUI interface (default if no other mode specified)</td></tr>
+<tr><td><code>--headless</code></td><td>Headless mode: stream events to stdout</td></tr>
+<tr><td><code>--json</code></td><td>Output structured JSON logs</td></tr>
+<tr><td><code>--debug</code></td><td>Enable debug logging</td></tr>
+<tr><td><code>--export &lt;PATH&gt;</code></td><td>Export current state and exit (supports .json, .dot, .csv)</td></tr>
+</tbody></table>
+</div>
+<h2 id="modes"><a class="header" href="#modes">Modes</a></h2>
+<h3 id="tui-mode-default"><a class="header" href="#tui-mode-default">TUI Mode (Default)</a></h3>
+<p>The interactive terminal interface provides:</p>
+<ul>
+<li><strong>Panel Navigation</strong> - Browse Topics, Services, Nodes, and Measurements</li>
+<li><strong>Filter Mode</strong> - Press <code>/</code> to activate type-ahead search with highlighting</li>
+<li><strong>Rate Monitoring</strong> - Quick rate check with <code>r</code> key (cached for 30s)</li>
+<li><strong>Measurement Panel</strong> - Press <code>m</code> for detailed measurements with:
+<ul>
+<li>Real-time metrics (msg/s, KB/s, average payload)</li>
+<li>60-second time-series chart</li>
+<li>SQLite storage (<code>ros-z-metrics.db</code>)</li>
+</ul>
+</li>
+<li><strong>Detail Drilling</strong> - Press <code>Enter</code> to expand sections with QoS profiles</li>
+<li><strong>Export</strong> - Press <code>e</code> to export metrics to CSV</li>
+<li><strong>Help Overlay</strong> - Press <code>?</code> to toggle help</li>
+</ul>
+<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+<div class="admonition-title">
+<div id="admonition-note-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/console.html#admonition-note"></a>
+</div>
+<div>
+<p>TUI mode requires a terminal that supports ANSI escape codes. Most modern terminals work out of the box.</p>
+</div>
+</div>
+<h3 id="headless-mode"><a class="header" href="#headless-mode">Headless Mode</a></h3>
+<p>Headless mode streams events to stdout, making it ideal for:</p>
+<ul>
+<li>CI/CD pipelines</li>
+<li>Log aggregation systems</li>
+<li>AI-powered analysis</li>
+<li>Scripted monitoring</li>
+</ul>
+<p><strong>Human-readable output:</strong></p>
+<pre><code class="language-bash">ros-z-console --headless tcp/127.0.0.1:7447 0
+</code></pre>
+<pre><code class="language-console">Discovered Topics:
+  /chatter (std_msgs/msg/String)
+  /cmd_vel (geometry_msgs/msg/Twist)
+Discovered Nodes:
+  /talker
+  /listener
+[2026-01-21 10:30:00] Topic discovered: /rosout (rcl_interfaces/msg/Log)
+</code></pre>
+<p><strong>JSON streaming output:</strong></p>
+<pre><code class="language-bash">ros-z-console --headless --json tcp/127.0.0.1:7447 0
+</code></pre>
+<pre><code class="language-json">{"timestamp":"...","event":"initial_state","domain_id":0,"topics":[...],"nodes":[...],"services":[...]}
+{"TopicDiscovered":{"topic":"/chatter","type_name":"std_msgs/msg/String","timestamp":"..."}}
+{"NodeDiscovered":{"namespace":"/","name":"talker","timestamp":"..."}}
+</code></pre>
+<h2 id="export-formats"><a class="header" href="#export-formats">Export Formats</a></h2>
+<p>Export the current graph state with the <code>--export</code> flag:</p>
+<h3 id="json-export"><a class="header" href="#json-export">JSON Export</a></h3>
+<pre><code class="language-bash">ros-z-console --export graph.json tcp/127.0.0.1:7447 0
+</code></pre>
+<p>Produces a structured JSON file with topics, nodes, services, and their relationships:</p>
+<pre><code class="language-json">{
+  "timestamp": "2026-01-21T10:30:00Z",
+  "domain_id": 0,
+  "topics": [
+    {"name": "/chatter", "type": "std_msgs/msg/String", "publishers": 1, "subscribers": 1}
+  ],
+  "nodes": [
+    {"name": "talker", "namespace": "/"}
+  ],
+  "services": []
+}
+</code></pre>
+<h3 id="graphviz-dot-export"><a class="header" href="#graphviz-dot-export">GraphViz DOT Export</a></h3>
+<pre><code class="language-bash">ros-z-console --export graph.dot tcp/127.0.0.1:7447 0
+dot -Tpng graph.dot -o graph.png
+</code></pre>
+<p>Generates a visual graph representation with:</p>
+<ul>
+<li>Nodes as blue boxes</li>
+<li>Topics as green ellipses</li>
+<li>Publisher edges in blue</li>
+<li>Subscriber edges in green</li>
+</ul>
+<h3 id="csv-export"><a class="header" href="#csv-export">CSV Export</a></h3>
+<pre><code class="language-bash">ros-z-console --export metrics.csv tcp/127.0.0.1:7447 0
+</code></pre>
+<p>Exports collected metrics history:</p>
+<pre><code class="language-csv">timestamp,topic,rate_hz,bandwidth_kbps,avg_payload_bytes
+2026-01-21T10:30:00Z,/chatter,10.5,2.3,220
+</code></pre>
+<h2 id="event-types"><a class="header" href="#event-types">Event Types</a></h2>
+<p>ros-z-console tracks these system events:</p>
+<div class="table-wrapper"><table><thead><tr><th>Event</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>TopicDiscovered</code></td><td>New topic detected in the graph</td></tr>
+<tr><td><code>TopicRemoved</code></td><td>Topic no longer present</td></tr>
+<tr><td><code>NodeDiscovered</code></td><td>New node joined the graph</td></tr>
+<tr><td><code>NodeRemoved</code></td><td>Node left the graph</td></tr>
+<tr><td><code>ServiceDiscovered</code></td><td>New service available</td></tr>
+<tr><td><code>RateMeasured</code></td><td>Rate measurement completed</td></tr>
+<tr><td><code>MetricsSnapshot</code></td><td>Periodic summary of graph state</td></tr>
+</tbody></table>
+</div>
+<h2 id="configuration"><a class="header" href="#configuration">Configuration</a></h2>
+<p>Create a <code>ros-z-console.json</code> or <code>.ros-z-console.json</code> file:</p>
+<pre><code class="language-json">{
+  "cache_ttl_seconds": 30,
+  "rate_cache_ttl_seconds": 30,
+  "graph_cache_update_ms": 100
+}
+</code></pre>
+<div class="table-wrapper"><table><thead><tr><th>Option</th><th>Default</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>cache_ttl_seconds</code></td><td>30</td><td>General cache time-to-live</td></tr>
+<tr><td><code>rate_cache_ttl_seconds</code></td><td>30</td><td>How long rate measurements are cached</td></tr>
+<tr><td><code>graph_cache_update_ms</code></td><td>100</td><td>Graph refresh interval in milliseconds</td></tr>
+</tbody></table>
+</div>
+<h2 id="integration-examples"><a class="header" href="#integration-examples">Integration Examples</a></h2>
+<h3 id="pipe-to-jq-for-filtering"><a class="header" href="#pipe-to-jq-for-filtering">Pipe to jq for filtering</a></h3>
+<pre><code class="language-bash">ros-z-console --headless --json | jq 'select(.TopicDiscovered != null)'
+</code></pre>
+<h3 id="monitor-specific-topics"><a class="header" href="#monitor-specific-topics">Monitor specific topics</a></h3>
+<pre><code class="language-bash">ros-z-console --headless --json | grep -E '"topic":"/cmd_vel"'
+</code></pre>
+<h3 id="continuous-logging"><a class="header" href="#continuous-logging">Continuous logging</a></h3>
+<pre><code class="language-bash">ros-z-console --headless --json &gt;&gt; ros-events.jsonl &amp;
+</code></pre>
+<h3 id="database-analysis"><a class="header" href="#database-analysis">Database analysis</a></h3>
+<pre><code class="language-bash"># After running TUI mode with measurements
+sqlite3 ros-z-metrics.db "SELECT topic, AVG(msgs_sec) FROM metrics GROUP BY topic"
+</code></pre>
+<div id="admonition-interoperability" class="admonition admonish-tip" role="note" aria-labelledby="admonition-interoperability-title">
+<div class="admonition-title">
+<div id="admonition-interoperability-title">
+<p>Interoperability</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/console.html#admonition-interoperability"></a>
+</div>
+<div>
+<p>Both ros-z and rmw_zenoh_cpp use the same Zenoh-based discovery protocol. ros-z-console subscribes to the graph liveliness tokens that rmw_zenoh_cpp nodes publish, enabling seamless interoperability without any configuration changes.</p>
+</div>
+</div>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="python-bindings"><a class="header" href="#python-bindings">Python Bindings</a></h1>
 <p><strong>ros-z provides Python bindings via <code>ros-z-py</code>, enabling Python applications to communicate with Rust and ROS 2 nodes using the same Zenoh transport.</strong> The bindings use PyO3 for Rust-Python interop and msgspec for efficient message serialization.</p>
 <div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
