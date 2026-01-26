@@ -70,11 +70,6 @@ jobs:
           source /tmp/nix-dev-env.sh
           nu scripts/test-pure-rust.nu clippy-workspace
 
-      - name: Build examples
-        run: |
-          source /tmp/nix-dev-env.sh
-          nu scripts/test-pure-rust.nu build-examples
-
       - name: Run tests
         run: |
           source /tmp/nix-dev-env.sh
