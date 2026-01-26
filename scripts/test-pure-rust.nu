@@ -32,6 +32,12 @@ def check-bundled-msgs [] {
     run-cmd "cargo build -p ros-z-msgs --no-default-features --features nav_msgs"
 }
 
+def check-console [] {
+    log-step "Check ros-z-console"
+    run-cmd "cargo check -p ros-z-console"
+    run-cmd "cargo clippy -p ros-z-console -- -D warnings"
+}
+
 # ============================================================================
 # Test Suite Configuration
 # ============================================================================
@@ -49,6 +55,7 @@ def get-test-pipeline [] {
         "clippy-workspace"
         "run-tests"
         "check-bundled-msgs"
+        "check-console"
     ]
 }
 
