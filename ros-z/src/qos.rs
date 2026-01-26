@@ -1,8 +1,19 @@
+use std::fmt;
+
 #[derive(Debug, Default, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum QosReliability {
     #[default]
     Reliable,
     BestEffort,
+}
+
+impl fmt::Display for QosReliability {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Reliable => write!(f, "Reliable"),
+            Self::BestEffort => write!(f, "Best Effort"),
+        }
+    }
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
@@ -17,11 +28,29 @@ impl Default for QosHistory {
     }
 }
 
+impl fmt::Display for QosHistory {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::KeepLast(depth) => write!(f, "Keep Last ({})", depth),
+            Self::KeepAll => write!(f, "Keep All"),
+        }
+    }
+}
+
 #[derive(Debug, Default, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum QosDurability {
     TransientLocal,
     #[default]
     Volatile,
+}
+
+impl fmt::Display for QosDurability {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::TransientLocal => write!(f, "Transient Local"),
+            Self::Volatile => write!(f, "Volatile"),
+        }
+    }
 }
 
 #[derive(Debug, Default, Hash, PartialEq, Eq, Clone, Copy)]
@@ -30,6 +59,16 @@ pub enum QosLiveliness {
     Automatic,
     ManualByNode,
     ManualByTopic,
+}
+
+impl fmt::Display for QosLiveliness {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Automatic => write!(f, "Automatic"),
+            Self::ManualByNode => write!(f, "Manual by Node"),
+            Self::ManualByTopic => write!(f, "Manual by Topic"),
+        }
+    }
 }
 
 /// Represents a duration in seconds and nanoseconds
@@ -52,6 +91,18 @@ impl Default for Duration {
     }
 }
 
+impl fmt::Display for Duration {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if *self == Self::INFINITE {
+            write!(f, "Infinite")
+        } else if self.nsec == 0 {
+            write!(f, "{}s", self.sec)
+        } else {
+            write!(f, "{}s {}ns", self.sec, self.nsec)
+        }
+    }
+}
+
 #[derive(Debug, Default, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct QosProfile {
     pub reliability: QosReliability,
@@ -61,6 +112,29 @@ pub struct QosProfile {
     pub lifespan: Duration,
     pub liveliness: QosLiveliness,
     pub liveliness_lease_duration: Duration,
+}
+
+impl fmt::Display for QosProfile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "QoS({}, {}, {}",
+            self.reliability, self.durability, self.history
+        )?;
+        if self.deadline != Duration::INFINITE {
+            write!(f, ", deadline={}", self.deadline)?;
+        }
+        if self.lifespan != Duration::INFINITE {
+            write!(f, ", lifespan={}", self.lifespan)?;
+        }
+        if self.liveliness != QosLiveliness::Automatic {
+            write!(f, ", liveliness={}", self.liveliness)?;
+        }
+        if self.liveliness_lease_duration != Duration::INFINITE {
+            write!(f, ", lease={}", self.liveliness_lease_duration)?;
+        }
+        write!(f, ")")
+    }
 }
 
 const QOS_DELIMITER: &str = ":";

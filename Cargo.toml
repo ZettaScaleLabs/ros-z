@@ -15,6 +15,7 @@ members = [
   "rcl-z",
   "ros-z-msgs",
   "ros-z-tests",
+  "ros-z-console",
   "ros-z/examples/protobuf_demo",
 ]
 default-members = ["ros-z", "ros-z-codegen"]

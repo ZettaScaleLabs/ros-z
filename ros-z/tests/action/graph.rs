@@ -152,13 +152,10 @@ mod tests {
             setup_test_with_client_server().await?;
 
         // Test getting action clients by node
-        let client_node_key = (
-            _client_node.entity.namespace.clone(),
-            _client_node.entity.name.clone(),
-        );
+        let client_node_key = _client_node.entity.key();
         let client_names_types = _client_node
             .graph
-            .get_action_client_names_and_types_by_node(client_node_key.clone());
+            .get_action_client_names_and_types_by_node(client_node_key);
 
         // Should find the action client we created
         assert!(!client_names_types.is_empty());
@@ -169,10 +166,7 @@ mod tests {
         assert!(action_found);
 
         // Test getting action servers by node
-        let server_node_key = (
-            _server_node.entity.namespace.clone(),
-            _server_node.entity.name.clone(),
-        );
+        let server_node_key = _server_node.entity.key();
         let server_names_types = _server_node
             .graph
             .get_action_server_names_and_types_by_node(server_node_key);
