@@ -306,7 +306,7 @@ mod tests {
 
         // Get services by node
         let graph = node.graph.clone();
-        let node_key: NodeKey = ("".to_string(), "test_graph_node".to_string());
+        let node_key: NodeKey = ("/".to_string(), "test_graph_node".to_string());
 
         let entities = graph.get_entities_by_node(EntityKind::Service, node_key);
 
@@ -336,7 +336,7 @@ mod tests {
 
         // Get clients by node
         let graph = node.graph.clone();
-        let node_key: NodeKey = ("".to_string(), "test_graph_node".to_string());
+        let node_key: NodeKey = ("/".to_string(), "test_graph_node".to_string());
 
         let entities = graph.get_entities_by_node(EntityKind::Client, node_key);
 

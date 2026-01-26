@@ -47,6 +47,7 @@ def get-test-map [] {
         clippy-workspace: { clippy-workspace }
         run-tests: { run-tests }
         check-bundled-msgs: { check-bundled-msgs }
+        check-console: { check-console }
     }
 }
 
