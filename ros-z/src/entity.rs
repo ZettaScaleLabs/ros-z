@@ -65,7 +65,14 @@ impl NodeEntity {
     }
 
     pub fn key(&self) -> NodeKey {
-        (self.namespace.clone(), self.name.clone())
+        let denormalized_ns = if self.namespace.is_empty() {
+            "/".to_string()
+        } else if !self.namespace.starts_with('/') {
+            format!("/{}", self.namespace)
+        } else {
+            self.namespace.clone()
+        };
+        (denormalized_ns, self.name.clone())
     }
 
     pub fn lv_token_key_expr(&self) -> Result<KeyExpr<'static>> {

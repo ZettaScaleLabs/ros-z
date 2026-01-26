@@ -24,6 +24,10 @@
   - [Custom Messages](./chapters/custom_messages.md)
   - [Protobuf Serialization](./chapters/protobuf.md)
 
+# Tools
+
+- [ros-z-console](./chapters/console.md)
+
 # Experimental
 
 - [Python Bindings](./chapters/python.md)

@@ -26,3 +26,6 @@ ros-z-msgs/python/ros_z_msgs_py/types/__init__.py
 /book/book/
 /book/*.js
 /book/*.css
+
+*.db
+*.log

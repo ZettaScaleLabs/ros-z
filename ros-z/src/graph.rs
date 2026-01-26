@@ -1,8 +1,10 @@
 use parking_lot::Mutex;
+use serde::Serialize;
 use slab::Slab;
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, Weak},
+    time::SystemTime,
 };
 use tracing::{info, debug};
 
@@ -11,6 +13,39 @@ use crate::entity::{
 };
 use crate::event::GraphEventManager;
 use zenoh::{Result, Session, Wait, pubsub::Subscriber, sample::SampleKind, session::ZenohId};
+use tracing;
+
+/// A serializable snapshot of the ROS graph state
+#[derive(Debug, Clone, Serialize)]
+pub struct GraphSnapshot {
+    pub timestamp: SystemTime,
+    pub domain_id: usize,
+    pub topics: Vec<TopicSnapshot>,
+    pub nodes: Vec<NodeSnapshot>,
+    pub services: Vec<ServiceSnapshot>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TopicSnapshot {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub type_name: String,
+    pub publishers: usize,
+    pub subscribers: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct NodeSnapshot {
+    pub name: String,
+    pub namespace: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ServiceSnapshot {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub type_name: String,
+}
 
 const DEFAULT_SLAB_CAPACITY: usize = 128;
 
@@ -73,12 +108,12 @@ impl GraphData {
                         .entry(x.key())
                         .or_insert_with(|| Slab::with_capacity(DEFAULT_SLAB_CAPACITY));
 
-                    // If slab is full, remove failing weak pointers first
-                    if slab.len() >= slab.capacity() {
-                        slab.retain(|_, weak_ptr| weak_ptr.upgrade().is_some());
-                    }
+                            // If slab is full, remove failing weak pointers first
+                            if slab.len() >= slab.capacity() {
+                                slab.retain(|_, weak_ptr| weak_ptr.upgrade().is_some());
+                            }
 
-                    slab.insert(weak);
+                            slab.insert(weak);
                 }
                 Entity::Endpoint(x) => {
                     debug!("[GRF] Parsed endpoint: kind={:?}, topic={}, node={}/{}",
@@ -208,6 +243,7 @@ impl Graph {
         let c_graph_data = graph_data.clone();
         let c_event_manager = event_manager.clone();
         let c_zid = zid;
+        tracing::debug!("Creating liveliness subscriber for {}/{}", ADMIN_SPACE, domain_id);
         let sub = session
             .liveliness()
             .declare_subscriber(format!("{ADMIN_SPACE}/{domain_id}/**"))
@@ -215,14 +251,21 @@ impl Graph {
             .callback(move |sample| {
                 let mut graph_data_guard = c_graph_data.lock();
                 let key_expr = sample.key_expr().to_owned();
-                let ke = LivelinessKE(key_expr);
+                let ke = LivelinessKE(key_expr.clone());
+                tracing::debug!("Received liveliness token: {} kind={:?}", key_expr, sample.kind());
                 match sample.kind() {
                     SampleKind::Put => {
                         info!("[GRF] Entity appeared: {}", ke.0);
                         graph_data_guard.insert(ke.clone());
                         // Trigger graph change events
-                        if let Ok(entity) = Entity::try_from(&ke) {
-                            c_event_manager.trigger_graph_change(&entity, true, c_zid);
+                        match Entity::try_from(&ke) {
+                            Ok(entity) => {
+                                tracing::debug!("Successfully parsed entity: {:?}", entity);
+                                c_event_manager.trigger_graph_change(&entity, true, c_zid);
+                            }
+                            Err(e) => {
+                                tracing::warn!("Failed to parse liveliness token {}: {:?}", key_expr, e);
+                            }
                         }
                     }
                     SampleKind::Delete => {
@@ -236,6 +279,7 @@ impl Graph {
                 }
             })
             .wait()?;
+        tracing::debug!("Liveliness subscriber created successfully");
         Ok(Self {
             _subscriber: sub,
             data: graph_data,
@@ -434,21 +478,29 @@ impl Graph {
             data.parse();
         }
 
-        // Extract all node keys from by_node HashMap
-        // Denormalize namespace: empty string becomes "/"
-        data.by_node
-            .keys()
-            .map(|(namespace, name)| {
-                let denormalized_ns = if namespace.is_empty() {
-                    "/".to_string()
-                } else if !namespace.starts_with('/') {
-                    format!("/{}", namespace)
-                } else {
-                    namespace.clone()
-                };
-                (name.clone(), denormalized_ns)
-            })
-            .collect()
+        use std::collections::HashSet;
+
+        let mut node_keys = HashSet::new();
+
+        // Collect nodes from explicit node entities
+        for (namespace, name) in data.by_node.keys() {
+            node_keys.insert((namespace.clone(), name.clone()));
+        }
+
+        // Also collect nodes from endpoints (in case node liveliness tokens aren't published)
+        for entity in data.parsed.values() {
+            if let Entity::Endpoint(endpoint) = entity.as_ref() {
+                node_keys.insert(endpoint.node.key());
+            }
+        }
+
+        // Node keys are already denormalized
+        let mut nodes: Vec<_> = node_keys
+            .into_iter()
+            .map(|(namespace, name)| (name, namespace))
+            .collect();
+        nodes.sort_by(|a, b| a.1.cmp(&b.1).then(a.0.cmp(&b.0)));
+        nodes
     }
 
     /// Get all node names, namespaces, and enclaves discovered in the graph
@@ -462,22 +514,30 @@ impl Graph {
             data.parse();
         }
 
-        // Extract all node keys from by_node HashMap
-        // Denormalize namespace: empty string becomes "/"
+        use std::collections::HashSet;
+
+        let mut node_keys = HashSet::new();
+
+        // Collect nodes from explicit node entities
+        for (namespace, name) in data.by_node.keys() {
+            node_keys.insert((namespace.clone(), name.clone()));
+        }
+
+        // Also collect nodes from endpoints (in case node liveliness tokens aren't published)
+        for entity in data.parsed.values() {
+            if let Entity::Endpoint(endpoint) = entity.as_ref() {
+                node_keys.insert(endpoint.node.key());
+            }
+        }
+
+        // Node keys are already denormalized
         // FIXME: For now, enclave is always empty string as we don't track this yet
-        data.by_node
-            .keys()
-            .map(|(namespace, name)| {
-                let denormalized_ns = if namespace.is_empty() {
-                    "/".to_string()
-                } else if !namespace.starts_with('/') {
-                    format!("/{}", namespace)
-                } else {
-                    namespace.clone()
-                };
-                (name.clone(), denormalized_ns, String::new())
-            })
-            .collect()
+        let mut nodes: Vec<_> = node_keys
+            .into_iter()
+            .map(|(namespace, name)| (name, namespace, String::new()))
+            .collect();
+        nodes.sort_by(|a, b| a.1.cmp(&b.1).then(a.0.cmp(&b.0)));
+        nodes
     }
 
     /// Get action client names and types by node
@@ -566,5 +626,50 @@ impl Graph {
         res.sort();
         res.dedup();
         res
+    }
+
+    /// Create a serializable snapshot of the current graph state
+    ///
+    /// This captures topics, nodes, and services with their metadata,
+    /// suitable for JSON serialization or other export formats.
+    pub fn snapshot(&self, domain_id: usize) -> GraphSnapshot {
+        let topics: Vec<TopicSnapshot> = self
+            .get_topic_names_and_types()
+            .into_iter()
+            .map(|(name, type_name)| {
+                let publishers = self
+                    .get_entities_by_topic(EntityKind::Publisher, &name)
+                    .len();
+                let subscribers = self
+                    .get_entities_by_topic(EntityKind::Subscription, &name)
+                    .len();
+                TopicSnapshot {
+                    name,
+                    type_name,
+                    publishers,
+                    subscribers,
+                }
+            })
+            .collect();
+
+        let nodes: Vec<NodeSnapshot> = self
+            .get_node_names()
+            .into_iter()
+            .map(|(name, namespace)| NodeSnapshot { name, namespace })
+            .collect();
+
+        let services: Vec<ServiceSnapshot> = self
+            .get_service_names_and_types()
+            .into_iter()
+            .map(|(name, type_name)| ServiceSnapshot { name, type_name })
+            .collect();
+
+        GraphSnapshot {
+            timestamp: SystemTime::now(),
+            domain_id,
+            topics,
+            nodes,
+            services,
+        }
     }
 }
