@@ -35,6 +35,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: false
+
       - name: Install Determinate Nix
         uses: DeterminateSystems/determinate-nix-action@v3
 
@@ -196,18 +207,10 @@ jobs:
           source /tmp/nix-dev-env.sh
           nu scripts/test-python.nu ${{ matrix.distro }} typecheck-mypy
 
-      - name: Run pytest with coverage
+      - name: Run pytest
         run: |
           source /tmp/nix-dev-env.sh
-          nu scripts/test-python.nu ${{ matrix.distro }} run-pytest-coverage
-
-      - name: Upload coverage reports
-        uses: codecov/codecov-action@v4
-        if: matrix.distro == 'jazzy'
-        with:
-          files: ./ros-z-py/coverage.xml
-          flags: python
-          name: ros-z-py-coverage
+          nu scripts/test-python.nu ${{ matrix.distro }} run-pytest
 
       - name: Run examples
         run: |
