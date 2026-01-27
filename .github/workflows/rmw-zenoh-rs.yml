@@ -1,4 +1,4 @@
-name: RMW Zenoh RS Tests
+name: rmw_zenoh_rs Tests
 
 on:
   push:
@@ -22,9 +22,28 @@ on:
         default: ''
 
 jobs:
-  rcl-test:
+  rmw_zenoh_rs_test:
+    name: rmw_zenoh_rs with ROS 2 Jazzy
     runs-on: ubuntu-latest
+    container:
+      image: rostooling/setup-ros-docker:ubuntu-noble-ros-jazzy-ros-base-latest
+
     steps:
+      - name: Install system dependencies
+        run: apt-get update && apt-get install -y git curl nodejs
+
+      - name: Install ROS dependencies
+        run: |
+          apt-get install -y \
+            ros-jazzy-rmw \
+            ros-jazzy-rcutils \
+            ros-jazzy-rcpputils \
+            ros-jazzy-fastcdr \
+            ros-jazzy-rosidl-typesupport-fastrtps-c \
+            ros-jazzy-rosidl-typesupport-fastrtps-cpp \
+            ros-jazzy-rmw-zenoh-cpp \
+            ros-jazzy-demo-nodes-cpp
+
       - name: Checkout ros-z
         uses: actions/checkout@v4
         with:
@@ -40,38 +59,39 @@ jobs:
       - name: Setup workspace
         run: |
           mkdir -p ws/src
-          # Copy rcl into workspace src (test-ros-packages.nu uses --base-paths with absolute paths)
           cp -r $GITHUB_WORKSPACE/rcl ws/src/rcl
 
-      - name: Setup Nix
-        uses: cachix/install-nix-action@v27
-        with:
-          nix_path: nixpkgs=channel:nixos-unstable
-          extra_nix_config: |
-            extra-substituters = https://ros.cachix.org
-            extra-trusted-public-keys = ros.cachix.org-1:dSyZxI8geDCJrwgvCOHDoAfOm5sV1wCPjBkKL+38Rvo=
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
 
-      - name: Setup Cachix
-        uses: cachix/cachix-action@v15
-        with:
-          name: ros
-          skipPush: true
+      - name: Install Nushell
+        run: |
+          NU_VERSION=0.99.1
+          NU_PKG=nu-${NU_VERSION}-x86_64-unknown-linux-gnu
+          NU_URL=https://github.com/nushell/nushell/releases/download
+          curl -L ${NU_URL}/${NU_VERSION}/${NU_PKG}.tar.gz | tar xz
+          mv ${NU_PKG}/nu /usr/local/bin/
+          chmod +x ros-z/scripts/test-ros-packages.nu
 
-      - name: Run RCL tests
+      - name: Test ROS packages
+        shell: bash
         run: |
           cd ros-z
+          source /opt/ros/jazzy/setup.bash
           TEST_FILTER="${{ github.event.inputs.test_filter }}"
-          nix develop .#ros-jazzy --command nu scripts/test-ros-packages.nu \
+          if [ -z "$TEST_FILTER" ]; then
+            TEST_FILTER="rmw_zenoh_rs"
+          fi
+          nu scripts/test-ros-packages.nu \
             --ws-dir $GITHUB_WORKSPACE/ws \
             --rmw-path $GITHUB_WORKSPACE/ros-z/rmw-zenoh-rs \
-            --packages rcl \
             --verbose \
-            ${TEST_FILTER:+--test-filter "$TEST_FILTER"}
+            --test-filter "$TEST_FILTER"
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: rcl-test-results
+          name: rmw-zenoh-rs-test-results
           path: ws/log/latest_test/
           retention-days: 7

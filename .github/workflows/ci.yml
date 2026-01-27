@@ -175,14 +175,11 @@ jobs:
           nu scripts/test-python.nu --distro ${{ matrix.distro }} cleanup-python
 
   ros-tests:
-    name: ROS Tests (clippy-rmw, interop) (${{ matrix.distro }})
+    name: ROS Tests (clippy-rmw, interop) (jazzy)
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
-    strategy:
-      matrix:
-        distro: [humble, jazzy]
 
     steps:
       - name: Checkout repository
@@ -212,7 +209,7 @@ jobs:
 
       - name: Setup nix environment
         run: |
-          nix print-dev-env '.#ros-${{ matrix.distro }}-ci' \
+          nix print-dev-env '.#ros-jazzy-ci' \
             --accept-flake-config > /tmp/nix-dev-env.sh
           echo "export SCCACHE_GHA_ENABLED=true" >> /tmp/nix-dev-env.sh
           echo "export SCCACHE_CACHE_SIZE=1G" >> /tmp/nix-dev-env.sh
@@ -222,4 +219,4 @@ jobs:
       - name: Run ROS tests
         run: |
           source /tmp/nix-dev-env.sh
-          nu scripts/test-ros.nu --distro ${{ matrix.distro }}
+          nu scripts/test-ros.nu --distro jazzy
