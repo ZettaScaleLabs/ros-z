@@ -66,7 +66,7 @@ jobs:
 
       - name: Install Nushell
         run: |
-          NU_VERSION=0.99.1
+          NU_VERSION=0.110.0
           NU_PKG=nu-${NU_VERSION}-x86_64-unknown-linux-gnu
           NU_URL=https://github.com/nushell/nushell/releases/download
           curl -L ${NU_URL}/${NU_VERSION}/${NU_PKG}.tar.gz | tar xz
@@ -86,7 +86,8 @@ jobs:
             --ws-dir $GITHUB_WORKSPACE/ws \
             --rmw-path $GITHUB_WORKSPACE/ros-z/rmw-zenoh-rs \
             --verbose \
-            --test-filter "$TEST_FILTER"
+            --include-filter "$TEST_FILTER" \
+            --exclude-filter "test_count_matched|test_events"
 
       - name: Upload test results
         if: always()

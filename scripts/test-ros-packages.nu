@@ -5,7 +5,7 @@
 #
 # Usage:
 #   nu scripts/test-ros-packages.nu                              # Run rcl tests (default)
-#   nu scripts/test-ros-packages.nu --test-filter "test_pub"     # Filter tests
+#   nu scripts/test-ros-packages.nu --include-filter "test_pub"  # Filter tests
 #   nu scripts/test-ros-packages.nu --build-only                 # Only build
 #   nu scripts/test-ros-packages.nu --test-only                  # Only test (skip build)
 #   nu scripts/test-ros-packages.nu --rmw-impl rmw_zenoh_cpp     # Test with rmw_zenoh_cpp
@@ -27,7 +27,8 @@ def main [
     --rmw-impl: string = "rmw_zenoh_rs"    # RMW implementation to test (rmw_zenoh_rs or rmw_zenoh_cpp)
     --build-only                           # Only build, skip tests
     --test-only                            # Only test, skip build
-    --test-filter: string = ""             # CTest regex filter (e.g., "test_publisher|test_node")
+    --include-filter: string = ""          # CTest include regex filter (e.g., "test_publisher|test_node")
+    --exclude-filter: string = ""          # CTest exclude regex filter (e.g., "test_count_matched|test_events")
     --packages: list<string> = [rcl]       # ROS 2 packages to test
     --src-paths: list<string> = []         # Additional source paths to scan
     --verbose                              # Verbose test output
@@ -152,9 +153,15 @@ def main [
     let paths_arg = $scan_paths | str join " "
 
     let verbose_arg = if $verbose { " --event-handlers console_direct+" } else { "" }
-    let filter_arg = if $test_filter != "" {
-        print $"Test filter: ($test_filter)"
-        $" --ctest-args -R '($test_filter)'"
+    let filter_arg = if $include_filter != "" {
+        print $"Include filter: ($include_filter)"
+        $" --ctest-args -R '($include_filter)'"
+    } else {
+        ""
+    }
+    let exclude_arg = if $exclude_filter != "" {
+        print $"Exclude filter: ($exclude_filter)"
+        $" -E '($exclude_filter)'"
     } else {
         ""
     }
@@ -166,7 +173,7 @@ def main [
         "warn,ros_z=warn,rmw_zenoh_rs=warn,zenoh=warn"
     }
 
-    let test_cmd = $"source ($ws)/install/setup.bash && RUST_LOG=($rust_log) RMW_IMPLEMENTATION=($rmw_impl) colcon test --base-paths ($paths_arg) --packages-select ($packages_arg) --return-code-on-test-failure($verbose_arg)($filter_arg)"
+    let test_cmd = $"source ($ws)/install/setup.bash && RUST_LOG=($rust_log) RMW_IMPLEMENTATION=($rmw_impl) colcon test --base-paths ($paths_arg) --packages-select ($packages_arg) --return-code-on-test-failure($verbose_arg)($filter_arg)($exclude_arg)"
 
     print $"Testing packages: ($packages_arg) with RMW: ($rmw_impl)"
     print ""
