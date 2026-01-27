@@ -8,10 +8,15 @@ use std::{
 };
 
 use parking_lot::Mutex;
-use ros_z::graph::Graph;
+use ros_z::{
+    context::ZContext,
+    graph::Graph,
+    node::ZNode,
+    Builder,
+};
 use tokio::sync::broadcast;
 
-use super::{events::SystemEvent, metrics::MetricsCollector};
+use super::{dynamic_subscriber::DynamicTopicSubscriber, events::SystemEvent, metrics::MetricsCollector};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Backend {
@@ -29,6 +34,9 @@ pub struct CoreEngine {
     pub router_addr: String,
     pub backend: Backend,
     pub is_connected: Arc<AtomicBool>,
+    #[allow(dead_code)]
+    pub context: Arc<ZContext>,
+    pub node: Arc<ZNode>,
 }
 
 impl CoreEngine {
@@ -44,9 +52,9 @@ impl CoreEngine {
         config.insert_json5("mode", "\"peer\"")?;
         config.insert_json5("connect/endpoints", &format!("[\"{}\"]", router_addr))?;
 
-        let session = zenoh::open(config)
-            .await
-            .map_err(|e| format!("Failed to initialize Zenoh session: {}", e))?;
+        let session = zenoh::open(config.clone()).await.map_err(|e| {
+            format!("Failed to initialize Zenoh session: {}", e)
+        })?;
         let session = Arc::new(session);
 
         // Initialize graph with backend-specific liveliness pattern and parser
@@ -86,6 +94,21 @@ impl CoreEngine {
         // Initialize metrics collector
         let metrics = Arc::new(Mutex::new(MetricsCollector::new()));
 
+        // Create ROS context for node creation
+        let context = ros_z::context::ZContextBuilder::default()
+            .with_domain_id(domain_id)
+            .with_zenoh_config(config)
+            .build()
+            .map_err(|e| format!("Failed to create ROS context: {}", e))?;
+        let context = Arc::new(context);
+
+        // Create ROS node with type description service for dynamic subscriptions
+        let node = context
+            .create_node("ros_z_console")
+            .with_type_description_service()
+            .build()?;
+        let node = Arc::new(node);
+
         Ok(Self {
             session,
             graph,
@@ -95,11 +118,31 @@ impl CoreEngine {
             router_addr: router_addr.to_string(),
             backend,
             is_connected: Arc::new(AtomicBool::new(true)),
+            context,
+            node,
         })
     }
 
     pub fn subscribe_events(&self) -> broadcast::Receiver<SystemEvent> {
         self.event_tx.subscribe()
+    }
+
+    /// Create a dynamic subscriber for a topic with automatic schema discovery
+    ///
+    /// # Arguments
+    ///
+    /// * `topic` - Topic name to subscribe to
+    /// * `discovery_timeout` - Maximum time to wait for schema discovery
+    ///
+    /// # Errors
+    ///
+    /// Returns error if schema discovery fails or subscriber creation fails
+    pub async fn create_dynamic_subscriber(
+        &self,
+        topic: &str,
+        discovery_timeout: Duration,
+    ) -> Result<DynamicTopicSubscriber, Box<dyn std::error::Error + Send + Sync>> {
+        DynamicTopicSubscriber::new(&self.node, topic, discovery_timeout).await
     }
 
     pub async fn start_monitoring(&self) {

@@ -207,6 +207,9 @@ where
         let payload = msg.serialize();
         tracing::Span::current().record("payload_len", payload.len());
 
+        // Log the key expression being queried
+        let query_ke = self.inner.key_expr();
+        info!("[CLN] Sending request to key expression: {}", query_ke);
         debug!("[CLN] Sending request");
 
         let tx = self.tx.clone();
@@ -217,6 +220,7 @@ where
             .callback(move |reply| {
                 match reply.into_result() {
                     Ok(sample) => {
+                        info!("[CLN] Reply received: len={}, kind={:?}", sample.payload().len(), sample.kind());
                         debug!("[CLN] Reply received: len={}", sample.payload().len());
                         // Use try_send for bounded channel - if full, drop the response (QoS depth enforcement)
                         if tx.try_send(sample).is_err() {
@@ -353,19 +357,26 @@ where
         let key_expr = (*topic_ke).clone(); // Deref and clone the KeyExpr
         tracing::debug!("[SRV] KE: {key_expr}");
 
+        info!("[SRV] Declaring queryable on key expression: {}", key_expr);
+
         let inner = self
             .session
             .declare_queryable(&key_expr)
             .complete(true)
             .callback(move |query| {
-                debug!(
-                    "[SRV] Query received: ke={}, selector={}",
-                    query.key_expr(),
-                    query.selector()
-                );
+                info!("[SRV] Query received: ke={}, selector={}, parameters={}",
+                    query.key_expr(), query.selector(), query.parameters());
 
                 if let Some(att) = query.attachment() {
-                    trace!("[SRV] Query has attachment");
+                    info!("[SRV] Query has attachment: {} bytes", att.len());
+                } else {
+                    info!("[SRV] Query has NO attachment");
+                }
+
+                if let Some(payload) = query.payload() {
+                    info!("[SRV] Query has payload: {} bytes", payload.len());
+                } else {
+                    info!("[SRV] Query has NO payload");
                 }
 
                 handler.handle(query);

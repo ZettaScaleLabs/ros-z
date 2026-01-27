@@ -1,0 +1,25 @@
+# Request the type description for a specific type.
+
+# The fully qualified type name to look up.
+string type_name
+
+# The expected type hash (RIHS01 format). Empty string for no validation.
+string type_hash
+
+# If true, the response will include the original source files.
+bool include_type_sources
+---
+# Whether the request succeeded.
+bool successful
+
+# A human-readable reason for failure, if not successful.
+string failure_reason
+
+# The type description, if successful.
+TypeDescription type_description
+
+# The original source files, if include_type_sources was true and successful.
+TypeSource[] type_sources
+
+# Extra key-value information about the type.
+KeyValue[] extra_information

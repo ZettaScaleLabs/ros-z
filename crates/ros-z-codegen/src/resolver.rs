@@ -165,17 +165,21 @@ impl Resolver {
                 .get("service_msgs/ServiceEventInfo")
                 .ok_or_else(|| anyhow::anyhow!("ServiceEventInfo not found in builtin types"))?;
 
-            // Collect dependencies of ServiceEventInfo (like Time)
+            // Collect all dependencies needed for service hash calculation
             let mut service_deps = BTreeMap::new();
+
+            // Add ServiceEventInfo and Time
             service_deps.insert(
                 service_event_info_desc.type_name.clone(),
                 service_event_info_desc.clone(),
             );
-
-            // Add Time dependency
             if let Some(time_desc) = self.type_descriptions.get("builtin_interfaces/Time") {
                 service_deps.insert(time_desc.type_name.clone(), time_desc.clone());
             }
+
+            // Collect all nested types from request and response
+            self.collect_nested_deps(&request.type_description(), &mut service_deps);
+            self.collect_nested_deps(&response.type_description(), &mut service_deps);
 
             // Calculate proper service type hash (Request + Response + Event)
             crate::hashing::calculate_service_type_hash(
@@ -331,6 +335,35 @@ impl Resolver {
             // If package is None, assume it's in the same package as the source message
             let key = format!("{}/{}", source_package, base_type);
             self.type_descriptions.contains_key(&key)
+        }
+    }
+
+    /// Collect all nested type dependencies from a type description
+    fn collect_nested_deps(
+        &self,
+        type_desc: &TypeDescription,
+        collected: &mut BTreeMap<String, TypeDescription>,
+    ) {
+        for field in &type_desc.fields {
+            if !field.field_type.nested_type_name.is_empty() {
+                // Convert "pkg/msg/Type" to "pkg/Type" key format
+                let nested_name = &field.field_type.nested_type_name;
+                let key = if nested_name.contains("/msg/") {
+                    nested_name.replace("/msg/", "/")
+                } else if nested_name.contains("/srv/") {
+                    nested_name.replace("/srv/", "/")
+                } else {
+                    nested_name.clone()
+                };
+
+                if !collected.contains_key(nested_name)
+                    && let Some(dep_desc) = self.type_descriptions.get(&key)
+                {
+                    collected.insert(dep_desc.type_name.clone(), dep_desc.clone());
+                    // Recursively collect nested types
+                    self.collect_nested_deps(dep_desc, collected);
+                }
+            }
         }
     }
 
@@ -930,32 +963,31 @@ impl ResolvedMessageExt for ResolvedMessage {
 
                 // Determine nested type path based on type name suffix
                 // Action types need underscore: Fibonacci_Goal, Fibonacci_Result, Fibonacci_Feedback
-                let nested_type_name = if let Some(ref pkg) = field.field_type.package {
-                    if field.field_type.base_type.ends_with("Goal") {
-                        let base =
-                            &field.field_type.base_type[..field.field_type.base_type.len() - 4];
-                        format!("{}/action/{}_Goal", pkg, base)
-                    } else if field.field_type.base_type.ends_with("Result") {
-                        let base =
-                            &field.field_type.base_type[..field.field_type.base_type.len() - 6];
-                        format!("{}/action/{}_Result", pkg, base)
-                    } else if field.field_type.base_type.ends_with("Feedback") {
-                        let base =
-                            &field.field_type.base_type[..field.field_type.base_type.len() - 8];
-                        format!("{}/action/{}_Feedback", pkg, base)
-                    } else {
-                        format!("{}/msg/{}", pkg, field.field_type.base_type)
-                    }
-                } else {
+                // For same-package references (no explicit package), use the message's package
+                let pkg = field.field_type.package.as_ref().unwrap_or(&self.parsed.package);
+                let nested_type_name = if crate::hashing::is_primitive_type(&field.field_type.base_type) {
                     String::new()
+                } else if field.field_type.base_type.ends_with("Goal") {
+                    let base = &field.field_type.base_type[..field.field_type.base_type.len() - 4];
+                    format!("{}/action/{}_Goal", pkg, base)
+                } else if field.field_type.base_type.ends_with("Result") {
+                    let base = &field.field_type.base_type[..field.field_type.base_type.len() - 6];
+                    format!("{}/action/{}_Result", pkg, base)
+                } else if field.field_type.base_type.ends_with("Feedback") {
+                    let base = &field.field_type.base_type[..field.field_type.base_type.len() - 8];
+                    format!("{}/action/{}_Feedback", pkg, base)
+                } else {
+                    format!("{}/msg/{}", pkg, field.field_type.base_type)
                 };
+
+                let string_capacity = field.field_type.string_bound.unwrap_or(0) as u64;
 
                 fields.push(FieldDescription {
                     name: field.name.clone(),
                     field_type: FieldTypeDescription {
                         type_id,
                         capacity,
-                        string_capacity: 0,
+                        string_capacity,
                         nested_type_name,
                     },
                     default_value: String::new(),
@@ -993,6 +1025,7 @@ mod tests {
                     base_type: "int32".to_string(),
                     package: None,
                     array: ArrayType::Single,
+                    string_bound: None,
                 },
                 default: None,
             }],
@@ -1040,6 +1073,7 @@ mod tests {
                         base_type: "int32".to_string(),
                         package: None,
                         array: ArrayType::Single,
+                        string_bound: None,
                     },
                     default: None,
                 },
@@ -1049,6 +1083,7 @@ mod tests {
                         base_type: "uint32".to_string(),
                         package: None,
                         array: ArrayType::Single,
+                        string_bound: None,
                     },
                     default: None,
                 },
@@ -1068,6 +1103,7 @@ mod tests {
                         base_type: "Time".to_string(),
                         package: Some("builtin_interfaces".to_string()),
                         array: ArrayType::Single,
+                        string_bound: None,
                     },
                     default: None,
                 },
@@ -1077,6 +1113,7 @@ mod tests {
                         base_type: "int32".to_string(),
                         package: None,
                         array: ArrayType::Single,
+                        string_bound: None,
                     },
                     default: None,
                 },
@@ -1107,6 +1144,7 @@ mod tests {
                         base_type: "float64".to_string(),
                         package: None,
                         array: ArrayType::Single,
+                        string_bound: None,
                     },
                     default: None,
                 },
@@ -1116,6 +1154,7 @@ mod tests {
                         base_type: "float64".to_string(),
                         package: None,
                         array: ArrayType::Single,
+                        string_bound: None,
                     },
                     default: None,
                 },
@@ -1135,6 +1174,7 @@ mod tests {
                     base_type: "Point".to_string(),
                     package: Some("geometry_msgs".to_string()),
                     array: ArrayType::Single,
+                    string_bound: None,
                 },
                 default: None,
             }],
@@ -1168,6 +1208,7 @@ mod tests {
                     base_type: "int32".to_string(),
                     package: None,
                     array: ArrayType::Single,
+                    string_bound: None,
                 },
                 default: None,
             }],

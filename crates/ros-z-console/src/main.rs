@@ -73,6 +73,10 @@ struct Cli {
     /// Export current state and exit
     #[arg(long)]
     export: Option<String>, // graph.json, graph.dot, metrics.csv
+
+    /// Topics to echo (subscribe and display messages)
+    #[arg(long = "echo", value_name = "TOPIC")]
+    echo_topics: Vec<String>,
 }
 
 #[tokio::main]
@@ -100,7 +104,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     // Determine mode
     if cli.headless {
-        modes::headless::run_headless_mode(&core, cli.json).await?;
+        modes::headless::run_headless_mode(&core, cli.json, cli.echo_topics).await?;
     } else {
         run_tui_mode(core).await?;
     }

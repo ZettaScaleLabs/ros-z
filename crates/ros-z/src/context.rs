@@ -502,6 +502,7 @@ impl ZContext {
             graph: self.graph.clone(),
             remap_rules: self.remap_rules.clone(),
             shm_config: self.shm_config.clone(),
+            enable_type_desc_service: false,
         }
     }
 

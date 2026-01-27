@@ -39,13 +39,25 @@ impl KeyExprBackend for RmwZenohBackend {
             let s = s.strip_prefix('/').unwrap_or(s);
             let s = s.strip_suffix('/').unwrap_or(s);
 
-            // Special handling for action services: keep /_action/ as / in key expression
-            if let Some(pos) = s.find("/_action/") {
-                let (base, action_suffix) = s.split_at(pos);
-                let action_suffix = &action_suffix[1..]; // Remove leading /
-                format!("{}/{}", Self::mangle_name(base), action_suffix)
-            } else {
-                Self::mangle_name(s)
+            // For services and actions, keep internal slashes (don't mangle)
+            // to match rmw_zenoh_cpp's strip_slashes behavior.
+            // Only topics (pub/sub) need mangling for compatibility with older behavior.
+            match entity.kind {
+                crate::entity::EntityKind::Service | crate::entity::EntityKind::Client => {
+                    // Services: keep internal slashes, no mangling
+                    s.to_string()
+                }
+                _ => {
+                    // Topics/Actions: mangle slashes to % for backwards compatibility
+                    // Special handling for action services: keep /_action/ as / in key expression
+                    if let Some(pos) = s.find("/_action/") {
+                        let (base, action_suffix) = s.split_at(pos);
+                        let action_suffix = &action_suffix[1..]; // Remove leading /
+                        format!("{}/{}", Self::mangle_name(base), action_suffix)
+                    } else {
+                        Self::mangle_name(s)
+                    }
+                }
             }
         };
 

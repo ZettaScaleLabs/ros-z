@@ -154,6 +154,7 @@ fn python_default(field_type: &FieldType) -> String {
                 base_type: field_type.base_type.clone(),
                 package: field_type.package.clone(),
                 array: ArrayType::Single,
+                string_bound: None,
             });
             format!(
                 "({}{})",
@@ -183,6 +184,7 @@ mod tests {
             base_type: "int32".to_string(),
             package: None,
             array: ArrayType::Single,
+            string_bound: None,
         };
         assert_eq!(to_python_type(&field_type).unwrap(), "int");
 
@@ -190,6 +192,7 @@ mod tests {
             base_type: "bool".to_string(),
             package: None,
             array: ArrayType::Single,
+            string_bound: None,
         };
         assert_eq!(to_python_type(&field_type).unwrap(), "bool");
 
@@ -197,6 +200,7 @@ mod tests {
             base_type: "string".to_string(),
             package: None,
             array: ArrayType::Single,
+            string_bound: None,
         };
         assert_eq!(to_python_type(&field_type).unwrap(), "str");
     }
@@ -207,6 +211,7 @@ mod tests {
             base_type: "uint8".to_string(),
             package: None,
             array: ArrayType::Unbounded,
+            string_bound: None,
         };
         assert_eq!(to_python_type(&field_type).unwrap(), "bytes");
 
@@ -214,6 +219,7 @@ mod tests {
             base_type: "int32".to_string(),
             package: None,
             array: ArrayType::Unbounded,
+            string_bound: None,
         };
         assert_eq!(to_python_type(&field_type).unwrap(), "list[int]");
     }
@@ -224,6 +230,7 @@ mod tests {
             base_type: "Point".to_string(),
             package: Some("geometry_msgs".to_string()),
             array: ArrayType::Single,
+            string_bound: None,
         };
         assert_eq!(
             to_python_type(&field_type).unwrap(),
@@ -234,6 +241,7 @@ mod tests {
             base_type: "Point".to_string(),
             package: Some("geometry_msgs".to_string()),
             array: ArrayType::Unbounded,
+            string_bound: None,
         };
         assert_eq!(
             to_python_type(&field_type).unwrap(),
@@ -247,6 +255,7 @@ mod tests {
             base_type: "int32".to_string(),
             package: None,
             array: ArrayType::Single,
+            string_bound: None,
         };
         assert_eq!(python_default(&field_type), "0");
 
@@ -254,6 +263,7 @@ mod tests {
             base_type: "string".to_string(),
             package: None,
             array: ArrayType::Single,
+            string_bound: None,
         };
         assert_eq!(python_default(&field_type), "''");
 
@@ -261,6 +271,7 @@ mod tests {
             base_type: "uint8".to_string(),
             package: None,
             array: ArrayType::Unbounded,
+            string_bound: None,
         };
         assert_eq!(python_default(&field_type), "b''");
     }
@@ -277,6 +288,7 @@ mod tests {
                         base_type: "string".to_string(),
                         package: None,
                         array: ArrayType::Single,
+                        string_bound: None,
                     },
                     default: None,
                 }],
@@ -308,6 +320,7 @@ mod tests {
                         base_type: "int32".to_string(),
                         package: None,
                         array: ArrayType::Single,
+                        string_bound: None,
                     },
                     default: None,
                 }],

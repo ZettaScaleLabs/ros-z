@@ -30,6 +30,7 @@ prost = { workspace = true, optional = true }
 pyo3 = { workspace = true, optional = true }
 ros-z-cdr = { workspace = true }
 ros-z-codegen = { workspace = true, optional = true }
+ros-z-schema = { workspace = true }
 byteorder = { workspace = true }
 json5 = { workspace = true }
 uuid = { version = "1.0", features = ["v4"] }

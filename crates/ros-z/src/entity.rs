@@ -374,15 +374,21 @@ impl TryFrom<&EndpointEntity> for TopicKE {
             let s = s.strip_prefix('/').unwrap_or(s);
             let s = s.strip_suffix('/').unwrap_or(s);
 
-            // Special handling for action services: keep /_action/ as / in key expression
-            // Action services use /_action/ as infrastructure naming, which should be
-            // literal slashes in the Zenoh key expression (like type names)
-            if let Some(pos) = s.find("/_action/") {
+            // For services, keep slashes as-is to match rmw_zenoh_cpp format
+            // Services include regular services and action services
+            // rmw_zenoh_cpp uses strip_slashes() which only removes leading/trailing slashes
+            if value.kind == EntityKind::Service || value.kind == EntityKind::Client {
+                s.to_string()
+            } else if let Some(pos) = s.find("/_action/") {
+                // Special handling for action pub/sub: keep /_action/ as / in key expression
+                // Action services use /_action/ as infrastructure naming, which should be
+                // literal slashes in the Zenoh key expression (like type names)
                 let (base, action_suffix) = s.split_at(pos);
                 // Mangle the base action name, keep /_action/ as /, mangle the service type
                 let action_suffix = &action_suffix[1..]; // Remove leading /
                 format!("{}/{}", mangle_name(base), action_suffix)
             } else {
+                // For topics (publishers/subscribers), mangle the name
                 mangle_name(s)
             }
         };

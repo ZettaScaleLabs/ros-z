@@ -4,11 +4,14 @@ version = "0.1.0"
 edition = "2024"
 description = "ROS 2 Graph Inspector & Dataflow Monitor TUI"
 homepage = "https://github.com/ZettaScaleLabs/ros-z"
+default-run = "ros-z-console"
 
 [dependencies]
 ros-z = { path = "../ros-z", features = ["ros2dds"] }
+ros-z-msgs = { path = "../ros-z-msgs" }
 clap = { workspace = true }
 crossterm = "0.29"
+flume = { workspace = true }
 parking_lot = { workspace = true }
 ratatui = "0.29"
 rusqlite = { version = "0.32", features = ["bundled"] }

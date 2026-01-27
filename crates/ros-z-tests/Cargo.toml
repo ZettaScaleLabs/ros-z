@@ -12,6 +12,7 @@ publish = false
 ros-z = { path = "../ros-z", default-features = false, features = ["protobuf"] }
 ros-z-msgs = { path = "../ros-z-msgs", optional = true }
 ros-z-cdr = { path = "../ros-z-cdr" }
+ros-z-schema = { path = "../ros-z-schema" }
 protobuf_demo = { path = "../ros-z/examples/protobuf_demo" }
 
 # Test runtime dependencies

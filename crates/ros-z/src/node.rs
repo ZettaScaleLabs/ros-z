@@ -1,17 +1,23 @@
 use crate::entity::EntityKind;
 use crate::graph::Graph;
 use std::sync::Arc;
-use tracing::debug;
+use std::time::Duration;
 use zenoh::liveliness::LivelinessToken;
+use zenoh::sample::Sample;
 use zenoh::{Result, Session, Wait};
+use tracing::{info, debug, warn};
 
 use crate::{
     Builder, ServiceTypeInfo, WithTypeInfo,
     action::{client::ZActionClientBuilder, server::ZActionServerBuilder},
     context::{GlobalCounter, RemapRules},
+    dynamic::{
+        DynamicCdrSerdes, DynamicMessage, MessageSchema, TypeDescriptionClient,
+        TypeDescriptionService,
+    },
     entity::*,
     msg::{ZMessage, ZService},
-    pubsub::{ZPubBuilder, ZSubBuilder},
+    pubsub::{ZPub, ZPubBuilder, ZSub, ZSubBuilder},
     service::{ZClientBuilder, ZServerBuilder},
 };
 
@@ -23,6 +29,10 @@ pub struct ZNode {
     pub remap_rules: RemapRules,
     _lv_token: LivelinessToken,
     pub(crate) shm_config: Option<Arc<crate::shm::ShmConfig>>,
+    /// Optional type description service for this node.
+    /// Enabled via `ZNodeBuilder::with_type_description_service()`.
+    /// The service uses callback mode and requires no background task.
+    type_desc_service: Option<TypeDescriptionService>,
 }
 
 pub struct ZNodeBuilder {
@@ -35,6 +45,8 @@ pub struct ZNodeBuilder {
     pub graph: Arc<Graph>,
     pub remap_rules: RemapRules,
     pub(crate) shm_config: Option<Arc<crate::shm::ShmConfig>>,
+    /// Whether to enable the type description service for this node.
+    pub enable_type_desc_service: bool,
 }
 
 impl ZNodeBuilder {
@@ -76,6 +88,27 @@ impl ZNodeBuilder {
         self.shm_config = Some(Arc::new(config));
         self
     }
+
+    /// Enable the type description service for this node.
+    ///
+    /// When enabled, the node will expose a `~get_type_description` service
+    /// that allows other nodes to query type descriptions for schemas
+    /// registered with this node's publishers.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let node = ctx
+    ///     .create_node("my_node")
+    ///     .with_type_description_service()
+    ///     .build()?;
+    ///
+    /// // Now publishers created from this node can auto-register their schemas
+    /// ```
+    pub fn with_type_description_service(mut self) -> Self {
+        self.enable_type_desc_service = true;
+        self
+    }
 }
 
 impl Builder for ZNodeBuilder {
@@ -111,6 +144,25 @@ impl Builder for ZNodeBuilder {
             .liveliness()
             .declare_token(lv_token_ke)
             .wait()?;
+
+        // Create type description service if enabled
+        let type_desc_service = if self.enable_type_desc_service {
+            debug!("[NOD] Creating type description service");
+            let service = TypeDescriptionService::new(
+                self.session.clone(),
+                &self.name,
+                &self.namespace,
+                id,
+                &self.counter,
+            )?;
+
+            info!("[NOD] TypeDescriptionService created (callback mode)");
+
+            Some(service)
+        } else {
+            None
+        };
+
         debug!("[NOD] Node ready: {}/{}", self.namespace, self.name);
 
         Ok(ZNode {
@@ -121,6 +173,7 @@ impl Builder for ZNodeBuilder {
             graph: self.graph,
             remap_rules: self.remap_rules,
             shm_config: self.shm_config,
+            type_desc_service,
         })
     }
 }
@@ -164,6 +217,7 @@ impl ZNode {
             session: self.session.clone(),
             with_attachment: true,
             shm_config: self.shm_config.clone(),
+            dyn_schema: None,
             _phantom_data: Default::default(),
         }
     }
@@ -295,5 +349,256 @@ impl ZNode {
         A: crate::action::ZAction,
     {
         ZActionServerBuilder::new(action_name, self)
+    }
+
+    /// Get a reference to this node's type description service, if enabled.
+    ///
+    /// Returns `None` if the node was not created with `.with_type_description_service()`.
+    pub fn type_description_service(&self) -> Option<&TypeDescriptionService> {
+        self.type_desc_service.as_ref()
+    }
+
+    /// Get a mutable reference to this node's type description service, if enabled.
+    ///
+    /// Returns `None` if the node was not created with `.with_type_description_service()`.
+    pub fn type_description_service_mut(&mut self) -> Option<&mut TypeDescriptionService> {
+        self.type_desc_service.as_mut()
+    }
+
+    /// Check if this node has a type description service.
+    pub fn has_type_description_service(&self) -> bool {
+        self.type_desc_service.is_some()
+    }
+
+    /// Get access to the global counter for entity ID generation.
+    pub fn counter(&self) -> &Arc<GlobalCounter> {
+        &self.counter
+    }
+
+    // ========================================================================
+    // Dynamic Message API
+    // ========================================================================
+
+    /// Create a dynamic publisher for the given topic.
+    ///
+    /// If this node has a type description service enabled, the schema will be
+    /// automatically registered, allowing other nodes to discover it via the
+    /// `GetTypeDescription` service.
+    ///
+    /// # Arguments
+    ///
+    /// * `topic` - The topic name to publish on
+    /// * `schema` - The message schema for serialization
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let schema = MessageSchema::builder("std_msgs/msg/String")
+    ///     .field("data", FieldType::String)
+    ///     .build()?;
+    ///
+    /// let publisher = node.create_dyn_pub("chatter", schema)?;
+    ///
+    /// let mut msg = DynamicMessage::new(publisher.schema());
+    /// msg.set("data", "Hello, world!")?;
+    /// publisher.publish(&msg)?;
+    /// ```
+    pub fn create_dyn_pub(
+        &self,
+        topic: &str,
+        schema: Arc<MessageSchema>,
+    ) -> Result<ZPub<DynamicMessage, DynamicCdrSerdes>> {
+        // Register schema with type description service if enabled
+        if let Some(service) = &self.type_desc_service {
+            if let Err(e) = service.register_schema(schema.clone()) {
+                warn!(
+                    "[NOD] Failed to register schema {} with type description service: {}",
+                    schema.type_name, e
+                );
+            } else {
+                debug!(
+                    "[NOD] Registered schema {} with type description service",
+                    schema.type_name
+                );
+            }
+        }
+
+        // Create TypeInfo from schema for proper key expression matching
+        // Convert ROS 2 canonical name to DDS name
+        // "std_msgs/msg/String" → "std_msgs::msg::dds_::String_"
+        let dds_name = schema.type_name
+            .replace("/msg/", "::msg::dds_::")
+            .replace("/srv/", "::srv::dds_::")
+            .replace("/action/", "::action::dds_::")
+            + "_";
+
+        // Compute type hash and convert to entity::TypeHash format
+        use crate::dynamic::MessageSchemaTypeDescription;
+        let type_hash = match schema.compute_type_hash() {
+            Ok(hash) => {
+                let rihs_string = hash.to_rihs_string();
+                crate::entity::TypeHash::from_rihs_string(&rihs_string)
+                    .unwrap_or_else(crate::entity::TypeHash::zero)
+            }
+            Err(e) => {
+                warn!("[NOD] Failed to compute type hash for {}: {}", schema.type_name, e);
+                crate::entity::TypeHash::zero()
+            }
+        };
+
+        let type_info = Some(crate::entity::TypeInfo {
+            name: dds_name,
+            hash: type_hash,
+        });
+
+        // Build the publisher
+        self.create_pub_impl::<DynamicMessage>(topic, type_info)
+            .with_serdes::<DynamicCdrSerdes>()
+            .with_dyn_schema(schema)
+            .build()
+    }
+
+    /// Create a dynamic subscriber with automatic schema discovery.
+    ///
+    /// This method queries publishers on the topic for their type description
+    /// and creates a subscriber using the discovered schema. This is useful
+    /// when you don't know the message type at compile time.
+    ///
+    /// # Arguments
+    ///
+    /// * `topic` - The topic name to subscribe to
+    /// * `discovery_timeout` - How long to wait for schema discovery
+    ///
+    /// # Returns
+    ///
+    /// A tuple of (subscriber, schema) on success. The schema is returned
+    /// so you can use it to create messages or inspect the type.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// // Discover schema from publishers and create subscriber
+    /// let (subscriber, schema) = node.create_dyn_sub_auto(
+    ///     "chatter",
+    ///     Duration::from_secs(5),
+    /// ).await?;
+    ///
+    /// println!("Discovered type: {}", schema.type_name);
+    ///
+    /// // Receive messages
+    /// let msg = subscriber.recv()?;
+    /// let data: String = msg.get("data")?;
+    /// ```
+    pub async fn create_dyn_sub_auto(
+        &self,
+        topic: &str,
+        discovery_timeout: Duration,
+    ) -> Result<(
+        ZSub<DynamicMessage, Sample, DynamicCdrSerdes>,
+        Arc<MessageSchema>,
+    )> {
+        debug!(
+            "[NOD] Creating dynamic subscriber with auto-discovery for topic: {}",
+            topic
+        );
+
+        // Create a TypeDescriptionClient to discover the schema
+        let client =
+            TypeDescriptionClient::with_graph(self.session.clone(), self.counter.clone(), self.graph.clone());
+
+        // Discover schema from topic publishers
+        let (schema, type_hash) = client
+            .get_type_description_for_topic(topic, discovery_timeout)
+            .await
+            .map_err(|e| zenoh::Error::from(format!("Schema discovery failed: {}", e)))?;
+
+        info!(
+            "[NOD] Discovered schema for topic {}: {} (hash: {})",
+            topic, schema.type_name, type_hash
+        );
+
+        // Create TypeInfo from discovered schema for proper key expression matching
+        // Convert ROS 2 canonical name to DDS name
+        // "std_msgs/msg/String" → "std_msgs::msg::dds_::String_"
+        let dds_name = schema.type_name
+            .replace("/msg/", "::msg::dds_::")
+            .replace("/srv/", "::srv::dds_::")
+            .replace("/action/", "::action::dds_::")
+            + "_";
+
+        let type_info = Some(crate::entity::TypeInfo {
+            name: dds_name,
+            hash: crate::entity::TypeHash::from_rihs_string(&type_hash)
+                .unwrap_or_else(crate::entity::TypeHash::zero),
+        });
+
+        // Build the subscriber with the discovered schema
+        let subscriber = self
+            .create_sub_impl::<DynamicMessage>(topic, type_info)
+            .with_serdes::<DynamicCdrSerdes>()
+            .with_dyn_schema(schema.clone())
+            .build()?;
+
+        Ok((subscriber, schema))
+    }
+
+    /// Create a dynamic subscriber with a known schema.
+    ///
+    /// Use this when you already have the schema (e.g., loaded from a file
+    /// or built programmatically).
+    ///
+    /// # Arguments
+    ///
+    /// * `topic` - The topic name to subscribe to
+    /// * `schema` - The message schema for deserialization
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let schema = MessageSchema::builder("std_msgs/msg/String")
+    ///     .field("data", FieldType::String)
+    ///     .build()?;
+    ///
+    /// let subscriber = node.create_dyn_sub("chatter", schema)?;
+    /// let msg = subscriber.recv()?;
+    /// ```
+    pub fn create_dyn_sub(
+        &self,
+        topic: &str,
+        schema: Arc<MessageSchema>,
+    ) -> Result<ZSub<DynamicMessage, Sample, DynamicCdrSerdes>> {
+        // Create TypeInfo from schema for proper key expression matching
+        // Convert ROS 2 canonical name to DDS name
+        // "std_msgs/msg/String" → "std_msgs::msg::dds_::String_"
+        let dds_name = schema.type_name
+            .replace("/msg/", "::msg::dds_::")
+            .replace("/srv/", "::srv::dds_::")
+            .replace("/action/", "::action::dds_::")
+            + "_";
+
+        // Compute type hash and convert to entity::TypeHash format
+        use crate::dynamic::MessageSchemaTypeDescription;
+        let type_hash = match schema.compute_type_hash() {
+            Ok(hash) => {
+                let rihs_string = hash.to_rihs_string();
+                crate::entity::TypeHash::from_rihs_string(&rihs_string)
+                    .unwrap_or_else(crate::entity::TypeHash::zero)
+            }
+            Err(e) => {
+                warn!("[NOD] Failed to compute type hash for {}: {}", schema.type_name, e);
+                crate::entity::TypeHash::zero()
+            }
+        };
+
+        let type_info = Some(crate::entity::TypeInfo {
+            name: dds_name,
+            hash: type_hash,
+        });
+
+        // Build the subscriber with proper type info
+        self.create_sub_impl::<DynamicMessage>(topic, type_info)
+            .with_serdes::<DynamicCdrSerdes>()
+            .with_dyn_schema(schema)
+            .build()
     }
 }

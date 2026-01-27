@@ -30,6 +30,8 @@ pub struct ZPub<T: ZMessage, S: ZSerializer> {
     with_attachment: bool,
     events_mgr: Arc<Mutex<EventsManager>>,
     shm_config: Option<Arc<crate::shm::ShmConfig>>,
+    /// Schema for dynamic message publishing.
+    pub dyn_schema: Option<Arc<crate::dynamic::schema::MessageSchema>>,
     _phantom_data: PhantomData<(T, S)>,
 }
 
@@ -39,6 +41,9 @@ pub struct ZPubBuilder<T, S = CdrSerdes<T>, B = crate::backend::DefaultBackend> 
     pub session: Arc<Session>,
     pub with_attachment: bool,
     pub(crate) shm_config: Option<Arc<crate::shm::ShmConfig>>,
+    /// Schema for dynamic message publishing.
+    /// When set, the schema will be registered with the type description service.
+    pub dyn_schema: Option<Arc<crate::dynamic::schema::MessageSchema>>,
     pub _phantom_data: PhantomData<(T, S, B)>,
 }
 
@@ -113,6 +118,7 @@ impl<T, S, B> ZPubBuilder<T, S, B> {
             session: self.session,
             with_attachment: self.with_attachment,
             shm_config: self.shm_config,
+            dyn_schema: self.dyn_schema,
             _phantom_data: PhantomData,
         }
     }
@@ -134,8 +140,59 @@ impl<T, S, B> ZPubBuilder<T, S, B> {
             session: self.session,
             with_attachment: self.with_attachment,
             shm_config: self.shm_config,
+            dyn_schema: self.dyn_schema,
             _phantom_data: PhantomData,
         }
+    }
+
+    /// Set the dynamic message schema for runtime-typed publishers.
+    ///
+    /// When a schema is set and the node has a type description service enabled,
+    /// the schema will be automatically registered with the service during build.
+    /// This allows other nodes to query for this type's description.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let publisher = node
+    ///     .create_pub_impl::<DynamicMessage>("topic", None)
+    ///     .with_serdes::<DynamicCdrSerdes>()
+    ///     .with_dyn_schema(schema)
+    ///     .build()?;
+    /// ```
+    pub fn with_dyn_schema(mut self, schema: Arc<crate::dynamic::schema::MessageSchema>) -> Self {
+        use crate::dynamic::MessageSchemaTypeDescription;
+
+        // Only compute and set type_info if it hasn't been set already
+        // (e.g., from create_dyn_sub_auto which provides the publisher's hash)
+        if self.entity.type_info.is_none() {
+            // Compute TypeInfo from schema for proper key expression matching with ROS 2
+            // Convert ROS 2 canonical name to DDS name
+            // "std_msgs/msg/String" → "std_msgs::msg::dds_::String_"
+            let dds_name = schema.type_name
+                .replace("/msg/", "::msg::dds_::")
+                .replace("/srv/", "::srv::dds_::")
+                .replace("/action/", "::action::dds_::")
+                + "_";
+
+            // Convert schema TypeHash to entity TypeHash via RIHS string
+            let type_hash = match schema.compute_type_hash() {
+                Ok(hash) => {
+                    let rihs_string = hash.to_rihs_string();
+                    crate::entity::TypeHash::from_rihs_string(&rihs_string)
+                        .unwrap_or_else(crate::entity::TypeHash::zero)
+                }
+                Err(_) => crate::entity::TypeHash::zero(),
+            };
+
+            self.entity.type_info = Some(crate::entity::TypeInfo {
+                name: dds_name,
+                hash: type_hash,
+            });
+        }
+
+        self.dyn_schema = Some(schema);
+        self
     }
 }
 
@@ -215,6 +272,7 @@ where
             events_mgr: Arc::new(Mutex::new(EventsManager::new(gid))),
             with_attachment: self.with_attachment,
             shm_config: self.shm_config,
+            dyn_schema: self.dyn_schema,
             _phantom_data: Default::default(),
         })
     }
@@ -358,6 +416,16 @@ where
     }
 }
 
+// Specialized implementation for DynamicMessage publisher
+impl ZPub<crate::dynamic::DynamicMessage, crate::dynamic::DynamicCdrSerdes> {
+    /// Get the dynamic schema used by this publisher.
+    ///
+    /// Returns `None` if the publisher was not created with `.with_dyn_schema()`.
+    pub fn schema(&self) -> Option<&crate::dynamic::schema::MessageSchema> {
+        self.dyn_schema.as_ref().map(|s| s.as_ref())
+    }
+}
+
 pub struct ZSubBuilder<T, S = CdrSerdes<T>, B = crate::backend::DefaultBackend> {
     pub entity: EndpointEntity,
     pub session: Arc<Session>,
@@ -441,6 +509,36 @@ where
     ///     .build()?;
     /// ```
     pub fn with_dyn_schema(mut self, schema: Arc<crate::dynamic::schema::MessageSchema>) -> Self {
+        use crate::dynamic::MessageSchemaTypeDescription;
+
+        // Only compute and set type_info if it hasn't been set already
+        // (e.g., from create_dyn_sub_auto which provides the publisher's hash)
+        if self.entity.type_info.is_none() {
+            // Compute TypeInfo from schema for proper key expression matching with ROS 2
+            // Convert ROS 2 canonical name to DDS name
+            // "std_msgs/msg/String" → "std_msgs::msg::dds_::String_"
+            let dds_name = schema.type_name
+                .replace("/msg/", "::msg::dds_::")
+                .replace("/srv/", "::srv::dds_::")
+                .replace("/action/", "::action::dds_::")
+                + "_";
+
+            // Convert schema TypeHash to entity TypeHash via RIHS string
+            let type_hash = match schema.compute_type_hash() {
+                Ok(hash) => {
+                    let rihs_string = hash.to_rihs_string();
+                    crate::entity::TypeHash::from_rihs_string(&rihs_string)
+                        .unwrap_or_else(crate::entity::TypeHash::zero)
+                }
+                Err(_) => crate::entity::TypeHash::zero(),
+            };
+
+            self.entity.type_info = Some(crate::entity::TypeInfo {
+                name: dds_name,
+                hash: type_hash,
+            });
+        }
+
         self.dyn_schema = Some(schema);
         self
     }
