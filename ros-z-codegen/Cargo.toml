@@ -22,8 +22,9 @@ proc-macro2 = { workspace = true }
 prettyplease = "0.2"
 # For error handling
 anyhow = { workspace = true }
-# For type hashing (RIHS01)
-hex = "0.4"
+# For type hashing (RIHS01) - now uses ros-z-schema
+ros-z-schema = { workspace = true }
+hex = { workspace = true }
 sha2 = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

@@ -1,0 +1,8 @@
+{
+  "msg": {},
+  "srv": {
+    "GetTypeDescription": {
+      "msg": ["TypeDescription", "TypeSource", "KeyValue"]
+    }
+  }
+}
