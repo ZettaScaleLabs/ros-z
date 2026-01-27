@@ -28,7 +28,6 @@ default = []
 ros-msgs = ["dep:ros-z-msgs"]
 ros-interop = ["ros-msgs"]
 python-interop = ["ros-msgs"]
-interop-tests = ["ros-msgs"]
 
 # ROS 2 distro compatibility - propagate to ros-z and ros-z-msgs
 humble = ["ros-z/humble", "ros-z-msgs/humble"]
