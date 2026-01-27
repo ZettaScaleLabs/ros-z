@@ -21,7 +21,7 @@ use parking_lot::Mutex;
 use ratatui::widgets::ScrollbarState;
 use rusqlite::Connection;
 
-use crate::core::engine::CoreEngine;
+use crate::core::engine::{Backend, CoreEngine};
 
 pub use state::*;
 
@@ -33,6 +33,7 @@ pub struct App {
     pub connection_status: ConnectionStatus,
     pub config: Config,
     pub db_conn: Arc<Mutex<Connection>>,
+    pub backend: Backend,
 
     // Panel state
     pub current_panel: Panel,
@@ -151,13 +152,14 @@ impl App {
             session: core.session.clone(),
             connection_status: ConnectionStatus::Connected,
             config: config.clone(),
+            db_conn,
+            backend: core.backend,
             current_panel: Panel::Topics,
             selected_index: 0,
             quit: false,
             focus_pane: FocusPane::List,
             detail_state: DetailState::default(),
             live_metrics: Arc::new(Mutex::new(LiveMetrics::default())),
-            db_conn,
             cached_topics: Vec::new(),
             cached_nodes: Vec::new(),
             cached_services: Vec::new(),
@@ -197,6 +199,21 @@ impl App {
         Config::default()
     }
 
+    /// Generate key expression for a topic based on the selected backend
+    fn topic_key_expr(&self, topic: &str) -> String {
+        let topic_name = topic.trim_start_matches('/');
+
+        match self.backend {
+            Backend::RmwZenoh => {
+                // rmw_zenoh format: <domain_id>/<topic>/**
+                format!("{}/{}/**", self.core.domain_id, topic_name)
+            }
+            Backend::Ros2Dds => {
+                // ros2dds format: <topic>/** (no domain prefix)
+                format!("{}/**", topic_name)
+            }
+        }
+    }
 
     pub fn update_graph_cache(&mut self) {
         let graph = self.core.graph.lock();
@@ -445,8 +462,7 @@ impl App {
         topic: &str,
         duration_secs: u64,
     ) -> Result<f64, Box<dyn std::error::Error + Send + Sync>> {
-        let topic_name = topic.trim_start_matches('/');
-        let key_expr = format!("{}/{}/**", self.core.domain_id, topic_name);
+        let key_expr = self.topic_key_expr(topic);
 
         let counter = Arc::new(Mutex::new(0usize));
         let counter_clone = counter.clone();
@@ -527,8 +543,7 @@ impl App {
 
         // Create subscribers for each topic
         for topic in self.measuring_topics.clone() {
-            let topic_name = topic.trim_start_matches('/');
-            let key_expr = format!("{}/{}/**", self.core.domain_id, topic_name);
+            let key_expr = self.topic_key_expr(&topic);
 
             let metrics = self.topic_metrics.clone();
             let topic_clone = topic.clone();

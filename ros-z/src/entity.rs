@@ -18,6 +18,13 @@ pub const ADMIN_SPACE: &str = "@ros2_lv";
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct LivelinessKE(pub KeyExpr<'static>);
 
+impl LivelinessKE {
+    /// Create a new LivelinessKE from a KeyExpr
+    pub fn new(ke: KeyExpr<'static>) -> Self {
+        Self(ke)
+    }
+}
+
 impl Deref for LivelinessKE {
     type Target = KeyExpr<'static>;
     fn deref(&self) -> &Self::Target {
@@ -26,6 +33,13 @@ impl Deref for LivelinessKE {
 }
 
 pub struct TopicKE(KeyExpr<'static>);
+
+impl TopicKE {
+    /// Create a new TopicKE from a KeyExpr
+    pub fn new(ke: KeyExpr<'static>) -> Self {
+        Self(ke)
+    }
+}
 
 impl Deref for TopicKE {
     type Target = KeyExpr<'static>;
@@ -392,13 +406,32 @@ impl TryFrom<EndpointEntity> for TopicKE {
 }
 
 impl EndpointEntity {
+    /// Generate topic key expression using the default (rmw_zenoh) format.
     pub fn topic_key_expr(&self) -> Result<KeyExpr<'static>> {
         let ke: TopicKE = self.try_into()?;
         Ok(ke.0)
     }
 
+    /// Generate topic key expression using a specific backend.
+    pub fn topic_key_expr_with<B: crate::backend::KeyExprBackend>(
+        &self,
+    ) -> Result<KeyExpr<'static>> {
+        let ke = B::topic_key_expr(self)?;
+        Ok(ke.0)
+    }
+
+    /// Generate liveliness token using the default (rmw_zenoh) format.
     pub fn lv_token_key_expr(&self) -> Result<KeyExpr<'static>> {
         let ke: LivelinessKE = self.try_into()?;
+        Ok(ke.0)
+    }
+
+    /// Generate liveliness token using a specific backend.
+    pub fn lv_token_key_expr_with<B: crate::backend::KeyExprBackend>(
+        &self,
+        zid: &zenoh::session::ZenohId,
+    ) -> Result<KeyExpr<'static>> {
+        let ke = B::liveliness_key_expr(self, zid)?;
         Ok(ke.0)
     }
 
@@ -458,6 +491,37 @@ pub enum EntityConversionError {
     MissingTopicQoS,
     QosDecodeError(crate::qos::QosDecodeError),
     ParsingError,
+}
+
+impl std::fmt::Display for EntityConversionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::MissingAdminSpace => write!(f, "Missing admin space in key expression"),
+            Self::MissingDomainId => write!(f, "Missing domain ID in key expression"),
+            Self::MissingZId => write!(f, "Missing Zenoh ID in key expression"),
+            Self::MissingNodeId => write!(f, "Missing node ID in key expression"),
+            Self::MissingEntityId => write!(f, "Missing entity ID in key expression"),
+            Self::MissingEnclave => write!(f, "Missing enclave in key expression"),
+            Self::MissingNamespace => write!(f, "Missing namespace in key expression"),
+            Self::MissingNodeName => write!(f, "Missing node name in key expression"),
+            Self::MissingEntityKind => write!(f, "Missing entity kind in key expression"),
+            Self::MissingTopicName => write!(f, "Missing topic name in key expression"),
+            Self::MissingTopicType => write!(f, "Missing topic type in key expression"),
+            Self::MissingTopicHash => write!(f, "Missing topic hash in key expression"),
+            Self::MissingTopicQoS => write!(f, "Missing topic QoS in key expression"),
+            Self::QosDecodeError(e) => write!(f, "QoS decode error: {}", e),
+            Self::ParsingError => write!(f, "Parsing error in key expression"),
+        }
+    }
+}
+
+impl std::error::Error for EntityConversionError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::QosDecodeError(e) => Some(e),
+            _ => None,
+        }
+    }
 }
 
 impl TryFrom<&LivelinessKE> for Entity {

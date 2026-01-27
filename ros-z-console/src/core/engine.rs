@@ -13,6 +13,13 @@ use tokio::sync::broadcast;
 
 use super::{events::SystemEvent, metrics::MetricsCollector};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Backend {
+    #[default]
+    RmwZenoh,
+    Ros2Dds,
+}
+
 pub struct CoreEngine {
     pub session: Arc<zenoh::Session>,
     pub graph: Arc<Mutex<Graph>>,
@@ -20,6 +27,7 @@ pub struct CoreEngine {
     pub event_tx: broadcast::Sender<SystemEvent>,
     pub domain_id: usize,
     pub router_addr: String,
+    pub backend: Backend,
     pub is_connected: Arc<AtomicBool>,
 }
 
@@ -27,7 +35,10 @@ impl CoreEngine {
     pub async fn new(
         router_addr: &str,
         domain_id: usize,
+        backend: impl Into<Backend>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        let backend = backend.into();
+
         // Initialize Zenoh session in peer mode (doesn't require immediate router connection)
         let mut config = zenoh::Config::default();
         config.insert_json5("mode", "\"peer\"")?;
@@ -38,8 +49,35 @@ impl CoreEngine {
         })?;
         let session = Arc::new(session);
 
-        // Initialize graph
-        let graph = Graph::new(&session, domain_id)?;
+        // Initialize graph with backend-specific liveliness pattern and parser
+        use ros_z::backend::{KeyExprBackend, RmwZenohBackend, Ros2DdsBackend};
+
+        let (_liveliness_pattern, graph) = match backend {
+            Backend::RmwZenoh => {
+                // RmwZenoh format: @ros2_lv/{domain_id}/**
+                let pattern = format!("@ros2_lv/{domain_id}/**");
+                tracing::info!("Graph liveliness pattern (RmwZenoh): {}", pattern);
+                let g = Graph::new_with_pattern(
+                    &session,
+                    domain_id,
+                    pattern.clone(),
+                    RmwZenohBackend::parse_liveliness,
+                )?;
+                (pattern, g)
+            }
+            Backend::Ros2Dds => {
+                // Ros2Dds format: @/<zenoh_id>/@ros2_lv/**
+                let pattern = "@/*/@ros2_lv/**".to_string();
+                tracing::info!("Graph liveliness pattern (Ros2Dds): {}", pattern);
+                let g = Graph::new_with_pattern(
+                    &session,
+                    domain_id,
+                    pattern.clone(),
+                    Ros2DdsBackend::parse_liveliness,
+                )?;
+                (pattern, g)
+            }
+        };
         let graph = Arc::new(Mutex::new(graph));
 
         // Create event bus
@@ -55,6 +93,7 @@ impl CoreEngine {
             event_tx,
             domain_id,
             router_addr: router_addr.to_string(),
+            backend,
             is_connected: Arc::new(AtomicBool::new(true)),
         })
     }

@@ -11,6 +11,7 @@ publish = false
 [dependencies]
 ros-z = { path = "../ros-z", default-features = false, features = ["protobuf"] }
 ros-z-msgs = { path = "../ros-z-msgs", optional = true }
+ros-z-cdr = { path = "../ros-z-cdr" }
 protobuf_demo = { path = "../ros-z/examples/protobuf_demo" }
 
 # Test runtime dependencies
@@ -23,12 +24,17 @@ nix = { version = "0.29", features = [
   "signal",
 ] } # For graceful process shutdown
 prost = { workspace = true } # For protobuf service tests
+serde = { workspace = true } # For CDR serialization in dds_interop tests
 
 [features]
 default = []
 ros-msgs = ["dep:ros-z-msgs"]
 ros-interop = ["ros-msgs"]
 python-interop = ["ros-msgs"]
+
+# ros2dds backend interop (with zenoh-bridge-ros2dds)
+# This enables testing ros-z with DDS-based ROS 2 nodes via zenoh-bridge-ros2dds
+ros2dds-interop = ["ros-msgs", "ros-z/ros2dds", "ros-z/rmw-zenoh"]
 
 # ROS 2 distro compatibility - propagate to ros-z and ros-z-msgs
 humble = ["ros-z/humble", "ros-z-msgs/humble"]

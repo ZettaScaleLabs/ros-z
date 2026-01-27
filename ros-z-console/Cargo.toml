@@ -6,7 +6,7 @@ description = "ROS 2 Graph Inspector & Dataflow Monitor TUI"
 homepage = "https://github.com/ZettaScaleLabs/ros-z"
 
 [dependencies]
-ros-z = { path = "../ros-z" }
+ros-z = { path = "../ros-z", features = ["ros2dds"] }
 clap = { workspace = true }
 crossterm = "0.29"
 parking_lot = { workspace = true }
