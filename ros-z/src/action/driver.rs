@@ -63,7 +63,7 @@ pub(crate) async fn run_driver_loop<A, F, Fut>(
         tokio::select! {
             // 1. Priority: Shutdown
             _ = shutdown.cancelled() => {
-                tracing::info!("Shutdown signal received. Aborting all goal tasks.");
+                tracing::debug!("Shutdown signal received. Aborting all goal tasks.");
                 // This sends a cancellation signal to all running futures in the set
                 goal_tasks.abort_all();
                 break;

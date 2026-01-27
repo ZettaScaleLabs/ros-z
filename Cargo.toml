@@ -12,7 +12,7 @@ members = [
   "ros-z-codegen",
   "ros-z-derive",
   "ros-z-py",
-  "rcl-z",
+  "rmw-zenoh-rs",
   "ros-z-msgs",
   "ros-z-tests",
   "ros-z-console",
@@ -24,9 +24,8 @@ default-members = ["ros-z", "ros-z-codegen"]
 [workspace.dependencies]
 # Workspace members
 ros-z = { version = "*", path = "ros-z" }
-rcl-z = { version = "*", path = "rcl-z" }
 ros-z-codegen = { version = "*", path = "ros-z-codegen" }
-
+rmw-zenoh-rs = { version = "*", path = "rmw-zenoh-rs" }
 
 # Serialization
 ros-z-cdr = { path = "ros-z-cdr" }
@@ -39,7 +38,7 @@ zenoh = { version = "1.7.2", default-features = false, features = [
   "transport_tcp",
   "transport_serial",
 ] }
-zenoh-ext = { version = "1.7.2" }
+zenoh-ext = { version = "1.7.2", features = ["unstable"] }
 zenoh-buffers = { version = "1.7.2" }
 
 # CLI

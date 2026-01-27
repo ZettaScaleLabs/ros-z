@@ -1,0 +1,77 @@
+name: RMW Zenoh RS Tests
+
+on:
+  push:
+    branches: [main, dev/rmw-zenoh-rs]
+    paths:
+      - 'rmw-zenoh-rs/**'
+      - 'ros-z/**'
+      - 'ros-z-cdr/**'
+      - 'scripts/test-ros-packages.nu'
+      - '.github/workflows/rmw-zenoh-rs.yml'
+  pull_request:
+    paths:
+      - 'rmw-zenoh-rs/**'
+      - 'ros-z/**'
+      - 'ros-z-cdr/**'
+  workflow_dispatch:
+    inputs:
+      test_filter:
+        description: 'CTest filter regex (e.g., test_publisher|test_node)'
+        required: false
+        default: ''
+
+jobs:
+  rcl-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout ros-z
+        uses: actions/checkout@v4
+        with:
+          path: ros-z
+
+      - name: Checkout rcl fork
+        uses: actions/checkout@v4
+        with:
+          repository: YuanYuYuan/rcl
+          ref: patch-rmwz/jazzy
+          path: rcl
+
+      - name: Setup workspace
+        run: |
+          mkdir -p ws/src
+          # Copy rcl into workspace src (test-ros-packages.nu uses --base-paths with absolute paths)
+          cp -r $GITHUB_WORKSPACE/rcl ws/src/rcl
+
+      - name: Setup Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            extra-substituters = https://ros.cachix.org
+            extra-trusted-public-keys = ros.cachix.org-1:dSyZxI8geDCJrwgvCOHDoAfOm5sV1wCPjBkKL+38Rvo=
+
+      - name: Setup Cachix
+        uses: cachix/cachix-action@v15
+        with:
+          name: ros
+          skipPush: true
+
+      - name: Run RCL tests
+        run: |
+          cd ros-z
+          TEST_FILTER="${{ github.event.inputs.test_filter }}"
+          nix develop .#ros-jazzy --command nu scripts/test-ros-packages.nu \
+            --ws-dir $GITHUB_WORKSPACE/ws \
+            --rmw-path $GITHUB_WORKSPACE/ros-z/rmw-zenoh-rs \
+            --packages rcl \
+            --verbose \
+            ${TEST_FILTER:+--test-filter "$TEST_FILTER"}
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rcl-test-results
+          path: ws/log/latest_test/
+          retention-days: 7

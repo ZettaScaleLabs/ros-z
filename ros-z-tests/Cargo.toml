@@ -6,12 +6,11 @@ publish = false
 
 # NOTE: This crate requires ros-z-msgs (which needs ROS dependencies) for integration tests.
 # To build without ROS, exclude this crate from the workspace build:
-#   cargo build --workspace --exclude rcl-z --exclude ros-z-msgs --exclude ros-z-tests
+#   cargo build --workspace --exclude ros-z-msgs --exclude ros-z-tests
 
 [dependencies]
 ros-z = { path = "../ros-z", default-features = false, features = ["protobuf"] }
 ros-z-msgs = { path = "../ros-z-msgs", optional = true }
-# rcl-z = { path = "../rcl-z" }
 protobuf_demo = { path = "../ros-z/examples/protobuf_demo" }
 
 # Test runtime dependencies
@@ -29,6 +28,7 @@ default = []
 ros-msgs = ["dep:ros-z-msgs"]
 ros-interop = ["ros-msgs"]
 python-interop = ["ros-msgs"]
+interop-tests = ["ros-msgs"]
 
 # ROS 2 distro compatibility - propagate to ros-z and ros-z-msgs
 humble = ["ros-z/humble", "ros-z-msgs/humble"]

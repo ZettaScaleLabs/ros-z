@@ -1,12 +1,13 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use ros_z::qos::{QosProfile, QosReliability, QosDurability, QosHistory, QosLiveliness, Duration};
+use std::num::NonZeroUsize;
 
 // ROS 2 QoS presets
 pub const QOS_DEFAULT: QosProfile = QosProfile {
     reliability: QosReliability::Reliable,
     durability: QosDurability::Volatile,
-    history: QosHistory::KeepLast(10),
+    history: QosHistory::KeepLast(NonZeroUsize::new(10).unwrap()),
     deadline: Duration::INFINITE,
     lifespan: Duration::INFINITE,
     liveliness: QosLiveliness::Automatic,
@@ -16,7 +17,7 @@ pub const QOS_DEFAULT: QosProfile = QosProfile {
 pub const QOS_SENSOR_DATA: QosProfile = QosProfile {
     reliability: QosReliability::BestEffort,
     durability: QosDurability::Volatile,
-    history: QosHistory::KeepLast(5),
+    history: QosHistory::KeepLast(NonZeroUsize::new(5).unwrap()),
     deadline: Duration::INFINITE,
     lifespan: Duration::INFINITE,
     liveliness: QosLiveliness::Automatic,
@@ -26,7 +27,7 @@ pub const QOS_SENSOR_DATA: QosProfile = QosProfile {
 pub const QOS_PARAMETERS: QosProfile = QosProfile {
     reliability: QosReliability::Reliable,
     durability: QosDurability::Volatile,
-    history: QosHistory::KeepLast(1000),
+    history: QosHistory::KeepLast(NonZeroUsize::new(1000).unwrap()),
     deadline: Duration::INFINITE,
     lifespan: Duration::INFINITE,
     liveliness: QosLiveliness::Automatic,
@@ -36,7 +37,7 @@ pub const QOS_PARAMETERS: QosProfile = QosProfile {
 pub const QOS_SERVICES: QosProfile = QosProfile {
     reliability: QosReliability::Reliable,
     durability: QosDurability::Volatile,
-    history: QosHistory::KeepLast(10),
+    history: QosHistory::KeepLast(NonZeroUsize::new(10).unwrap()),
     deadline: Duration::INFINITE,
     lifespan: Duration::INFINITE,
     liveliness: QosLiveliness::Automatic,
@@ -65,7 +66,7 @@ pub fn qos_to_pydict(py: Python, qos: &QosProfile) -> PyResult<Py<PyDict>> {
     match qos.history {
         QosHistory::KeepLast(depth) => {
             dict.set_item("history", "keep_last")?;
-            dict.set_item("depth", depth)?;
+            dict.set_item("depth", depth.get())?;
         }
         QosHistory::KeepAll => {
             dict.set_item("history", "keep_all")?;
@@ -137,7 +138,11 @@ pub fn qos_from_pydict(dict: &Bound<'_, PyDict>) -> PyResult<QosProfile> {
                         "depth required for keep_last history"
                     ))?
                     .extract()?;
-                QosHistory::KeepLast(depth)
+                let non_zero_depth = NonZeroUsize::new(depth)
+                    .ok_or_else(|| pyo3::exceptions::PyValueError::new_err(
+                        "depth must be greater than 0"
+                    ))?;
+                QosHistory::KeepLast(non_zero_depth)
             }
             "keep_all" => QosHistory::KeepAll,
             _ => return Err(pyo3::exceptions::PyValueError::new_err(

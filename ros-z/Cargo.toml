@@ -54,7 +54,7 @@ config-builders = []
 generate-configs = []
 protobuf = ["prost", "prost-build"]
 python = ["pyo3"]
-rcl-z = []
+rmw = []
 # Dynamic message schema loading from .msg files (optional)
 dynamic-schema-loader = ["ros-z-codegen"]
 
@@ -77,6 +77,7 @@ no-humble = []
 no-jazzy = []
 no-rolling = []
 no-iron = []
+
 
 # NOTE: Examples that use ros-z-msgs must be built from workspace root
 # since ros-z-msgs depends on ros-z (circular dependency prevents direct dependency)

@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>rmw_zenoh_rs</name>
+  <version>0.1.0</version>
+  <description>ROS 2 RMW implementation using Zenoh and native Rust</description>
+  <maintainer email="info@zettascale.tech">ZettaScale Technology</maintainer>
+  <license>Apache-2.0</license>
+
+  <build_depend>cargo</build_depend>
+  <build_depend>rustc</build_depend>
+  <build_depend>clang</build_depend>
+
+  <depend>fastcdr</depend>
+  <depend>rcpputils</depend>
+  <depend>rcutils</depend>
+  <depend>rmw</depend>
+  <depend>rosidl_typesupport_fastrtps_c</depend>
+  <depend>rosidl_typesupport_fastrtps_cpp</depend>
+
+  <member_of_group>rmw_implementation_packages</member_of_group>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
