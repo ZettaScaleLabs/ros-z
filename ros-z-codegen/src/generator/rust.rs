@@ -573,9 +573,16 @@ fn generate_field_size_expr(
             }
             ArrayType::Unbounded | ArrayType::Bounded(_) => {
                 // Vec<primitive>: 4 bytes length + elements
-                Ok(quote! {
-                    size += 4 + (self.#field_name.len() * #elem_size);
-                })
+                if elem_size == 1 {
+                    // Optimization: for byte arrays, no need to multiply by 1
+                    Ok(quote! {
+                        size += 4 + self.#field_name.len();
+                    })
+                } else {
+                    Ok(quote! {
+                        size += 4 + (self.#field_name.len() * #elem_size);
+                    })
+                }
             }
             ArrayType::Fixed(n) => {
                 // Fixed array: just the elements
