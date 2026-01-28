@@ -25,6 +25,7 @@ enum Backend {
     #[default]
     RmwZenoh,
     /// ros2dds backend - compatible with zenoh-bridge-ros2dds
+    #[value(name = "ros2dds")]
     Ros2Dds,
 }
 
