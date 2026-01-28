@@ -1,4 +1,4 @@
-# RMW Zenoh RS
+# rmw_zenoh_rs
 
 `rmw_zenoh_rs` is a Rust-based ROS Middleware (RMW) implementation that enables standard ROS 2 C++/Python nodes to communicate via Zenoh. It allows you to use Zenoh as the transport layer for your existing ROS 2 applications without modifying your code. It is **fully interoperable** with `rmw_zenoh_cpp`, allowing seamless communication between nodes using either implementation.
 
@@ -35,7 +35,7 @@ ROS 2 uses a middleware abstraction layer called RMW (ROS Middleware) that allow
 ### System Requirements
 
 - **ROS 2 Jazzy**
-- **Rust toolchain** (1.75 or later)
+- **Rust toolchain** (1.91 or later)
 - **Cargo** (comes with Rust)
 - **CMake** (3.16 or later)
 - **Clang** (for bindgen)
@@ -97,7 +97,7 @@ export RMW_IMPLEMENTATION=rmw_zenoh_rs
 
 This tells ROS 2 to use rmw_zenoh_rs instead of the default DDS implementation.
 
-### Running ROS 2 Nodes
+### Example: Running ROS 2 Nodes
 
 Start a Zenoh router first, then run your nodes with the RMW implementation set:
 
@@ -118,34 +118,6 @@ ros2 run demo_nodes_cpp listener
 
 Your nodes will now communicate via Zenoh instead of DDS!
 
-### Using with Existing Applications
-
-rmw_zenoh_rs is **transparent** to your application code. You don't need to modify your C++ or Python nodes:
-
-```bash
-# Start router first
-zenohd &
-
-# Any ROS 2 application works
-export RMW_IMPLEMENTATION=rmw_zenoh_rs
-
-ros2 launch my_robot_bringup robot.launch.py
-ros2 run my_package my_node
-rviz2
-rqt
-```
-
-### Zenoh Router (Required)
-
-rmw_zenoh_rs uses router-based discovery by default and **requires a Zenoh router** to be running:
-
-```bash
-# Install zenoh router (if not using Nix)
-cargo install zenoh --features default
-
-# Run router
-zenohd
-```
 
 ```admonish warning
 Unlike multicast-based discovery, router-based architecture is **required** by default. Both rmw_zenoh_rs and rmw_zenoh_cpp expect a router at `tcp/localhost:7447`. Without a router, nodes will not discover each other.
@@ -173,77 +145,16 @@ Both `rmw_zenoh_rs` and `rmw_zenoh_cpp` are RMW implementations using Zenoh, but
 |---------|--------------|---------------|
 | **Implementation Language** | Rust (using ros-z) | C++ |
 | **Primary Use Case** | Integration with ros-z ecosystem | Standalone Zenoh RMW |
-| **ROS 2 Compatibility** | Jazzy | Jazzy, Humble, Rolling |
+| **ROS 2 Compatibility** | Jazzy | Humble, Iron, ..., Rolling |
 | **Status** | Experimental | Production-ready |
-| **Dependencies** | ros-z, Zenoh Rust | Zenoh C++, zenoh-c |
+| **Dependencies** | ros-z, Zenoh Rust | Zenoh C++ binding |
 | **Performance** | Optimized for Rust stack | Optimized for C++ stack |
 | **Interoperability** | ✅ Works with rmw_zenoh_cpp | ✅ Works with rmw_zenoh_rs |
 
 ## Configuration
 
-rmw_zenoh_rs uses the same Zenoh configuration as rmw_zenoh_cpp. Configuration is done via:
+rmw_zenoh_rs uses the same Zenoh configuration as rmw_zenoh_cpp. See [Configuration Options](./config_options.md) for details.
 
-### Environment Variables
-
-```bash
-# Set Zenoh router endpoints
-export ZENOH_ROUTER=tcp/192.168.1.1:7447
-
-# Enable Zenoh logging
-export RUST_LOG=zenoh=info,rmw_zenoh_rs=debug
-```
-
-### Configuration File
-
-Create a `zenoh.json5` configuration file:
-
-```json5
-{
-  connect: {
-    endpoints: ["tcp/192.168.1.1:7447"]
-  },
-  scouting: {
-    multicast: {
-      enabled: true
-    }
-  }
-}
-```
-
-Set the configuration path:
-
-```bash
-export ZENOH_CONFIG=/path/to/zenoh.json5
-```
-
-For detailed configuration options, see the [Networking](./config.md) chapter.
-
-## Verifying Installation
-
-Check that rmw_zenoh_rs is available:
-
-```bash
-source ~/ros2_ws/install/setup.bash
-ros2 doctor --report | grep rmw
-
-# Should show:
-# RMW middleware: rmw_zenoh_rs
-```
-
-List available RMW implementations:
-
-```bash
-ros2 run rmw_implementation_cmake check_rmw_implementation
-
-# Should list rmw_zenoh_rs among others
-```
-
-## Next Steps
-
-- **[Building](./building.md)** - Learn about building the complete ros-z stack
-- **[Networking](./config.md)** - Configure Zenoh networking
-- **[Pub/Sub](./pubsub.md)** - Use ros-z primitives directly in Rust
-- **[Python Bindings](./python.md)** - Use ros-z from Python
 
 ## See Also
 

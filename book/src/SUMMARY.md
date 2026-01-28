@@ -17,7 +17,7 @@
 - [Building](./chapters/building.md)
 - [ROS 2 Distribution Compatibility](./chapters/distro_compatibility.md)
 - [Running Examples](./chapters/examples.md)
-- [Networking](./chapters/config.md)
+- [Networking](./chapters/networking.md)
   - [Configuration Options](./chapters/config_options.md)
   - [Advanced Configuration](./chapters/config_advanced.md)
 - [Message Generation](./chapters/message_generation.md)

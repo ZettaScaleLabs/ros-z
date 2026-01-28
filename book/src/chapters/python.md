@@ -224,6 +224,6 @@ This happens when no messages are being received within the timeout period.
 - **[Pub/Sub](./pubsub.md)** - Deep dive into pub-sub patterns
 - **[Services](./services.md)** - Request-response communication
 - **[Message Generation](./message_generation.md)** - How message types work
-- **[Networking](./config.md)** - Zenoh router setup and options
+- **[Networking](./networking.md)** - Zenoh router setup and options
 
 **Start with the pub/sub example to understand the basics, then explore services for request-response patterns.**

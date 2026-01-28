@@ -145,7 +145,7 @@ let ctx = ZContextBuilder::default()
 ## Resources
 
 - **[Building Guide](./building.md)** - Correct build procedures
-- **[Networking](./config.md)** - Zenoh router setup
+- **[Networking](./networking.md)** - Zenoh router setup
 - **[Feature Flags](./feature_flags.md)** - Available features
 - **[GitHub Issues](https://github.com/ZettaScaleLabs/ros-z/issues)** - Report bugs
 
