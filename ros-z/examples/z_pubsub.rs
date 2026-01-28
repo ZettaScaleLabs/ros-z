@@ -1,20 +1,28 @@
 use std::time::Duration;
 
+use clap::{Parser, ValueEnum};
+#[cfg(feature = "ros2dds")]
+use ros_z::backend::Ros2DdsBackend;
 use ros_z::{
     Builder, Result,
+    backend::{KeyExprBackend, RmwZenohBackend},
     context::{ZContext, ZContextBuilder},
 };
 use ros_z_msgs::std_msgs::String as RosString;
 
 /// Subscriber function that continuously receives messages from a topic
-async fn run_subscriber(ctx: ZContext, topic: String) -> Result<()> {
+async fn run_subscriber<B: KeyExprBackend>(ctx: ZContext, topic: String) -> Result<()> {
     // Create a ROS 2 node - the fundamental unit of computation
     // Nodes are logical groupings of publishers, subscribers, services, etc.
     let node = ctx.create_node("Sub").build()?;
 
-    // Create a subscriber for the specified topic
+    // Create a subscriber for the specified topic with backend selection
     // The type parameter RosString determines what message type we'll receive
-    let zsub = node.create_sub::<RosString>(&topic).build()?;
+    // The backend parameter determines the key expression format
+    let zsub = node
+        .create_sub::<RosString>(&topic)
+        .with_backend::<B>()
+        .build()?;
 
     // Continuously receive messages asynchronously
     // This loop will block waiting for messages on the topic
@@ -25,7 +33,7 @@ async fn run_subscriber(ctx: ZContext, topic: String) -> Result<()> {
 }
 
 /// Publisher function that continuously publishes messages to a topic
-async fn run_publisher(
+async fn run_publisher<B: KeyExprBackend>(
     ctx: ZContext,
     topic: String,
     period: Duration,
@@ -34,9 +42,13 @@ async fn run_publisher(
     // Create a ROS 2 node for publishing
     let node = ctx.create_node("Pub").build()?;
 
-    // Create a publisher for the specified topic
+    // Create a publisher for the specified topic with backend selection
     // The type parameter RosString determines what message type we'll send
-    let zpub = node.create_pub::<RosString>(&topic).build()?;
+    // The backend parameter determines the key expression format
+    let zpub = node
+        .create_pub::<RosString>(&topic)
+        .with_backend::<B>()
+        .build()?;
 
     let mut count = 0;
     loop {
@@ -80,20 +92,39 @@ async fn main() -> Result<()> {
 
     // Run as either a publisher (talker) or subscriber (listener)
     // Both share the same ZContext but perform different roles
-    if args.role == "listener" {
-        run_subscriber(ctx, args.topic).await?;
-    } else if args.role == "talker" {
-        run_publisher(ctx, args.topic, period, args.data).await?;
-    } else {
-        println!(
-            "Please use \"talker\" or \"listener\" as role,  {} is not supported.",
-            args.role
-        );
+    // Backend selection determines key expression format (domain prefix or not)
+    match (args.role.as_str(), args.backend) {
+        ("listener", Backend::RmwZenoh) => {
+            run_subscriber::<RmwZenohBackend>(ctx, args.topic).await?
+        }
+        #[cfg(feature = "ros2dds")]
+        ("listener", Backend::Ros2Dds) => run_subscriber::<Ros2DdsBackend>(ctx, args.topic).await?,
+        ("talker", Backend::RmwZenoh) => {
+            run_publisher::<RmwZenohBackend>(ctx, args.topic, period, args.data).await?
+        }
+        #[cfg(feature = "ros2dds")]
+        ("talker", Backend::Ros2Dds) => {
+            run_publisher::<Ros2DdsBackend>(ctx, args.topic, period, args.data).await?
+        }
+        (role, _) => println!(
+            "Please use \"talker\" or \"listener\" as role, {} is not supported.",
+            role
+        ),
     }
     Ok(())
 }
 
-use clap::Parser;
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum Backend {
+    /// RmwZenoh backend (default) - compatible with rmw_zenoh nodes
+    /// Uses key expressions with domain prefix: <domain_id>/<topic>/**
+    RmwZenoh,
+    /// Ros2Dds backend - compatible with zenoh-bridge-ros2dds
+    /// Uses key expressions without domain prefix: <topic>/**
+    #[cfg(feature = "ros2dds")]
+    Ros2Dds,
+}
+
 #[derive(Debug, Parser)]
 struct Args {
     #[arg(short, long, default_value = "Hello ROS-Z")]
@@ -108,4 +139,7 @@ struct Args {
     mode: String,
     #[arg(short, long)]
     endpoint: Option<String>,
+    /// Backend selection: rmw-zenoh (default) or ros2-dds
+    #[arg(short, long, value_enum, default_value = "rmw-zenoh")]
+    backend: Backend,
 }

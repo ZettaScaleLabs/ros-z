@@ -150,6 +150,7 @@ impl KeyExprBackend for Ros2DdsBackend {
             z_id,
             name: String::new(),
             namespace: String::new(),
+            enclave: String::new(),
         };
 
         let type_info = if type_name.is_empty() || type_name == "unknown" {
@@ -247,9 +248,9 @@ impl KeyExprBackend for Ros2DdsBackend {
             if history_parts.len() >= 2 {
                 let depth: usize = history_parts[1].parse().unwrap_or(10);
                 match history_parts[0] {
-                    "0" | "" => QosHistory::KeepLast(depth),
+                    "0" | "" => QosHistory::from_depth(depth),
                     "1" => QosHistory::KeepAll,
-                    _ => QosHistory::KeepLast(depth),
+                    _ => QosHistory::from_depth(depth),
                 }
             } else {
                 QosHistory::default()
