@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Actions - ros-z Documentation</title>
+        <title>rmw_zenoh_rs - ros-z Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -149,7 +149,7 @@
                         <a href="https://github.com/ZettaScaleLabs/ros-z" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/ZettaScaleLabs/ros-z/edit/main/src/chapters/actions.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                        <a href="https://github.com/ZettaScaleLabs/ros-z/edit/main/src/chapters/rmw_zenoh_rs.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -183,77 +183,119 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="actions"><a class="header" href="#actions">Actions</a></h1>
-<p><strong>Actions enable long-running tasks with progress feedback and cancellation support, perfect for operations that take seconds or minutes to complete.</strong> Unlike services that return immediately, actions provide streaming feedback while executing complex workflows.</p>
-<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
+                        <h1 id="rmw_zenoh_rs"><a class="header" href="#rmw_zenoh_rs">rmw_zenoh_rs</a></h1>
+<p><code>rmw_zenoh_rs</code> is a Rust-based ROS Middleware (RMW) implementation that enables standard ROS 2 C++/Python nodes to communicate via Zenoh. It allows you to use Zenoh as the transport layer for your existing ROS 2 applications without modifying your code. It is <strong>fully interoperable</strong> with <code>rmw_zenoh_cpp</code>, allowing seamless communication between nodes using either implementation.</p>
+<h2 id="what-is-an-rmw"><a class="header" href="#what-is-an-rmw">What is an RMW?</a></h2>
+<p>ROS 2 uses a middleware abstraction layer called RMW (ROS Middleware) that allows you to choose different transport implementations. By default, ROS 2 uses DDS-based middleware like Fast-DDS or CycloneDDS. With rmw_zenoh_rs, you can use Zenoh instead.</p>
+<pre><code class="language-text">┌─────────────────────────────────────────────────┐
+│              ROS 2 Application                  │
+│         (C++ node using rclcpp)                 │
+├─────────────────────────────────────────────────┤
+│                    RCL                          │
+│         (ROS Client Library - C)                │
+├─────────────────────────────────────────────────┤
+│                    RMW                          │
+│      (ROS Middleware Interface - C)             │
+├─────────────────────────────────────────────────┤
+│              rmw_zenoh_rs                       │  ← This package
+│         (Rust implementation)                   │
+│  ┌──────────────────────────────────────────┐   │
+│  │  FFI Layer (bindgen + cxx)               │   │
+│  ├──────────────────────────────────────────┤   │
+│  │  ros-z primitives                        │   │
+│  │  (pubsub, service, guard_condition)      │   │
+│  ├──────────────────────────────────────────┤   │
+│  │  Zenoh                                   │   │
+│  └──────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────┘
+</code></pre>
+<h2 id="requirements"><a class="header" href="#requirements">Requirements</a></h2>
+<h3 id="system-requirements"><a class="header" href="#system-requirements">System Requirements</a></h3>
+<ul>
+<li><strong>ROS 2 Jazzy</strong></li>
+<li><strong>Rust toolchain</strong> (1.91 or later)</li>
+<li><strong>Cargo</strong> (comes with Rust)</li>
+<li><strong>CMake</strong> (3.16 or later)</li>
+<li><strong>Clang</strong> (for bindgen)</li>
+</ul>
+<h3 id="ros-2-dependencies"><a class="header" href="#ros-2-dependencies">ROS 2 Dependencies</a></h3>
+<p>The following ROS 2 packages are required:</p>
+<ul>
+<li><code>rmw</code> - RMW interface definitions</li>
+<li><code>rcutils</code> - ROS C utilities</li>
+<li><code>rcpputils</code> - ROS C++ utilities</li>
+<li><code>fastcdr</code> - Fast CDR serialization</li>
+<li><code>rosidl_typesupport_fastrtps_c</code> - Type support for C</li>
+<li><code>rosidl_typesupport_fastrtps_cpp</code> - Type support for C++</li>
+</ul>
+<p>These are typically installed with ROS 2:</p>
+<pre><code class="language-bash"># Ubuntu/Debian with ROS 2 Jazzy
+sudo apt install ros-jazzy-rmw ros-jazzy-rcutils ros-jazzy-rcpputils \
+  ros-jazzy-fastcdr ros-jazzy-rosidl-typesupport-fastrtps-c \
+  ros-jazzy-rosidl-typesupport-fastrtps-cpp
+</code></pre>
+<h2 id="building-rmw_zenoh_rs"><a class="header" href="#building-rmw_zenoh_rs">Building rmw_zenoh_rs</a></h2>
+<pre><code class="language-bash"># Source your ROS 2 installation
+source /opt/ros/jazzy/setup.bash
+
+# Create a workspace
+mkdir -p ~/ros2_ws/src
+cd ~/ros2_ws/src
+
+# Clone ros-z repository
+git clone https://github.com/ZettaScaleLabs/ros-z.git
+
+# Build rmw_zenoh_rs
+cd ~/ros2_ws
+colcon build --packages-select rmw_zenoh_rs --symlink-install
+</code></pre>
+<h3 id="build-output"><a class="header" href="#build-output">Build Output</a></h3>
+<p>After building, you'll have:</p>
+<ul>
+<li><strong><code>librmw_zenoh_rs.so</code></strong> - The RMW library (Linux)</li>
+<li><strong>RMW plugin registration</strong> - Allows ROS 2 to discover rmw_zenoh_rs</li>
+</ul>
+<h2 id="using-rmw_zenoh_rs"><a class="header" href="#using-rmw_zenoh_rs">Using rmw_zenoh_rs</a></h2>
+<h3 id="setting-the-rmw-implementation"><a class="header" href="#setting-the-rmw-implementation">Setting the RMW Implementation</a></h3>
+<p>To use rmw_zenoh_rs, set the <code>RMW_IMPLEMENTATION</code> environment variable:</p>
+<pre><code class="language-bash">export RMW_IMPLEMENTATION=rmw_zenoh_rs
+</code></pre>
+<p>This tells ROS 2 to use rmw_zenoh_rs instead of the default DDS implementation.</p>
+<h3 id="example-running-ros-2-nodes"><a class="header" href="#example-running-ros-2-nodes">Example: Running ROS 2 Nodes</a></h3>
+<p>Start a Zenoh router first, then run your nodes with the RMW implementation set:</p>
+<pre><code class="language-bash"># Terminal 1: Start Zenoh router (required)
+zenohd
+
+# Terminal 2: Talker
+source ~/ros2_ws/install/setup.bash
+export RMW_IMPLEMENTATION=rmw_zenoh_rs
+ros2 run demo_nodes_cpp talker
+
+# Terminal 3: Listener
+source ~/ros2_ws/install/setup.bash
+export RMW_IMPLEMENTATION=rmw_zenoh_rs
+ros2 run demo_nodes_cpp listener
+</code></pre>
+<p>Your nodes will now communicate via Zenoh instead of DDS!</p>
+<div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
 <div class="admonition-title">
-<div id="admonition-tip-title">
-<p>Tip</p>
+<div id="admonition-warning-title">
+<p>Warning</p>
 </div>
-<a class="admonition-anchor-link" href="#admonition-tip"></a>
+<a class="admonition-anchor-link" href="#admonition-warning"></a>
 </div>
 <div>
-<p>Use actions for robot navigation, trajectory execution, or any operation where you need progress updates and the ability to cancel mid-execution. Use services for quick request-response operations.</p>
+<p>Unlike multicast-based discovery, router-based architecture is <strong>required</strong> by default. Both rmw_zenoh_rs and rmw_zenoh_cpp expect a router at <code>tcp/localhost:7447</code>. Without a router, nodes will not discover each other.</p>
 </div>
 </div>
-<h2 id="action-lifecycle"><a class="header" href="#action-lifecycle">Action Lifecycle</a></h2>
-<pre class="mermaid">stateDiagram-v2
-    [*] --&gt; Idle
-    Idle --&gt; Accepted: Send Goal
-    Accepted --&gt; Executing: Start Processing
-    Executing --&gt; Executing: Send Feedback
-    Executing --&gt; Succeeded: Complete
-    Executing --&gt; Canceled: Cancel Request
-    Executing --&gt; Aborted: Error Occurs
-    Succeeded --&gt; [*]
-    Canceled --&gt; [*]
-    Aborted --&gt; [*]
-</pre>
-<h2 id="components"><a class="header" href="#components">Components</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Component</th><th>Type</th><th>Purpose</th></tr></thead><tbody>
-<tr><td><strong>Goal</strong></td><td>Input</td><td>Defines the desired outcome</td></tr>
-<tr><td><strong>Feedback</strong></td><td>Stream</td><td>Progress updates during execution</td></tr>
-<tr><td><strong>Result</strong></td><td>Output</td><td>Final outcome when complete</td></tr>
-<tr><td><strong>Status</strong></td><td>State</td><td>Current execution state</td></tr>
-</tbody></table>
-</div>
-<h2 id="communication-pattern"><a class="header" href="#communication-pattern">Communication Pattern</a></h2>
-<pre class="mermaid">sequenceDiagram
-    participant C as Client
-    participant S as Server
-
-    C-&gt;&gt;S: Send Goal
-    S-&gt;&gt;C: Goal Accepted
-    loop During Execution
-        S-&gt;&gt;C: Feedback Update
-    end
-    alt Success
-        S-&gt;&gt;C: Result (Success)
-    else Canceled
-        C-&gt;&gt;S: Cancel Request
-        S-&gt;&gt;C: Result (Canceled)
-    else Error
-        S-&gt;&gt;C: Result (Aborted)
-    end
-</pre>
-<h2 id="use-cases"><a class="header" href="#use-cases">Use Cases</a></h2>
-<p><strong>Robot Navigation:</strong></p>
+<p><strong>Why a Zenoh router?</strong></p>
+<p>ros-z, rmw_zenoh_rs, and rmw_zenoh_cpp all use router-based discovery by default, which provides:</p>
 <ul>
-<li>Goal: Target position and orientation</li>
-<li>Feedback: Current position, distance remaining, obstacles detected</li>
-<li>Result: Final position, success/failure reason</li>
-</ul>
-<p><strong>Gripper Control:</strong></p>
-<ul>
-<li>Goal: Desired grip force and position</li>
-<li>Feedback: Current force, contact detection</li>
-<li>Result: Grip achieved, object secured</li>
-</ul>
-<p><strong>Long Computations:</strong></p>
-<ul>
-<li>Goal: Computation parameters</li>
-<li>Feedback: Progress percentage, intermediate results</li>
-<li>Result: Final computed value, execution time</li>
+<li><strong>Better scalability</strong> - Handles large deployments with many nodes</li>
+<li><strong>Lower network overhead</strong> - More efficient than multicast discovery</li>
+<li><strong>Cross-network communication</strong> - Nodes can discover each other across network boundaries</li>
+<li><strong>Production-ready architecture</strong> - Standard approach used in real ROS 2 systems</li>
+<li><strong>Interoperability</strong> - Required for ros-z nodes to work with rmw_zenoh_cpp nodes</li>
 </ul>
 <div id="admonition-info" class="admonition admonish-info" role="note" aria-labelledby="admonition-info-title">
 <div class="admonition-title">
@@ -263,81 +305,39 @@
 <a class="admonition-anchor-link" href="#admonition-info"></a>
 </div>
 <div>
-<p>Actions excel when operations take more than a few seconds and users need visibility into progress. For sub-second operations, prefer services for simplicity.</p>
+<p>The router runs as a separate process and manages discovery and routing between all Zenoh-based nodes. You only need one router per network, regardless of how many nodes you run.</p>
 </div>
 </div>
-<h2 id="example-patterns"><a class="header" href="#example-patterns">Example Patterns</a></h2>
-<p><strong>Action Server:</strong></p>
-<pre><code class="language-rust ignore">let action_server = node
-    .create_action_server::&lt;Fibonacci&gt;("/fibonacci")
-    .build()?;
-
-loop {
-    let goal = action_server.accept_goal()?;
-
-    // Send periodic feedback
-    for i in 0..goal.order {
-        action_server.send_feedback(FeedbackMsg {
-            current: i,
-            sequence: compute_partial(i)
-        })?;
-    }
-
-    // Send final result
-    action_server.send_result(ResultMsg {
-        sequence: compute_final(goal.order)
-    })?;
-}</code></pre>
-<p><strong>Action Client:</strong></p>
-<pre><code class="language-rust ignore">let action_client = node
-    .create_action_client::&lt;Fibonacci&gt;("/fibonacci")
-    .build()?;
-
-let goal_handle = action_client.send_goal(GoalMsg {
-    order: 10
-}).await?;
-
-while let Some(feedback) = goal_handle.feedback().await {
-    println!("Progress: {}", feedback.current);
-}
-
-let result = goal_handle.get_result().await?;
-println!("Final: {:?}", result.sequence);</code></pre>
-<div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
-<div class="admonition-title">
-<div id="admonition-warning-title">
-<p>Warning</p>
-</div>
-<a class="admonition-anchor-link" href="#admonition-warning"></a>
-</div>
-<div>
-<p>Always implement timeout mechanisms for action clients. Long-running actions can fail or hang, and clients need graceful degradation strategies.</p>
-</div>
-</div>
-<h2 id="comparison-with-other-patterns"><a class="header" href="#comparison-with-other-patterns">Comparison with Other Patterns</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Pattern</th><th>Duration</th><th>Feedback</th><th>Cancellation</th><th>Use Case</th></tr></thead><tbody>
-<tr><td><strong>Pub-Sub</strong></td><td>Continuous</td><td>No</td><td>N/A</td><td>Sensor data streaming</td></tr>
-<tr><td><strong>Service</strong></td><td>&lt; 1 second</td><td>No</td><td>No</td><td>Quick queries</td></tr>
-<tr><td><strong>Action</strong></td><td>Seconds to minutes</td><td>Yes</td><td>Yes</td><td>Long-running tasks</td></tr>
+<h2 id="rmw_zenoh_rs-vs-rmw_zenoh_cpp"><a class="header" href="#rmw_zenoh_rs-vs-rmw_zenoh_cpp">rmw_zenoh_rs vs rmw_zenoh_cpp</a></h2>
+<p>Both <code>rmw_zenoh_rs</code> and <code>rmw_zenoh_cpp</code> are RMW implementations using Zenoh, but with different design goals:</p>
+<div class="table-wrapper"><table><thead><tr><th>Feature</th><th>rmw_zenoh_rs</th><th>rmw_zenoh_cpp</th></tr></thead><tbody>
+<tr><td><strong>Implementation Language</strong></td><td>Rust (using ros-z)</td><td>C++</td></tr>
+<tr><td><strong>Primary Use Case</strong></td><td>Integration with ros-z ecosystem</td><td>Standalone Zenoh RMW</td></tr>
+<tr><td><strong>ROS 2 Compatibility</strong></td><td>Jazzy</td><td>Humble, Iron, ..., Rolling</td></tr>
+<tr><td><strong>Status</strong></td><td>Experimental</td><td>Production-ready</td></tr>
+<tr><td><strong>Dependencies</strong></td><td>ros-z, Zenoh Rust</td><td>Zenoh C++ binding</td></tr>
+<tr><td><strong>Performance</strong></td><td>Optimized for Rust stack</td><td>Optimized for C++ stack</td></tr>
+<tr><td><strong>Interoperability</strong></td><td>✅ Works with rmw_zenoh_cpp</td><td>✅ Works with rmw_zenoh_rs</td></tr>
 </tbody></table>
 </div>
-<h2 id="resources"><a class="header" href="#resources">Resources</a></h2>
+<h2 id="configuration"><a class="header" href="#configuration">Configuration</a></h2>
+<p>rmw_zenoh_rs uses the same Zenoh configuration as rmw_zenoh_cpp. See <a href="./config_options.html">Configuration Options</a> for details.</p>
+<h2 id="see-also"><a class="header" href="#see-also">See Also</a></h2>
 <ul>
-<li><strong><a href="https://docs.ros.org/en/rolling/Tutorials/Intermediate/Writing-an-Action-Server-Client/Py.html">ROS 2 Actions Documentation</a></strong> - Official ROS 2 action guide</li>
-<li><strong><a href="https://github.com/ZettaScaleLabs/ros-z/tree/main/ros-z/examples">ros-z Examples</a></strong> - Working action implementations</li>
-<li><strong><a href="./services.html">Services</a></strong> - Simpler request-response pattern</li>
+<li><a href="https://zenoh.io/docs/">Zenoh Documentation</a></li>
+<li><a href="https://docs.ros.org/en/jazzy/Concepts/Intermediate/About-Different-Middleware-Vendors.html">ROS 2 RMW Documentation</a></li>
+<li><a href="https://github.com/ZettaScaleLabs/ros-z">ros-z GitHub Repository</a></li>
 </ul>
-<p><strong>Action implementation is evolving. Check the ros-z repository for the latest examples and API updates.</strong></p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../chapters/services.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../chapters/console.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next prefetch" href="../chapters/backends.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../chapters/python.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -347,11 +347,11 @@ println!("Final: {:?}", result.sequence);</code></pre>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../chapters/services.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../chapters/console.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next prefetch" href="../chapters/backends.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../chapters/python.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>

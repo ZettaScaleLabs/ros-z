@@ -452,7 +452,7 @@ struct Args {
 <li><strong>Lower network overhead</strong> compared to multicast discovery</li>
 <li><strong>Production-ready</strong> architecture used in real ROS 2 systems</li>
 </ul>
-<p>See the <a href="chapters/./config.html">Zenoh Configuration</a> chapter for customization options, including how to revert to multicast scouting mode if needed.</p>
+<p>See the <a href="chapters/./networking.html">Zenoh Configuration</a> chapter for customization options, including how to revert to multicast scouting mode if needed.</p>
 </div>
 </div>
 <h2 id="whats-happening"><a class="header" href="#whats-happening">What's Happening?</a></h2>
@@ -494,7 +494,7 @@ struct Args {
 <p><strong>Development:</strong></p>
 <ul>
 <li><strong><a href="chapters/./building.html">Building</a></strong> - Build configurations and dependencies</li>
-<li><strong><a href="chapters/./config.html">Networking</a></strong> - Zenoh router setup and options</li>
+<li><strong><a href="chapters/./networking.html">Networking</a></strong> - Zenoh router setup and options</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="publishers-and-subscribers"><a class="header" href="#publishers-and-subscribers">Publishers and Subscribers</a></h1>
 <p><strong>ros-z implements ROS 2's publish-subscribe pattern with type-safe, zero-copy messaging over Zenoh.</strong> This enables efficient, decoupled communication between nodes with minimal overhead.</p>
@@ -529,7 +529,7 @@ struct Args {
 </div>
 <h2 id="publisher-example"><a class="header" href="#publisher-example">Publisher Example</a></h2>
 <p>This example demonstrates publishing "Hello World" messages to a topic. The publisher sends messages periodically, showcasing the fundamental publishing pattern.</p>
-<pre><code class="language-rust ignore">use std::time::Duration;
+<pre><code class="language-rust ignore">use std::{num::NonZeroUsize, time::Duration};
 
 use ros_z::{
     Builder, Result,
@@ -556,7 +556,7 @@ pub async fn run_talker(
 
     // Create a publisher with a custom Quality of Service profile
     let qos = QosProfile {
-        history: QosHistory::KeepLast(7),
+        history: QosHistory::KeepLast(NonZeroUsize::new(7).unwrap()),
         ..Default::default()
     };
     let publisher = node.create_pub::&lt;RosString&gt;(topic).with_qos(qos).build()?;
@@ -609,7 +609,7 @@ cargo run --example demo_nodes_talker -- --max-count 10
 </code></pre>
 <h2 id="subscriber-example"><a class="header" href="#subscriber-example">Subscriber Example</a></h2>
 <p>This example demonstrates subscribing to messages from a topic. The subscriber receives and displays messages, showing both timeout-based and async reception patterns.</p>
-<pre><code class="language-rust ignore">use std::time::Duration;
+<pre><code class="language-rust ignore">use std::{num::NonZeroUsize, time::Duration};
 
 use ros_z::{
     Builder, Result,
@@ -639,7 +639,7 @@ pub async fn run_listener(
 
     // Create a subscription to the "chatter" topic
     let qos = QosProfile {
-        history: QosHistory::KeepLast(10),
+        history: QosHistory::KeepLast(NonZeroUsize::new(10).unwrap()),
         ..Default::default()
     };
     let subscriber = node.create_sub::&lt;RosString&gt;(topic).with_qos(qos).build()?;
@@ -1431,7 +1431,7 @@ cargo clean -p ros-z-msgs  # Clean specific package
 <ul>
 <li><strong><a href="chapters/./distro_compatibility.html">ROS 2 Distribution Compatibility</a></strong> - Target Jazzy, Humble, or other distributions</li>
 <li><strong><a href="chapters/./examples.html">Running Examples</a></strong> - Try out the included examples</li>
-<li><strong><a href="chapters/./config.html">Networking</a></strong> - Set up Zenoh router and session config</li>
+<li><strong><a href="chapters/./networking.html">Networking</a></strong> - Set up Zenoh router and session config</li>
 <li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - Understand how messages work</li>
 <li><strong><a href="chapters/./troubleshooting.html">Troubleshooting</a></strong> - Solutions to common build issues</li>
 </ul>
@@ -1512,7 +1512,7 @@ cargo build --features iron
 <a class="admonition-anchor-link" href="chapters/examples.html#admonition-important"></a>
 </div>
 <div>
-<p><strong>All examples require a Zenoh router to be running first</strong> (see <a href="chapters/./config.html">Networking</a> for why ros-z uses router-based architecture by default):</p>
+<p><strong>All examples require a Zenoh router to be running first</strong> (see <a href="chapters/./networking.html">Networking</a> for why ros-z uses router-based architecture by default):</p>
 <pre><code class="language-bash">cargo run --example zenoh_router
 </code></pre>
 </div>
@@ -1528,7 +1528,7 @@ cargo run --example twist_pub         # Publishing geometry_msgs
 cargo run --example battery_state_sub # Receiving sensor_msgs
 cargo run --example z_srvcli          # Service example with example_interfaces
 </code></pre>
-<p>See the <a href="chapters/./config.html">Networking</a> chapter for router setup details and alternative configurations.</p>
+<p>See the <a href="chapters/./networking.html">Networking</a> chapter for router setup details and alternative configurations.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="networking"><a class="header" href="#networking">Networking</a></h1>
 <p><strong>Configure ros-z's Zenoh transport layer for optimal performance in your deployment environment.</strong> ros-z uses router-based architecture by default, matching ROS 2's official <code>rmw_zenoh_cpp</code> middleware for production-ready scalability.</p>
 <h2 id="router-based-architecture"><a class="header" href="#router-based-architecture">Router-Based Architecture</a></h2>
@@ -1557,7 +1557,7 @@ let node = ctx.create_node("my_node").build()?;</code></pre>
 <div id="admonition-success-title">
 <p>Success</p>
 </div>
-<a class="admonition-anchor-link" href="chapters/config.html#admonition-success"></a>
+<a class="admonition-anchor-link" href="chapters/networking.html#admonition-success"></a>
 </div>
 <div>
 <p>That's it! The default configuration automatically connects to the router on <code>tcp/localhost:7447</code>.</p>
@@ -3260,6 +3260,151 @@ sqlite3 ros-z-metrics.db "SELECT topic, AVG(msgs_sec) FROM metrics GROUP BY topi
 <p>Both ros-z and rmw_zenoh_cpp use the same Zenoh-based discovery protocol. ros-z-console subscribes to the graph liveliness tokens that rmw_zenoh_cpp nodes publish, enabling seamless interoperability without any configuration changes.</p>
 </div>
 </div>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="rmw_zenoh_rs"><a class="header" href="#rmw_zenoh_rs">rmw_zenoh_rs</a></h1>
+<p><code>rmw_zenoh_rs</code> is a Rust-based ROS Middleware (RMW) implementation that enables standard ROS 2 C++/Python nodes to communicate via Zenoh. It allows you to use Zenoh as the transport layer for your existing ROS 2 applications without modifying your code. It is <strong>fully interoperable</strong> with <code>rmw_zenoh_cpp</code>, allowing seamless communication between nodes using either implementation.</p>
+<h2 id="what-is-an-rmw"><a class="header" href="#what-is-an-rmw">What is an RMW?</a></h2>
+<p>ROS 2 uses a middleware abstraction layer called RMW (ROS Middleware) that allows you to choose different transport implementations. By default, ROS 2 uses DDS-based middleware like Fast-DDS or CycloneDDS. With rmw_zenoh_rs, you can use Zenoh instead.</p>
+<pre><code class="language-text">┌─────────────────────────────────────────────────┐
+│              ROS 2 Application                  │
+│         (C++ node using rclcpp)                 │
+├─────────────────────────────────────────────────┤
+│                    RCL                          │
+│         (ROS Client Library - C)                │
+├─────────────────────────────────────────────────┤
+│                    RMW                          │
+│      (ROS Middleware Interface - C)             │
+├─────────────────────────────────────────────────┤
+│              rmw_zenoh_rs                       │  ← This package
+│         (Rust implementation)                   │
+│  ┌──────────────────────────────────────────┐   │
+│  │  FFI Layer (bindgen + cxx)               │   │
+│  ├──────────────────────────────────────────┤   │
+│  │  ros-z primitives                        │   │
+│  │  (pubsub, service, guard_condition)      │   │
+│  ├──────────────────────────────────────────┤   │
+│  │  Zenoh                                   │   │
+│  └──────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────┘
+</code></pre>
+<h2 id="requirements"><a class="header" href="#requirements">Requirements</a></h2>
+<h3 id="system-requirements"><a class="header" href="#system-requirements">System Requirements</a></h3>
+<ul>
+<li><strong>ROS 2 Jazzy</strong></li>
+<li><strong>Rust toolchain</strong> (1.91 or later)</li>
+<li><strong>Cargo</strong> (comes with Rust)</li>
+<li><strong>CMake</strong> (3.16 or later)</li>
+<li><strong>Clang</strong> (for bindgen)</li>
+</ul>
+<h3 id="ros-2-dependencies"><a class="header" href="#ros-2-dependencies">ROS 2 Dependencies</a></h3>
+<p>The following ROS 2 packages are required:</p>
+<ul>
+<li><code>rmw</code> - RMW interface definitions</li>
+<li><code>rcutils</code> - ROS C utilities</li>
+<li><code>rcpputils</code> - ROS C++ utilities</li>
+<li><code>fastcdr</code> - Fast CDR serialization</li>
+<li><code>rosidl_typesupport_fastrtps_c</code> - Type support for C</li>
+<li><code>rosidl_typesupport_fastrtps_cpp</code> - Type support for C++</li>
+</ul>
+<p>These are typically installed with ROS 2:</p>
+<pre><code class="language-bash"># Ubuntu/Debian with ROS 2 Jazzy
+sudo apt install ros-jazzy-rmw ros-jazzy-rcutils ros-jazzy-rcpputils \
+  ros-jazzy-fastcdr ros-jazzy-rosidl-typesupport-fastrtps-c \
+  ros-jazzy-rosidl-typesupport-fastrtps-cpp
+</code></pre>
+<h2 id="building-rmw_zenoh_rs"><a class="header" href="#building-rmw_zenoh_rs">Building rmw_zenoh_rs</a></h2>
+<pre><code class="language-bash"># Source your ROS 2 installation
+source /opt/ros/jazzy/setup.bash
+
+# Create a workspace
+mkdir -p ~/ros2_ws/src
+cd ~/ros2_ws/src
+
+# Clone ros-z repository
+git clone https://github.com/ZettaScaleLabs/ros-z.git
+
+# Build rmw_zenoh_rs
+cd ~/ros2_ws
+colcon build --packages-select rmw_zenoh_rs --symlink-install
+</code></pre>
+<h3 id="build-output"><a class="header" href="#build-output">Build Output</a></h3>
+<p>After building, you'll have:</p>
+<ul>
+<li><strong><code>librmw_zenoh_rs.so</code></strong> - The RMW library (Linux)</li>
+<li><strong>RMW plugin registration</strong> - Allows ROS 2 to discover rmw_zenoh_rs</li>
+</ul>
+<h2 id="using-rmw_zenoh_rs"><a class="header" href="#using-rmw_zenoh_rs">Using rmw_zenoh_rs</a></h2>
+<h3 id="setting-the-rmw-implementation"><a class="header" href="#setting-the-rmw-implementation">Setting the RMW Implementation</a></h3>
+<p>To use rmw_zenoh_rs, set the <code>RMW_IMPLEMENTATION</code> environment variable:</p>
+<pre><code class="language-bash">export RMW_IMPLEMENTATION=rmw_zenoh_rs
+</code></pre>
+<p>This tells ROS 2 to use rmw_zenoh_rs instead of the default DDS implementation.</p>
+<h3 id="example-running-ros-2-nodes"><a class="header" href="#example-running-ros-2-nodes">Example: Running ROS 2 Nodes</a></h3>
+<p>Start a Zenoh router first, then run your nodes with the RMW implementation set:</p>
+<pre><code class="language-bash"># Terminal 1: Start Zenoh router (required)
+zenohd
+
+# Terminal 2: Talker
+source ~/ros2_ws/install/setup.bash
+export RMW_IMPLEMENTATION=rmw_zenoh_rs
+ros2 run demo_nodes_cpp talker
+
+# Terminal 3: Listener
+source ~/ros2_ws/install/setup.bash
+export RMW_IMPLEMENTATION=rmw_zenoh_rs
+ros2 run demo_nodes_cpp listener
+</code></pre>
+<p>Your nodes will now communicate via Zenoh instead of DDS!</p>
+<div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
+<div class="admonition-title">
+<div id="admonition-warning-title">
+<p>Warning</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/rmw_zenoh_rs.html#admonition-warning"></a>
+</div>
+<div>
+<p>Unlike multicast-based discovery, router-based architecture is <strong>required</strong> by default. Both rmw_zenoh_rs and rmw_zenoh_cpp expect a router at <code>tcp/localhost:7447</code>. Without a router, nodes will not discover each other.</p>
+</div>
+</div>
+<p><strong>Why a Zenoh router?</strong></p>
+<p>ros-z, rmw_zenoh_rs, and rmw_zenoh_cpp all use router-based discovery by default, which provides:</p>
+<ul>
+<li><strong>Better scalability</strong> - Handles large deployments with many nodes</li>
+<li><strong>Lower network overhead</strong> - More efficient than multicast discovery</li>
+<li><strong>Cross-network communication</strong> - Nodes can discover each other across network boundaries</li>
+<li><strong>Production-ready architecture</strong> - Standard approach used in real ROS 2 systems</li>
+<li><strong>Interoperability</strong> - Required for ros-z nodes to work with rmw_zenoh_cpp nodes</li>
+</ul>
+<div id="admonition-info" class="admonition admonish-info" role="note" aria-labelledby="admonition-info-title">
+<div class="admonition-title">
+<div id="admonition-info-title">
+<p>Info</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/rmw_zenoh_rs.html#admonition-info"></a>
+</div>
+<div>
+<p>The router runs as a separate process and manages discovery and routing between all Zenoh-based nodes. You only need one router per network, regardless of how many nodes you run.</p>
+</div>
+</div>
+<h2 id="rmw_zenoh_rs-vs-rmw_zenoh_cpp"><a class="header" href="#rmw_zenoh_rs-vs-rmw_zenoh_cpp">rmw_zenoh_rs vs rmw_zenoh_cpp</a></h2>
+<p>Both <code>rmw_zenoh_rs</code> and <code>rmw_zenoh_cpp</code> are RMW implementations using Zenoh, but with different design goals:</p>
+<div class="table-wrapper"><table><thead><tr><th>Feature</th><th>rmw_zenoh_rs</th><th>rmw_zenoh_cpp</th></tr></thead><tbody>
+<tr><td><strong>Implementation Language</strong></td><td>Rust (using ros-z)</td><td>C++</td></tr>
+<tr><td><strong>Primary Use Case</strong></td><td>Integration with ros-z ecosystem</td><td>Standalone Zenoh RMW</td></tr>
+<tr><td><strong>ROS 2 Compatibility</strong></td><td>Jazzy</td><td>Humble, Iron, ..., Rolling</td></tr>
+<tr><td><strong>Status</strong></td><td>Experimental</td><td>Production-ready</td></tr>
+<tr><td><strong>Dependencies</strong></td><td>ros-z, Zenoh Rust</td><td>Zenoh C++ binding</td></tr>
+<tr><td><strong>Performance</strong></td><td>Optimized for Rust stack</td><td>Optimized for C++ stack</td></tr>
+<tr><td><strong>Interoperability</strong></td><td>✅ Works with rmw_zenoh_cpp</td><td>✅ Works with rmw_zenoh_rs</td></tr>
+</tbody></table>
+</div>
+<h2 id="configuration-1"><a class="header" href="#configuration-1">Configuration</a></h2>
+<p>rmw_zenoh_rs uses the same Zenoh configuration as rmw_zenoh_cpp. See <a href="chapters/./config_options.html">Configuration Options</a> for details.</p>
+<h2 id="see-also"><a class="header" href="#see-also">See Also</a></h2>
+<ul>
+<li><a href="https://zenoh.io/docs/">Zenoh Documentation</a></li>
+<li><a href="https://docs.ros.org/en/jazzy/Concepts/Intermediate/About-Different-Middleware-Vendors.html">ROS 2 RMW Documentation</a></li>
+<li><a href="https://github.com/ZettaScaleLabs/ros-z">ros-z GitHub Repository</a></li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="python-bindings"><a class="header" href="#python-bindings">Python Bindings</a></h1>
 <p><strong>ros-z provides Python bindings via <code>ros-z-py</code>, enabling Python applications to communicate with Rust and ROS 2 nodes using the same Zenoh transport.</strong> The bindings use PyO3 for Rust-Python interop and msgspec for efficient message serialization.</p>
 <div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
@@ -3553,7 +3698,7 @@ print(ros_z_msgs.list_registered_types())
 <li><strong><a href="chapters/./pubsub.html">Pub/Sub</a></strong> - Deep dive into pub-sub patterns</li>
 <li><strong><a href="chapters/./services.html">Services</a></strong> - Request-response communication</li>
 <li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - How message types work</li>
-<li><strong><a href="chapters/./config.html">Networking</a></strong> - Zenoh router setup and options</li>
+<li><strong><a href="chapters/./networking.html">Networking</a></strong> - Zenoh router setup and options</li>
 </ul>
 <p><strong>Start with the pub/sub example to understand the basics, then explore services for request-response patterns.</strong></p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="python-code-generation-internals"><a class="header" href="#python-code-generation-internals">Python Code Generation Internals</a></h1>
@@ -4356,7 +4501,7 @@ let ctx = ZContextBuilder::default()
 <h2 id="resources-8"><a class="header" href="#resources-8">Resources</a></h2>
 <ul>
 <li><strong><a href="chapters/./building.html">Building Guide</a></strong> - Correct build procedures</li>
-<li><strong><a href="chapters/./config.html">Networking</a></strong> - Zenoh router setup</li>
+<li><strong><a href="chapters/./networking.html">Networking</a></strong> - Zenoh router setup</li>
 <li><strong><a href="chapters/./feature_flags.html">Feature Flags</a></strong> - Available features</li>
 <li><strong><a href="https://github.com/ZettaScaleLabs/ros-z/issues">GitHub Issues</a></strong> - Report bugs</li>
 </ul>
