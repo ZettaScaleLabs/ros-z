@@ -10,6 +10,10 @@ fn main() -> Result<()> {
     // Declare custom cfg for ROS version detection
     println!("cargo:rustc-check-cfg=cfg(ros_humble)");
 
+    // Declare custom cfg flags for package availability
+    println!("cargo::rustc-check-cfg=cfg(has_example_interfaces)");
+    println!("cargo::rustc-check-cfg=cfg(has_test_msgs)");
+
     // Detect ROS version and emit cfg
     let is_humble = detect_ros_version();
 
@@ -155,6 +159,12 @@ fn discover_ros_packages(is_humble: bool) -> Result<Vec<PathBuf>> {
             system_count,
             package_map.len()
         );
+
+        // Emit cfg flags for each found package
+        for package_name in package_map.keys() {
+            println!("cargo:rustc-cfg=has_{}", package_name);
+        }
+
         return Ok(package_map.into_values().collect());
     }
 

@@ -184,7 +184,7 @@ After changing feature flags or updating ROS 2, run `cargo clean -p ros-z-msgs` 
 
 - **[ROS 2 Distribution Compatibility](./distro_compatibility.md)** - Target Jazzy, Humble, or other distributions
 - **[Running Examples](./examples.md)** - Try out the included examples
-- **[Networking](./config.md)** - Set up Zenoh router and session config
+- **[Networking](./networking.md)** - Set up Zenoh router and session config
 - **[Message Generation](./message_generation.md)** - Understand how messages work
 - **[Troubleshooting](./troubleshooting.md)** - Solutions to common build issues
 

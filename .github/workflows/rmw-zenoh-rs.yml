@@ -1,0 +1,92 @@
+name: rmw_zenoh_rs Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      test_filter:
+        description: 'CTest filter regex (e.g., test_publisher|test_node)'
+        required: false
+        default: ''
+
+jobs:
+  rmw_zenoh_rs_test:
+    name: rmw_zenoh_rs with ROS 2 Jazzy
+    runs-on: ubuntu-latest
+    container:
+      image: rostooling/setup-ros-docker:ubuntu-noble-ros-jazzy-ros-base-latest
+
+    steps:
+      - name: Install system dependencies
+        run: apt-get update && apt-get install -y git curl nodejs
+
+      - name: Install ROS dependencies
+        run: |
+          apt-get install -y \
+            ros-jazzy-rmw \
+            ros-jazzy-rcutils \
+            ros-jazzy-rcpputils \
+            ros-jazzy-fastcdr \
+            ros-jazzy-rosidl-typesupport-fastrtps-c \
+            ros-jazzy-rosidl-typesupport-fastrtps-cpp \
+            ros-jazzy-rmw-zenoh-cpp \
+            ros-jazzy-demo-nodes-cpp \
+            ros-jazzy-mimick-vendor \
+            ros-jazzy-test-msgs \
+            ros-jazzy-osrf-testing-tools-cpp
+
+      - name: Checkout ros-z
+        uses: actions/checkout@v4
+        with:
+          path: ros-z
+
+      - name: Checkout rcl fork
+        uses: actions/checkout@v4
+        with:
+          repository: YuanYuYuan/rcl
+          ref: patch-rmwz/jazzy
+          path: rcl
+
+      - name: Setup workspace
+        run: |
+          mkdir -p ws/src
+          cp -r $GITHUB_WORKSPACE/rcl ws/src/rcl
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Install Nushell
+        run: |
+          NU_VERSION=0.110.0
+          NU_PKG=nu-${NU_VERSION}-x86_64-unknown-linux-gnu
+          NU_URL=https://github.com/nushell/nushell/releases/download
+          curl -L ${NU_URL}/${NU_VERSION}/${NU_PKG}.tar.gz | tar xz
+          mv ${NU_PKG}/nu /usr/local/bin/
+          chmod +x ros-z/scripts/test-ros-packages.nu
+
+      - name: Test ROS packages
+        shell: bash
+        run: |
+          cd ros-z
+          source /opt/ros/jazzy/setup.bash
+          TEST_FILTER="${{ github.event.inputs.test_filter }}"
+          if [ -z "$TEST_FILTER" ]; then
+            TEST_FILTER="rmw_zenoh_rs"
+          fi
+          nu scripts/test-ros-packages.nu \
+            --ws-dir $GITHUB_WORKSPACE/ws \
+            --rmw-path $GITHUB_WORKSPACE/ros-z/rmw-zenoh-rs \
+            --verbose \
+            --include-filter "$TEST_FILTER" \
+            --exclude-filter "test_count_matched|test_events"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rmw-zenoh-rs-test-results
+          path: ws/log/latest_test/
+          retention-days: 7

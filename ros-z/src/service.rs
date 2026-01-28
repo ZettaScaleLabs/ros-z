@@ -90,8 +90,13 @@ where
             .liveliness()
             .declare_token(self.entity.lv_token_key_expr()?)
             .wait()?;
-        let (tx, rx) = flume::unbounded();
-        info!("[CLN] Client ready: service={}", self.entity.topic);
+        // Use bounded channel based on QoS depth
+        let depth = match self.entity.qos.history {
+            crate::qos::QosHistory::KeepLast(n) => n.get(),
+            crate::qos::QosHistory::KeepAll => 1000, // Default reasonable limit for KeepAll
+        };
+        let (tx, rx) = flume::bounded(depth);
+        debug!("[CLN] Client ready: service={}", self.entity.topic);
 
         Ok(ZClient {
             sn: AtomicUsize::new(1), // Start at 1 for ROS compatibility
@@ -148,7 +153,6 @@ where
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok(msg)
     }
-
     pub async fn take_response_async(&self) -> Result<T::Response>
     where
         T::Response: ZMessage,
@@ -186,7 +190,10 @@ where
                 match reply.into_result() {
                     Ok(sample) => {
                         debug!("[CLN] Reply received: len={}", sample.payload().len());
-                        let _ = tx.send(sample);
+                        // Use try_send for bounded channel - if full, drop the response (QoS depth enforcement)
+                        if tx.try_send(sample).is_err() {
+                            tracing::warn!("Client response queue full, dropping response (QoS depth enforced)");
+                        }
                     }
                     Err(e) => {
                         warn!("[CLN] Reply error: {:?}", e);
@@ -198,8 +205,8 @@ where
         Ok(())
     }
 
-    #[cfg(feature = "rcl-z")]
-    pub fn rcl_send_request<F>(&self, msg: &T::Request, notify: F) -> Result<i64>
+    #[cfg(feature = "rmw")]
+    pub fn rmw_send_request<F>(&self, msg: &T::Request, notify: F) -> Result<i64>
     where
         F: Fn() + Send + Sync + 'static,
     {
@@ -213,17 +220,19 @@ where
             .callback(move |reply| {
                 match reply.into_result() {
                     Ok(sample) => {
-                        tx.send(sample);
-                        notify()
+                        // Use try_send for bounded channel - if full, drop the response (QoS depth enforcement)
+                        if tx.try_send(sample).is_err() {
+                            tracing::warn!("Client response queue full, dropping response (QoS depth enforced)");
+                        }
+                        notify();
                     }
                     Err(err) => {
                         // Handle timeout and other reply errors gracefully
                         // This can happen when a service is not available or times out
-                        tracing::debug!("Reply error in rcl_send_request: {:?}", err);
+                        tracing::debug!("Client reply error: {:?}", err);
                     }
                 }
-            })
-            .wait()?;
+            }).wait()?;
         Ok(sn)
     }
 }
@@ -327,13 +336,13 @@ where
         self.build_internal(DataHandler::Callback(Arc::new(callback)), None)
     }
 
-    #[cfg(feature = "rcl-z")]
+    #[cfg(feature = "rmw")]
     pub fn build_with_notifier<F>(self, notify: F) -> Result<ZServer<T>>
     where
         F: Fn() + Send + Sync + 'static,
     {
         let queue_size = match self.entity.qos.history {
-            QosHistory::KeepLast(depth) => depth,
+            QosHistory::KeepLast(depth) => depth.get(),
             QosHistory::KeepAll => usize::MAX,
         };
         let queue = Arc::new(BoundedQueue::new(queue_size));
@@ -355,7 +364,7 @@ where
 
     fn build(self) -> Result<Self::Output> {
         let queue_size = match self.entity.qos.history {
-            QosHistory::KeepLast(depth) => depth,
+            QosHistory::KeepLast(depth) => depth.get(),
             QosHistory::KeepAll => usize::MAX,
         };
         let queue = Arc::new(BoundedQueue::new(queue_size));
@@ -470,6 +479,7 @@ where
         payload_len = tracing::field::Empty
     ))]
     pub fn send_response(&mut self, msg: &T::Response, key: &QueryKey) -> Result<()> {
+        debug!("[SRV] Looking for query with key sn:{}, gid:{:?}", key.sn, key.gid);
         match self.map.remove(key) {
             Some(query) => {
                 let payload = msg.serialize();

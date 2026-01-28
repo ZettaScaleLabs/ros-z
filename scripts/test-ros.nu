@@ -2,7 +2,6 @@
 
 # ROS-Specific Test Suite
 # This script tests components that require ROS 2 environment:
-# - rcl-z: C bindings to ROS 2 libraries
 # - interop tests: Communication with native ROS 2 nodes via rmw_zenoh_cpp
 
 use lib/common.nu *
@@ -11,30 +10,9 @@ use lib/common.nu *
 # Test Functions - ROS-Dependent Components Only
 # ============================================================================
 
-def clippy-rclz [] {
-    log-step "Clippy rcl-z"
-
-    let distro = get-distro
-    let cmd = if $distro == "humble" {
-        "cargo clippy -p rcl-z --lib --features humble_compat -- -D warnings"
-    } else {
-        "cargo clippy -p rcl-z --all-targets -- -D warnings"
-    }
-
-    run-cmd $cmd --distro $distro
-}
-
-def build-rclz [] {
-    log-step "Build rcl-z"
-
-    let distro = get-distro
-    let cmd = if $distro == "humble" {
-        "cargo build -p rcl-z --features humble_compat"
-    } else {
-        "cargo build -p rcl-z"
-    }
-
-    run-cmd $cmd --distro $distro
+def clippy-rmw [] {
+    log-step "Clippy (rmw feature)"
+    run-cmd "cargo clippy --all-targets --workspace -F rmw -- -D warnings"
 }
 
 def run-ros-interop [] {
@@ -65,16 +43,14 @@ def run-ros-interop [] {
 
 def get-test-map [] {
     {
-        clippy-rclz: { clippy-rclz }
-        build-rclz: { build-rclz }
+        clippy-rmw: { clippy-rmw }
         run-ros-interop: { run-ros-interop }
     }
 }
 
 def get-test-pipeline [] {
     [
-        "clippy-rclz"
-        "build-rclz"
+        "clippy-rmw"
         "run-ros-interop"
     ]
 }
@@ -83,12 +59,12 @@ def get-test-pipeline [] {
 # Main Entry Point
 # ============================================================================
 
-# Run ROS-specific test suite (rcl-z and interop tests)
+# Run ROS-specific test suite (interop tests)
 #
 # Examples:
 #   ./test-ros.nu                           # Run all tests with default distro (jazzy)
 #   ./test-ros.nu --distro humble           # Run all tests for humble
-#   ./test-ros.nu --distro jazzy clippy-rclz  # Run specific test
+#   ./test-ros.nu --distro jazzy run-ros-interop  # Run specific test
 #   ./test-ros.nu --list                    # List available test functions
 def main [
     --list                       # List available test functions
@@ -122,7 +98,7 @@ def main [
         }
     }
 
-    log-header "ROS 2 rcl-z & Interop Tests" $distro
+    log-header "ROS 2 Interop Tests" $distro
 
     run-test-pipeline $tests_to_run { |test_name|
         do ($test_map | get $test_name)

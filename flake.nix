@@ -90,6 +90,7 @@
                 rmw
                 rmw-implementation
                 rmw-zenoh-cpp
+                rmw-cyclonedds-cpp
                 ament-cmake
                 ament-cmake-gtest
                 ament-lint-auto
@@ -97,40 +98,72 @@
                 launch
                 launch-testing
                 ros2cli
+                osrf-testing-tools-cpp
+                mimick-vendor
+                performance-test-fixture
+                python-cmake-module
               ];
             };
           in
           {
             # Development environment with all dependencies including test messages
+            # KEY CHANGE: Disable wrappers to prevent Store paths from being forced to the front
             dev = pkgs.rosPackages.${rosDistro}.buildEnv {
               paths = rosDeps.rcl ++ rosDeps.messages ++ rosDeps.testMessages ++ rosDeps.devExtras;
+              wrapPrograms = false;
             };
 
-            # Core RCL only (for minimal builds)
+            # Core RCL only
             rcl = pkgs.rosPackages.${rosDistro}.buildEnv {
               paths = rosDeps.rcl;
+              wrapPrograms = false;
             };
 
             # Runtime messages only
             msgs = pkgs.rosPackages.${rosDistro}.buildEnv {
               paths = rosDeps.messages;
+              wrapPrograms = false;
             };
 
             # Build environment with runtime messages but NO test messages
             build = pkgs.rosPackages.${rosDistro}.buildEnv {
               paths = rosDeps.rcl ++ rosDeps.messages;
+              wrapPrograms = false;
             };
 
             # Test environment for core tests only (no test_msgs)
             testCore = pkgs.rosPackages.${rosDistro}.buildEnv {
               paths = rosDeps.rcl ++ rosDeps.messages;
+              wrapPrograms = false;
             };
 
             # Test environment with test messages (for all tests)
             testFull = pkgs.rosPackages.${rosDistro}.buildEnv {
               paths = rosDeps.rcl ++ rosDeps.messages ++ rosDeps.testMessages;
+              wrapPrograms = false;
             };
           };
+
+        # Colcon configuration
+        colconDefaults = pkgs.writeText "colcon-defaults.json" (
+          builtins.toJSON {
+            build = {
+              parallel-workers = 4;
+              symlink-install = true;
+              cmake-args = [
+                "-DCMAKE_BUILD_TYPE=RelWithDebInfo"
+                "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+              ];
+            };
+            test = {
+              parallel-workers = 1;
+              event-handlers = [
+                "console_cohesion+"
+                "console_direct+"
+              ];
+            };
+          }
+        );
 
         # Common build tools
         commonBuildInputs = with pkgs; [
@@ -143,6 +176,9 @@
           nushell
           protobuf
           markdownlint-cli
+          colcon
+          # Ensure python is available since we unwrapped the ROS env
+          python3
         ];
 
         # Development tools
@@ -184,13 +220,12 @@
         commonEnvVars = rec {
           LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
           CLANG_PATH = "${pkgs.llvmPackages.clang}/bin/clang";
-          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
-            pkgs.stdenv.cc.cc.lib
-            # ROS libraries will be added by the ROS environment packages
-          ];
           RUST_BACKTRACE = "1";
           RMW_IMPLEMENTATION = "rmw_zenoh_cpp";
           RUSTC_WRAPPER = "${pkgs.sccache}/bin/sccache";
+          COLCON_DEFAULTS_FILE = "${colconDefaults}";
+          CARGO_BUILD_JOBS = "4";
+          MAKEFLAGS = "-j4";
         };
 
         # Export environment variables as shell commands
@@ -205,11 +240,40 @@
             packages,
             banner ? "",
             extraShellHook ? "",
+            rosEnvPath ? null,
+            pythonVersion ? pkgs.python3, # To determine site-packages path
+            rosDistro ? null,
           }:
           pkgs.mkShell {
             inherit name packages;
+
+            # KEY CHANGE: Manually construct the environment using SUFFIX logic
+            # rosEnvPath is the Nix Store path. We append it to existing vars.
             shellHook = ''
               ${exportEnvVars}
+
+              ${
+                if rosEnvPath != null then
+                  ''
+                    # --suffix logic: Add Nix Store paths to the END of the lists.
+                    # This ensures your workspace (which you source via setup.bash) stays at the front.
+
+                    export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${rosEnvPath}/lib"
+                    export PYTHONPATH="$PYTHONPATH:${rosEnvPath}/lib/${pythonVersion.libPrefix}/site-packages"
+                    export CMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH:${rosEnvPath}"
+                    export AMENT_PREFIX_PATH="$AMENT_PREFIX_PATH:${rosEnvPath}"
+                    export ROS_PACKAGE_PATH="$ROS_PACKAGE_PATH:${rosEnvPath}/share"
+                    export GZ_CONFIG_PATH="$GZ_CONFIG_PATH:${rosEnvPath}/share/gz"
+
+                    # These are usually static, so simple export is fine
+                    ${if rosDistro != null then "export ROS_DISTRO=${rosDistro}" else ""}
+                    export ROS_VERSION=2
+                    export ROS_PYTHON_VERSION=3
+                  ''
+                else
+                  ""
+              }
+
               ${extraShellHook}
               ${if banner != "" then banner else ""}
             '';
@@ -221,6 +285,9 @@
           rosDistro:
           let
             rosEnv = mkRosEnv rosDistro;
+            # Capture the python version used by this distro to get correct site-packages
+            # (Assuming standard python3 for now, but safer to pull from rosPackages if it varies)
+            pythonVer = pkgs.python3;
           in
           {
             default = mkDevShell {
@@ -235,6 +302,9 @@
               ++ testTools
               ++ [ rosEnv.dev ]
               ++ pre-commit-check.enabledPackages;
+              rosEnvPath = rosEnv.dev;
+              pythonVersion = pythonVer;
+              rosDistro = rosDistro;
               extraShellHook = ''
                 ${pre-commit-check.shellHook}
                 mdbook-mermaid install book/ 2>/dev/null || true
@@ -244,12 +314,16 @@
                 echo "🦀 ros-z development environment (with ROS)"
                 echo "ROS 2 Distribution: ${rosDistro}"
                 echo "Rust: $(rustc --version)"
+                echo "⚠️  Note: Nix Store paths are appended. Source your workspace setup.bash to overlay."
               '';
             };
 
             ci = mkDevShell {
               name = "ros-z-ci-${rosDistro}";
               packages = commonBuildInputs ++ pythonTools ++ docTools ++ testTools ++ [ rosEnv.testFull ];
+              rosEnvPath = rosEnv.testFull;
+              pythonVersion = pythonVer;
+              rosDistro = rosDistro;
               extraShellHook = ''
                 mdbook-mermaid install book/ 2>/dev/null || true
                 mdbook-admonish install book/ 2>/dev/null || true

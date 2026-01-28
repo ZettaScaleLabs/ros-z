@@ -211,7 +211,7 @@ impl<'a, A: ZAction> Builder for ZActionServerBuilder<'a, A> {
             &self.node.entity.name,
         )?;
 
-        tracing::info!(
+        tracing::debug!(
             "Action name: '{}', namespace: '{}', qualified: '{}'",
             action_name,
             self.node.entity.namespace,

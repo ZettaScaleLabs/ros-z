@@ -1,4 +1,5 @@
 use std::fmt;
+use std::num::NonZeroUsize;
 
 #[derive(Debug, Default, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum QosReliability {
@@ -16,15 +17,35 @@ impl fmt::Display for QosReliability {
     }
 }
 
+/// Default depth for KEEP_LAST when SYSTEM_DEFAULT (depth=0) is used
+/// This matches ROS 2 and rmw_zenoh_cpp behavior
+pub const DEFAULT_HISTORY_DEPTH: usize = 10;
+
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum QosHistory {
-    KeepLast(usize),
+    KeepLast(NonZeroUsize),
     KeepAll,
 }
 
 impl Default for QosHistory {
     fn default() -> Self {
-        Self::KeepLast(10)
+        Self::KeepLast(NonZeroUsize::new(DEFAULT_HISTORY_DEPTH).unwrap())
+    }
+}
+
+impl QosHistory {
+    /// Normalize depth by replacing 0 with the default depth
+    /// Used when converting from RMW QoS (which allows depth=0 for SYSTEM_DEFAULT)
+    pub fn from_depth(depth: usize) -> Self {
+        let normalized_depth = if depth == 0 {
+            DEFAULT_HISTORY_DEPTH
+        } else {
+            depth
+        };
+        Self::KeepLast(
+            NonZeroUsize::new(normalized_depth)
+                .unwrap_or_else(|| NonZeroUsize::new(DEFAULT_HISTORY_DEPTH).unwrap())
+        )
     }
 }
 
@@ -145,6 +166,7 @@ pub enum QosDecodeError {
     InvalidReliability,
     InvalidDurability,
     InvalidHistory,
+    InvalidHistoryDepth,
 }
 
 impl QosProfile {
@@ -180,10 +202,10 @@ impl QosProfile {
             QosHistory::KeepLast(depth) => {
                 if self.history != default_qos.history {
                     // Non-default history kind - include both kind and depth
-                    format!("1,{}", depth)
+                    format!("1,{}", depth.get())
                 } else {
                     // Default history kind - only include depth
-                    format!(",{}", depth)
+                    format!(",{}", depth.get())
                 }
             }
             QosHistory::KeepAll => "2,".to_string(),
@@ -261,11 +283,9 @@ impl QosProfile {
                     };
                     match (kind, depth) {
                         ("", d) | ("0", d) | ("1", d) => {
-                            if let Ok(depth) = d.parse() {
-                                QosHistory::KeepLast(depth)
-                            } else {
-                                return Err(QosDecodeError::InvalidHistory);
-                            }
+                            let depth_usize: usize = d.parse().map_err(|_| QosDecodeError::InvalidHistory)?;
+                            let non_zero_depth = NonZeroUsize::new(depth_usize).ok_or(QosDecodeError::InvalidHistoryDepth)?;
+                            QosHistory::KeepLast(non_zero_depth)
                         }
                         ("2", _) => QosHistory::KeepAll,
                         _ => return Err(QosDecodeError::InvalidHistory),
