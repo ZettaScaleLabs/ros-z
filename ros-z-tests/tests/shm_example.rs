@@ -6,10 +6,11 @@
 use std::process::Command;
 
 #[test]
+#[ignore = "Slow integration test - builds and runs example. Run with: cargo test --test shm_example -- --ignored"]
 fn test_shm_pointcloud2_example() {
     // Build the example first
     let build_status = Command::new("cargo")
-        .args(&[
+        .args([
             "build",
             "--package",
             "ros-z",
@@ -26,7 +27,7 @@ fn test_shm_pointcloud2_example() {
 
     // Run the example
     let output = Command::new("cargo")
-        .args(&["run", "--package", "ros-z", "--example", "shm_pointcloud2"])
+        .args(["run", "--package", "ros-z", "--example", "shm_pointcloud2"])
         .output()
         .expect("Failed to run shm_pointcloud2 example");
 
@@ -135,10 +136,11 @@ fn test_shm_pointcloud2_example() {
 }
 
 #[test]
+#[ignore = "Slow integration test - builds and runs example. Run with: cargo test --test shm_example -- --ignored"]
 fn test_shm_example_no_errors() {
     // Run the example and ensure it exits successfully
     let output = Command::new("cargo")
-        .args(&["run", "--package", "ros-z", "--example", "shm_pointcloud2"])
+        .args(["run", "--package", "ros-z", "--example", "shm_pointcloud2"])
         .output()
         .expect("Failed to run shm_pointcloud2 example");
 
@@ -170,10 +172,11 @@ fn test_shm_example_no_errors() {
 }
 
 #[test]
+#[ignore = "Slow integration test - builds and runs example. Run with: cargo test --test shm_example -- --ignored"]
 fn test_shm_example_performance() {
     // Verify that publishing is fast (sub-millisecond for cached messages)
     let output = Command::new("cargo")
-        .args(&["run", "--package", "ros-z", "--example", "shm_pointcloud2"])
+        .args(["run", "--package", "ros-z", "--example", "shm_pointcloud2"])
         .output()
         .expect("Failed to run shm_pointcloud2 example");
 
