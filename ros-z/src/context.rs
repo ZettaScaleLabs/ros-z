@@ -72,6 +72,7 @@ pub struct ZContextBuilder {
     config_overrides: Vec<(String, serde_json::Value)>,
     remap_rules: RemapRules,
     enable_logging: bool,
+    shm_config: Option<Arc<crate::shm::ShmConfig>>,
 }
 
 impl ZContextBuilder {
@@ -231,6 +232,100 @@ impl ZContextBuilder {
         self
     }
 
+    /// Enable SHM with default pool size (10MB) and threshold (512 bytes).
+    ///
+    /// # Example
+    /// ```no_run
+    /// use ros_z::context::ZContextBuilder;
+    /// use ros_z::Builder;
+    ///
+    /// # fn main() -> zenoh::Result<()> {
+    /// let ctx = ZContextBuilder::default()
+    ///     .with_shm_enabled()?
+    ///     .build()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_shm_enabled(self) -> Result<Self> {
+        let provider = Arc::new(crate::shm::ShmProviderBuilder::new(
+            crate::shm::DEFAULT_SHM_POOL_SIZE,
+        ).build()?);
+        Ok(self.with_shm_config(crate::shm::ShmConfig::new(provider)))
+    }
+
+    /// Enable SHM with custom pool size.
+    ///
+    /// # Arguments
+    /// * `size_bytes` - Pool size in bytes
+    ///
+    /// # Example
+    /// ```no_run
+    /// use ros_z::context::ZContextBuilder;
+    /// use ros_z::Builder;
+    ///
+    /// # fn main() -> zenoh::Result<()> {
+    /// let ctx = ZContextBuilder::default()
+    ///     .with_shm_pool_size(100 * 1024 * 1024)?  // 100MB
+    ///     .build()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_shm_pool_size(self, size_bytes: usize) -> Result<Self> {
+        let provider = Arc::new(crate::shm::ShmProviderBuilder::new(size_bytes).build()?);
+        Ok(self.with_shm_config(crate::shm::ShmConfig::new(provider)))
+    }
+
+    /// Set custom SHM configuration.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use ros_z::context::ZContextBuilder;
+    /// use ros_z::shm::{ShmConfig, ShmProviderBuilder};
+    /// use ros_z::Builder;
+    /// use std::sync::Arc;
+    ///
+    /// # fn main() -> zenoh::Result<()> {
+    /// let provider = Arc::new(ShmProviderBuilder::new(50 * 1024 * 1024).build()?);
+    /// let config = ShmConfig::new(provider).with_threshold(10_000);
+    ///
+    /// let ctx = ZContextBuilder::default()
+    ///     .with_shm_config(config)
+    ///     .build()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_shm_config(mut self, config: crate::shm::ShmConfig) -> Self {
+        self.shm_config = Some(Arc::new(config));
+        self
+    }
+
+    /// Set SHM threshold (minimum message size for SHM).
+    ///
+    /// Only effective if SHM has been enabled via `with_shm_enabled()` or similar.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use ros_z::context::ZContextBuilder;
+    /// use ros_z::Builder;
+    ///
+    /// # fn main() -> zenoh::Result<()> {
+    /// let ctx = ZContextBuilder::default()
+    ///     .with_shm_enabled()?
+    ///     .with_shm_threshold(50_000)  // 50KB threshold
+    ///     .build()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_shm_threshold(mut self, threshold: usize) -> Self {
+        if let Some(ref mut config) = self.shm_config {
+            // Need to modify Arc content - make it unique or clone
+            let mut new_config = (**config).clone();
+            new_config = new_config.with_threshold(threshold);
+            self.shm_config = Some(Arc::new(new_config));
+        }
+        self
+    }
+
     /// Parse and apply overrides from environment variable
     ///
     /// Expected format: `key1=value1;key2=value2`
@@ -378,6 +473,7 @@ impl Builder for ZContextBuilder {
             enclave,
             graph,
             remap_rules: builder.remap_rules,
+            shm_config: builder.shm_config,
         })
     }
 }
@@ -391,6 +487,7 @@ pub struct ZContext {
     enclave: String,
     graph: Arc<Graph>,
     remap_rules: RemapRules,
+    pub(crate) shm_config: Option<Arc<crate::shm::ShmConfig>>,
 }
 
 impl ZContext {
@@ -404,6 +501,7 @@ impl ZContext {
             counter: self.counter.clone(),
             graph: self.graph.clone(),
             remap_rules: self.remap_rules.clone(),
+            shm_config: self.shm_config.clone(),
         }
     }
 

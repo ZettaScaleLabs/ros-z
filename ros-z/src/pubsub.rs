@@ -4,7 +4,7 @@ use std::{marker::PhantomData, sync::Arc};
 
 use zenoh::liveliness::LivelinessToken;
 use zenoh::{Result, Session, Wait, sample::Sample};
-use tracing::{debug, trace};
+use tracing::{debug, trace, warn};
 
 use crate::Builder;
 use crate::attachment::{Attachment, GidArray};
@@ -29,6 +29,7 @@ pub struct ZPub<T: ZMessage, S: ZSerializer> {
     _lv_token: LivelinessToken,
     with_attachment: bool,
     events_mgr: Arc<Mutex<EventsManager>>,
+    shm_config: Option<Arc<crate::shm::ShmConfig>>,
     _phantom_data: PhantomData<(T, S)>,
 }
 
@@ -37,6 +38,7 @@ pub struct ZPubBuilder<T, S = CdrSerdes<T>> {
     pub entity: EndpointEntity,
     pub session: Arc<Session>,
     pub with_attachment: bool,
+    pub(crate) shm_config: Option<Arc<crate::shm::ShmConfig>>,
     pub _phantom_data: PhantomData<(T, S)>,
 }
 
@@ -54,11 +56,63 @@ impl<T, S> ZPubBuilder<T, S> {
         self
     }
 
+    /// Override SHM configuration for this publisher only.
+    ///
+    /// This overrides any SHM configuration inherited from the node or context.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use ros_z::shm::{ShmConfig, ShmProviderBuilder};
+    /// use ros_z::Builder;
+    /// use std::sync::Arc;
+    ///
+    /// # fn main() -> zenoh::Result<()> {
+    /// # let ctx = ros_z::context::ZContextBuilder::default().build()?;
+    /// # let node = ctx.create_node("test").build()?;
+    /// let provider = Arc::new(ShmProviderBuilder::new(20 * 1024 * 1024).build()?);
+    /// let config = ShmConfig::new(provider).with_threshold(5_000);
+    ///
+    /// let pub = node.create_pub::<ros_z_msgs::std_msgs::String>("topic")
+    ///     .with_shm_config(config)
+    ///     .build()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_shm_config(mut self, config: crate::shm::ShmConfig) -> Self {
+        self.shm_config = Some(Arc::new(config));
+        self
+    }
+
+    /// Disable SHM for this publisher.
+    ///
+    /// Even if SHM is enabled at the node or context level, this publisher
+    /// will not use shared memory.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use ros_z::Builder;
+    ///
+    /// # fn main() -> zenoh::Result<()> {
+    /// # let ctx = ros_z::context::ZContextBuilder::default().with_shm_enabled()?.build()?;
+    /// # let node = ctx.create_node("test").build()?;
+    /// // Context has SHM enabled, but disable for this publisher
+    /// let pub = node.create_pub::<ros_z_msgs::std_msgs::String>("small_messages")
+    ///     .without_shm()
+    ///     .build()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn without_shm(mut self) -> Self {
+        self.shm_config = None;
+        self
+    }
+
     pub fn with_serdes<S2>(self) -> ZPubBuilder<T, S2> {
         ZPubBuilder {
             entity: self.entity,
             session: self.session,
             with_attachment: self.with_attachment,
+            shm_config: self.shm_config,
             _phantom_data: PhantomData,
         }
     }
@@ -136,6 +190,7 @@ where
             gid,
             events_mgr: Arc::new(Mutex::new(EventsManager::new(gid))),
             with_attachment: self.with_attachment,
+            shm_config: self.shm_config,
             _phantom_data: Default::default(),
         })
     }
@@ -155,19 +210,52 @@ where
     #[tracing::instrument(name = "publish", skip(self, msg), fields(
         topic = %self.entity.topic,
         sn = self.sn.load(Ordering::Acquire),
-        payload_len = tracing::field::Empty
+        payload_len = tracing::field::Empty,
+        used_shm = tracing::field::Empty
     ))]
     pub fn publish(&self, msg: &T) -> Result<()> {
-        // Serialize directly to ZBuf for zero-copy publishing
-        let zbuf = S::serialize_to_zbuf(msg);
-
         use zenoh_buffers::buffer::Buffer;
-        let actual_size = zbuf.len();
-        tracing::Span::current().record("payload_len", actual_size);
-        debug!("[PUB] Publishing message");
 
-        // Convert ZBuf to ZBytes and publish
+        // Try direct SHM serialization if configured
+        let (zbuf, actual_size) = if let Some(ref shm_cfg) = self.shm_config {
+            let estimated_size = msg.estimated_serialized_size();
+
+            // Only use SHM if estimated size meets threshold
+            if estimated_size >= shm_cfg.threshold() {
+                match S::serialize_to_shm(msg, estimated_size, shm_cfg.provider()) {
+                    Ok((zbuf, actual_size)) => {
+                        tracing::Span::current().record("used_shm", true);
+                        debug!("[PUB] Serialized {}B directly to SHM (estimated: {}B)",
+                               actual_size, estimated_size);
+                        (zbuf, actual_size)
+                    }
+                    Err(e) => {
+                        tracing::Span::current().record("used_shm", false);
+                        warn!("[PUB] Direct SHM serialization failed: {}. Using regular memory", e);
+                        let zbuf = S::serialize_to_zbuf(msg);
+                        let size = zbuf.len();
+                        (zbuf, size)
+                    }
+                }
+            } else {
+                tracing::Span::current().record("used_shm", false);
+                trace!("[PUB] Estimated size {}B < threshold {}B, using regular memory",
+                       estimated_size, shm_cfg.threshold());
+                let zbuf = S::serialize_to_zbuf(msg);
+                let size = zbuf.len();
+                (zbuf, size)
+            }
+        } else {
+            tracing::Span::current().record("used_shm", false);
+            let zbuf = S::serialize_to_zbuf(msg);
+            let size = zbuf.len();
+            (zbuf, size)
+        };
+
+        tracing::Span::current().record("payload_len", actual_size);
+
         let zbytes = zenoh::bytes::ZBytes::from(zbuf);
+
         let mut put_builder = self.inner.put(zbytes);
         if self.with_attachment {
             let att = self.new_attchment();
@@ -180,10 +268,22 @@ where
     }
 
     pub async fn async_publish(&self, msg: &T) -> Result<()> {
-        // Serialize directly to ZBuf for zero-copy publishing
-        let zbuf = S::serialize_to_zbuf(msg);
+        // Try direct SHM serialization if configured
+        let zbuf = if let Some(ref shm_cfg) = self.shm_config {
+            let estimated_size = msg.estimated_serialized_size();
 
-        // Convert ZBuf to ZBytes and publish
+            if estimated_size >= shm_cfg.threshold() {
+                match S::serialize_to_shm(msg, estimated_size, shm_cfg.provider()) {
+                    Ok((zbuf, _actual_size)) => zbuf,
+                    Err(_) => S::serialize_to_zbuf(msg),
+                }
+            } else {
+                S::serialize_to_zbuf(msg)
+            }
+        } else {
+            S::serialize_to_zbuf(msg)
+        };
+
         let zbytes = zenoh::bytes::ZBytes::from(zbuf);
         let mut put_builder = self.inner.put(zbytes);
         if self.with_attachment {
