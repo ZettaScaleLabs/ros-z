@@ -35,7 +35,8 @@ jobs:
             ros-jazzy-rmw-zenoh-cpp \
             ros-jazzy-demo-nodes-cpp \
             ros-jazzy-mimick-vendor \
-            ros-jazzy-test-msgs
+            ros-jazzy-test-msgs \
+            ros-jazzy-osrf-testing-tools-cpp
 
       - name: Checkout ros-z
         uses: actions/checkout@v4

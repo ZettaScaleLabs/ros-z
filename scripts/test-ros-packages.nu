@@ -22,7 +22,7 @@
 # Note: rmw-zenoh-rs is passed via --base-paths, not symlinked into workspace
 
 def main [
-    --ws-dir: string = ""                  # Workspace directory (default: ../rcl-test-ws)
+    --ws-dir: string = ""                  # Workspace directory (default: ../ws)
     --rmw-path: string = ""                # Path to rmw-zenoh-rs (default: auto-detect from script)
     --rmw-impl: string = "rmw_zenoh_rs"    # RMW implementation to test (rmw_zenoh_rs or rmw_zenoh_cpp)
     --build-only                           # Only build, skip tests
@@ -45,7 +45,7 @@ def main [
     let ros_z_root = ($env.FILE_PWD | path dirname)
 
     let ws = if $ws_dir == "" {
-        $ros_z_root | path join "../rcl-test-ws" | path expand
+        $ros_z_root | path join "../ws" | path expand
     } else {
         $ws_dir | path expand
     }
