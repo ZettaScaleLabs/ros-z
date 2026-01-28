@@ -206,10 +206,10 @@
 <h3 id="rmwzenoh-backend-default"><a class="header" href="#rmwzenoh-backend-default">RmwZenoh Backend (Default)</a></h3>
 <p>The RmwZenoh backend is designed for compatibility with ROS 2's official Zenoh middleware implementation.</p>
 <p><strong>Key Expression Format:</strong></p>
-<pre><code>&lt;domain_id&gt;/&lt;topic&gt;/**
+<pre><code class="language-text">&lt;domain_id&gt;/&lt;topic&gt;/**
 </code></pre>
 <p><strong>Example:</strong></p>
-<pre><code>0/chatter/**         # Domain 0, topic /chatter
+<pre><code class="language-text">0/chatter/**         # Domain 0, topic /chatter
 5/robot/status/**    # Domain 5, topic /robot/status
 </code></pre>
 <p><strong>Use this backend when:</strong></p>
@@ -221,10 +221,10 @@
 <h3 id="ros2dds-backend"><a class="header" href="#ros2dds-backend">Ros2Dds Backend</a></h3>
 <p>The Ros2Dds backend is designed for compatibility with <code>zenoh-bridge-ros2dds</code>, which bridges standard DDS-based ROS 2 nodes to Zenoh.</p>
 <p><strong>Key Expression Format:</strong></p>
-<pre><code>&lt;topic&gt;/**
+<pre><code class="language-text">&lt;topic&gt;/**
 </code></pre>
 <p><strong>Example:</strong></p>
-<pre><code>chatter/**           # Topic /chatter (no domain prefix)
+<pre><code class="language-text">chatter/**           # Topic /chatter (no domain prefix)
 robot/status/**      # Topic /robot/status
 </code></pre>
 <p><strong>Use this backend when:</strong></p>
