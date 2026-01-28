@@ -68,14 +68,20 @@ fn test_ros2_dds_pub_to_ros_z_sub() {
 
     let listener_handle = thread::spawn(move || {
         tokio::runtime::Runtime::new().unwrap().block_on(async {
-            let ctx = create_ros_z_context_ros2dds()
-                .expect("Failed to create ros-z context");
+            let ctx = create_ros_z_context_ros2dds().expect("Failed to create ros-z context");
 
             // Create node and subscriber with ros2dds backend
-            use ros_z::{Builder, backend::Ros2DdsBackend, qos::{QosHistory, QosProfile}};
+            use ros_z::{
+                Builder,
+                backend::Ros2DdsBackend,
+                qos::{QosHistory, QosProfile},
+            };
             use ros_z_msgs::std_msgs::String as RosString;
 
-            let node = ctx.create_node("listener").build().expect("Failed to create node");
+            let node = ctx
+                .create_node("listener")
+                .build()
+                .expect("Failed to create node");
             let qos = QosProfile {
                 history: QosHistory::KeepLast(10),
                 ..Default::default()
@@ -164,14 +170,20 @@ fn test_ros_z_pub_to_ros2_dds_sub() {
     // Step 3: Start ros-z publisher using ros2dds backend
     let talker_handle = thread::spawn(move || {
         tokio::runtime::Runtime::new().unwrap().block_on(async {
-            let ctx = create_ros_z_context_ros2dds()
-                .expect("Failed to create ros-z context");
+            let ctx = create_ros_z_context_ros2dds().expect("Failed to create ros-z context");
 
             // Create node and publisher with ros2dds backend
-            use ros_z::{Builder, backend::Ros2DdsBackend, qos::{QosHistory, QosProfile}};
+            use ros_z::{
+                Builder,
+                backend::Ros2DdsBackend,
+                qos::{QosHistory, QosProfile},
+            };
             use ros_z_msgs::std_msgs::String as RosString;
 
-            let node = ctx.create_node("talker").build().expect("Failed to create node");
+            let node = ctx
+                .create_node("talker")
+                .build()
+                .expect("Failed to create node");
             let qos = QosProfile {
                 history: QosHistory::KeepLast(7),
                 ..Default::default()
@@ -192,7 +204,10 @@ fn test_ros_z_pub_to_ros2_dds_sub() {
                     data: format!("Hello World: {}", count),
                 };
                 println!("Publishing: '{}'", msg.data);
-                publisher.async_publish(&msg).await.expect("Failed to publish");
+                publisher
+                    .async_publish(&msg)
+                    .await
+                    .expect("Failed to publish");
                 tokio::time::sleep(period).await;
             }
         });
@@ -203,7 +218,9 @@ fn test_ros_z_pub_to_ros2_dds_sub() {
     // Give some time for ROS 2 listener to process
     wait_for_ready(Duration::from_secs(1));
 
-    println!("Test passed: ros-z talker published messages to ROS 2 DDS listener via zenoh-bridge-ros2dds");
+    println!(
+        "Test passed: ros-z talker published messages to ROS 2 DDS listener via zenoh-bridge-ros2dds"
+    );
 }
 
 /// Test: ROS 2 CycloneDDS service server -> ros-z client (via zenoh-bridge-ros2dds)
@@ -239,14 +256,16 @@ fn test_ros2_dds_service_server_to_ros_z_client() {
 
     // Step 3: Call service using ros-z client with ros2dds backend
     tokio::runtime::Runtime::new().unwrap().block_on(async {
-        let ctx = create_ros_z_context_ros2dds()
-            .expect("Failed to create ros-z context");
+        let ctx = create_ros_z_context_ros2dds().expect("Failed to create ros-z context");
 
         // Create node and client with ros2dds backend
         use ros_z::{Builder, backend::Ros2DdsBackend};
-        use ros_z_msgs::example_interfaces::{srv::AddTwoInts, AddTwoIntsRequest};
+        use ros_z_msgs::example_interfaces::{AddTwoIntsRequest, srv::AddTwoInts};
 
-        let node = ctx.create_node("add_two_ints_client").build().expect("Failed to create node");
+        let node = ctx
+            .create_node("add_two_ints_client")
+            .build()
+            .expect("Failed to create node");
         let client = node
             .create_client::<AddTwoInts>("add_two_ints")
             .with_backend::<Ros2DdsBackend>()
@@ -256,7 +275,10 @@ fn test_ros2_dds_service_server_to_ros_z_client() {
         let req = AddTwoIntsRequest { a: 15, b: 27 };
         println!("Sending request: {} + {}", req.a, req.b);
 
-        client.send_request(&req).await.expect("Failed to send request");
+        client
+            .send_request(&req)
+            .await
+            .expect("Failed to send request");
 
         match client.take_response_timeout(Duration::from_secs(10)) {
             Ok(resp) => {
@@ -300,14 +322,16 @@ fn test_ros_z_service_server_to_ros2_dds_client() {
     // Step 2: Start ros-z service server using ros2dds backend
     let server_handle = std::thread::spawn(move || {
         tokio::runtime::Runtime::new().unwrap().block_on(async {
-            let ctx = create_ros_z_context_ros2dds()
-                .expect("Failed to create ros-z context");
+            let ctx = create_ros_z_context_ros2dds().expect("Failed to create ros-z context");
 
             // Create node and server with ros2dds backend
             use ros_z::{Builder, backend::Ros2DdsBackend};
-            use ros_z_msgs::example_interfaces::{srv::AddTwoInts, AddTwoIntsResponse};
+            use ros_z_msgs::example_interfaces::{AddTwoIntsResponse, srv::AddTwoInts};
 
-            let node = ctx.create_node("add_two_ints_server").build().expect("Failed to create node");
+            let node = ctx
+                .create_node("add_two_ints_server")
+                .build()
+                .expect("Failed to create node");
             let mut server = node
                 .create_service::<AddTwoInts>("add_two_ints")
                 .with_backend::<Ros2DdsBackend>()
@@ -321,7 +345,9 @@ fn test_ros_z_service_server_to_ros2_dds_client() {
                 Ok((key, req)) => {
                     println!("Received request: {} + {}", req.a, req.b);
                     let resp = AddTwoIntsResponse { sum: req.a + req.b };
-                    server.send_response(&resp, &key).expect("Failed to send response");
+                    server
+                        .send_response(&resp, &key)
+                        .expect("Failed to send response");
                     println!("Sent response: {}", resp.sum);
                 }
                 Err(e) => {

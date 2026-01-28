@@ -36,10 +36,11 @@
 //! ros2 service call /add_two_ints example_interfaces/srv/AddTwoInts "{a: 5, b: 3}"
 //! ```
 
-use clap::Parser;
-use ros_z::{backend::Ros2DdsBackend, context::ZContextBuilder, Builder};
-use ros_z_msgs::example_interfaces::{srv::AddTwoInts, AddTwoIntsRequest, AddTwoIntsResponse};
 use std::time::Duration;
+
+use clap::Parser;
+use ros_z::{Builder, backend::Ros2DdsBackend, context::ZContextBuilder};
+use ros_z_msgs::example_interfaces::{AddTwoIntsRequest, AddTwoIntsResponse, srv::AddTwoInts};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -165,7 +166,11 @@ async fn run_client(ctx: ros_z::context::ZContext, args: &Args) -> ros_z::Result
 
     println!("Service client ready\n");
 
-    let max_requests = if args.count == 0 { usize::MAX } else { args.count };
+    let max_requests = if args.count == 0 {
+        usize::MAX
+    } else {
+        args.count
+    };
 
     for i in 0..max_requests {
         // Create request

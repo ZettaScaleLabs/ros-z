@@ -149,10 +149,15 @@ name = "zenoh_router"
 path = "examples/zenoh_router.rs"
 required-features = []
 
-# ros2dds backend example for interop with zenoh-plugin-ros2dds
+# ros2dds backend examples for interop with zenoh-plugin-ros2dds
 [[example]]
 name = "z_pubsub_ros2dds"
 path = "examples/z_pubsub_ros2dds.rs"
+required-features = ["ros2dds"]
+
+[[example]]
+name = "z_srvcli_ros2dds"
+path = "examples/z_srvcli_ros2dds.rs"
 required-features = ["ros2dds"]
 
 # Dynamic message examples

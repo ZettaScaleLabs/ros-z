@@ -155,9 +155,8 @@ fn discover_ros_packages(is_humble: bool) -> Result<Vec<PathBuf>> {
 
     if system_count > 0 {
         println!(
-            "cargo:info=Found {} packages from ROS 2 installation (deduplicated to {})",
-            system_count,
-            package_map.len()
+            "cargo:info=Found {} packages from ROS 2 installation",
+            system_count
         );
 
         // Emit cfg flags for each found package
@@ -168,12 +167,25 @@ fn discover_ros_packages(is_humble: bool) -> Result<Vec<PathBuf>> {
         return Ok(package_map.into_values().collect());
     }
 
-    // Priority 2: Local bundled assets (standalone mode)
-    println!("cargo:info=Using local bundled assets from ros-z-codegen/assets/jazzy");
-    let local_asset_packages = discover_local_assets(&all_packages)?;
-    for pkg_path in local_asset_packages {
-        if let Ok(name) = discover_package_name_from_path(&pkg_path) {
-            package_map.entry(name).or_insert(pkg_path);
+    // Priority 2: Local bundled assets (fallback for packages not found in system)
+    // Check which packages are still missing
+    let missing_packages: Vec<&str> = all_packages
+        .iter()
+        .filter(|&&pkg| !package_map.contains_key(pkg))
+        .copied()
+        .collect();
+
+    if !missing_packages.is_empty() {
+        println!(
+            "cargo:info=Looking for {} missing packages in bundled assets",
+            missing_packages.len()
+        );
+        let local_asset_packages = discover_local_assets(&missing_packages)?;
+        for pkg_path in local_asset_packages {
+            if let Ok(name) = discover_package_name_from_path(&pkg_path) {
+                println!("cargo:info=Bundled: Adding package {}", name);
+                package_map.insert(name, pkg_path);
+            }
         }
     }
 
@@ -183,13 +195,13 @@ fn discover_ros_packages(is_humble: bool) -> Result<Vec<PathBuf>> {
     );
 
     // Warn if packages are still not found
-    let missing: Vec<_> = all_packages
+    let still_missing: Vec<_> = all_packages
         .iter()
         .filter(|&&pkg| !package_map.contains_key(pkg))
         .collect();
 
-    if !missing.is_empty() {
-        println!("cargo:warning=Missing packages: {:?}", missing);
+    if !still_missing.is_empty() {
+        println!("cargo:warning=Missing packages: {:?}", still_missing);
         println!("cargo:warning=Consider installing ROS 2 or checking ros-z-codegen/assets/jazzy");
     }
 
@@ -217,26 +229,34 @@ fn get_all_packages(is_humble: bool) -> Vec<&'static str> {
         names.push("service_msgs");
     }
 
-    #[cfg(feature = "std_msgs")]
-    names.push("std_msgs");
+    // Check features via environment variables (cfg! doesn't work in build scripts)
+    if env::var("CARGO_FEATURE_STD_MSGS").is_ok() {
+        names.push("std_msgs");
+    }
 
-    #[cfg(feature = "geometry_msgs")]
-    names.push("geometry_msgs");
+    if env::var("CARGO_FEATURE_GEOMETRY_MSGS").is_ok() {
+        names.push("geometry_msgs");
+    }
 
-    #[cfg(feature = "sensor_msgs")]
-    names.push("sensor_msgs");
+    if env::var("CARGO_FEATURE_SENSOR_MSGS").is_ok() {
+        names.push("sensor_msgs");
+    }
 
-    #[cfg(feature = "nav_msgs")]
-    names.push("nav_msgs");
+    if env::var("CARGO_FEATURE_NAV_MSGS").is_ok() {
+        names.push("nav_msgs");
+    }
 
-    #[cfg(feature = "example_interfaces")]
-    names.push("example_interfaces");
+    if env::var("CARGO_FEATURE_EXAMPLE_INTERFACES").is_ok() {
+        names.push("example_interfaces");
+    }
 
-    #[cfg(feature = "action_tutorials_interfaces")]
-    names.push("action_tutorials_interfaces");
+    if env::var("CARGO_FEATURE_ACTION_TUTORIALS_INTERFACES").is_ok() {
+        names.push("action_tutorials_interfaces");
+    }
 
-    #[cfg(feature = "test_msgs")]
-    names.push("test_msgs");
+    if env::var("CARGO_FEATURE_TEST_MSGS").is_ok() {
+        names.push("test_msgs");
+    }
 
     names
 }

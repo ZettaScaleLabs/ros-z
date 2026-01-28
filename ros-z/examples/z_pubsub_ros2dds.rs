@@ -33,14 +33,14 @@ use std::time::Duration;
 
 use clap::Parser;
 use ros_z::{
+    TypeHash,
     backend::Ros2DdsBackend,
     entity::{EndpointEntity, EntityKind, NodeEntity, TypeInfo},
     qos::{QosDurability, QosHistory, QosProfile, QosReliability},
-    TypeHash,
 };
 use ros_z_cdr::{CdrSerializer, LittleEndian};
 use serde::{Deserialize, Serialize};
-use zenoh::{key_expr::KeyExpr, Wait};
+use zenoh::{Wait, key_expr::KeyExpr};
 
 /// CDR encapsulation header for little-endian encoding
 const CDR_HEADER_LE: [u8; 4] = [0x00, 0x01, 0x00, 0x00];
@@ -75,10 +75,16 @@ async fn main() -> ros_z::Result<()> {
     // Build Zenoh config
     let mut config = zenoh::Config::default();
     if args.mode == "client" {
-        config.set_mode(Some(zenoh::config::WhatAmI::Client)).unwrap();
+        config
+            .set_mode(Some(zenoh::config::WhatAmI::Client))
+            .unwrap();
     }
     if let Some(ref endpoint) = args.endpoint {
-        config.connect.endpoints.set(vec![endpoint.parse().unwrap()]).unwrap();
+        config
+            .connect
+            .endpoints
+            .set(vec![endpoint.parse().unwrap()])
+            .unwrap();
     }
 
     // Open Zenoh session

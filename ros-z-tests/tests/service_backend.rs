@@ -14,12 +14,12 @@
 
 #![cfg(feature = "ros-msgs")]
 
-use ros_z::{backend::RmwZenohBackend, context::ZContextBuilder, Builder};
-use ros_z_msgs::example_interfaces::{srv::AddTwoInts, AddTwoIntsRequest, AddTwoIntsResponse};
 use std::time::Duration;
 
 #[cfg(feature = "ros2dds-interop")]
 use ros_z::backend::Ros2DdsBackend;
+use ros_z::{Builder, backend::RmwZenohBackend, context::ZContextBuilder};
+use ros_z_msgs::example_interfaces::{AddTwoIntsRequest, AddTwoIntsResponse, srv::AddTwoInts};
 
 /// Test service communication with RmwZenoh backend
 #[tokio::test]
