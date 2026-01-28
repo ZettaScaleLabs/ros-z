@@ -183,7 +183,7 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="rmw-zenoh-rs"><a class="header" href="#rmw-zenoh-rs">RMW Zenoh RS</a></h1>
+                        <h1 id="rmw_zenoh_rs"><a class="header" href="#rmw_zenoh_rs">rmw_zenoh_rs</a></h1>
 <p><code>rmw_zenoh_rs</code> is a Rust-based ROS Middleware (RMW) implementation that enables standard ROS 2 C++/Python nodes to communicate via Zenoh. It allows you to use Zenoh as the transport layer for your existing ROS 2 applications without modifying your code. It is <strong>fully interoperable</strong> with <code>rmw_zenoh_cpp</code>, allowing seamless communication between nodes using either implementation.</p>
 <h2 id="what-is-an-rmw"><a class="header" href="#what-is-an-rmw">What is an RMW?</a></h2>
 <p>ROS 2 uses a middleware abstraction layer called RMW (ROS Middleware) that allows you to choose different transport implementations. By default, ROS 2 uses DDS-based middleware like Fast-DDS or CycloneDDS. With rmw_zenoh_rs, you can use Zenoh instead.</p>
@@ -213,7 +213,7 @@
 <h3 id="system-requirements"><a class="header" href="#system-requirements">System Requirements</a></h3>
 <ul>
 <li><strong>ROS 2 Jazzy</strong></li>
-<li><strong>Rust toolchain</strong> (1.75 or later)</li>
+<li><strong>Rust toolchain</strong> (1.91 or later)</li>
 <li><strong>Cargo</strong> (comes with Rust)</li>
 <li><strong>CMake</strong> (3.16 or later)</li>
 <li><strong>Clang</strong> (for bindgen)</li>
@@ -261,7 +261,7 @@ colcon build --packages-select rmw_zenoh_rs --symlink-install
 <pre><code class="language-bash">export RMW_IMPLEMENTATION=rmw_zenoh_rs
 </code></pre>
 <p>This tells ROS 2 to use rmw_zenoh_rs instead of the default DDS implementation.</p>
-<h3 id="running-ros-2-nodes"><a class="header" href="#running-ros-2-nodes">Running ROS 2 Nodes</a></h3>
+<h3 id="example-running-ros-2-nodes"><a class="header" href="#example-running-ros-2-nodes">Example: Running ROS 2 Nodes</a></h3>
 <p>Start a Zenoh router first, then run your nodes with the RMW implementation set:</p>
 <pre><code class="language-bash"># Terminal 1: Start Zenoh router (required)
 zenohd
@@ -277,27 +277,6 @@ export RMW_IMPLEMENTATION=rmw_zenoh_rs
 ros2 run demo_nodes_cpp listener
 </code></pre>
 <p>Your nodes will now communicate via Zenoh instead of DDS!</p>
-<h3 id="using-with-existing-applications"><a class="header" href="#using-with-existing-applications">Using with Existing Applications</a></h3>
-<p>rmw_zenoh_rs is <strong>transparent</strong> to your application code. You don't need to modify your C++ or Python nodes:</p>
-<pre><code class="language-bash"># Start router first
-zenohd &amp;
-
-# Any ROS 2 application works
-export RMW_IMPLEMENTATION=rmw_zenoh_rs
-
-ros2 launch my_robot_bringup robot.launch.py
-ros2 run my_package my_node
-rviz2
-rqt
-</code></pre>
-<h3 id="zenoh-router-required"><a class="header" href="#zenoh-router-required">Zenoh Router (Required)</a></h3>
-<p>rmw_zenoh_rs uses router-based discovery by default and <strong>requires a Zenoh router</strong> to be running:</p>
-<pre><code class="language-bash"># Install zenoh router (if not using Nix)
-cargo install zenoh --features default
-
-# Run router
-zenohd
-</code></pre>
 <div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
 <div class="admonition-title">
 <div id="admonition-warning-title">
@@ -334,59 +313,15 @@ zenohd
 <div class="table-wrapper"><table><thead><tr><th>Feature</th><th>rmw_zenoh_rs</th><th>rmw_zenoh_cpp</th></tr></thead><tbody>
 <tr><td><strong>Implementation Language</strong></td><td>Rust (using ros-z)</td><td>C++</td></tr>
 <tr><td><strong>Primary Use Case</strong></td><td>Integration with ros-z ecosystem</td><td>Standalone Zenoh RMW</td></tr>
-<tr><td><strong>ROS 2 Compatibility</strong></td><td>Jazzy</td><td>Jazzy, Humble, Rolling</td></tr>
+<tr><td><strong>ROS 2 Compatibility</strong></td><td>Jazzy</td><td>Humble, Iron, ..., Rolling</td></tr>
 <tr><td><strong>Status</strong></td><td>Experimental</td><td>Production-ready</td></tr>
-<tr><td><strong>Dependencies</strong></td><td>ros-z, Zenoh Rust</td><td>Zenoh C++, zenoh-c</td></tr>
+<tr><td><strong>Dependencies</strong></td><td>ros-z, Zenoh Rust</td><td>Zenoh C++ binding</td></tr>
 <tr><td><strong>Performance</strong></td><td>Optimized for Rust stack</td><td>Optimized for C++ stack</td></tr>
 <tr><td><strong>Interoperability</strong></td><td>✅ Works with rmw_zenoh_cpp</td><td>✅ Works with rmw_zenoh_rs</td></tr>
 </tbody></table>
 </div>
 <h2 id="configuration"><a class="header" href="#configuration">Configuration</a></h2>
-<p>rmw_zenoh_rs uses the same Zenoh configuration as rmw_zenoh_cpp. Configuration is done via:</p>
-<h3 id="environment-variables"><a class="header" href="#environment-variables">Environment Variables</a></h3>
-<pre><code class="language-bash"># Set Zenoh router endpoints
-export ZENOH_ROUTER=tcp/192.168.1.1:7447
-
-# Enable Zenoh logging
-export RUST_LOG=zenoh=info,rmw_zenoh_rs=debug
-</code></pre>
-<h3 id="configuration-file"><a class="header" href="#configuration-file">Configuration File</a></h3>
-<p>Create a <code>zenoh.json5</code> configuration file:</p>
-<pre><code class="language-json5">{
-  connect: {
-    endpoints: ["tcp/192.168.1.1:7447"]
-  },
-  scouting: {
-    multicast: {
-      enabled: true
-    }
-  }
-}
-</code></pre>
-<p>Set the configuration path:</p>
-<pre><code class="language-bash">export ZENOH_CONFIG=/path/to/zenoh.json5
-</code></pre>
-<p>For detailed configuration options, see the <a href="./config.html">Networking</a> chapter.</p>
-<h2 id="verifying-installation"><a class="header" href="#verifying-installation">Verifying Installation</a></h2>
-<p>Check that rmw_zenoh_rs is available:</p>
-<pre><code class="language-bash">source ~/ros2_ws/install/setup.bash
-ros2 doctor --report | grep rmw
-
-# Should show:
-# RMW middleware: rmw_zenoh_rs
-</code></pre>
-<p>List available RMW implementations:</p>
-<pre><code class="language-bash">ros2 run rmw_implementation_cmake check_rmw_implementation
-
-# Should list rmw_zenoh_rs among others
-</code></pre>
-<h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
-<ul>
-<li><strong><a href="./building.html">Building</a></strong> - Learn about building the complete ros-z stack</li>
-<li><strong><a href="./config.html">Networking</a></strong> - Configure Zenoh networking</li>
-<li><strong><a href="./pubsub.html">Pub/Sub</a></strong> - Use ros-z primitives directly in Rust</li>
-<li><strong><a href="./python.html">Python Bindings</a></strong> - Use ros-z from Python</li>
-</ul>
+<p>rmw_zenoh_rs uses the same Zenoh configuration as rmw_zenoh_cpp. See <a href="./config_options.html">Configuration Options</a> for details.</p>
 <h2 id="see-also"><a class="header" href="#see-also">See Also</a></h2>
 <ul>
 <li><a href="https://zenoh.io/docs/">Zenoh Documentation</a></li>
