@@ -49,6 +49,11 @@ impl ZSerializer for DynamicCdrSerdes {
             .expect("DynamicMessage CDR serialization failed")
     }
 
+    fn serialize_to_zbuf_with_hint(input: &DynamicMessage, _capacity_hint: usize) -> ZBuf {
+        // DynamicMessage doesn't use capacity hints (it has its own serialization path)
+        Self::serialize_to_zbuf(input)
+    }
+
     fn serialize_to_shm(
         input: &DynamicMessage,
         _estimated_size: usize,
