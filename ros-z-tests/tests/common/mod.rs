@@ -485,3 +485,43 @@ pub fn create_ros_z_context_ros2dds_with_endpoint(endpoint: &str) -> ros_z::Resu
         .with_logging_enabled()
         .build()
 }
+
+/// Spawn a ROS 2 add_two_ints_server using CycloneDDS
+#[cfg(feature = "ros2dds-interop")]
+#[allow(dead_code)]
+pub fn spawn_ros2_cyclone_add_two_ints_server() -> ProcessGuard {
+    use std::os::unix::process::CommandExt;
+
+    let child = Command::new("ros2")
+        .args(["run", "demo_nodes_cpp", "add_two_ints_server"])
+        .env("RMW_IMPLEMENTATION", "rmw_cyclonedds_cpp")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .process_group(0)
+        .spawn()
+        .expect("Failed to spawn ROS 2 CycloneDDS add_two_ints_server");
+
+    // Wait for the service server to be ready
+    thread::sleep(Duration::from_secs(2));
+
+    ProcessGuard::new(child, "ros2_cyclone_add_two_ints_server")
+}
+
+/// Spawn a ROS 2 add_two_ints_client using CycloneDDS
+#[cfg(feature = "ros2dds-interop")]
+#[allow(dead_code)]
+pub fn spawn_ros2_cyclone_add_two_ints_client(a: i64, b: i64) -> ProcessGuard {
+    use std::os::unix::process::CommandExt;
+
+    let child = Command::new("ros2")
+        .args(["run", "demo_nodes_cpp", "add_two_ints_client"])
+        .args([&a.to_string(), &b.to_string()])
+        .env("RMW_IMPLEMENTATION", "rmw_cyclonedds_cpp")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .process_group(0)
+        .spawn()
+        .expect("Failed to spawn ROS 2 CycloneDDS add_two_ints_client");
+
+    ProcessGuard::new(child, "ros2_cyclone_add_two_ints_client")
+}

@@ -13,6 +13,18 @@ use tokio::sync::broadcast;
 
 use super::{events::SystemEvent, metrics::MetricsCollector};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Backend {
+    RmwZenoh,
+    Ros2Dds,
+}
+
+impl Default for Backend {
+    fn default() -> Self {
+        Self::RmwZenoh
+    }
+}
+
 pub struct CoreEngine {
     pub session: Arc<zenoh::Session>,
     pub graph: Arc<Mutex<Graph>>,
@@ -20,6 +32,7 @@ pub struct CoreEngine {
     pub event_tx: broadcast::Sender<SystemEvent>,
     pub domain_id: usize,
     pub router_addr: String,
+    pub backend: Backend,
     pub is_connected: Arc<AtomicBool>,
 }
 
@@ -27,7 +40,10 @@ impl CoreEngine {
     pub async fn new(
         router_addr: &str,
         domain_id: usize,
+        backend: impl Into<Backend>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        let backend = backend.into();
+
         // Initialize Zenoh session in peer mode (doesn't require immediate router connection)
         let mut config = zenoh::Config::default();
         config.insert_json5("mode", "\"peer\"")?;
@@ -55,6 +71,7 @@ impl CoreEngine {
             event_tx,
             domain_id,
             router_addr: router_addr.to_string(),
+            backend,
             is_connected: Arc::new(AtomicBool::new(true)),
         })
     }

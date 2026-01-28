@@ -205,3 +205,141 @@ fn test_ros_z_pub_to_ros2_dds_sub() {
 
     println!("Test passed: ros-z talker published messages to ROS 2 DDS listener via zenoh-bridge-ros2dds");
 }
+
+/// Test: ROS 2 CycloneDDS service server -> ros-z client (via zenoh-bridge-ros2dds)
+///
+/// This test verifies that ros-z can call services provided by a standard ROS 2 node
+/// using DDS, with zenoh-bridge-ros2dds translating between DDS and Zenoh.
+#[test]
+fn test_ros2_dds_service_server_to_ros_z_client() {
+    if !check_ros2_available() {
+        eprintln!("Skipping test: ros2 CLI not available");
+        return;
+    }
+    if !check_demo_nodes_cpp_available() {
+        eprintln!("Skipping test: demo_nodes_cpp not available");
+        return;
+    }
+    if !check_zenoh_bridge_ros2dds_available() {
+        eprintln!("Skipping test: zenoh-bridge-ros2dds not available");
+        return;
+    }
+
+    println!("\n=== Test: ROS2 DDS service server -> ros-z client (via zenoh-bridge-ros2dds) ===");
+
+    // Step 1: Start zenoh-bridge-ros2dds (acts as router)
+    let _bridge = spawn_zenoh_bridge_ros2dds();
+    println!("Bridge started");
+
+    // Step 2: Start ROS 2 service server using CycloneDDS
+    let _server = spawn_ros2_cyclone_add_two_ints_server();
+    println!("ROS 2 service server started");
+
+    wait_for_ready(Duration::from_secs(2));
+
+    // Step 3: Call service using ros-z client with ros2dds backend
+    tokio::runtime::Runtime::new().unwrap().block_on(async {
+        let ctx = create_ros_z_context_ros2dds()
+            .expect("Failed to create ros-z context");
+
+        // Create node and client with ros2dds backend
+        use ros_z::{Builder, backend::Ros2DdsBackend};
+        use ros_z_msgs::example_interfaces::{srv::AddTwoInts, AddTwoIntsRequest};
+
+        let node = ctx.create_node("add_two_ints_client").build().expect("Failed to create node");
+        let client = node
+            .create_client::<AddTwoInts>("add_two_ints")
+            .with_backend::<Ros2DdsBackend>()
+            .build()
+            .expect("Failed to create client");
+
+        let req = AddTwoIntsRequest { a: 15, b: 27 };
+        println!("Sending request: {} + {}", req.a, req.b);
+
+        client.send_request(&req).await.expect("Failed to send request");
+
+        match client.take_response_timeout(Duration::from_secs(10)) {
+            Ok(resp) => {
+                println!("Received response: {}", resp.sum);
+                assert_eq!(resp.sum, 42, "Expected 15 + 27 = 42, got {}", resp.sum);
+            }
+            Err(e) => {
+                panic!("Failed to receive response: {}", e);
+            }
+        }
+    });
+
+    println!("Test passed: ros-z client called ROS 2 DDS service server via zenoh-bridge-ros2dds");
+}
+
+/// Test: ros-z service server -> ROS 2 CycloneDDS client (via zenoh-bridge-ros2dds)
+///
+/// This test verifies that standard ROS 2 nodes can call services provided by ros-z
+/// using DDS, with zenoh-bridge-ros2dds translating between Zenoh and DDS.
+#[test]
+fn test_ros_z_service_server_to_ros2_dds_client() {
+    if !check_ros2_available() {
+        eprintln!("Skipping test: ros2 CLI not available");
+        return;
+    }
+    if !check_demo_nodes_cpp_available() {
+        eprintln!("Skipping test: demo_nodes_cpp not available");
+        return;
+    }
+    if !check_zenoh_bridge_ros2dds_available() {
+        eprintln!("Skipping test: zenoh-bridge-ros2dds not available");
+        return;
+    }
+
+    println!("\n=== Test: ros-z service server -> ROS2 DDS client (via zenoh-bridge-ros2dds) ===");
+
+    // Step 1: Start zenoh-bridge-ros2dds (acts as router)
+    let _bridge = spawn_zenoh_bridge_ros2dds();
+    println!("Bridge started");
+
+    // Step 2: Start ros-z service server using ros2dds backend
+    let server_handle = std::thread::spawn(move || {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let ctx = create_ros_z_context_ros2dds()
+                .expect("Failed to create ros-z context");
+
+            // Create node and server with ros2dds backend
+            use ros_z::{Builder, backend::Ros2DdsBackend};
+            use ros_z_msgs::example_interfaces::{srv::AddTwoInts, AddTwoIntsResponse};
+
+            let node = ctx.create_node("add_two_ints_server").build().expect("Failed to create node");
+            let mut server = node
+                .create_service::<AddTwoInts>("add_two_ints")
+                .with_backend::<Ros2DdsBackend>()
+                .build()
+                .expect("Failed to create service server");
+
+            println!("ros-z service server ready");
+
+            // Handle one request
+            match server.take_request_async().await {
+                Ok((key, req)) => {
+                    println!("Received request: {} + {}", req.a, req.b);
+                    let resp = AddTwoIntsResponse { sum: req.a + req.b };
+                    server.send_response(&resp, &key).expect("Failed to send response");
+                    println!("Sent response: {}", resp.sum);
+                }
+                Err(e) => {
+                    eprintln!("Failed to receive request: {}", e);
+                }
+            }
+        });
+    });
+
+    wait_for_ready(Duration::from_secs(3));
+
+    // Step 3: Call service using ROS 2 client
+    println!("Calling service from ROS 2 client");
+    let _client = spawn_ros2_cyclone_add_two_ints_client(10, 20);
+
+    // Wait for server to complete
+    wait_for_ready(Duration::from_secs(3));
+    server_handle.join().expect("Server thread panicked");
+
+    println!("Test passed: ROS 2 DDS client called ros-z service server via zenoh-bridge-ros2dds");
+}
