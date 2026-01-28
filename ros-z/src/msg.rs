@@ -152,8 +152,20 @@ where
     type Error = CdrError;
 
     fn deserialize(input: Self::Input<'_>) -> Result<Self::Output, Self::Error> {
-        // Skip the first four bytes (CDR encapsulation header)
-        let x = ros_z_cdr::from_bytes::<T, byteorder::LittleEndian>(&input[4..])
+        if input.len() < 4 {
+            return Err(CdrError(
+                "CDR data too short for header".into(),
+            ));
+        }
+        let header = &input[0..4];
+        let representation_identifier = &header[0..2];
+        if representation_identifier != [0x00, 0x01] {
+            return Err(CdrError(
+                format!("Expected CDR_LE encapsulation ({:?}), found {:?}", [0x00, 0x01], representation_identifier),
+            ));
+        }
+        let payload = &input[4..];
+        let x = ros_z_cdr::from_bytes::<T, byteorder::LittleEndian>(payload)
             .map_err(|e| CdrError(e.to_string()))?;
         Ok(x.0)
     }

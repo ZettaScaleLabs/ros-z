@@ -39,11 +39,17 @@ pub fn deserialize_cdr(
 ) -> Result<DynamicMessage, DynamicError> {
     if data.len() < 4 {
         return Err(DynamicError::DeserializationError(
-            "CDR data too short for header".to_string(),
+            "CDR data too short for header".into(),
+        ));
+    }
+    let header = &data[0..4];
+    let representation_identifier = &header[0..2];
+    if representation_identifier != [0x00, 0x01] {
+        return Err(DynamicError::DeserializationError(
+            format!("Expected CDR_LE encapsulation ({:?}), found {:?}", [0x00, 0x01], representation_identifier),
         ));
     }
 
-    // Skip the 4-byte CDR header
     let payload = &data[4..];
     let mut reader = CdrReader::<LittleEndian>::new(payload);
     deserialize_message(schema, &mut reader)
