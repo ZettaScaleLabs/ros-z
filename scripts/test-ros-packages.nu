@@ -107,6 +107,9 @@ def main [
         print "Building rmw_zenoh_rs and dependencies..."
         colcon build --base-paths ...($scan_paths) --packages-up-to rmw_zenoh_rs --symlink-install
 
+        print $"Building test packages: ($packages | str join ', ')..."
+        colcon build --base-paths ...($scan_paths) --packages-select ...($packages) --symlink-install
+
         if $build_only {
             print "Build complete (--build-only specified, skipping tests)"
             return

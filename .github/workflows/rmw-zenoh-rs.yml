@@ -2,18 +2,9 @@ name: rmw_zenoh_rs Tests
 
 on:
   push:
-    branches: [main, dev/rmw-zenoh-rs]
-    paths:
-      - 'rmw-zenoh-rs/**'
-      - 'ros-z/**'
-      - 'ros-z-cdr/**'
-      - 'scripts/test-ros-packages.nu'
-      - '.github/workflows/rmw-zenoh-rs.yml'
+    branches: [main]
   pull_request:
-    paths:
-      - 'rmw-zenoh-rs/**'
-      - 'ros-z/**'
-      - 'ros-z-cdr/**'
+    branches: [main]
   workflow_dispatch:
     inputs:
       test_filter:
