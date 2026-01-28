@@ -314,7 +314,7 @@ fn test_multiple_publishers_different_thresholds() {
     // Multiple publishers with different SHM configs
     // Use smaller pool sizes to avoid exhausting system SHM limits
     let ctx = ZContextBuilder::default()
-        .with_shm_pool_size(1 * 1024 * 1024) // 1MB is enough for test
+        .with_shm_pool_size(1024 * 1024) // 1MB is enough for test
         .expect("Failed to enable SHM")
         .with_shm_threshold(5_000)
         .build()

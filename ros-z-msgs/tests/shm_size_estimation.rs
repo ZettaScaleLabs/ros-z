@@ -178,8 +178,8 @@ fn test_laserscan_shm_serialization_with_accurate_estimate() {
             stamp: Time { sec: 0, nanosec: 0 },
             frame_id: "laser".to_string(),
         },
-        angle_min: -3.14159,
-        angle_max: 3.14159,
+        angle_min: -std::f32::consts::PI,
+        angle_max: std::f32::consts::PI,
         angle_increment: 0.01,
         time_increment: 0.0001,
         scan_time: 0.1,
@@ -285,10 +285,7 @@ fn test_multiple_messages_share_shm_pool() {
         let data = vec![i as u8; 100_000]; // 100KB each
         let image = Image {
             header: Header {
-                stamp: Time {
-                    sec: i as i32,
-                    nanosec: 0,
-                },
+                stamp: Time { sec: i, nanosec: 0 },
                 frame_id: format!("camera_{}", i),
             },
             height: 100,
