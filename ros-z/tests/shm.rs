@@ -17,7 +17,7 @@ use zenoh_buffers::{
 fn test_shm_pubsub_large_message() {
     // Setup context with SHM enabled
     let ctx = ZContextBuilder::default()
-        .with_shm_pool_size(5 * 1024 * 1024)
+        .with_shm_pool_size(512 * 1024) // 512KB is enough for tests
         .expect("Failed to enable SHM")
         .with_shm_threshold(1000)
         .build()
@@ -72,7 +72,7 @@ fn test_shm_pubsub_large_message() {
 fn test_shm_pubsub_small_message() {
     // Setup context with SHM enabled but high threshold
     let ctx = ZContextBuilder::default()
-        .with_shm_pool_size(5 * 1024 * 1024)
+        .with_shm_pool_size(512 * 1024) // 512KB is enough for tests
         .expect("Failed to enable SHM")
         .with_shm_threshold(10_000) // 10KB threshold
         .build()
@@ -125,7 +125,7 @@ fn test_shm_pubsub_small_message() {
 fn test_shm_threshold_boundary() {
     // Test message exactly at threshold
     let ctx = ZContextBuilder::default()
-        .with_shm_pool_size(5 * 1024 * 1024)
+        .with_shm_pool_size(512 * 1024) // 512KB is enough for tests
         .expect("Failed to enable SHM")
         .with_shm_threshold(5_000) // Exactly 5KB
         .build()
@@ -168,7 +168,7 @@ fn test_shm_threshold_boundary() {
 fn test_shm_config_hierarchy_node_override() {
     // Context has SHM with one config, node overrides with another
     let ctx = ZContextBuilder::default()
-        .with_shm_pool_size(10 * 1024 * 1024)
+        .with_shm_pool_size(512 * 1024) // 512KB is enough for tests
         .expect("Failed to enable SHM")
         .with_shm_threshold(10_000) // 10KB at context level
         .build()
@@ -176,7 +176,7 @@ fn test_shm_config_hierarchy_node_override() {
 
     // Node overrides with lower threshold
     let provider = Arc::new(
-        ShmProviderBuilder::new(5 * 1024 * 1024)
+        ShmProviderBuilder::new(512 * 1024) // 512KB is enough for test
             .build()
             .expect("Failed to create SHM provider"),
     );
@@ -220,7 +220,7 @@ fn test_shm_config_hierarchy_node_override() {
 fn test_without_shm() {
     // Context has SHM enabled, but publisher explicitly disables it
     let ctx = ZContextBuilder::default()
-        .with_shm_pool_size(5 * 1024 * 1024)
+        .with_shm_pool_size(512 * 1024) // 512KB is enough for tests
         .expect("Failed to enable SHM")
         .with_shm_threshold(1_000)
         .build()
@@ -275,7 +275,7 @@ fn test_publisher_shm_override() {
 
     // Publisher has its own SHM config
     let provider = Arc::new(
-        ShmProviderBuilder::new(5 * 1024 * 1024)
+        ShmProviderBuilder::new(512 * 1024) // 512KB is enough for test
             .build()
             .expect("Failed to create SHM provider"),
     );
@@ -312,8 +312,9 @@ fn test_publisher_shm_override() {
 #[test]
 fn test_multiple_publishers_different_thresholds() {
     // Multiple publishers with different SHM configs
+    // Use smaller pool sizes to avoid exhausting system SHM limits
     let ctx = ZContextBuilder::default()
-        .with_shm_pool_size(10 * 1024 * 1024)
+        .with_shm_pool_size(1 * 1024 * 1024) // 1MB is enough for test
         .expect("Failed to enable SHM")
         .with_shm_threshold(5_000)
         .build()
@@ -332,7 +333,7 @@ fn test_multiple_publishers_different_thresholds() {
 
     // Publisher 2: lower threshold
     let provider2 = Arc::new(
-        ShmProviderBuilder::new(5 * 1024 * 1024)
+        ShmProviderBuilder::new(512 * 1024) // 512KB is enough for test
             .build()
             .expect("Failed to create SHM provider 2"),
     );
