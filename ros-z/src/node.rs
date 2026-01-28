@@ -24,6 +24,7 @@ pub struct ZNode {
     pub graph: Arc<Graph>,
     pub remap_rules: RemapRules,
     _lv_token: LivelinessToken,
+    pub(crate) shm_config: Option<Arc<crate::shm::ShmConfig>>,
 }
 
 pub struct ZNodeBuilder {
@@ -35,6 +36,7 @@ pub struct ZNodeBuilder {
     pub counter: Arc<GlobalCounter>,
     pub graph: Arc<Graph>,
     pub remap_rules: RemapRules,
+    pub(crate) shm_config: Option<Arc<crate::shm::ShmConfig>>,
 }
 
 impl ZNodeBuilder {
@@ -47,6 +49,33 @@ impl ZNodeBuilder {
         } else {
             ns.to_owned()
         };
+        self
+    }
+
+    /// Override SHM configuration for this node (and its publishers).
+    ///
+    /// This overrides the context-level SHM configuration for all publishers
+    /// created from this node.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use ros_z::shm::{ShmConfig, ShmProviderBuilder};
+    /// use ros_z::Builder;
+    /// use std::sync::Arc;
+    ///
+    /// # fn main() -> zenoh::Result<()> {
+    /// # let ctx = ros_z::context::ZContextBuilder::default().build()?;
+    /// let provider = Arc::new(ShmProviderBuilder::new(20 * 1024 * 1024).build()?);
+    /// let config = ShmConfig::new(provider).with_threshold(5_000);
+    ///
+    /// let node = ctx.create_node("my_node")
+    ///     .with_shm_config(config)
+    ///     .build()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_shm_config(mut self, config: crate::shm::ShmConfig) -> Self {
+        self.shm_config = Some(Arc::new(config));
         self
     }
 }
@@ -90,6 +119,7 @@ impl Builder for ZNodeBuilder {
             _lv_token: lv_token,
             graph: self.graph,
             remap_rules: self.remap_rules,
+            shm_config: self.shm_config,
         })
     }
 }
@@ -132,6 +162,7 @@ impl ZNode {
             entity,
             session: self.session.clone(),
             with_attachment: true,
+            shm_config: self.shm_config.clone(),
             _phantom_data: Default::default(),
         }
     }

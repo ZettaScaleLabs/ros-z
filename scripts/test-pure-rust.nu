@@ -38,6 +38,16 @@ def check-console [] {
     run-cmd "cargo clippy -p ros-z-console -- -D warnings"
 }
 
+def test-shm [] {
+    log-step "Test SHM functionality"
+    # Library unit tests (ShmConfig, ShmProviderBuilder)
+    run-cmd "cargo test --package ros-z --lib shm"
+    # Integration-style unit tests (pub/sub with SHM)
+    run-cmd "cargo test --package ros-z --test shm"
+    # Integration tests (validate shm_pointcloud2 example)
+    run-cmd "cargo test --package ros-z-tests --test shm_example"
+}
+
 # ============================================================================
 # Test Suite Configuration
 # ============================================================================
@@ -48,6 +58,7 @@ def get-test-map [] {
         run-tests: { run-tests }
         check-bundled-msgs: { check-bundled-msgs }
         check-console: { check-console }
+        test-shm: { test-shm }
     }
 }
 
@@ -57,6 +68,7 @@ def get-test-pipeline [] {
         "run-tests"
         "check-bundled-msgs"
         "check-console"
+        "test-shm"
     ]
 }
 

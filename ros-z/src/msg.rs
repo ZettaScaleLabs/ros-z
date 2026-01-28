@@ -28,6 +28,52 @@ pub trait ZSerializer {
     /// optimized for Zenoh publishing without intermediate copies.
     fn serialize_to_zbuf(input: Self::Input<'_>) -> ZBuf;
 
+    /// Serialize directly to shared memory for zero-copy publishing.
+    ///
+    /// This method serializes the message directly into a pre-allocated SHM buffer,
+    /// avoiding any intermediate copies. This matches the rmw_zenoh_cpp approach.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - The message to serialize
+    /// * `estimated_size` - Conservative upper bound on serialized size
+    /// * `provider` - SHM provider for buffer allocation
+    ///
+    /// # Returns
+    ///
+    /// A tuple of (ZBuf, actual_size) where:
+    /// - ZBuf is backed by SHM
+    /// - actual_size is the exact number of bytes written
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if SHM allocation fails.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use ros_z::msg::{ZSerializer, CdrSerdes};
+    /// use ros_z::shm::ShmProviderBuilder;
+    /// use serde::Serialize;
+    ///
+    /// # fn main() -> zenoh::Result<()> {
+    /// #[derive(Serialize)]
+    /// struct MyMsg { value: u32 }
+    ///
+    /// let msg = MyMsg { value: 42 };
+    /// let provider = ShmProviderBuilder::new(1024 * 1024).build()?;
+    ///
+    /// let (zbuf, size) = CdrSerdes::<MyMsg>::serialize_to_shm(&msg, 128, &provider)?;
+    /// println!("Serialized {} bytes to SHM", size);
+    /// # Ok(())
+    /// # }
+    /// ```
+    fn serialize_to_shm(
+        input: Self::Input<'_>,
+        estimated_size: usize,
+        provider: &zenoh::shm::ShmProvider<zenoh::shm::PosixShmProviderBackend>,
+    ) -> zenoh::Result<(ZBuf, usize)>;
+
     /// Serialize to an existing buffer, returning the result as ZBuf.
     ///
     /// This variant allows buffer reuse for reduced allocations.
@@ -79,6 +125,43 @@ pub trait ZMessage: Send + Sync + Sized + 'static {
     {
         Self::Serdes::deserialize(input)
     }
+
+    /// Get an estimated upper bound on the serialized size of this message.
+    ///
+    /// This is used to pre-allocate SHM buffers for zero-copy serialization.
+    /// The estimate should be conservative (larger than actual) to avoid buffer overflow.
+    ///
+    /// Default implementation returns 2x the size of the type, which is conservative
+    /// for most messages. Override for better estimates if needed.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use ros_z::msg::ZMessage;
+    /// use serde::{Serialize, Deserialize};
+    ///
+    /// #[derive(Serialize, Deserialize)]
+    /// struct MyMessage {
+    ///     data: Vec<u8>,
+    ///     count: u32,
+    /// }
+    ///
+    /// // Custom implementation for better estimation
+    /// impl MyMessage {
+    ///     fn estimate_size(&self) -> usize {
+    ///         4 + // CDR header
+    ///         4 + // sequence length prefix for Vec
+    ///         self.data.len() + // actual data
+    ///         4 + // count field
+    ///         16  // padding/alignment buffer
+    ///     }
+    /// }
+    /// ```
+    fn estimated_serialized_size(&self) -> usize {
+        // Conservative default: 2x struct size + CDR header
+        // This works well for structs with few dynamic fields
+        std::mem::size_of::<Self>() * 2 + 4
+    }
 }
 
 // Blanket implementation for serde-compatible types using CDR
@@ -118,6 +201,31 @@ where
 
         // Convert to ZBuf (transfers ownership, no copy)
         writer.into_zbuf()
+    }
+
+    fn serialize_to_shm(
+        input: &T,
+        estimated_size: usize,
+        provider: &zenoh::shm::ShmProvider<zenoh::shm::PosixShmProviderBackend>,
+    ) -> zenoh::Result<(ZBuf, usize)> {
+        // Create SHM writer with estimated size
+        let mut writer = crate::shm::ShmWriter::new(provider, estimated_size)?;
+
+        // Write CDR header
+        writer.extend_from_slice(&CDR_HEADER_LE);
+
+        // Serialize payload directly to SHM buffer
+        let mut serializer = CdrSerializer::<LittleEndian, crate::shm::ShmWriter>::new(&mut writer);
+        input.serialize(&mut serializer)
+            .map_err(|e| zenoh::Error::from(format!("CDR serialization failed: {}", e)))?;
+
+        // Get actual serialized size
+        let actual_size = writer.position();
+
+        // Convert to ZBuf (SHM-backed, zero-copy!)
+        let zbuf = writer.into_zbuf()?;
+
+        Ok((zbuf, actual_size))
     }
 
     fn serialize(input: &T) -> Vec<u8> {
@@ -189,6 +297,30 @@ where
     fn serialize_to_zbuf(input: &T) -> ZBuf {
         // Use prost's builtin encode_to_vec and wrap in ZBuf
         ZBuf::from(input.encode_to_vec())
+    }
+
+    fn serialize_to_shm(
+        input: &T,
+        estimated_size: usize,
+        provider: &zenoh::shm::ShmProvider<zenoh::shm::PosixShmProviderBackend>,
+    ) -> zenoh::Result<(ZBuf, usize)> {
+        // For protobuf, we serialize to Vec first then copy to SHM
+        // (protobuf doesn't support custom writers like CDR does)
+        let data = input.encode_to_vec();
+        let actual_size = data.len();
+
+        use zenoh::shm::{BlockOn, GarbageCollect};
+        use zenoh::Wait;
+
+        let mut shm_buf = provider
+            .alloc(estimated_size.max(actual_size))
+            .with_policy::<BlockOn<GarbageCollect>>()
+            .wait()
+            .map_err(|e| zenoh::Error::from(format!("SHM allocation failed: {}", e)))?;
+
+        shm_buf[0..actual_size].copy_from_slice(&data);
+
+        Ok((ZBuf::from(shm_buf), actual_size))
     }
 
     fn serialize(input: &T) -> Vec<u8> {
