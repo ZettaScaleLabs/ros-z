@@ -33,7 +33,9 @@ jobs:
             ros-jazzy-rosidl-typesupport-fastrtps-c \
             ros-jazzy-rosidl-typesupport-fastrtps-cpp \
             ros-jazzy-rmw-zenoh-cpp \
-            ros-jazzy-demo-nodes-cpp
+            ros-jazzy-demo-nodes-cpp \
+            ros-jazzy-mimick-vendor \
+            ros-jazzy-test-msgs
 
       - name: Checkout ros-z
         uses: actions/checkout@v4
