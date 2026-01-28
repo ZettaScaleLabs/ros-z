@@ -20,17 +20,20 @@ ros-z provides two backend implementations:
 The RmwZenoh backend is designed for compatibility with ROS 2's official Zenoh middleware implementation.
 
 **Key Expression Format:**
-```
+
+```text
 <domain_id>/<topic>/**
 ```
 
 **Example:**
-```
+
+```text
 0/chatter/**         # Domain 0, topic /chatter
 5/robot/status/**    # Domain 5, topic /robot/status
 ```
 
 **Use this backend when:**
+
 - Using `rmw_zenoh_cpp` as your ROS 2 middleware
 - Running pure ros-z deployments
 - Requiring domain isolation via Zenoh
@@ -40,17 +43,20 @@ The RmwZenoh backend is designed for compatibility with ROS 2's official Zenoh m
 The Ros2Dds backend is designed for compatibility with `zenoh-bridge-ros2dds`, which bridges standard DDS-based ROS 2 nodes to Zenoh.
 
 **Key Expression Format:**
-```
+
+```text
 <topic>/**
 ```
 
 **Example:**
-```
+
+```text
 chatter/**           # Topic /chatter (no domain prefix)
 robot/status/**      # Topic /robot/status
 ```
 
 **Use this backend when:**
+
 - Bridging existing DDS-based ROS 2 systems to Zenoh
 - Using `zenoh-bridge-ros2dds`
 - Integrating with CycloneDDS or FastDDS nodes via Zenoh
@@ -184,16 +190,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 **Running this example:**
 
 1. **Terminal 1 - Start zenoh-bridge-ros2dds:**
+
    ```bash
    zenoh-bridge-ros2dds
    ```
 
 2. **Terminal 2 - Start ROS 2 DDS talker:**
+
    ```bash
    ros2 run demo_nodes_cpp talker
    ```
 
 3. **Terminal 3 - Run ros-z listener:**
+
    ```bash
    cargo run --example dds_listener
    ```
@@ -214,10 +223,12 @@ ros-z-console --help
 ```
 
 **Backend parameter:**
+
 - `--backend rmw-zenoh` - Monitor rmw_zenoh systems (default)
 - `--backend ros2dds` - Monitor zenoh-bridge-ros2dds systems
 
 The backend choice affects:
+
 - Topic discovery key expressions
 - Rate measurement subscriptions
 - Multi-topic monitoring

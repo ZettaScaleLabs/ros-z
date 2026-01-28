@@ -19,18 +19,13 @@ use crossterm::{
 use export::export_and_exit;
 use ratatui::{Terminal, backend::CrosstermBackend};
 
-#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq, Default)]
 enum Backend {
     /// rmw_zenoh backend (default) - compatible with rmw_zenoh nodes
+    #[default]
     RmwZenoh,
     /// ros2dds backend - compatible with zenoh-bridge-ros2dds
     Ros2Dds,
-}
-
-impl Default for Backend {
-    fn default() -> Self {
-        Self::RmwZenoh
-    }
 }
 
 impl From<Backend> for core::engine::Backend {

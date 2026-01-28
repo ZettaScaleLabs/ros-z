@@ -73,6 +73,7 @@ impl KeyExprBackend for RmwZenohBackend {
                     id: node_id,
                     name: node_name,
                     namespace: node_namespace,
+                    enclave: _,
                 },
             kind,
             topic: topic_name,
@@ -116,6 +117,7 @@ impl KeyExprBackend for RmwZenohBackend {
             id,
             name,
             namespace,
+            enclave: _,
         } = entity;
 
         let namespace = if namespace.is_empty() {
@@ -172,9 +174,9 @@ impl KeyExprBackend for RmwZenohBackend {
             .map_err(|_| ParsingError)?;
 
         // Enclave (not supported yet)
-        let _enclave = match iter.next().ok_or(MissingEnclave)? {
-            EMPTY_PLACEHOLDER => "",
-            _ => "",
+        let enclave = match iter.next().ok_or(MissingEnclave)? {
+            EMPTY_PLACEHOLDER => String::new(),
+            x => Self::demangle_name(x),
         };
 
         let namespace = match iter.next().ok_or(MissingNamespace)? {
@@ -189,6 +191,7 @@ impl KeyExprBackend for RmwZenohBackend {
             z_id,
             name: node_name,
             namespace,
+            enclave,
         };
 
         Ok(match entity_kind {

@@ -176,6 +176,7 @@ impl std::fmt::Display for QosDecodeError {
             Self::InvalidReliability => write!(f, "Invalid reliability value in QoS"),
             Self::InvalidDurability => write!(f, "Invalid durability value in QoS"),
             Self::InvalidHistory => write!(f, "Invalid history value in QoS"),
+            Self::InvalidHistoryDepth => write!(f, "Invalid history depth value in QoS"),
         }
     }
 }

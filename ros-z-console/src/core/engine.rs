@@ -13,16 +13,11 @@ use tokio::sync::broadcast;
 
 use super::{events::SystemEvent, metrics::MetricsCollector};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Backend {
+    #[default]
     RmwZenoh,
     Ros2Dds,
-}
-
-impl Default for Backend {
-    fn default() -> Self {
-        Self::RmwZenoh
-    }
 }
 
 pub struct CoreEngine {

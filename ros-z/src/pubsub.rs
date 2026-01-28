@@ -267,6 +267,7 @@ where
             entity: self.entity,
             session: self.session,
             dyn_schema: self.dyn_schema,
+            locality: self.locality,
             _phantom_data: PhantomData,
         }
     }
