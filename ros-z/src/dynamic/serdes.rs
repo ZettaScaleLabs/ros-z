@@ -49,6 +49,33 @@ impl ZSerializer for DynamicCdrSerdes {
             .expect("DynamicMessage CDR serialization failed")
     }
 
+    fn serialize_to_shm(
+        input: &DynamicMessage,
+        _estimated_size: usize,
+        provider: &zenoh::shm::ShmProvider<zenoh::shm::PosixShmProviderBackend>,
+    ) -> zenoh::Result<(ZBuf, usize)> {
+        // DynamicMessage uses primitives-based serialization, not serde
+        // So we serialize to Vec first, then copy to SHM
+        // This is similar to the protobuf approach
+        let data = input
+            .to_cdr()
+            .map_err(|e| zenoh::Error::from(format!("DynamicMessage serialization failed: {}", e)))?;
+        let actual_size = data.len();
+
+        use zenoh::shm::{BlockOn, GarbageCollect};
+        use zenoh::Wait;
+
+        let mut shm_buf = provider
+            .alloc(actual_size)
+            .with_policy::<BlockOn<GarbageCollect>>()
+            .wait()
+            .map_err(|e| zenoh::Error::from(format!("SHM allocation failed: {}", e)))?;
+
+        shm_buf[0..actual_size].copy_from_slice(&data);
+
+        Ok((ZBuf::from(shm_buf), actual_size))
+    }
+
     fn serialize(input: &DynamicMessage) -> Vec<u8> {
         input
             .to_cdr()
