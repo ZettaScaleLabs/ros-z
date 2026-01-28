@@ -4,7 +4,7 @@ use std::{marker::PhantomData, sync::Arc};
 
 use zenoh::liveliness::LivelinessToken;
 use zenoh::{Result, Session, Wait, sample::Sample};
-use tracing::{info, debug, trace, warn};
+use tracing::{debug, trace, warn};
 
 use crate::Builder;
 use crate::attachment::{Attachment, GidArray};
