@@ -1,13 +1,10 @@
 use std::{thread, time::Duration};
 
-use ros_z::{Builder, TypeHash, context::ZContextBuilder, ros_msg::MessageTypeInfo};
+use ros_z::{Builder, TypeHash, ZBuf, context::ZContextBuilder, ros_msg::MessageTypeInfo};
 use ros_z_msgs::std_msgs::ByteMultiArray;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use zenoh_buffers::{
-    ZBuf,
-    buffer::{Buffer, SplitBuffer},
-};
+use zenoh_buffers::buffer::{Buffer, SplitBuffer};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct TestMessage {

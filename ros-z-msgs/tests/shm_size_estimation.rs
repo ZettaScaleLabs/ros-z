@@ -8,10 +8,11 @@
 use std::sync::Arc;
 
 use ros_z::{
+    ZBuf,
     msg::{ZMessage, ZSerializer},
     shm::ShmProviderBuilder,
 };
-use zenoh_buffers::{ZBuf, buffer::Buffer};
+use zenoh_buffers::buffer::Buffer;
 
 #[test]
 fn test_pointcloud2_shm_serialization_with_accurate_estimate() {

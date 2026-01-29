@@ -17,6 +17,7 @@ pub mod ros_msg;
 pub mod service;
 pub mod shm;
 pub mod topic_name;
+pub mod zbuf;
 
 #[macro_use]
 pub mod utils;
@@ -24,6 +25,7 @@ pub mod utils;
 pub use attachment::GidArray;
 pub use entity::{TypeHash, TypeInfo};
 pub use ros_msg::{ActionTypeInfo, MessageTypeInfo, ServiceTypeInfo, WithTypeInfo};
+pub use zbuf::ZBuf;
 pub use zenoh::Result;
 
 pub trait Builder {

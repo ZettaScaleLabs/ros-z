@@ -10,12 +10,9 @@ use std::{
 
 use clap::Parser;
 use csv::Writer;
-use ros_z::{Builder, Result, context::ZContextBuilder};
+use ros_z::{Builder, Result, ZBuf, context::ZContextBuilder};
 use ros_z_msgs::std_msgs::ByteMultiArray;
-use zenoh_buffers::{
-    ZBuf,
-    buffer::{Buffer, SplitBuffer},
-};
+use zenoh_buffers::buffer::{Buffer, SplitBuffer};
 
 #[derive(Debug, Parser)]
 struct Args {
