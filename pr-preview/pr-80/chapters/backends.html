@@ -239,6 +239,8 @@ robot/status/**      # Topic /robot/status
 <pre><code class="language-rust ignore">use ros_z::{Builder, backend::{RmwZenohBackend, Ros2DdsBackend}};
 use ros_z::qos::{QosProfile, QosHistory};
 use ros_z_msgs::std_msgs::String as RosString;
+use ros_z_msgs::example_interfaces::srv::AddTwoInts;
+use ros_z_msgs::action_tutorials_interfaces::action::Fibonacci;
 
 // Create context and node
 let ctx = ZContextBuilder::default().build()?;
@@ -254,6 +256,30 @@ let pub_rmw = node
 let sub_dds = node
     .create_sub::&lt;RosString&gt;("chatter")
     .with_backend::&lt;Ros2DdsBackend&gt;()   // DDS bridge compatibility
+    .build()?;
+
+// Service client with RmwZenoh backend
+let client = node
+    .create_client::&lt;AddTwoInts&gt;("add_two_ints")
+    .with_backend::&lt;RmwZenohBackend&gt;()
+    .build()?;
+
+// Service server with Ros2Dds backend
+let mut server = node
+    .create_service::&lt;AddTwoInts&gt;("add_two_ints")
+    .with_backend::&lt;Ros2DdsBackend&gt;()
+    .build()?;
+
+// Action client with RmwZenoh backend
+let action_client = node
+    .create_action_client::&lt;Fibonacci&gt;("fibonacci")
+    .with_backend::&lt;RmwZenohBackend&gt;()
+    .build()?;
+
+// Action server with Ros2Dds backend
+let mut action_server = node
+    .create_action_server::&lt;Fibonacci&gt;("fibonacci")
+    .with_backend::&lt;Ros2DdsBackend&gt;()
     .build()?;</code></pre>
 <p><strong>Key points:</strong></p>
 <ul>
@@ -269,6 +295,18 @@ let pub1 = node.create_pub::&lt;RosString&gt;("topic").build()?;
 let pub2 = node.create_pub::&lt;RosString&gt;("topic")
     .with_backend::&lt;RmwZenohBackend&gt;()
     .build()?;</code></pre>
+<h3 id="multiple-backend-features"><a class="header" href="#multiple-backend-features">Multiple Backend Features</a></h3>
+<p>When both <code>rmw-zenoh</code> and <code>ros2dds</code> feature flags are enabled in <code>Cargo.toml</code>:</p>
+<pre><code class="language-toml">[dependencies]
+ros-z = { version = "0.1", features = ["rmw-zenoh", "ros2dds"] }
+</code></pre>
+<p><strong>Default behavior</strong>: <code>RmwZenohBackend</code> is used by default (more established, backwards compatible).</p>
+<p>To use the ros2dds backend, explicitly specify it:</p>
+<pre><code class="language-rust ignore">let publisher = node
+    .create_pub::&lt;RosString&gt;("chatter")
+    .with_backend::&lt;Ros2DdsBackend&gt;()  // Explicit opt-in
+    .build()?;</code></pre>
+<p><strong>Rationale</strong>: The <code>rmw-zenoh</code> backend is more established and maintains backwards compatibility with existing ros-z deployments. The <code>ros2dds</code> backend requires explicit opt-in to ensure users are aware they're using bridge-compatible key expressions.</p>
 <h2 id="architecture-diagrams"><a class="header" href="#architecture-diagrams">Architecture Diagrams</a></h2>
 <h3 id="rmwzenoh-backend-architecture"><a class="header" href="#rmwzenoh-backend-architecture">RmwZenoh Backend Architecture</a></h3>
 <pre class="mermaid">graph LR
