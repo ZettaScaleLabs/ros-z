@@ -51,7 +51,7 @@ zenoh = { workspace = true, default-features = false, features = [
 prost-build = { workspace = true, optional = true }
 
 [features]
-default = ["config-builders", "jazzy"]
+default = ["config-builders", "jazzy", "rmw-zenoh"]
 config-builders = []
 generate-configs = []
 protobuf = ["prost", "prost-build"]
@@ -59,6 +59,12 @@ python = ["pyo3"]
 rmw = []
 # Dynamic message schema loading from .msg files (optional)
 dynamic-schema-loader = ["ros-z-codegen"]
+
+# Backend selection for Zenoh key expression format
+# rmw-zenoh: Compatible with rmw_zenoh (domain/topic/type/hash format)
+# ros2dds: Compatible with zenoh-plugin-ros2dds (simple topic format)
+rmw-zenoh = []
+ros2dds = []
 
 # ROS 2 distro compatibility features
 # Default is jazzy (recommended for new projects)
@@ -144,6 +150,17 @@ name = "z_srvcli"
 name = "zenoh_router"
 path = "examples/zenoh_router.rs"
 required-features = []
+
+# ros2dds backend examples for interop with zenoh-plugin-ros2dds
+[[example]]
+name = "z_pubsub_ros2dds"
+path = "examples/z_pubsub_ros2dds.rs"
+required-features = ["ros2dds"]
+
+[[example]]
+name = "z_srvcli_ros2dds"
+path = "examples/z_srvcli_ros2dds.rs"
+required-features = ["ros2dds"]
 
 # Dynamic message examples
 [[example]]

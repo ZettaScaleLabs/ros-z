@@ -37,7 +37,7 @@ pub mod goal_state {
 ///     .build()?;
 /// # Ok::<(), zenoh::Error>(())
 /// ```
-pub struct ZActionClientBuilder<'a, A: ZAction> {
+pub struct ZActionClientBuilder<'a, A: ZAction, B = crate::backend::DefaultBackend> {
     /// The name of the action.
     pub action_name: String,
     /// Reference to the node that will own this client.
@@ -52,20 +52,20 @@ pub struct ZActionClientBuilder<'a, A: ZAction> {
     pub feedback_topic_qos: Option<QosProfile>,
     /// QoS profile for the status topic.
     pub status_topic_qos: Option<QosProfile>,
-    /// Phantom data for the action type.
-    pub _phantom: std::marker::PhantomData<A>,
+    /// Phantom data for the action type and backend.
+    pub _phantom: std::marker::PhantomData<(A, B)>,
 }
 
-impl<'a, A: ZAction> ZActionClientBuilder<'a, A> {
-    pub fn new(action_name: &str, node: &'a crate::node::ZNode) -> Self {
-        Self {
-            action_name: action_name.to_string(),
-            node,
-            goal_service_qos: None,
-            result_service_qos: None,
-            cancel_service_qos: None,
-            feedback_topic_qos: None,
-            status_topic_qos: None,
+impl<'a, A: ZAction, B> ZActionClientBuilder<'a, A, B> {
+    pub fn with_backend<B2: crate::backend::KeyExprBackend>(self) -> ZActionClientBuilder<'a, A, B2> {
+        ZActionClientBuilder {
+            action_name: self.action_name,
+            node: self.node,
+            goal_service_qos: self.goal_service_qos,
+            result_service_qos: self.result_service_qos,
+            cancel_service_qos: self.cancel_service_qos,
+            feedback_topic_qos: self.feedback_topic_qos,
+            status_topic_qos: self.status_topic_qos,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -96,7 +96,25 @@ impl<'a, A: ZAction> ZActionClientBuilder<'a, A> {
     }
 }
 
-impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
+impl<'a, A: ZAction> ZActionClientBuilder<'a, A, crate::backend::DefaultBackend> {
+    pub fn new(action_name: &str, node: &'a crate::node::ZNode) -> Self {
+        Self {
+            action_name: action_name.to_string(),
+            node,
+            goal_service_qos: None,
+            result_service_qos: None,
+            cancel_service_qos: None,
+            feedback_topic_qos: None,
+            status_topic_qos: None,
+            _phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<'a, A: ZAction, B> Builder for ZActionClientBuilder<'a, A, B>
+where
+    B: crate::backend::KeyExprBackend,
+{
     type Output = ZActionClient<A>;
 
     fn build(self) -> Result<Self::Output> {
@@ -138,7 +156,7 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
         if let Some(qos) = self.goal_service_qos {
             goal_client_builder.entity.qos = qos;
         }
-        let goal_client = goal_client_builder.build()?;
+        let goal_client = goal_client_builder.with_backend::<B>().build()?;
 
         // Create result client using node API for proper graph registration
         // Use the action's get_result_type_info for proper ROS 2 interop
@@ -149,7 +167,7 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
         if let Some(qos) = self.result_service_qos {
             result_client_builder.entity.qos = qos;
         }
-        let result_client = result_client_builder.build()?;
+        let result_client = result_client_builder.with_backend::<B>().build()?;
         tracing::debug!("Created result client for: {}", result_service_name);
 
         // Create cancel client using node API for proper graph registration
@@ -161,7 +179,7 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
         if let Some(qos) = self.cancel_service_qos {
             cancel_client_builder.entity.qos = qos;
         }
-        let cancel_client = cancel_client_builder.build()?;
+        let cancel_client = cancel_client_builder.with_backend::<B>().build()?;
 
         let goal_board = Arc::new(GoalBoard {
             active_goals: DashMap::new(),
@@ -182,7 +200,7 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
         );
         let goal_board_feedback = goal_board.clone();
         let feedback_sub =
-            feedback_sub_builder.build_with_callback(move |msg: FeedbackMessage<A>| {
+            feedback_sub_builder.with_backend::<B>().build_with_callback(move |msg: FeedbackMessage<A>| {
                 tracing::trace!("Feedback callback received for goal {:?}", msg.goal_id);
                 if let Some(channels) = goal_board_feedback.active_goals.get(&msg.goal_id) {
                     tracing::trace!("Routing feedback to goal {:?}", msg.goal_id);
@@ -203,7 +221,7 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
             status_sub_builder.entity.qos = qos;
         }
         let goal_board_status = goal_board.clone();
-        let status_sub = status_sub_builder.build_with_callback(move |msg: StatusMessage| {
+        let status_sub = status_sub_builder.with_backend::<B>().build_with_callback(move |msg: StatusMessage| {
             tracing::trace!(
                 "Status callback received with {} statuses",
                 msg.status_list.len()

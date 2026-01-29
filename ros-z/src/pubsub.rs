@@ -34,18 +34,18 @@ pub struct ZPub<T: ZMessage, S: ZSerializer> {
 }
 
 #[derive(Debug)]
-pub struct ZPubBuilder<T, S = CdrSerdes<T>> {
+pub struct ZPubBuilder<T, S = CdrSerdes<T>, B = crate::backend::DefaultBackend> {
     pub entity: EndpointEntity,
     pub session: Arc<Session>,
     pub with_attachment: bool,
     pub(crate) shm_config: Option<Arc<crate::shm::ShmConfig>>,
-    pub _phantom_data: PhantomData<(T, S)>,
+    pub _phantom_data: PhantomData<(T, S, B)>,
 }
 
-impl_with_type_info!(ZPubBuilder<T, S>);
-impl_with_type_info!(ZSubBuilder<T, S>);
+impl_with_type_info!(ZPubBuilder<T, S, B>);
+impl_with_type_info!(ZSubBuilder<T, S, B>);
 
-impl<T, S> ZPubBuilder<T, S> {
+impl<T, S, B> ZPubBuilder<T, S, B> {
     pub fn with_qos(mut self, qos: QosProfile) -> Self {
         self.entity.qos = qos;
         self
@@ -107,7 +107,28 @@ impl<T, S> ZPubBuilder<T, S> {
         self
     }
 
-    pub fn with_serdes<S2>(self) -> ZPubBuilder<T, S2> {
+    pub fn with_serdes<S2>(self) -> ZPubBuilder<T, S2, B> {
+        ZPubBuilder {
+            entity: self.entity,
+            session: self.session,
+            with_attachment: self.with_attachment,
+            shm_config: self.shm_config,
+            _phantom_data: PhantomData,
+        }
+    }
+
+    /// Switch to a different backend for key expression generation.
+    ///
+    /// # Example
+    /// ```ignore
+    /// use ros_z::backend::Ros2DdsBackend;
+    ///
+    /// let publisher = node
+    ///     .create_pub::<String>("chatter")
+    ///     .with_backend::<Ros2DdsBackend>()
+    ///     .build()?;
+    /// ```
+    pub fn with_backend<B2: crate::backend::KeyExprBackend>(self) -> ZPubBuilder<T, S, B2> {
         ZPubBuilder {
             entity: self.entity,
             session: self.session,
@@ -118,10 +139,11 @@ impl<T, S> ZPubBuilder<T, S> {
     }
 }
 
-impl<T, S> Builder for ZPubBuilder<T, S>
+impl<T, S, B> Builder for ZPubBuilder<T, S, B>
 where
     T: ZMessage + 'static,
     S: for<'a> ZSerializer<Input<'a> = &'a T> + 'static,
+    B: crate::backend::KeyExprBackend,
 {
     type Output = ZPub<T, S>;
 
@@ -142,7 +164,8 @@ where
         self.entity.topic = qualified_topic.clone();
         debug!("[PUB] Qualified topic: {}", qualified_topic);
 
-        let key_expr = self.entity.topic_key_expr()?;
+        let topic_ke = B::topic_key_expr(&self.entity)?;
+        let key_expr = (*topic_ke).clone(); // Deref and clone the KeyExpr
         debug!("[PUB] Key expression: {}", key_expr);
 
         // Map QoS to Zenoh publisher settings
@@ -175,10 +198,11 @@ where
         let inner = pub_builder.wait()?;
         debug!("[PUB] Publisher ready: topic={}", self.entity.topic);
 
+        let lv_ke = B::liveliness_key_expr(&self.entity, &self.session.zid())?;
         let lv_token = self
             .session
             .liveliness()
-            .declare_token(self.entity.lv_token_key_expr()?)
+            .declare_token((*lv_ke).clone())
             .wait()?;
         let gid = self.entity.gid();
 
@@ -322,15 +346,15 @@ where
     }
 }
 
-pub struct ZSubBuilder<T, S = CdrSerdes<T>> {
+pub struct ZSubBuilder<T, S = CdrSerdes<T>, B = crate::backend::DefaultBackend> {
     pub entity: EndpointEntity,
     pub session: Arc<Session>,
     pub dyn_schema: Option<Arc<crate::dynamic::schema::MessageSchema>>,
     pub locality: Option<zenoh::sample::Locality>,
-    pub _phantom_data: PhantomData<(T, S)>,
+    pub _phantom_data: PhantomData<(T, S, B)>,
 }
 
-impl<T, S> ZSubBuilder<T, S>
+impl<T, S, B> ZSubBuilder<T, S, B>
 where
     T: ZMessage,
 {
@@ -339,7 +363,28 @@ where
         self
     }
 
-    pub fn with_serdes<S2>(self) -> ZSubBuilder<T, S2> {
+    pub fn with_serdes<S2>(self) -> ZSubBuilder<T, S2, B> {
+        ZSubBuilder {
+            entity: self.entity,
+            session: self.session,
+            dyn_schema: self.dyn_schema,
+            locality: self.locality,
+            _phantom_data: PhantomData,
+        }
+    }
+
+    /// Switch to a different backend for key expression generation.
+    ///
+    /// # Example
+    /// ```ignore
+    /// use ros_z::backend::Ros2DdsBackend;
+    ///
+    /// let subscriber = node
+    ///     .create_sub::<String>("chatter")
+    ///     .with_backend::<Ros2DdsBackend>()
+    ///     .build()?;
+    /// ```
+    pub fn with_backend<B2: crate::backend::KeyExprBackend>(self) -> ZSubBuilder<T, S, B2> {
         ZSubBuilder {
             entity: self.entity,
             session: self.session,
@@ -396,6 +441,7 @@ where
     ) -> Result<ZSub<T, Q, S>>
     where
         S: ZDeserializer,
+        B: crate::backend::KeyExprBackend,
     {
         let qualified_topic = topic_name::qualify_topic_name(
             &self.entity.topic,
@@ -407,7 +453,8 @@ where
         self.entity.topic = qualified_topic.clone();
         debug!("[SUB] Qualified topic: {}", qualified_topic);
 
-        let key_expr = self.entity.topic_key_expr()?;
+        let topic_ke = B::topic_key_expr(&self.entity)?;
+        let key_expr = (*topic_ke).clone(); // Deref and clone the KeyExpr
         debug!("[SUB] Key expression: {}, qos={:?}", key_expr, self.entity.qos);
 
         let mut sub_builder = self
@@ -424,10 +471,11 @@ where
         let inner = sub_builder.wait()?;
 
         let gid = self.entity.gid();
+        let lv_ke = B::liveliness_key_expr(&self.entity, &self.session.zid())?;
         let lv_token = self
             .session
             .liveliness()
-            .declare_token(self.entity.lv_token_key_expr()?)
+            .declare_token((*lv_ke).clone())
             .wait()?;
 
         debug!("[SUB] Subscriber ready: topic={}", self.entity.topic);
@@ -461,6 +509,7 @@ where
     where
         F: Fn(S::Output) + Send + Sync + 'static,
         S: for<'a> ZDeserializer<Input<'a> = &'a [u8]> + 'static,
+        B: crate::backend::KeyExprBackend,
     {
         let callback = Arc::new(move |sample: Sample| {
             let payload = sample.payload().to_bytes();
@@ -478,6 +527,7 @@ where
     where
         F: Fn() + Send + Sync + 'static,
         S: ZDeserializer,
+        B: crate::backend::KeyExprBackend,
     {
         let queue_size = match self.entity.qos.history {
             QosHistory::KeepLast(depth) => depth.get(),
@@ -495,10 +545,11 @@ where
     }
 }
 
-impl<T, S> Builder for ZSubBuilder<T, S>
+impl<T, S, B> Builder for ZSubBuilder<T, S, B>
 where
     T: ZMessage + 'static + Sync + Send,
     S: ZDeserializer,
+    B: crate::backend::KeyExprBackend,
 {
     type Output = ZSub<T, Sample, S>;
 

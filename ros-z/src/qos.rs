@@ -169,6 +169,20 @@ pub enum QosDecodeError {
     InvalidHistoryDepth,
 }
 
+impl std::fmt::Display for QosDecodeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::IncompleteQos => write!(f, "Incomplete QoS string"),
+            Self::InvalidReliability => write!(f, "Invalid reliability value in QoS"),
+            Self::InvalidDurability => write!(f, "Invalid durability value in QoS"),
+            Self::InvalidHistory => write!(f, "Invalid history value in QoS"),
+            Self::InvalidHistoryDepth => write!(f, "Invalid history depth value in QoS"),
+        }
+    }
+}
+
+impl std::error::Error for QosDecodeError {}
+
 impl QosProfile {
     // This format comes from rmw_zenoh
     // <ReliabilityKind>:<DurabilityKind>:<HistoryKind>,<HistoryDepth>:<DeadlineSec, DeadlineNSec>:<LifespanSec, LifespanNSec>:<Liveliness, LivelinessSec, LivelinessNSec>"
