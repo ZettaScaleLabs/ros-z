@@ -297,21 +297,29 @@ tokio = { version = "1", features = ["full"] }  # Async runtime
 <p>Here's a complete publisher and subscriber in one application:</p>
 <pre><code class="language-rust ignore">use std::time::Duration;
 
+use clap::{Parser, ValueEnum};
+#[cfg(feature = "ros2dds")]
+use ros_z::backend::Ros2DdsBackend;
 use ros_z::{
     Builder, Result,
+    backend::{KeyExprBackend, RmwZenohBackend},
     context::{ZContext, ZContextBuilder},
 };
 use ros_z_msgs::std_msgs::String as RosString;
 
 /// Subscriber function that continuously receives messages from a topic
-async fn run_subscriber(ctx: ZContext, topic: String) -&gt; Result&lt;()&gt; {
+async fn run_subscriber&lt;B: KeyExprBackend&gt;(ctx: ZContext, topic: String) -&gt; Result&lt;()&gt; {
     // Create a ROS 2 node - the fundamental unit of computation
     // Nodes are logical groupings of publishers, subscribers, services, etc.
     let node = ctx.create_node("Sub").build()?;
 
-    // Create a subscriber for the specified topic
+    // Create a subscriber for the specified topic with backend selection
     // The type parameter RosString determines what message type we'll receive
-    let zsub = node.create_sub::&lt;RosString&gt;(&amp;topic).build()?;
+    // The backend parameter determines the key expression format
+    let zsub = node
+        .create_sub::&lt;RosString&gt;(&amp;topic)
+        .with_backend::&lt;B&gt;()
+        .build()?;
 
     // Continuously receive messages asynchronously
     // This loop will block waiting for messages on the topic
@@ -322,7 +330,7 @@ async fn run_subscriber(ctx: ZContext, topic: String) -&gt; Result&lt;()&gt; {
 }
 
 /// Publisher function that continuously publishes messages to a topic
-async fn run_publisher(
+async fn run_publisher&lt;B: KeyExprBackend&gt;(
     ctx: ZContext,
     topic: String,
     period: Duration,
@@ -331,9 +339,13 @@ async fn run_publisher(
     // Create a ROS 2 node for publishing
     let node = ctx.create_node("Pub").build()?;
 
-    // Create a publisher for the specified topic
+    // Create a publisher for the specified topic with backend selection
     // The type parameter RosString determines what message type we'll send
-    let zpub = node.create_pub::&lt;RosString&gt;(&amp;topic).build()?;
+    // The backend parameter determines the key expression format
+    let zpub = node
+        .create_pub::&lt;RosString&gt;(&amp;topic)
+        .with_backend::&lt;B&gt;()
+        .build()?;
 
     let mut count = 0;
     loop {
@@ -377,20 +389,39 @@ async fn main() -&gt; Result&lt;()&gt; {
 
     // Run as either a publisher (talker) or subscriber (listener)
     // Both share the same ZContext but perform different roles
-    if args.role == "listener" {
-        run_subscriber(ctx, args.topic).await?;
-    } else if args.role == "talker" {
-        run_publisher(ctx, args.topic, period, args.data).await?;
-    } else {
-        println!(
-            "Please use \"talker\" or \"listener\" as role,  {} is not supported.",
-            args.role
-        );
+    // Backend selection determines key expression format (domain prefix or not)
+    match (args.role.as_str(), args.backend) {
+        ("listener", Backend::RmwZenoh) =&gt; {
+            run_subscriber::&lt;RmwZenohBackend&gt;(ctx, args.topic).await?
+        }
+        #[cfg(feature = "ros2dds")]
+        ("listener", Backend::Ros2Dds) =&gt; run_subscriber::&lt;Ros2DdsBackend&gt;(ctx, args.topic).await?,
+        ("talker", Backend::RmwZenoh) =&gt; {
+            run_publisher::&lt;RmwZenohBackend&gt;(ctx, args.topic, period, args.data).await?
+        }
+        #[cfg(feature = "ros2dds")]
+        ("talker", Backend::Ros2Dds) =&gt; {
+            run_publisher::&lt;Ros2DdsBackend&gt;(ctx, args.topic, period, args.data).await?
+        }
+        (role, _) =&gt; println!(
+            "Please use \"talker\" or \"listener\" as role, {} is not supported.",
+            role
+        ),
     }
     Ok(())
 }
 
-use clap::Parser;
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum Backend {
+    /// RmwZenoh backend (default) - compatible with rmw_zenoh nodes
+    /// Uses key expressions with domain prefix: &lt;domain_id&gt;/&lt;topic&gt;/**
+    RmwZenoh,
+    /// Ros2Dds backend - compatible with zenoh-bridge-ros2dds
+    /// Uses key expressions without domain prefix: &lt;topic&gt;/**
+    #[cfg(feature = "ros2dds")]
+    Ros2Dds,
+}
+
 #[derive(Debug, Parser)]
 struct Args {
     #[arg(short, long, default_value = "Hello ROS-Z")]
@@ -405,6 +436,9 @@ struct Args {
     mode: String,
     #[arg(short, long)]
     endpoint: Option&lt;String&gt;,
+    /// Backend selection: rmw-zenoh (default) or ros2-dds
+    #[arg(short, long, value_enum, default_value = "rmw-zenoh")]
+    backend: Backend,
 }</code></pre>
 <h2 id="key-components"><a class="header" href="#key-components">Key Components</a></h2>
 <div class="table-wrapper"><table><thead><tr><th>Component</th><th>Purpose</th><th>Usage</th></tr></thead><tbody>
@@ -3952,6 +3986,392 @@ ros2 run my_package cloud_subscriber
 <li><code>ros-z/src/msg.rs</code> - Serialization with size estimation</li>
 <li><code>ros-z-codegen/src/generator/rust.rs</code> - Size estimation codegen</li>
 <li><code>ros-z-msgs/src/size_estimation.rs</code> - Trait definition</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="backend-selection"><a class="header" href="#backend-selection">Backend Selection</a></h1>
+<p><strong>ros-z supports multiple backend protocols for Zenoh key expression generation, enabling interoperability with different ROS 2-to-Zenoh bridges.</strong> The backend determines how topic names are mapped to Zenoh key expressions, allowing seamless communication across different deployment architectures.</p>
+<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+<div class="admonition-title">
+<div id="admonition-note-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/backends.html#admonition-note"></a>
+</div>
+<div>
+<p>Backend selection is a compile-time or runtime choice that affects how ros-z maps ROS 2 topics to Zenoh key expressions. Choose the backend that matches your bridge infrastructure for proper message routing.</p>
+</div>
+</div>
+<h2 id="available-backends"><a class="header" href="#available-backends">Available Backends</a></h2>
+<p>ros-z provides two backend implementations:</p>
+<div class="table-wrapper"><table><thead><tr><th>Backend</th><th>Key Expression Format</th><th>Use Case</th><th>Bridge Compatibility</th></tr></thead><tbody>
+<tr><td><strong>RmwZenoh</strong></td><td><code>&lt;domain_id&gt;/&lt;topic&gt;/**</code></td><td>Standard ROS 2 integration</td><td><code>rmw_zenoh_cpp</code> middleware</td></tr>
+<tr><td><strong>Ros2Dds</strong></td><td><code>&lt;topic&gt;/**</code></td><td>DDS bridge compatibility</td><td><code>zenoh-bridge-ros2dds</code></td></tr>
+</tbody></table>
+</div>
+<h3 id="rmwzenoh-backend-default"><a class="header" href="#rmwzenoh-backend-default">RmwZenoh Backend (Default)</a></h3>
+<p>The RmwZenoh backend is designed for compatibility with ROS 2's official Zenoh middleware implementation.</p>
+<p><strong>Key Expression Format:</strong></p>
+<pre><code class="language-text">&lt;domain_id&gt;/&lt;topic&gt;/**
+</code></pre>
+<p><strong>Example:</strong></p>
+<pre><code class="language-text">0/chatter/**         # Domain 0, topic /chatter
+5/robot/status/**    # Domain 5, topic /robot/status
+</code></pre>
+<p><strong>Use this backend when:</strong></p>
+<ul>
+<li>Using <code>rmw_zenoh_cpp</code> as your ROS 2 middleware</li>
+<li>Running pure ros-z deployments</li>
+<li>Requiring domain isolation via Zenoh</li>
+</ul>
+<h3 id="ros2dds-backend"><a class="header" href="#ros2dds-backend">Ros2Dds Backend</a></h3>
+<p>The Ros2Dds backend is designed for compatibility with <code>zenoh-bridge-ros2dds</code>, which bridges standard DDS-based ROS 2 nodes to Zenoh.</p>
+<p><strong>Key Expression Format:</strong></p>
+<pre><code class="language-text">&lt;topic&gt;/**
+</code></pre>
+<p><strong>Example:</strong></p>
+<pre><code class="language-text">chatter/**           # Topic /chatter (no domain prefix)
+robot/status/**      # Topic /robot/status
+</code></pre>
+<p><strong>Use this backend when:</strong></p>
+<ul>
+<li>Bridging existing DDS-based ROS 2 systems to Zenoh</li>
+<li>Using <code>zenoh-bridge-ros2dds</code></li>
+<li>Integrating with CycloneDDS or FastDDS nodes via Zenoh</li>
+</ul>
+<h2 id="specifying-backend-in-code"><a class="header" href="#specifying-backend-in-code">Specifying Backend in Code</a></h2>
+<h3 id="type-based-selection-compile-time"><a class="header" href="#type-based-selection-compile-time">Type-Based Selection (Compile-Time)</a></h3>
+<p>Use the builder pattern with generic type parameters for compile-time backend selection:</p>
+<pre><code class="language-rust ignore">use ros_z::{Builder, backend::{RmwZenohBackend, Ros2DdsBackend}};
+use ros_z::qos::{QosProfile, QosHistory};
+use ros_z_msgs::std_msgs::String as RosString;
+use ros_z_msgs::example_interfaces::srv::AddTwoInts;
+use ros_z_msgs::action_tutorials_interfaces::action::Fibonacci;
+
+// Create context and node
+let ctx = ZContextBuilder::default().build()?;
+let node = ctx.create_node("my_node").build()?;
+
+// Publisher with RmwZenoh backend (default)
+let pub_rmw = node
+    .create_pub::&lt;RosString&gt;("chatter")
+    .with_backend::&lt;RmwZenohBackend&gt;()  // Explicit backend
+    .build()?;
+
+// Subscriber with Ros2Dds backend
+let sub_dds = node
+    .create_sub::&lt;RosString&gt;("chatter")
+    .with_backend::&lt;Ros2DdsBackend&gt;()   // DDS bridge compatibility
+    .build()?;
+
+// Service client with RmwZenoh backend
+let client = node
+    .create_client::&lt;AddTwoInts&gt;("add_two_ints")
+    .with_backend::&lt;RmwZenohBackend&gt;()
+    .build()?;
+
+// Service server with Ros2Dds backend
+let mut server = node
+    .create_service::&lt;AddTwoInts&gt;("add_two_ints")
+    .with_backend::&lt;Ros2DdsBackend&gt;()
+    .build()?;
+
+// Action client with RmwZenoh backend
+let action_client = node
+    .create_action_client::&lt;Fibonacci&gt;("fibonacci")
+    .with_backend::&lt;RmwZenohBackend&gt;()
+    .build()?;
+
+// Action server with Ros2Dds backend
+let mut action_server = node
+    .create_action_server::&lt;Fibonacci&gt;("fibonacci")
+    .with_backend::&lt;Ros2DdsBackend&gt;()
+    .build()?;</code></pre>
+<p><strong>Key points:</strong></p>
+<ul>
+<li>Backend is specified via generic type parameter</li>
+<li>Default backend is <code>RmwZenohBackend</code> if not specified</li>
+<li>Type-safe selection ensures correct key expression format</li>
+<li>No runtime overhead - resolved at compile time</li>
+</ul>
+<h3 id="default-backend-behavior"><a class="header" href="#default-backend-behavior">Default Backend Behavior</a></h3>
+<p>If no backend is specified, ros-z uses <code>RmwZenohBackend</code>:</p>
+<pre><code class="language-rust ignore">// These are equivalent:
+let pub1 = node.create_pub::&lt;RosString&gt;("topic").build()?;
+let pub2 = node.create_pub::&lt;RosString&gt;("topic")
+    .with_backend::&lt;RmwZenohBackend&gt;()
+    .build()?;</code></pre>
+<h3 id="multiple-backend-features"><a class="header" href="#multiple-backend-features">Multiple Backend Features</a></h3>
+<p>When both <code>rmw-zenoh</code> and <code>ros2dds</code> feature flags are enabled in <code>Cargo.toml</code>:</p>
+<pre><code class="language-toml">[dependencies]
+ros-z = { version = "0.1", features = ["rmw-zenoh", "ros2dds"] }
+</code></pre>
+<p><strong>Default behavior</strong>: <code>RmwZenohBackend</code> is used by default (more established, backwards compatible).</p>
+<p>To use the ros2dds backend, explicitly specify it:</p>
+<pre><code class="language-rust ignore">let publisher = node
+    .create_pub::&lt;RosString&gt;("chatter")
+    .with_backend::&lt;Ros2DdsBackend&gt;()  // Explicit opt-in
+    .build()?;</code></pre>
+<p><strong>Rationale</strong>: The <code>rmw-zenoh</code> backend is more established and maintains backwards compatibility with existing ros-z deployments. The <code>ros2dds</code> backend requires explicit opt-in to ensure users are aware they're using bridge-compatible key expressions.</p>
+<h2 id="architecture-diagrams"><a class="header" href="#architecture-diagrams">Architecture Diagrams</a></h2>
+<h3 id="rmwzenoh-backend-architecture"><a class="header" href="#rmwzenoh-backend-architecture">RmwZenoh Backend Architecture</a></h3>
+<pre class="mermaid">graph LR
+    A[ros-z Node&lt;br/&gt;RmwZenohBackend] --&gt;|&quot;0/chatter/**&quot;| B[Zenoh Router&lt;br/&gt;rmw_zenoh]
+    B --&gt;|&quot;0/chatter/**&quot;| C[ROS 2 Node&lt;br/&gt;rmw_zenoh_cpp]
+</pre>
+<p><strong>Use case:</strong> Native Zenoh-based ROS 2 deployment</p>
+<ul>
+<li>All nodes use rmw_zenoh or ros-z</li>
+<li>Direct Zenoh communication</li>
+<li>Domain isolation via key expression prefix</li>
+</ul>
+<h3 id="ros2dds-backend-architecture"><a class="header" href="#ros2dds-backend-architecture">Ros2Dds Backend Architecture</a></h3>
+<pre class="mermaid">graph LR
+    A[ros-z Node&lt;br/&gt;Ros2DdsBackend] --&gt;|&quot;chatter/**&quot;| B[zenoh-bridge-ros2dds&lt;br/&gt;Router + Bridge]
+    B --&gt;|DDS| C[ROS 2 Node&lt;br/&gt;CycloneDDS/FastDDS]
+</pre>
+<p><strong>Use case:</strong> Bridge existing DDS systems to Zenoh</p>
+<ul>
+<li>ROS 2 nodes use standard DDS middleware</li>
+<li><code>zenoh-bridge-ros2dds</code> translates DDS ↔ Zenoh</li>
+<li>ros-z communicates via Zenoh side of bridge</li>
+</ul>
+<h2 id="complete-example-backend-selection"><a class="header" href="#complete-example-backend-selection">Complete Example: Backend Selection</a></h2>
+<p>The <code>z_pubsub</code> example demonstrates backend selection for pub/sub communication. The example supports both <code>RmwZenoh</code> and <code>Ros2Dds</code> backends via command-line arguments:</p>
+<pre><code class="language-rust ignore">use std::time::Duration;
+
+use clap::{Parser, ValueEnum};
+#[cfg(feature = "ros2dds")]
+use ros_z::backend::Ros2DdsBackend;
+use ros_z::{
+    Builder, Result,
+    backend::{KeyExprBackend, RmwZenohBackend},
+    context::{ZContext, ZContextBuilder},
+};
+use ros_z_msgs::std_msgs::String as RosString;
+
+/// Subscriber function that continuously receives messages from a topic
+async fn run_subscriber&lt;B: KeyExprBackend&gt;(ctx: ZContext, topic: String) -&gt; Result&lt;()&gt; {
+    // Create a ROS 2 node - the fundamental unit of computation
+    // Nodes are logical groupings of publishers, subscribers, services, etc.
+    let node = ctx.create_node("Sub").build()?;
+
+    // Create a subscriber for the specified topic with backend selection
+    // The type parameter RosString determines what message type we'll receive
+    // The backend parameter determines the key expression format
+    let zsub = node
+        .create_sub::&lt;RosString&gt;(&amp;topic)
+        .with_backend::&lt;B&gt;()
+        .build()?;
+
+    // Continuously receive messages asynchronously
+    // This loop will block waiting for messages on the topic
+    while let Ok(msg) = zsub.async_recv().await {
+        println!("Hearing:&gt;&gt; {}", msg.data);
+    }
+    Ok(())
+}
+
+/// Publisher function that continuously publishes messages to a topic
+async fn run_publisher&lt;B: KeyExprBackend&gt;(
+    ctx: ZContext,
+    topic: String,
+    period: Duration,
+    payload: String,
+) -&gt; Result&lt;()&gt; {
+    // Create a ROS 2 node for publishing
+    let node = ctx.create_node("Pub").build()?;
+
+    // Create a publisher for the specified topic with backend selection
+    // The type parameter RosString determines what message type we'll send
+    // The backend parameter determines the key expression format
+    let zpub = node
+        .create_pub::&lt;RosString&gt;(&amp;topic)
+        .with_backend::&lt;B&gt;()
+        .build()?;
+
+    let mut count = 0;
+    loop {
+        // Create a new message with incrementing counter
+        let str = RosString {
+            data: format!("{payload} - #{count}"),
+        };
+        println!("Telling:&gt;&gt; {}", str.data);
+
+        // Publish the message asynchronously to all subscribers on this topic
+        zpub.async_publish(&amp;str).await?;
+
+        // Wait for the specified period before publishing again
+        let _ = tokio::time::sleep(period).await;
+        count += 1;
+    }
+}
+
+// The #[tokio::main] attribute sets up the async runtime
+// ros-z requires an async runtime (Tokio is the most common choice)
+#[tokio::main]
+async fn main() -&gt; Result&lt;()&gt; {
+    let args = Args::parse();
+
+    // Create a ZContext - the entry point for ros-z applications
+    // ZContext manages the connection to the Zenoh network and coordinates
+    // communication between nodes. It can be configured with different modes:
+    // - "peer" mode: nodes discover each other via multicast scouting
+    // - "client" mode: nodes connect to a Zenoh router
+    let ctx = if let Some(e) = args.endpoint {
+        ZContextBuilder::default()
+            .with_mode(args.mode)
+            .with_connect_endpoints([e])
+            .build()?
+    } else {
+        ZContextBuilder::default().with_mode(args.mode).build()?
+    };
+
+    let period = std::time::Duration::from_secs_f64(args.period);
+    zenoh::init_log_from_env_or("error");
+
+    // Run as either a publisher (talker) or subscriber (listener)
+    // Both share the same ZContext but perform different roles
+    // Backend selection determines key expression format (domain prefix or not)
+    match (args.role.as_str(), args.backend) {
+        ("listener", Backend::RmwZenoh) =&gt; {
+            run_subscriber::&lt;RmwZenohBackend&gt;(ctx, args.topic).await?
+        }
+        #[cfg(feature = "ros2dds")]
+        ("listener", Backend::Ros2Dds) =&gt; run_subscriber::&lt;Ros2DdsBackend&gt;(ctx, args.topic).await?,
+        ("talker", Backend::RmwZenoh) =&gt; {
+            run_publisher::&lt;RmwZenohBackend&gt;(ctx, args.topic, period, args.data).await?
+        }
+        #[cfg(feature = "ros2dds")]
+        ("talker", Backend::Ros2Dds) =&gt; {
+            run_publisher::&lt;Ros2DdsBackend&gt;(ctx, args.topic, period, args.data).await?
+        }
+        (role, _) =&gt; println!(
+            "Please use \"talker\" or \"listener\" as role, {} is not supported.",
+            role
+        ),
+    }
+    Ok(())
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum Backend {
+    /// RmwZenoh backend (default) - compatible with rmw_zenoh nodes
+    /// Uses key expressions with domain prefix: &lt;domain_id&gt;/&lt;topic&gt;/**
+    RmwZenoh,
+    /// Ros2Dds backend - compatible with zenoh-bridge-ros2dds
+    /// Uses key expressions without domain prefix: &lt;topic&gt;/**
+    #[cfg(feature = "ros2dds")]
+    Ros2Dds,
+}
+
+#[derive(Debug, Parser)]
+struct Args {
+    #[arg(short, long, default_value = "Hello ROS-Z")]
+    data: String,
+    #[arg(short, long, default_value = "/chatter")]
+    topic: String,
+    #[arg(short, long, default_value = "1.0")]
+    period: f64,
+    #[arg(short, long, default_value = "listener")]
+    role: String,
+    #[arg(short, long, default_value = "peer")]
+    mode: String,
+    #[arg(short, long)]
+    endpoint: Option&lt;String&gt;,
+    /// Backend selection: rmw-zenoh (default) or ros2-dds
+    #[arg(short, long, value_enum, default_value = "rmw-zenoh")]
+    backend: Backend,
+}</code></pre>
+<p>Key features of this example:</p>
+<ul>
+<li><strong>Generic backend support</strong>: Uses <code>KeyExprBackend</code> trait for compile-time backend selection</li>
+<li><strong>CLI arguments</strong>: Select backend with <code>--backend rmw-zenoh</code> or <code>--backend ros2-dds</code></li>
+<li><strong>Conditional compilation</strong>: Ros2Dds backend only available with <code>--features ros2dds</code></li>
+<li><strong>Same high-level API</strong>: Publisher and subscriber code identical except for backend type parameter</li>
+</ul>
+<p><strong>Usage Examples:</strong></p>
+<h3 id="direct-ros-z-communication-rmwzenoh-backend---default"><a class="header" href="#direct-ros-z-communication-rmwzenoh-backend---default">Direct ros-z Communication (RmwZenoh backend - default)</a></h3>
+<pre><code class="language-bash"># Terminal 1: Run listener with default RmwZenoh backend
+cargo run --example z_pubsub -- --role listener
+
+# Terminal 2: Run talker with default RmwZenoh backend
+cargo run --example z_pubsub -- --role talker
+</code></pre>
+<h3 id="interop-with-ros-2-via-zenoh-bridge-ros2dds-ros2dds-backend"><a class="header" href="#interop-with-ros-2-via-zenoh-bridge-ros2dds-ros2dds-backend">Interop with ROS 2 via zenoh-bridge-ros2dds (Ros2Dds backend)</a></h3>
+<ol>
+<li>
+<p><strong>Terminal 1 - Start zenoh-bridge-ros2dds:</strong></p>
+<pre><code class="language-bash">zenoh-bridge-ros2dds
+</code></pre>
+</li>
+<li>
+<p><strong>Terminal 2 - Start ROS 2 DDS talker:</strong></p>
+<pre><code class="language-bash">ros2 run demo_nodes_cpp talker
+</code></pre>
+</li>
+<li>
+<p><strong>Terminal 3 - Run ros-z listener with Ros2Dds backend:</strong></p>
+<pre><code class="language-bash">cargo run --example z_pubsub --features ros2dds -- --role listener --backend ros2-dds
+</code></pre>
+</li>
+</ol>
+<p>Or run ros-z talker and ROS 2 listener:</p>
+<pre><code class="language-bash"># Terminal 2: Run ros-z talker with Ros2Dds backend
+cargo run --example z_pubsub --features ros2dds -- --role talker --backend ros2-dds --topic chatter
+
+# Terminal 3: Run ROS 2 listener
+ros2 run demo_nodes_cpp listener
+</code></pre>
+<h2 id="ros-z-console-backend-support"><a class="header" href="#ros-z-console-backend-support">ros-z-console Backend Support</a></h2>
+<p>The <code>ros-z-console</code> monitoring tool supports backend selection via CLI:</p>
+<pre><code class="language-bash"># Monitor rmw_zenoh-based systems (default)
+ros-z-console tcp/127.0.0.1:7447 0
+
+# Monitor zenoh-bridge-ros2dds systems
+ros-z-console tcp/127.0.0.1:7447 0 --backend ros2dds
+
+# Show help
+ros-z-console --help
+</code></pre>
+<p><strong>Backend parameter:</strong></p>
+<ul>
+<li><code>--backend rmw-zenoh</code> - Monitor rmw_zenoh systems (default)</li>
+<li><code>--backend ros2dds</code> - Monitor zenoh-bridge-ros2dds systems</li>
+</ul>
+<p>The backend choice affects:</p>
+<ul>
+<li>Topic discovery key expressions</li>
+<li>Rate measurement subscriptions</li>
+<li>Multi-topic monitoring</li>
+</ul>
+<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
+<div class="admonition-title">
+<div id="admonition-tip-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/backends.html#admonition-tip"></a>
+</div>
+<div>
+<p>Always match the backend in <code>ros-z-console</code> to your deployment architecture. Use <code>rmw-zenoh</code> for native Zenoh systems and <code>ros2dds</code> when monitoring systems bridged via <code>zenoh-bridge-ros2dds</code>.</p>
+</div>
+</div>
+<h2 id="backend-comparison"><a class="header" href="#backend-comparison">Backend Comparison</a></h2>
+<h3 id="when-to-use-rmwzenoh-backend"><a class="header" href="#when-to-use-rmwzenoh-backend">When to Use RmwZenoh Backend</a></h3>
+<p>✅ <strong>Use RmwZenoh when:</strong></p>
+<ul>
+<li>Building pure Zenoh-based ROS 2 systems</li>
+<li>Using <code>rmw_zenoh_cpp</code> middleware</li>
+<li>Requiring domain isolation</li>
+<li>Deploying new systems with native Zenoh support</li>
+<li>Maximizing Zenoh performance benefits</li>
+</ul>
+<h3 id="when-to-use-ros2dds-backend"><a class="header" href="#when-to-use-ros2dds-backend">When to Use Ros2Dds Backend</a></h3>
+<p>✅ <strong>Use Ros2Dds when:</strong></p>
+<ul>
+<li>Bridging existing DDS-based ROS 2 systems</li>
+<li>Using <code>zenoh-bridge-ros2dds</code></li>
+<li>Integrating with legacy ROS 2 infrastructure</li>
+<li>Gradual migration from DDS to Zenoh</li>
+<li>Heterogeneous deployments (DDS + Zenoh)</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="rmw_zenoh_rs"><a class="header" href="#rmw_zenoh_rs">rmw_zenoh_rs</a></h1>
 <p><code>rmw_zenoh_rs</code> is a Rust-based ROS Middleware (RMW) implementation that enables standard ROS 2 C++/Python nodes to communicate via Zenoh. It allows you to use Zenoh as the transport layer for your existing ROS 2 applications without modifying your code. It is <strong>fully interoperable</strong> with <code>rmw_zenoh_cpp</code>, allowing seamless communication between nodes using either implementation.</p>
