@@ -8,6 +8,10 @@ on:
       - 'book/**'
       - '.github/workflows/docs.yml'
       - '.github/workflows/mdbook-preview.yml'
+      - '.github/workflows/ci.yml'
+      - '.github/workflows/test.yml'
+      - '.github/workflows/semantic-pr.yml'
+      - '.github/workflows/pr-draft-check.yml'
   pull_request:
     branches: [main]
     paths-ignore:
@@ -15,6 +19,10 @@ on:
       - 'book/**'
       - '.github/workflows/docs.yml'
       - '.github/workflows/mdbook-preview.yml'
+      - '.github/workflows/ci.yml'
+      - '.github/workflows/test.yml'
+      - '.github/workflows/semantic-pr.yml'
+      - '.github/workflows/pr-draft-check.yml'
   workflow_dispatch:
     inputs:
       test_filter:
