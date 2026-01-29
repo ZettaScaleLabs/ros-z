@@ -628,7 +628,8 @@ mod tests {
             .build_with_callback(move |msg: RosString| {
                 println!("Received: {}", msg.data);
                 received_count_clone.fetch_add(1, Ordering::SeqCst);
-                std::thread::sleep(std::time::Duration::from_secs(10));
+                // Sleep to simulate slow callback - publish() should not block on this
+                std::thread::sleep(std::time::Duration::from_millis(100));
             })?;
 
         // Wait for discovery
