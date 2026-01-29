@@ -43,17 +43,23 @@ jobs:
         run: nix build .#checks.x86_64-linux.pre-commit-check -L
 
   no-ros:
-    name: ROS-independent Test
-    runs-on: ubuntu-latest
+    name: ROS-independent Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     permissions:
       id-token: write
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Linux-specific setup
       - name: Free Disk Space (Ubuntu)
+        if: runner.os == 'Linux'
         uses: jlumbroso/free-disk-space@main
         with:
           large-packages: true
@@ -64,18 +70,18 @@ jobs:
           docker-images: false
           swap-storage: false
 
-      - name: Install Determinate Nix
+      - name: Install Determinate Nix (Linux)
+        if: runner.os == 'Linux'
         uses: DeterminateSystems/determinate-nix-action@v3
 
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
-
-      - name: Install Nushell
+      - name: Install Nushell (Linux via Nix)
+        if: runner.os == 'Linux'
         run: |
           nix profile install nixpkgs#nushell
           chmod +x scripts/test-pure-rust.nu
 
-      - name: Setup nix environment
+      - name: Setup nix environment (Linux)
+        if: runner.os == 'Linux'
         run: |
           nix print-dev-env '.#pureRust-ci' --accept-flake-config > /tmp/nix-dev-env.sh
           echo "export SCCACHE_GHA_ENABLED=true" >> /tmp/nix-dev-env.sh
@@ -83,20 +89,56 @@ jobs:
           echo "export RUSTC_WRAPPER=sccache" >> /tmp/nix-dev-env.sh
           echo "export CI=true" >> /tmp/nix-dev-env.sh
 
+      # macOS-specific setup
+      - name: Install Rust toolchain (macOS)
+        if: runner.os == 'macOS'
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install nushell protobuf
+          cargo install cargo-nextest --locked
+          chmod +x scripts/test-pure-rust.nu
+
+      # Common setup
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Set environment variables (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+          echo "CI=true" >> $GITHUB_ENV
+
+      # Test steps
       - name: Clippy (default workspace)
         run: |
-          source /tmp/nix-dev-env.sh
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            source /tmp/nix-dev-env.sh
+          fi
           nu scripts/test-pure-rust.nu clippy-workspace
+        shell: bash
 
       - name: Run tests
         run: |
-          source /tmp/nix-dev-env.sh
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            source /tmp/nix-dev-env.sh
+          fi
           nu scripts/test-pure-rust.nu run-tests
+        shell: bash
 
       - name: Check ros-z-msgs feature flags
         run: |
-          source /tmp/nix-dev-env.sh
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            source /tmp/nix-dev-env.sh
+          fi
           nu scripts/test-pure-rust.nu check-bundled-msgs
+        shell: bash
 
   python-tests:
     name: Python Tests (ros-z-py) (${{ matrix.distro }})

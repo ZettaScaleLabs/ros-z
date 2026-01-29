@@ -192,7 +192,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_action_status_async_wait() -> Result<()> {
         let (_client_node, _server_node, client, server) = setup_test_with_client_server().await?;
 
