@@ -167,6 +167,7 @@ fn test_zpub_builder_with_dyn_schema() {
         entity: Default::default(),
         session: std::sync::Arc::new(zenoh::Wait::wait(zenoh::open(zenoh::Config::default())).unwrap()),
         with_attachment: true,
+        shm_config: None,
         dyn_schema: None,
         _phantom_data: PhantomData,
     };
@@ -193,6 +194,7 @@ fn test_zpub_builder_with_serdes_preserves_schema() {
         entity: Default::default(),
         session: std::sync::Arc::new(zenoh::Wait::wait(zenoh::open(zenoh::Config::default())).unwrap()),
         with_attachment: true,
+        shm_config: None,
         dyn_schema: Some(schema.clone()),
         _phantom_data: PhantomData,
     };
