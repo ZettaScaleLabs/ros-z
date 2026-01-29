@@ -2,7 +2,6 @@
 
 <!-- Brief description of changes -->
 
-
 ## Checklist
 
 - [ ] Ran `./scripts/check-local.sh` successfully

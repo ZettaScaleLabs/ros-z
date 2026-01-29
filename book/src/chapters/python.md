@@ -66,7 +66,7 @@ Here's a complete publisher and subscriber example from [`ros-z-py/examples/topi
 ## Key Components
 
 | Component | Purpose | Python API |
-|-----------|---------|------------|
+| --- | --- | --- |
 | **ZContextBuilder** | Configure ros-z environment | `ZContextBuilder().with_domain_id(0).build()` |
 | **ZContext** | Manages ROS 2 connections | Entry point for creating nodes |
 | **Node** | Logical unit of computation | `ctx.create_node("name").build()` |
@@ -74,7 +74,6 @@ Here's a complete publisher and subscriber example from [`ros-z-py/examples/topi
 | **Subscriber** | Receives messages from topics | `node.create_subscriber(topic, type)` |
 | **Client** | Sends service requests | `node.create_client(service, type)` |
 | **Server** | Handles service requests | `node.create_server(service, type)` |
-
 
 ## Service Patterns
 
@@ -207,7 +206,7 @@ print(ros_z_msgs.list_registered_types())
 Ensure the message package is enabled in `ros-z-msgs/Cargo.toml` features.
 ````
 
-````admonish question collapsible=true title="recv() always returns None"
+```admonish question collapsible=true title="recv() always returns None"
 This happens when no messages are being received within the timeout period.
 
 **Solution:**
@@ -216,7 +215,7 @@ This happens when no messages are being received within the timeout period.
 - Verify the publisher is running and connected to the same Zenoh network
 - Increase the timeout value
 - Use `--nocapture` with pytest to see debug output: `python -m pytest tests/ -v --capture=no`
-````
+```
 
 ## Resources
 

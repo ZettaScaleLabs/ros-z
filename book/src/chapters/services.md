@@ -26,7 +26,7 @@ graph TD
 ## Key Features
 
 | Feature | Description | Benefit |
-|---------|-------------|---------|
+| --- | --- | --- |
 | **Type Safety** | Strongly-typed service definitions with Rust structs | Compile-time error detection |
 | **Pull Model** | Explicit control over request processing timing | Predictable concurrency and backpressure |
 | **Async/Blocking** | Dual API for both paradigms | Flexible integration patterns |
@@ -163,7 +163,7 @@ loop {
 ### Why Pull Model?
 
 | Aspect | Pull Model (take_request) | Push Model (callback) |
-|--------|---------------------------|----------------------|
+| --- | --- | --- |
 | **Control** | Explicit control over when to accept requests | Interrupts current work |
 | **Concurrency** | Easy to reason about | Requires careful synchronization |
 | **Backpressure** | Natural - slow processing slows acceptance | Can overwhelm if processing is slow |

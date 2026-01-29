@@ -31,6 +31,12 @@ on:
         default: ''
 
 jobs:
+  # TODO: Add Kilted support
+  # Blocked on: patch-rmwz/kilted branch in YuanYuYuan/rcl fork
+  # RMW API changes needed:
+  #   - Remove rmw_localhost_only_t usage (removed in Kilted v7.4.3)
+  #   - Update rmw_publisher_assert_liveliness (node version removed in v7.4.2)
+  # See: _tmp/kilted-rmw-api-changes.md for details
   rmw_zenoh_rs_test:
     name: rmw_zenoh_rs with ROS 2 Jazzy
     runs-on: ubuntu-latest

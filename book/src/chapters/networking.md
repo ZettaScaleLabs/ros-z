@@ -7,7 +7,7 @@
 ros-z uses a centralized Zenoh router for node discovery and communication, providing:
 
 | Benefit | Description |
-|---------|-------------|
+| --- | --- |
 | **Scalability** | Centralized discovery handles large deployments efficiently |
 | **Lower Network Overhead** | TCP-based discovery instead of multicast broadcasts |
 | **ROS 2 Compatibility** | Matches `rmw_zenoh_cpp` behavior for seamless interoperability |

@@ -18,9 +18,7 @@ The `mdbook test` command tests **every Rust code block** in your markdown files
 ```markdown
 # Your Chapter
 
-\`\`\`rust,no_run
-{{#include ../../../ros-z/examples/your_example.rs}}
-\`\`\`
+\`\`\`rust,no_run {{#include ../../../ros-z/examples/your_example.rs}} \`\`\`
 ```
 
 This code block will be:
@@ -35,7 +33,7 @@ This code block will be:
 Control how code blocks are tested:
 
 | Annotation | Effect | When to Use |
-|------------|--------|-------------|
+| --- | --- | --- |
 | `rust` | Compile and run | Small, self-contained examples |
 | `rust,no_run` | Compile only, don't run | Programs that run forever (like our examples) |
 | `rust,ignore` | Don't compile or run | Pseudo-code, incomplete snippets |
@@ -46,9 +44,7 @@ Control how code blocks are tested:
 ### Full Program Example (Most Common)
 
 ```markdown
-\`\`\`rust,no_run
-{{#include ../../../ros-z/examples/demo_nodes/talker.rs}}
-\`\`\`
+\`\`\`rust,no_run {{#include ../../../ros-z/examples/demo_nodes/talker.rs}} \`\`\`
 ```
 
 Use `no_run` because talker runs indefinitely in a loop.
@@ -56,14 +52,9 @@ Use `no_run` because talker runs indefinitely in a loop.
 ### Code Snippet That Should Compile
 
 ```markdown
-\`\`\`rust,ignore
-use ros_z::qos::{QosProfile, QosHistory};
+\`\`\`rust,ignore use ros_z::qos::{QosProfile, QosHistory};
 
-let qos = QosProfile {
-    history: QosHistory::KeepLast(10),
-    ..Default::default()
-};
-\`\`\`
+let qos = QosProfile { history: QosHistory::KeepLast(10), ..Default::default() }; \`\`\`
 ```
 
 Use `ignore` when showing configuration examples that can't run standalone.
@@ -71,14 +62,9 @@ Use `ignore` when showing configuration examples that can't run standalone.
 ### Inline Documentation Code
 
 ```markdown
-\`\`\`rust
-use ros_z::prelude::*;
+\`\`\`rust use ros_z::prelude::\*;
 
-fn main() {
-    let ctx = ZContextBuilder::default().build().unwrap();
-    assert!(ctx.is_valid());
-}
-\`\`\`
+fn main() { let ctx = ZContextBuilder::default().build().unwrap(); assert!(ctx.is_valid()); } \`\`\`
 ```
 
 No annotation needed - this will compile and run.
@@ -129,9 +115,7 @@ Runs automatically on every push and pull request.
 3. Include the example:
 
    ```markdown
-   \`\`\`rust,no_run
-   {{#include ../../../ros-z/examples/my_feature.rs}}
-   \`\`\`
+   \`\`\`rust,no_run {{#include ../../../ros-z/examples/my_feature.rs}} \`\`\`
    ```
 
 4. Test it:
@@ -187,11 +171,7 @@ Add to `.vscode/tasks.json`:
 
 ## Benefits
 
-✅ **Ensures examples compile** - Broken examples are caught immediately
-✅ **Validates includes** - Missing files or wrong paths are detected
-✅ **Maintains accuracy** - Documentation stays in sync with code
-✅ **Automates verification** - No manual testing needed
-✅ **CI integration** - Runs on every commit
+✅ **Ensures examples compile** - Broken examples are caught immediately ✅ **Validates includes** - Missing files or wrong paths are detected ✅ **Maintains accuracy** - Documentation stays in sync with code ✅ **Automates verification** - No manual testing needed ✅ **CI integration** - Runs on every commit
 
 ## Learn More
 

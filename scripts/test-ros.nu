@@ -30,7 +30,10 @@ def run-ros-interop [] {
     let distro = get-distro
     let cmd = if $distro == "humble" {
         "cargo nextest run -p ros-z-tests --no-default-features --features ros-interop,humble"
+    } else if $distro == "kilted" {
+        "cargo nextest run -p ros-z-tests --no-default-features --features ros-interop,kilted"
     } else {
+        # jazzy, rolling, or default
         "cargo nextest run -p ros-z-tests --features ros-interop"
     }
 
@@ -68,7 +71,7 @@ def get-test-pipeline [] {
 #   ./test-ros.nu --list                    # List available test functions
 def main [
     --list                       # List available test functions
-    --distro: string = "jazzy"   # ROS distro to test (humble, jazzy)
+    --distro: string = "jazzy"   # ROS distro to test (humble, jazzy, kilted, rolling)
     ...tests: string             # Specific test functions to run (optional)
 ] {
     if $list {

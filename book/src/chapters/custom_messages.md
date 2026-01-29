@@ -3,7 +3,7 @@
 ros-z supports two approaches for defining custom message types:
 
 | Approach | Definition | Best For |
-|----------|------------|----------|
+| --- | --- | --- |
 | **Rust-Native** | Write Rust structs directly | Prototyping, ros-z-only systems |
 | **Schema-Generated** | Write `.msg`/`.srv` files, generate Rust | Production, ROS 2 interop |
 
@@ -40,7 +40,7 @@ graph LR
 ### Required Traits
 
 | Trait | Purpose | Key Method |
-|-------|---------|------------|
+| --- | --- | --- |
 | **MessageTypeInfo** | Type identification | `type_name()`, `type_hash()` |
 | **WithTypeInfo** | ros-z integration | `type_info()` |
 | **Serialize/Deserialize** | Data encoding | From `serde` |
@@ -277,7 +277,7 @@ ROS_Z_MSG_PATH="./my_robot_msgs" cargo build
 ## Comparison
 
 | Feature | Rust-Native | Schema-Generated |
-|---------|-------------|------------------|
+| --- | --- | --- |
 | **Definition** | Rust structs | `.msg`/`.srv` files |
 | **Type Hashes** | `TypeHash::zero()` | Proper RIHS01 hashes |
 | **Standard Type Refs** | Manual | Automatic (`geometry_msgs`, etc.) |

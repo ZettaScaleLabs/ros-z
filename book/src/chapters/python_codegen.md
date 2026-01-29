@@ -35,7 +35,7 @@ graph TB
 ### Key Components
 
 | Component | Location | Purpose |
-|-----------|----------|---------|
+| --- | --- | --- |
 | **Python Generator** | `ros-z-codegen/src/generator/python.rs` | Generates msgspec struct classes |
 | **Rust Generator** | `ros-z-codegen/src/generator/rust.rs` | Generates Rust structs with derive attributes |
 | **PyO3 Generator** | `ros-z-codegen/src/python_msgspec_generator.rs` | Generates serialize/deserialize wrapper functions |
@@ -200,16 +200,15 @@ sequenceDiagram
 ### ROS to Python Type Mapping
 
 | ROS Type | Python Type | Notes |
-|----------|-------------|-------|
-| `bool` | `bool` | |
+| --- | --- | --- |
+| `bool` | `bool` |  |
 | `byte`, `uint8`, `int8`, `int16`, `uint16`, `int32`, `uint32`, `int64`, `uint64` | `int` | Python has arbitrary precision |
-| `float32`, `float64` | `float` | |
-| `string` | `str` | |
-| `T[]` (unbounded array) | `list[T]` | |
+| `float32`, `float64` | `float` |  |
+| `string` | `str` |  |
+| `T[]` (unbounded array) | `list[T]` |  |
 | `T[N]` (fixed array) | `list[T]` | Size not enforced in Python |
 | `uint8[]` / `byte[]` | `list[int]` | Could optimize to `bytes` |
 | Nested message | `"pkg.MsgName \| None"` | Forward reference string |
-
 
 ## Design: Hybrid Python + Rust with Derive Macros
 
@@ -238,7 +237,6 @@ sequenceDiagram
 - **None handling for optional nested fields**
 - **Minimal generated code (traits do the work)**
 
-
 ## Build Process
 
 ### Step-by-step Flow
@@ -260,14 +258,13 @@ flowchart TD
 ### Output Locations
 
 | Output | Path | Committed? |
-|--------|------|------------|
+| --- | --- | --- |
 | Python msgspec classes | `ros-z-msgs/python/ros_z_msgs_py/types/*.py` | Yes |
 | Rust PyO3 bindings | `target/.../ros-z-msgs-.../out/python_bindings.rs` | No (generated) |
 
 ### Feature Flags
 
 The Python codegen is gated behind the `python_registry` feature:
-
 
 ```rust
 // lib.rs

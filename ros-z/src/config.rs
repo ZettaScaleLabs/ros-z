@@ -61,16 +61,6 @@ impl DistroDefaults {
         }
     }
 
-    /// ROS 2 Iron defaults
-    ///
-    /// - Iron uses rmw_zenoh v0.2.x
-    /// - Real type hashes (RIHS01 format)
-    pub const fn iron() -> Self {
-        Self {
-            supports_type_hash: true,
-        }
-    }
-
     /// ROS 2 Rolling defaults
     ///
     /// - Rolling uses rmw_zenoh v0.2.x
@@ -93,24 +83,19 @@ impl DistroDefaults {
 
     /// Get the default for the currently compiled distro based on feature flags
     /// When multiple distro features are enabled (e.g., with --all-features),
-    /// priority order is: humble > iron > rolling > jazzy (default)
+    /// priority order is: humble > rolling > jazzy (default)
     pub const fn current() -> Self {
         // Priority 1: Humble
         if cfg!(feature = "humble") {
             return Self::humble();
         }
 
-        // Priority 2: Iron
-        if cfg!(feature = "iron") {
-            return Self::iron();
-        }
-
-        // Priority 3: Rolling
+        // Priority 2: Rolling
         if cfg!(feature = "rolling") {
             return Self::rolling();
         }
 
-        // Priority 4 (default): Jazzy
+        // Priority 3 (default): Jazzy
         Self::jazzy()
     }
 }

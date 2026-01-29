@@ -155,32 +155,43 @@ fn discover_ros_packages(is_humble: bool) -> Result<Vec<PathBuf>> {
 
     if system_count > 0 {
         println!(
-            "cargo:info=Found {} packages from ROS 2 installation (deduplicated to {})",
+            "cargo:warning=Found {} packages from ROS 2 installation (deduplicated to {})",
             system_count,
             package_map.len()
         );
-
-        // Emit cfg flags for each found package
-        for package_name in package_map.keys() {
-            println!("cargo:rustc-cfg=has_{}", package_name);
-        }
-
-        return Ok(package_map.into_values().collect());
     }
 
-    // Priority 2: Local bundled assets (standalone mode)
-    println!("cargo:info=Using local bundled assets from ros-z-codegen/assets/jazzy");
-    let local_asset_packages = discover_local_assets(&all_packages)?;
-    for pkg_path in local_asset_packages {
-        if let Ok(name) = discover_package_name_from_path(&pkg_path) {
-            package_map.entry(name).or_insert(pkg_path);
+    // Priority 2: Local bundled assets (fallback for missing packages)
+    // Check which packages are still missing
+    let missing_packages: Vec<_> = all_packages
+        .iter()
+        .filter(|&&pkg| !package_map.contains_key(pkg))
+        .copied()
+        .collect();
+
+    if !missing_packages.is_empty() {
+        println!(
+            "cargo:warning=Looking for {} missing packages in bundled assets",
+            missing_packages.len()
+        );
+        let local_asset_packages = discover_local_assets(&missing_packages)?;
+        for pkg_path in local_asset_packages {
+            if let Ok(name) = discover_package_name_from_path(&pkg_path) {
+                println!("cargo:info=Bundled: Adding package {}", name);
+                package_map.entry(name).or_insert(pkg_path);
+            }
         }
     }
 
     println!(
-        "cargo:info=Total unique packages discovered: {}",
+        "cargo:warning=Total unique packages discovered: {}",
         package_map.len()
     );
+
+    // Emit cfg flags for each found package
+    for package_name in package_map.keys() {
+        println!("cargo:rustc-cfg=has_{}", package_name);
+    }
 
     // Warn if packages are still not found
     let missing: Vec<_> = all_packages
@@ -210,9 +221,9 @@ fn get_all_packages(is_humble: bool) -> Vec<&'static str> {
         "unique_identifier_msgs", // Required by action_msgs
     ];
 
-    // service_msgs was introduced in ROS 2 Iron (May 2023) as part of the service
+    // service_msgs was introduced post-Humble (Jazzy and later) as part of the service
     // introspection feature. It contains types like ServiceEventInfo for monitoring
-    // service calls. This package doesn't exist in Humble (May 2022).
+    // service calls. This package doesn't exist in Humble.
     if !is_humble {
         names.push("service_msgs");
     }
@@ -289,8 +300,8 @@ fn discover_system_packages(packages: &[&str]) -> Result<Vec<PathBuf>> {
     if found_packages.is_empty() {
         let common_install_paths = vec![
             "/opt/ros/rolling",
+            "/opt/ros/kilted",
             "/opt/ros/jazzy",
-            "/opt/ros/iron",
             "/opt/ros/humble",
         ];
 

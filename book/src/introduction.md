@@ -10,11 +10,10 @@ ros-z provides three integration paths to suit different use cases:
     <iframe src="architecture.html" style="width: 1600px; height: 1000px; border: none; transform: scale(0.75); transform-origin: top left;" title="Interactive ros-z Architecture" scrolling="no"></iframe>
 </div>
 
-
 ## Why Choose ros-z?
 
 | Feature | Description | Benefit |
-|---------|-------------|---------|
+| --- | --- | --- |
 | **Native Rust** | Pure Rust implementation with no C/C++ dependencies | Memory safety, concurrency without data races |
 | **Zenoh Transport** | High-performance pub-sub engine | Low latency, efficient bandwidth usage |
 | **ROS 2 Compatible** | Works seamlessly with standard ROS 2 tools | Integrate with existing robotics ecosystems |
@@ -33,7 +32,7 @@ ros-z is designed for both new projects and gradual migration. Deploy ros-z node
 ros-z supports all essential ROS 2 communication patterns:
 
 | Pattern | Use Case | Learn More |
-|---------|----------|------------|
+| --- | --- | --- |
 | **Pub/Sub** | Continuous data streaming, sensor data, status updates | [Pub/Sub](./chapters/pubsub.md) |
 | **Services** | Request-response operations, remote procedure calls | [Services](./chapters/services.md) |
 | **Actions** | Long-running tasks with feedback and cancellation support | [Actions](./chapters/actions.md) |
@@ -87,7 +86,6 @@ while let Ok(msg) = sub.recv() {
     println!("Received: {}", msg);
 }
 ```
-
 
 ## Next Step
 

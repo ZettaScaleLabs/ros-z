@@ -43,6 +43,8 @@ let
     };
     # First line in file should be a top-level heading
     "MD041" = false;
+    # Table column style (handled by prettier)
+    "MD060" = false;
   };
 in
 git-hooks.lib.${system}.run {
@@ -90,6 +92,13 @@ git-hooks.lib.${system}.run {
     markdownlint = {
       enable = true;
       settings.configuration = markdownlintConfig;
+    };
+
+    prettier = {
+      enable = true;
+      description = "Format markdown files with prettier";
+      entry = "${pkgs.nodePackages.prettier}/bin/prettier --write --prose-wrap never";
+      files = "\\.md$";
     };
 
     nixfmt-rfc-style.enable = true;

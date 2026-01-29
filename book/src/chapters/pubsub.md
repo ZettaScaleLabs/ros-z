@@ -22,7 +22,7 @@ graph TD
 ## Key Features
 
 | Feature | Description | Benefit |
-|---------|-------------|---------|
+| --- | --- | --- |
 | **Type Safety** | Strongly-typed messages using Rust structs | Compile-time error detection |
 | **Zero-Copy** | Efficient message passing via Zenoh | Reduced latency and CPU usage |
 | **QoS Profiles** | Configurable reliability, durability, history | Fine-grained delivery control |
@@ -106,7 +106,6 @@ cargo run --example demo_nodes_listener
 cargo run --example demo_nodes_talker
 ```
 
-
 <script src="https://asciinema.org/a/l7L1vuoyZSYwXEGE.js" id="asciicast-l7L1vuoyZSYwXEGE" async="true"></script>
 
 ## Subscriber Patterns
@@ -163,7 +162,7 @@ Use callbacks for low-latency event-driven processing. Use blocking/async receiv
 ### Pattern Comparison
 
 | Aspect | Blocking Receive | Async Receive | Callback |
-|--------|------------------|---------------|----------|
+| --- | --- | --- | --- |
 | **Control Flow** | Sequential | Sequential | Event-driven |
 | **Latency** | Medium (poll-based) | Medium (poll-based) | Low (immediate) |
 | **Memory** | Queue size × message | Queue size × message | No queue |

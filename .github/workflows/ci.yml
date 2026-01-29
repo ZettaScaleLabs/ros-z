@@ -141,14 +141,14 @@ jobs:
         shell: bash
 
   python-tests:
-    name: Python Tests (ros-z-py) (${{ matrix.distro }})
+    name: Python Tests (ros-z-py) - ${{ matrix.distro }} features
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
     strategy:
       matrix:
-        distro: [humble, jazzy]
+        distro: [humble, jazzy, kilted]
     # Skip for draft PRs to save CI time during development
     if: |
       github.event_name == 'push' ||
@@ -160,17 +160,6 @@ jobs:
 
       - name: Install Determinate Nix
         uses: DeterminateSystems/determinate-nix-action@v3
-        with:
-          extra-conf: |
-            extra-substituters = https://ros.cachix.org
-            extra-trusted-public-keys = ros.cachix.org-1:dSyZxI8geDCJrwgvCOHDoAfOm5sV1wCPjBkKL+38Rvo=
-
-      - name: Setup Cachix
-        uses: cachix/cachix-action@v15
-        with:
-          name: ros
-          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-          skipPush: true
 
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.9
@@ -180,13 +169,31 @@ jobs:
           nix profile install nixpkgs#nushell
           chmod +x scripts/test-python.nu
 
-      - name: Setup nix environment
+      - name: Setup nix environment (pure Rust, no ROS)
         run: |
-          nix print-dev-env '.#ros-${{ matrix.distro }}-ci' --accept-flake-config > /tmp/nix-dev-env.sh
+          nix print-dev-env '.#pureRust-ci' --accept-flake-config > /tmp/nix-dev-env.sh
           echo "export SCCACHE_GHA_ENABLED=true" >> /tmp/nix-dev-env.sh
           echo "export SCCACHE_CACHE_SIZE=1G" >> /tmp/nix-dev-env.sh
           echo "export RUSTC_WRAPPER=sccache" >> /tmp/nix-dev-env.sh
           echo "export CI=true" >> /tmp/nix-dev-env.sh
+
+      - name: Build ros-z-msgs with ${{ matrix.distro }} features
+        run: |
+          source /tmp/nix-dev-env.sh
+          # Ensure no ROS environment variables are set
+          unset AMENT_PREFIX_PATH
+          unset CMAKE_PREFIX_PATH
+          # Build with distro-specific features (uses bundled assets)
+          if [ "${{ matrix.distro }}" = "humble" ]; then
+            echo "Building ros-z-msgs for Humble (no service_msgs)"
+            cargo build -p ros-z-msgs --no-default-features --features humble,python_registry
+          elif [ "${{ matrix.distro }}" = "kilted" ]; then
+            echo "Building ros-z-msgs for Kilted (with service_msgs)"
+            cargo build -p ros-z-msgs --no-default-features --features kilted,python_registry
+          else
+            echo "Building ros-z-msgs for Jazzy (with service_msgs)"
+            cargo build -p ros-z-msgs --features python_registry
+          fi
 
       - name: Setup venv
         run: |
@@ -239,7 +246,7 @@ jobs:
           nu scripts/test-python.nu --distro ${{ matrix.distro }} cleanup-python
 
   ros-tests:
-    name: ROS Tests (clippy-rmw, interop) (jazzy)
+    name: ROS Interop Tests - Nix (${{ matrix.distro }})
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -248,6 +255,9 @@ jobs:
     if: |
       github.event_name == 'push' ||
       github.event.pull_request.draft == false
+    strategy:
+      matrix:
+        distro: [humble, jazzy, kilted]
 
     steps:
       - name: Checkout repository
@@ -277,7 +287,7 @@ jobs:
 
       - name: Setup nix environment
         run: |
-          nix print-dev-env '.#ros-jazzy-ci' \
+          nix print-dev-env '.#ros-${{ matrix.distro }}-ci' \
             --accept-flake-config > /tmp/nix-dev-env.sh
           echo "export SCCACHE_GHA_ENABLED=true" >> /tmp/nix-dev-env.sh
           echo "export SCCACHE_CACHE_SIZE=1G" >> /tmp/nix-dev-env.sh
@@ -287,4 +297,4 @@ jobs:
       - name: Run ROS tests
         run: |
           source /tmp/nix-dev-env.sh
-          nu scripts/test-ros.nu --distro jazzy
+          nu scripts/test-ros.nu --distro ${{ matrix.distro }}

@@ -1,4 +1,4 @@
-name: Interop Tests
+name: Ubuntu Stability Tests
 
 on:
   push:
@@ -26,7 +26,7 @@ on:
 
 jobs:
   interop_test:
-    name: Interop tests with ROS 2 ${{ matrix.distro }}
+    name: ROS Interop - Ubuntu ${{ matrix.distro }}
     runs-on: ubuntu-latest
     # Skip for draft PRs to save CI time during development
     if: |
@@ -34,12 +34,14 @@ jobs:
       github.event.pull_request.draft == false
     strategy:
       matrix:
-        distro: [humble, jazzy]
+        distro: [humble, jazzy, kilted]
         include:
           - distro: humble
             image: rostooling/setup-ros-docker:ubuntu-jammy-ros-humble-ros-base-latest
           - distro: jazzy
             image: rostooling/setup-ros-docker:ubuntu-noble-ros-jazzy-ros-base-latest
+          - distro: kilted
+            image: rostooling/setup-ros-docker:ubuntu-noble-ros-kilted-ros-base-latest
     container:
       image: ${{ matrix.image }}
     steps:
@@ -63,6 +65,16 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest
+
+      - name: Verify system ROS packages
+        shell: bash
+        run: |
+          source /opt/ros/${{ matrix.distro }}/setup.bash
+          echo "AMENT_PREFIX_PATH: $AMENT_PREFIX_PATH"
+          test -n "$AMENT_PREFIX_PATH" || (echo "ERROR: AMENT_PREFIX_PATH not set" && exit 1)
+          # Verify system packages exist
+          test -d "/opt/ros/${{ matrix.distro }}/share/std_msgs" || (echo "ERROR: std_msgs not found" && exit 1)
+          echo "✓ System ROS packages detected"
 
       - name: Run interop tests
         shell: bash

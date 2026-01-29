@@ -86,15 +86,15 @@ ros-z-console [OPTIONS] [ROUTER] [DOMAIN]
 
 ### Arguments
 
-| Argument | Default | Description |
-|----------|---------|-------------|
+| Argument | Default              | Description          |
+| -------- | -------------------- | -------------------- |
 | `ROUTER` | `tcp/127.0.0.1:7447` | Zenoh router address |
-| `DOMAIN` | `0` | ROS domain ID |
+| `DOMAIN` | `0`                  | ROS domain ID        |
 
 ### Options
 
 | Flag | Description |
-|------|-------------|
+| --- | --- |
 | `--tui` | Enable TUI interface (default if no other mode specified) |
 | `--headless` | Headless mode: stream events to stdout |
 | `--json` | Output structured JSON logs |
@@ -176,11 +176,14 @@ Produces a structured JSON file with topics, nodes, services, and their relation
   "timestamp": "2026-01-21T10:30:00Z",
   "domain_id": 0,
   "topics": [
-    {"name": "/chatter", "type": "std_msgs/msg/String", "publishers": 1, "subscribers": 1}
+    {
+      "name": "/chatter",
+      "type": "std_msgs/msg/String",
+      "publishers": 1,
+      "subscribers": 1
+    }
   ],
-  "nodes": [
-    {"name": "talker", "namespace": "/"}
-  ],
+  "nodes": [{ "name": "talker", "namespace": "/" }],
   "services": []
 }
 ```
@@ -216,15 +219,15 @@ timestamp,topic,rate_hz,bandwidth_kbps,avg_payload_bytes
 
 ros-z-console tracks these system events:
 
-| Event | Description |
-|-------|-------------|
-| `TopicDiscovered` | New topic detected in the graph |
-| `TopicRemoved` | Topic no longer present |
-| `NodeDiscovered` | New node joined the graph |
-| `NodeRemoved` | Node left the graph |
-| `ServiceDiscovered` | New service available |
-| `RateMeasured` | Rate measurement completed |
-| `MetricsSnapshot` | Periodic summary of graph state |
+| Event               | Description                     |
+| ------------------- | ------------------------------- |
+| `TopicDiscovered`   | New topic detected in the graph |
+| `TopicRemoved`      | Topic no longer present         |
+| `NodeDiscovered`    | New node joined the graph       |
+| `NodeRemoved`       | Node left the graph             |
+| `ServiceDiscovered` | New service available           |
+| `RateMeasured`      | Rate measurement completed      |
+| `MetricsSnapshot`   | Periodic summary of graph state |
 
 ## Configuration
 
@@ -238,11 +241,11 @@ Create a `ros-z-console.json` or `.ros-z-console.json` file:
 }
 ```
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `cache_ttl_seconds` | 30 | General cache time-to-live |
-| `rate_cache_ttl_seconds` | 30 | How long rate measurements are cached |
-| `graph_cache_update_ms` | 100 | Graph refresh interval in milliseconds |
+| Option                   | Default | Description                            |
+| ------------------------ | ------- | -------------------------------------- |
+| `cache_ttl_seconds`      | 30      | General cache time-to-live             |
+| `rate_cache_ttl_seconds` | 30      | How long rate measurements are cached  |
+| `graph_cache_update_ms`  | 100     | Graph refresh interval in milliseconds |
 
 ## Integration Examples
 

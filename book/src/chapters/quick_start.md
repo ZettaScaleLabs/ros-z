@@ -32,7 +32,7 @@ Here's a complete publisher and subscriber in one application:
 ## Key Components
 
 | Component | Purpose | Usage |
-|-----------|---------|-------|
+| --- | --- | --- |
 | **ZContextBuilder** | Initialize ros-z environment | Entry point, configure settings |
 | **ZContext** | Manages ROS 2 connections | Create nodes from this |
 | **Node** | Logical unit of computation | Publishers/subscribers attach here |

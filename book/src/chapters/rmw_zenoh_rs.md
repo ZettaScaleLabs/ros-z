@@ -118,7 +118,6 @@ ros2 run demo_nodes_cpp listener
 
 Your nodes will now communicate via Zenoh instead of DDS!
 
-
 ```admonish warning
 Unlike multicast-based discovery, router-based architecture is **required** by default. Both rmw_zenoh_rs and rmw_zenoh_cpp expect a router at `tcp/localhost:7447`. Without a router, nodes will not discover each other.
 ```
@@ -142,10 +141,10 @@ The router runs as a separate process and manages discovery and routing between 
 Both `rmw_zenoh_rs` and `rmw_zenoh_cpp` are RMW implementations using Zenoh, but with different design goals:
 
 | Feature | rmw_zenoh_rs | rmw_zenoh_cpp |
-|---------|--------------|---------------|
+| --- | --- | --- |
 | **Implementation Language** | Rust (using ros-z) | C++ |
 | **Primary Use Case** | Integration with ros-z ecosystem | Standalone Zenoh RMW |
-| **ROS 2 Compatibility** | Jazzy | Humble, Iron, ..., Rolling |
+| **ROS 2 Compatibility** | Jazzy | Humble, Kilted, Rolling |
 | **Status** | Experimental | Production-ready |
 | **Dependencies** | ros-z, Zenoh Rust | Zenoh C++ binding |
 | **Performance** | Optimized for Rust stack | Optimized for C++ stack |
@@ -154,7 +153,6 @@ Both `rmw_zenoh_rs` and `rmw_zenoh_cpp` are RMW implementations using Zenoh, but
 ## Configuration
 
 rmw_zenoh_rs uses the same Zenoh configuration as rmw_zenoh_cpp. See [Configuration Options](./config_options.md) for details.
-
 
 ## See Also
 
