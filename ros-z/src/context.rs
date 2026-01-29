@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, atomic::AtomicUsize},
 };
 
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 use zenoh::{Result, Session, Wait};
 
 use crate::{Builder, graph::Graph, node::ZNodeBuilder};
@@ -66,6 +66,7 @@ impl RemapRules {
 #[derive(Default)]
 pub struct ZContextBuilder {
     domain_id: usize,
+    enclave: String,
     zenoh_config: Option<zenoh::Config>,
     config_file: Option<PathBuf>,
     config_overrides: Vec<(String, serde_json::Value)>,
@@ -77,6 +78,12 @@ impl ZContextBuilder {
     /// Set the ROS domain ID
     pub fn with_domain_id(mut self, domain_id: usize) -> Self {
         self.domain_id = domain_id;
+        self
+    }
+
+    /// Set the enclave name
+    pub fn with_enclave<S: Into<String>>(mut self, enclave: S) -> Self {
+        self.enclave = enclave.into();
         self
     }
 
@@ -295,11 +302,14 @@ impl Builder for ZContextBuilder {
         // 4. **NEW DEFAULT**: ROS session config (connects to router at tcp/localhost:7447)
         //    This matches rmw_zenoh_cpp behavior
 
-        info!(
+        debug!(
             "[CTX] Building context: domain_id={}, has_config={}",
             self.domain_id,
             self.config_file.is_some()
         );
+
+        // Capture enclave before moving self
+        let enclave = self.enclave.clone();
 
         // Apply environment variable overrides first
         let builder = self.apply_env_overrides()?;
@@ -308,14 +318,14 @@ impl Builder for ZContextBuilder {
             builder.config_overrides.len()
         );
 
-        let has_custom_config = builder.zenoh_config.is_some();
-        let has_config_file = builder.config_file.is_some();
-        let has_env_config = std::env::var("ROSZ_CONFIG_FILE").is_ok();
-
         // Initialize logging if enabled
         if builder.enable_logging {
             zenoh::init_log_from_env_or("error");
         }
+
+        let has_custom_config = builder.zenoh_config.is_some();
+        let has_config_file = builder.config_file.is_some();
+        let has_env_config = std::env::var("ROSZ_CONFIG_FILE").is_ok();
 
         let mut config = if let Some(config) = builder.zenoh_config {
             config
@@ -346,7 +356,7 @@ impl Builder for ZContextBuilder {
 
         // Open Zenoh session
         let session = zenoh::open(config).wait()?;
-        info!("[CTX] Zenoh session opened: zid={}", session.zid());
+        debug!("[CTX] Zenoh session opened: zid={}", session.zid());
 
         // Check if router is running when using default peer mode
         if !has_custom_config && !has_config_file && !has_env_config {
@@ -365,6 +375,7 @@ impl Builder for ZContextBuilder {
             session: Arc::new(session),
             counter: Arc::new(GlobalCounter::default()),
             domain_id,
+            enclave,
             graph,
             remap_rules: builder.remap_rules,
         })
@@ -377,6 +388,7 @@ pub struct ZContext {
     // Global counter for the participants
     counter: Arc<GlobalCounter>,
     domain_id: usize,
+    enclave: String,
     graph: Arc<Graph>,
     remap_rules: RemapRules,
 }
@@ -387,6 +399,7 @@ impl ZContext {
             domain_id: self.domain_id,
             name: name.as_ref().to_owned(),
             namespace: "".to_string(),
+            enclave: self.enclave.clone(),
             session: self.session.clone(),
             counter: self.counter.clone(),
             graph: self.graph.clone(),
@@ -396,5 +409,10 @@ impl ZContext {
 
     pub fn shutdown(&self) -> Result<()> {
         self.session.close().wait()
+    }
+
+    /// Get a reference to the graph for setting up event callbacks
+    pub fn graph(&self) -> &Arc<crate::graph::Graph> {
+        &self.graph
     }
 }

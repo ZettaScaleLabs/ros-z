@@ -6,7 +6,7 @@ use std::{
     sync::{Arc, Weak},
     time::SystemTime,
 };
-use tracing::{info, debug};
+use tracing::debug;
 
 use crate::entity::{
     ADMIN_SPACE, EndpointEntity, Entity, EntityKind, LivelinessKE, NodeKey, Topic,
@@ -64,6 +64,11 @@ impl GraphData {
     }
 
     fn insert(&mut self, ke: LivelinessKE) {
+        // Skip if already parsed to avoid duplicates
+        if self.parsed.contains_key(&ke) {
+            tracing::debug!("insert: Skipping already parsed key");
+            return;
+        }
         self.cached.insert(ke);
     }
 
@@ -71,6 +76,15 @@ impl GraphData {
         let was_cached = self.cached.remove(ke);
         let was_parsed = self.parsed.remove(ke);
         debug!("[GRF] Removed KE: {}, cached={}, parsed={}", ke.0, was_cached, was_parsed.is_some());
+
+        if was_parsed.is_some() {
+            tracing::debug!("remove: Removed from parsed");
+        }
+
+        // Note: We don't eagerly remove from by_topic/by_service/by_node maps here.
+        // The weak references will naturally fail to upgrade when entities are dropped,
+        // and the retain() calls in visit_by_* functions will clean them up lazily.
+        // This matches rmw_zenoh_cpp's approach.
 
         match (was_cached, was_parsed) {
             // Both should not be present at the same time
@@ -92,9 +106,15 @@ impl GraphData {
 
     fn parse(&mut self) {
         let count = self.cached.len();
-        info!("[GRF] Parsing {} cached entities", count);
+        debug!("[GRF] Parsing {} cached entities", count);
 
         for ke in self.cached.drain() {
+            // Skip if already parsed (e.g., added via add_local_entity)
+            if self.parsed.contains_key(&ke) {
+                tracing::debug!("parse: Skipping already parsed key");
+                continue;
+            }
+
             // FIXME: unwrap
             let arc = Arc::new(Entity::try_from(&ke).unwrap());
             let weak = Arc::downgrade(&arc);
@@ -103,9 +123,14 @@ impl GraphData {
                     debug!("[GRF] Parsed node: {}/{}", x.namespace, x.name);
 
                     // TODO: omit the clone of node key
+                    let node_key = x.key();
+                    tracing::debug!(
+                        "parse: Storing Node entity with key=({:?}, {:?})",
+                        node_key.0, node_key.1
+                    );
                     let slab = self
                         .by_node
-                        .entry(x.key())
+                        .entry(node_key)
                         .or_insert_with(|| Slab::with_capacity(DEFAULT_SLAB_CAPACITY));
 
                             // If slab is full, remove failing weak pointers first
@@ -118,6 +143,13 @@ impl GraphData {
                 Entity::Endpoint(x) => {
                     debug!("[GRF] Parsed endpoint: kind={:?}, topic={}, node={}/{}",
                         x.kind, x.topic, x.node.namespace, x.node.name);
+                    let node_key = x.node.key();
+                    let type_str = x.type_info.as_ref().map(|t| t.name.as_str()).unwrap_or("unknown");
+                    tracing::debug!(
+                        "parse: Storing Endpoint ({:?}) for node_key=({:?}, {:?}), topic={}, type={}, id={}",
+                        x.kind, node_key.0, node_key.1, x.topic, type_str, x.id
+                    );
+
                     // Index by topic for Publisher/Subscription entities
                     if matches!(x.kind, EntityKind::Publisher | EntityKind::Subscription) {
                         // TODO: omit the clone of topic
@@ -149,10 +181,9 @@ impl GraphData {
 
                         service_slab.insert(weak.clone());
                     }
-
                     let node_slab = self
                         .by_node
-                        .entry(x.node.key())
+                        .entry(node_key)
                         .or_insert_with(|| Slab::with_capacity(DEFAULT_SLAB_CAPACITY));
 
                     // If slab is full, remove failing weak pointers first
@@ -176,14 +207,22 @@ impl GraphData {
         }
 
         if let Some(entities) = self.by_node.get_mut(&node_key) {
+            tracing::debug!("visit_by_node: Found {} entities in slab for node ({:?}, {:?})", entities.len(), node_key.0, node_key.1);
+            let mut upgraded = 0;
+            let mut failed = 0;
             entities.retain(|_, weak| {
                 if let Some(rc) = weak.upgrade() {
                     f(rc);
+                    upgraded += 1;
                     true
                 } else {
+                    failed += 1;
                     false
                 }
             });
+            tracing::debug!("visit_by_node: Upgraded {} entities, failed to upgrade {}", upgraded, failed);
+        } else {
+            tracing::debug!("visit_by_node: No entities found for node ({:?}, {:?})", node_key.0, node_key.1);
         }
     }
 
@@ -253,10 +292,24 @@ impl Graph {
                 let key_expr = sample.key_expr().to_owned();
                 let ke = LivelinessKE(key_expr.clone());
                 tracing::debug!("Received liveliness token: {} kind={:?}", key_expr, sample.kind());
+
                 match sample.kind() {
                     SampleKind::Put => {
-                        info!("[GRF] Entity appeared: {}", ke.0);
-                        graph_data_guard.insert(ke.clone());
+                        debug!("[GRF] Entity appeared: {}", ke.0);
+                        tracing::debug!("Graph subscriber: PUT {}", key_expr.as_str());
+                        // Only insert if not already parsed (avoid duplicates from liveliness query)
+                        let already_parsed = graph_data_guard.parsed.contains_key(&ke);
+                        let already_cached = graph_data_guard.cached.contains(&ke);
+                        tracing::debug!("  Check: parsed={}, cached={}, parsed.len()={}, cached.len()={}",
+                            already_parsed, already_cached, graph_data_guard.parsed.len(), graph_data_guard.cached.len());
+                        if already_parsed {
+                            tracing::debug!("  Skipping - already in parsed");
+                        } else if already_cached {
+                            tracing::debug!("  Skipping - already in cached");
+                        } else {
+                            tracing::debug!("  Adding to cached");
+                            graph_data_guard.insert(ke.clone());
+                        }
                         // Trigger graph change events
                         match Entity::try_from(&ke) {
                             Ok(entity) => {
@@ -269,7 +322,8 @@ impl Graph {
                         }
                     }
                     SampleKind::Delete => {
-                        info!("[GRF] Entity disappeared: {}", ke.0);
+                        debug!("[GRF] Entity disappeared: {}", ke.0);
+                        tracing::debug!("Graph subscriber: DELETE {}", key_expr.as_str());
                         // Trigger graph change events before removal
                         if let Ok(entity) = Entity::try_from(&ke) {
                             c_event_manager.trigger_graph_change(&entity, false, c_zid);
@@ -279,7 +333,54 @@ impl Graph {
                 }
             })
             .wait()?;
-        tracing::debug!("Liveliness subscriber created successfully");
+
+
+        // Query existing liveliness tokens from all connected sessions
+        // This is crucial for cross-context discovery where entities from other sessions
+        // were created before this session started
+        let liveliness_ke = format!("{ADMIN_SPACE}/{domain_id}/**");
+        let replies = session
+            .liveliness()
+            .get(&liveliness_ke)
+            .timeout(std::time::Duration::from_secs(3))
+            .wait()?;
+
+        // Process all replies and add them to the graph
+        // IMPORTANT: Filter out entities from the current session to avoid duplicates
+        // Local entities are already added via add_local_entity()
+        let mut reply_count = 0;
+        let mut filtered_count = 0;
+        while let Ok(reply) = replies.recv() {
+            reply_count += 1;
+            if let Ok(sample) = reply.into_result() {
+                let key_expr = sample.key_expr().to_owned();
+                let ke = LivelinessKE(key_expr.clone());
+
+                // Parse entity to check if it's from current session
+                if let Ok(entity) = Entity::try_from(&ke) {
+                    // Skip entities from current session
+                    let is_local = match &entity {
+                        Entity::Node(node) => node.z_id == zid,
+                        Entity::Endpoint(endpoint) => endpoint.node.z_id == zid,
+                    };
+
+                    if !is_local {
+                        // Only insert entities from other sessions
+                        tracing::debug!("Graph: Adding cross-context entity: {}", key_expr.as_str());
+                        graph_data.lock().insert(ke);
+                    } else {
+                        filtered_count += 1;
+                        tracing::debug!("Graph: Filtered local entity: {}", key_expr.as_str());
+                    }
+                }
+            }
+        }
+        tracing::debug!(
+            "Graph: Liveliness query received {} replies, filtered {} local entities",
+            reply_count,
+            filtered_count
+        );
+
         Ok(Self {
             _subscriber: sub,
             data: graph_data,
@@ -294,6 +395,152 @@ impl Graph {
             Entity::Node(node) => node.z_id == self.zid,
             Entity::Endpoint(endpoint) => endpoint.node.z_id == self.zid,
         }
+    }
+
+    /// Add a local entity to the graph for immediate discovery
+    /// This is used to make local publishers/subscriptions/services/clients
+    /// immediately visible in graph queries without waiting for Zenoh liveliness propagation
+    pub fn add_local_entity(&self, entity: Entity) -> Result<()> {
+        let mut data = self.data.lock();
+
+        // Create LivelinessKE from entity
+        let ke = LivelinessKE::try_from(&entity)?;
+
+        // Check if entity already exists (to avoid triggering duplicate graph change events)
+        let already_exists = data.parsed.contains_key(&ke);
+
+        // Create Arc for the entity and weak reference
+        let arc = Arc::new(entity.clone());
+        let weak = Arc::downgrade(&arc);
+
+        // Store in parsed HashMap
+        data.parsed.insert(ke, arc.clone());
+
+        // Add to appropriate indexes
+        match &entity {
+            Entity::Node(node) => {
+                let slab = data
+                    .by_node
+                    .entry(node.key())
+                    .or_insert_with(|| Slab::with_capacity(DEFAULT_SLAB_CAPACITY));
+
+                if slab.len() >= slab.capacity() {
+                    slab.retain(|_, weak_ptr| weak_ptr.upgrade().is_some());
+                }
+                slab.insert(weak);
+            }
+            Entity::Endpoint(endpoint) => {
+                // Index by topic for Publisher/Subscription
+                if matches!(endpoint.kind, EntityKind::Publisher | EntityKind::Subscription) {
+                    let topic_slab = data
+                        .by_topic
+                        .entry(endpoint.topic.clone())
+                        .or_insert_with(|| Slab::with_capacity(DEFAULT_SLAB_CAPACITY));
+
+                    if topic_slab.len() >= topic_slab.capacity() {
+                        topic_slab.retain(|_, weak_ptr| weak_ptr.upgrade().is_some());
+                    }
+                    topic_slab.insert(weak.clone());
+                }
+
+                // Index by service for Service/Client
+                if matches!(endpoint.kind, EntityKind::Service | EntityKind::Client) {
+                    let service_slab = data
+                        .by_service
+                        .entry(endpoint.topic.clone())
+                        .or_insert_with(|| Slab::with_capacity(DEFAULT_SLAB_CAPACITY));
+
+                    if service_slab.len() >= service_slab.capacity() {
+                        service_slab.retain(|_, weak_ptr| weak_ptr.upgrade().is_some());
+                    }
+                    service_slab.insert(weak.clone());
+                }
+
+                // Index by node
+                let node_slab = data
+                    .by_node
+                    .entry(endpoint.node.key())
+                    .or_insert_with(|| Slab::with_capacity(DEFAULT_SLAB_CAPACITY));
+
+                if node_slab.len() >= node_slab.capacity() {
+                    node_slab.retain(|_, weak_ptr| weak_ptr.upgrade().is_some());
+                }
+                node_slab.insert(weak);
+            }
+        }
+
+        // Release lock before triggering events
+        drop(data);
+
+        // Only trigger graph change event if this is a new entity
+        // (to avoid double-counting when liveliness already triggered it)
+        if !already_exists {
+            self.event_manager.trigger_graph_change(&entity, true, self.zid);
+        }
+
+        Ok(())
+    }
+
+    /// Remove a local entity from the graph
+    pub fn remove_local_entity(&self, entity: &Entity) -> Result<()> {
+        let mut data = self.data.lock();
+
+        // Create LivelinessKE from entity
+        let ke = LivelinessKE::try_from(entity)?;
+
+        // Remove from both cached and parsed
+        data.cached.remove(&ke);
+        data.parsed.remove(&ke);
+
+        // Also remove from the index slabs (by_topic, by_service, by_node)
+        // The slabs use Weak pointers which will fail to upgrade after we remove from parsed
+        // But we need to explicitly remove them to prevent parse() from re-adding the entity
+        match entity {
+            Entity::Node(node_entity) => {
+                if let Some(slab) = data.by_node.get_mut(&node_entity.key()) {
+                    slab.retain(|_, weak| {
+                        weak.upgrade().is_some_and(|arc| {
+                            LivelinessKE::try_from(&*arc).ok().as_ref() != Some(&ke)
+                        })
+                    });
+                }
+            }
+            Entity::Endpoint(endpoint_entity) => {
+                // Remove from by_topic or by_service depending on kind
+                if matches!(endpoint_entity.kind, EntityKind::Publisher | EntityKind::Subscription)
+                    && let Some(slab) = data.by_topic.get_mut(&endpoint_entity.topic) {
+                    slab.retain(|_, weak| {
+                        weak.upgrade().is_some_and(|arc| {
+                            LivelinessKE::try_from(&*arc).ok().as_ref() != Some(&ke)
+                        })
+                    });
+                }
+                if matches!(endpoint_entity.kind, EntityKind::Service | EntityKind::Client)
+                    && let Some(slab) = data.by_service.get_mut(&endpoint_entity.topic) {
+                    slab.retain(|_, weak| {
+                        weak.upgrade().is_some_and(|arc| {
+                            LivelinessKE::try_from(&*arc).ok().as_ref() != Some(&ke)
+                        })
+                    });
+                }
+                // Also remove from by_node (endpoints are indexed by their node)
+                if let Some(slab) = data.by_node.get_mut(&endpoint_entity.node.key()) {
+                    slab.retain(|_, weak| {
+                        weak.upgrade().is_some_and(|arc| {
+                            LivelinessKE::try_from(&*arc).ok().as_ref() != Some(&ke)
+                        })
+                    });
+                }
+            }
+        }
+
+        // Release lock before triggering events
+        drop(data);
+
+        // Trigger graph change event
+        self.event_manager.trigger_graph_change(entity, false, self.zid);
+
+        Ok(())
     }
 
     pub fn count(&self, kind: EntityKind, name: impl AsRef<str>) -> usize {
@@ -447,10 +694,23 @@ impl Graph {
         node_key: NodeKey,
         kind: EntityKind,
     ) -> Vec<(String, String)> {
-        let mut res = Vec::new();
+        use std::collections::BTreeSet;
+
+        // Use BTreeSet to deduplicate and sort results by (topic, type)
+        // This matches rmw_zenoh_cpp behavior which uses std::map
+        let mut res_set = BTreeSet::new();
         let mut data = self.data.lock();
 
+        let node_ns = node_key.0.clone();
+        let node_name = node_key.1.clone();
+
+        tracing::debug!(
+            "get_names_and_types_by_node: Looking for node_key=({:?}, {:?}), kind={:?}",
+            node_ns, node_name, kind
+        );
+
         if !data.cached.is_empty() {
+            tracing::debug!("get_names_and_types_by_node: Parsing {} cached entries", data.cached.len());
             data.parse();
         }
 
@@ -458,14 +718,32 @@ impl Graph {
             if let Some(enp) = ent.get_endpoint()
                 && enp.kind == kind
                 && let Some(type_info) = &enp.type_info {
-                    res.push((
-                        enp.topic.clone(),
-                        type_info.name.clone(),
-                    ));
+                    // Insert into set for automatic deduplication
+                    res_set.insert((enp.topic.clone(), type_info.name.clone()));
                 }
         });
 
+        let res: Vec<_> = res_set.into_iter().collect();
+
+        tracing::debug!(
+            "get_names_and_types_by_node: Returning {} topics for node ({:?}, {:?}), kind={:?}: {:?}",
+            res.len(), node_ns, node_name, kind, res
+        );
+
         res
+    }
+
+    /// Check if a node exists in the graph
+    ///
+    /// Returns true if the node exists, false otherwise
+    pub fn node_exists(&self, node_key: NodeKey) -> bool {
+        let mut data = self.data.lock();
+
+        if !data.cached.is_empty() {
+            data.parse();
+        }
+
+        data.by_node.contains_key(&node_key)
     }
 
     /// Get all node names and namespaces discovered in the graph
@@ -478,35 +756,34 @@ impl Graph {
             data.parse();
         }
 
-        use std::collections::HashSet;
+        // Extract all nodes from by_node HashMap
+        // Return one entry per node instance (even if multiple nodes have same name/namespace)
+        // Denormalize namespace: empty string becomes "/"
+        let mut result = Vec::new();
+        for ((namespace, name), slab) in data.by_node.iter() {
+            let denormalized_ns = if namespace.is_empty() {
+                "/".to_string()
+            } else if !namespace.starts_with('/') {
+                format!("/{}", namespace)
+            } else {
+                namespace.clone()
+            };
 
-        let mut node_keys = HashSet::new();
-
-        // Collect nodes from explicit node entities
-        for (namespace, name) in data.by_node.keys() {
-            node_keys.insert((namespace.clone(), name.clone()));
-        }
-
-        // Also collect nodes from endpoints (in case node liveliness tokens aren't published)
-        for entity in data.parsed.values() {
-            if let Entity::Endpoint(endpoint) = entity.as_ref() {
-                node_keys.insert(endpoint.node.key());
+            // Count each Node entity separately (not Endpoint entities)
+            for (_, weak_entity) in slab.iter() {
+                if let Some(entity_arc) = weak_entity.upgrade()
+                    && matches!(&*entity_arc, Entity::Node(_))
+                {
+                    result.push((name.clone(), denormalized_ns.clone()));
+                }
             }
         }
-
-        // Node keys are already denormalized
-        let mut nodes: Vec<_> = node_keys
-            .into_iter()
-            .map(|(namespace, name)| (name, namespace))
-            .collect();
-        nodes.sort_by(|a, b| a.1.cmp(&b.1).then(a.0.cmp(&b.0)));
-        nodes
+        result
     }
 
     /// Get all node names, namespaces, and enclaves discovered in the graph
     ///
     /// Returns a vector of tuples (node_name, node_namespace, enclave)
-    /// Note: Enclave information is not currently tracked, so empty string is returned
     pub fn get_node_names_with_enclaves(&self) -> Vec<(String, String, String)> {
         let mut data = self.data.lock();
 
@@ -514,30 +791,36 @@ impl Graph {
             data.parse();
         }
 
-        use std::collections::HashSet;
+        // Extract all nodes from by_node HashMap
+        // Return one entry per node instance (even if multiple nodes have same name/namespace)
+        // Denormalize namespace: empty string becomes "/"
+        let mut result = Vec::new();
+        for ((namespace, name), slab) in data.by_node.iter() {
+            let denormalized_ns = if namespace.is_empty() {
+                "/".to_string()
+            } else if !namespace.starts_with('/') {
+                format!("/{}", namespace)
+            } else {
+                namespace.clone()
+            };
 
-        let mut node_keys = HashSet::new();
-
-        // Collect nodes from explicit node entities
-        for (namespace, name) in data.by_node.keys() {
-            node_keys.insert((namespace.clone(), name.clone()));
-        }
-
-        // Also collect nodes from endpoints (in case node liveliness tokens aren't published)
-        for entity in data.parsed.values() {
-            if let Entity::Endpoint(endpoint) = entity.as_ref() {
-                node_keys.insert(endpoint.node.key());
+            // Process each Node entity separately (not Endpoint entities)
+            for (_, weak_entity) in slab.iter() {
+                if let Some(entity_arc) = weak_entity.upgrade()
+                    && let Entity::Node(node) = &*entity_arc
+                {
+                    let enclave = if node.enclave.is_empty() {
+                        "/".to_string()
+                    } else if !node.enclave.starts_with('/') {
+                        format!("/{}", node.enclave)
+                    } else {
+                        node.enclave.clone()
+                    };
+                    result.push((name.clone(), denormalized_ns.clone(), enclave));
+                }
             }
         }
-
-        // Node keys are already denormalized
-        // FIXME: For now, enclave is always empty string as we don't track this yet
-        let mut nodes: Vec<_> = node_keys
-            .into_iter()
-            .map(|(namespace, name)| (name, namespace, String::new()))
-            .collect();
-        nodes.sort_by(|a, b| a.1.cmp(&b.1).then(a.0.cmp(&b.0)));
-        nodes
+        result
     }
 
     /// Get action client names and types by node

@@ -4,7 +4,7 @@ use std::{marker::PhantomData, sync::Arc};
 
 use zenoh::liveliness::LivelinessToken;
 use zenoh::{Result, Session, Wait, sample::Sample};
-use tracing::{info, debug, trace};
+use tracing::{debug, trace};
 
 use crate::Builder;
 use crate::attachment::{Attachment, GidArray};
@@ -119,7 +119,7 @@ where
         }
 
         let inner = pub_builder.wait()?;
-        info!("[PUB] Publisher ready: topic={}", self.entity.topic);
+        debug!("[PUB] Publisher ready: topic={}", self.entity.topic);
 
         let lv_token = self
             .session
@@ -226,6 +226,7 @@ pub struct ZSubBuilder<T, S = CdrSerdes<T>> {
     pub entity: EndpointEntity,
     pub session: Arc<Session>,
     pub dyn_schema: Option<Arc<crate::dynamic::schema::MessageSchema>>,
+    pub locality: Option<zenoh::sample::Locality>,
     pub _phantom_data: PhantomData<(T, S)>,
 }
 
@@ -243,8 +244,29 @@ where
             entity: self.entity,
             session: self.session,
             dyn_schema: self.dyn_schema,
+            locality: self.locality,
             _phantom_data: PhantomData,
         }
+    }
+
+    /// Set the locality restriction for this subscription.
+    ///
+    /// This restricts the subscription to only receive samples from publishers
+    /// with the specified locality (local/remote/any).
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use zenoh::sample::Locality;
+    ///
+    /// let subscriber = node
+    ///     .create_sub::<String>("/topic")
+    ///     .with_locality(Locality::Remote)  // Only receive from remote publishers
+    ///     .build()?;
+    /// ```
+    pub fn with_locality(mut self, locality: zenoh::sample::Locality) -> Self {
+        self.locality = Some(locality);
+        self
     }
 
     /// Set the dynamic message schema for runtime-typed messages.
@@ -288,11 +310,18 @@ where
         let key_expr = self.entity.topic_key_expr()?;
         debug!("[SUB] Key expression: {}, qos={:?}", key_expr, self.entity.qos);
 
-        let inner = self
+        let mut sub_builder = self
             .session
             .declare_subscriber(key_expr)
-            .callback(move |sample| handler.handle(sample))
-            .wait()?;
+            .callback(move |sample| handler.handle(sample));
+
+        // Apply locality restriction if specified
+        if let Some(locality) = self.locality {
+            sub_builder = sub_builder.allowed_origin(locality);
+            debug!("[SUB] Locality restriction: {:?}", locality);
+        }
+
+        let inner = sub_builder.wait()?;
 
         let gid = self.entity.gid();
         let lv_token = self
@@ -301,7 +330,7 @@ where
             .declare_token(self.entity.lv_token_key_expr()?)
             .wait()?;
 
-        info!("[SUB] Subscriber ready: topic={}", self.entity.topic);
+        debug!("[SUB] Subscriber ready: topic={}", self.entity.topic);
 
         Ok(ZSub {
             entity: self.entity,
@@ -344,14 +373,14 @@ where
         self.build_internal(DataHandler::Callback(callback), None)
     }
 
-    #[cfg(feature = "rcl-z")]
+    #[cfg(feature = "rmw")]
     pub fn build_with_notifier<F>(self, notify: F) -> Result<ZSub<T, Sample, S>>
     where
         F: Fn() + Send + Sync + 'static,
         S: ZDeserializer,
     {
         let queue_size = match self.entity.qos.history {
-            QosHistory::KeepLast(depth) => depth,
+            QosHistory::KeepLast(depth) => depth.get(),
             QosHistory::KeepAll => usize::MAX,
         };
         let queue = Arc::new(BoundedQueue::new(queue_size));
@@ -375,7 +404,7 @@ where
 
     fn build(self) -> Result<Self::Output> {
         let queue_size = match self.entity.qos.history {
-            QosHistory::KeepLast(depth) => depth,
+            QosHistory::KeepLast(depth) => depth.get(),
             QosHistory::KeepAll => usize::MAX,
         };
         let queue = Arc::new(BoundedQueue::new(queue_size));

@@ -3,7 +3,7 @@
 Once you've added ros-z to your project, you can run the included examples to see it in action.
 
 ````admonish important
-**All examples require a Zenoh router to be running first** (see [Networking](./config.md) for why ros-z uses router-based architecture by default):
+**All examples require a Zenoh router to be running first** (see [Networking](./networking.md) for why ros-z uses router-based architecture by default):
 ```bash
 cargo run --example zenoh_router
 ```
@@ -24,4 +24,4 @@ cargo run --example battery_state_sub # Receiving sensor_msgs
 cargo run --example z_srvcli          # Service example with example_interfaces
 ```
 
-See the [Networking](./config.md) chapter for router setup details and alternative configurations.
+See the [Networking](./networking.md) chapter for router setup details and alternative configurations.

@@ -1,3 +1,5 @@
+use std::num::NonZeroUsize;
+
 use ros_z::{
     Builder, Result,
     context::ZContextBuilder,
@@ -268,7 +270,7 @@ mod tests {
         // Create custom QoS profile
         let custom_qos = QosProfile {
             reliability: QosReliability::BestEffort,
-            history: QosHistory::KeepLast(5),
+            history: QosHistory::KeepLast(NonZeroUsize::new(5).unwrap()),
             ..Default::default()
         };
 

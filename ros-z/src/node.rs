@@ -3,7 +3,7 @@ use crate::graph::Graph;
 use std::sync::Arc;
 use zenoh::liveliness::LivelinessToken;
 use zenoh::{Result, Session, Wait};
-use tracing::{info, debug};
+use tracing::debug;
 
 use crate::{
     action::{client::ZActionClientBuilder, server::ZActionServerBuilder},
@@ -30,6 +30,7 @@ pub struct ZNodeBuilder {
     pub domain_id: usize,
     pub name: String,
     pub namespace: String,
+    pub enclave: String,
     pub session: Arc<Session>,
     pub counter: Arc<GlobalCounter>,
     pub graph: Arc<Graph>,
@@ -38,7 +39,14 @@ pub struct ZNodeBuilder {
 
 impl ZNodeBuilder {
     pub fn with_namespace<S: AsRef<str>>(mut self, namespace: S) -> Self {
-        self.namespace = namespace.as_ref().to_owned();
+        // Normalize namespace: "/" (root namespace) should be treated as "" (empty)
+        // This ensures consistent HashMap lookups across local and remote entities
+        let ns = namespace.as_ref();
+        self.namespace = if ns == "/" {
+            String::new()
+        } else {
+            ns.to_owned()
+        };
         self
     }
 }
@@ -55,7 +63,7 @@ impl Builder for ZNodeBuilder {
         let id = self.counter.increment();
         tracing::Span::current().record("id", id);
 
-        info!("[NOD] Creating node: {}/{}, id={}", self.namespace, self.name, id);
+        debug!("[NOD] Creating node: {}/{}, id={}", self.namespace, self.name, id);
 
         let node = NodeEntity::new(
             self.domain_id,
@@ -63,6 +71,7 @@ impl Builder for ZNodeBuilder {
             id,
             self.name.clone(),
             self.namespace.clone(),
+            self.enclave,
         );
         let lv_token_ke = node.lv_token_key_expr()?;
         debug!("[NOD] Liveliness token KE: {}", lv_token_ke);
@@ -72,7 +81,7 @@ impl Builder for ZNodeBuilder {
             .liveliness()
             .declare_token(lv_token_ke)
             .wait()?;
-        info!("[NOD] Node ready: {}/{}", self.namespace, self.name);
+        debug!("[NOD] Node ready: {}/{}", self.namespace, self.name);
 
         Ok(ZNode {
             entity: node,
@@ -161,6 +170,7 @@ impl ZNode {
             entity,
             session: self.session.clone(),
             dyn_schema: None,
+            locality: None,
             _phantom_data: Default::default(),
         }
     }

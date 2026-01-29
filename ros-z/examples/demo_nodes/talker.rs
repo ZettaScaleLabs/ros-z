@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{num::NonZeroUsize, time::Duration};
 
 use ros_z::{
     Builder, Result,
@@ -25,7 +25,7 @@ pub async fn run_talker(
 
     // Create a publisher with a custom Quality of Service profile
     let qos = QosProfile {
-        history: QosHistory::KeepLast(7),
+        history: QosHistory::KeepLast(NonZeroUsize::new(7).unwrap()),
         ..Default::default()
     };
     let publisher = node.create_pub::<RosString>(topic).with_qos(qos).build()?;
