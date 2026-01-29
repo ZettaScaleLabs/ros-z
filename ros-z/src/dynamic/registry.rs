@@ -110,7 +110,7 @@ pub fn parsed_message_to_schema(
     msg: &ros_z_codegen::types::ParsedMessage,
     resolver: &impl Fn(&str, &str) -> Option<Arc<MessageSchema>>,
 ) -> Result<Arc<MessageSchema>, DynamicError> {
-    let fields: Result<Vec<FieldSchema>, _> = msg
+    let fields: Result<Vec<FieldSchema>, DynamicError> = msg
         .fields
         .iter()
         .map(|f| {
@@ -169,10 +169,10 @@ fn convert_base_type(
     }
 
     // Check for bounded string
-    if base_type.starts_with("string<=") {
-        if let Ok(max_len) = base_type[8..].parse::<usize>() {
-            return Ok(FieldType::BoundedString(max_len));
-        }
+    if let Some(rest) = base_type.strip_prefix("string<=")
+        && let Ok(max_len) = rest.parse::<usize>()
+    {
+        return Ok(FieldType::BoundedString(max_len));
     }
 
     // It's a message type - resolve it

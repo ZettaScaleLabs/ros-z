@@ -71,6 +71,8 @@ Use the builder pattern with generic type parameters for compile-time backend se
 use ros_z::{Builder, backend::{RmwZenohBackend, Ros2DdsBackend}};
 use ros_z::qos::{QosProfile, QosHistory};
 use ros_z_msgs::std_msgs::String as RosString;
+use ros_z_msgs::example_interfaces::srv::AddTwoInts;
+use ros_z_msgs::action_tutorials_interfaces::action::Fibonacci;
 
 // Create context and node
 let ctx = ZContextBuilder::default().build()?;
@@ -86,6 +88,30 @@ let pub_rmw = node
 let sub_dds = node
     .create_sub::<RosString>("chatter")
     .with_backend::<Ros2DdsBackend>()   // DDS bridge compatibility
+    .build()?;
+
+// Service client with RmwZenoh backend
+let client = node
+    .create_client::<AddTwoInts>("add_two_ints")
+    .with_backend::<RmwZenohBackend>()
+    .build()?;
+
+// Service server with Ros2Dds backend
+let mut server = node
+    .create_service::<AddTwoInts>("add_two_ints")
+    .with_backend::<Ros2DdsBackend>()
+    .build()?;
+
+// Action client with RmwZenoh backend
+let action_client = node
+    .create_action_client::<Fibonacci>("fibonacci")
+    .with_backend::<RmwZenohBackend>()
+    .build()?;
+
+// Action server with Ros2Dds backend
+let mut action_server = node
+    .create_action_server::<Fibonacci>("fibonacci")
+    .with_backend::<Ros2DdsBackend>()
     .build()?;
 ```
 
@@ -107,6 +133,28 @@ let pub2 = node.create_pub::<RosString>("topic")
     .with_backend::<RmwZenohBackend>()
     .build()?;
 ```
+
+### Multiple Backend Features
+
+When both `rmw-zenoh` and `ros2dds` feature flags are enabled in `Cargo.toml`:
+
+```toml
+[dependencies]
+ros-z = { version = "0.1", features = ["rmw-zenoh", "ros2dds"] }
+```
+
+**Default behavior**: `RmwZenohBackend` is used by default (more established, backwards compatible).
+
+To use the ros2dds backend, explicitly specify it:
+
+```rust,ignore
+let publisher = node
+    .create_pub::<RosString>("chatter")
+    .with_backend::<Ros2DdsBackend>()  // Explicit opt-in
+    .build()?;
+```
+
+**Rationale**: The `rmw-zenoh` backend is more established and maintains backwards compatibility with existing ros-z deployments. The `ros2dds` backend requires explicit opt-in to ensure users are aware they're using bridge-compatible key expressions.
 
 ## Architecture Diagrams
 

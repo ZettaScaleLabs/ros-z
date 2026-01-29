@@ -78,9 +78,9 @@ pub type DefaultBackend = rmw_zenoh::RmwZenohBackend;
 #[cfg(all(feature = "ros2dds", not(feature = "rmw-zenoh")))]
 pub type DefaultBackend = ros2dds::Ros2DdsBackend;
 
-// When both features are enabled, prefer ros2dds
+// When both features are enabled, prefer rmw-zenoh (more established, backwards compatible)
 #[cfg(all(feature = "rmw-zenoh", feature = "ros2dds"))]
-pub type DefaultBackend = ros2dds::Ros2DdsBackend;
+pub type DefaultBackend = rmw_zenoh::RmwZenohBackend;
 
 // When no backend feature is enabled, default to rmw_zenoh
 #[cfg(not(any(feature = "rmw-zenoh", feature = "ros2dds")))]

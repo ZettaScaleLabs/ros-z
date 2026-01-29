@@ -49,17 +49,20 @@ pub struct ServiceSnapshot {
 
 const DEFAULT_SLAB_CAPACITY: usize = 128;
 
+/// Type alias for entity parser function
+type EntityParser = Arc<dyn Fn(&zenoh::key_expr::KeyExpr) -> Result<Entity> + Send + Sync>;
+
 pub struct GraphData {
     cached: HashSet<LivelinessKE>,
     parsed: HashMap<LivelinessKE, Arc<Entity>>,
     by_topic: HashMap<Topic, Slab<Weak<Entity>>>,
     by_service: HashMap<Topic, Slab<Weak<Entity>>>,
     by_node: HashMap<NodeKey, Slab<Weak<Entity>>>,
-    parser: Arc<dyn Fn(&zenoh::key_expr::KeyExpr) -> Result<Entity> + Send + Sync>,
+    parser: EntityParser,
 }
 
 impl GraphData {
-    fn new_with_parser(parser: Arc<dyn Fn(&zenoh::key_expr::KeyExpr) -> Result<Entity> + Send + Sync>) -> Self {
+    fn new_with_parser(parser: EntityParser) -> Self {
         Self {
             cached: HashSet::new(),
             parsed: HashMap::new(),
@@ -296,7 +299,7 @@ impl Graph {
             session,
             domain_id,
             format!("{ADMIN_SPACE}/{domain_id}/**"),
-            |ke| RmwZenohBackend::parse_liveliness(ke),
+            RmwZenohBackend::parse_liveliness,
         )
     }
 
@@ -313,7 +316,7 @@ impl Graph {
     /// * Ros2Dds: `@/*/@ros2_lv/**`
     pub fn new_with_pattern<F>(
         session: &Session,
-        domain_id: usize,
+        _domain_id: usize,
         liveliness_pattern: String,
         parser: F,
     ) -> Result<Self>

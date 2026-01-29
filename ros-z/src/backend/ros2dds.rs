@@ -303,7 +303,7 @@ mod tests {
         let qos = QosProfile {
             reliability: QosReliability::Reliable,
             durability: QosDurability::TransientLocal,
-            history: QosHistory::KeepLast(10),
+            history: QosHistory::from_depth(10),
             ..Default::default()
         };
         let encoded = Ros2DdsBackend::encode_qos(&qos, false);
@@ -373,7 +373,7 @@ mod tests {
 
         // Test KEEP_LAST with depth -> "0,depth"
         let qos = QosProfile {
-            history: QosHistory::KeepLast(5),
+            history: QosHistory::from_depth(5),
             ..Default::default()
         };
         let encoded = Ros2DdsBackend::encode_qos(&qos, false);
@@ -397,7 +397,7 @@ mod tests {
     #[test]
     fn test_topic_key_expr_format() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 1, "test_node".to_string(), "/".to_string());
+        let node = NodeEntity::new(0, zid, 1, "test_node".to_string(), "/".to_string(), String::new());
 
         let entity = EndpointEntity {
             id: 1,
@@ -419,7 +419,7 @@ mod tests {
     #[test]
     fn test_liveliness_key_expr_format() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 1, "test_node".to_string(), "/".to_string());
+        let node = NodeEntity::new(0, zid, 1, "test_node".to_string(), "/".to_string(), String::new());
 
         let entity = EndpointEntity {
             id: 1,
@@ -455,7 +455,7 @@ mod tests {
     #[test]
     fn test_subscriber_liveliness_key_expr() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 1, "test_node".to_string(), "/".to_string());
+        let node = NodeEntity::new(0, zid, 1, "test_node".to_string(), "/".to_string(), String::new());
 
         let entity = EndpointEntity {
             id: 1,
@@ -477,7 +477,7 @@ mod tests {
     #[test]
     fn test_service_liveliness_key_expr() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 1, "test_node".to_string(), "/".to_string());
+        let node = NodeEntity::new(0, zid, 1, "test_node".to_string(), "/".to_string(), String::new());
 
         let entity = EndpointEntity {
             id: 1,
@@ -510,7 +510,7 @@ mod tests {
     #[test]
     fn test_client_liveliness_key_expr() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 1, "test_node".to_string(), "/".to_string());
+        let node = NodeEntity::new(0, zid, 1, "test_node".to_string(), "/".to_string(), String::new());
 
         let entity = EndpointEntity {
             id: 1,
