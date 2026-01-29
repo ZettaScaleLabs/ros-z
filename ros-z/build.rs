@@ -1,3 +1,4 @@
+#[cfg(feature = "generate-configs")]
 use std::path::PathBuf;
 
 // Include config module from src/ to access ConfigOverride pattern
@@ -14,34 +15,6 @@ fn main() {
 
     println!("cargo:rerun-if-changed=src/config.rs");
     println!("cargo:rerun-if-env-changed=ROS_Z_CONFIG_OUTPUT_DIR");
-
-    // Determine output directory early to set up rerun-if-changed
-    let config_dir = if let Ok(custom_dir) = std::env::var("ROS_Z_CONFIG_OUTPUT_DIR") {
-        let path = PathBuf::from(&custom_dir);
-        if path.is_absolute() {
-            path
-        } else {
-            let manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
-            manifest_dir.join(path)
-        }
-    } else {
-        let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
-        out_dir.join("ros_z_config")
-    };
-
-    // Always set rerun-if-changed on the output files to ensure regeneration if deleted
-    println!(
-        "cargo:rerun-if-changed={}",
-        config_dir
-            .join("DEFAULT_ROSZ_ROUTER_CONFIG.json5")
-            .display()
-    );
-    println!(
-        "cargo:rerun-if-changed={}",
-        config_dir
-            .join("DEFAULT_ROSZ_SESSION_CONFIG.json5")
-            .display()
-    );
 
     // Only generate configs if the feature is enabled
     #[cfg(feature = "generate-configs")]
