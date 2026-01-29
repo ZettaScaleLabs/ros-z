@@ -15,6 +15,7 @@ protobuf_demo = { path = "../ros-z/examples/protobuf_demo" }
 
 # Test runtime dependencies
 zenoh = { workspace = true } # For per-test router sessions
+zenoh-buffers = { workspace = true } # For ZBuf operations in tests
 tokio = { workspace = true, features = ["full"] }
 once_cell = { workspace = true } # For lazy static zenohd daemon
 serial_test = "3.0" # For sequential test execution

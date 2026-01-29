@@ -12,6 +12,7 @@ zenoh = { workspace = true, default-features = false, features = [
   "transport_tcp",
   "unstable",
   "internal",
+  "shared-memory",
 ] }
 zenoh-ext = { workspace = true }
 zenoh-buffers = { workspace = true }
@@ -45,6 +46,7 @@ zenoh = { workspace = true, default-features = false, features = [
   "transport_tcp",
   "unstable",
   "internal",
+  "shared-memory",
 ] }
 prost-build = { workspace = true, optional = true }
 
@@ -157,4 +159,9 @@ required-features = []
 [[example]]
 name = "dynamic_message_interop"
 path = "examples/dynamic_message/interop.rs"
+required-features = []
+
+[[example]]
+name = "shm_pointcloud2"
+path = "examples/shm_pointcloud2.rs"
 required-features = []

@@ -37,6 +37,37 @@ impl ZSerializer for RosSerdes {
         zenoh_buffers::ZBuf::from(bytes)
     }
 
+    fn serialize_to_zbuf_with_hint(input: Self::Input<'_>, _capacity_hint: usize) -> zenoh_buffers::ZBuf {
+        // RosMessage uses C FFI serialization which produces Vec<u8>
+        // We can't pre-allocate based on hint, so just use the regular path
+        Self::serialize_to_zbuf(input)
+    }
+
+    fn serialize_to_shm(
+        input: Self::Input<'_>,
+        _estimated_size: usize,
+        provider: &zenoh::shm::ShmProvider<zenoh::shm::PosixShmProviderBackend>,
+    ) -> zenoh::Result<(zenoh_buffers::ZBuf, usize)> {
+        // RosMessage uses C FFI serialization, which produces Vec<u8>
+        // So we serialize to Vec first, then copy to SHM
+        let RosMessage { msg, ts } = input;
+        let data = unsafe { ts.serialize_message(*msg) };
+        let actual_size = data.len();
+
+        use zenoh::shm::{BlockOn, GarbageCollect};
+        use zenoh::Wait;
+
+        let mut shm_buf = provider
+            .alloc(actual_size)
+            .with_policy::<BlockOn<GarbageCollect>>()
+            .wait()
+            .map_err(|e| zenoh::Error::from(format!("SHM allocation failed: {}", e)))?;
+
+        shm_buf[0..actual_size].copy_from_slice(&data);
+
+        Ok((zenoh_buffers::ZBuf::from(shm_buf), actual_size))
+    }
+
     fn serialize_to_buf(input: Self::Input<'_>, buffer: &mut Vec<u8>) {
         let RosMessage { msg, ts } = input;
         buffer.clear();

@@ -75,10 +75,14 @@ pub fn generate_message_impl_with_context(
         quote! {}
     };
 
+    // Generate size estimation implementation
+    let size_estimation_impl = generate_size_estimation_impl(&name, &msg.parsed.fields, &msg.parsed.package, ctx)?;
+
     Ok(quote! {
         #struct_def
         #type_info
         #serde_impl
+        #size_estimation_impl
     })
 }
 
@@ -470,6 +474,174 @@ fn generate_message_type_info(
 
         impl ::ros_z::ros_msg::WithTypeInfo for #name_ident {}
     }
+}
+
+/// Generate accurate size estimation implementation for SHM serialization
+fn generate_size_estimation_impl(
+    name: &Ident,
+    fields: &[Field],
+    source_package: &str,
+    ctx: &GenerationContext,
+) -> Result<TokenStream> {
+    // Always generate size estimation for all messages (even fixed-size ones)
+    // This ensures nested messages can call estimated_cdr_size() on their fields
+
+    // Generate size calculation for each field
+    let field_size_exprs: Vec<TokenStream> = fields
+        .iter()
+        .map(|f| generate_field_size_expr(f, source_package, ctx))
+        .collect::<Result<Vec<_>>>()?;
+
+    // Only mark size as mutable if we have fields to add
+    let size_decl = if fields.is_empty() {
+        quote! { let size = 0usize; }
+    } else {
+        quote! { let mut size = 0usize; }
+    };
+
+    Ok(quote! {
+        impl crate::size_estimation::SizeEstimation for #name {
+            fn estimated_cdr_size(&self) -> usize {
+                #size_decl
+                #(#field_size_exprs)*
+                size + 16  // Conservative alignment padding
+            }
+        }
+
+        impl #name {
+            /// Get an accurate estimate of the serialized CDR size.
+            ///
+            /// This implementation accounts for dynamic fields (Vec, String, ZBuf)
+            /// and provides a conservative but accurate upper bound for SHM allocation.
+            pub fn estimated_serialized_size(&self) -> usize {
+                4 + crate::size_estimation::SizeEstimation::estimated_cdr_size(self)  // 4 for CDR header
+            }
+        }
+    })
+}
+
+/// Generate size calculation expression for a single field
+fn generate_field_size_expr(
+    field: &Field,
+    _source_package: &str,
+    _ctx: &GenerationContext,
+) -> Result<TokenStream> {
+    let field_name = escape_field_name(&field.name);
+
+    // Handle different field types
+    if is_zbuf_field(field) {
+        // ZBuf: 4 bytes length prefix + data length
+        Ok(quote! {
+            size += 4 + ::zenoh_buffers::buffer::Buffer::len(&self.#field_name);
+        })
+    } else if field.field_type.base_type == "string" {
+        match &field.field_type.array {
+            ArrayType::Single => {
+                // Single string: 4 bytes length prefix + string length
+                Ok(quote! {
+                    size += 4 + self.#field_name.len();
+                })
+            }
+            ArrayType::Unbounded | ArrayType::Bounded(_) => {
+                // Vec<String>: 4 bytes vec length + (4 + len) for each string
+                Ok(quote! {
+                    size += 4;
+                    for s in &self.#field_name {
+                        size += 4 + s.len();
+                    }
+                })
+            }
+            ArrayType::Fixed(_) => {
+                // Fixed array of strings
+                Ok(quote! {
+                    for s in &self.#field_name {
+                        size += 4 + s.len();
+                    }
+                })
+            }
+        }
+    } else if is_primitive_type(&field.field_type.base_type) {
+        // Primitive type
+        let elem_size = get_primitive_size(&field.field_type.base_type)?;
+
+        match &field.field_type.array {
+            ArrayType::Single => {
+                // Single primitive
+                Ok(quote! {
+                    size += #elem_size;
+                })
+            }
+            ArrayType::Unbounded | ArrayType::Bounded(_) => {
+                // Vec<primitive>: 4 bytes length + elements
+                if elem_size == 1 {
+                    // Optimization: for byte arrays, no need to multiply by 1
+                    Ok(quote! {
+                        size += 4 + self.#field_name.len();
+                    })
+                } else {
+                    Ok(quote! {
+                        size += 4 + (self.#field_name.len() * #elem_size);
+                    })
+                }
+            }
+            ArrayType::Fixed(n) => {
+                // Fixed array: just the elements
+                let total_size = n * elem_size;
+                Ok(quote! {
+                    size += #total_size;
+                })
+            }
+        }
+    } else {
+        // Nested message type (anything not primitive or string)
+        match &field.field_type.array {
+            ArrayType::Single => {
+                // Single nested message
+                Ok(quote! {
+                    size += crate::size_estimation::SizeEstimation::estimated_cdr_size(&self.#field_name);
+                })
+            }
+            ArrayType::Unbounded | ArrayType::Bounded(_) => {
+                // Vec<NestedType>
+                Ok(quote! {
+                    size += 4;
+                    for item in &self.#field_name {
+                        size += crate::size_estimation::SizeEstimation::estimated_cdr_size(item);
+                    }
+                })
+            }
+            ArrayType::Fixed(_) => {
+                // Fixed array of nested messages
+                Ok(quote! {
+                    for item in &self.#field_name {
+                        size += crate::size_estimation::SizeEstimation::estimated_cdr_size(item);
+                    }
+                })
+            }
+        }
+    }
+}
+
+/// Check if a type is a primitive
+fn is_primitive_type(base_type: &str) -> bool {
+    matches!(
+        base_type,
+        "bool" | "byte" | "uint8" | "int8" | "char" |
+        "uint16" | "int16" | "wchar" |
+        "uint32" | "int32" | "float32" |
+        "uint64" | "int64" | "float64"
+    )
+}
+
+/// Get the size in bytes of a primitive type
+fn get_primitive_size(base_type: &str) -> Result<usize> {
+    Ok(match base_type {
+        "bool" | "byte" | "uint8" | "int8" | "char" => 1,
+        "uint16" | "int16" | "wchar" => 2,
+        "uint32" | "int32" | "float32" => 4,
+        "uint64" | "int64" | "float64" => 8,
+        _ => anyhow::bail!("Unknown primitive type: {}", base_type),
+    })
 }
 
 /// Generate custom serde implementation for ZBuf-containing messages
