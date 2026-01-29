@@ -49,18 +49,28 @@ pub struct ServiceSnapshot {
 
 const DEFAULT_SLAB_CAPACITY: usize = 128;
 
-#[derive(Default, Debug)]
+/// Type alias for entity parser function
+type EntityParser = Arc<dyn Fn(&zenoh::key_expr::KeyExpr) -> Result<Entity> + Send + Sync>;
+
 pub struct GraphData {
     cached: HashSet<LivelinessKE>,
     parsed: HashMap<LivelinessKE, Arc<Entity>>,
     by_topic: HashMap<Topic, Slab<Weak<Entity>>>,
     by_service: HashMap<Topic, Slab<Weak<Entity>>>,
     by_node: HashMap<NodeKey, Slab<Weak<Entity>>>,
+    parser: EntityParser,
 }
 
 impl GraphData {
-    fn new() -> Self {
-        Self::default()
+    fn new_with_parser(parser: EntityParser) -> Self {
+        Self {
+            cached: HashSet::new(),
+            parsed: HashMap::new(),
+            by_topic: HashMap::new(),
+            by_service: HashMap::new(),
+            by_node: HashMap::new(),
+            parser,
+        }
     }
 
     fn insert(&mut self, ke: LivelinessKE) {
@@ -115,8 +125,15 @@ impl GraphData {
                 continue;
             }
 
-            // FIXME: unwrap
-            let arc = Arc::new(Entity::try_from(&ke).unwrap());
+            // Parse using backend-specific parser
+            let entity = match (self.parser)(&ke.0) {
+                Ok(e) => e,
+                Err(e) => {
+                    tracing::warn!("Failed to parse liveliness key {}: {:?}", ke.0, e);
+                    continue;
+                }
+            };
+            let arc = Arc::new(entity);
             let weak = Arc::downgrade(&arc);
             match &*arc {
                 Entity::Node(x) => {
@@ -276,16 +293,50 @@ pub struct Graph {
 
 impl Graph {
     pub fn new(session: &Session, domain_id: usize) -> Result<Self> {
+        use crate::backend::{KeyExprBackend, RmwZenohBackend};
+        // Default to RmwZenoh backend format with RmwZenohBackend parser
+        Self::new_with_pattern(
+            session,
+            domain_id,
+            format!("{ADMIN_SPACE}/{domain_id}/**"),
+            RmwZenohBackend::parse_liveliness,
+        )
+    }
+
+    /// Create a new Graph with a custom liveliness subscription pattern and parser
+    ///
+    /// # Arguments
+    /// * `session` - Zenoh session
+    /// * `domain_id` - ROS domain ID (used for filtering, may not be in pattern for ros2dds)
+    /// * `liveliness_pattern` - Liveliness key expression pattern to subscribe to
+    /// * `parser` - Function to parse liveliness key expressions into Entity
+    ///
+    /// # Backend Patterns
+    /// * RmwZenoh: `@ros2_lv/{domain_id}/**`
+    /// * Ros2Dds: `@/*/@ros2_lv/**`
+    pub fn new_with_pattern<F>(
+        session: &Session,
+        _domain_id: usize,
+        liveliness_pattern: String,
+        parser: F,
+    ) -> Result<Self>
+    where
+        F: Fn(&zenoh::key_expr::KeyExpr) -> Result<Entity> + Send + Sync + 'static,
+    {
         let zid = session.zid();
-        let graph_data = Arc::new(Mutex::new(GraphData::new()));
+        let parser_arc = Arc::new(parser);
+        let graph_data = Arc::new(Mutex::new(GraphData::new_with_parser(parser_arc.clone())));
         let event_manager = Arc::new(GraphEventManager::new());
         let c_graph_data = graph_data.clone();
         let c_event_manager = event_manager.clone();
         let c_zid = zid;
-        tracing::debug!("Creating liveliness subscriber for {}/{}", ADMIN_SPACE, domain_id);
+        let c_liveliness_pattern = liveliness_pattern.clone();
+        let c_parser = parser_arc.clone();
+        let callback_parser = parser_arc.clone();
+        tracing::debug!("Creating liveliness subscriber for {}", liveliness_pattern);
         let sub = session
             .liveliness()
-            .declare_subscriber(format!("{ADMIN_SPACE}/{domain_id}/**"))
+            .declare_subscriber(&liveliness_pattern)
             .history(true)
             .callback(move |sample| {
                 let mut graph_data_guard = c_graph_data.lock();
@@ -310,8 +361,8 @@ impl Graph {
                             tracing::debug!("  Adding to cached");
                             graph_data_guard.insert(ke.clone());
                         }
-                        // Trigger graph change events
-                        match Entity::try_from(&ke) {
+                        // Trigger graph change events using backend-specific parser
+                        match callback_parser(&key_expr) {
                             Ok(entity) => {
                                 tracing::debug!("Successfully parsed entity: {:?}", entity);
                                 c_event_manager.trigger_graph_change(&entity, true, c_zid);
@@ -324,8 +375,8 @@ impl Graph {
                     SampleKind::Delete => {
                         debug!("[GRF] Entity disappeared: {}", ke.0);
                         tracing::debug!("Graph subscriber: DELETE {}", key_expr.as_str());
-                        // Trigger graph change events before removal
-                        if let Ok(entity) = Entity::try_from(&ke) {
+                        // Trigger graph change events before removal using backend-specific parser
+                        if let Ok(entity) = callback_parser(&key_expr) {
                             c_event_manager.trigger_graph_change(&entity, false, c_zid);
                         }
                         graph_data_guard.remove(&ke);
@@ -338,10 +389,9 @@ impl Graph {
         // Query existing liveliness tokens from all connected sessions
         // This is crucial for cross-context discovery where entities from other sessions
         // were created before this session started
-        let liveliness_ke = format!("{ADMIN_SPACE}/{domain_id}/**");
         let replies = session
             .liveliness()
-            .get(&liveliness_ke)
+            .get(&c_liveliness_pattern)
             .timeout(std::time::Duration::from_secs(3))
             .wait()?;
 
@@ -356,8 +406,8 @@ impl Graph {
                 let key_expr = sample.key_expr().to_owned();
                 let ke = LivelinessKE(key_expr.clone());
 
-                // Parse entity to check if it's from current session
-                if let Ok(entity) = Entity::try_from(&ke) {
+                // Parse entity to check if it's from current session using backend-specific parser
+                if let Ok(entity) = c_parser(&key_expr) {
                     // Skip entities from current session
                     let is_local = match &entity {
                         Entity::Node(node) => node.z_id == zid,

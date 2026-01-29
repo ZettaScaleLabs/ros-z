@@ -10,7 +10,7 @@ use core::engine::CoreEngine;
 use app::{
     App, FocusPane, PAGE_SCROLL_AMOUNT, POLL_TIMEOUT_MS, Panel, QUICK_MEASURE_DURATION_SECS,
 };
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
     execute,
@@ -18,6 +18,25 @@ use crossterm::{
 };
 use export::export_and_exit;
 use ratatui::{Terminal, backend::CrosstermBackend};
+
+#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq, Default)]
+enum Backend {
+    /// rmw_zenoh backend (default) - compatible with rmw_zenoh nodes
+    #[default]
+    RmwZenoh,
+    /// ros2dds backend - compatible with zenoh-bridge-ros2dds
+    #[value(name = "ros2dds")]
+    Ros2Dds,
+}
+
+impl From<Backend> for core::engine::Backend {
+    fn from(backend: Backend) -> Self {
+        match backend {
+            Backend::RmwZenoh => core::engine::Backend::RmwZenoh,
+            Backend::Ros2Dds => core::engine::Backend::Ros2Dds,
+        }
+    }
+}
 
 #[derive(Parser)]
 #[command(name = "ros-z-console")]
@@ -30,6 +49,10 @@ struct Cli {
     /// ROS domain ID
     #[arg(default_value = "0")]
     domain: usize,
+
+    /// Backend selection (rmw-zenoh or ros2dds)
+    #[arg(long, value_enum, default_value = "rmw-zenoh")]
+    backend: Backend,
 
     /// Enable TUI interface (default if no other mode specified)
     #[arg(long)]
@@ -60,12 +83,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     core::logger::init_logger(cli.json, cli.debug);
 
     // Create core engine
-    let core = Arc::new(CoreEngine::new(&cli.router, cli.domain).await?);
+    let core = Arc::new(CoreEngine::new(&cli.router, cli.domain, cli.backend).await?);
     core.start_monitoring().await;
 
     tracing::info!(
         router = cli.router,
         domain = cli.domain,
+        backend = ?cli.backend,
         "Connected to Zenoh router"
     );
 

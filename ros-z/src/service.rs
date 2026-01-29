@@ -34,14 +34,14 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct ZClientBuilder<T> {
+pub struct ZClientBuilder<T, B = crate::backend::DefaultBackend> {
     pub entity: EndpointEntity,
     pub session: Arc<Session>,
-    pub _phantom_data: PhantomData<T>,
+    pub _phantom_data: PhantomData<(T, B)>,
 }
 
-impl_with_type_info!(ZClientBuilder<T>);
-impl_with_type_info!(ZServerBuilder<T>);
+impl_with_type_info!(ZClientBuilder<T, B>);
+impl_with_type_info!(ZServerBuilder<T, B>);
 
 pub struct ZClient<T: ZService> {
     // TODO: replace this with the sample sn
@@ -56,9 +56,31 @@ pub struct ZClient<T: ZService> {
     _phantom_data: PhantomData<T>,
 }
 
-impl<T> Builder for ZClientBuilder<T>
+impl<T, B> ZClientBuilder<T, B> {
+    /// Switch to a different backend for key expression generation.
+    ///
+    /// # Example
+    /// ```ignore
+    /// use ros_z::backend::Ros2DdsBackend;
+    ///
+    /// let client = node
+    ///     .create_client::<AddTwoInts>("add_two_ints")
+    ///     .with_backend::<Ros2DdsBackend>()
+    ///     .build()?;
+    /// ```
+    pub fn with_backend<B2: crate::backend::KeyExprBackend>(self) -> ZClientBuilder<T, B2> {
+        ZClientBuilder {
+            entity: self.entity,
+            session: self.session,
+            _phantom_data: PhantomData,
+        }
+    }
+}
+
+impl<T, B> Builder for ZClientBuilder<T, B>
 where
     T: ZService,
+    B: crate::backend::KeyExprBackend,
 {
     type Output = ZClient<T>;
 
@@ -77,7 +99,8 @@ where
         self.entity.topic = qualified_service.clone();
         debug!("[CLN] Qualified service: {}", qualified_service);
 
-        let key_expr = self.entity.topic_key_expr()?;
+        let topic_ke = B::topic_key_expr(&self.entity)?;
+        let key_expr = (*topic_ke).clone(); // Deref and clone the KeyExpr
         debug!("[CLN] Key expression: {}", key_expr);
 
         let inner = self.session.declare_querier(key_expr)
@@ -85,10 +108,11 @@ where
             .consolidation(zenoh::query::ConsolidationMode::None)
             .timeout(Duration::from_secs(10))
             .wait()?;
+        let lv_ke = B::liveliness_key_expr(&self.entity, &self.session.zid())?;
         let lv_token = self
             .session
             .liveliness()
-            .declare_token(self.entity.lv_token_key_expr()?)
+            .declare_token((*lv_ke).clone())
             .wait()?;
         // Use bounded channel based on QoS depth
         let depth = match self.entity.qos.history {
@@ -238,10 +262,10 @@ where
 }
 
 #[derive(Debug)]
-pub struct ZServerBuilder<T> {
+pub struct ZServerBuilder<T, B = crate::backend::DefaultBackend> {
     pub entity: EndpointEntity,
     pub session: Arc<Session>,
-    pub _phantom_data: PhantomData<T>,
+    pub _phantom_data: PhantomData<(T, B)>,
 }
 
 pub struct ZServer<T: ZService, Q = Query> {
@@ -273,9 +297,31 @@ where
     }
 }
 
-impl<T> ZServerBuilder<T>
+impl<T, B> ZServerBuilder<T, B> {
+    /// Switch to a different backend for key expression generation.
+    ///
+    /// # Example
+    /// ```ignore
+    /// use ros_z::backend::Ros2DdsBackend;
+    ///
+    /// let server = node
+    ///     .create_server::<AddTwoInts>("add_two_ints")
+    ///     .with_backend::<Ros2DdsBackend>()
+    ///     .build()?;
+    /// ```
+    pub fn with_backend<B2: crate::backend::KeyExprBackend>(self) -> ZServerBuilder<T, B2> {
+        ZServerBuilder {
+            entity: self.entity,
+            session: self.session,
+            _phantom_data: PhantomData,
+        }
+    }
+}
+
+impl<T, B> ZServerBuilder<T, B>
 where
     T: ZService,
+    B: crate::backend::KeyExprBackend,
 {
     /// Internal method that all build variants use.
     fn build_internal<Q>(
@@ -292,7 +338,8 @@ where
 
         self.entity.topic = qualified_service;
 
-        let key_expr = self.entity.topic_key_expr()?;
+        let topic_ke = B::topic_key_expr(&self.entity)?;
+        let key_expr = (*topic_ke).clone(); // Deref and clone the KeyExpr
         tracing::debug!("[SRV] KE: {key_expr}");
 
         let inner = self
@@ -311,10 +358,11 @@ where
             })
             .wait()?;
 
+        let lv_ke = B::liveliness_key_expr(&self.entity, &self.session.zid())?;
         let lv_token = self
             .session
             .liveliness()
-            .declare_token(self.entity.lv_token_key_expr()?)
+            .declare_token((*lv_ke).clone())
             .wait()?;
 
         Ok(ZServer {
@@ -356,9 +404,10 @@ where
     }
 }
 
-impl<T> Builder for ZServerBuilder<T>
+impl<T, B> Builder for ZServerBuilder<T, B>
 where
     T: ZService,
+    B: crate::backend::KeyExprBackend,
 {
     type Output = ZServer<T>;
 

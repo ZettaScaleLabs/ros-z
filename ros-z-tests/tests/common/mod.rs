@@ -353,3 +353,175 @@ pub fn spawn_python_service_client(endpoint: &str, service_name: &str, a: i64, b
 
     ProcessGuard::new(child, "python_service_client")
 }
+
+// ============================================================================
+// ros2dds Backend Interop Helpers (with zenoh-bridge-ros2dds)
+// ============================================================================
+
+/// Check if zenoh-bridge-ros2dds is available
+#[cfg(feature = "ros2dds-interop")]
+#[allow(dead_code)]
+pub fn check_zenoh_bridge_ros2dds_available() -> bool {
+    Command::new("zenoh-bridge-ros2dds")
+        .arg("--version")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
+}
+
+/// Spawn zenoh-bridge-ros2dds process
+///
+/// The bridge will:
+/// - Act as a Zenoh router (default behavior)
+/// - Bridge DDS traffic from ROS 2 nodes using CycloneDDS/FastDDS
+/// - Listen on the default Zenoh port (7447) for peer connections
+#[cfg(feature = "ros2dds-interop")]
+#[allow(dead_code)]
+pub fn spawn_zenoh_bridge_ros2dds() -> ProcessGuard {
+    use std::os::unix::process::CommandExt;
+
+    let child = Command::new("zenoh-bridge-ros2dds")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .process_group(0)
+        .spawn()
+        .expect("Failed to spawn zenoh-bridge-ros2dds");
+
+    // Give the bridge time to start up
+    thread::sleep(Duration::from_secs(2));
+
+    ProcessGuard::new(child, "zenoh-bridge-ros2dds")
+}
+
+/// Spawn zenoh-bridge-ros2dds with a specific listen endpoint
+#[cfg(feature = "ros2dds-interop")]
+#[allow(dead_code)]
+pub fn spawn_zenoh_bridge_ros2dds_with_endpoint(listen_endpoint: &str) -> ProcessGuard {
+    use std::os::unix::process::CommandExt;
+
+    let child = Command::new("zenoh-bridge-ros2dds")
+        .args(["-l", listen_endpoint])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .process_group(0)
+        .spawn()
+        .expect("Failed to spawn zenoh-bridge-ros2dds");
+
+    // Give the bridge time to start up
+    thread::sleep(Duration::from_secs(2));
+
+    ProcessGuard::new(child, "zenoh-bridge-ros2dds")
+}
+
+/// Spawn a ROS 2 demo_nodes_cpp talker using CycloneDDS (default DDS)
+#[cfg(feature = "ros2dds-interop")]
+#[allow(dead_code)]
+pub fn spawn_ros2_cyclone_talker() -> ProcessGuard {
+    use std::os::unix::process::CommandExt;
+
+    let child = Command::new("ros2")
+        .args(["run", "demo_nodes_cpp", "talker"])
+        .env("RMW_IMPLEMENTATION", "rmw_cyclonedds_cpp")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .process_group(0)
+        .spawn()
+        .expect("Failed to spawn ROS 2 CycloneDDS talker");
+
+    // Wait for the node to be ready
+    thread::sleep(Duration::from_secs(2));
+
+    ProcessGuard::new(child, "ros2_cyclone_talker")
+}
+
+/// Spawn a ROS 2 demo_nodes_cpp listener using CycloneDDS (default DDS)
+#[cfg(feature = "ros2dds-interop")]
+#[allow(dead_code)]
+pub fn spawn_ros2_cyclone_listener() -> ProcessGuard {
+    use std::os::unix::process::CommandExt;
+
+    let child = Command::new("ros2")
+        .args(["run", "demo_nodes_cpp", "listener"])
+        .env("RMW_IMPLEMENTATION", "rmw_cyclonedds_cpp")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .process_group(0)
+        .spawn()
+        .expect("Failed to spawn ROS 2 CycloneDDS listener");
+
+    // Wait for the node to be ready
+    thread::sleep(Duration::from_secs(2));
+
+    ProcessGuard::new(child, "ros2_cyclone_listener")
+}
+
+/// Create a ros-z context for ros2dds backend
+///
+/// This configures ros-z to use peer mode, which will discover
+/// zenoh-bridge-ros2dds via multicast scouting.
+#[cfg(feature = "ros2dds-interop")]
+#[allow(dead_code)]
+pub fn create_ros_z_context_ros2dds() -> ros_z::Result<ros_z::context::ZContext> {
+    use ros_z::context::ZContextBuilder;
+
+    ZContextBuilder::default()
+        .with_mode("peer")
+        .with_logging_enabled()
+        .build()
+}
+
+/// Create a ros-z context for ros2dds backend with a specific endpoint
+#[cfg(feature = "ros2dds-interop")]
+#[allow(dead_code)]
+pub fn create_ros_z_context_ros2dds_with_endpoint(endpoint: &str) -> ros_z::Result<ros_z::context::ZContext> {
+    use ros_z::context::ZContextBuilder;
+
+    ZContextBuilder::default()
+        .with_mode("client")
+        .with_connect_endpoints([endpoint])
+        .disable_multicast_scouting()
+        .with_logging_enabled()
+        .build()
+}
+
+/// Spawn a ROS 2 add_two_ints_server using CycloneDDS
+#[cfg(feature = "ros2dds-interop")]
+#[allow(dead_code)]
+pub fn spawn_ros2_cyclone_add_two_ints_server() -> ProcessGuard {
+    use std::os::unix::process::CommandExt;
+
+    let child = Command::new("ros2")
+        .args(["run", "demo_nodes_cpp", "add_two_ints_server"])
+        .env("RMW_IMPLEMENTATION", "rmw_cyclonedds_cpp")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .process_group(0)
+        .spawn()
+        .expect("Failed to spawn ROS 2 CycloneDDS add_two_ints_server");
+
+    // Wait for the service server to be ready
+    thread::sleep(Duration::from_secs(2));
+
+    ProcessGuard::new(child, "ros2_cyclone_add_two_ints_server")
+}
+
+/// Spawn a ROS 2 add_two_ints_client using CycloneDDS
+#[cfg(feature = "ros2dds-interop")]
+#[allow(dead_code)]
+pub fn spawn_ros2_cyclone_add_two_ints_client(a: i64, b: i64) -> ProcessGuard {
+    use std::os::unix::process::CommandExt;
+
+    let child = Command::new("ros2")
+        .args(["run", "demo_nodes_cpp", "add_two_ints_client"])
+        .args([&a.to_string(), &b.to_string()])
+        .env("RMW_IMPLEMENTATION", "rmw_cyclonedds_cpp")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .process_group(0)
+        .spawn()
+        .expect("Failed to spawn ROS 2 CycloneDDS add_two_ints_client");
+
+    ProcessGuard::new(child, "ros2_cyclone_add_two_ints_client")
+}

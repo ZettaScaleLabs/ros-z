@@ -66,7 +66,7 @@ impl Drop for ShutdownGuard {
 ///     .build()?;
 /// # Ok::<(), zenoh::Error>(())
 /// ```
-pub struct ZActionServerBuilder<'a, A: ZAction> {
+pub struct ZActionServerBuilder<'a, A: ZAction, B = crate::backend::DefaultBackend> {
     /// The name of the action.
     pub action_name: String,
     /// Reference to the node that will own this server.
@@ -85,21 +85,21 @@ pub struct ZActionServerBuilder<'a, A: ZAction> {
     pub feedback_topic_qos: Option<crate::qos::QosProfile>,
     /// QoS profile for the status topic.
     pub status_topic_qos: Option<crate::qos::QosProfile>,
-    pub _phantom: std::marker::PhantomData<A>,
+    pub _phantom: std::marker::PhantomData<(A, B)>,
 }
 
-impl<'a, A: ZAction> ZActionServerBuilder<'a, A> {
-    pub fn new(action_name: &str, node: &'a crate::node::ZNode) -> Self {
-        Self {
-            action_name: action_name.to_string(),
-            node,
-            result_timeout: Duration::from_secs(10),
-            goal_timeout: None,
-            goal_service_qos: None,
-            result_service_qos: None,
-            cancel_service_qos: None,
-            feedback_topic_qos: None,
-            status_topic_qos: None,
+impl<'a, A: ZAction, B> ZActionServerBuilder<'a, A, B> {
+    pub fn with_backend<B2: crate::backend::KeyExprBackend>(self) -> ZActionServerBuilder<'a, A, B2> {
+        ZActionServerBuilder {
+            action_name: self.action_name,
+            node: self.node,
+            result_timeout: self.result_timeout,
+            goal_timeout: self.goal_timeout,
+            goal_service_qos: self.goal_service_qos,
+            result_service_qos: self.result_service_qos,
+            cancel_service_qos: self.cancel_service_qos,
+            feedback_topic_qos: self.feedback_topic_qos,
+            status_topic_qos: self.status_topic_qos,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -137,6 +137,23 @@ impl<'a, A: ZAction> ZActionServerBuilder<'a, A> {
     pub fn with_status_topic_qos(mut self, qos: crate::qos::QosProfile) -> Self {
         self.status_topic_qos = Some(qos);
         self
+    }
+}
+
+impl<'a, A: ZAction> ZActionServerBuilder<'a, A, crate::backend::DefaultBackend> {
+    pub fn new(action_name: &str, node: &'a crate::node::ZNode) -> Self {
+        Self {
+            action_name: action_name.to_string(),
+            node,
+            result_timeout: Duration::from_secs(10),
+            goal_timeout: None,
+            goal_service_qos: None,
+            result_service_qos: None,
+            cancel_service_qos: None,
+            feedback_topic_qos: None,
+            status_topic_qos: None,
+            _phantom: std::marker::PhantomData,
+        }
     }
 }
 
@@ -192,7 +209,10 @@ async fn handle_result_requests_legacy_inner<A: ZAction>(
     }
 }
 
-impl<'a, A: ZAction> Builder for ZActionServerBuilder<'a, A> {
+impl<'a, A: ZAction, B> Builder for ZActionServerBuilder<'a, A, B>
+where
+    B: crate::backend::KeyExprBackend,
+{
     type Output = ZActionServer<A>;
 
     fn build(self) -> Result<Self::Output> {
@@ -234,7 +254,7 @@ impl<'a, A: ZAction> Builder for ZActionServerBuilder<'a, A> {
         if let Some(qos) = self.goal_service_qos {
             goal_server_builder.entity.qos = qos;
         }
-        let goal_server = goal_server_builder.build()?;
+        let goal_server = goal_server_builder.with_backend::<B>().build()?;
 
         // Create result server using node API for proper graph registration
         // Use the action's get_result_type_info for proper ROS 2 interop
@@ -245,7 +265,7 @@ impl<'a, A: ZAction> Builder for ZActionServerBuilder<'a, A> {
         if let Some(qos) = self.result_service_qos {
             result_server_builder.entity.qos = qos;
         }
-        let result_server = result_server_builder.build()?;
+        let result_server = result_server_builder.with_backend::<B>().build()?;
         tracing::debug!("Created result server for: {}", result_service_name);
 
         // Create cancel server using node API for proper graph registration
@@ -257,7 +277,7 @@ impl<'a, A: ZAction> Builder for ZActionServerBuilder<'a, A> {
         if let Some(qos) = self.cancel_service_qos {
             cancel_server_builder.entity.qos = qos;
         }
-        let cancel_server = cancel_server_builder.build()?;
+        let cancel_server = cancel_server_builder.with_backend::<B>().build()?;
 
         // Create feedback publisher using node API for proper graph registration
         // Use the action's feedback_type_info for proper ROS 2 interop
@@ -269,7 +289,7 @@ impl<'a, A: ZAction> Builder for ZActionServerBuilder<'a, A> {
             feedback_pub_builder.entity.qos = qos;
         }
         // Keep attachments enabled for RMW-Zenoh compatibility
-        let feedback_pub = feedback_pub_builder.build()?;
+        let feedback_pub = feedback_pub_builder.with_backend::<B>().build()?;
 
         // Create status publisher using node API for proper graph registration
         // Use the action's status_type_info for proper ROS 2 interop
@@ -281,7 +301,7 @@ impl<'a, A: ZAction> Builder for ZActionServerBuilder<'a, A> {
             status_pub_builder.entity.qos = qos;
         }
         // Keep attachments enabled for RMW-Zenoh compatibility
-        let status_pub = status_pub_builder.build()?;
+        let status_pub = status_pub_builder.with_backend::<B>().build()?;
 
         let goal_manager = Arc::new(SafeGoalManager::new(self.result_timeout, self.goal_timeout));
 

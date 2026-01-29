@@ -30,6 +30,7 @@
 
 # Experimental
 
+- [Backend Selection](./chapters/backends.md)
 - [rmw_zenoh_rs](./chapters/rmw_zenoh_rs.md)
 - [Python Bindings](./chapters/python.md)
   - [Code Generation Internals](./chapters/python_codegen.md)

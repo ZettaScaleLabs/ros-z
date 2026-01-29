@@ -4,7 +4,9 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-ros-z = { path = "../ros-z", default-features = false }
+ros-z = { path = "../ros-z", default-features = false, features = [
+  "rmw-zenoh",
+] }
 serde = { workspace = true }
 serde_bytes = { workspace = true }
 # Required by pure-Rust codegen
