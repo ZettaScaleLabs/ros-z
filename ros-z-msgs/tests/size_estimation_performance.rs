@@ -5,9 +5,9 @@
 
 use std::time::Instant;
 
-use ros_z::msg::ZMessage;
+use ros_z::{ZBuf, msg::ZMessage};
 use ros_z_msgs::{builtin_interfaces::Time, sensor_msgs::*, std_msgs::Header};
-use zenoh_buffers::{ZBuf, buffer::Buffer};
+use zenoh_buffers::buffer::Buffer;
 
 #[test]
 fn test_pointcloud2_serialization_performance() {

@@ -4,12 +4,10 @@
 //! serialized, and that the zero-copy optimization works correctly.
 
 use byteorder::LittleEndian;
+use ros_z::ZBuf;
 use ros_z_cdr::to_vec;
 use ros_z_msgs::{sensor_msgs::CompressedImage, std_msgs::Header};
-use zenoh_buffers::{
-    ZBuf,
-    buffer::{Buffer, SplitBuffer},
-};
+use zenoh_buffers::buffer::{Buffer, SplitBuffer};
 
 #[test]
 fn test_zbuf_field_serialization() {
@@ -40,7 +38,7 @@ fn test_zbuf_empty() {
     let img = CompressedImage {
         header: Header::default(),
         format: "png".to_string(),
-        data: ZBuf::empty(),
+        data: ZBuf::default(),
     };
 
     assert_eq!(img.data.len(), 0);

@@ -56,7 +56,6 @@ pub fn generate_message_impl_with_context(
     ctx: &GenerationContext,
 ) -> Result<TokenStream> {
     let name = format_ident!("{}", msg.parsed.name);
-    let has_zbuf = msg.parsed.fields.iter().any(is_zbuf_field);
 
     let struct_def = generate_struct_with_context(
         &msg.parsed.package,
@@ -68,12 +67,7 @@ pub fn generate_message_impl_with_context(
     let type_info =
         generate_message_type_info(&msg.parsed.package, &msg.parsed.name, &msg.type_hash);
 
-    // Generate custom serde for ZBuf-containing messages
-    let serde_impl = if has_zbuf {
-        generate_zbuf_serde_with_context(&name, &msg.parsed.fields, &msg.parsed.package, ctx)?
-    } else {
-        quote! {}
-    };
+    // No longer need custom serde - ros_z::ZBuf implements Serialize/Deserialize
 
     // Generate size estimation implementation
     let size_estimation_impl = generate_size_estimation_impl(&name, &msg.parsed.fields, &msg.parsed.package, ctx)?;
@@ -81,7 +75,6 @@ pub fn generate_message_impl_with_context(
     Ok(quote! {
         #struct_def
         #type_info
-        #serde_impl
         #size_estimation_impl
     })
 }
@@ -122,9 +115,6 @@ fn generate_struct_with_context(
         .iter()
         .any(|f| matches!(&f.field_type.array, ArrayType::Fixed(n) if *n > 32));
 
-    // Check if we have ZBuf fields (need custom serde)
-    let has_zbuf = fields.iter().any(is_zbuf_field);
-
     // Generate constants as associated constants
     let const_defs: Vec<TokenStream> = constants
         .iter()
@@ -141,22 +131,7 @@ fn generate_struct_with_context(
     // Python bridge module path for derive macros
     let py_module_path = format!("ros_z_msgs_py.types.{}", package);
 
-    if has_zbuf {
-        // Messages with ZBuf fields need custom serde (no derive)
-        // But still need Default
-        Ok(quote! {
-            #[derive(Debug, Clone, Default)]
-            #[cfg_attr(feature = "python_registry", derive(::ros_z_derive::FromPyMessage, ::ros_z_derive::IntoPyMessage))]
-            #[cfg_attr(feature = "python_registry", ros_msg(module = #py_module_path))]
-            pub struct #name_ident {
-                #(#field_defs),*
-            }
-
-            impl #name_ident {
-                #(#const_defs)*
-            }
-        })
-    } else if has_large_array {
+    if has_large_array {
         // Large array messages need smart-default for arrays >32 elements
         Ok(quote! {
             #[derive(Debug, Clone, ::smart_default::SmartDefault, ::serde::Serialize, ::serde::Deserialize)]
@@ -385,9 +360,9 @@ fn generate_field_type_tokens_with_context(
             quote! { [#base; #n_lit] }
         }
         ArrayType::Unbounded => {
-            // Use ZBuf for uint8[]/byte[] (zero-copy optimization)
+            // Use ros_z::ZBuf wrapper for uint8[]/byte[] (zero-copy with optimized serde)
             if matches!(field_type.base_type.as_str(), "uint8" | "byte") {
-                quote! { ::zenoh_buffers::ZBuf }
+                quote! { ::ros_z::ZBuf }
             } else {
                 quote! { ::std::vec::Vec<#base> }
             }
@@ -531,8 +506,12 @@ fn generate_field_size_expr(
     // Handle different field types
     if is_zbuf_field(field) {
         // ZBuf: 4 bytes length prefix + data length
+        // Note: ros_z::ZBuf derefs to zenoh_buffers::ZBuf, so .len() works via Deref
         Ok(quote! {
-            size += 4 + ::zenoh_buffers::buffer::Buffer::len(&self.#field_name);
+            size += 4 + {
+                use ::zenoh_buffers::buffer::Buffer;
+                self.#field_name.len()
+            };
         })
     } else if field.field_type.base_type == "string" {
         match &field.field_type.array {
@@ -641,167 +620,6 @@ fn get_primitive_size(base_type: &str) -> Result<usize> {
         "uint32" | "int32" | "float32" => 4,
         "uint64" | "int64" | "float64" => 8,
         _ => anyhow::bail!("Unknown primitive type: {}", base_type),
-    })
-}
-
-/// Generate custom serde implementation for ZBuf-containing messages
-#[allow(dead_code)]
-fn generate_zbuf_serde(
-    name: &proc_macro2::Ident,
-    fields: &[Field],
-    source_package: &str,
-) -> Result<TokenStream> {
-    generate_zbuf_serde_with_context(name, fields, source_package, &GenerationContext::default())
-}
-
-/// Generate custom serde implementation for ZBuf-containing messages (with external type support)
-fn generate_zbuf_serde_with_context(
-    name: &proc_macro2::Ident,
-    fields: &[Field],
-    source_package: &str,
-    ctx: &GenerationContext,
-) -> Result<TokenStream> {
-    let serialize_fields: Vec<TokenStream> = fields
-        .iter()
-        .map(|f| {
-            let field_name = escape_field_name(&f.name);
-            let field_name_str = &f.name;
-            if is_zbuf_field(f) {
-                // OPTIMIZED: Use a wrapper type that calls serialize_bytes() directly
-                // instead of serialize_field() which treats &[u8] as a sequence.
-                // This is critical for performance with large byte arrays!
-                quote! {
-                    {
-                        use ::zenoh_buffers::buffer::SplitBuffer;
-                        let bytes = self.#field_name.contiguous();
-                        // Wrapper that calls serialize_bytes() directly for efficiency
-                        struct BytesSerializer<'a>(&'a [u8]);
-                        impl<'a> ::serde::Serialize for BytesSerializer<'a> {
-                            fn serialize<S: ::serde::Serializer>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error> {
-                                serializer.serialize_bytes(self.0)
-                            }
-                        }
-                        state.serialize_field(#field_name_str, &BytesSerializer(bytes.as_ref()))?;
-                    }
-                }
-            } else {
-                quote! {
-                    state.serialize_field(#field_name_str, &self.#field_name)?;
-                }
-            }
-        })
-        .collect();
-
-    // Generate sequential field deserialization for CDR (positional binary format)
-    let seq_deserialize_fields: Vec<TokenStream> = fields
-        .iter()
-        .enumerate()
-        .map(|(i, f)| {
-            let field_name = escape_field_name(&f.name);
-            let field_type = generate_field_type_tokens_with_context(&f.field_type, source_package, ctx).unwrap();
-            if is_zbuf_field(f) {
-                // OPTIMIZED: Use a wrapper type that calls deserialize_bytes() directly
-                // instead of the default Vec<u8> deserialization which uses deserialize_seq().
-                // This is critical for performance with large byte arrays!
-                quote! {
-                    let #field_name: #field_type = {
-                        // Wrapper that uses deserialize_bytes for efficient bulk reading
-                        struct BytesDeserializer;
-                        impl<'de> ::serde::de::DeserializeSeed<'de> for BytesDeserializer {
-                            type Value = ::std::vec::Vec<u8>;
-                            fn deserialize<D: ::serde::Deserializer<'de>>(self, deserializer: D) -> ::std::result::Result<Self::Value, D::Error> {
-                                struct BytesVisitor;
-                                impl<'de> ::serde::de::Visitor<'de> for BytesVisitor {
-                                    type Value = ::std::vec::Vec<u8>;
-                                    fn expecting(&self, formatter: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                                        formatter.write_str("byte array")
-                                    }
-                                    fn visit_bytes<E: ::serde::de::Error>(self, v: &[u8]) -> ::std::result::Result<Self::Value, E> {
-                                        Ok(v.to_vec())
-                                    }
-                                    fn visit_borrowed_bytes<E: ::serde::de::Error>(self, v: &'de [u8]) -> ::std::result::Result<Self::Value, E> {
-                                        Ok(v.to_vec())
-                                    }
-                                    fn visit_byte_buf<E: ::serde::de::Error>(self, v: ::std::vec::Vec<u8>) -> ::std::result::Result<Self::Value, E> {
-                                        Ok(v)
-                                    }
-                                    // Fallback for formats that don't support bytes natively
-                                    fn visit_seq<A: ::serde::de::SeqAccess<'de>>(self, mut seq: A) -> ::std::result::Result<Self::Value, A::Error> {
-                                        let len = seq.size_hint().unwrap_or(0);
-                                        let mut bytes = ::std::vec::Vec::with_capacity(len);
-                                        while let Some(b) = seq.next_element()? {
-                                            bytes.push(b);
-                                        }
-                                        Ok(bytes)
-                                    }
-                                }
-                                deserializer.deserialize_bytes(BytesVisitor)
-                            }
-                        }
-                        let bytes: ::std::vec::Vec<u8> = seq.next_element_seed(BytesDeserializer)?
-                            .ok_or_else(|| ::serde::de::Error::invalid_length(#i, &self))?;
-                        ::zenoh_buffers::ZBuf::from(bytes)
-                    };
-                }
-            } else {
-                quote! {
-                    let #field_name: #field_type = seq.next_element()?
-                        .ok_or_else(|| ::serde::de::Error::invalid_length(#i, &self))?;
-                }
-            }
-        })
-        .collect();
-
-    let field_names: Vec<_> = fields.iter().map(|f| escape_field_name(&f.name)).collect();
-    let field_name_strs: Vec<_> = fields.iter().map(|f| &f.name).collect();
-    let num_fields = fields.len();
-
-    Ok(quote! {
-        impl ::serde::Serialize for #name {
-            fn serialize<S>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error>
-            where
-                S: ::serde::Serializer,
-            {
-                use ::serde::ser::SerializeStruct;
-                let mut state = serializer.serialize_struct(stringify!(#name), #num_fields)?;
-                #(#serialize_fields)*
-                state.end()
-            }
-        }
-
-        impl<'de> ::serde::Deserialize<'de> for #name {
-            fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
-            where
-                D: ::serde::Deserializer<'de>,
-            {
-                use ::serde::de::{SeqAccess, Visitor};
-                use ::std::fmt;
-
-                struct FieldVisitor;
-
-                impl<'de> Visitor<'de> for FieldVisitor {
-                    type Value = #name;
-
-                    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                        formatter.write_str(concat!("struct ", stringify!(#name)))
-                    }
-
-                    fn visit_seq<V>(self, mut seq: V) -> ::std::result::Result<Self::Value, V::Error>
-                    where
-                        V: SeqAccess<'de>,
-                    {
-                        #(#seq_deserialize_fields)*
-
-                        Ok(#name {
-                            #(#field_names),*
-                        })
-                    }
-                }
-
-                const FIELDS: &[&str] = &[#(#field_name_strs),*];
-                deserializer.deserialize_struct(stringify!(#name), FIELDS, FieldVisitor)
-            }
-        }
     })
 }
 
@@ -1064,11 +882,10 @@ mod tests {
         let tokens = result.unwrap();
         let code = tokens.to_string();
 
-        // Should contain ZBuf field (optimized for zero-copy)
-        assert!(code.contains("zenoh_buffers :: ZBuf"));
-        // Should have custom Serialize implementation (not derived)
-        assert!(code.contains("impl :: serde :: Serialize"));
-        assert!(code.contains("impl < 'de > :: serde :: Deserialize"));
+        // Should contain ros_z::ZBuf field (wrapper with optimized serde)
+        assert!(code.contains("ros_z :: ZBuf"));
+        // Should use derived Serialize/Deserialize (ZBuf wrapper implements these traits)
+        assert!(code.contains("derive"));
     }
 
     #[test]

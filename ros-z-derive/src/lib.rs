@@ -170,7 +170,7 @@ fn generate_field_extraction(
                     // Fallback for lists (slow path)
                     py_attr.extract()?
                 };
-                ::zenoh_buffers::ZBuf::from(bytes)
+                ::ros_z::ZBuf::from(bytes)
             }
         });
     }
@@ -288,7 +288,7 @@ fn generate_field_extraction(
                     // Fallback for lists (slow path)
                     py_attr.extract()?
                 };
-                ::zenoh_buffers::ZBuf::from(bytes)
+                ::ros_z::ZBuf::from(bytes)
             }
         }),
     }
