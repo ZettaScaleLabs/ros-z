@@ -1,0 +1,933 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Shared Memory (SHM) - ros-z Documentation</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Native Rust ROS 2 implementation using Zenoh">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../mdbook-admonish.css">
+        <link rel="stylesheet" href="../book/mdbook-admonish.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ros-z Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/ZettaScaleLabs/ros-z" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/ZettaScaleLabs/ros-z/edit/main/src/chapters/shm.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="shared-memory-shm"><a class="header" href="#shared-memory-shm">Shared Memory (SHM)</a></h1>
+<p>Shared Memory (SHM) enables zero-copy publishing of large messages by serializing directly into shared memory buffers, eliminating the need to copy data between processes.</p>
+<h2 id="overview"><a class="header" href="#overview">Overview</a></h2>
+<p>When publishing large messages (e.g., point clouds, images), copying data multiple times can significantly impact performance. ROS-Z's SHM support leverages Zenoh's shared memory capabilities to achieve true zero-copy publishing.</p>
+<h3 id="key-benefits"><a class="header" href="#key-benefits">Key Benefits</a></h3>
+<ul>
+<li><strong>Zero-copy serialization</strong>: Messages are serialized directly into shared memory</li>
+<li><strong>Automatic activation</strong>: Configurable threshold-based switching</li>
+<li><strong>Accurate buffer sizing</strong>: Auto-generated size estimation prevents waste</li>
+<li><strong>High performance</strong>: Sub-millisecond serialization for 1MB messages</li>
+<li><strong>Full compatibility</strong>: Works seamlessly with <code>rmw_zenoh_cpp</code></li>
+</ul>
+<h2 id="how-shm-works-in-ros-2"><a class="header" href="#how-shm-works-in-ros-2">How SHM Works in ROS 2</a></h2>
+<p>The following diagram illustrates how a PointCloud2 message is published using shared memory in ROS-Z:</p>
+<pre class="mermaid">sequenceDiagram
+    participant App as Application
+    participant Pub as ROS-Z Publisher
+    participant SHM as SHM Provider
+    participant Zenoh as Zenoh Network
+    participant Sub as ROS-Z Subscriber
+    participant RemoteApp as Remote Application
+
+    Note over App,RemoteApp: Publishing Large PointCloud2 (1MB)
+
+    App-&gt;&gt;App: Generate PointCloud2 data
+    App-&gt;&gt;SHM: Allocate SHM buffer (1MB)
+    SHM--&gt;&gt;App: SHM buffer reference
+
+    App-&gt;&gt;App: Write point data directly to SHM
+    Note over App: Zero-copy: data stays in SHM
+
+    App-&gt;&gt;Pub: publish(pointcloud2)
+    Pub-&gt;&gt;Pub: Estimate serialized size
+    Pub-&gt;&gt;SHM: Allocate buffer for metadata
+    Pub-&gt;&gt;Pub: Serialize header + metadata to SHM
+    Note over Pub: Data field already in SHM!
+
+    Pub-&gt;&gt;Zenoh: Publish SHM-backed ZBuf
+    Note over Zenoh: Network transfer (zero-copy)
+
+    Zenoh-&gt;&gt;Sub: Receive SHM reference
+    Sub-&gt;&gt;Sub: Deserialize metadata
+    Sub-&gt;&gt;RemoteApp: PointCloud2 with SHM data
+
+    Note over RemoteApp: Direct access to SHM data
+    RemoteApp-&gt;&gt;RemoteApp: Process points (zero-copy read)
+</pre>
+<p><strong>Key Points:</strong></p>
+<ul>
+<li>Point data is written <strong>once</strong> directly into shared memory</li>
+<li>No intermediate copies between publisher and subscriber</li>
+<li>Both processes access the same physical memory</li>
+<li>Network only transfers SHM references, not actual data (on same machine)</li>
+<li>Automatic fallback to regular serialization for remote nodes</li>
+</ul>
+<h2 id="quick-start"><a class="header" href="#quick-start">Quick Start</a></h2>
+<h3 id="default-behavior-shm-is-off"><a class="header" href="#default-behavior-shm-is-off">Default Behavior: SHM is OFF</a></h3>
+<p><strong>By default, SHM is disabled.</strong> Messages are serialized using regular memory allocation. You must explicitly enable SHM to use zero-copy publishing.</p>
+<h3 id="enable-shm-globally"><a class="header" href="#enable-shm-globally">Enable SHM Globally</a></h3>
+<p>The simplest way to enable SHM is at the context level:</p>
+<pre><code class="language-rust ignore">use ros_z::context::ZContextBuilder;
+use ros_z::Builder;
+use ros_z_msgs::sensor_msgs::PointCloud2;
+
+fn main() -&gt; zenoh::Result&lt;()&gt; {
+    let ctx = ZContextBuilder::default()
+        .with_shm_enabled()?  // Enable with defaults: 10MB pool, 512B threshold
+        .build()?;
+
+    // All publishers automatically use SHM for messages &gt;= 512 bytes
+    let node = ctx.create_node("my_node").build()?;
+    let publisher = node.create_pub::&lt;PointCloud2&gt;("cloud").build()?;
+
+    // Zero-copy publishing for large messages!
+    let large_pointcloud = PointCloud2::default();
+    publisher.publish(&amp;large_pointcloud)?;
+    Ok(())
+}</code></pre>
+<h3 id="custom-configuration"><a class="header" href="#custom-configuration">Custom Configuration</a></h3>
+<p>Adjust pool size and threshold based on your needs:</p>
+<pre><code class="language-rust ignore">use ros_z::context::ZContextBuilder;
+use ros_z::Builder;
+
+fn main() -&gt; zenoh::Result&lt;()&gt; {
+    let ctx = ZContextBuilder::default()
+        .with_shm_pool_size(100 * 1024 * 1024)?  // 100MB pool
+        .with_shm_threshold(50_000)?              // 50KB threshold
+        .build()?;
+    Ok(())
+}</code></pre>
+<h3 id="per-publisher-control"><a class="header" href="#per-publisher-control">Per-Publisher Control</a></h3>
+<p>Override SHM settings for specific publishers:</p>
+<pre><code class="language-rust ignore">use ros_z::context::ZContextBuilder;
+use ros_z::shm::{ShmConfig, ShmProviderBuilder};
+use ros_z::Builder;
+use ros_z_msgs::sensor_msgs::PointCloud2;
+use std::sync::Arc;
+
+fn main() -&gt; zenoh::Result&lt;()&gt; {
+    let ctx = ZContextBuilder::default().build()?;
+    let node = ctx.create_node("test").build()?;
+    let provider = Arc::new(ShmProviderBuilder::new(10_000_000).build()?);
+    let custom_config = ShmConfig::new(provider);
+
+    // Custom configuration for this publisher
+    let publisher = node.create_pub::&lt;PointCloud2&gt;("cloud")
+        .with_shm_config(custom_config)
+        .build()?;
+
+    // Explicitly disable SHM (even if context has it enabled)
+    let text_pub = node.create_pub::&lt;ros_z_msgs::std_msgs::String&gt;("text")
+        .without_shm()
+        .build()?;
+    Ok(())
+}</code></pre>
+<h3 id="toggle-shm-onoff"><a class="header" href="#toggle-shm-onoff">Toggle SHM On/Off</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Action</th><th>Method</th></tr></thead><tbody>
+<tr><td><strong>Enable (default config)</strong></td><td><code>.with_shm_enabled()</code></td></tr>
+<tr><td><strong>Enable (custom pool)</strong></td><td><code>.with_shm_pool_size(bytes)</code></td></tr>
+<tr><td><strong>Adjust threshold</strong></td><td><code>.with_shm_threshold(bytes)</code></td></tr>
+<tr><td><strong>Disable (default)</strong></td><td>Don't call any SHM methods</td></tr>
+<tr><td><strong>Disable per-publisher</strong></td><td><code>.without_shm()</code></td></tr>
+</tbody></table>
+</div>
+<h2 id="configuration"><a class="header" href="#configuration">Configuration</a></h2>
+<h3 id="default-shm-disabled"><a class="header" href="#default-shm-disabled">Default: SHM Disabled</a></h3>
+<p><strong>SHM is disabled by default.</strong> To enable it, you must explicitly configure it at the context, node, or publisher level.</p>
+<h3 id="hierarchical-configuration"><a class="header" href="#hierarchical-configuration">Hierarchical Configuration</a></h3>
+<p>SHM configuration follows a three-level hierarchy:</p>
+<ol>
+<li><strong>Context level</strong>: Default for all nodes/publishers</li>
+<li><strong>Node level</strong>: Override for node's publishers (inherits from context if not set)</li>
+<li><strong>Publisher level</strong>: Most specific override (can disable even if context has SHM)</li>
+</ol>
+<pre><code class="language-rust ignore">use ros_z::context::ZContextBuilder;
+use ros_z::shm::{ShmConfig, ShmProviderBuilder};
+use ros_z::Builder;
+use ros_z_msgs::sensor_msgs::{Image, PointCloud2};
+use std::sync::Arc;
+
+fn main() -&gt; zenoh::Result&lt;()&gt; {
+    // Context: 10MB pool, 512B threshold
+    let ctx = ZContextBuilder::default()
+        .with_shm_enabled()?
+        .build()?;
+
+    // Node: inherit from context
+    let node = ctx.create_node("my_node").build()?;
+
+    // Publisher 1: use context defaults
+    let pub1 = node.create_pub::&lt;Image&gt;("camera/image").build()?;
+
+    // Publisher 2: custom threshold
+    let provider = Arc::new(ShmProviderBuilder::new(10 * 1024 * 1024).build()?);
+    let config = ShmConfig::new(provider).with_threshold(100_000);
+    let pub2 = node.create_pub::&lt;PointCloud2&gt;("lidar/cloud")
+        .with_shm_config(config)
+        .build()?;
+
+    // Publisher 3: disable SHM
+    let pub3 = node.create_pub::&lt;ros_z_msgs::std_msgs::String&gt;("status")
+        .without_shm()
+        .build()?;
+    Ok(())
+}</code></pre>
+<h3 id="environment-variables"><a class="header" href="#environment-variables">Environment Variables</a></h3>
+<p>For compatibility with <code>rmw_zenoh_cpp</code>, you can enable and configure SHM via environment variables:</p>
+<pre><code class="language-bash">export ZENOH_SHM_ALLOC_SIZE=52428800        # Enable SHM with 50MB pool
+export ZENOH_SHM_MESSAGE_SIZE_THRESHOLD=10000  # Set 10KB threshold
+</code></pre>
+<p><strong>Note</strong>: Setting either environment variable will enable SHM. If only one is set, the other uses the default value (10MB pool or 512B threshold).</p>
+<p>To use environment variables in your code:</p>
+<pre><code class="language-rust ignore">use ros_z::shm::ShmConfig;
+use ros_z::context::ZContextBuilder;
+use ros_z::Builder;
+
+fn main() -&gt; zenoh::Result&lt;()&gt; {
+    let ctx = if let Some(shm_config) = ShmConfig::from_env()? {
+        // SHM configured from environment variables
+        ZContextBuilder::default()
+            .with_shm_config(shm_config)
+            .build()?
+    } else {
+        // No SHM (default)
+        ZContextBuilder::default().build()?
+    };
+    Ok(())
+}</code></pre>
+<h3 id="configuration-defaults-when-enabled"><a class="header" href="#configuration-defaults-when-enabled">Configuration Defaults (When Enabled)</a></h3>
+<p>When you enable SHM using <code>.with_shm_enabled()</code> or <code>.with_shm_pool_size()</code>, the following defaults apply:</p>
+<div class="table-wrapper"><table><thead><tr><th>Parameter</th><th>Default</th><th>Description</th></tr></thead><tbody>
+<tr><td><strong>SHM State</strong></td><td><strong>Disabled</strong></td><td>SHM must be explicitly enabled</td></tr>
+<tr><td>Pool Size</td><td>10 MB</td><td>Total SHM pool size (when enabled)</td></tr>
+<tr><td>Threshold</td><td>512 bytes</td><td>Min message size for SHM usage</td></tr>
+<tr><td>Policy</td><td><code>BlockOn&lt;GarbageCollect&gt;</code></td><td>Wait for GC if pool exhausted</td></tr>
+</tbody></table>
+</div>
+<h2 id="how-it-works"><a class="header" href="#how-it-works">How It Works</a></h2>
+<h3 id="architecture"><a class="header" href="#architecture">Architecture</a></h3>
+<pre><code class="language-text">Message with dynamic fields
+    ↓
+estimated_serialized_size() [auto-generated by codegen]
+    ↓
+Pre-allocate SHM buffer (exact size)
+    ↓
+Serialize directly to SHM (zero-copy!)
+    ↓
+ZBuf (SHM-backed)
+    ↓
+Zenoh publish
+</code></pre>
+<h3 id="size-estimation"><a class="header" href="#size-estimation">Size Estimation</a></h3>
+<p>ROS-Z automatically generates accurate size estimation for all message types during code generation:</p>
+<pre><code class="language-rust ignore">// Auto-generated implementation for PointCloud2
+impl SizeEstimation for PointCloud2 {
+    fn estimated_serialized_size(&amp;self) -&gt; usize {
+        4 + // encapsulation header
+        self.header.estimated_cdr_size() +
+        4 + // height
+        4 + // width
+        4 + self.fields.iter().map(|f| f.estimated_cdr_size()).sum::&lt;usize&gt;() +
+        1 + // is_bigendian
+        4 + // point_step
+        4 + // row_step
+        4 + self.data.len() +  // data buffer
+        1   // is_dense
+    }
+}</code></pre>
+<p>This ensures:</p>
+<ul>
+<li>No buffer overflows</li>
+<li>Minimal memory waste (&lt;1% over-allocation)</li>
+<li>Single allocation per message</li>
+</ul>
+<h2 id="complete-example"><a class="header" href="#complete-example">Complete Example</a></h2>
+<p>The following complete example demonstrates three patterns for using SHM with PointCloud2 messages. This code is from <code>ros-z/examples/shm_pointcloud2.rs</code>:</p>
+<pre><code class="language-rust ignore">//! PointCloud2 example demonstrating user-managed SHM for zero-copy point clouds.
+//!
+//! This example shows how to create large sensor messages with data stored directly
+//! in shared memory, avoiding any intermediate copies.
+//!
+//! # Three SHM Patterns Demonstrated:
+//!
+//! 1. **User-Managed SHM** (Primary): Allocate SHM buffer, write points, create message
+//! 2. **Automatic SHM** (Context-level): Enable SHM globally, automatic threshold-based usage
+//! 3. **Per-Publisher SHM**: Override SHM config for specific publisher
+//!
+//! # Usage:
+//! ```bash
+//! cargo run --example shm_pointcloud2
+//! ```
+
+use std::{sync::Arc, time::Instant};
+
+use ros_z::{
+    Builder,
+    context::ZContextBuilder,
+    shm::{ShmConfig, ShmProviderBuilder},
+};
+use ros_z_msgs::{
+    sensor_msgs::{PointCloud2, PointField},
+    std_msgs::Header,
+};
+use zenoh::{
+    Wait,
+    shm::{BlockOn, GarbageCollect, ShmProvider},
+};
+use zenoh_buffers::{ZBuf, buffer::Buffer};
+
+fn main() -&gt; zenoh::Result&lt;()&gt; {
+    println!("=== PointCloud2 with SHM Example ===\n");
+
+    // Pattern 1: User-managed SHM (maximum performance, full control)
+    println!("1. User-Managed SHM Pattern:");
+    demo_user_managed_shm()?;
+
+    println!("\n2. Automatic SHM Pattern (Context-level):");
+    demo_automatic_shm()?;
+
+    println!("\n3. Per-Publisher SHM Override:");
+    demo_publisher_shm_override()?;
+
+    println!("\n=== All patterns completed successfully ===");
+    Ok(())
+}
+
+/// Pattern 1: User creates SHM buffer, writes points, constructs PointCloud2
+fn demo_user_managed_shm() -&gt; zenoh::Result&lt;()&gt; {
+    // Step 1: Initialize SHM provider
+    let provider = ShmProviderBuilder::new(50 * 1024 * 1024).build()?;
+    println!("  ✓ Created SHM provider with 50MB pool");
+
+    // Step 2: Generate point cloud with SHM-backed data
+    let start = Instant::now();
+    let cloud = generate_pointcloud_with_shm(100_000, &amp;provider)?;
+    let gen_time = start.elapsed();
+
+    println!(
+        "  ✓ Generated 100k point cloud ({} KB) in {:?}",
+        cloud.data.len() / 1024,
+        gen_time
+    );
+    println!("    Points stored directly in SHM (zero-copy!)");
+
+    // Step 3: Create node and publisher
+    let ctx = ZContextBuilder::default().build()?;
+    let node = ctx.create_node("pointcloud_publisher").build()?;
+    let publisher = node
+        .create_pub::&lt;PointCloud2&gt;("cloud/user_managed")
+        .build()?;
+
+    // Step 4: Publish (data field is already in SHM)
+    let start = Instant::now();
+    publisher.publish(&amp;cloud)?;
+    let pub_time = start.elapsed();
+
+    println!(
+        "  ✓ Published in {:?} (data already in SHM, only metadata serialized)",
+        pub_time
+    );
+
+    Ok(())
+}
+
+/// Pattern 2: Enable SHM at context level, automatic for large messages
+fn demo_automatic_shm() -&gt; zenoh::Result&lt;()&gt; {
+    // Enable SHM globally
+    let ctx = ZContextBuilder::default()
+        .with_shm_pool_size(50 * 1024 * 1024)?
+        .with_shm_threshold(10_000) // 10KB threshold
+        .build()?;
+    println!("  ✓ Context configured with automatic SHM (threshold: 10KB)");
+
+    let node = ctx.create_node("pointcloud_publisher").build()?;
+    let publisher = node.create_pub::&lt;PointCloud2&gt;("cloud/automatic").build()?;
+
+    // Generate point cloud normally (using Vec&lt;u8&gt;)
+    let start = Instant::now();
+    let cloud = generate_pointcloud_normal(50_000);
+    let gen_time = start.elapsed();
+
+    println!(
+        "  ✓ Generated 50k point cloud ({} KB) in {:?}",
+        cloud.data.len() / 1024,
+        gen_time
+    );
+
+    // Publish - automatically uses SHM because message &gt; threshold
+    let start = Instant::now();
+    publisher.publish(&amp;cloud)?;
+    let pub_time = start.elapsed();
+
+    println!(
+        "  ✓ Published in {:?} (serialized ~600KB &gt; 10KB, automatically used SHM)",
+        pub_time
+    );
+
+    Ok(())
+}
+
+/// Pattern 3: Per-publisher SHM configuration
+fn demo_publisher_shm_override() -&gt; zenoh::Result&lt;()&gt; {
+    // Context has no SHM, but publisher has its own config
+    let ctx = ZContextBuilder::default().build()?;
+    let node = ctx.create_node("pointcloud_publisher").build()?;
+
+    // Create SHM provider for this publisher only
+    let provider = Arc::new(ShmProviderBuilder::new(30 * 1024 * 1024).build()?);
+    let shm_config = ShmConfig::new(provider).with_threshold(5_000); // 5KB threshold
+
+    let publisher = node
+        .create_pub::&lt;PointCloud2&gt;("cloud/per_publisher")
+        .with_shm_config(shm_config)
+        .build()?;
+
+    println!("  ✓ Publisher configured with custom SHM (threshold: 5KB)");
+
+    let cloud = generate_pointcloud_normal(30_000);
+    println!(
+        "  ✓ Generated 30k point cloud ({} KB)",
+        cloud.data.len() / 1024
+    );
+
+    let start = Instant::now();
+    publisher.publish(&amp;cloud)?;
+    let pub_time = start.elapsed();
+
+    println!(
+        "  ✓ Published in {:?} (used publisher's SHM config)",
+        pub_time
+    );
+
+    Ok(())
+}
+
+/// Generate point cloud with user-managed SHM (Pattern 1: zero-copy)
+fn generate_pointcloud_with_shm(
+    num_points: usize,
+    provider: &amp;ShmProvider&lt;zenoh::shm::PosixShmProviderBackend&gt;,
+) -&gt; zenoh::Result&lt;PointCloud2&gt; {
+    let point_step = 12; // x, y, z as f32 (4 bytes each)
+    let data_size = num_points * point_step;
+
+    // Allocate SHM buffer for point data
+    let mut shm_buf = provider
+        .alloc(data_size)
+        .with_policy::&lt;BlockOn&lt;GarbageCollect&gt;&gt;()
+        .wait()?;
+
+    // Write point coordinates directly into SHM buffer
+    for i in 0..num_points {
+        let offset = i * point_step;
+        let angle = (i as f32) * 0.01;
+        let radius = 5.0 + (angle * 0.1).sin();
+
+        // Calculate x, y, z
+        let x = radius * angle.cos();
+        let y = radius * angle.sin();
+        let z = (i as f32) * 0.001;
+
+        // Write directly to SHM (no intermediate Vec&lt;u8&gt;)
+        shm_buf[offset..offset + 4].copy_from_slice(&amp;x.to_le_bytes());
+        shm_buf[offset + 4..offset + 8].copy_from_slice(&amp;y.to_le_bytes());
+        shm_buf[offset + 8..offset + 12].copy_from_slice(&amp;z.to_le_bytes());
+    }
+
+    // Create ZBuf from SHM buffer (zero-copy conversion!)
+    let data_zbuf = ZBuf::from(shm_buf);
+
+    // Construct PointCloud2 with SHM-backed ZBuf
+    Ok(PointCloud2 {
+        header: Header {
+            frame_id: "map".into(),
+            ..Default::default()
+        },
+        height: 1,
+        width: num_points as u32,
+        fields: vec![
+            PointField {
+                name: "x".into(),
+                offset: 0,
+                datatype: 7, // FLOAT32
+                count: 1,
+            },
+            PointField {
+                name: "y".into(),
+                offset: 4,
+                datatype: 7,
+                count: 1,
+            },
+            PointField {
+                name: "z".into(),
+                offset: 8,
+                datatype: 7,
+                count: 1,
+            },
+        ],
+        is_bigendian: false,
+        point_step: point_step as u32,
+        row_step: (num_points * point_step) as u32,
+        data: data_zbuf, // SHM-backed data!
+        is_dense: true,
+    })
+}
+
+/// Generate point cloud normally (Pattern 2 &amp; 3: uses Vec&lt;u8&gt;, then automatic SHM)
+fn generate_pointcloud_normal(num_points: usize) -&gt; PointCloud2 {
+    let point_step = 12;
+    let mut data = Vec::with_capacity(num_points * point_step);
+
+    for i in 0..num_points {
+        let angle = (i as f32) * 0.01;
+        let radius = 5.0 + (angle * 0.1).sin();
+
+        let x = radius * angle.cos();
+        let y = radius * angle.sin();
+        let z = (i as f32) * 0.001;
+
+        data.extend_from_slice(&amp;x.to_le_bytes());
+        data.extend_from_slice(&amp;y.to_le_bytes());
+        data.extend_from_slice(&amp;z.to_le_bytes());
+    }
+
+    PointCloud2 {
+        header: Header {
+            frame_id: "map".into(),
+            ..Default::default()
+        },
+        height: 1,
+        width: num_points as u32,
+        fields: vec![
+            PointField {
+                name: "x".into(),
+                offset: 0,
+                datatype: 7,
+                count: 1,
+            },
+            PointField {
+                name: "y".into(),
+                offset: 4,
+                datatype: 7,
+                count: 1,
+            },
+            PointField {
+                name: "z".into(),
+                offset: 8,
+                datatype: 7,
+                count: 1,
+            },
+        ],
+        is_bigendian: false,
+        point_step: point_step as u32,
+        row_step: (num_points * point_step) as u32,
+        data: ZBuf::from(data),
+        is_dense: true,
+    }
+}</code></pre>
+<p><strong>Run the example:</strong></p>
+<pre><code class="language-bash">cargo run --example shm_pointcloud2
+</code></pre>
+<p><strong>Expected Output:</strong></p>
+<pre><code class="language-text">=== PointCloud2 with SHM Example ===
+
+1. User-Managed SHM Pattern:
+  ✓ Created SHM provider with 50MB pool
+  ✓ Generated 100k point cloud (1171 KB) in 22ms
+    Points stored directly in SHM (zero-copy!)
+  ✓ Published in 851µs (data already in SHM, only metadata serialized)
+
+2. Automatic SHM Pattern (Context-level):
+  ✓ Context configured with automatic SHM (threshold: 10KB)
+  ✓ Generated 50k point cloud (585 KB) in 11ms
+  ✓ Published in 450µs (serialized ~600KB &gt; 10KB, automatically used SHM)
+
+3. Per-Publisher SHM Override:
+  ✓ Publisher configured with custom SHM (threshold: 5KB)
+  ✓ Generated 30k point cloud (351 KB)
+  ✓ Published in 320µs (used publisher's SHM config)
+
+=== All patterns completed successfully ===
+</code></pre>
+<h2 id="testing"><a class="header" href="#testing">Testing</a></h2>
+<h3 id="run-shm-tests"><a class="header" href="#run-shm-tests">Run SHM Tests</a></h3>
+<pre><code class="language-bash"># SHM integration tests
+cargo test -p ros-z --lib shm
+cargo test -p ros-z --test shm
+
+# Size estimation tests
+cargo test -p ros-z-msgs --test shm_size_estimation
+
+# Performance tests
+cargo test -p ros-z-msgs --test size_estimation_performance
+</code></pre>
+<h3 id="test-coverage"><a class="header" href="#test-coverage">Test Coverage</a></h3>
+<ul>
+<li><strong>16 total tests</strong> covering:
+<ul>
+<li>SHM allocation and serialization</li>
+<li>Size estimation accuracy</li>
+<li>Performance benchmarks</li>
+<li>Multi-message scenarios</li>
+<li>Error handling</li>
+</ul>
+</li>
+</ul>
+<h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
+<h3 id="buffer-overflow-panic"><a class="header" href="#buffer-overflow-panic">Buffer Overflow Panic</a></h3>
+<p><strong>Symptom</strong>: <code>SHM buffer overflow</code> panic during serialization</p>
+<p><strong>Cause</strong>: Message's <code>estimated_serialized_size()</code> is inaccurate</p>
+<p><strong>Solution</strong>: This should not occur with auto-generated implementations. If it does, please report as a bug with the specific message type and data.</p>
+<h3 id="shm-allocation-fails"><a class="header" href="#shm-allocation-fails">SHM Allocation Fails</a></h3>
+<p><strong>Symptom</strong>: Falls back to regular memory allocation</p>
+<p><strong>Possible Causes</strong>:</p>
+<ol>
+<li>SHM pool exhausted</li>
+<li>System SHM limits reached</li>
+<li>Message below threshold</li>
+</ol>
+<p><strong>Solutions</strong>:</p>
+<pre><code class="language-bash"># Check pool usage
+ipcs -m
+
+# Increase pool size
+let ctx = ZContextBuilder::default()
+    .with_shm_pool_size(100 * 1024 * 1024)?
+    .build()?;
+
+# Lower threshold
+let ctx = ZContextBuilder::default()
+    .with_shm_threshold(256)?
+    .build()?;
+</code></pre>
+<h3 id="poor-performance"><a class="header" href="#poor-performance">Poor Performance</a></h3>
+<p><strong>Symptom</strong>: Serialization slower than expected</p>
+<p><strong>Diagnosis</strong>:</p>
+<pre><code class="language-rust ignore">// Check if message uses SHM
+println!("Message size: {}", msg.estimated_serialized_size());
+println!("SHM threshold: {}", ctx.shm_threshold());</code></pre>
+<p><strong>Solutions</strong>:</p>
+<ul>
+<li>Ensure message size exceeds threshold</li>
+<li>Verify SHM is enabled</li>
+<li>Check for buffer reallocations (use performance tests)</li>
+</ul>
+<h3 id="system-shm-limits"><a class="header" href="#system-shm-limits">System SHM Limits</a></h3>
+<p>On Linux, check and adjust system limits:</p>
+<pre><code class="language-bash"># Current limits
+cat /proc/sys/kernel/shmmax  # Max segment size
+cat /proc/sys/kernel/shmall  # Total pages
+
+# Increase limits (requires root)
+sudo sysctl -w kernel.shmmax=134217728   # 128MB
+sudo sysctl -w kernel.shmall=32768       # 128MB in pages
+</code></pre>
+<h2 id="best-practices"><a class="header" href="#best-practices">Best Practices</a></h2>
+<h3 id="when-to-use-shm"><a class="header" href="#when-to-use-shm">When to Use SHM</a></h3>
+<p><strong>Good candidates for SHM</strong>:</p>
+<ul>
+<li>Point clouds (<code>sensor_msgs/PointCloud2</code>)</li>
+<li>Camera images (<code>sensor_msgs/Image</code>)</li>
+<li>Large arrays (<code>std_msgs/ByteMultiArray</code>)</li>
+<li>Laser scans (<code>sensor_msgs/LaserScan</code>)</li>
+</ul>
+<p><strong>Not beneficial for SHM</strong>:</p>
+<ul>
+<li>Small messages (&lt;512 bytes)</li>
+<li>High-frequency, small updates</li>
+<li>Messages with mostly fixed-size fields</li>
+</ul>
+<h3 id="configuration-guidelines"><a class="header" href="#configuration-guidelines">Configuration Guidelines</a></h3>
+<ol>
+<li><strong>Start with defaults</strong>: 10MB pool, 512B threshold work well for most applications</li>
+<li><strong>Adjust pool size</strong>: Based on maximum concurrent large messages</li>
+<li><strong>Tune threshold</strong>: Balance between SHM overhead and copy cost</li>
+<li><strong>Monitor usage</strong>: Use <code>ipcs -m</code> to check pool utilization</li>
+</ol>
+<h3 id="performance-tips"><a class="header" href="#performance-tips">Performance Tips</a></h3>
+<ol>
+<li><strong>Pre-calculate sizes</strong>: Use <code>estimated_serialized_size()</code> to validate messages</li>
+<li><strong>Reuse publishers</strong>: Creating publishers is expensive; reuse them</li>
+<li><strong>Batch small messages</strong>: Don't use SHM for messages below threshold</li>
+<li><strong>Profile first</strong>: Measure before optimizing SHM configuration</li>
+</ol>
+<h2 id="advanced-topics"><a class="header" href="#advanced-topics">Advanced Topics</a></h2>
+<h3 id="custom-size-estimation"><a class="header" href="#custom-size-estimation">Custom Size Estimation</a></h3>
+<p>For custom message types, implement <code>SizeEstimation</code>:</p>
+<pre><code class="language-rust ignore">use ros_z_msgs::size_estimation::SizeEstimation;
+
+impl SizeEstimation for MyCustomMessage {
+    fn estimated_serialized_size(&amp;self) -&gt; usize {
+        4 + // encapsulation header
+        self.field1.estimated_cdr_size() +
+        self.field2.estimated_cdr_size() +
+        4 + self.dynamic_array.len() * std::mem::size_of::&lt;ElementType&gt;()
+    }
+}</code></pre>
+<h3 id="allocation-policies"><a class="header" href="#allocation-policies">Allocation Policies</a></h3>
+<p>Zenoh SHM supports different allocation policies:</p>
+<pre><code class="language-rust ignore">use zenoh::shm::{BlockOn, GarbageCollect};
+
+// Block until memory available (default)
+let policy = BlockOn::&lt;GarbageCollect&gt;;
+
+// Fail immediately if pool full
+// (use different policy with provider.alloc().with_policy())</code></pre>
+<h3 id="integration-with-rmw_zenoh_cpp"><a class="header" href="#integration-with-rmw_zenoh_cpp">Integration with rmw_zenoh_cpp</a></h3>
+<p>ROS-Z's SHM implementation is fully compatible with <code>rmw_zenoh_cpp</code>. Messages published from ROS-Z using SHM can be received zero-copy by C++/Python nodes using <code>rmw_zenoh_cpp</code>, and vice versa.</p>
+<pre><code class="language-bash"># ROS-Z publisher (Rust)
+cargo run --example shm_pointcloud2
+
+# Standard ROS 2 subscriber (C++ with rmw_zenoh_cpp)
+ros2 run my_package cloud_subscriber
+</code></pre>
+<h2 id="related-documentation"><a class="header" href="#related-documentation">Related Documentation</a></h2>
+<ul>
+<li><a href="./message_generation.html">Message Generation</a> - Understanding generated code</li>
+<li><a href="./networking.html">Networking</a> - Zenoh configuration</li>
+<li><a href="./troubleshooting.html">Troubleshooting</a> - General debugging</li>
+</ul>
+<h2 id="implementation-details"><a class="header" href="#implementation-details">Implementation Details</a></h2>
+<p>For detailed implementation information, see the branch documentation:</p>
+<ul>
+<li><strong>Branch</strong>: <code>dev/shm</code></li>
+<li><strong>Documentation</strong>: <code>.claude/ros-z/branches/shm/CLAUDE.md</code></li>
+<li><strong>Status</strong>: Production ready</li>
+</ul>
+<p>Key files:</p>
+<ul>
+<li><code>ros-z/src/shm.rs</code> - Core SHM module</li>
+<li><code>ros-z/src/msg.rs</code> - Serialization with size estimation</li>
+<li><code>ros-z-codegen/src/generator/rust.rs</code> - Size estimation codegen</li>
+<li><code>ros-z-msgs/src/size_estimation.rs</code> - Trait definition</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../chapters/console.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../chapters/rmw_zenoh_rs.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../chapters/console.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../chapters/rmw_zenoh_rs.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../mermaid.min.js"></script>
+        <script src="../mermaid-init.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

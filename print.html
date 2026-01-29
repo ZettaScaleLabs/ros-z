@@ -3260,6 +3260,699 @@ sqlite3 ros-z-metrics.db "SELECT topic, AVG(msgs_sec) FROM metrics GROUP BY topi
 <p>Both ros-z and rmw_zenoh_cpp use the same Zenoh-based discovery protocol. ros-z-console subscribes to the graph liveliness tokens that rmw_zenoh_cpp nodes publish, enabling seamless interoperability without any configuration changes.</p>
 </div>
 </div>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="shared-memory-shm"><a class="header" href="#shared-memory-shm">Shared Memory (SHM)</a></h1>
+<p>Shared Memory (SHM) enables zero-copy publishing of large messages by serializing directly into shared memory buffers, eliminating the need to copy data between processes.</p>
+<h2 id="overview"><a class="header" href="#overview">Overview</a></h2>
+<p>When publishing large messages (e.g., point clouds, images), copying data multiple times can significantly impact performance. ROS-Z's SHM support leverages Zenoh's shared memory capabilities to achieve true zero-copy publishing.</p>
+<h3 id="key-benefits"><a class="header" href="#key-benefits">Key Benefits</a></h3>
+<ul>
+<li><strong>Zero-copy serialization</strong>: Messages are serialized directly into shared memory</li>
+<li><strong>Automatic activation</strong>: Configurable threshold-based switching</li>
+<li><strong>Accurate buffer sizing</strong>: Auto-generated size estimation prevents waste</li>
+<li><strong>High performance</strong>: Sub-millisecond serialization for 1MB messages</li>
+<li><strong>Full compatibility</strong>: Works seamlessly with <code>rmw_zenoh_cpp</code></li>
+</ul>
+<h2 id="how-shm-works-in-ros-2"><a class="header" href="#how-shm-works-in-ros-2">How SHM Works in ROS 2</a></h2>
+<p>The following diagram illustrates how a PointCloud2 message is published using shared memory in ROS-Z:</p>
+<pre class="mermaid">sequenceDiagram
+    participant App as Application
+    participant Pub as ROS-Z Publisher
+    participant SHM as SHM Provider
+    participant Zenoh as Zenoh Network
+    participant Sub as ROS-Z Subscriber
+    participant RemoteApp as Remote Application
+
+    Note over App,RemoteApp: Publishing Large PointCloud2 (1MB)
+
+    App-&gt;&gt;App: Generate PointCloud2 data
+    App-&gt;&gt;SHM: Allocate SHM buffer (1MB)
+    SHM--&gt;&gt;App: SHM buffer reference
+
+    App-&gt;&gt;App: Write point data directly to SHM
+    Note over App: Zero-copy: data stays in SHM
+
+    App-&gt;&gt;Pub: publish(pointcloud2)
+    Pub-&gt;&gt;Pub: Estimate serialized size
+    Pub-&gt;&gt;SHM: Allocate buffer for metadata
+    Pub-&gt;&gt;Pub: Serialize header + metadata to SHM
+    Note over Pub: Data field already in SHM!
+
+    Pub-&gt;&gt;Zenoh: Publish SHM-backed ZBuf
+    Note over Zenoh: Network transfer (zero-copy)
+
+    Zenoh-&gt;&gt;Sub: Receive SHM reference
+    Sub-&gt;&gt;Sub: Deserialize metadata
+    Sub-&gt;&gt;RemoteApp: PointCloud2 with SHM data
+
+    Note over RemoteApp: Direct access to SHM data
+    RemoteApp-&gt;&gt;RemoteApp: Process points (zero-copy read)
+</pre>
+<p><strong>Key Points:</strong></p>
+<ul>
+<li>Point data is written <strong>once</strong> directly into shared memory</li>
+<li>No intermediate copies between publisher and subscriber</li>
+<li>Both processes access the same physical memory</li>
+<li>Network only transfers SHM references, not actual data (on same machine)</li>
+<li>Automatic fallback to regular serialization for remote nodes</li>
+</ul>
+<h2 id="quick-start-2"><a class="header" href="#quick-start-2">Quick Start</a></h2>
+<h3 id="default-behavior-shm-is-off"><a class="header" href="#default-behavior-shm-is-off">Default Behavior: SHM is OFF</a></h3>
+<p><strong>By default, SHM is disabled.</strong> Messages are serialized using regular memory allocation. You must explicitly enable SHM to use zero-copy publishing.</p>
+<h3 id="enable-shm-globally"><a class="header" href="#enable-shm-globally">Enable SHM Globally</a></h3>
+<p>The simplest way to enable SHM is at the context level:</p>
+<pre><code class="language-rust ignore">use ros_z::context::ZContextBuilder;
+use ros_z::Builder;
+use ros_z_msgs::sensor_msgs::PointCloud2;
+
+fn main() -&gt; zenoh::Result&lt;()&gt; {
+    let ctx = ZContextBuilder::default()
+        .with_shm_enabled()?  // Enable with defaults: 10MB pool, 512B threshold
+        .build()?;
+
+    // All publishers automatically use SHM for messages &gt;= 512 bytes
+    let node = ctx.create_node("my_node").build()?;
+    let publisher = node.create_pub::&lt;PointCloud2&gt;("cloud").build()?;
+
+    // Zero-copy publishing for large messages!
+    let large_pointcloud = PointCloud2::default();
+    publisher.publish(&amp;large_pointcloud)?;
+    Ok(())
+}</code></pre>
+<h3 id="custom-configuration"><a class="header" href="#custom-configuration">Custom Configuration</a></h3>
+<p>Adjust pool size and threshold based on your needs:</p>
+<pre><code class="language-rust ignore">use ros_z::context::ZContextBuilder;
+use ros_z::Builder;
+
+fn main() -&gt; zenoh::Result&lt;()&gt; {
+    let ctx = ZContextBuilder::default()
+        .with_shm_pool_size(100 * 1024 * 1024)?  // 100MB pool
+        .with_shm_threshold(50_000)?              // 50KB threshold
+        .build()?;
+    Ok(())
+}</code></pre>
+<h3 id="per-publisher-control"><a class="header" href="#per-publisher-control">Per-Publisher Control</a></h3>
+<p>Override SHM settings for specific publishers:</p>
+<pre><code class="language-rust ignore">use ros_z::context::ZContextBuilder;
+use ros_z::shm::{ShmConfig, ShmProviderBuilder};
+use ros_z::Builder;
+use ros_z_msgs::sensor_msgs::PointCloud2;
+use std::sync::Arc;
+
+fn main() -&gt; zenoh::Result&lt;()&gt; {
+    let ctx = ZContextBuilder::default().build()?;
+    let node = ctx.create_node("test").build()?;
+    let provider = Arc::new(ShmProviderBuilder::new(10_000_000).build()?);
+    let custom_config = ShmConfig::new(provider);
+
+    // Custom configuration for this publisher
+    let publisher = node.create_pub::&lt;PointCloud2&gt;("cloud")
+        .with_shm_config(custom_config)
+        .build()?;
+
+    // Explicitly disable SHM (even if context has it enabled)
+    let text_pub = node.create_pub::&lt;ros_z_msgs::std_msgs::String&gt;("text")
+        .without_shm()
+        .build()?;
+    Ok(())
+}</code></pre>
+<h3 id="toggle-shm-onoff"><a class="header" href="#toggle-shm-onoff">Toggle SHM On/Off</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Action</th><th>Method</th></tr></thead><tbody>
+<tr><td><strong>Enable (default config)</strong></td><td><code>.with_shm_enabled()</code></td></tr>
+<tr><td><strong>Enable (custom pool)</strong></td><td><code>.with_shm_pool_size(bytes)</code></td></tr>
+<tr><td><strong>Adjust threshold</strong></td><td><code>.with_shm_threshold(bytes)</code></td></tr>
+<tr><td><strong>Disable (default)</strong></td><td>Don't call any SHM methods</td></tr>
+<tr><td><strong>Disable per-publisher</strong></td><td><code>.without_shm()</code></td></tr>
+</tbody></table>
+</div>
+<h2 id="configuration-1"><a class="header" href="#configuration-1">Configuration</a></h2>
+<h3 id="default-shm-disabled"><a class="header" href="#default-shm-disabled">Default: SHM Disabled</a></h3>
+<p><strong>SHM is disabled by default.</strong> To enable it, you must explicitly configure it at the context, node, or publisher level.</p>
+<h3 id="hierarchical-configuration"><a class="header" href="#hierarchical-configuration">Hierarchical Configuration</a></h3>
+<p>SHM configuration follows a three-level hierarchy:</p>
+<ol>
+<li><strong>Context level</strong>: Default for all nodes/publishers</li>
+<li><strong>Node level</strong>: Override for node's publishers (inherits from context if not set)</li>
+<li><strong>Publisher level</strong>: Most specific override (can disable even if context has SHM)</li>
+</ol>
+<pre><code class="language-rust ignore">use ros_z::context::ZContextBuilder;
+use ros_z::shm::{ShmConfig, ShmProviderBuilder};
+use ros_z::Builder;
+use ros_z_msgs::sensor_msgs::{Image, PointCloud2};
+use std::sync::Arc;
+
+fn main() -&gt; zenoh::Result&lt;()&gt; {
+    // Context: 10MB pool, 512B threshold
+    let ctx = ZContextBuilder::default()
+        .with_shm_enabled()?
+        .build()?;
+
+    // Node: inherit from context
+    let node = ctx.create_node("my_node").build()?;
+
+    // Publisher 1: use context defaults
+    let pub1 = node.create_pub::&lt;Image&gt;("camera/image").build()?;
+
+    // Publisher 2: custom threshold
+    let provider = Arc::new(ShmProviderBuilder::new(10 * 1024 * 1024).build()?);
+    let config = ShmConfig::new(provider).with_threshold(100_000);
+    let pub2 = node.create_pub::&lt;PointCloud2&gt;("lidar/cloud")
+        .with_shm_config(config)
+        .build()?;
+
+    // Publisher 3: disable SHM
+    let pub3 = node.create_pub::&lt;ros_z_msgs::std_msgs::String&gt;("status")
+        .without_shm()
+        .build()?;
+    Ok(())
+}</code></pre>
+<h3 id="environment-variables"><a class="header" href="#environment-variables">Environment Variables</a></h3>
+<p>For compatibility with <code>rmw_zenoh_cpp</code>, you can enable and configure SHM via environment variables:</p>
+<pre><code class="language-bash">export ZENOH_SHM_ALLOC_SIZE=52428800        # Enable SHM with 50MB pool
+export ZENOH_SHM_MESSAGE_SIZE_THRESHOLD=10000  # Set 10KB threshold
+</code></pre>
+<p><strong>Note</strong>: Setting either environment variable will enable SHM. If only one is set, the other uses the default value (10MB pool or 512B threshold).</p>
+<p>To use environment variables in your code:</p>
+<pre><code class="language-rust ignore">use ros_z::shm::ShmConfig;
+use ros_z::context::ZContextBuilder;
+use ros_z::Builder;
+
+fn main() -&gt; zenoh::Result&lt;()&gt; {
+    let ctx = if let Some(shm_config) = ShmConfig::from_env()? {
+        // SHM configured from environment variables
+        ZContextBuilder::default()
+            .with_shm_config(shm_config)
+            .build()?
+    } else {
+        // No SHM (default)
+        ZContextBuilder::default().build()?
+    };
+    Ok(())
+}</code></pre>
+<h3 id="configuration-defaults-when-enabled"><a class="header" href="#configuration-defaults-when-enabled">Configuration Defaults (When Enabled)</a></h3>
+<p>When you enable SHM using <code>.with_shm_enabled()</code> or <code>.with_shm_pool_size()</code>, the following defaults apply:</p>
+<div class="table-wrapper"><table><thead><tr><th>Parameter</th><th>Default</th><th>Description</th></tr></thead><tbody>
+<tr><td><strong>SHM State</strong></td><td><strong>Disabled</strong></td><td>SHM must be explicitly enabled</td></tr>
+<tr><td>Pool Size</td><td>10 MB</td><td>Total SHM pool size (when enabled)</td></tr>
+<tr><td>Threshold</td><td>512 bytes</td><td>Min message size for SHM usage</td></tr>
+<tr><td>Policy</td><td><code>BlockOn&lt;GarbageCollect&gt;</code></td><td>Wait for GC if pool exhausted</td></tr>
+</tbody></table>
+</div>
+<h2 id="how-it-works"><a class="header" href="#how-it-works">How It Works</a></h2>
+<h3 id="architecture-1"><a class="header" href="#architecture-1">Architecture</a></h3>
+<pre><code class="language-text">Message with dynamic fields
+    ↓
+estimated_serialized_size() [auto-generated by codegen]
+    ↓
+Pre-allocate SHM buffer (exact size)
+    ↓
+Serialize directly to SHM (zero-copy!)
+    ↓
+ZBuf (SHM-backed)
+    ↓
+Zenoh publish
+</code></pre>
+<h3 id="size-estimation"><a class="header" href="#size-estimation">Size Estimation</a></h3>
+<p>ROS-Z automatically generates accurate size estimation for all message types during code generation:</p>
+<pre><code class="language-rust ignore">// Auto-generated implementation for PointCloud2
+impl SizeEstimation for PointCloud2 {
+    fn estimated_serialized_size(&amp;self) -&gt; usize {
+        4 + // encapsulation header
+        self.header.estimated_cdr_size() +
+        4 + // height
+        4 + // width
+        4 + self.fields.iter().map(|f| f.estimated_cdr_size()).sum::&lt;usize&gt;() +
+        1 + // is_bigendian
+        4 + // point_step
+        4 + // row_step
+        4 + self.data.len() +  // data buffer
+        1   // is_dense
+    }
+}</code></pre>
+<p>This ensures:</p>
+<ul>
+<li>No buffer overflows</li>
+<li>Minimal memory waste (&lt;1% over-allocation)</li>
+<li>Single allocation per message</li>
+</ul>
+<h2 id="complete-example-1"><a class="header" href="#complete-example-1">Complete Example</a></h2>
+<p>The following complete example demonstrates three patterns for using SHM with PointCloud2 messages. This code is from <code>ros-z/examples/shm_pointcloud2.rs</code>:</p>
+<pre><code class="language-rust ignore">//! PointCloud2 example demonstrating user-managed SHM for zero-copy point clouds.
+//!
+//! This example shows how to create large sensor messages with data stored directly
+//! in shared memory, avoiding any intermediate copies.
+//!
+//! # Three SHM Patterns Demonstrated:
+//!
+//! 1. **User-Managed SHM** (Primary): Allocate SHM buffer, write points, create message
+//! 2. **Automatic SHM** (Context-level): Enable SHM globally, automatic threshold-based usage
+//! 3. **Per-Publisher SHM**: Override SHM config for specific publisher
+//!
+//! # Usage:
+//! ```bash
+//! cargo run --example shm_pointcloud2
+//! ```
+
+use std::{sync::Arc, time::Instant};
+
+use ros_z::{
+    Builder,
+    context::ZContextBuilder,
+    shm::{ShmConfig, ShmProviderBuilder},
+};
+use ros_z_msgs::{
+    sensor_msgs::{PointCloud2, PointField},
+    std_msgs::Header,
+};
+use zenoh::{
+    Wait,
+    shm::{BlockOn, GarbageCollect, ShmProvider},
+};
+use zenoh_buffers::{ZBuf, buffer::Buffer};
+
+fn main() -&gt; zenoh::Result&lt;()&gt; {
+    println!("=== PointCloud2 with SHM Example ===\n");
+
+    // Pattern 1: User-managed SHM (maximum performance, full control)
+    println!("1. User-Managed SHM Pattern:");
+    demo_user_managed_shm()?;
+
+    println!("\n2. Automatic SHM Pattern (Context-level):");
+    demo_automatic_shm()?;
+
+    println!("\n3. Per-Publisher SHM Override:");
+    demo_publisher_shm_override()?;
+
+    println!("\n=== All patterns completed successfully ===");
+    Ok(())
+}
+
+/// Pattern 1: User creates SHM buffer, writes points, constructs PointCloud2
+fn demo_user_managed_shm() -&gt; zenoh::Result&lt;()&gt; {
+    // Step 1: Initialize SHM provider
+    let provider = ShmProviderBuilder::new(50 * 1024 * 1024).build()?;
+    println!("  ✓ Created SHM provider with 50MB pool");
+
+    // Step 2: Generate point cloud with SHM-backed data
+    let start = Instant::now();
+    let cloud = generate_pointcloud_with_shm(100_000, &amp;provider)?;
+    let gen_time = start.elapsed();
+
+    println!(
+        "  ✓ Generated 100k point cloud ({} KB) in {:?}",
+        cloud.data.len() / 1024,
+        gen_time
+    );
+    println!("    Points stored directly in SHM (zero-copy!)");
+
+    // Step 3: Create node and publisher
+    let ctx = ZContextBuilder::default().build()?;
+    let node = ctx.create_node("pointcloud_publisher").build()?;
+    let publisher = node
+        .create_pub::&lt;PointCloud2&gt;("cloud/user_managed")
+        .build()?;
+
+    // Step 4: Publish (data field is already in SHM)
+    let start = Instant::now();
+    publisher.publish(&amp;cloud)?;
+    let pub_time = start.elapsed();
+
+    println!(
+        "  ✓ Published in {:?} (data already in SHM, only metadata serialized)",
+        pub_time
+    );
+
+    Ok(())
+}
+
+/// Pattern 2: Enable SHM at context level, automatic for large messages
+fn demo_automatic_shm() -&gt; zenoh::Result&lt;()&gt; {
+    // Enable SHM globally
+    let ctx = ZContextBuilder::default()
+        .with_shm_pool_size(50 * 1024 * 1024)?
+        .with_shm_threshold(10_000) // 10KB threshold
+        .build()?;
+    println!("  ✓ Context configured with automatic SHM (threshold: 10KB)");
+
+    let node = ctx.create_node("pointcloud_publisher").build()?;
+    let publisher = node.create_pub::&lt;PointCloud2&gt;("cloud/automatic").build()?;
+
+    // Generate point cloud normally (using Vec&lt;u8&gt;)
+    let start = Instant::now();
+    let cloud = generate_pointcloud_normal(50_000);
+    let gen_time = start.elapsed();
+
+    println!(
+        "  ✓ Generated 50k point cloud ({} KB) in {:?}",
+        cloud.data.len() / 1024,
+        gen_time
+    );
+
+    // Publish - automatically uses SHM because message &gt; threshold
+    let start = Instant::now();
+    publisher.publish(&amp;cloud)?;
+    let pub_time = start.elapsed();
+
+    println!(
+        "  ✓ Published in {:?} (serialized ~600KB &gt; 10KB, automatically used SHM)",
+        pub_time
+    );
+
+    Ok(())
+}
+
+/// Pattern 3: Per-publisher SHM configuration
+fn demo_publisher_shm_override() -&gt; zenoh::Result&lt;()&gt; {
+    // Context has no SHM, but publisher has its own config
+    let ctx = ZContextBuilder::default().build()?;
+    let node = ctx.create_node("pointcloud_publisher").build()?;
+
+    // Create SHM provider for this publisher only
+    let provider = Arc::new(ShmProviderBuilder::new(30 * 1024 * 1024).build()?);
+    let shm_config = ShmConfig::new(provider).with_threshold(5_000); // 5KB threshold
+
+    let publisher = node
+        .create_pub::&lt;PointCloud2&gt;("cloud/per_publisher")
+        .with_shm_config(shm_config)
+        .build()?;
+
+    println!("  ✓ Publisher configured with custom SHM (threshold: 5KB)");
+
+    let cloud = generate_pointcloud_normal(30_000);
+    println!(
+        "  ✓ Generated 30k point cloud ({} KB)",
+        cloud.data.len() / 1024
+    );
+
+    let start = Instant::now();
+    publisher.publish(&amp;cloud)?;
+    let pub_time = start.elapsed();
+
+    println!(
+        "  ✓ Published in {:?} (used publisher's SHM config)",
+        pub_time
+    );
+
+    Ok(())
+}
+
+/// Generate point cloud with user-managed SHM (Pattern 1: zero-copy)
+fn generate_pointcloud_with_shm(
+    num_points: usize,
+    provider: &amp;ShmProvider&lt;zenoh::shm::PosixShmProviderBackend&gt;,
+) -&gt; zenoh::Result&lt;PointCloud2&gt; {
+    let point_step = 12; // x, y, z as f32 (4 bytes each)
+    let data_size = num_points * point_step;
+
+    // Allocate SHM buffer for point data
+    let mut shm_buf = provider
+        .alloc(data_size)
+        .with_policy::&lt;BlockOn&lt;GarbageCollect&gt;&gt;()
+        .wait()?;
+
+    // Write point coordinates directly into SHM buffer
+    for i in 0..num_points {
+        let offset = i * point_step;
+        let angle = (i as f32) * 0.01;
+        let radius = 5.0 + (angle * 0.1).sin();
+
+        // Calculate x, y, z
+        let x = radius * angle.cos();
+        let y = radius * angle.sin();
+        let z = (i as f32) * 0.001;
+
+        // Write directly to SHM (no intermediate Vec&lt;u8&gt;)
+        shm_buf[offset..offset + 4].copy_from_slice(&amp;x.to_le_bytes());
+        shm_buf[offset + 4..offset + 8].copy_from_slice(&amp;y.to_le_bytes());
+        shm_buf[offset + 8..offset + 12].copy_from_slice(&amp;z.to_le_bytes());
+    }
+
+    // Create ZBuf from SHM buffer (zero-copy conversion!)
+    let data_zbuf = ZBuf::from(shm_buf);
+
+    // Construct PointCloud2 with SHM-backed ZBuf
+    Ok(PointCloud2 {
+        header: Header {
+            frame_id: "map".into(),
+            ..Default::default()
+        },
+        height: 1,
+        width: num_points as u32,
+        fields: vec![
+            PointField {
+                name: "x".into(),
+                offset: 0,
+                datatype: 7, // FLOAT32
+                count: 1,
+            },
+            PointField {
+                name: "y".into(),
+                offset: 4,
+                datatype: 7,
+                count: 1,
+            },
+            PointField {
+                name: "z".into(),
+                offset: 8,
+                datatype: 7,
+                count: 1,
+            },
+        ],
+        is_bigendian: false,
+        point_step: point_step as u32,
+        row_step: (num_points * point_step) as u32,
+        data: data_zbuf, // SHM-backed data!
+        is_dense: true,
+    })
+}
+
+/// Generate point cloud normally (Pattern 2 &amp; 3: uses Vec&lt;u8&gt;, then automatic SHM)
+fn generate_pointcloud_normal(num_points: usize) -&gt; PointCloud2 {
+    let point_step = 12;
+    let mut data = Vec::with_capacity(num_points * point_step);
+
+    for i in 0..num_points {
+        let angle = (i as f32) * 0.01;
+        let radius = 5.0 + (angle * 0.1).sin();
+
+        let x = radius * angle.cos();
+        let y = radius * angle.sin();
+        let z = (i as f32) * 0.001;
+
+        data.extend_from_slice(&amp;x.to_le_bytes());
+        data.extend_from_slice(&amp;y.to_le_bytes());
+        data.extend_from_slice(&amp;z.to_le_bytes());
+    }
+
+    PointCloud2 {
+        header: Header {
+            frame_id: "map".into(),
+            ..Default::default()
+        },
+        height: 1,
+        width: num_points as u32,
+        fields: vec![
+            PointField {
+                name: "x".into(),
+                offset: 0,
+                datatype: 7,
+                count: 1,
+            },
+            PointField {
+                name: "y".into(),
+                offset: 4,
+                datatype: 7,
+                count: 1,
+            },
+            PointField {
+                name: "z".into(),
+                offset: 8,
+                datatype: 7,
+                count: 1,
+            },
+        ],
+        is_bigendian: false,
+        point_step: point_step as u32,
+        row_step: (num_points * point_step) as u32,
+        data: ZBuf::from(data),
+        is_dense: true,
+    }
+}</code></pre>
+<p><strong>Run the example:</strong></p>
+<pre><code class="language-bash">cargo run --example shm_pointcloud2
+</code></pre>
+<p><strong>Expected Output:</strong></p>
+<pre><code class="language-text">=== PointCloud2 with SHM Example ===
+
+1. User-Managed SHM Pattern:
+  ✓ Created SHM provider with 50MB pool
+  ✓ Generated 100k point cloud (1171 KB) in 22ms
+    Points stored directly in SHM (zero-copy!)
+  ✓ Published in 851µs (data already in SHM, only metadata serialized)
+
+2. Automatic SHM Pattern (Context-level):
+  ✓ Context configured with automatic SHM (threshold: 10KB)
+  ✓ Generated 50k point cloud (585 KB) in 11ms
+  ✓ Published in 450µs (serialized ~600KB &gt; 10KB, automatically used SHM)
+
+3. Per-Publisher SHM Override:
+  ✓ Publisher configured with custom SHM (threshold: 5KB)
+  ✓ Generated 30k point cloud (351 KB)
+  ✓ Published in 320µs (used publisher's SHM config)
+
+=== All patterns completed successfully ===
+</code></pre>
+<h2 id="testing"><a class="header" href="#testing">Testing</a></h2>
+<h3 id="run-shm-tests"><a class="header" href="#run-shm-tests">Run SHM Tests</a></h3>
+<pre><code class="language-bash"># SHM integration tests
+cargo test -p ros-z --lib shm
+cargo test -p ros-z --test shm
+
+# Size estimation tests
+cargo test -p ros-z-msgs --test shm_size_estimation
+
+# Performance tests
+cargo test -p ros-z-msgs --test size_estimation_performance
+</code></pre>
+<h3 id="test-coverage"><a class="header" href="#test-coverage">Test Coverage</a></h3>
+<ul>
+<li><strong>16 total tests</strong> covering:
+<ul>
+<li>SHM allocation and serialization</li>
+<li>Size estimation accuracy</li>
+<li>Performance benchmarks</li>
+<li>Multi-message scenarios</li>
+<li>Error handling</li>
+</ul>
+</li>
+</ul>
+<h2 id="troubleshooting-2"><a class="header" href="#troubleshooting-2">Troubleshooting</a></h2>
+<h3 id="buffer-overflow-panic"><a class="header" href="#buffer-overflow-panic">Buffer Overflow Panic</a></h3>
+<p><strong>Symptom</strong>: <code>SHM buffer overflow</code> panic during serialization</p>
+<p><strong>Cause</strong>: Message's <code>estimated_serialized_size()</code> is inaccurate</p>
+<p><strong>Solution</strong>: This should not occur with auto-generated implementations. If it does, please report as a bug with the specific message type and data.</p>
+<h3 id="shm-allocation-fails"><a class="header" href="#shm-allocation-fails">SHM Allocation Fails</a></h3>
+<p><strong>Symptom</strong>: Falls back to regular memory allocation</p>
+<p><strong>Possible Causes</strong>:</p>
+<ol>
+<li>SHM pool exhausted</li>
+<li>System SHM limits reached</li>
+<li>Message below threshold</li>
+</ol>
+<p><strong>Solutions</strong>:</p>
+<pre><code class="language-bash"># Check pool usage
+ipcs -m
+
+# Increase pool size
+let ctx = ZContextBuilder::default()
+    .with_shm_pool_size(100 * 1024 * 1024)?
+    .build()?;
+
+# Lower threshold
+let ctx = ZContextBuilder::default()
+    .with_shm_threshold(256)?
+    .build()?;
+</code></pre>
+<h3 id="poor-performance"><a class="header" href="#poor-performance">Poor Performance</a></h3>
+<p><strong>Symptom</strong>: Serialization slower than expected</p>
+<p><strong>Diagnosis</strong>:</p>
+<pre><code class="language-rust ignore">// Check if message uses SHM
+println!("Message size: {}", msg.estimated_serialized_size());
+println!("SHM threshold: {}", ctx.shm_threshold());</code></pre>
+<p><strong>Solutions</strong>:</p>
+<ul>
+<li>Ensure message size exceeds threshold</li>
+<li>Verify SHM is enabled</li>
+<li>Check for buffer reallocations (use performance tests)</li>
+</ul>
+<h3 id="system-shm-limits"><a class="header" href="#system-shm-limits">System SHM Limits</a></h3>
+<p>On Linux, check and adjust system limits:</p>
+<pre><code class="language-bash"># Current limits
+cat /proc/sys/kernel/shmmax  # Max segment size
+cat /proc/sys/kernel/shmall  # Total pages
+
+# Increase limits (requires root)
+sudo sysctl -w kernel.shmmax=134217728   # 128MB
+sudo sysctl -w kernel.shmall=32768       # 128MB in pages
+</code></pre>
+<h2 id="best-practices"><a class="header" href="#best-practices">Best Practices</a></h2>
+<h3 id="when-to-use-shm"><a class="header" href="#when-to-use-shm">When to Use SHM</a></h3>
+<p><strong>Good candidates for SHM</strong>:</p>
+<ul>
+<li>Point clouds (<code>sensor_msgs/PointCloud2</code>)</li>
+<li>Camera images (<code>sensor_msgs/Image</code>)</li>
+<li>Large arrays (<code>std_msgs/ByteMultiArray</code>)</li>
+<li>Laser scans (<code>sensor_msgs/LaserScan</code>)</li>
+</ul>
+<p><strong>Not beneficial for SHM</strong>:</p>
+<ul>
+<li>Small messages (&lt;512 bytes)</li>
+<li>High-frequency, small updates</li>
+<li>Messages with mostly fixed-size fields</li>
+</ul>
+<h3 id="configuration-guidelines"><a class="header" href="#configuration-guidelines">Configuration Guidelines</a></h3>
+<ol>
+<li><strong>Start with defaults</strong>: 10MB pool, 512B threshold work well for most applications</li>
+<li><strong>Adjust pool size</strong>: Based on maximum concurrent large messages</li>
+<li><strong>Tune threshold</strong>: Balance between SHM overhead and copy cost</li>
+<li><strong>Monitor usage</strong>: Use <code>ipcs -m</code> to check pool utilization</li>
+</ol>
+<h3 id="performance-tips"><a class="header" href="#performance-tips">Performance Tips</a></h3>
+<ol>
+<li><strong>Pre-calculate sizes</strong>: Use <code>estimated_serialized_size()</code> to validate messages</li>
+<li><strong>Reuse publishers</strong>: Creating publishers is expensive; reuse them</li>
+<li><strong>Batch small messages</strong>: Don't use SHM for messages below threshold</li>
+<li><strong>Profile first</strong>: Measure before optimizing SHM configuration</li>
+</ol>
+<h2 id="advanced-topics-1"><a class="header" href="#advanced-topics-1">Advanced Topics</a></h2>
+<h3 id="custom-size-estimation"><a class="header" href="#custom-size-estimation">Custom Size Estimation</a></h3>
+<p>For custom message types, implement <code>SizeEstimation</code>:</p>
+<pre><code class="language-rust ignore">use ros_z_msgs::size_estimation::SizeEstimation;
+
+impl SizeEstimation for MyCustomMessage {
+    fn estimated_serialized_size(&amp;self) -&gt; usize {
+        4 + // encapsulation header
+        self.field1.estimated_cdr_size() +
+        self.field2.estimated_cdr_size() +
+        4 + self.dynamic_array.len() * std::mem::size_of::&lt;ElementType&gt;()
+    }
+}</code></pre>
+<h3 id="allocation-policies"><a class="header" href="#allocation-policies">Allocation Policies</a></h3>
+<p>Zenoh SHM supports different allocation policies:</p>
+<pre><code class="language-rust ignore">use zenoh::shm::{BlockOn, GarbageCollect};
+
+// Block until memory available (default)
+let policy = BlockOn::&lt;GarbageCollect&gt;;
+
+// Fail immediately if pool full
+// (use different policy with provider.alloc().with_policy())</code></pre>
+<h3 id="integration-with-rmw_zenoh_cpp"><a class="header" href="#integration-with-rmw_zenoh_cpp">Integration with rmw_zenoh_cpp</a></h3>
+<p>ROS-Z's SHM implementation is fully compatible with <code>rmw_zenoh_cpp</code>. Messages published from ROS-Z using SHM can be received zero-copy by C++/Python nodes using <code>rmw_zenoh_cpp</code>, and vice versa.</p>
+<pre><code class="language-bash"># ROS-Z publisher (Rust)
+cargo run --example shm_pointcloud2
+
+# Standard ROS 2 subscriber (C++ with rmw_zenoh_cpp)
+ros2 run my_package cloud_subscriber
+</code></pre>
+<h2 id="related-documentation"><a class="header" href="#related-documentation">Related Documentation</a></h2>
+<ul>
+<li><a href="chapters/./message_generation.html">Message Generation</a> - Understanding generated code</li>
+<li><a href="chapters/./networking.html">Networking</a> - Zenoh configuration</li>
+<li><a href="chapters/./troubleshooting.html">Troubleshooting</a> - General debugging</li>
+</ul>
+<h2 id="implementation-details"><a class="header" href="#implementation-details">Implementation Details</a></h2>
+<p>For detailed implementation information, see the branch documentation:</p>
+<ul>
+<li><strong>Branch</strong>: <code>dev/shm</code></li>
+<li><strong>Documentation</strong>: <code>.claude/ros-z/branches/shm/CLAUDE.md</code></li>
+<li><strong>Status</strong>: Production ready</li>
+</ul>
+<p>Key files:</p>
+<ul>
+<li><code>ros-z/src/shm.rs</code> - Core SHM module</li>
+<li><code>ros-z/src/msg.rs</code> - Serialization with size estimation</li>
+<li><code>ros-z-codegen/src/generator/rust.rs</code> - Size estimation codegen</li>
+<li><code>ros-z-msgs/src/size_estimation.rs</code> - Trait definition</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="rmw_zenoh_rs"><a class="header" href="#rmw_zenoh_rs">rmw_zenoh_rs</a></h1>
 <p><code>rmw_zenoh_rs</code> is a Rust-based ROS Middleware (RMW) implementation that enables standard ROS 2 C++/Python nodes to communicate via Zenoh. It allows you to use Zenoh as the transport layer for your existing ROS 2 applications without modifying your code. It is <strong>fully interoperable</strong> with <code>rmw_zenoh_cpp</code>, allowing seamless communication between nodes using either implementation.</p>
 <h2 id="what-is-an-rmw"><a class="header" href="#what-is-an-rmw">What is an RMW?</a></h2>
@@ -3397,7 +4090,7 @@ ros2 run demo_nodes_cpp listener
 <tr><td><strong>Interoperability</strong></td><td>✅ Works with rmw_zenoh_cpp</td><td>✅ Works with rmw_zenoh_rs</td></tr>
 </tbody></table>
 </div>
-<h2 id="configuration-1"><a class="header" href="#configuration-1">Configuration</a></h2>
+<h2 id="configuration-2"><a class="header" href="#configuration-2">Configuration</a></h2>
 <p>rmw_zenoh_rs uses the same Zenoh configuration as rmw_zenoh_cpp. See <a href="chapters/./config_options.html">Configuration Options</a> for details.</p>
 <h2 id="see-also"><a class="header" href="#see-also">See Also</a></h2>
 <ul>
@@ -3459,7 +4152,7 @@ maturin develop
 <p>Use <code>maturin develop --release</code> for optimized builds when benchmarking or running in production.</p>
 </div>
 </div>
-<h2 id="quick-start-2"><a class="header" href="#quick-start-2">Quick Start</a></h2>
+<h2 id="quick-start-3"><a class="header" href="#quick-start-3">Quick Start</a></h2>
 <p>Here's a complete publisher and subscriber example from <a href="https://github.com/ZettaScaleLabs/ros-z/blob/main/ros-z-py/examples/topic_demo.py"><code>ros-z-py/examples/topic_demo.py</code></a>:</p>
 <h3 id="publisher-talker"><a class="header" href="#publisher-talker">Publisher (Talker)</a></h3>
 <pre><code class="language-python">def run_talker(ctx, topic: str, count: int, interval: float):
@@ -3638,7 +4331,7 @@ python -m pytest tests/ -v
 # Python-Rust interop tests
 cargo test --features python-interop -p ros-z-tests --test python_interop -- --test-threads=1
 </code></pre>
-<h2 id="troubleshooting-2"><a class="header" href="#troubleshooting-2">Troubleshooting</a></h2>
+<h2 id="troubleshooting-3"><a class="header" href="#troubleshooting-3">Troubleshooting</a></h2>
 <details id="admonition-import-errors-when-using-ros_z_py" class="admonition admonish-question" role="note" aria-labelledby="admonition-import-errors-when-using-ros_z_py-title">
 <summary class="admonition-title">
 <div id="admonition-import-errors-when-using-ros_z_py-title">
@@ -4315,7 +5008,7 @@ cargo run --example z_srvcli          # example_interfaces (now bundled)
 <li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - How messages are generated</li>
 </ul>
 <p><strong>Start with default features and add more as your project evolves. Feature flags provide flexibility without forcing early architectural decisions.</strong></p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="troubleshooting-3"><a class="header" href="#troubleshooting-3">Troubleshooting</a></h1>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="troubleshooting-4"><a class="header" href="#troubleshooting-4">Troubleshooting</a></h1>
 <p><strong>Quick solutions to common ros-z build and runtime issues.</strong> Click on any question to expand the answer.</p>
 <div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
 <div class="admonition-title">
