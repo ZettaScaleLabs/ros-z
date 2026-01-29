@@ -3,15 +3,12 @@
 use std::{sync::Arc, time::Duration};
 
 use ros_z::{
-    Builder,
+    Builder, ZBuf,
     context::ZContextBuilder,
     shm::{ShmConfig, ShmProviderBuilder},
 };
 use ros_z_msgs::std_msgs::ByteMultiArray;
-use zenoh_buffers::{
-    ZBuf,
-    buffer::{Buffer, SplitBuffer},
-};
+use zenoh_buffers::buffer::{Buffer, SplitBuffer};
 
 #[test]
 fn test_shm_pubsub_large_message() {

@@ -17,7 +17,7 @@
 use std::{sync::Arc, time::Instant};
 
 use ros_z::{
-    Builder,
+    Builder, ZBuf,
     context::ZContextBuilder,
     shm::{ShmConfig, ShmProviderBuilder},
 };
@@ -29,7 +29,7 @@ use zenoh::{
     Wait,
     shm::{BlockOn, GarbageCollect, ShmProvider},
 };
-use zenoh_buffers::{ZBuf, buffer::Buffer};
+use zenoh_buffers::buffer::Buffer;
 
 fn main() -> zenoh::Result<()> {
     println!("=== PointCloud2 with SHM Example ===\n");

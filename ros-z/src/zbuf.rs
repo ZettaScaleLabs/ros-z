@@ -80,6 +80,13 @@ impl From<&[u8]> for ZBuf {
     }
 }
 
+impl From<zenoh::shm::ZShmMut> for ZBuf {
+    #[inline]
+    fn from(shm: zenoh::shm::ZShmMut) -> Self {
+        Self(ZenohZBuf::from(shm))
+    }
+}
+
 // Deref to make it transparent
 impl std::ops::Deref for ZBuf {
     type Target = ZenohZBuf;
