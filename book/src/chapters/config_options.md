@@ -99,7 +99,7 @@ zenoh::open(router_config).await?;
 **Key builder methods:**
 
 | Builder | Methods | Purpose |
-|---------|---------|---------|
+| --- | --- | --- |
 | `SessionConfigBuilder` | `with_router_endpoint(endpoint)` | Connect to custom router |
 | `RouterConfigBuilder` | `with_listen_port(port)` | Set custom router port |
 

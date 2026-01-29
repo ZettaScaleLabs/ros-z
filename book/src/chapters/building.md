@@ -104,7 +104,7 @@ cargo build
 # For Humble - use --no-default-features
 cargo build --no-default-features --features humble
 
-# For Rolling/Iron - just add the feature
+# For Rolling/Kilted - just add the feature
 cargo build --features rolling
 ```
 
@@ -119,7 +119,7 @@ This section is for contributors working on ros-z itself. If you're using ros-z 
 The ros-z repository is organized as a Cargo workspace with multiple packages:
 
 | Package | Default Build | Purpose | Dependencies |
-|---------|---------------|---------|--------------|
+| --- | --- | --- | --- |
 | **ros-z** | Yes | Core Zenoh-native ROS 2 library | None |
 | **ros-z-codegen** | Yes | Message generation utilities | None |
 | **ros-z-msgs** | No | Pre-generated message types | None (all vendored) |
@@ -156,7 +156,7 @@ The build system automatically locates ROS message definitions:
 **Search order:**
 
 1. System ROS installation (`AMENT_PREFIX_PATH`, `CMAKE_PREFIX_PATH`)
-2. Common ROS paths (`/opt/ros/{rolling,jazzy,iron,humble}`)
+2. Common ROS paths (`/opt/ros/{rolling,kilted,jazzy,humble}`)
 3. Bundled assets (built-in message definitions in ros-z-codegen)
 
 This fallback mechanism enables builds without ROS 2 installed.

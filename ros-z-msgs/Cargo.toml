@@ -71,7 +71,7 @@ protobuf = ["prost", "ros-z/protobuf", "ros-z-codegen/protobuf"]
 humble = ["ros-z/humble"]
 jazzy = ["ros-z/jazzy"]
 rolling = ["ros-z/rolling"]
-iron = ["ros-z/iron"]
+kilted = ["ros-z/kilted"]
 python_registry = [
   "pyo3",
   "ros-z-cdr",

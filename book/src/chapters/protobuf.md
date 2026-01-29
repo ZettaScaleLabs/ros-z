@@ -10,13 +10,13 @@ Protobuf support in ros-z enables two powerful use cases:
 
 ## When to Use Protobuf
 
-| Use Case | Recommendation |
-|----------|----------------|
-| **ROS 2 interoperability** | Use CDR (default) |
-| **Schema evolution** | Use Protobuf |
-| **Cross-language data exchange** | Use Protobuf |
-| **Existing protobuf infrastructure** | Use Protobuf |
-| **Performance critical** | Benchmark both (typically similar) |
+| Use Case                             | Recommendation                     |
+| ------------------------------------ | ---------------------------------- |
+| **ROS 2 interoperability**           | Use CDR (default)                  |
+| **Schema evolution**                 | Use Protobuf                       |
+| **Cross-language data exchange**     | Use Protobuf                       |
+| **Existing protobuf infrastructure** | Use Protobuf                       |
+| **Performance critical**             | Benchmark both (typically similar) |
 
 ```admonish warning
 Protobuf-serialized messages are **not** compatible with standard ROS 2 nodes using CDR. Use protobuf when you control both ends of the communication or need its specific features.
@@ -267,9 +267,9 @@ use ros_z_msgs::proto::sensor_msgs::{LaserScan, Image};
 
 **Namespace mapping:**
 
-| Format | Namespace | Use |
-|--------|-----------|-----|
-| **CDR** | `ros_z_msgs::ros::*` | ROS 2 interop |
+| Format       | Namespace              | Use               |
+| ------------ | ---------------------- | ----------------- |
+| **CDR**      | `ros_z_msgs::ros::*`   | ROS 2 interop     |
 | **Protobuf** | `ros_z_msgs::proto::*` | Protobuf encoding |
 
 ## Type Information
@@ -310,15 +310,15 @@ impl WithTypeInfo for MyProtoMessage {}
 
 ## Protobuf vs CDR Comparison
 
-| Aspect | CDR | Protobuf |
-|--------|-----|----------|
-| **ROS 2 Compatibility** | ✅ Full | ❌ None |
-| **Schema Evolution** | ❌ Limited | ✅ Excellent |
-| **Cross-language** | ROS 2 only | ✅ Universal |
-| **Tooling** | ROS ecosystem | ✅ Protobuf ecosystem |
-| **Message Size** | Efficient | Efficient |
-| **Setup Complexity** | Simple | Moderate |
-| **ros-z Support** | Default | Requires feature flag |
+| Aspect                  | CDR           | Protobuf              |
+| ----------------------- | ------------- | --------------------- |
+| **ROS 2 Compatibility** | ✅ Full       | ❌ None               |
+| **Schema Evolution**    | ❌ Limited    | ✅ Excellent          |
+| **Cross-language**      | ROS 2 only    | ✅ Universal          |
+| **Tooling**             | ROS ecosystem | ✅ Protobuf ecosystem |
+| **Message Size**        | Efficient     | Efficient             |
+| **Setup Complexity**    | Simple        | Moderate              |
+| **ros-z Support**       | Default       | Requires feature flag |
 
 ## Common Patterns
 

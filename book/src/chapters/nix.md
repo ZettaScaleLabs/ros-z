@@ -31,7 +31,7 @@ nix develop .#pureRust       # Minimal Rust toolchain only
 ## Use Cases
 
 | Use Case | Environment | Benefit |
-|----------|-------------|---------|
+| --- | --- | --- |
 | **Team Development** | All developers | Everyone has identical toolchains and dependencies |
 | **CI/CD Pipelines** | GitHub Actions, GitLab CI | Same environment locally and in automation |
 | **Cross-Platform** | Linux, macOS, WSL | Consistent builds regardless of host OS |

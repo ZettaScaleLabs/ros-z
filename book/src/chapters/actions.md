@@ -24,12 +24,12 @@ stateDiagram-v2
 
 ## Components
 
-| Component | Type | Purpose |
-|-----------|------|---------|
-| **Goal** | Input | Defines the desired outcome |
+| Component    | Type   | Purpose                           |
+| ------------ | ------ | --------------------------------- |
+| **Goal**     | Input  | Defines the desired outcome       |
 | **Feedback** | Stream | Progress updates during execution |
-| **Result** | Output | Final outcome when complete |
-| **Status** | State | Current execution state |
+| **Result**   | Output | Final outcome when complete       |
+| **Status**   | State  | Current execution state           |
 
 ## Communication Pattern
 
@@ -130,7 +130,7 @@ Always implement timeout mechanisms for action clients. Long-running actions can
 ## Comparison with Other Patterns
 
 | Pattern | Duration | Feedback | Cancellation | Use Case |
-|---------|----------|----------|--------------|----------|
+| --- | --- | --- | --- | --- |
 | **Pub-Sub** | Continuous | No | N/A | Sensor data streaming |
 | **Service** | < 1 second | No | No | Quick queries |
 | **Action** | Seconds to minutes | Yes | Yes | Long-running tasks |

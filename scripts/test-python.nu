@@ -184,7 +184,7 @@ def get-test-pipeline [] {
 #   ./test-python.nu --list                    # List available test functions
 def main [
     --list                       # List available test functions
-    --distro: string = "jazzy"   # ROS distro to test (humble, jazzy)
+    --distro: string = "jazzy"   # ROS distro to test (humble, jazzy, kilted, rolling)
     ...tests: string             # Specific test functions to run (optional)
 ] {
     if $list {

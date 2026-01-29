@@ -34,12 +34,14 @@ jobs:
       github.event.pull_request.draft == false
     strategy:
       matrix:
-        distro: [humble, jazzy]
+        distro: [humble, jazzy, kilted]
         include:
           - distro: humble
             image: rostooling/setup-ros-docker:ubuntu-jammy-ros-humble-ros-base-latest
           - distro: jazzy
             image: rostooling/setup-ros-docker:ubuntu-noble-ros-jazzy-ros-base-latest
+          - distro: kilted
+            image: rostooling/setup-ros-docker:ubuntu-noble-ros-kilted-ros-base-latest
     container:
       image: ${{ matrix.image }}
     steps:

@@ -25,7 +25,7 @@ graph LR
 ## Key Features
 
 | Feature | Description | Benefit |
-|---------|-------------|---------|
+| --- | --- | --- |
 | **Build-time generation** | Runs during `cargo build` | No manual steps |
 | **Bundled definitions** | Includes common ROS types | Works without ROS 2 |
 | **Type safety** | Full Rust type system | Compile-time validation |
@@ -189,7 +189,7 @@ flowchart LR
 ```
 
 1. **System ROS:** `$AMENT_PREFIX_PATH`, `$CMAKE_PREFIX_PATH`
-2. **Standard paths:** `/opt/ros/{rolling,jazzy,iron,humble}`
+2. **Standard paths:** `/opt/ros/{rolling,kilted,jazzy,humble}`
 3. **Bundled assets:** Built-in message definitions in ros-z-codegen
 
 This fallback enables development without ROS 2 installation.
@@ -241,12 +241,12 @@ Import the service type for creation, then use the request/response types when h
 
 Available without ROS 2:
 
-| Package | Messages | Use Cases |
-|---------|----------|-----------|
-| **std_msgs** | String, Int32, Float64, etc. | Basic data types |
-| **geometry_msgs** | Point, Pose, Twist, Transform | Spatial data |
-| **sensor_msgs** | LaserScan, Image, Imu, PointCloud2 | Sensor readings |
-| **nav_msgs** | Path, Odometry, OccupancyGrid | Navigation |
+| Package           | Messages                           | Use Cases        |
+| ----------------- | ---------------------------------- | ---------------- |
+| **std_msgs**      | String, Int32, Float64, etc.       | Basic data types |
+| **geometry_msgs** | Point, Pose, Twist, Transform      | Spatial data     |
+| **sensor_msgs**   | LaserScan, Image, Imu, PointCloud2 | Sensor readings  |
+| **nav_msgs**      | Path, Odometry, OccupancyGrid      | Navigation       |
 
 ```bash
 # Build with bundled messages
@@ -257,11 +257,11 @@ cargo build -p ros-z-msgs --features bundled_msgs
 
 These packages are bundled and available without ROS 2 installation:
 
-| Package | Messages | Use Cases |
-|---------|----------|-----------|
-| **example_interfaces** | AddTwoInts, Fibonacci | Tutorials |
-| **action_tutorials_interfaces** | Fibonacci action | Action tutorials |
-| **test_msgs** | Test types | Testing |
+| Package                         | Messages              | Use Cases        |
+| ------------------------------- | --------------------- | ---------------- |
+| **example_interfaces**          | AddTwoInts, Fibonacci | Tutorials        |
+| **action_tutorials_interfaces** | Fibonacci action      | Action tutorials |
+| **test_msgs**                   | Test types            | Testing          |
 
 ```bash
 # All packages are bundled by default
@@ -323,7 +323,7 @@ flowchart TD
 ```
 
 | Approach | Pros | Cons | Use When |
-|----------|------|------|----------|
+| --- | --- | --- | --- |
 | **Manual** | Fast, flexible | No ROS 2 interop | Prototyping, internal only |
 | **Generated** | Type hashes, portable | Requires .msg files | Production, ROS 2 systems |
 
@@ -490,7 +490,7 @@ cargo build -p ros-z-msgs --features bundled_msgs
 ### Build Failures
 
 | Error | Cause | Solution |
-|-------|-------|----------|
+| --- | --- | --- |
 | "Cannot find package" | Missing dependency | Enable feature or install ROS 2 package |
 | "Type conflict" | Duplicate definition | Remove manual implementation |
 | "Hash error" | Version mismatch | Update ros-z-codegen dependency |

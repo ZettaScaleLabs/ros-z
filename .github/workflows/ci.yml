@@ -148,7 +148,7 @@ jobs:
       contents: read
     strategy:
       matrix:
-        distro: [humble, jazzy]
+        distro: [humble, jazzy, kilted]
     # Skip for draft PRs to save CI time during development
     if: |
       github.event_name == 'push' ||
@@ -187,6 +187,9 @@ jobs:
           if [ "${{ matrix.distro }}" = "humble" ]; then
             echo "Building ros-z-msgs for Humble (no service_msgs)"
             cargo build -p ros-z-msgs --no-default-features --features humble,python_registry
+          elif [ "${{ matrix.distro }}" = "kilted" ]; then
+            echo "Building ros-z-msgs for Kilted (with service_msgs)"
+            cargo build -p ros-z-msgs --no-default-features --features kilted,python_registry
           else
             echo "Building ros-z-msgs for Jazzy (with service_msgs)"
             cargo build -p ros-z-msgs --features python_registry
@@ -254,7 +257,7 @@ jobs:
       github.event.pull_request.draft == false
     strategy:
       matrix:
-        distro: [humble, jazzy]
+        distro: [humble, jazzy, kilted]
 
     steps:
       - name: Checkout repository

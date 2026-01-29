@@ -9,7 +9,7 @@ Feature flags enable pay-per-use dependencies. Start minimal and enable features
 ## Feature Categories
 
 | Category | Purpose | Example Features |
-|----------|---------|------------------|
+| --- | --- | --- |
 | **Distribution** | Target specific ROS 2 versions | `humble`, `jazzy`, `rolling` |
 | **Message Packages** | Enable ROS 2 message types | `std_msgs`, `geometry_msgs` |
 | **Serialization** | Additional encoding formats | `protobuf` |
@@ -78,16 +78,13 @@ cargo build --no-default-features --features humble
 
 **Important:** Humble requires `--no-default-features` to avoid conflicts with the jazzy default.
 
-### `rolling` and `iron`
+### `rolling` and `kilted`
 
 Target newer distributions:
 
 ```bash
 # Rolling
 cargo build --features rolling
-
-# Iron
-cargo build --features iron
 ```
 
 **See also:** [ROS 2 Distribution Compatibility](./distro_compatibility.md) for detailed documentation.
@@ -140,7 +137,7 @@ All messages are vendored in assets - no ROS 2 installation required. Feature fl
 All packages are bundled in assets and work without ROS 2:
 
 | Feature | Package | Use Case |
-|---------|---------|----------|
+| --- | --- | --- |
 | `std_msgs` | Standard messages | Strings, numbers, arrays |
 | `geometry_msgs` | Geometric primitives | Points, poses, transforms |
 | `sensor_msgs` | Sensor data | Cameras, lidars, IMUs |
@@ -256,8 +253,7 @@ Core library only, no messages:
 cargo build -p ros-z
 ```
 
-**Dependencies:** Rust, Cargo
-**Use case:** Custom messages only
+**Dependencies:** Rust, Cargo **Use case:** Custom messages only
 
 ### Standard Development
 
@@ -268,8 +264,7 @@ cargo build -p ros-z-msgs  # Uses default common_interfaces
 cargo build -p ros-z
 ```
 
-**Dependencies:** Rust, Cargo
-**Use case:** Most applications
+**Dependencies:** Rust, Cargo **Use case:** Most applications
 
 ### Full Message Set
 
@@ -279,8 +274,7 @@ All available message packages:
 cargo build -p ros-z-msgs --features all_msgs
 ```
 
-**Dependencies:** Rust, Cargo
-**Use case:** Access to all bundled message types including test_msgs
+**Dependencies:** Rust, Cargo **Use case:** Access to all bundled message types including test_msgs
 
 ### RCL Integration
 
@@ -291,8 +285,7 @@ source /opt/ros/jazzy/setup.bash
 cargo build -p rcl-z
 ```
 
-**Dependencies:** Rust, Cargo, ROS 2
-**Use case:** Hybrid Rust/C++ applications
+**Dependencies:** Rust, Cargo, ROS 2 **Use case:** Hybrid Rust/C++ applications
 
 ### Protobuf Development
 
@@ -304,26 +297,25 @@ cargo build -p ros-z-msgs --features protobuf
 cargo build -p ros-z --features protobuf
 ```
 
-**Dependencies:** Rust, Cargo, Protobuf compiler
-**Use case:** Cross-language data exchange
+**Dependencies:** Rust, Cargo, Protobuf compiler **Use case:** Cross-language data exchange
 
 ## Feature Matrix
 
-| Package | Feature | Requires ROS 2 | Adds Dependencies |
-|---------|---------|----------------|-------------------|
-| ros-z | (none) | No | None |
-| ros-z | jazzy (default) | No | None |
-| ros-z | humble | No | None |
-| ros-z | rolling | No | None |
-| ros-z | protobuf | No | prost, prost-types |
-| ros-z | rcl-z | Yes | RCL libraries |
-| ros-z-msgs | core_msgs (default) | No | None (bundled) |
-| ros-z-msgs | bundled_msgs | No | None (bundled) |
-| ros-z-msgs | all_msgs | No | None (bundled) |
-| ros-z-msgs | protobuf | No | prost, prost-types |
-| ros-z-msgs | jazzy (default) | No | None |
-| ros-z-msgs | humble | No | None |
-| ros-z-codegen | protobuf | No | prost-build |
+| Package       | Feature             | Requires ROS 2 | Adds Dependencies  |
+| ------------- | ------------------- | -------------- | ------------------ |
+| ros-z         | (none)              | No             | None               |
+| ros-z         | jazzy (default)     | No             | None               |
+| ros-z         | humble              | No             | None               |
+| ros-z         | rolling             | No             | None               |
+| ros-z         | protobuf            | No             | prost, prost-types |
+| ros-z         | rcl-z               | Yes            | RCL libraries      |
+| ros-z-msgs    | core_msgs (default) | No             | None (bundled)     |
+| ros-z-msgs    | bundled_msgs        | No             | None (bundled)     |
+| ros-z-msgs    | all_msgs            | No             | None (bundled)     |
+| ros-z-msgs    | protobuf            | No             | prost, prost-types |
+| ros-z-msgs    | jazzy (default)     | No             | None               |
+| ros-z-msgs    | humble              | No             | None               |
+| ros-z-codegen | protobuf            | No             | prost-build        |
 
 ## Checking Active Features
 

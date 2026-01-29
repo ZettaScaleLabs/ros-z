@@ -4,8 +4,7 @@ This example demonstrates two ways to use protobuf serialization with ros-z:
 
 ## 1. ROS Messages with Protobuf
 
-Uses auto-generated ROS message types from `ros-z-msgs` with protobuf
-serialization:
+Uses auto-generated ROS message types from `ros-z-msgs` with protobuf serialization:
 
 - Messages are defined in ROS .msg files
 - Automatically implements `MessageTypeInfo` trait

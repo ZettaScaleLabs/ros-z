@@ -4,12 +4,12 @@ ros-z supports multiple ROS 2 distributions through compile-time feature flags. 
 
 ## Supported Distributions
 
-| Distribution | Status | Type Hash Support | Default |
-|--------------|--------|-------------------|---------|
-| **Jazzy Jalisco** | ✅ Fully Supported | ✅ Yes | **Yes** |
-| **Humble Hawksbill** | ✅ Supported | ❌ No (placeholder) | No |
-| Rolling Ridley | ✅ Supported | ✅ Yes | No |
-| Iron Irwini | ✅ Supported | ✅ Yes | No |
+| Distribution         | Status             | Type Hash Support   | Default |
+| -------------------- | ------------------ | ------------------- | ------- |
+| **Jazzy Jalisco**    | ✅ Fully Supported | ✅ Yes              | **Yes** |
+| **Humble Hawksbill** | ✅ Supported       | ❌ No (placeholder) | No      |
+| Kilted Koala         | ✅ Supported       | ✅ Yes              | No      |
+| Rolling Ridley       | ✅ Supported       | ✅ Yes              | No      |
 
 **Default**: ros-z defaults to **Jazzy** compatibility, which is the recommended distribution for new projects.
 
@@ -19,7 +19,7 @@ ros-z supports multiple ROS 2 distributions through compile-time feature flags. 
 
 The most significant difference between distributions is **type hash support**:
 
-**Jazzy/Rolling/Iron** (Modern):
+**Jazzy/Kilted/Rolling** (Modern):
 
 - Supports real type hashes computed from message definitions
 - Format: `RIHS01_<64-hex-chars>` (ROS IDL Hash Standard version 1)
@@ -81,12 +81,9 @@ cargo nextest run --no-default-features --features humble
 
 ### Using Other Distributions
 
-For Rolling or Iron, simply specify the distro feature:
+For Rolling or Kilted, simply specify the distro feature:
 
 ```bash
 # Build for Rolling
 cargo build --features rolling
-
-# Build for Iron
-cargo build --features iron
 ```

@@ -71,10 +71,7 @@ mdBook supports annotations on code blocks that control testing:
 ### Always Test (Default)
 
 ```markdown
-\`\`\`rust
-use ros_z::prelude::*;
-fn main() { }
-\`\`\`
+\`\`\`rust use ros_z::prelude::\*; fn main() { } \`\`\`
 ```
 
 ### Don't Run (Compile Only)
@@ -82,9 +79,7 @@ fn main() { }
 Use `no_run` when the code needs to compile but shouldn't execute (e.g., runs forever):
 
 ```markdown
-\`\`\`rust,no_run
-{{#include ../../../ros-z/examples/demo_nodes/talker.rs}}
-\`\`\`
+\`\`\`rust,no_run {{#include ../../../ros-z/examples/demo_nodes/talker.rs}} \`\`\`
 ```
 
 Most of our examples use `no_run` because they're full programs with `main()` that run indefinitely.
@@ -94,18 +89,13 @@ Most of our examples use `no_run` because they're full programs with `main()` th
 Use `ignore` when showing pseudo-code or incomplete examples:
 
 ```markdown
-\`\`\`rust,ignore
-// This won't be tested
-let qos = QosProfile { ... };
-\`\`\`
+\`\`\`rust,ignore // This won't be tested let qos = QosProfile { ... }; \`\`\`
 ```
 
 ### Combine Annotations
 
 ```markdown
-\`\`\`rust,no_run,ignore
-// Won't run or compile
-\`\`\`
+\`\`\`rust,no_run,ignore // Won't run or compile \`\`\`
 ```
 
 ## Integration with CI
@@ -149,9 +139,7 @@ book/src/chapters/../../../ros-z/examples/your_file.rs
 **Solution:** Most examples should use `,no_run` annotation since they're complete programs:
 
 ```markdown
-\`\`\`rust,no_run
-{{#include ../../../ros-z/examples/demo_nodes/talker.rs}}
-\`\`\`
+\`\`\`rust,no_run {{#include ../../../ros-z/examples/demo_nodes/talker.rs}} \`\`\`
 ```
 
 ### Issue: "linking with `cc` failed"

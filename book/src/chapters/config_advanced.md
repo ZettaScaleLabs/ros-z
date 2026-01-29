@@ -57,7 +57,7 @@ let ctx = ZContextBuilder::default()
 ### Key Settings Explained
 
 | Setting | Router | Session | Purpose |
-|---------|--------|---------|---------|
+| --- | --- | --- | --- |
 | **Mode** | `router` | `peer` | Router relays messages, peers connect directly |
 | **Listen Endpoint** | `tcp/[::]:7447` | - | Router accepts connections |
 | **Connect Endpoint** | - | `tcp/localhost:7447` | Session connects to router |

@@ -62,10 +62,15 @@ def test-fallback-mode [] {
     # Clean and rebuild ros-z-msgs to force asset discovery
     run-cmd "cargo clean -p ros-z-msgs"
 
-    # Build and capture output
+    # Build and capture output with clean environment
     let build_output = (
-        cargo build -p ros-z-msgs --features bundled_msgs
-            --message-format=json-render-diagnostics
+        with-env {
+            AMENT_PREFIX_PATH: ""
+            CMAKE_PREFIX_PATH: ""
+            ROS_DISTRO: ""
+        } {
+            cargo build -p ros-z-msgs --features bundled_msgs
+        }
         | complete
     )
 
@@ -78,14 +83,14 @@ def test-fallback-mode [] {
         }
     }
 
-    let stderr = $build_output.stderr
+    let output = $build_output.stdout + $build_output.stderr
 
     # Verify bundled assets were used
-    if ($stderr | str contains "Using local bundled assets") {
+    if ($output | str contains "Using local bundled assets") {
         print "  ✓ Bundled assets detected in build output"
     } else {
         print "\n  ❌ Expected 'Using local bundled assets' in build output"
-        print $stderr
+        print $output
         error make {
             msg: "Bundled assets not detected - fallback mode failed"
             label: { text: "Check ros-z-msgs/build.rs discover_ros_packages()" }
@@ -93,9 +98,9 @@ def test-fallback-mode [] {
     }
 
     # Verify system packages were NOT used
-    if ($stderr | str contains "Found") and ($stderr | str contains "packages from ROS 2 installation") {
+    if ($output | str contains "Found") and ($output | str contains "packages from ROS 2 installation") {
         print "\n  ❌ System ROS packages were detected!"
-        print $stderr
+        print $output
         error make {
             msg: "System ROS packages leaked into build"
             label: { text: "Environment not clean - check AMENT_PREFIX_PATH" }
