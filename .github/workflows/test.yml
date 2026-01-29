@@ -3,13 +3,23 @@ name: Interop Tests
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'book/**'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'book/**'
 
 jobs:
   interop_test:
     name: Interop tests with ROS 2 ${{ matrix.distro }}
     runs-on: ubuntu-latest
+    # Skip for draft PRs to save CI time during development
+    if: |
+      github.event_name == 'push' ||
+      github.event.pull_request.draft == false
     strategy:
       matrix:
         distro: [humble, jazzy]

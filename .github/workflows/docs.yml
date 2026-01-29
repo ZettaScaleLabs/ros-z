@@ -1,5 +1,16 @@
 name: Docs
-on: [push, pull_request]
+
+on:
+  push:
+    paths:
+      - 'book/**'
+      - '**.md'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    paths:
+      - 'book/**'
+      - '**.md'
+      - '.github/workflows/docs.yml'
 
 jobs:
   test_doc:
