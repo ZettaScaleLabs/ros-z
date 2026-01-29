@@ -322,7 +322,7 @@ impl TypeDescriptionClient {
                     &endpoint.node.name,
                     &endpoint.node.namespace,
                     &type_name,
-                    "", // Don't validate hash, just get the description
+                    &type_hash, // Pass the type hash from publisher's type info
                     false,
                 )
                 .await

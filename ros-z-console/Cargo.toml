@@ -7,8 +7,10 @@ homepage = "https://github.com/ZettaScaleLabs/ros-z"
 
 [dependencies]
 ros-z = { path = "../ros-z" }
+ros-z-msgs = { path = "../ros-z-msgs" }
 clap = { workspace = true }
 crossterm = "0.29"
+flume = { workspace = true }
 parking_lot = { workspace = true }
 ratatui = "0.29"
 rusqlite = { version = "0.32", features = ["bundled"] }
@@ -19,3 +21,7 @@ tracing = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
 zenoh = { workspace = true }
 chrono = { version = "0.4", features = ["serde"] }
+
+[[bin]]
+name = "simple-test-pub"
+path = "simple-test-pub.rs"
