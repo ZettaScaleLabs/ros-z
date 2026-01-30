@@ -114,7 +114,7 @@ fn test_ros_z_server_ros2_client() {
             .expect("Failed to create node");
 
         let mut zsrv = node
-            .create_service::<AddTwoInts>("add_two_ints_test2")
+            .create_service::<AddTwoInts>("longer/add_two_ints_test2")
             .build()
             .expect("Failed to create service");
 
@@ -139,7 +139,7 @@ fn test_ros_z_server_ros2_client() {
             "ros2",
             "service",
             "call",
-            "/add_two_ints_test2",
+            "/longer/add_two_ints_test2",
             "example_interfaces/srv/AddTwoInts",
             "{a: 10, b: 7}",
         ])
