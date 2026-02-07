@@ -83,7 +83,7 @@ Use `no_run` when the code needs to compile but shouldn't execute (e.g., runs fo
 
 ```markdown
 \`\`\`rust,no_run
-{{#include ../../../ros-z/examples/demo_nodes/talker.rs}}
+{{#include ../../../crates/ros-z/examples/demo_nodes/talker.rs}}
 \`\`\`
 ```
 
@@ -137,10 +137,10 @@ mdbook test book -L ./target/debug/deps
 
 ```bash
 # From the book chapter:
-{{#include ../../../ros-z/examples/your_file.rs}}
+{{#include ../../../crates/ros-z/examples/your_file.rs}}
 
 # The path should resolve to:
-book/src/chapters/../../../ros-z/examples/your_file.rs
+book/src/chapters/../../../crates/ros-z/examples/your_file.rs
 # Which is: ros-z/examples/your_file.rs
 ```
 
@@ -150,7 +150,7 @@ book/src/chapters/../../../ros-z/examples/your_file.rs
 
 ```markdown
 \`\`\`rust,no_run
-{{#include ../../../ros-z/examples/demo_nodes/talker.rs}}
+{{#include ../../../crates/ros-z/examples/demo_nodes/talker.rs}}
 \`\`\`
 ```
 

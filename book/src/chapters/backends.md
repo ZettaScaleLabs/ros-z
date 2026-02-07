@@ -191,7 +191,7 @@ graph LR
 The `z_pubsub` example demonstrates backend selection for pub/sub communication. The example supports both `RmwZenoh` and `Ros2Dds` backends via command-line arguments:
 
 ```rust,ignore
-{{#include ../../../ros-z/examples/z_pubsub.rs}}
+{{#include ../../../crates/ros-z/examples/z_pubsub.rs}}
 ```
 
 Key features of this example:

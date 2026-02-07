@@ -19,7 +19,7 @@ The `mdbook test` command tests **every Rust code block** in your markdown files
 # Your Chapter
 
 \`\`\`rust,no_run
-{{#include ../../../ros-z/examples/your_example.rs}}
+{{#include ../../../crates/ros-z/examples/your_example.rs}}
 \`\`\`
 ```
 
@@ -47,7 +47,7 @@ Control how code blocks are tested:
 
 ```markdown
 \`\`\`rust,no_run
-{{#include ../../../ros-z/examples/demo_nodes/talker.rs}}
+{{#include ../../../crates/ros-z/examples/demo_nodes/talker.rs}}
 \`\`\`
 ```
 
@@ -130,7 +130,7 @@ Runs automatically on every push and pull request.
 
    ```markdown
    \`\`\`rust,no_run
-   {{#include ../../../ros-z/examples/my_feature.rs}}
+   {{#include ../../../crates/ros-z/examples/my_feature.rs}}
    \`\`\`
    ```
 

@@ -101,7 +101,7 @@ jobs:
           fi
           nu scripts/test-ros-packages.nu \
             --ws-dir $GITHUB_WORKSPACE/ws \
-            --rmw-path $GITHUB_WORKSPACE/ros-z/rmw-zenoh-rs \
+            --rmw-path $GITHUB_WORKSPACE/ros-z/crates/rmw-zenoh-rs \
             --verbose \
             --include-filter "$TEST_FILTER" \
             --exclude-filter "test_count_matched|test_events"

@@ -5,8 +5,8 @@ edition = "2024"
 publish = false
 
 [dependencies]
-ros-z = { path = "../ros-z" }
-ros-z-msgs = { path = "../ros-z-msgs" }
+ros-z = { path = "../crates/ros-z" }
+ros-z-msgs = { path = "../crates/ros-z-msgs" }
 tokio = { version = "1.47.1", features = ["full"] }
 clap = { version = "4.5.45", features = ["derive"] }
 zenoh = { version = "1.6.2", default-features = false, features = [
