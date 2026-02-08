@@ -27,8 +27,8 @@ def setup-venv [] {
     log-step "Set up Python virtual environment"
 
     # Create venv if it doesn't exist
-    if not ("ros-z-py/.venv" | path exists) {
-        run-cmd "cd ros-z-py; python -m venv .venv" --shell bash --distro (get-distro)
+    if not ("crates/ros-z-py/.venv" | path exists) {
+        run-cmd "cd crates/ros-z-py; python -m venv .venv" --shell bash --distro (get-distro)
         print "  Created new virtual environment"
     } else {
         print "  Virtual environment exists"
@@ -39,11 +39,11 @@ def setup-venv [] {
     print "  Generated Python message types"
 
     # Install ros-z-msgs-py (pure Python message definitions)
-    run-cmd "cd ros-z-py; source .venv/bin/activate && pip install -e ../ros-z-msgs/python/" --shell bash --distro (get-distro)
+    run-cmd "cd crates/ros-z-py; source .venv/bin/activate && pip install -e ../ros-z-msgs/python/" --shell bash --distro (get-distro)
     print "  Installed ros-z-msgs-py (message types)"
 
     # Install ros-z-py in editable mode using maturin
-    run-cmd "cd ros-z-py; source .venv/bin/activate && RUSTFLAGS='-D warnings' maturin develop" --shell bash --distro (get-distro)
+    run-cmd "cd crates/ros-z-py; source .venv/bin/activate && RUSTFLAGS='-D warnings' maturin develop" --shell bash --distro (get-distro)
     print "  Installed ros-z-py (Rust bindings)"
 }
 
@@ -51,31 +51,31 @@ def setup-venv [] {
 
 def lint-ruff [] {
     log-step "Ruff linting (ros-z-py)"
-    run-cmd "cd ros-z-py; source .venv/bin/activate && ruff check tests/ examples/ --output-format=github" --shell bash --distro (get-distro)
+    run-cmd "cd crates/ros-z-py; source .venv/bin/activate && ruff check tests/ examples/ --output-format=github" --shell bash --distro (get-distro)
 }
 
 def format-ruff [] {
     log-step "Ruff format check (ros-z-py)"
-    run-cmd "cd ros-z-py; source .venv/bin/activate && ruff format --check tests/ examples/" --shell bash --distro (get-distro)
+    run-cmd "cd crates/ros-z-py; source .venv/bin/activate && ruff format --check tests/ examples/" --shell bash --distro (get-distro)
 }
 
 def format-ruff-fix [] {
     log-step "Ruff format fix (ros-z-py)"
-    run-cmd "cd ros-z-py; source .venv/bin/activate && ruff format tests/ examples/" --shell bash --distro (get-distro)
+    run-cmd "cd crates/ros-z-py; source .venv/bin/activate && ruff format tests/ examples/" --shell bash --distro (get-distro)
 }
 
 # --- Type Checking Functions ---
 
 def typecheck-mypy [] {
     log-step "MyPy type checking (ros-z-py)"
-    run-cmd "cd ros-z-py; source .venv/bin/activate && mypy tests/ examples/ --ignore-missing-imports" --shell bash --distro (get-distro)
+    run-cmd "cd crates/ros-z-py; source .venv/bin/activate && mypy tests/ examples/ --ignore-missing-imports" --shell bash --distro (get-distro)
 }
 
 # --- Build Functions ---
 
 def build-package [] {
     log-step "Build Python package (ros-z-py)"
-    run-cmd "cd ros-z-py; source .venv/bin/activate && maturin build" --shell bash --distro (get-distro)
+    run-cmd "cd crates/ros-z-py; source .venv/bin/activate && maturin build" --shell bash --distro (get-distro)
 }
 
 def clippy [] {
@@ -87,29 +87,29 @@ def clippy [] {
 
 def run-pytest [] {
     log-step "Run pytest (ros-z-py)"
-    run-cmd "cd ros-z-py; source .venv/bin/activate && python -m pytest tests/ -v" --shell bash --distro (get-distro)
+    run-cmd "cd crates/ros-z-py; source .venv/bin/activate && python -m pytest tests/ -v" --shell bash --distro (get-distro)
 }
 
 def run-pytest-coverage [] {
     log-step "Run pytest with coverage (ros-z-py)"
-    run-cmd "cd ros-z-py; source .venv/bin/activate && python -m pytest tests/ --cov=ros_z_py --cov-report=term-missing --cov-report=html --cov-fail-under=80" --shell bash --distro (get-distro)
+    run-cmd "cd crates/ros-z-py; source .venv/bin/activate && python -m pytest tests/ --cov=ros_z_py --cov-report=term-missing --cov-report=html --cov-fail-under=80" --shell bash --distro (get-distro)
 }
 
 def run-examples [] {
     log-step "Run Python examples (ros-z-py)"
 
-    if not ("ros-z-py/examples" | path exists) {
+    if not ("crates/ros-z-py/examples" | path exists) {
         print "  Skipping: no examples directory found"
         return
     }
 
     # FIXME: workaround the timeout exit code
-    # run-cmd "cd ros-z-py; source .venv/bin/activate && timeout 2 python examples/talker.py" --shell bash --distro (get-distro)
+    # run-cmd "cd crates/ros-z-py; source .venv/bin/activate && timeout 2 python examples/talker.py" --shell bash --distro (get-distro)
 }
 
 def run-python-interop [] {
     log-step "Run Python interop tests (ros-z-tests)"
-    run-cmd "source ros-z-py/.venv/bin/activate && cargo test --features python-interop -p ros-z-tests --test python_interop -- --nocapture" --shell bash --distro (get-distro)
+    run-cmd "source crates/ros-z-py/.venv/bin/activate && cargo test --features python-interop -p ros-z-tests --test python_interop -- --nocapture" --shell bash --distro (get-distro)
 }
 
 # --- Cleanup Functions ---
@@ -119,16 +119,16 @@ def cleanup-python [] {
         log-step "Cleaning up Python artifacts"
 
         try {
-            rm -rf ros-z-py/.pytest_cache
-            rm -rf ros-z-py/.mypy_cache
-            rm -rf ros-z-py/.ruff_cache
-            rm -rf ros-z-py/__pycache__
-            rm -rf ros-z-py/python/**/__pycache__
-            rm -rf ros-z-py/htmlcov
-            rm -rf ros-z-py/.coverage
-            rm -rf ros-z-py/dist
-            rm -rf ros-z-py/build
-            rm -rf ros-z-py/*.egg-info
+            rm -rf crates/ros-z-py/.pytest_cache
+            rm -rf crates/ros-z-py/.mypy_cache
+            rm -rf crates/ros-z-py/.ruff_cache
+            rm -rf crates/ros-z-py/__pycache__
+            rm -rf crates/ros-z-py/python/**/__pycache__
+            rm -rf crates/ros-z-py/htmlcov
+            rm -rf crates/ros-z-py/.coverage
+            rm -rf crates/ros-z-py/dist
+            rm -rf crates/ros-z-py/build
+            rm -rf crates/ros-z-py/*.egg-info
         }
 
         df -h
