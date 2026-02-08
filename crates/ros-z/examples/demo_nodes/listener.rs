@@ -7,6 +7,7 @@ use ros_z::{
 };
 use ros_z_msgs::std_msgs::String as RosString;
 
+// ANCHOR: full_example
 /// Listener node that subscribes to a topic
 ///
 /// # Arguments
@@ -23,19 +24,24 @@ pub async fn run_listener(
     max_count: Option<usize>,
     timeout: Option<Duration>,
 ) -> Result<Vec<String>> {
+    // ANCHOR: node_setup
     // Create a node named "listener"
     let node = ctx.create_node("listener").build()?;
+    // ANCHOR_END: node_setup
 
+    // ANCHOR: subscriber_setup
     // Create a subscription to the "chatter" topic
     let qos = QosProfile {
         history: QosHistory::KeepLast(NonZeroUsize::new(10).unwrap()),
         ..Default::default()
     };
     let subscriber = node.create_sub::<RosString>(topic).with_qos(qos).build()?;
+    // ANCHOR_END: subscriber_setup
 
     let mut received_messages = Vec::new();
     let start = std::time::Instant::now();
 
+    // ANCHOR: receive_loop
     // Receive messages in a loop
     loop {
         // Check timeout
@@ -76,9 +82,11 @@ pub async fn run_listener(
             }
         }
     }
+    // ANCHOR_END: receive_loop
 
     Ok(received_messages)
 }
+// ANCHOR_END: full_example
 
 // Only compile main when building as a binary (not when included as a module)
 #[cfg(not(any(test, doctest)))]

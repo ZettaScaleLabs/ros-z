@@ -3,6 +3,7 @@ use std::time::Duration;
 use ros_z::{Builder, Result, context::ZContext};
 use ros_z_msgs::example_interfaces::{AddTwoIntsRequest, srv::AddTwoInts};
 
+// ANCHOR: full_example
 /// AddTwoInts client node that calls the service to add two integers
 ///
 /// # Arguments
@@ -11,9 +12,12 @@ use ros_z_msgs::example_interfaces::{AddTwoIntsRequest, srv::AddTwoInts};
 /// * `b` - Second number to add
 /// * `async_mode` - Whether to use async response waiting
 pub fn run_add_two_ints_client(ctx: ZContext, a: i64, b: i64, async_mode: bool) -> Result<i64> {
+    // ANCHOR: node_setup
     // Create a node named "add_two_ints_client"
     let node = ctx.create_node("add_two_ints_client").build()?;
+    // ANCHOR_END: node_setup
 
+    // ANCHOR: client_setup
     // Create a client for the service
     let client = node.create_client::<AddTwoInts>("add_two_ints").build()?;
 
@@ -21,7 +25,9 @@ pub fn run_add_two_ints_client(ctx: ZContext, a: i64, b: i64, async_mode: bool) 
         "AddTwoInts service client started (mode: {})",
         if async_mode { "async" } else { "sync" }
     );
+    // ANCHOR_END: client_setup
 
+    // ANCHOR: service_call
     // Create the request
     let req = AddTwoIntsRequest { a, b };
     println!("Sending request: {} + {}", req.a, req.b);
@@ -40,9 +46,11 @@ pub fn run_add_two_ints_client(ctx: ZContext, a: i64, b: i64, async_mode: bool) 
     };
 
     println!("Received response: {}", resp.sum);
+    // ANCHOR_END: service_call
 
     Ok(resp.sum)
 }
+// ANCHOR_END: full_example
 
 // Only compile main when building as a binary (not when included as a module)
 #[cfg(not(any(test, doctest)))]

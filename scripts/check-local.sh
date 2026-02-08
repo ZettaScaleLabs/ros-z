@@ -60,6 +60,14 @@ else
     echo ""
 fi
 
+# 6. Example coverage check (if nushell is available)
+if command -v nu &> /dev/null; then
+    run_check "Example coverage (check-example-coverage.nu)" "nu scripts/check-example-coverage.nu"
+else
+    echo -e "${YELLOW}⚠${NC} Skipping example coverage check (nushell not installed)"
+    echo ""
+fi
+
 # Summary
 echo "========================================="
 echo "Summary"

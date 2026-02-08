@@ -1,15 +1,19 @@
 use ros_z::{Builder, Result, context::ZContext};
 use ros_z_msgs::action_tutorials_interfaces::{FibonacciGoal, action::Fibonacci};
 
+// ANCHOR: full_example
 /// Fibonacci action client node that sends goals to compute Fibonacci sequences
 ///
 /// # Arguments
 /// * `ctx` - The ROS-Z context
 /// * `order` - The order of the Fibonacci sequence to compute
 pub async fn run_fibonacci_action_client(ctx: ZContext, order: i32) -> Result<Vec<i32>> {
+    // ANCHOR: node_setup
     // Create a node named "fibonacci_action_client"
     let node = ctx.create_node("fibonacci_action_client").build()?;
+    // ANCHOR_END: node_setup
 
+    // ANCHOR: client_setup
     // Create an action client
     let client = node
         .create_action_client::<Fibonacci>("fibonacci")
@@ -22,11 +26,15 @@ pub async fn run_fibonacci_action_client(ctx: ZContext, order: i32) -> Result<Ve
         "Fibonacci action client started, sending goal with order {}",
         order
     );
+    // ANCHOR_END: client_setup
 
+    // ANCHOR: send_goal
     // Send the goal
     let mut goal_handle = client.send_goal(FibonacciGoal { order }).await?;
     println!("Goal sent and accepted!");
+    // ANCHOR_END: send_goal
 
+    // ANCHOR: feedback_monitoring
     // Set up feedback monitoring
     if let Some(mut feedback_stream) = goal_handle.feedback() {
         tokio::spawn(async move {
@@ -35,7 +43,9 @@ pub async fn run_fibonacci_action_client(ctx: ZContext, order: i32) -> Result<Ve
             }
         });
     }
+    // ANCHOR_END: feedback_monitoring
 
+    // ANCHOR: wait_result
     // Wait for the result with timeout
     println!("Waiting for result (timeout: 10s)...");
     let result = match tokio::time::timeout(
@@ -57,9 +67,11 @@ pub async fn run_fibonacci_action_client(ctx: ZContext, order: i32) -> Result<Ve
             return Err(zenoh::Error::from("Timeout waiting for action result"));
         }
     };
+    // ANCHOR_END: wait_result
 
     Ok(result.sequence)
 }
+// ANCHOR_END: full_example
 
 // Only compile main when building as a binary (not when included as a module)
 #[cfg(not(any(test, doctest)))]

@@ -37,7 +37,7 @@ graph TD
 This example demonstrates a service server that adds two integers. The server waits for requests, processes them, and sends responses back to clients.
 
 ```rust,ignore
-{{#include ../../../crates/ros-z/examples/demo_nodes/add_two_ints_server.rs:1:47}}
+{{#include ../../../crates/ros-z/examples/demo_nodes/add_two_ints_server.rs:full_example}}
 ```
 
 **Key points:**
@@ -65,7 +65,7 @@ cargo run --example demo_nodes_add_two_ints_server -- --endpoint tcp/localhost:7
 This example demonstrates a service client that sends addition requests to the server and displays the results.
 
 ```rust,ignore
-{{#include ../../../crates/ros-z/examples/demo_nodes/add_two_ints_client.rs:1:45}}
+{{#include ../../../crates/ros-z/examples/demo_nodes/add_two_ints_client.rs:full_example}}
 ```
 
 **Key points:**

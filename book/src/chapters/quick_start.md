@@ -6,50 +6,39 @@
 This guide assumes basic Rust knowledge. If you're new to Rust, complete the [Rust Book](https://doc.rust-lang.org/book/) first for the best experience.
 ```
 
-## Setup
+## Choose Your Path
 
-Add ros-z dependencies to your `Cargo.toml`:
+There are two ways to get started with ros-z:
 
-```toml
-[dependencies]
-ros-z = "*"
-ros-z-msgs = "*"  # Standard ROS 2 message types
-tokio = { version = "1", features = ["full"] }  # Async runtime
+1. **[Try the Examples](#option-1-try-the-examples)** - Clone the ros-z repository and run pre-built examples (fastest way to see it in action)
+2. **[Create Your Own Project](#option-2-create-your-own-project)** - Start a new Rust project with ros-z as a dependency
+
+---
+
+## Option 1: Try the Examples
+
+The quickest way to experience ros-z is to run the included examples from the repository.
+
+### Clone the Repository
+
+```bash
+git clone https://github.com/ZettaScaleLabs/ros-z.git
+cd ros-z
 ```
 
-```admonish note
-An async runtime is required for ros-z. This example uses Tokio, the most popular choice in the Rust ecosystem.
-```
-
-## Your 1st Example
-
-Here's a complete publisher and subscriber in one application:
-
-```rust,ignore
-{{#include ../../../crates/ros-z/examples/z_pubsub.rs}}
-```
-
-## Key Components
-
-| Component | Purpose | Usage |
-|-----------|---------|-------|
-| **ZContextBuilder** | Initialize ros-z environment | Entry point, configure settings |
-| **ZContext** | Manages ROS 2 connections | Create nodes from this |
-| **Node** | Logical unit of computation | Publishers/subscribers attach here |
-| **Publisher** | Sends messages to topics | `node.create_pub::<Type>("topic")` |
-| **Subscriber** | Receives messages from topics | `node.create_sub::<Type>("topic")` |
-
-## Running the Application
+### Start the Zenoh Router
 
 ros-z uses a router-based architecture (matching ROS 2's `rmw_zenoh`), so you'll need to start a Zenoh router first.
 
-Open three terminal windows and run:
-
-**Terminal 1 - Start the Zenoh Router:**
+**Terminal 1 - Start the Router:**
 
 ```bash
 cargo run --example zenoh_router
 ```
+
+### Run the Pub/Sub Example
+
+Open two more terminals in the same `ros-z` directory:
 
 **Terminal 2 - Start the Listener:**
 
@@ -67,13 +56,189 @@ cargo run --example z_pubsub -- -r talker
 You should see the listener receiving messages published by the talker in real-time. Press Ctrl+C to stop any process.
 ```
 
+### Understanding the Code
+
+Here's the complete example you just ran:
+
+```rust,ignore
+{{#include ../../../crates/ros-z/examples/z_pubsub.rs}}
+```
+
+---
+
+## Option 2: Create Your Own Project
+
+Ready to build your own ros-z application? Follow these steps to create a new project from scratch.
+
+### 1. Install the Zenoh Router
+
+Since you won't have access to the `zenoh_router` example outside the ros-z repository, you'll need to install a Zenoh router. Here are the quickest options:
+
+**Option A: Using cargo (if you have Rust):**
+
+```bash
+cargo install zenohd
+```
+
+**Option B: Using pre-built binary (no Rust needed):**
+
+```bash
+# Linux
+wget https://github.com/eclipse-zenoh/zenoh/releases/latest/download/zenoh-x86_64-unknown-linux-gnu.zip
+unzip zenoh-x86_64-unknown-linux-gnu.zip
+chmod +x zenohd
+
+# macOS (Apple Silicon)
+wget https://github.com/eclipse-zenoh/zenoh/releases/latest/download/zenoh-aarch64-apple-darwin.zip
+unzip zenoh-aarch64-apple-darwin.zip
+chmod +x zenohd
+```
+
+**Option C: Using Docker:**
+
+```bash
+docker run --init --net host eclipse/zenoh:latest
+```
+
+**Start the router:**
+
+```bash
+zenohd
+```
+
+```admonish tip
+For more installation options (apt, brew, Windows, etc.), see the comprehensive [Zenoh Router Installation Guide](./networking.md#running-the-zenoh-router).
+```
+
+```admonish note
+Keep the router running in a separate terminal. All ros-z applications will connect to it.
+```
+
+### 2. Create a New Rust Project
+
+```bash
+cargo new my_ros_z_project
+cd my_ros_z_project
+```
+
+### 3. Add Dependencies
+
+Add ros-z to your `Cargo.toml`:
+
+```toml
+[dependencies]
+ros-z = "*"
+ros-z-msgs = "*"  # Standard ROS 2 message types
+tokio = { version = "1", features = ["full"] }  # Async runtime
+```
+
+```admonish note
+An async runtime is required for ros-z. This example uses Tokio, the most popular choice in the Rust ecosystem.
+```
+
+### 4. Write Your First Application
+
+Replace the contents of `src/main.rs` with this simple publisher example:
+
+```rust
+use std::time::Duration;
+use ros_z::{Builder, Result, context::ZContextBuilder};
+use ros_z_msgs::std_msgs::String as RosString;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    // Initialize ros-z context (connects to router on localhost:7447)
+    let ctx = ZContextBuilder::default().build()?;
+
+    // Create a ROS 2 node
+    let node = ctx.create_node("my_talker").build()?;
+
+    // Create a publisher for the /chatter topic
+    let pub_handle = node.create_pub::<RosString>("/chatter").build()?;
+
+    // Publish messages every second
+    let mut count = 0;
+    loop {
+        let msg = RosString {
+            data: format!("Hello from ros-z #{}", count),
+        };
+        println!("Publishing: {}", msg.data);
+        pub_handle.async_publish(&msg).await?;
+
+        count += 1;
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+}
+```
+
+### 5. Run Your Application
+
+Make sure the Zenoh router (`zenohd`) is running in another terminal, then:
+
+```bash
+cargo run
+```
+
+```admonish success
+You should see messages being published every second. The application will continue until you press Ctrl+C.
+```
+
+### 6. Test with Multiple Nodes
+
+Open another terminal and create a simple listener to verify communication:
+
+**Create `src/bin/listener.rs`:**
+
+```rust
+use ros_z::{Builder, Result, context::ZContextBuilder};
+use ros_z_msgs::std_msgs::String as RosString;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let ctx = ZContextBuilder::default().build()?;
+    let node = ctx.create_node("my_listener").build()?;
+    let sub = node.create_sub::<RosString>("/chatter").build()?;
+
+    println!("Listening on /chatter...");
+    while let Ok(msg) = sub.async_recv().await {
+        println!("Received: {}", msg.data);
+    }
+    Ok(())
+}
+```
+
+**Run both:**
+
+```bash
+# Terminal 1: Router
+zenohd
+
+# Terminal 2: Publisher
+cargo run
+
+# Terminal 3: Listener
+cargo run --bin listener
+```
+
+---
+
+## Key Components
+
+| Component | Purpose | Usage |
+|-----------|---------|-------|
+| **ZContextBuilder** | Initialize ros-z environment | Entry point, configure settings |
+| **ZContext** | Manages ROS 2 connections | Create nodes from this |
+| **Node** | Logical unit of computation | Publishers/subscribers attach here |
+| **Publisher** | Sends messages to topics | `node.create_pub::<Type>("topic")` |
+| **Subscriber** | Receives messages from topics | `node.create_sub::<Type>("topic")` |
+
 ```admonish tip title="Why a Zenoh router?"
-ros-z now uses router-based discovery by default, aligning with ROS 2's official Zenoh middleware (`rmw_zenoh_cpp`). This provides:
+ros-z uses router-based discovery by default, aligning with ROS 2's official Zenoh middleware (`rmw_zenoh_cpp`). This provides:
 - **Better scalability** for large deployments with many nodes
 - **Lower network overhead** compared to multicast discovery
 - **Production-ready** architecture used in real ROS 2 systems
 
-See the [Zenoh Configuration](./networking.md) chapter for customization options, including how to revert to multicast scouting mode if needed.
+See the [Networking](./networking.md) chapter for customization options, including how to revert to multicast scouting mode if needed.
 ```
 
 ## What's Happening?
