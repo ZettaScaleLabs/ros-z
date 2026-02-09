@@ -31,7 +31,7 @@
 # Experimental
 
 - [Shared Memory (SHM)](./chapters/shm.md)
-- [Backend Selection](./chapters/backends.md)
+- [Key Expression Formats](./chapters/keyexpr_formats.md)
 - [rmw_zenoh_rs](./chapters/rmw_zenoh_rs.md)
 - [Python Bindings](./chapters/python.md)
   - [Code Generation Internals](./chapters/python_codegen.md)

@@ -142,6 +142,36 @@ let ctx = ZContextBuilder::default()
 **Warning:** Peer mode won't interoperate with ROS 2 nodes using `rmw_zenoh_cpp` in router mode.
 ````
 
+````admonish question collapsible=true title="Multi-segment topics like /robot/sensors/camera don't receive messages"
+**Symptom:** Publisher publishes to `/robot/sensors/camera` but subscriber never receives messages.
+
+**Root Cause:** Old versions of ros-z (before 0.1.0) incorrectly mangled slashes in topic key expressions, breaking multi-segment topic routing.
+
+**Solution:** Update to ros-z 0.1.0+ which correctly preserves internal slashes in topic key expressions.
+
+**Verify the fix:**
+
+```bash
+# Enable debug logging to see key expressions
+RUST_LOG=ros_z=debug cargo run --example z_pubsub
+```
+
+Look for key expressions in the output:
+
+| Key Expression | Status |
+|---------------|--------|
+| `0/robot/sensors/camera/...` | ✅ Correct (slashes preserved) |
+| `0/robot%sensors%camera/...` | ❌ Wrong (slashes mangled) |
+
+**Technical Details:**
+
+- **Topic key expressions** should use `strip_slashes()`: removes leading/trailing slashes, preserves internal slashes
+- **Liveliness tokens** should use `mangle_name()`: replaces all `/` with `%`
+- This matches the behavior of `rmw_zenoh_cpp`
+
+See [Key Expression Formats](./keyexpr_formats.md#key-expression-behavior-important) for details.
+````
+
 ## Resources
 
 - **[Building Guide](./building.md)** - Correct build procedures

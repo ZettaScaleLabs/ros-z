@@ -18,6 +18,7 @@ ros-z provides three integration paths to suit different use cases:
 | **Native Rust** | Pure Rust implementation with no C/C++ dependencies | Memory safety, concurrency without data races |
 | **Zenoh Transport** | High-performance pub-sub engine | Low latency, efficient bandwidth usage |
 | **ROS 2 Compatible** | Works seamlessly with standard ROS 2 tools | Integrate with existing robotics ecosystems |
+| **Flexible Key Expression Formats** | Compatible with rmw_zenoh_cpp and zenoh-bridge-ros2dds | Interoperate with different Zenoh-ROS bridges |
 | **Multiple Serializations** | Support for various data representations: CDR (ROS default), Protobuf | Flexible message encoding for different performance and interoperability needs |
 | **Type Safety** | Compile-time message validation | Catch errors before deployment |
 | **Modern API** | Idiomatic Rust patterns | Ergonomic developer experience |
