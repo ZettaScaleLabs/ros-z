@@ -1,0 +1,536 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Python Bindings - ros-z Documentation</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Native Rust ROS 2 implementation using Zenoh">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../mdbook-admonish.css">
+        <link rel="stylesheet" href="../book/mdbook-admonish.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ros-z Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/ZettaScaleLabs/ros-z" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/ZettaScaleLabs/ros-z/edit/main/src/chapters/python.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="python-bindings"><a class="header" href="#python-bindings">Python Bindings</a></h1>
+<p><strong>ros-z provides Python bindings via <code>ros-z-py</code>, enabling Python applications to communicate with Rust and ROS 2 nodes using the same Zenoh transport.</strong> The bindings use PyO3 for Rust-Python interop and msgspec for efficient message serialization.</p>
+<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+<div class="admonition-title">
+<div id="admonition-note-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-note"></a>
+</div>
+<div>
+<p>Python bindings provide the same pub/sub and service patterns as Rust, with Pythonic APIs. Messages are automatically serialized/deserialized between Python objects and CDR format for ROS 2 compatibility.</p>
+</div>
+</div>
+<h2 id="visual-flow"><a class="header" href="#visual-flow">Visual Flow</a></h2>
+<pre class="mermaid">graph TD
+    A[Python Code] --&gt;|import| B[ros_z_py]
+    B --&gt;|PyO3| C[Rust ros-z]
+    C --&gt;|Zenoh| D[Network]
+    D --&gt;|Zenoh| E[ROS 2 / Rust Nodes]
+
+    F[Python Message] --&gt;|msgspec| G[Struct]
+    G --&gt;|serialize| H[CDR Bytes]
+    H --&gt;|deserialize| I[Rust Struct]
+</pre>
+<h2 id="installation"><a class="header" href="#installation">Installation</a></h2>
+<h3 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h3>
+<ul>
+<li>Python 3.8+</li>
+<li>Rust toolchain</li>
+<li>maturin (<code>pip install maturin</code>)</li>
+</ul>
+<h3 id="setup"><a class="header" href="#setup">Setup</a></h3>
+<pre><code class="language-bash"># Create and activate virtual environment
+cd ros-z-py
+python -m venv .venv
+source .venv/bin/activate
+
+# Install message types
+pip install -e ../crates/ros-z-msgs/python/
+
+# Build and install ros-z-py
+maturin develop
+</code></pre>
+<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
+<div class="admonition-title">
+<div id="admonition-tip-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-tip"></a>
+</div>
+<div>
+<p>Use <code>maturin develop --release</code> for optimized builds when benchmarking or running in production.</p>
+</div>
+</div>
+<h2 id="quick-start"><a class="header" href="#quick-start">Quick Start</a></h2>
+<p>Here's a complete publisher and subscriber example from <a href="https://github.com/ZettaScaleLabs/ros-z/blob/main/ros-z-py/examples/topic_demo.py"><code>ros-z-py/examples/topic_demo.py</code></a>:</p>
+<h3 id="publisher-talker"><a class="header" href="#publisher-talker">Publisher (Talker)</a></h3>
+<pre><code class="language-python">def run_talker(ctx, topic: str, count: int, interval: float):
+    """Run the talker (publisher)."""
+    node = ctx.create_node("talker").build()
+    pub = node.create_publisher(topic, std_msgs.String)
+
+    print(f"Talker started. Publishing to {topic}...")
+
+    i = 0
+    while count == 0 or i &lt; count:
+        message = f"Hello from Python {i}"
+        msg = std_msgs.String(data=message)
+        pub.publish(msg)
+        print(f"PUB:{i}", flush=True)
+        i += 1
+        time.sleep(interval)
+
+    print("PUB:DONE", flush=True)
+
+
+</code></pre>
+<h3 id="subscriber-listener"><a class="header" href="#subscriber-listener">Subscriber (Listener)</a></h3>
+<pre><code class="language-python">def run_listener(ctx, topic: str, timeout: float):
+    """Run the listener (subscriber)."""
+    node = ctx.create_node("listener").build()
+    sub = node.create_subscriber(topic, std_msgs.String)
+
+    print("SUB:READY", flush=True)
+
+    start = time.time()
+    received = 0
+
+    while timeout == 0 or (time.time() - start) &lt; timeout:
+        msg = sub.recv(timeout=1.0)
+        if msg is not None:
+            print(f"SUB:{msg.data}", flush=True)
+            received += 1
+
+    print(f"SUB:TOTAL:{received}", flush=True)
+
+
+</code></pre>
+<h2 id="key-components"><a class="header" href="#key-components">Key Components</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Component</th><th>Purpose</th><th>Python API</th></tr></thead><tbody>
+<tr><td><strong>ZContextBuilder</strong></td><td>Configure ros-z environment</td><td><code>ZContextBuilder().with_domain_id(0).build()</code></td></tr>
+<tr><td><strong>ZContext</strong></td><td>Manages ROS 2 connections</td><td>Entry point for creating nodes</td></tr>
+<tr><td><strong>Node</strong></td><td>Logical unit of computation</td><td><code>ctx.create_node("name").build()</code></td></tr>
+<tr><td><strong>Publisher</strong></td><td>Sends messages to topics</td><td><code>node.create_publisher(topic, type)</code></td></tr>
+<tr><td><strong>Subscriber</strong></td><td>Receives messages from topics</td><td><code>node.create_subscriber(topic, type)</code></td></tr>
+<tr><td><strong>Client</strong></td><td>Sends service requests</td><td><code>node.create_client(service, type)</code></td></tr>
+<tr><td><strong>Server</strong></td><td>Handles service requests</td><td><code>node.create_server(service, type)</code></td></tr>
+</tbody></table>
+</div>
+<h2 id="service-patterns"><a class="header" href="#service-patterns">Service Patterns</a></h2>
+<p>Examples from <a href="https://github.com/ZettaScaleLabs/ros-z/blob/main/ros-z-py/examples/service_demo.py"><code>ros-z-py/examples/service_demo.py</code></a>:</p>
+<h3 id="service-server"><a class="header" href="#service-server">Service Server</a></h3>
+<pre><code class="language-python">def run_server(ctx, service: str, max_requests: int):
+    """Run the AddTwoInts service server."""
+    node = ctx.create_node("add_two_ints_server").build()
+    server = node.create_server(service, example_interfaces.AddTwoIntsRequest)
+
+    print("SERVER:READY", flush=True)
+
+    handled = 0
+    while max_requests == 0 or handled &lt; max_requests:
+        request_id, req = server.take_request()
+        result = req.a + req.b
+        print(f"SERVER:{req.a}+{req.b}={result}", flush=True)
+
+        resp = example_interfaces.AddTwoIntsResponse(sum=result)
+        server.send_response(resp, request_id)
+        handled += 1
+
+    print("SERVER:DONE", flush=True)
+
+
+</code></pre>
+<h3 id="service-client"><a class="header" href="#service-client">Service Client</a></h3>
+<pre><code class="language-python">def run_client(ctx, service: str, a: int, b: int, timeout: float):
+    """Run the AddTwoInts service client."""
+    node = ctx.create_node("add_two_ints_client").build()
+    client = node.create_client(service, example_interfaces.AddTwoIntsRequest)
+
+    # Wait for service discovery
+    time.sleep(1.0)
+
+    print(f"CLIENT:REQUEST:{a}+{b}", flush=True)
+
+    req = example_interfaces.AddTwoIntsRequest(a=a, b=b)
+    client.send_request(req)
+
+    resp = client.take_response(timeout=timeout)
+
+    if resp is not None:
+        print(f"CLIENT:RESPONSE:{resp.sum}", flush=True)
+    else:
+        print("CLIENT:ERROR:no response", flush=True)
+        sys.exit(1)
+
+
+</code></pre>
+<div id="admonition-tip-1" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-1-title">
+<div class="admonition-title">
+<div id="admonition-tip-1-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-tip-1"></a>
+</div>
+<div>
+<p>Service servers use a pull model: <code>take_request()</code> blocks until a request arrives. This gives you explicit control over when to process requests.</p>
+</div>
+</div>
+<h2 id="complex-messages"><a class="header" href="#complex-messages">Complex Messages</a></h2>
+<p>Python bindings support nested message types like <code>geometry_msgs/Twist</code>:</p>
+<pre><code class="language-python">from ros_z_py import geometry_msgs
+
+# Create a Twist message with nested Vector3
+twist = geometry_msgs.Twist(
+    linear=geometry_msgs.Vector3(x=1.0, y=0.0, z=0.0),
+    angular=geometry_msgs.Vector3(x=0.0, y=0.0, z=0.5)
+)
+
+pub = node.create_publisher("/cmd_vel", "geometry_msgs/msg/Twist")
+pub.publish(twist)
+</code></pre>
+<h2 id="context-configuration"><a class="header" href="#context-configuration">Context Configuration</a></h2>
+<h3 id="connect-to-specific-endpoint"><a class="header" href="#connect-to-specific-endpoint">Connect to Specific Endpoint</a></h3>
+<pre><code class="language-python">ctx = (
+    ros_z_py.ZContextBuilder()
+    .with_connect_endpoints(["tcp/192.168.1.100:7447"])
+    .build()
+)
+</code></pre>
+<h3 id="disable-multicast-scouting"><a class="header" href="#disable-multicast-scouting">Disable Multicast Scouting</a></h3>
+<pre><code class="language-python">ctx = (
+    ros_z_py.ZContextBuilder()
+    .with_domain_id(0)
+    .disable_multicast_scouting()
+    .build()
+)
+</code></pre>
+<h3 id="custom-namespace"><a class="header" href="#custom-namespace">Custom Namespace</a></h3>
+<pre><code class="language-python">node = ctx.create_node("my_node").with_namespace("/robot1").build()
+</code></pre>
+<h2 id="ros-2-interoperability"><a class="header" href="#ros-2-interoperability">ROS 2 Interoperability</a></h2>
+<p>Python nodes work seamlessly with Rust and ROS 2 nodes:</p>
+<pre><code class="language-bash"># Terminal 1: Start Zenoh router
+cargo run --example zenoh_router
+
+# Terminal 2: Run Python publisher (using topic_demo.py)
+cd ros-z-py
+source .venv/bin/activate
+python examples/topic_demo.py -r talker
+
+# Terminal 3: Listen with ROS 2 CLI
+ros2 topic echo /chatter std_msgs/msg/String
+</code></pre>
+<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
+<div class="admonition-title">
+<div id="admonition-success-title">
+<p>Success</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-success"></a>
+</div>
+<div>
+<p>Messages published from Python are received by ROS 2 CLI, Rust nodes, and any other ROS 2-compatible system connected via Zenoh.</p>
+</div>
+</div>
+<h2 id="running-tests"><a class="header" href="#running-tests">Running Tests</a></h2>
+<pre><code class="language-bash"># Python unit tests
+cd ros-z-py
+source .venv/bin/activate
+python -m pytest tests/ -v
+
+# Python-Rust interop tests
+cargo test --features python-interop -p ros-z-tests --test python_interop -- --test-threads=1
+</code></pre>
+<h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
+<details id="admonition-import-errors-when-using-ros_z_py" class="admonition admonish-question" role="note" aria-labelledby="admonition-import-errors-when-using-ros_z_py-title">
+<summary class="admonition-title">
+<div id="admonition-import-errors-when-using-ros_z_py-title">
+<p>Import errors when using ros_z_py</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-import-errors-when-using-ros_z_py"></a>
+</summary>
+<div>
+<p>This error occurs when the package hasn't been built or installed correctly.</p>
+<p><strong>Solution:</strong></p>
+<p>Rebuild and install the package:</p>
+<pre><code class="language-bash">cd ros-z-py
+source .venv/bin/activate
+pip install -e ../crates/ros-z-msgs/python/
+maturin develop
+</code></pre>
+</div>
+</details>
+<details id="admonition-message-type-not-found" class="admonition admonish-question" role="note" aria-labelledby="admonition-message-type-not-found-title">
+<summary class="admonition-title">
+<div id="admonition-message-type-not-found-title">
+<p>Message type not found</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-message-type-not-found"></a>
+</summary>
+<div>
+<p>This error occurs when trying to use a message type that isn't registered.</p>
+<p><strong>Solution:</strong></p>
+<p>Check which message types are available:</p>
+<pre><code class="language-python">from ros_z_py import ros_z_msgs
+print(ros_z_msgs.list_registered_types())
+</code></pre>
+<p>Ensure the message package is enabled in <code>ros-z-msgs/Cargo.toml</code> features.</p>
+</div>
+</details>
+<details id="admonition-recv-always-returns-none" class="admonition admonish-question" role="note" aria-labelledby="admonition-recv-always-returns-none-title">
+<summary class="admonition-title">
+<div id="admonition-recv-always-returns-none-title">
+<p>recv() always returns None</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-recv-always-returns-none"></a>
+</summary>
+<div>
+<p>This happens when no messages are being received within the timeout period.</p>
+<p><strong>Solution:</strong></p>
+<ul>
+<li>Check the topic name matches exactly (including leading <code>/</code>)</li>
+<li>Verify the publisher is running and connected to the same Zenoh network</li>
+<li>Increase the timeout value</li>
+<li>Use <code>--nocapture</code> with pytest to see debug output: <code>python -m pytest tests/ -v --capture=no</code></li>
+</ul>
+</div>
+</details>
+<h2 id="resources"><a class="header" href="#resources">Resources</a></h2>
+<ul>
+<li><strong><a href="./python_codegen.html">Code Generation Internals</a></strong> - How Python bindings are generated</li>
+<li><strong><a href="./pubsub.html">Pub/Sub</a></strong> - Deep dive into pub-sub patterns</li>
+<li><strong><a href="./services.html">Services</a></strong> - Request-response communication</li>
+<li><strong><a href="./message_generation.html">Message Generation</a></strong> - How message types work</li>
+<li><strong><a href="./networking.html">Networking</a></strong> - Zenoh router setup and options</li>
+</ul>
+<p><strong>Start with the pub/sub example to understand the basics, then explore services for request-response patterns.</strong></p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../chapters/rmw_zenoh_rs.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../chapters/python_codegen.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../chapters/rmw_zenoh_rs.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../chapters/python_codegen.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../mermaid.min.js"></script>
+        <script src="../mermaid-init.js"></script>
+
+
+
+    </div>
+    </body>
+</html>
