@@ -1,6 +1,6 @@
 # Key Expression Formats
 
-**ros-z uses key expression formats to map ROS 2 entities (topics, services, actions) to Zenoh key expressions.** The format is provided by the independent `ros-z-keyexpr` crate and determines how ROS 2 names are translated for Zenoh routing and discovery.
+**ros-z uses key expression formats to map ROS 2 entities (topics, services, actions) to Zenoh key expressions.** The format is provided by the independent `ros-z-protocol` crate and determines how ROS 2 names are translated for Zenoh routing and discovery.
 
 ```admonish note
 Key expression format is a runtime choice that affects how ros-z maps ROS 2 entities to Zenoh key expressions. Choose the format that matches your infrastructure for proper message routing.
@@ -127,19 +127,19 @@ If multi-segment topics like `/robot/sensors/camera` don't receive messages, che
 ### Specifying Format at Context Creation
 
 ```rust
-use ros_z::Context;
-use ros_z_keyexpr::KeyExprFormat;
+use ros_z::context::ZContextBuilder;
+use ros_z_protocol::KeyExprFormat;
 
 // Default (RmwZenoh)
-let ctx = Context::new().build()?;
+let ctx = ZContextBuilder::default().build()?;
 
 // Explicit format selection
-let ctx = Context::new()
+let ctx = ZContextBuilder::default()
     .keyexpr_format(KeyExprFormat::RmwZenoh)
     .build()?;
 
 // Ros2Dds format for DDS bridge compatibility
-let ctx = Context::new()
+let ctx = ZContextBuilder::default()
     .keyexpr_format(KeyExprFormat::Ros2Dds)
     .build()?;
 ```
@@ -157,9 +157,10 @@ Once the context is created with a format, all entities inherit it:
 
 ```rust
 use ros_z_msgs::std_msgs::String as RosString;
+use ros_z::Builder;
 
 // Create context with RmwZenoh format (default)
-let ctx = Context::new().build()?;
+let ctx = ZContextBuilder::default().build()?;
 let node = ctx.create_node("my_node").build()?;
 
 // Publisher uses context's format
@@ -179,12 +180,12 @@ To communicate with both RmwZenoh and Ros2Dds systems, create separate contexts:
 
 ```rust
 // Context for rmw_zenoh_cpp nodes
-let ctx_rmw = Context::new()
+let ctx_rmw = ZContextBuilder::default()
     .keyexpr_format(KeyExprFormat::RmwZenoh)
     .build()?;
 
 // Context for zenoh-bridge-ros2dds nodes
-let ctx_dds = Context::new()
+let ctx_dds = ZContextBuilder::default()
     .keyexpr_format(KeyExprFormat::Ros2Dds)
     .build()?;
 
@@ -225,7 +226,7 @@ graph LR
 
 ## Key Expression Generation Details
 
-Understanding how `ros-z-keyexpr` generates key expressions helps with debugging and monitoring.
+Understanding how `ros-z-protocol` generates key expressions helps with debugging and monitoring.
 
 ### Topic Key Expression Structure
 
@@ -270,28 +271,29 @@ Name:      /gripper    →  %gripper
 @ros2_lv/0/MP/01234567890abcdef/1/%robot%arm/%gripper/std_msgs::msg::String_/RIHS01_.../qos_string
 ```
 
-## ros-z-keyexpr Crate
+## ros-z-protocol Crate
 
-The key expression logic is provided by the independent `ros-z-keyexpr` crate:
+The key expression logic is provided by the independent `ros-z-protocol` crate:
 
 **Features:**
 
 - `no_std` compatible (with `alloc`)
+- Language-agnostic protocol layer (FFI-ready)
 - Feature-gated format implementations
-- Comprehensive unit tests (33+ tests)
+- Comprehensive unit tests
 - Type-safe API
 
 **Cargo features:**
 
 ```toml
 [dependencies]
-ros-z-keyexpr = { version = "0.1", features = ["rmw-zenoh", "ros2dds"] }
+ros-z-protocol = { version = "0.1", features = ["rmw-zenoh", "ros2dds"] }
 ```
 
-**Using ros-z-keyexpr directly:**
+**Using ros-z-protocol directly:**
 
 ```rust
-use ros_z_keyexpr::{KeyExprFormat, entity::*};
+use ros_z_protocol::{KeyExprFormat, entity::*};
 
 let format = KeyExprFormat::default(); // RmwZenoh
 
@@ -305,7 +307,7 @@ let lv_ke = format.liveliness_key_expr(&entity, &zid)?;
 let parsed_entity = format.parse_liveliness(&lv_ke)?;
 ```
 
-See the [ros-z-keyexpr documentation](https://docs.rs/ros-z-keyexpr) for details.
+See the [ros-z-protocol documentation](https://docs.rs/ros-z-protocol) for details.
 
 ## Troubleshooting
 
@@ -351,7 +353,7 @@ Type hashes must match between ros-z and rmw_zenoh_cpp. If they don't, you may h
 **Check format:** Ensure ros-z uses `KeyExprFormat::Ros2Dds`:
 
 ```rust
-let ctx = Context::new()
+let ctx = ZContextBuilder::default()
     .keyexpr_format(KeyExprFormat::Ros2Dds)
     .build()?;
 ```
