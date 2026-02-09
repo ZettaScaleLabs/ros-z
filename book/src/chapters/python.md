@@ -37,7 +37,7 @@ python -m venv .venv
 source .venv/bin/activate
 
 # Install message types
-pip install -e ../ros-z-msgs/python/
+pip install -e ../crates/ros-z-msgs/python/
 
 # Build and install ros-z-py
 maturin develop
@@ -54,13 +54,13 @@ Here's a complete publisher and subscriber example from [`ros-z-py/examples/topi
 ### Publisher (Talker)
 
 ```python
-{{#include ../../../ros-z-py/examples/topic_demo.py:run_talker}}
+{{#include ../../../crates/ros-z-py/examples/topic_demo.py:run_talker}}
 ```
 
 ### Subscriber (Listener)
 
 ```python
-{{#include ../../../ros-z-py/examples/topic_demo.py:run_listener}}
+{{#include ../../../crates/ros-z-py/examples/topic_demo.py:run_listener}}
 ```
 
 ## Key Components
@@ -83,13 +83,13 @@ Examples from [`ros-z-py/examples/service_demo.py`](https://github.com/ZettaScal
 ### Service Server
 
 ```python
-{{#include ../../../ros-z-py/examples/service_demo.py:run_server}}
+{{#include ../../../crates/ros-z-py/examples/service_demo.py:run_server}}
 ```
 
 ### Service Client
 
 ```python
-{{#include ../../../ros-z-py/examples/service_demo.py:run_client}}
+{{#include ../../../crates/ros-z-py/examples/service_demo.py:run_client}}
 ```
 
 ```admonish tip
@@ -187,7 +187,7 @@ Rebuild and install the package:
 ```bash
 cd ros-z-py
 source .venv/bin/activate
-pip install -e ../ros-z-msgs/python/
+pip install -e ../crates/ros-z-msgs/python/
 maturin develop
 ```
 ````

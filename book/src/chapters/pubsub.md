@@ -33,7 +33,7 @@ graph TD
 This example demonstrates publishing "Hello World" messages to a topic. The publisher sends messages periodically, showcasing the fundamental publishing pattern.
 
 ```rust,ignore
-{{#include ../../../ros-z/examples/demo_nodes/talker.rs:1:61}}
+{{#include ../../../crates/ros-z/examples/demo_nodes/talker.rs:1:61}}
 ```
 
 **Key points:**
@@ -61,7 +61,7 @@ cargo run --example demo_nodes_talker -- --max-count 10
 This example demonstrates subscribing to messages from a topic. The subscriber receives and displays messages, showing both timeout-based and async reception patterns.
 
 ```rust,ignore
-{{#include ../../../ros-z/examples/demo_nodes/listener.rs:1:81}}
+{{#include ../../../crates/ros-z/examples/demo_nodes/listener.rs:1:81}}
 ```
 
 **Key points:**

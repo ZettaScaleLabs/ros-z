@@ -95,7 +95,7 @@ ros-z/                     # Workspace root
 
 - ✅ Examples in `ros-z/examples/` have access to all dependencies
 - ✅ `cargo run --example name` works out of the box
-- ✅ `mdbook test` finds examples via `{{#include ../../../ros-z/examples/...}}`
+- ✅ `mdbook test` finds examples via `{{#include ../../../crates/ros-z/examples/...}}`
 - ✅ Standard structure - no special configuration needed
 
 See [WORKFLOW_VERIFICATION.md](WORKFLOW_VERIFICATION.md) for proof that this works.

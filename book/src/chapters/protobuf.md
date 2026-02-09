@@ -162,7 +162,7 @@ pub.publish(&msg)?;
 The `protobuf_demo` example demonstrates both approaches:
 
 ```rust,ignore
-{{#include ../../../ros-z/examples/protobuf_demo/src/demo.rs}}
+{{#include ../../../crates/ros-z/examples/protobuf_demo/src/demo.rs}}
 ```
 
 ### Running the Demo

@@ -26,7 +26,7 @@ An async runtime is required for ros-z. This example uses Tokio, the most popula
 Here's a complete publisher and subscriber in one application:
 
 ```rust,ignore
-{{#include ../../../ros-z/examples/z_pubsub.rs}}
+{{#include ../../../crates/ros-z/examples/z_pubsub.rs}}
 ```
 
 ## Key Components

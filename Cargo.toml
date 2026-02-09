@@ -7,28 +7,28 @@ homepage = "https://github.com/ZettaScaleLabs/ros-z"
 [workspace]
 resolver = "2"
 members = [
-  "ros-z",
-  "ros-z-cdr",
-  "ros-z-codegen",
-  "ros-z-derive",
-  "ros-z-py",
-  "rmw-zenoh-rs",
-  "ros-z-msgs",
-  "ros-z-tests",
-  "ros-z-console",
-  "ros-z/examples/protobuf_demo",
+  "crates/ros-z",
+  "crates/ros-z-cdr",
+  "crates/ros-z-codegen",
+  "crates/ros-z-derive",
+  "crates/ros-z-py",
+  "crates/rmw-zenoh-rs",
+  "crates/ros-z-msgs",
+  "crates/ros-z-tests",
+  "crates/ros-z-console",
+  "crates/ros-z/examples/protobuf_demo",
 ]
-default-members = ["ros-z", "ros-z-codegen"]
+default-members = ["crates/ros-z", "crates/ros-z-codegen"]
 # Note: protobuf_demo is an advanced example demonstrating protobuf serialization
 
 [workspace.dependencies]
 # Workspace members
-ros-z = { version = "*", path = "ros-z" }
-ros-z-codegen = { version = "*", path = "ros-z-codegen" }
-rmw-zenoh-rs = { version = "*", path = "rmw-zenoh-rs" }
+ros-z = { version = "*", path = "crates/ros-z" }
+ros-z-codegen = { version = "*", path = "crates/ros-z-codegen" }
+rmw-zenoh-rs = { version = "*", path = "crates/rmw-zenoh-rs" }
 
 # Serialization
-ros-z-cdr = { path = "ros-z-cdr" }
+ros-z-cdr = { path = "crates/ros-z-cdr" }
 serde = "1.0.219"
 serde_bytes = "0.11"
 serde_json = "1.0"
