@@ -7,8 +7,8 @@ use std::{sync::Arc, time::Duration};
 
 use flume::Receiver;
 use ros_z::{
+    dynamic::{DynamicCdrSerdes, DynamicMessage, MessageSchema},
     node::ZNode,
-    dynamic::{DynamicMessage, MessageSchema, DynamicCdrSerdes},
     pubsub::ZSub,
 };
 use zenoh::sample::Sample;

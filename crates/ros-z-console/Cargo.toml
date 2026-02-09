@@ -9,6 +9,7 @@ default-run = "ros-z-console"
 [dependencies]
 ros-z = { path = "../ros-z", features = ["ros2dds"] }
 ros-z-msgs = { path = "../ros-z-msgs" }
+ros-z-protocol = { path = "../ros-z-protocol", features = ["ros2dds"] }
 clap = { workspace = true }
 crossterm = "0.29"
 flume = { workspace = true }

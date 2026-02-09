@@ -16,7 +16,7 @@ use crate::queue::BoundedQueue;
 use crate::topic_name;
 
 use crate::msg::{CdrSerdes, ZDeserializer, ZMessage, ZSerializer};
-use crate::qos::{QosProfile};
+use crate::qos::QosProfile;
 use ros_z_protocol::qos::{QosDurability, QosHistory, QosReliability};
 use std::sync::Mutex;
 
@@ -150,7 +150,8 @@ impl<T, S> ZPubBuilder<T, S> {
             // Compute TypeInfo from schema for proper key expression matching with ROS 2
             // Convert ROS 2 canonical name to DDS name
             // "std_msgs/msg/String" → "std_msgs::msg::dds_::String_"
-            let dds_name = schema.type_name
+            let dds_name = schema
+                .type_name
                 .replace("/msg/", "::msg::dds_::")
                 .replace("/srv/", "::srv::dds_::")
                 .replace("/action/", "::action::dds_::")
@@ -235,7 +236,9 @@ where
         let inner = pub_builder.wait()?;
         debug!("[PUB] Publisher ready: topic={}", self.entity.topic);
 
-        let lv_ke = self.keyexpr_format.liveliness_key_expr(&self.entity, &self.session.zid())?;
+        let lv_ke = self
+            .keyexpr_format
+            .liveliness_key_expr(&self.entity, &self.session.zid())?;
         let lv_token = self
             .session
             .liveliness()
@@ -478,7 +481,8 @@ where
             // Compute TypeInfo from schema for proper key expression matching with ROS 2
             // Convert ROS 2 canonical name to DDS name
             // "std_msgs/msg/String" → "std_msgs::msg::dds_::String_"
-            let dds_name = schema.type_name
+            let dds_name = schema
+                .type_name
                 .replace("/msg/", "::msg::dds_::")
                 .replace("/srv/", "::srv::dds_::")
                 .replace("/action/", "::action::dds_::")
@@ -544,7 +548,9 @@ where
         let inner = sub_builder.wait()?;
 
         let gid = crate::entity::endpoint_gid(&self.entity);
-        let lv_ke = self.keyexpr_format.liveliness_key_expr(&self.entity, &self.session.zid())?;
+        let lv_ke = self
+            .keyexpr_format
+            .liveliness_key_expr(&self.entity, &self.session.zid())?;
         let lv_token = self
             .session
             .liveliness()

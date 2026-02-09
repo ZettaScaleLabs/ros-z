@@ -145,7 +145,7 @@ impl GraphData {
                     debug!("[GRF] Parsed node: {}/{}", x.namespace, x.name);
 
                     // TODO: omit the clone of node key
-                    let node_key = crate::entity::node_key(&x);
+                    let node_key = crate::entity::node_key(x);
                     tracing::debug!(
                         "parse: Storing Node entity with key=({:?}, {:?})",
                         node_key.0,
@@ -164,10 +164,16 @@ impl GraphData {
                     slab.insert(weak);
                 }
                 Entity::Endpoint(x) => {
-                    debug!("[GRF] Parsed endpoint: kind={:?}, topic={}, node={}/{}",
-                        x.kind, x.topic, x.node.namespace, x.node.name);
+                    debug!(
+                        "[GRF] Parsed endpoint: kind={:?}, topic={}, node={}/{}",
+                        x.kind, x.topic, x.node.namespace, x.node.name
+                    );
                     let node_key = crate::entity::node_key(&x.node);
-                    let type_str = x.type_info.as_ref().map(|t| t.name.as_str()).unwrap_or("unknown");
+                    let type_str = x
+                        .type_info
+                        .as_ref()
+                        .map(|t| t.name.as_str())
+                        .unwrap_or("unknown");
                     tracing::debug!(
                         "parse: Storing Endpoint ({:?}) for node_key=({:?}, {:?}), topic={}, type={}, id={}",
                         x.kind,
@@ -510,7 +516,7 @@ impl Graph {
             Entity::Node(node) => {
                 let slab = data
                     .by_node
-                    .entry(crate::entity::node_key(&node))
+                    .entry(crate::entity::node_key(node))
                     .or_insert_with(|| Slab::with_capacity(DEFAULT_SLAB_CAPACITY));
 
                 if slab.len() >= slab.capacity() {
@@ -590,10 +596,10 @@ impl Graph {
         // But we need to explicitly remove them to prevent parse() from re-adding the entity
         match entity {
             Entity::Node(node_entity) => {
-                if let Some(slab) = data.by_node.get_mut(&crate::entity::node_key(&node_entity)) {
+                if let Some(slab) = data.by_node.get_mut(&crate::entity::node_key(node_entity)) {
                     slab.retain(|_, weak| {
                         weak.upgrade().is_some_and(|arc| {
-                            crate::entity::entity_to_liveliness_ke(&*arc).ok().as_ref() != Some(&ke)
+                            crate::entity::entity_to_liveliness_ke(&arc).ok().as_ref() != Some(&ke)
                         })
                     });
                 }
@@ -607,7 +613,7 @@ impl Graph {
                 {
                     slab.retain(|_, weak| {
                         weak.upgrade().is_some_and(|arc| {
-                            crate::entity::entity_to_liveliness_ke(&*arc).ok().as_ref() != Some(&ke)
+                            crate::entity::entity_to_liveliness_ke(&arc).ok().as_ref() != Some(&ke)
                         })
                     });
                 }
@@ -618,15 +624,18 @@ impl Graph {
                 {
                     slab.retain(|_, weak| {
                         weak.upgrade().is_some_and(|arc| {
-                            crate::entity::entity_to_liveliness_ke(&*arc).ok().as_ref() != Some(&ke)
+                            crate::entity::entity_to_liveliness_ke(&arc).ok().as_ref() != Some(&ke)
                         })
                     });
                 }
                 // Also remove from by_node (endpoints are indexed by their node)
-                if let Some(slab) = data.by_node.get_mut(&crate::entity::node_key(&endpoint_entity.node)) {
+                if let Some(slab) = data
+                    .by_node
+                    .get_mut(&crate::entity::node_key(&endpoint_entity.node))
+                {
                     slab.retain(|_, weak| {
                         weak.upgrade().is_some_and(|arc| {
-                            crate::entity::entity_to_liveliness_ke(&*arc).ok().as_ref() != Some(&ke)
+                            crate::entity::entity_to_liveliness_ke(&arc).ok().as_ref() != Some(&ke)
                         })
                     });
                 }
@@ -649,14 +658,14 @@ impl Graph {
         match kind {
             EntityKind::Publisher | EntityKind::Subscription => {
                 self.data.lock().visit_by_topic(name, |ent| {
-                    if crate::entity::entity_kind(&*ent) == kind {
+                    if crate::entity::entity_kind(&ent) == kind {
                         total += 1;
                     }
                 });
             }
             EntityKind::Service | EntityKind::Client => {
                 self.data.lock().visit_by_service(name, |ent| {
-                    if crate::entity::entity_kind(&*ent) == kind {
+                    if crate::entity::entity_kind(&ent) == kind {
                         total += 1;
                     }
                 });
@@ -674,7 +683,7 @@ impl Graph {
         assert!(kind != EntityKind::Node);
         let mut res = Vec::new();
         self.data.lock().visit_by_topic(topic, |ent| {
-            if crate::entity::entity_kind(&*ent) == kind {
+            if crate::entity::entity_kind(&ent) == kind {
                 res.push(ent);
             }
         });
@@ -685,7 +694,7 @@ impl Graph {
         assert!(kind != EntityKind::Node);
         let mut res = Vec::new();
         self.data.lock().visit_by_node(node, |ent| {
-            if crate::entity::entity_kind(&*ent) == kind
+            if crate::entity::entity_kind(&ent) == kind
                 && let Entity::Endpoint(endpoint) = &*ent
             {
                 res.push(endpoint.clone());
@@ -698,7 +707,7 @@ impl Graph {
         assert!(matches!(kind, EntityKind::Service | EntityKind::Client));
         let mut total = 0;
         self.data.lock().visit_by_service(service_name, |ent| {
-            if crate::entity::entity_kind(&*ent) == kind {
+            if crate::entity::entity_kind(&ent) == kind {
                 total += 1;
             }
         });
@@ -713,7 +722,7 @@ impl Graph {
         assert!(matches!(kind, EntityKind::Service | EntityKind::Client));
         let mut res = Vec::new();
         self.data.lock().visit_by_service(service_name, |ent| {
-            if crate::entity::entity_kind(&*ent) == kind {
+            if crate::entity::entity_kind(&ent) == kind {
                 res.push(ent);
             }
         });
@@ -734,7 +743,10 @@ impl Graph {
             slab.retain(|_, weak| {
                 if let Some(ent) = weak.upgrade() {
                     // Skip expensive get_endpoint() if we already found the type
-                    if let Some(enp) = crate::entity::entity_get_endpoint(&*ent) && found_type.is_none() && enp.kind == EntityKind::Service {
+                    if let Some(enp) = crate::entity::entity_get_endpoint(&ent)
+                        && found_type.is_none()
+                        && enp.kind == EntityKind::Service
+                    {
                         found_type = enp.type_info.as_ref().map(|x| x.name.clone());
                     }
                     true
@@ -767,7 +779,7 @@ impl Graph {
                 if let Some(ent) = weak.upgrade() {
                     // Skip expensive get_endpoint() if we already found the type
                     if found_type.is_none()
-                        && let Some(enp) = crate::entity::entity_get_endpoint(&*ent)
+                        && let Some(enp) = crate::entity::entity_get_endpoint(&ent)
                     {
                         // Include both publishers and subscribers
                         if matches!(enp.kind, EntityKind::Publisher | EntityKind::Subscription)
@@ -821,7 +833,7 @@ impl Graph {
         }
 
         data.visit_by_node(node_key, |ent| {
-            if let Some(enp) = crate::entity::entity_get_endpoint(&*ent)
+            if let Some(enp) = crate::entity::entity_get_endpoint(&ent)
                 && enp.kind == kind
                 && let Some(type_info) = &enp.type_info
             {

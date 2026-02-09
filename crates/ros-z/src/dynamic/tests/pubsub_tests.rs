@@ -156,8 +156,8 @@ fn test_type_aliases_exist() {
 
 #[test]
 fn test_zpub_builder_with_dyn_schema() {
-    use crate::pubsub::ZPubBuilder;
     use crate::dynamic::DynamicMessage;
+    use crate::pubsub::ZPubBuilder;
     use std::marker::PhantomData;
 
     let schema = create_point_schema();
@@ -165,7 +165,9 @@ fn test_zpub_builder_with_dyn_schema() {
     // Create a mock builder to test with_dyn_schema
     let builder: ZPubBuilder<DynamicMessage> = ZPubBuilder {
         entity: Default::default(),
-        session: std::sync::Arc::new(zenoh::Wait::wait(zenoh::open(zenoh::Config::default())).unwrap()),
+        session: std::sync::Arc::new(
+            zenoh::Wait::wait(zenoh::open(zenoh::Config::default())).unwrap(),
+        ),
         keyexpr_format: ros_z_protocol::KeyExprFormat::default(),
         with_attachment: true,
         shm_config: None,
@@ -184,8 +186,8 @@ fn test_zpub_builder_with_dyn_schema() {
 
 #[test]
 fn test_zpub_builder_with_serdes_preserves_schema() {
+    use crate::dynamic::{DynamicCdrSerdes, DynamicMessage};
     use crate::pubsub::ZPubBuilder;
-    use crate::dynamic::{DynamicMessage, DynamicCdrSerdes};
     use std::marker::PhantomData;
 
     let schema = create_test_schema();
@@ -193,7 +195,9 @@ fn test_zpub_builder_with_serdes_preserves_schema() {
     // Create builder with schema
     let builder: ZPubBuilder<DynamicMessage> = ZPubBuilder {
         entity: Default::default(),
-        session: std::sync::Arc::new(zenoh::Wait::wait(zenoh::open(zenoh::Config::default())).unwrap()),
+        session: std::sync::Arc::new(
+            zenoh::Wait::wait(zenoh::open(zenoh::Config::default())).unwrap(),
+        ),
         keyexpr_format: ros_z_protocol::KeyExprFormat::default(),
         with_attachment: true,
         shm_config: None,

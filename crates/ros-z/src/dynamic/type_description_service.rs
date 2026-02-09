@@ -43,10 +43,10 @@ use tracing::{debug, info, trace, warn};
 use zenoh::query::Query;
 use zenoh::{Result as ZResult, Session};
 
-use crate::msg::ZService;
-use crate::service::{ZServer, ZServerBuilder};
 use crate::ServiceTypeInfo;
 use crate::entity::{TypeHash, TypeInfo};
+use crate::msg::ZService;
+use crate::service::{ZServer, ZServerBuilder};
 
 use super::error::DynamicError;
 use super::schema::MessageSchema;
@@ -383,23 +383,18 @@ impl TypeDescriptionService {
     ///
     /// This is called from the Zenoh callback when a query is received.
     /// It deserializes the request, looks up the schema, and sends the response.
-    fn handle_query(
-        schemas: &Arc<RwLock<HashMap<String, RegisteredSchema>>>,
-        query: Query,
-    ) {
-        use crate::msg::{ZDeserializer, ZSerializer, CdrSerdes};
+    fn handle_query(schemas: &Arc<RwLock<HashMap<String, RegisteredSchema>>>, query: Query) {
+        use crate::msg::{CdrSerdes, ZDeserializer, ZSerializer};
 
         // Deserialize the request
         let request: GetTypeDescriptionRequest = match query.payload() {
-            Some(payload) => {
-                match CdrSerdes::deserialize(payload.to_bytes().as_ref()) {
-                    Ok(req) => req,
-                    Err(e) => {
-                        warn!("[TDS] Failed to deserialize request: {}", e);
-                        return;
-                    }
+            Some(payload) => match CdrSerdes::deserialize(payload.to_bytes().as_ref()) {
+                Ok(req) => req,
+                Err(e) => {
+                    warn!("[TDS] Failed to deserialize request: {}", e);
+                    return;
                 }
-            }
+            },
             None => {
                 warn!("[TDS] Query has no payload");
                 return;
@@ -421,8 +416,7 @@ impl TypeDescriptionService {
 
         info!(
             "[TDS] Sending response: successful={}, type={}",
-            response.successful,
-            response.type_description.type_description.type_name
+            response.successful, response.type_description.type_description.type_name
         );
 
         // Serialize and send the response
@@ -506,7 +500,10 @@ impl TypeDescriptionService {
             vec![]
         };
 
-        debug!("[TDS] Returning type description for: {}", request.type_name);
+        debug!(
+            "[TDS] Returning type description for: {}",
+            request.type_name
+        );
 
         GetTypeDescriptionResponse {
             successful: true,

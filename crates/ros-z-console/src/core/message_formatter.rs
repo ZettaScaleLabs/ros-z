@@ -137,7 +137,7 @@ fn format_value_pretty(output: &mut String, name: &str, value: &DynamicValue, in
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ros_z::dynamic::{MessageSchema, FieldType};
+    use ros_z::dynamic::{FieldType, MessageSchema};
 
     #[test]
     fn test_json_primitives() {

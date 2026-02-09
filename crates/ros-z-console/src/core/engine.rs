@@ -8,15 +8,12 @@ use std::{
 };
 
 use parking_lot::Mutex;
-use ros_z::{
-    context::ZContext,
-    graph::Graph,
-    node::ZNode,
-    Builder,
-};
+use ros_z::{Builder, context::ZContext, graph::Graph, node::ZNode};
 use tokio::sync::broadcast;
 
-use super::{dynamic_subscriber::DynamicTopicSubscriber, events::SystemEvent, metrics::MetricsCollector};
+use super::{
+    dynamic_subscriber::DynamicTopicSubscriber, events::SystemEvent, metrics::MetricsCollector,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Backend {
@@ -52,9 +49,9 @@ impl CoreEngine {
         config.insert_json5("mode", "\"peer\"")?;
         config.insert_json5("connect/endpoints", &format!("[\"{}\"]", router_addr))?;
 
-        let session = zenoh::open(config.clone()).await.map_err(|e| {
-            format!("Failed to initialize Zenoh session: {}", e)
-        })?;
+        let session = zenoh::open(config.clone())
+            .await
+            .map_err(|e| format!("Failed to initialize Zenoh session: {}", e))?;
         let session = Arc::new(session);
 
         // Initialize graph with backend-specific liveliness pattern and parser
@@ -69,12 +66,9 @@ impl CoreEngine {
                 let pattern = format!("@ros2_lv/{domain_id}/**");
                 tracing::info!("Graph liveliness pattern (RmwZenoh): {}", pattern);
                 let fmt = format;
-                let g = Graph::new_with_pattern(
-                    &session,
-                    domain_id,
-                    pattern.clone(),
-                    move |ke| fmt.parse_liveliness(ke),
-                )?;
+                let g = Graph::new_with_pattern(&session, domain_id, pattern.clone(), move |ke| {
+                    fmt.parse_liveliness(ke)
+                })?;
                 (pattern, g)
             }
             Backend::Ros2Dds => {
@@ -82,12 +76,9 @@ impl CoreEngine {
                 let pattern = "@/*/@ros2_lv/**".to_string();
                 tracing::info!("Graph liveliness pattern (Ros2Dds): {}", pattern);
                 let fmt = format;
-                let g = Graph::new_with_pattern(
-                    &session,
-                    domain_id,
-                    pattern.clone(),
-                    move |ke| fmt.parse_liveliness(ke),
-                )?;
+                let g = Graph::new_with_pattern(&session, domain_id, pattern.clone(), move |ke| {
+                    fmt.parse_liveliness(ke)
+                })?;
                 (pattern, g)
             }
         };

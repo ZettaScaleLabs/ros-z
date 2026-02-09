@@ -89,7 +89,9 @@ where
             .consolidation(zenoh::query::ConsolidationMode::None)
             .timeout(Duration::from_secs(10))
             .wait()?;
-        let lv_ke = self.keyexpr_format.liveliness_key_expr(&self.entity, &self.session.zid())?;
+        let lv_ke = self
+            .keyexpr_format
+            .liveliness_key_expr(&self.entity, &self.session.zid())?;
         let lv_token = self
             .session
             .liveliness()
@@ -199,7 +201,11 @@ where
             .callback(move |reply| {
                 match reply.into_result() {
                     Ok(sample) => {
-                        info!("[CLN] Reply received: len={}, kind={:?}", sample.payload().len(), sample.kind());
+                        info!(
+                            "[CLN] Reply received: len={}, kind={:?}",
+                            sample.payload().len(),
+                            sample.kind()
+                        );
                         debug!("[CLN] Reply received: len={}", sample.payload().len());
                         // Use try_send for bounded channel - if full, drop the response (QoS depth enforcement)
                         if tx.try_send(sample).is_err() {
@@ -295,7 +301,6 @@ where
 impl<T> ZServerBuilder<T>
 where
     T: ZService,
-    
 {
     /// Internal method that all build variants use.
     fn build_internal<Q>(
@@ -323,8 +328,12 @@ where
             .declare_queryable(&key_expr)
             .complete(true)
             .callback(move |query| {
-                info!("[SRV] Query received: ke={}, selector={}, parameters={}",
-                    query.key_expr(), query.selector(), query.parameters());
+                info!(
+                    "[SRV] Query received: ke={}, selector={}, parameters={}",
+                    query.key_expr(),
+                    query.selector(),
+                    query.parameters()
+                );
 
                 if let Some(att) = query.attachment() {
                     info!("[SRV] Query has attachment: {} bytes", att.len());
@@ -342,7 +351,9 @@ where
             })
             .wait()?;
 
-        let lv_ke = self.keyexpr_format.liveliness_key_expr(&self.entity, &self.session.zid())?;
+        let lv_ke = self
+            .keyexpr_format
+            .liveliness_key_expr(&self.entity, &self.session.zid())?;
         let lv_token = self
             .session
             .liveliness()
@@ -391,7 +402,6 @@ where
 impl<T> Builder for ZServerBuilder<T>
 where
     T: ZService,
-    
 {
     type Output = ZServer<T>;
 

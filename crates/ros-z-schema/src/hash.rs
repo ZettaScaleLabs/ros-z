@@ -5,8 +5,8 @@
 use serde::Serialize;
 use sha2::Digest;
 
-use crate::type_description::{to_hash_version, TypeDescriptionMsg};
 use crate::TypeHash;
+use crate::type_description::{TypeDescriptionMsg, to_hash_version};
 
 /// Calculate RIHS01 hash for a TypeDescriptionMsg
 ///
@@ -287,7 +287,9 @@ mod tests {
                     },
                     FieldDescription {
                         name: "int_sequence".to_string(),
-                        field_type: FieldTypeDescription::primitive(TypeId::INT32_UNBOUNDED_SEQUENCE),
+                        field_type: FieldTypeDescription::primitive(
+                            TypeId::INT32_UNBOUNDED_SEQUENCE,
+                        ),
                         default_value: String::new(),
                     },
                     FieldDescription {

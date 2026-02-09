@@ -293,7 +293,14 @@ mod tests {
     #[test]
     fn test_topic_key_expr_format() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test_node".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test_node".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         let entity = EndpointEntity {
             id: 1,
@@ -308,10 +315,22 @@ mod tests {
         let ke_str = topic_ke.as_str();
 
         // rmw_zenoh format: <domain_id>/<topic>/<type>/<hash>
-        assert!(ke_str.starts_with("0/"), "Should start with domain ID '0/', got: {}", ke_str);
-        assert!(ke_str.contains("/chatter/"), "Should contain '/chatter/', got: {}", ke_str);
+        assert!(
+            ke_str.starts_with("0/"),
+            "Should start with domain ID '0/', got: {}",
+            ke_str
+        );
+        assert!(
+            ke_str.contains("/chatter/"),
+            "Should contain '/chatter/', got: {}",
+            ke_str
+        );
         // Note: rmw_zenoh does NOT escape slashes in topic key expression
-        assert!(ke_str.contains("std_msgs/msg/String"), "Should contain type name, got: {}", ke_str);
+        assert!(
+            ke_str.contains("std_msgs/msg/String"),
+            "Should contain type name, got: {}",
+            ke_str
+        );
     }
 
     /// Test liveliness key expression format matches rmw_zenoh.
@@ -320,7 +339,14 @@ mod tests {
     #[test]
     fn test_liveliness_key_expr_format() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test_node".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test_node".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         let entity = EndpointEntity {
             id: 1,
@@ -335,19 +361,39 @@ mod tests {
         let ke_str = liveliness_ke.as_str();
 
         // Should start with @ros2_lv
-        assert!(ke_str.starts_with("@ros2_lv/"), "Should start with '@ros2_lv/', got: {}", ke_str);
+        assert!(
+            ke_str.starts_with("@ros2_lv/"),
+            "Should start with '@ros2_lv/', got: {}",
+            ke_str
+        );
 
         // Should contain domain ID
-        assert!(ke_str.contains("/0/"), "Should contain domain '/0/', got: {}", ke_str);
+        assert!(
+            ke_str.contains("/0/"),
+            "Should contain domain '/0/', got: {}",
+            ke_str
+        );
 
         // Should contain MP for Publisher
-        assert!(ke_str.contains("/MP/"), "Should contain '/MP/' for Publisher, got: {}", ke_str);
+        assert!(
+            ke_str.contains("/MP/"),
+            "Should contain '/MP/' for Publisher, got: {}",
+            ke_str
+        );
 
         // Should contain node name
-        assert!(ke_str.contains("/test_node/"), "Should contain '/test_node/', got: {}", ke_str);
+        assert!(
+            ke_str.contains("/test_node/"),
+            "Should contain '/test_node/', got: {}",
+            ke_str
+        );
 
         // Should contain escaped topic name
-        assert!(ke_str.contains("/chatter/"), "Should contain '/chatter/', got: {}", ke_str);
+        assert!(
+            ke_str.contains("/chatter/"),
+            "Should contain '/chatter/', got: {}",
+            ke_str
+        );
 
         // Should contain escaped type name
         assert!(
@@ -361,7 +407,14 @@ mod tests {
     #[test]
     fn test_subscriber_liveliness_key_expr() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test_node".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test_node".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         let entity = EndpointEntity {
             id: 1,
@@ -376,21 +429,35 @@ mod tests {
         let ke_str = liveliness_ke.as_str();
 
         // Should contain MS for Subscription
-        assert!(ke_str.contains("/MS/"), "Should contain '/MS/' for Subscription, got: {}", ke_str);
+        assert!(
+            ke_str.contains("/MS/"),
+            "Should contain '/MS/' for Subscription, got: {}",
+            ke_str
+        );
     }
 
     /// Test service server liveliness key expression
     #[test]
     fn test_service_liveliness_key_expr() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test_node".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test_node".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         let entity = EndpointEntity {
             id: 1,
             node,
             kind: EntityKind::Service,
             topic: "add_two_ints".to_string(),
-            type_info: Some(TypeInfo::new("example_interfaces/srv/AddTwoInts", TypeHash::zero())),
+            type_info: Some(TypeInfo::new(
+                "example_interfaces/srv/AddTwoInts",
+                TypeHash::zero(),
+            )),
             qos: QosProfile::default(),
         };
 
@@ -398,21 +465,35 @@ mod tests {
         let ke_str = liveliness_ke.as_str();
 
         // Should contain SS for Service
-        assert!(ke_str.contains("/SS/"), "Should contain '/SS/' for Service, got: {}", ke_str);
+        assert!(
+            ke_str.contains("/SS/"),
+            "Should contain '/SS/' for Service, got: {}",
+            ke_str
+        );
     }
 
     /// Test client liveliness key expression
     #[test]
     fn test_client_liveliness_key_expr() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test_node".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test_node".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         let entity = EndpointEntity {
             id: 1,
             node,
             kind: EntityKind::Client,
             topic: "add_two_ints".to_string(),
-            type_info: Some(TypeInfo::new("example_interfaces/srv/AddTwoInts", TypeHash::zero())),
+            type_info: Some(TypeInfo::new(
+                "example_interfaces/srv/AddTwoInts",
+                TypeHash::zero(),
+            )),
             qos: QosProfile::default(),
         };
 
@@ -420,26 +501,49 @@ mod tests {
         let ke_str = liveliness_ke.as_str();
 
         // Should contain SC for Client
-        assert!(ke_str.contains("/SC/"), "Should contain '/SC/' for Client, got: {}", ke_str);
+        assert!(
+            ke_str.contains("/SC/"),
+            "Should contain '/SC/' for Client, got: {}",
+            ke_str
+        );
     }
 
     /// Test node liveliness key expression
     #[test]
     fn test_node_liveliness_key_expr() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test_node".to_string(), "/my_namespace".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test_node".to_string(),
+            "/my_namespace".to_string(),
+            String::new(),
+        );
 
         let liveliness_ke = RmwZenohFormatter::node_liveliness_key_expr(&node).unwrap();
         let ke_str = liveliness_ke.as_str();
 
         // Should start with @ros2_lv
-        assert!(ke_str.starts_with("@ros2_lv/"), "Should start with '@ros2_lv/', got: {}", ke_str);
+        assert!(
+            ke_str.starts_with("@ros2_lv/"),
+            "Should start with '@ros2_lv/', got: {}",
+            ke_str
+        );
 
         // Should contain NN for Node
-        assert!(ke_str.contains("/NN/"), "Should contain '/NN/' for Node, got: {}", ke_str);
+        assert!(
+            ke_str.contains("/NN/"),
+            "Should contain '/NN/' for Node, got: {}",
+            ke_str
+        );
 
         // Should contain node name
-        assert!(ke_str.contains("/test_node"), "Should contain '/test_node', got: {}", ke_str);
+        assert!(
+            ke_str.contains("/test_node"),
+            "Should contain '/test_node', got: {}",
+            ke_str
+        );
     }
 
     // ==================== Topic Key Expression Tests ====================
@@ -455,7 +559,14 @@ mod tests {
     #[test]
     fn test_service_topic_key_expr_preserves_slashes() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "talker".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "talker".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         // Service with slashes in name (common pattern: /node_name/service_name)
         let entity = EndpointEntity {
@@ -491,14 +602,24 @@ mod tests {
     #[test]
     fn test_client_topic_key_expr_preserves_slashes() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test_client".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test_client".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         let entity = EndpointEntity {
             id: 11,
             node,
             kind: EntityKind::Client,
             topic: "/my_service/sub_service/action".to_string(),
-            type_info: Some(TypeInfo::new("example_interfaces/srv/AddTwoInts", TypeHash::zero())),
+            type_info: Some(TypeInfo::new(
+                "example_interfaces/srv/AddTwoInts",
+                TypeHash::zero(),
+            )),
             qos: QosProfile::default(),
         };
 
@@ -519,7 +640,14 @@ mod tests {
     #[test]
     fn test_publisher_topic_key_expr_preserves_slashes() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test_pub".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test_pub".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         let entity = EndpointEntity {
             id: 1,
@@ -553,7 +681,14 @@ mod tests {
     #[test]
     fn test_subscription_topic_key_expr_preserves_slashes() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test_sub".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test_sub".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         let entity = EndpointEntity {
             id: 2,
@@ -587,12 +722,19 @@ mod tests {
     #[test]
     fn test_action_topic_key_expr_preserves_slashes() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "action_server".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "action_server".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         let entity = EndpointEntity {
             id: 3,
             node,
-            kind: EntityKind::Publisher,  // Actions use pub/sub for feedback/status
+            kind: EntityKind::Publisher, // Actions use pub/sub for feedback/status
             topic: "/fibonacci/_action/send_goal".to_string(),
             type_info: Some(TypeInfo::new(
                 "action_tutorials_interfaces::action::dds_::Fibonacci_SendGoal_",
@@ -621,7 +763,14 @@ mod tests {
     #[test]
     fn test_topic_key_expr_strips_leading_trailing_slashes() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         // Service with leading and trailing slashes
         let entity = EndpointEntity {
@@ -629,7 +778,10 @@ mod tests {
             node,
             kind: EntityKind::Service,
             topic: "/my_service/".to_string(),
-            type_info: Some(TypeInfo::new("example_interfaces/srv/Trigger", TypeHash::zero())),
+            type_info: Some(TypeInfo::new(
+                "example_interfaces/srv/Trigger",
+                TypeHash::zero(),
+            )),
             qos: QosProfile::default(),
         };
 
@@ -653,14 +805,21 @@ mod tests {
     #[test]
     fn test_topic_key_expr_empty_type_info() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         let entity = EndpointEntity {
             id: 5,
             node,
             kind: EntityKind::Publisher,
             topic: "chatter".to_string(),
-            type_info: None,  // No type info
+            type_info: None, // No type info
             qos: QosProfile::default(),
         };
 
@@ -684,7 +843,14 @@ mod tests {
     #[test]
     fn test_topic_key_expr_type_name_demangling() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         let entity = EndpointEntity {
             id: 6,
@@ -716,7 +882,14 @@ mod tests {
     #[test]
     fn test_service_liveliness_mangles_topic_name() {
         let zid: zenoh::session::ZenohId = "9aed1ea85b72095f6dbc9ee90dabd56".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "talker".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "talker".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         let entity = EndpointEntity {
             id: 10,
@@ -759,7 +932,10 @@ mod tests {
             node,
             kind: EntityKind::Publisher,
             topic: "/data/temperature".to_string(),
-            type_info: Some(TypeInfo::new("sensor_msgs/msg/Temperature", TypeHash::zero())),
+            type_info: Some(TypeInfo::new(
+                "sensor_msgs/msg/Temperature",
+                TypeHash::zero(),
+            )),
             qos: QosProfile::default(),
         };
 
@@ -779,14 +955,25 @@ mod tests {
             ke_str
         );
         // Should contain MP for Publisher
-        assert!(ke_str.contains("/MP/"), "Should contain '/MP/', got: {}", ke_str);
+        assert!(
+            ke_str.contains("/MP/"),
+            "Should contain '/MP/', got: {}",
+            ke_str
+        );
     }
 
     /// Test empty namespace handling in liveliness.
     #[test]
     fn test_liveliness_empty_namespace() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test_node".to_string(), "".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test_node".to_string(),
+            "".to_string(),
+            String::new(),
+        );
 
         let entity = EndpointEntity {
             id: 8,
@@ -818,7 +1005,14 @@ mod tests {
     #[test]
     fn test_liveliness_root_namespace() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test_node".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test_node".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         let entity = EndpointEntity {
             id: 9,
@@ -845,7 +1039,14 @@ mod tests {
     #[test]
     fn test_liveliness_type_info_mangling() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         let entity = EndpointEntity {
             id: 10,
@@ -880,7 +1081,14 @@ mod tests {
     #[test]
     fn test_liveliness_qos_encoding() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         let qos = QosProfile {
             reliability: QosReliability::Reliable,
@@ -961,7 +1169,14 @@ mod tests {
     #[test]
     fn test_parse_liveliness_service_roundtrip() {
         let zid: zenoh::session::ZenohId = "9aed1ea85b72095f6dbc9ee90dabd56".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "server".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "server".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         let original = EndpointEntity {
             id: 13,
@@ -995,7 +1210,14 @@ mod tests {
     #[test]
     fn test_parse_liveliness_empty_type_info() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         let original = EndpointEntity {
             id: 14,
@@ -1051,7 +1273,14 @@ mod tests {
     #[test]
     fn test_topic_key_expr_no_slashes() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         let entity = EndpointEntity {
             id: 16,
@@ -1080,13 +1309,20 @@ mod tests {
     #[test]
     fn test_service_topic_consecutive_slashes_rejected() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         let entity = EndpointEntity {
             id: 17,
             node,
             kind: EntityKind::Service,
-            topic: "/a//b".to_string(),  // Consecutive slashes
+            topic: "/a//b".to_string(), // Consecutive slashes
             type_info: Some(TypeInfo::new("std_srvs/srv/Trigger", TypeHash::zero())),
             qos: QosProfile::default(),
         };
@@ -1103,7 +1339,14 @@ mod tests {
     #[test]
     fn test_topic_key_expr_dds_type_name() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         let entity = EndpointEntity {
             id: 18,
@@ -1133,7 +1376,14 @@ mod tests {
     #[test]
     fn test_topic_key_expr_long_name() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         let long_topic = "/very/long/topic/name/with/many/segments/for/testing/purposes";
         let entity = EndpointEntity {

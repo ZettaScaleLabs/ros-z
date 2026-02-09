@@ -194,10 +194,7 @@ async fn handle_result_requests_legacy_inner<A: ZAction>(
     }
 }
 
-impl<'a, A: ZAction> Builder for ZActionServerBuilder<'a, A>
-where
-    
-{
+impl<'a, A: ZAction> Builder for ZActionServerBuilder<'a, A> {
     type Output = ZActionServer<A>;
 
     fn build(self) -> Result<Self::Output> {

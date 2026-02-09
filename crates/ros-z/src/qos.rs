@@ -148,7 +148,9 @@ impl QosProfile {
                 QosDurability::Volatile => ros_z_protocol::qos::QosDurability::Volatile,
             },
             history: match self.history {
-                QosHistory::KeepLast(depth) => ros_z_protocol::qos::QosHistory::KeepLast(depth.get()),
+                QosHistory::KeepLast(depth) => {
+                    ros_z_protocol::qos::QosHistory::KeepLast(depth.get())
+                }
                 QosHistory::KeepAll => ros_z_protocol::qos::QosHistory::KeepAll,
             },
         }

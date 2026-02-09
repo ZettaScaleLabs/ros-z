@@ -69,7 +69,8 @@ pub fn parse_field_type(type_str: &str, _source_package: &str) -> Result<FieldTy
         // Check if this is a bounded array (has brackets) or bounded string (no brackets)
         if !type_str.contains('[') {
             let base = &type_str[..idx];
-            let bound = type_str[idx+2..].parse::<usize>()
+            let bound = type_str[idx + 2..]
+                .parse::<usize>()
                 .with_context(|| format!("Invalid string bound in '{}'", type_str))?;
             // Return bounded string with the bound stored
             return Ok(FieldType {
@@ -125,7 +126,12 @@ pub fn parse_field_type(type_str: &str, _source_package: &str) -> Result<FieldTy
         }
     };
 
-    Ok(FieldType { base_type, package, array, string_bound: None })
+    Ok(FieldType {
+        base_type,
+        package,
+        array,
+        string_bound: None,
+    })
 }
 
 /// Parse a default value

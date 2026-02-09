@@ -75,13 +75,13 @@ pub use registry::{SchemaRegistry, get_schema, has_schema, register_schema};
 pub use schema::{FieldSchema, FieldType, MessageSchema, MessageSchemaBuilder};
 pub use serdes::DynamicCdrSerdes;
 pub use serialization::SerializationFormat;
-pub use type_description::{type_description_msg_to_schema, MessageSchemaTypeDescription};
+pub use type_description::{MessageSchemaTypeDescription, type_description_msg_to_schema};
 pub use type_description_client::TypeDescriptionClient;
 pub use type_description_service::{
-    schema_to_wire_type_description, wire_to_schema_type_description, GetTypeDescription,
-    GetTypeDescriptionRequest, GetTypeDescriptionResponse, RegisteredSchema,
+    GetTypeDescription, GetTypeDescriptionRequest, GetTypeDescriptionResponse, RegisteredSchema,
     TypeDescriptionService, TypeSource, WireField, WireFieldType, WireIndividualTypeDescription,
-    WireKeyValue, WireTypeDescription, WireTypeSource,
+    WireKeyValue, WireTypeDescription, WireTypeSource, schema_to_wire_type_description,
+    wire_to_schema_type_description,
 };
 pub use value::{DynamicValue, FromDynamic, IntoDynamic};
 

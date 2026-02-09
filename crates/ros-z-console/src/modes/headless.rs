@@ -3,8 +3,8 @@ use serde::Serialize;
 use std::{collections::HashMap, time::Duration};
 
 use crate::core::{
-    engine::CoreEngine,
     dynamic_subscriber::DynamicTopicSubscriber,
+    engine::CoreEngine,
     message_formatter::{dynamic_message_to_json, format_message_pretty},
 };
 use ros_z::graph::GraphSnapshot;
@@ -43,10 +43,16 @@ pub async fn run_headless_mode(
     let mut subscribers: HashMap<String, DynamicTopicSubscriber> = HashMap::new();
 
     if !echo_topics.is_empty() {
-        tracing::info!("Creating dynamic subscribers for {} topics", echo_topics.len());
+        tracing::info!(
+            "Creating dynamic subscribers for {} topics",
+            echo_topics.len()
+        );
 
         for topic in echo_topics {
-            match core.create_dynamic_subscriber(&topic, Duration::from_secs(5)).await {
+            match core
+                .create_dynamic_subscriber(&topic, Duration::from_secs(5))
+                .await
+            {
                 Ok(sub) => {
                     if json {
                         // Output schema info
@@ -62,7 +68,10 @@ pub async fn run_headless_mode(
                         println!("\n=== Subscribed to {} ===", topic);
                         println!("Type: {}", sub.schema().type_name);
                         println!("Hash: {}", sub.type_hash());
-                        println!("Fields: {:?}", sub.schema().field_names().collect::<Vec<_>>());
+                        println!(
+                            "Fields: {:?}",
+                            sub.schema().field_names().collect::<Vec<_>>()
+                        );
                         println!();
                     }
                     subscribers.insert(topic.clone(), sub);

@@ -72,8 +72,8 @@ fn normalize_type_name(dds_name: &str) -> String {
 }
 use super::type_description::type_description_msg_to_schema;
 use super::type_description_service::{
-    wire_to_schema_type_description, GetTypeDescription, GetTypeDescriptionRequest,
-    GetTypeDescriptionResponse,
+    GetTypeDescription, GetTypeDescriptionRequest, GetTypeDescriptionResponse,
+    wire_to_schema_type_description,
 };
 
 /// Client for querying type descriptions from remote nodes.
@@ -246,7 +246,11 @@ impl TypeDescriptionClient {
 
         // Get publishers for the topic
         let mut publishers = graph.get_entities_by_topic(EntityKind::Publisher, topic);
-        debug!("[TDC] Initial discovery found {} publishers for topic {}", publishers.len(), topic);
+        debug!(
+            "[TDC] Initial discovery found {} publishers for topic {}",
+            publishers.len(),
+            topic
+        );
 
         if publishers.is_empty() {
             // Wait and retry multiple times - publishers might not have been discovered yet
@@ -254,7 +258,11 @@ impl TypeDescriptionClient {
             for attempt in 1..=5 {
                 tokio::time::sleep(Duration::from_millis(500)).await;
                 publishers = graph.get_entities_by_topic(EntityKind::Publisher, topic);
-                debug!("[TDC] Discovery attempt {}: found {} publishers", attempt, publishers.len());
+                debug!(
+                    "[TDC] Discovery attempt {}: found {} publishers",
+                    attempt,
+                    publishers.len()
+                );
                 if !publishers.is_empty() {
                     break;
                 }
@@ -262,7 +270,10 @@ impl TypeDescriptionClient {
 
             if publishers.is_empty() {
                 // Log all known topics for debugging
-                warn!("[TDC] No publishers found for topic {} after retries", topic);
+                warn!(
+                    "[TDC] No publishers found for topic {} after retries",
+                    topic
+                );
                 return Err(DynamicError::SchemaNotFound(format!(
                     "No publishers found for topic: {}",
                     topic
@@ -280,16 +291,13 @@ impl TypeDescriptionClient {
             _ => {
                 return Err(DynamicError::SerializationError(
                     "Expected endpoint entity".to_string(),
-                ))
+                ));
             }
         };
 
         // Get type name from the publisher's type info
         let type_info = endpoint.type_info.as_ref().ok_or_else(|| {
-            DynamicError::SchemaNotFound(format!(
-                "Publisher on {} has no type information",
-                topic
-            ))
+            DynamicError::SchemaNotFound(format!("Publisher on {} has no type information", topic))
         })?;
 
         // Convert DDS type name to ROS 2 canonical name
@@ -421,7 +429,7 @@ mod tests {
     use super::*;
     use crate::dynamic::schema::FieldType;
     use crate::dynamic::type_description_service::{
-        schema_to_wire_type_description, WireTypeDescription,
+        WireTypeDescription, schema_to_wire_type_description,
     };
 
     #[test]

@@ -964,21 +964,29 @@ impl ResolvedMessageExt for ResolvedMessage {
                 // Determine nested type path based on type name suffix
                 // Action types need underscore: Fibonacci_Goal, Fibonacci_Result, Fibonacci_Feedback
                 // For same-package references (no explicit package), use the message's package
-                let pkg = field.field_type.package.as_ref().unwrap_or(&self.parsed.package);
-                let nested_type_name = if crate::hashing::is_primitive_type(&field.field_type.base_type) {
-                    String::new()
-                } else if field.field_type.base_type.ends_with("Goal") {
-                    let base = &field.field_type.base_type[..field.field_type.base_type.len() - 4];
-                    format!("{}/action/{}_Goal", pkg, base)
-                } else if field.field_type.base_type.ends_with("Result") {
-                    let base = &field.field_type.base_type[..field.field_type.base_type.len() - 6];
-                    format!("{}/action/{}_Result", pkg, base)
-                } else if field.field_type.base_type.ends_with("Feedback") {
-                    let base = &field.field_type.base_type[..field.field_type.base_type.len() - 8];
-                    format!("{}/action/{}_Feedback", pkg, base)
-                } else {
-                    format!("{}/msg/{}", pkg, field.field_type.base_type)
-                };
+                let pkg = field
+                    .field_type
+                    .package
+                    .as_ref()
+                    .unwrap_or(&self.parsed.package);
+                let nested_type_name =
+                    if crate::hashing::is_primitive_type(&field.field_type.base_type) {
+                        String::new()
+                    } else if field.field_type.base_type.ends_with("Goal") {
+                        let base =
+                            &field.field_type.base_type[..field.field_type.base_type.len() - 4];
+                        format!("{}/action/{}_Goal", pkg, base)
+                    } else if field.field_type.base_type.ends_with("Result") {
+                        let base =
+                            &field.field_type.base_type[..field.field_type.base_type.len() - 6];
+                        format!("{}/action/{}_Result", pkg, base)
+                    } else if field.field_type.base_type.ends_with("Feedback") {
+                        let base =
+                            &field.field_type.base_type[..field.field_type.base_type.len() - 8];
+                        format!("{}/action/{}_Feedback", pkg, base)
+                    } else {
+                        format!("{}/msg/{}", pkg, field.field_type.base_type)
+                    };
 
                 let string_capacity = field.field_type.string_bound.unwrap_or(0) as u64;
 

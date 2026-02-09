@@ -8,14 +8,14 @@
 
 use std::collections::BTreeMap;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 use crate::types::{ArrayType, FieldType, ParsedMessage};
 
 // Re-export types from ros-z-schema for backwards compatibility
 pub use ros_z_schema::{
-    calculate_hash, to_hash_version, to_ros2_json, FieldDescription, FieldTypeDescription,
-    TypeDescription, TypeDescriptionMsg, TypeHash, TypeId,
+    FieldDescription, FieldTypeDescription, TypeDescription, TypeDescriptionMsg, TypeHash, TypeId,
+    calculate_hash, to_hash_version, to_ros2_json,
 };
 
 /// Calculate RIHS01 hash for a message

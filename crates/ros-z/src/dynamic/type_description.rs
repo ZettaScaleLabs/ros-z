@@ -29,8 +29,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use ros_z_schema::{
-    calculate_hash, FieldDescription, FieldTypeDescription, TypeDescription, TypeDescriptionMsg,
-    TypeHash, TypeId,
+    FieldDescription, FieldTypeDescription, TypeDescription, TypeDescriptionMsg, TypeHash, TypeId,
+    calculate_hash,
 };
 
 use super::error::DynamicError;
@@ -160,9 +160,10 @@ fn field_type_to_description(field_type: &FieldType) -> Result<FieldTypeDescript
         }),
 
         // Nested message (single)
-        FieldType::Message(schema) => {
-            Ok(FieldTypeDescription::nested(TypeId::NESTED_TYPE, &schema.type_name))
-        }
+        FieldType::Message(schema) => Ok(FieldTypeDescription::nested(
+            TypeId::NESTED_TYPE,
+            &schema.type_name,
+        )),
 
         // Fixed-size array
         FieldType::Array(inner, size) => {
@@ -261,7 +262,7 @@ pub fn type_description_msg_to_schema(
                     made_progress = true;
                     false // Remove from remaining
                 }
-                Err(_) => true // Keep in remaining, dependencies not ready yet
+                Err(_) => true, // Keep in remaining, dependencies not ready yet
             }
         });
 
@@ -269,7 +270,11 @@ pub fn type_description_msg_to_schema(
             // Circular dependency or missing type
             return Err(DynamicError::SerializationError(format!(
                 "Cannot resolve dependencies for types: {}",
-                remaining.iter().map(|t| t.type_name.as_str()).collect::<Vec<_>>().join(", ")
+                remaining
+                    .iter()
+                    .map(|t| t.type_name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
             )));
         }
     }
@@ -735,7 +740,10 @@ mod tests {
     fn test_roundtrip_with_arrays() {
         let original = MessageSchema::builder("test_msgs/msg/Arrays")
             .field("fixed", FieldType::Array(Box::new(FieldType::Int32), 5))
-            .field("unbounded", FieldType::Sequence(Box::new(FieldType::Float64)))
+            .field(
+                "unbounded",
+                FieldType::Sequence(Box::new(FieldType::Float64)),
+            )
             .field(
                 "bounded",
                 FieldType::BoundedSequence(Box::new(FieldType::Uint8), 100),

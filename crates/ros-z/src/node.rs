@@ -2,10 +2,10 @@ use crate::entity::EntityKind;
 use crate::graph::Graph;
 use std::sync::Arc;
 use std::time::Duration;
+use tracing::{debug, info, warn};
 use zenoh::liveliness::LivelinessToken;
 use zenoh::sample::Sample;
 use zenoh::{Result, Session, Wait};
-use tracing::{info, debug, warn};
 
 use crate::{
     Builder, ServiceTypeInfo, WithTypeInfo,
@@ -433,7 +433,8 @@ impl ZNode {
         // Create TypeInfo from schema for proper key expression matching
         // Convert ROS 2 canonical name to DDS name
         // "std_msgs/msg/String" → "std_msgs::msg::dds_::String_"
-        let dds_name = schema.type_name
+        let dds_name = schema
+            .type_name
             .replace("/msg/", "::msg::dds_::")
             .replace("/srv/", "::srv::dds_::")
             .replace("/action/", "::action::dds_::")
@@ -448,7 +449,10 @@ impl ZNode {
                     .unwrap_or_else(crate::entity::TypeHash::zero)
             }
             Err(e) => {
-                warn!("[NOD] Failed to compute type hash for {}: {}", schema.type_name, e);
+                warn!(
+                    "[NOD] Failed to compute type hash for {}: {}",
+                    schema.type_name, e
+                );
                 crate::entity::TypeHash::zero()
             }
         };
@@ -510,8 +514,11 @@ impl ZNode {
         );
 
         // Create a TypeDescriptionClient to discover the schema
-        let client =
-            TypeDescriptionClient::with_graph(self.session.clone(), self.counter.clone(), self.graph.clone());
+        let client = TypeDescriptionClient::with_graph(
+            self.session.clone(),
+            self.counter.clone(),
+            self.graph.clone(),
+        );
 
         // Discover schema from topic publishers
         let (schema, type_hash) = client
@@ -527,7 +534,8 @@ impl ZNode {
         // Create TypeInfo from discovered schema for proper key expression matching
         // Convert ROS 2 canonical name to DDS name
         // "std_msgs/msg/String" → "std_msgs::msg::dds_::String_"
-        let dds_name = schema.type_name
+        let dds_name = schema
+            .type_name
             .replace("/msg/", "::msg::dds_::")
             .replace("/srv/", "::srv::dds_::")
             .replace("/action/", "::action::dds_::")
@@ -577,7 +585,8 @@ impl ZNode {
         // Create TypeInfo from schema for proper key expression matching
         // Convert ROS 2 canonical name to DDS name
         // "std_msgs/msg/String" → "std_msgs::msg::dds_::String_"
-        let dds_name = schema.type_name
+        let dds_name = schema
+            .type_name
             .replace("/msg/", "::msg::dds_::")
             .replace("/srv/", "::srv::dds_::")
             .replace("/action/", "::action::dds_::")
@@ -592,7 +601,10 @@ impl ZNode {
                     .unwrap_or_else(crate::entity::TypeHash::zero)
             }
             Err(e) => {
-                warn!("[NOD] Failed to compute type hash for {}: {}", schema.type_name, e);
+                warn!(
+                    "[NOD] Failed to compute type hash for {}: {}",
+                    schema.type_name, e
+                );
                 crate::entity::TypeHash::zero()
             }
         };
