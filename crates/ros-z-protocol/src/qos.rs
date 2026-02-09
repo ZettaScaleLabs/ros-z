@@ -28,27 +28,42 @@ impl QosProfile {
     }
 
     /// Decode QoS from liveliness token string.
+    ///
+    /// ROS 2's rmw_zenoh uses conditional encoding - empty fields mean default values.
     pub fn decode(s: &str) -> Result<Self, QosDecodeError> {
         let parts: alloc::vec::Vec<&str> = s.split(&[':', ',']).collect();
         if parts.len() < 4 {
             return Err(QosDecodeError::InvalidFormat);
         }
 
-        let reliability = parts[1]
-            .parse::<u8>()
-            .map_err(|_| QosDecodeError::InvalidReliability)?;
+        // Parse reliability - empty means default (BestEffort)
+        let reliability = if parts[1].is_empty() {
+            QosReliability::default()
+        } else {
+            let val = parts[1]
+                .parse::<u8>()
+                .map_err(|_| QosDecodeError::InvalidReliability)?;
+            QosReliability::from_u8(val).ok_or(QosDecodeError::InvalidReliability)?
+        };
+
+        // Parse depth - required field
         let depth = parts[3]
             .parse::<usize>()
             .map_err(|_| QosDecodeError::InvalidHistory)?;
-        let durability = parts[4]
-            .parse::<u8>()
-            .map_err(|_| QosDecodeError::InvalidDurability)?;
+
+        // Parse durability - empty means default (Volatile)
+        let durability = if parts[4].is_empty() {
+            QosDurability::default()
+        } else {
+            let val = parts[4]
+                .parse::<u8>()
+                .map_err(|_| QosDecodeError::InvalidDurability)?;
+            QosDurability::from_u8(val).ok_or(QosDecodeError::InvalidDurability)?
+        };
 
         Ok(QosProfile {
-            reliability: QosReliability::from_u8(reliability)
-                .ok_or(QosDecodeError::InvalidReliability)?,
-            durability: QosDurability::from_u8(durability)
-                .ok_or(QosDecodeError::InvalidDurability)?,
+            reliability,
+            durability,
             history: QosHistory::KeepLast(depth),
         })
     }
