@@ -1,9 +1,9 @@
 use std::ffi::CString;
 
-use crate::traits::{Waitable, BorrowData};
-use crate::ros::*;
-use zenoh::{Result, sample::Sample};
 use crate::rmw_impl_has_data_ptr;
+use crate::ros::*;
+use crate::traits::{BorrowData, Waitable};
+use zenoh::{Result, sample::Sample};
 
 /// Publisher implementation for RMW
 pub struct PublisherImpl {
@@ -34,7 +34,8 @@ pub struct SubscriptionImpl {
     pub topic: CString,
     pub options: rmw_subscription_options_t,
     pub qos: rmw_qos_profile_t,
-    pub callback: std::sync::Arc<std::sync::Mutex<crate::ros::rmw_subscription_new_message_callback_t>>,
+    pub callback:
+        std::sync::Arc<std::sync::Mutex<crate::ros::rmw_subscription_new_message_callback_t>>,
     pub callback_user_data: std::sync::Arc<std::sync::Mutex<usize>>, // Store pointer as usize for thread safety
     pub unread_count: std::sync::Arc<std::sync::Mutex<usize>>, // Track messages arrived before callback was set
     pub graph: std::sync::Arc<ros_z::graph::Graph>,
@@ -44,9 +45,12 @@ pub struct SubscriptionImpl {
 
 impl SubscriptionImpl {
     pub fn take(&self, ros_message: *mut std::os::raw::c_void, taken: *mut bool) -> Result<()> {
-        unsafe { *taken = false; }
-        let queue = self.inner.queue.as_ref()
-            .ok_or_else(|| zenoh::Error::from("Subscriber was built with callback, no queue available"))?;
+        unsafe {
+            *taken = false;
+        }
+        let queue = self.inner.queue.as_ref().ok_or_else(|| {
+            zenoh::Error::from("Subscriber was built with callback, no queue available")
+        })?;
 
         if let Some(sample) = queue.try_recv() {
             // Deserialize the sample payload into ros_message using ts
@@ -54,7 +58,9 @@ impl SubscriptionImpl {
             let payload = sample.payload();
             let bytes = payload.to_bytes().to_vec();
             unsafe { self.ts.deserialize_message(&bytes, ros_message as *mut _) };
-            unsafe { *taken = true; }
+            unsafe {
+                *taken = true;
+            }
         }
         Ok(())
     }
@@ -65,9 +71,12 @@ impl SubscriptionImpl {
         message_info: *mut rmw_message_info_t,
         taken: *mut bool,
     ) -> Result<()> {
-        unsafe { *taken = false; }
-        let queue = self.inner.queue.as_ref()
-            .ok_or_else(|| zenoh::Error::from("Subscriber was built with callback, no queue available"))?;
+        unsafe {
+            *taken = false;
+        }
+        let queue = self.inner.queue.as_ref().ok_or_else(|| {
+            zenoh::Error::from("Subscriber was built with callback, no queue available")
+        })?;
         if let Some(sample) = queue.try_recv() {
             // Deserialize the sample payload into ros_message using ts
             let payload = sample.payload();
@@ -79,7 +88,9 @@ impl SubscriptionImpl {
                 unsafe {
                     // Extract timestamp from attachment
                     let source_timestamp = if let Some(attachment_bytes) = sample.attachment() {
-                        if let Ok(attachment) = ros_z::attachment::Attachment::try_from(attachment_bytes) {
+                        if let Ok(attachment) =
+                            ros_z::attachment::Attachment::try_from(attachment_bytes)
+                        {
                             attachment.source_timestamp
                         } else {
                             0
@@ -102,12 +113,15 @@ impl SubscriptionImpl {
                     // Set publisher GID to zeros for now
                     // TODO: Extract proper GID from Zenoh sample
                     (*message_info).publisher_gid.data = [0u8; 16];
-                    (*message_info).publisher_gid.implementation_identifier = crate::RMW_ZENOH_IDENTIFIER.as_ptr() as *const _;
+                    (*message_info).publisher_gid.implementation_identifier =
+                        crate::RMW_ZENOH_IDENTIFIER.as_ptr() as *const _;
                     (*message_info).from_intra_process = false;
                 }
             }
 
-            unsafe { *taken = true; }
+            unsafe {
+                *taken = true;
+            }
         }
         Ok(())
     }
@@ -118,9 +132,12 @@ impl SubscriptionImpl {
         message_info: *mut rmw_message_info_t,
         taken: *mut bool,
     ) -> Result<()> {
-        unsafe { *taken = false; }
-        let queue = self.inner.queue.as_ref()
-            .ok_or_else(|| zenoh::Error::from("Subscriber was built with callback, no queue available"))?;
+        unsafe {
+            *taken = false;
+        }
+        let queue = self.inner.queue.as_ref().ok_or_else(|| {
+            zenoh::Error::from("Subscriber was built with callback, no queue available")
+        })?;
         if let Some(sample) = queue.try_recv() {
             let payload = sample.payload();
             let bytes = payload.to_bytes();
@@ -160,12 +177,15 @@ impl SubscriptionImpl {
                     (*message_info).publication_sequence_number = 0;
                     (*message_info).reception_sequence_number = 0;
                     (*message_info).publisher_gid.data = [0u8; 16];
-                    (*message_info).publisher_gid.implementation_identifier = crate::RMW_ZENOH_IDENTIFIER.as_ptr() as *const _;
+                    (*message_info).publisher_gid.implementation_identifier =
+                        crate::RMW_ZENOH_IDENTIFIER.as_ptr() as *const _;
                     (*message_info).from_intra_process = false;
                 }
             }
 
-            unsafe { *taken = true; }
+            unsafe {
+                *taken = true;
+            }
         }
         Ok(())
     }
@@ -182,7 +202,11 @@ impl Waitable for SubscriptionImpl {
 }
 
 rmw_impl_has_data_ptr!(rmw_publisher_t, rmw_publisher_impl_t, PublisherImpl);
-rmw_impl_has_data_ptr!(rmw_subscription_t, rmw_subscription_impl_t, SubscriptionImpl);
+rmw_impl_has_data_ptr!(
+    rmw_subscription_t,
+    rmw_subscription_impl_t,
+    SubscriptionImpl
+);
 
 // RMW Publisher Functions
 #[unsafe(no_mangle)]
@@ -201,7 +225,10 @@ pub extern "C" fn rmw_publish_serialized_message(
     };
 
     let msg_slice = unsafe {
-        std::slice::from_raw_parts((*serialized_message).buffer, (*serialized_message).buffer_length)
+        std::slice::from_raw_parts(
+            (*serialized_message).buffer,
+            (*serialized_message).buffer_length,
+        )
     };
 
     match publisher_impl.publish_serialized_message(msg_slice) {
@@ -238,21 +265,23 @@ pub extern "C" fn rmw_publisher_count_matched_subscriptions(
 
     // Get all subscription entities for this topic
     let topic_name = publisher_impl.topic.to_str().unwrap_or("");
-    let entities = publisher_impl.graph.get_entities_by_topic(
-        ros_z::entity::EntityKind::Subscription,
-        topic_name
-    );
+    let entities = publisher_impl
+        .graph
+        .get_entities_by_topic(ros_z::entity::EntityKind::Subscription, topic_name);
 
     // Filter by QoS compatibility
     let pub_qos = &publisher_impl.qos;
-    let count = entities.iter().filter(|entity| {
-        if let Some(endpoint) = entity.get_endpoint() {
-            let sub_qos = crate::qos::ros_z_qos_to_rmw_qos(&endpoint.qos);
-            crate::qos::qos_profiles_are_compatible(pub_qos, &sub_qos)
-        } else {
-            false
-        }
-    }).count();
+    let count = entities
+        .iter()
+        .filter(|entity| {
+            if let Some(endpoint) = entity.get_endpoint() {
+                let sub_qos = crate::qos::ros_z_qos_to_rmw_qos(&endpoint.qos);
+                crate::qos::qos_profiles_are_compatible(pub_qos, &sub_qos)
+            } else {
+                false
+            }
+        })
+        .count();
 
     unsafe {
         *subscription_count = count;
@@ -290,14 +319,17 @@ pub extern "C" fn rmw_publisher_get_actual_qos(
         actual_qos.lifespan.sec = RMW_DURATION_INFINITE_SEC;
         actual_qos.lifespan.nsec = 0;
     }
-    if actual_qos.liveliness_lease_duration.sec == 0 && actual_qos.liveliness_lease_duration.nsec == 0 {
+    if actual_qos.liveliness_lease_duration.sec == 0
+        && actual_qos.liveliness_lease_duration.nsec == 0
+    {
         actual_qos.liveliness_lease_duration.sec = RMW_DURATION_INFINITE_SEC;
         actual_qos.liveliness_lease_duration.nsec = 0;
     }
 
     // Convert liveliness SYSTEM_DEFAULT (0) or UNKNOWN to AUTOMATIC (1)
     if actual_qos.liveliness == rmw_qos_liveliness_policy_e_RMW_QOS_POLICY_LIVELINESS_SYSTEM_DEFAULT
-        || actual_qos.liveliness == rmw_qos_liveliness_policy_e_RMW_QOS_POLICY_LIVELINESS_UNKNOWN {
+        || actual_qos.liveliness == rmw_qos_liveliness_policy_e_RMW_QOS_POLICY_LIVELINESS_UNKNOWN
+    {
         actual_qos.liveliness = rmw_qos_liveliness_policy_e_RMW_QOS_POLICY_LIVELINESS_AUTOMATIC;
     }
 
@@ -346,7 +378,8 @@ pub extern "C" fn rmw_take_with_info(
     message_info: *mut rmw_message_info_t,
     _allocation: *mut rmw_subscription_allocation_t,
 ) -> rmw_ret_t {
-    if subscription.is_null() || ros_message.is_null() || taken.is_null() || message_info.is_null() {
+    if subscription.is_null() || ros_message.is_null() || taken.is_null() || message_info.is_null()
+    {
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
@@ -370,7 +403,11 @@ pub extern "C" fn rmw_take_sequence(
     taken: *mut usize,
     _allocation: *mut rmw_subscription_allocation_t,
 ) -> rmw_ret_t {
-    if subscription.is_null() || message_sequence.is_null() || message_info_sequence.is_null() || taken.is_null() {
+    if subscription.is_null()
+        || message_sequence.is_null()
+        || message_info_sequence.is_null()
+        || taken.is_null()
+    {
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
@@ -392,7 +429,8 @@ pub extern "C" fn rmw_take_sequence(
         while *taken < count {
             let mut one_taken = false;
             let msg_ptr = *(*message_sequence).data.add(*taken);
-            let info_ptr = (*message_info_sequence).data.add(*taken) as *mut crate::ros::rmw_message_info_t;
+            let info_ptr =
+                (*message_info_sequence).data.add(*taken) as *mut crate::ros::rmw_message_info_t;
 
             match subscription_impl.take_with_info(msg_ptr, info_ptr, &mut one_taken) {
                 Ok(_) => {
@@ -442,7 +480,11 @@ pub extern "C" fn rmw_take_serialized_message_with_info(
     message_info: *mut rmw_message_info_t,
     _allocation: *mut rmw_subscription_allocation_t,
 ) -> rmw_ret_t {
-    if subscription.is_null() || serialized_message.is_null() || taken.is_null() || message_info.is_null() {
+    if subscription.is_null()
+        || serialized_message.is_null()
+        || taken.is_null()
+        || message_info.is_null()
+    {
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
@@ -498,21 +540,23 @@ pub extern "C" fn rmw_subscription_count_matched_publishers(
 
     // Get all publisher entities for this topic
     let topic_name = subscription_impl.topic.to_str().unwrap_or("");
-    let entities = subscription_impl.graph.get_entities_by_topic(
-        ros_z::entity::EntityKind::Publisher,
-        topic_name
-    );
+    let entities = subscription_impl
+        .graph
+        .get_entities_by_topic(ros_z::entity::EntityKind::Publisher, topic_name);
 
     // Filter by QoS compatibility
     let sub_qos = &subscription_impl.qos;
-    let count = entities.iter().filter(|entity| {
-        if let Some(endpoint) = entity.get_endpoint() {
-            let pub_qos = crate::qos::ros_z_qos_to_rmw_qos(&endpoint.qos);
-            crate::qos::qos_profiles_are_compatible(&pub_qos, sub_qos)
-        } else {
-            false
-        }
-    }).count();
+    let count = entities
+        .iter()
+        .filter(|entity| {
+            if let Some(endpoint) = entity.get_endpoint() {
+                let pub_qos = crate::qos::ros_z_qos_to_rmw_qos(&endpoint.qos);
+                crate::qos::qos_profiles_are_compatible(&pub_qos, sub_qos)
+            } else {
+                false
+            }
+        })
+        .count();
 
     unsafe {
         *publisher_count = count;
@@ -550,14 +594,17 @@ pub extern "C" fn rmw_subscription_get_actual_qos(
         actual_qos.lifespan.sec = RMW_DURATION_INFINITE_SEC;
         actual_qos.lifespan.nsec = 0;
     }
-    if actual_qos.liveliness_lease_duration.sec == 0 && actual_qos.liveliness_lease_duration.nsec == 0 {
+    if actual_qos.liveliness_lease_duration.sec == 0
+        && actual_qos.liveliness_lease_duration.nsec == 0
+    {
         actual_qos.liveliness_lease_duration.sec = RMW_DURATION_INFINITE_SEC;
         actual_qos.liveliness_lease_duration.nsec = 0;
     }
 
     // Convert liveliness SYSTEM_DEFAULT (0) or UNKNOWN to AUTOMATIC (1)
     if actual_qos.liveliness == rmw_qos_liveliness_policy_e_RMW_QOS_POLICY_LIVELINESS_SYSTEM_DEFAULT
-        || actual_qos.liveliness == rmw_qos_liveliness_policy_e_RMW_QOS_POLICY_LIVELINESS_UNKNOWN {
+        || actual_qos.liveliness == rmw_qos_liveliness_policy_e_RMW_QOS_POLICY_LIVELINESS_UNKNOWN
+    {
         actual_qos.liveliness = rmw_qos_liveliness_policy_e_RMW_QOS_POLICY_LIVELINESS_AUTOMATIC;
     }
 

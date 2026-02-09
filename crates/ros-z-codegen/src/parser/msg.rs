@@ -12,7 +12,8 @@ pub fn parse_msg_file(path: &Path, package: &str) -> Result<ParsedMessage> {
 
 /// Parse a .msg file from a string
 pub fn parse_msg_string(source: &str, package: &str, path: &Path) -> Result<ParsedMessage> {
-    let name = path.file_stem()
+    let name = path
+        .file_stem()
         .context("Invalid filename")?
         .to_str()
         .context("Non-UTF8 filename")?
@@ -43,7 +44,7 @@ pub fn parse_msg_string(source: &str, package: &str, path: &Path) -> Result<Pars
         if is_constant {
             match parse_constant(line, line_num) {
                 Ok(c) if !c.name.is_empty() => constants.push(c),
-                Ok(_) => {} // Skip constants with empty name
+                Ok(_) => {}  // Skip constants with empty name
                 Err(_) => {} // Skip invalid constants
             }
         } else {
@@ -149,9 +150,15 @@ geometry_msgs/Point[] waypoints
         let msg = parse_msg_string(msg_content, "test_msgs", &path).unwrap();
 
         assert_eq!(msg.fields.len(), 3);
-        assert_eq!(msg.fields[0].field_type.package, Some("std_msgs".to_string()));
+        assert_eq!(
+            msg.fields[0].field_type.package,
+            Some("std_msgs".to_string())
+        );
         assert_eq!(msg.fields[0].field_type.base_type, "Header");
-        assert_eq!(msg.fields[1].field_type.package, Some("geometry_msgs".to_string()));
+        assert_eq!(
+            msg.fields[1].field_type.package,
+            Some("geometry_msgs".to_string())
+        );
         assert_eq!(msg.fields[1].field_type.base_type, "Point");
         assert_eq!(msg.fields[2].field_type.array, ArrayType::Unbounded);
     }
@@ -165,7 +172,10 @@ geometry_msgs/Point[] waypoints
 
         assert_eq!(msg.fields.len(), 2);
         // Header should be expanded to std_msgs/Header
-        assert_eq!(msg.fields[0].field_type.package, Some("std_msgs".to_string()));
+        assert_eq!(
+            msg.fields[0].field_type.package,
+            Some("std_msgs".to_string())
+        );
         assert_eq!(msg.fields[0].field_type.base_type, "Header");
     }
 

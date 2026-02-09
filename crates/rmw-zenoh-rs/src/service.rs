@@ -2,10 +2,10 @@ use std::ffi::CString;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicI64, Ordering};
 
-use crate::traits::{Waitable, BorrowData, OwnData};
-use crate::ros::*;
 use crate::c_void;
 use crate::rmw_impl_has_data_ptr;
+use crate::ros::*;
+use crate::traits::{BorrowData, OwnData, Waitable};
 use zenoh::Result;
 
 /// Client implementation for RMW
@@ -66,9 +66,14 @@ impl ClientImpl {
         let _ = self.inner.rmw_send_request(&req, notify_callback)?;
 
         // Return the sequence number we tracked
-        unsafe { *sequence_id = sn; }
+        unsafe {
+            *sequence_id = sn;
+        }
 
-        tracing::debug!("[ClientImpl::send_request] Request sent successfully, returned sn: {}", sn);
+        tracing::debug!(
+            "[ClientImpl::send_request] Request sent successfully, returned sn: {}",
+            sn
+        );
         Ok(())
     }
 
@@ -78,10 +83,18 @@ impl ClientImpl {
         response: *mut c_void,
         taken: *mut bool,
     ) -> Result<()> {
-        unsafe { *taken = false; }
+        unsafe {
+            *taken = false;
+        }
 
-        tracing::debug!("[ClientImpl::take_response] Attempting to take response, rx has {} items",
-                       if self.inner.rx.is_empty() { 0 } else { self.inner.rx.len() });
+        tracing::debug!(
+            "[ClientImpl::take_response] Attempting to take response, rx has {} items",
+            if self.inner.rx.is_empty() {
+                0
+            } else {
+                self.inner.rx.len()
+            }
+        );
 
         // Try to receive a response
         if let Ok(sample) = self.inner.rx.try_recv() {
@@ -91,20 +104,36 @@ impl ClientImpl {
             let bytes = payload.to_bytes().to_vec();
 
             // Deserialize response using response MessageTypeSupport
-            unsafe { self.response_ts.response.deserialize_message(&bytes, response as *mut _); }
+            unsafe {
+                self.response_ts
+                    .response
+                    .deserialize_message(&bytes, response as *mut _);
+            }
 
             // Fill request_header
             if !request_header.is_null() {
                 // Extract sequence number and GID from attachment if available
-                let (sn, gid, source_timestamp) = if let Some(attachment_bytes) = sample.attachment() {
+                let (sn, gid, source_timestamp) = if let Some(attachment_bytes) =
+                    sample.attachment()
+                {
                     match ros_z::attachment::Attachment::try_from(attachment_bytes) {
                         Ok(attachment) => {
-                            tracing::debug!("[ClientImpl::take_response] Extracted attachment: sn={}, gid={:?}",
-                                          attachment.sequence_number, attachment.source_gid);
-                            (attachment.sequence_number, attachment.source_gid, attachment.source_timestamp)
+                            tracing::debug!(
+                                "[ClientImpl::take_response] Extracted attachment: sn={}, gid={:?}",
+                                attachment.sequence_number,
+                                attachment.source_gid
+                            );
+                            (
+                                attachment.sequence_number,
+                                attachment.source_gid,
+                                attachment.source_timestamp,
+                            )
                         }
                         Err(e) => {
-                            tracing::warn!("[ClientImpl::take_response] Failed to extract attachment: {}", e);
+                            tracing::warn!(
+                                "[ClientImpl::take_response] Failed to extract attachment: {}",
+                                e
+                            );
                             (0, [0u8; 16], 0)
                         }
                     }
@@ -120,13 +149,18 @@ impl ClientImpl {
 
                 unsafe {
                     (*request_header).request_id.sequence_number = sn;
-                    (*request_header).request_id.writer_guid.copy_from_slice(&gid);
+                    (*request_header)
+                        .request_id
+                        .writer_guid
+                        .copy_from_slice(&gid);
                     (*request_header).source_timestamp = source_timestamp;
                     (*request_header).received_timestamp = received_timestamp;
                 }
             }
 
-            unsafe { *taken = true; }
+            unsafe {
+                *taken = true;
+            }
             tracing::debug!("[ClientImpl::take_response] Response taken successfully");
         } else {
             tracing::debug!("[ClientImpl::take_response] No response available in rx channel");
@@ -157,11 +191,12 @@ impl ServiceImpl {
         request: *mut c_void,
         taken: *mut bool,
     ) -> Result<()> {
-        unsafe { *taken = false; }
+        unsafe {
+            *taken = false;
+        }
 
         // Try to receive a request from the raw receiver
         if let Some(query) = self.inner.queue.as_ref().and_then(|q| q.try_recv()) {
-
             // Get the payload bytes
             let bytes = if let Some(payload) = query.payload() {
                 payload.to_bytes().to_vec()
@@ -174,7 +209,11 @@ impl ServiceImpl {
                 match ros_z::attachment::Attachment::try_from(attachment_bytes) {
                     Ok(attachment) => {
                         let key: ros_z::service::QueryKey = attachment.into();
-                        tracing::debug!("[ServiceImpl::take_request] Got request with sn: {}, gid: {:?}", key.sn, key.gid);
+                        tracing::debug!(
+                            "[ServiceImpl::take_request] Got request with sn: {}, gid: {:?}",
+                            key.sn,
+                            key.gid
+                        );
                         key
                     }
                     Err(e) => {
@@ -210,12 +249,22 @@ impl ServiceImpl {
                 .map_or(0, |v| v.as_nanos() as i64);
 
             // Store the query for later response
-            tracing::debug!("[ServiceImpl::take_request] Storing query with key sn:{}, inserting into map", key.sn);
+            tracing::debug!(
+                "[ServiceImpl::take_request] Storing query with key sn:{}, inserting into map",
+                key.sn
+            );
             self.inner.map.insert(key.clone(), query);
-            tracing::debug!("[ServiceImpl::take_request] Map now has {} entries", self.inner.map.len());
+            tracing::debug!(
+                "[ServiceImpl::take_request] Map now has {} entries",
+                self.inner.map.len()
+            );
 
             // Deserialize into the provided request buffer using request MessageTypeSupport
-            unsafe { self.request_ts.request.deserialize_message(&bytes, request as *mut _); }
+            unsafe {
+                self.request_ts
+                    .request
+                    .deserialize_message(&bytes, request as *mut _);
+            }
 
             // Fill request_header with sequence info and timestamps
             if !request_header.is_null() {
@@ -232,7 +281,9 @@ impl ServiceImpl {
                 }
             }
 
-            unsafe { *taken = true; }
+            unsafe {
+                *taken = true;
+            }
         }
         Ok(())
     }
@@ -252,8 +303,15 @@ impl ServiceImpl {
             }
         };
 
-        tracing::debug!("[ServiceImpl::send_response] Sending response for key sn:{}, gid:{:?}", key.sn, key.gid);
-        tracing::debug!("[ServiceImpl::send_response] Map has {} entries before send_response", self.inner.map.len());
+        tracing::debug!(
+            "[ServiceImpl::send_response] Sending response for key sn:{}, gid:{:?}",
+            key.sn,
+            key.gid
+        );
+        tracing::debug!(
+            "[ServiceImpl::send_response] Map has {} entries before send_response",
+            self.inner.map.len()
+        );
 
         // Create RosMessage Response from the raw pointer using response MessageTypeSupport
         let resp = crate::msg::RosMessage::new(response, self.response_ts.response);
@@ -265,7 +323,10 @@ impl ServiceImpl {
                 Ok(())
             }
             Err(e) => {
-                tracing::error!("[ServiceImpl::send_response] Failed to send response: {}", e);
+                tracing::error!(
+                    "[ServiceImpl::send_response] Failed to send response: {}",
+                    e
+                );
                 Err(e)
             }
         }

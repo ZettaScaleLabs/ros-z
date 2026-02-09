@@ -8,8 +8,8 @@ use ratatui::{
     widgets::{Block, Borders, ListItem, Paragraph, Sparkline},
 };
 
-use crate::app::state::*;
 use crate::app::App;
+use crate::app::state::*;
 
 use super::common::*;
 
@@ -52,10 +52,7 @@ impl App {
 
                 let mut spans = vec![Span::styled("# ".to_string(), style)];
                 spans.push(Span::styled(display_topic, style));
-                spans.push(Span::styled(
-                    rate_str,
-                    Style::default().fg(Color::Cyan),
-                ));
+                spans.push(Span::styled(rate_str, Style::default().fg(Color::Cyan)));
 
                 ListItem::new(Line::from(spans))
             })
@@ -76,11 +73,7 @@ impl App {
                    r - Clear all measurements (in Measure tab)\n\
                    4 - Jump to this Measure tab",
             )
-            .block(
-                Block::default()
-                    .title(" Sparklines ")
-                    .borders(Borders::ALL),
-            );
+            .block(Block::default().title(" Sparklines ").borders(Borders::ALL));
             f.render_widget(info, area);
             return;
         }
@@ -94,12 +87,11 @@ impl App {
 
         let metrics = self.topic_metrics.lock();
         let Some(tm) = metrics.get(topic) else {
-            let info = Paragraph::new("Waiting for data...")
-                .block(
-                    Block::default()
-                        .title(format!(" {} ", topic))
-                        .borders(Borders::ALL),
-                );
+            let info = Paragraph::new("Waiting for data...").block(
+                Block::default()
+                    .title(format!(" {} ", topic))
+                    .borders(Borders::ALL),
+            );
             f.render_widget(info, area);
             return;
         };
@@ -160,12 +152,11 @@ impl App {
         color: Color,
     ) {
         if data.is_empty() {
-            let empty = Paragraph::new("Waiting for data...")
-                .block(
-                    Block::default()
-                        .title(format!(" {} ", title))
-                        .borders(Borders::ALL),
-                );
+            let empty = Paragraph::new("Waiting for data...").block(
+                Block::default()
+                    .title(format!(" {} ", title))
+                    .borders(Borders::ALL),
+            );
             f.render_widget(empty, area);
             return;
         }
@@ -174,8 +165,8 @@ impl App {
         let h_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Length(7),  // Y-axis labels
-                Constraint::Min(10),    // Sparkline area
+                Constraint::Length(7), // Y-axis labels
+                Constraint::Min(10),   // Sparkline area
             ])
             .split(area);
 
@@ -184,11 +175,7 @@ impl App {
         let scale_factor = if title.contains("KB/s") { 10.0 } else { 1.0 };
 
         // Y-axis labels
-        let y_axis_text = format!(
-            "{:>5.1}\n\n\n{:>5.1}",
-            max_val as f64 / scale_factor,
-            0.0
-        );
+        let y_axis_text = format!("{:>5.1}\n\n\n{:>5.1}", max_val as f64 / scale_factor, 0.0);
         let y_axis = Paragraph::new(y_axis_text)
             .style(Style::default().fg(Color::DarkGray))
             .alignment(Alignment::Right);
@@ -198,8 +185,8 @@ impl App {
         let sparkline_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Min(3),     // Sparkline
-                Constraint::Length(2),  // X-axis (tick marks + labels)
+                Constraint::Min(3),    // Sparkline
+                Constraint::Length(2), // X-axis (tick marks + labels)
             ])
             .split(h_chunks[1]);
 
@@ -253,8 +240,14 @@ impl App {
         );
 
         let x_axis = Paragraph::new(vec![
-            Line::from(Span::styled(axis_chars, Style::default().fg(Color::DarkGray))),
-            Line::from(Span::styled(label_line, Style::default().fg(Color::DarkGray))),
+            Line::from(Span::styled(
+                axis_chars,
+                Style::default().fg(Color::DarkGray),
+            )),
+            Line::from(Span::styled(
+                label_line,
+                Style::default().fg(Color::DarkGray),
+            )),
         ]);
         f.render_widget(x_axis, sparkline_chunks[1]);
     }

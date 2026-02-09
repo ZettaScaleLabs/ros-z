@@ -8,7 +8,7 @@ use pyo3::exceptions::PyBufferError;
 use pyo3::ffi;
 use pyo3::prelude::*;
 use std::borrow::Cow;
-use std::ffi::{c_int, c_void, CString};
+use std::ffi::{CString, c_int, c_void};
 use std::ptr;
 use zenoh::sample::Sample;
 

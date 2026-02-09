@@ -89,7 +89,9 @@ pub struct ZActionServerBuilder<'a, A: ZAction, B = crate::backend::DefaultBacke
 }
 
 impl<'a, A: ZAction, B> ZActionServerBuilder<'a, A, B> {
-    pub fn with_backend<B2: crate::backend::KeyExprBackend>(self) -> ZActionServerBuilder<'a, A, B2> {
+    pub fn with_backend<B2: crate::backend::KeyExprBackend>(
+        self,
+    ) -> ZActionServerBuilder<'a, A, B2> {
         ZActionServerBuilder {
             action_name: self.action_name,
             node: self.node,

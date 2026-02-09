@@ -6,19 +6,24 @@ use ratatui::{
 };
 use ros_z::entity::EntityKind;
 
-use crate::app::state::*;
 use crate::app::App;
+use crate::app::state::*;
 
 use super::common::*;
 
 impl App {
     /// Render service list items
-    pub fn render_service_list_items(&self, filter_text: &str, list_width: usize) -> Vec<ListItem<'static>> {
+    pub fn render_service_list_items(
+        &self,
+        filter_text: &str,
+        list_width: usize,
+    ) -> Vec<ListItem<'static>> {
         let all_services = &self.cached_services;
 
-        let filtered: Vec<_> = self.filter_items(all_services, filter_text, |(service, type_name)| {
-            vec![service.clone(), type_name.clone()]
-        });
+        let filtered: Vec<_> =
+            self.filter_items(all_services, filter_text, |(service, type_name)| {
+                vec![service.clone(), type_name.clone()]
+            });
 
         filtered
             .iter()
@@ -33,7 +38,11 @@ impl App {
 
                 // Build the line with highlighted service name
                 let mut spans = vec![Span::styled("@ ".to_string(), style)];
-                spans.extend(create_highlighted_spans(&display_service, filter_text, style));
+                spans.extend(create_highlighted_spans(
+                    &display_service,
+                    filter_text,
+                    style,
+                ));
 
                 ListItem::new(Line::from(spans))
             })

@@ -79,8 +79,8 @@
 //! - Use per-publisher config for fine-grained control
 
 use std::sync::Arc;
-use zenoh::shm::{PosixShmProviderBackend, ShmProvider, ZShmMut, BlockOn, GarbageCollect};
 use zenoh::Wait;
+use zenoh::shm::{BlockOn, GarbageCollect, PosixShmProviderBackend, ShmProvider, ZShmMut};
 use zenoh_buffers::ZBuf;
 
 /// Default shared memory pool size (10 MB).
@@ -221,7 +221,10 @@ impl ShmConfig {
 
         let provider = Arc::new(ShmProviderBuilder::new(pool_size).build()?);
 
-        Ok(Some(Self { provider, threshold }))
+        Ok(Some(Self {
+            provider,
+            threshold,
+        }))
     }
 }
 

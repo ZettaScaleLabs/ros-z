@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use super::error::DynamicError;
 use super::schema::MessageSchema;
-use super::value::{default_for_type, DynamicValue, FromDynamic, IntoDynamic};
+use super::value::{DynamicValue, FromDynamic, IntoDynamic, default_for_type};
 
 /// A ROS 2 message with runtime-determined type.
 ///

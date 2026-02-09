@@ -390,8 +390,8 @@ mod tests {
         let mut buffer = Vec::new();
         let mut writer = CdrWriter::<LittleEndian>::new(&mut buffer);
 
-        writer.write_u8(1);      // position 1
-        writer.write_u32(100);   // should align to 4, so padding at 1,2,3
+        writer.write_u8(1); // position 1
+        writer.write_u32(100); // should align to 4, so padding at 1,2,3
 
         // Buffer should be: [1, 0, 0, 0, 100, 0, 0, 0]
         assert_eq!(buffer.len(), 8);

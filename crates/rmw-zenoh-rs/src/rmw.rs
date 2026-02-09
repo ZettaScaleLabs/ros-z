@@ -10,17 +10,20 @@
 
 use crate::c_void;
 use crate::ros::{
-    rmw_event_callback_t, rmw_event_type_t, rmw_gid_t, rmw_topic_endpoint_info_array_t,
-    rmw_feature_t,
+    rmw_event_callback_t, rmw_event_type_t, rmw_feature_t, rmw_gid_t,
+    rmw_topic_endpoint_info_array_t,
 };
 
 use crate::type_support::MessageTypeSupport;
-use ros_z::{event::{RmEventHandle, ZenohEventType}, Builder};
+use ros_z::{
+    Builder,
+    event::{RmEventHandle, ZenohEventType},
+};
 
 use crate::{
     pubsub::{PublisherImpl, SubscriptionImpl},
-    service::{ClientImpl, ServiceImpl},
     ros::*,
+    service::{ClientImpl, ServiceImpl},
     traits::*,
 };
 
@@ -39,18 +42,18 @@ fn normalize_namespace(ns: &str) -> String {
 // Only supports events that rmw_zenoh_cpp supports - deadline and liveliness events are NOT supported
 fn rmw_event_type_to_zenoh_event(rmw_event: rmw_event_type_t) -> Option<ZenohEventType> {
     match rmw_event {
-        0 => None,  // RMW_EVENT_INVALID
-        1 => None,  // RMW_EVENT_LIVELINESS_CHANGED - not supported (matches rmw_zenoh_cpp)
-        2 => None,  // RMW_EVENT_REQUESTED_DEADLINE_MISSED - not supported (matches rmw_zenoh_cpp)
+        0 => None,                                               // RMW_EVENT_INVALID
+        1 => None, // RMW_EVENT_LIVELINESS_CHANGED - not supported (matches rmw_zenoh_cpp)
+        2 => None, // RMW_EVENT_REQUESTED_DEADLINE_MISSED - not supported (matches rmw_zenoh_cpp)
         3 => Some(ZenohEventType::RequestedQosIncompatible), // RMW_EVENT_REQUESTED_QOS_INCOMPATIBLE
-        4 => Some(ZenohEventType::MessageLost),              // RMW_EVENT_MESSAGE_LOST
+        4 => Some(ZenohEventType::MessageLost), // RMW_EVENT_MESSAGE_LOST
         5 => Some(ZenohEventType::SubscriptionIncompatibleType), // RMW_EVENT_SUBSCRIPTION_INCOMPATIBLE_TYPE
-        6 => Some(ZenohEventType::SubscriptionMatched),      // RMW_EVENT_SUBSCRIPTION_MATCHED
-        7 => None,  // RMW_EVENT_LIVELINESS_LOST - not supported (matches rmw_zenoh_cpp)
-        8 => None,  // RMW_EVENT_OFFERED_DEADLINE_MISSED - not supported (matches rmw_zenoh_cpp)
-        9 => Some(ZenohEventType::OfferedQosIncompatible),   // RMW_EVENT_OFFERED_QOS_INCOMPATIBLE
+        6 => Some(ZenohEventType::SubscriptionMatched),          // RMW_EVENT_SUBSCRIPTION_MATCHED
+        7 => None, // RMW_EVENT_LIVELINESS_LOST - not supported (matches rmw_zenoh_cpp)
+        8 => None, // RMW_EVENT_OFFERED_DEADLINE_MISSED - not supported (matches rmw_zenoh_cpp)
+        9 => Some(ZenohEventType::OfferedQosIncompatible), // RMW_EVENT_OFFERED_QOS_INCOMPATIBLE
         10 => Some(ZenohEventType::PublisherIncompatibleType), // RMW_EVENT_PUBLISHER_INCOMPATIBLE_TYPE
-        11 => Some(ZenohEventType::PublicationMatched),      // RMW_EVENT_PUBLICATION_MATCHED
+        11 => Some(ZenohEventType::PublicationMatched),        // RMW_EVENT_PUBLICATION_MATCHED
         _ => None,
     }
 }
@@ -89,7 +92,9 @@ pub extern "C" fn rmw_create_publisher(
         Err(e) => {
             tracing::trace!("rmw_create_publisher: Failed to borrow node data: {:?}", e);
             let msg = std::ffi::CString::new("Failed to get node implementation").unwrap();
-            unsafe { crate::ros::rcutils_set_error_state(msg.as_ptr(), cfile!(), line!() as usize) };
+            unsafe {
+                crate::ros::rcutils_set_error_state(msg.as_ptr(), cfile!(), line!() as usize)
+            };
             return std::ptr::null_mut();
         }
     };
@@ -100,9 +105,17 @@ pub extern "C" fn rmw_create_publisher(
     let ts = match unsafe { crate::type_support::MessageTypeSupport::new(type_support) } {
         Ok(ts) => ts,
         Err(e) => {
-            tracing::trace!("rmw_create_publisher: Failed to create type support: {:?}", e);
-            let msg = std::ffi::CString::new(format!("Failed to create type support: {}", e)).unwrap_or_else(|_| std::ffi::CString::new("Failed to create type support").unwrap());
-            unsafe { crate::ros::rcutils_set_error_state(msg.as_ptr(), cfile!(), line!() as usize) };
+            tracing::trace!(
+                "rmw_create_publisher: Failed to create type support: {:?}",
+                e
+            );
+            let msg = std::ffi::CString::new(format!("Failed to create type support: {}", e))
+                .unwrap_or_else(|_| {
+                    std::ffi::CString::new("Failed to create type support").unwrap()
+                });
+            unsafe {
+                crate::ros::rcutils_set_error_state(msg.as_ptr(), cfile!(), line!() as usize)
+            };
             return std::ptr::null_mut();
         }
     };
@@ -114,13 +127,16 @@ pub extern "C" fn rmw_create_publisher(
     let qos = crate::qos::rmw_qos_to_ros_z_qos(unsafe { &*qos_profile });
     let zpub_builder = zpub_builder
         .with_qos(qos)
-        .with_type_info(ts.get_type_info());  // Set type_info BEFORE build() so liveliness token has correct type
+        .with_type_info(ts.get_type_info()); // Set type_info BEFORE build() so liveliness token has correct type
     let zpub = match zpub_builder.build() {
         Ok(zpub) => zpub,
         Err(e) => {
             tracing::trace!("rmw_create_publisher: Failed to build ZPub: {:?}", e);
-            let msg = std::ffi::CString::new(format!("Failed to build publisher: {}", e)).unwrap_or_else(|_| std::ffi::CString::new("Failed to build publisher").unwrap());
-            unsafe { crate::ros::rcutils_set_error_state(msg.as_ptr(), cfile!(), line!() as usize) };
+            let msg = std::ffi::CString::new(format!("Failed to build publisher: {}", e))
+                .unwrap_or_else(|_| std::ffi::CString::new("Failed to build publisher").unwrap());
+            unsafe {
+                crate::ros::rcutils_set_error_state(msg.as_ptr(), cfile!(), line!() as usize)
+            };
             return std::ptr::null_mut();
         }
     };
@@ -156,9 +172,12 @@ pub extern "C" fn rmw_create_publisher(
             }
             // Wake up wait sets
             notifier_clone_for_matched.notify_all();
-        }
+        },
     ) {
-        tracing::trace!("rmw_create_publisher: Failed to register matched event callback: {:?}", e);
+        tracing::trace!(
+            "rmw_create_publisher: Failed to register matched event callback: {:?}",
+            e
+        );
     }
 
     // Register QoS incompatibility event callback
@@ -170,27 +189,38 @@ pub extern "C" fn rmw_create_publisher(
             let policy_kind = ((encoded_change >> 16) & 0xFFFF) as u32;
             let change = encoded_change & 0xFFFF;
             if let Ok(mut mgr) = events_mgr_clone.lock() {
-                mgr.update_event_status_with_policy(ros_z::event::ZenohEventType::OfferedQosIncompatible, change, policy_kind);
+                mgr.update_event_status_with_policy(
+                    ros_z::event::ZenohEventType::OfferedQosIncompatible,
+                    change,
+                    policy_kind,
+                );
             }
             // Wake up wait sets
             notifier_clone_for_incompatible.notify_all();
-        }
+        },
     ) {
-        tracing::trace!("rmw_create_publisher: Failed to register QoS incompatibility event callback: {:?}", e);
+        tracing::trace!(
+            "rmw_create_publisher: Failed to register QoS incompatibility event callback: {:?}",
+            e
+        );
     }
 
     // Check if there are already existing subscriptions for this topic and trigger the event
     let matching_sub_count = graph.count(ros_z::entity::EntityKind::Subscription, &entity.topic);
     if matching_sub_count > 0 {
         if let Ok(mut mgr) = zpub.events_mgr().lock() {
-            mgr.update_event_status(ros_z::event::ZenohEventType::PublicationMatched, matching_sub_count as i32);
+            mgr.update_event_status(
+                ros_z::event::ZenohEventType::PublicationMatched,
+                matching_sub_count as i32,
+            );
         }
         notifier_clone_for_init.notify_all();
     }
 
     // Check for QoS incompatibility with existing subscriptions (only once per unique subscription GID)
     let pub_qos = crate::qos::normalize_rmw_qos(unsafe { &*qos_profile });
-    let sub_entities = graph.get_entities_by_topic(ros_z::entity::EntityKind::Subscription, &entity.topic);
+    let sub_entities =
+        graph.get_entities_by_topic(ros_z::entity::EntityKind::Subscription, &entity.topic);
 
     // Track which subscription GIDs we've already checked to avoid double-counting
     let local_zid = graph.zid;
@@ -212,18 +242,28 @@ pub extern "C" fn rmw_create_publisher(
             }
 
             let sub_qos = crate::qos::ros_z_qos_to_rmw_qos(&endpoint.qos);
-            let (compatible, policy_kind) = crate::qos::check_qos_compatibility_with_policy(&pub_qos, &sub_qos);
+            let (compatible, policy_kind) =
+                crate::qos::check_qos_compatibility_with_policy(&pub_qos, &sub_qos);
             if !compatible {
                 incompatible_count += 1;
                 last_policy_kind = policy_kind;
                 // Also trigger the event on the subscription side (it's local, so it has an events_mgr)
-                graph.event_manager.trigger_event_with_policy(&endpoint.gid(), ros_z::event::ZenohEventType::RequestedQosIncompatible, 1, policy_kind);
+                graph.event_manager.trigger_event_with_policy(
+                    &endpoint.gid(),
+                    ros_z::event::ZenohEventType::RequestedQosIncompatible,
+                    1,
+                    policy_kind,
+                );
             }
         }
     }
     if incompatible_count > 0 {
         if let Ok(mut mgr) = zpub.events_mgr().lock() {
-            mgr.update_event_status_with_policy(ros_z::event::ZenohEventType::OfferedQosIncompatible, incompatible_count, last_policy_kind);
+            mgr.update_event_status_with_policy(
+                ros_z::event::ZenohEventType::OfferedQosIncompatible,
+                incompatible_count,
+                last_policy_kind,
+            );
         }
         notifier_clone_for_init.notify_all();
     }
@@ -231,9 +271,14 @@ pub extern "C" fn rmw_create_publisher(
     let topic_cstr = match std::ffi::CString::new(qualified_topic) {
         Ok(cstr) => cstr,
         Err(e) => {
-            tracing::trace!("rmw_create_publisher: Failed to create CString for topic: {:?}", e);
+            tracing::trace!(
+                "rmw_create_publisher: Failed to create CString for topic: {:?}",
+                e
+            );
             let msg = std::ffi::CString::new("Failed to create topic string").unwrap();
-            unsafe { crate::ros::rcutils_set_error_state(msg.as_ptr(), cfile!(), line!() as usize) };
+            unsafe {
+                crate::ros::rcutils_set_error_state(msg.as_ptr(), cfile!(), line!() as usize)
+            };
             return std::ptr::null_mut();
         }
     };
@@ -249,7 +294,10 @@ pub extern "C" fn rmw_create_publisher(
     };
 
     // Add local entity to graph for immediate discovery
-    if let Err(e) = publisher_impl.graph.add_local_entity(ros_z::entity::Entity::Endpoint(entity)) {
+    if let Err(e) = publisher_impl
+        .graph
+        .add_local_entity(ros_z::entity::Entity::Endpoint(entity))
+    {
         tracing::error!("Failed to add local entity to graph: {:?}", e);
     }
 
@@ -281,8 +329,12 @@ pub extern "C" fn rmw_destroy_publisher(
     // Remove local entity from graph
     if let Ok(publisher_impl) = publisher.borrow_data() {
         let entity = ros_z::entity::Entity::Endpoint(publisher_impl.entity.clone());
-        tracing::debug!("rmw_destroy_publisher: Removing publisher entity: topic={}, type={:?}, id={}",
-            publisher_impl.entity.topic, publisher_impl.entity.type_info.as_ref().map(|t| &t.name), publisher_impl.entity.id);
+        tracing::debug!(
+            "rmw_destroy_publisher: Removing publisher entity: topic={}, type={:?}, id={}",
+            publisher_impl.entity.topic,
+            publisher_impl.entity.type_info.as_ref().map(|t| &t.name),
+            publisher_impl.entity.id
+        );
         if let Err(e) = publisher_impl.graph.remove_local_entity(&entity) {
             tracing::error!("Failed to remove local entity from graph: {:?}", e);
         }
@@ -390,12 +442,12 @@ pub extern "C" fn rmw_create_subscription(
         tracing::debug!("Subscription ignoring local publications");
     }
 
-    let zsub_builder = zsub_builder
-        .with_type_info(ts.get_type_info());  // Set type_info BEFORE build() so liveliness token has correct type
+    let zsub_builder = zsub_builder.with_type_info(ts.get_type_info()); // Set type_info BEFORE build() so liveliness token has correct type
 
     // Create shared callback and user_data holders that will be populated after SubscriptionImpl is created
-    let callback_holder: std::sync::Arc<std::sync::Mutex<crate::ros::rmw_subscription_new_message_callback_t>> =
-        std::sync::Arc::new(std::sync::Mutex::new(None));
+    let callback_holder: std::sync::Arc<
+        std::sync::Mutex<crate::ros::rmw_subscription_new_message_callback_t>,
+    > = std::sync::Arc::new(std::sync::Mutex::new(None));
     let user_data_holder = std::sync::Arc::new(std::sync::Mutex::new(0usize)); // Store pointer as usize for thread safety
     let unread_count_holder = std::sync::Arc::new(std::sync::Mutex::new(0usize)); // Track unread messages
 
@@ -449,9 +501,12 @@ pub extern "C" fn rmw_create_subscription(
             }
             // Wake up wait sets
             notifier_clone_for_matched.notify_all();
-        }
+        },
     ) {
-        tracing::trace!("rmw_create_subscription: Failed to register matched event callback: {:?}", e);
+        tracing::trace!(
+            "rmw_create_subscription: Failed to register matched event callback: {:?}",
+            e
+        );
     }
 
     // Register QoS incompatibility event callback
@@ -463,27 +518,38 @@ pub extern "C" fn rmw_create_subscription(
             let policy_kind = ((encoded_change >> 16) & 0xFFFF) as u32;
             let change = encoded_change & 0xFFFF;
             if let Ok(mut mgr) = events_mgr_clone.lock() {
-                mgr.update_event_status_with_policy(ros_z::event::ZenohEventType::RequestedQosIncompatible, change, policy_kind);
+                mgr.update_event_status_with_policy(
+                    ros_z::event::ZenohEventType::RequestedQosIncompatible,
+                    change,
+                    policy_kind,
+                );
             }
             // Wake up wait sets
             notifier_clone_for_incompatible.notify_all();
-        }
+        },
     ) {
-        tracing::trace!("rmw_create_subscription: Failed to register QoS incompatibility event callback: {:?}", e);
+        tracing::trace!(
+            "rmw_create_subscription: Failed to register QoS incompatibility event callback: {:?}",
+            e
+        );
     }
 
     // Check if there are already existing publishers for this topic and trigger the event
     let matching_pub_count = graph.count(ros_z::entity::EntityKind::Publisher, &entity.topic);
     if matching_pub_count > 0 {
         if let Ok(mut mgr) = zsub.events_mgr().lock() {
-            mgr.update_event_status(ros_z::event::ZenohEventType::SubscriptionMatched, matching_pub_count as i32);
+            mgr.update_event_status(
+                ros_z::event::ZenohEventType::SubscriptionMatched,
+                matching_pub_count as i32,
+            );
         }
         notifier_clone_for_init.notify_all();
     }
 
     // Check for QoS incompatibility with existing publishers (only once per unique publisher GID)
     let sub_qos = crate::qos::normalize_rmw_qos(unsafe { &*qos_policies });
-    let pub_entities = graph.get_entities_by_topic(ros_z::entity::EntityKind::Publisher, &entity.topic);
+    let pub_entities =
+        graph.get_entities_by_topic(ros_z::entity::EntityKind::Publisher, &entity.topic);
 
     // Track which publisher GIDs we've already checked to avoid double-counting
     let local_zid = graph.zid;
@@ -505,18 +571,28 @@ pub extern "C" fn rmw_create_subscription(
             }
 
             let pub_qos = crate::qos::ros_z_qos_to_rmw_qos(&endpoint.qos);
-            let (compatible, policy_kind) = crate::qos::check_qos_compatibility_with_policy(&pub_qos, &sub_qos);
+            let (compatible, policy_kind) =
+                crate::qos::check_qos_compatibility_with_policy(&pub_qos, &sub_qos);
             if !compatible {
                 incompatible_count += 1;
                 last_policy_kind = policy_kind;
                 // Also trigger the event on the publisher side (it's local, so it has an events_mgr)
-                graph.event_manager.trigger_event_with_policy(&endpoint.gid(), ros_z::event::ZenohEventType::OfferedQosIncompatible, 1, policy_kind);
+                graph.event_manager.trigger_event_with_policy(
+                    &endpoint.gid(),
+                    ros_z::event::ZenohEventType::OfferedQosIncompatible,
+                    1,
+                    policy_kind,
+                );
             }
         }
     }
     if incompatible_count > 0 {
         if let Ok(mut mgr) = zsub.events_mgr().lock() {
-            mgr.update_event_status_with_policy(ros_z::event::ZenohEventType::RequestedQosIncompatible, incompatible_count, last_policy_kind);
+            mgr.update_event_status_with_policy(
+                ros_z::event::ZenohEventType::RequestedQosIncompatible,
+                incompatible_count,
+                last_policy_kind,
+            );
         }
         notifier_clone_for_init.notify_all();
     }
@@ -541,7 +617,10 @@ pub extern "C" fn rmw_create_subscription(
     };
 
     // Add local entity to graph for immediate discovery
-    if let Err(e) = subscription_impl.graph.add_local_entity(ros_z::entity::Entity::Endpoint(entity)) {
+    if let Err(e) = subscription_impl
+        .graph
+        .add_local_entity(ros_z::entity::Entity::Endpoint(entity))
+    {
         tracing::error!("Failed to add local entity to graph: {:?}", e);
     }
 
@@ -575,7 +654,10 @@ pub extern "C" fn rmw_destroy_subscription(
     if let Ok(subscription_impl) = subscription.borrow_data() {
         let entity = ros_z::entity::Entity::Endpoint(subscription_impl.entity.clone());
         if let Err(e) = subscription_impl.graph.remove_local_entity(&entity) {
-            tracing::trace!("rmw_destroy_subscription: Failed to remove local entity from graph: {:?}", e);
+            tracing::trace!(
+                "rmw_destroy_subscription: Failed to remove local entity from graph: {:?}",
+                e
+            );
         }
     }
 
@@ -643,7 +725,9 @@ pub extern "C" fn rmw_take_event(
 
     // Initialize taken to false
     if !taken.is_null() {
-        unsafe { *taken = false; }
+        unsafe {
+            *taken = false;
+        }
     }
 
     // Convert event_type to ZenohEventType to determine which structure to fill
@@ -678,7 +762,8 @@ pub extern "C" fn rmw_take_event(
                 (*status_ptr).total_count_change = status.total_count_change as usize;
             }
         }
-        ZenohEventType::SubscriptionIncompatibleType | ZenohEventType::PublisherIncompatibleType => {
+        ZenohEventType::SubscriptionIncompatibleType
+        | ZenohEventType::PublisherIncompatibleType => {
             let status_ptr = event_info as *mut rmw_incompatible_type_status_t;
             unsafe {
                 (*status_ptr).total_count = status.total_count;
@@ -728,7 +813,9 @@ pub extern "C" fn rmw_take_event(
 
     // Set taken to true to indicate the event was successfully retrieved
     if !taken.is_null() {
-        unsafe { *taken = true; }
+        unsafe {
+            *taken = true;
+        }
     }
 
     RMW_RET_OK as _
@@ -804,8 +891,9 @@ pub extern "C" fn rmw_create_client(
     let entity = zclient_builder.entity.clone();
 
     // Create shared callback and user_data holders
-    let callback_holder: std::sync::Arc<std::sync::Mutex<crate::ros::rmw_client_new_response_callback_t>> =
-        std::sync::Arc::new(std::sync::Mutex::new(None));
+    let callback_holder: std::sync::Arc<
+        std::sync::Mutex<crate::ros::rmw_client_new_response_callback_t>,
+    > = std::sync::Arc::new(std::sync::Mutex::new(None));
     let user_data_holder = std::sync::Arc::new(std::sync::Mutex::new(0usize));
 
     // Build the client (notification callback will be set per-request in send_request)
@@ -840,8 +928,14 @@ pub extern "C" fn rmw_create_client(
     };
 
     // Add local entity to graph for immediate discovery
-    if let Err(e) = client_impl.graph.add_local_entity(ros_z::entity::Entity::Endpoint(entity)) {
-        tracing::trace!("rmw_create_client: Failed to add local entity to graph: {:?}", e);
+    if let Err(e) = client_impl
+        .graph
+        .add_local_entity(ros_z::entity::Entity::Endpoint(entity))
+    {
+        tracing::trace!(
+            "rmw_create_client: Failed to add local entity to graph: {:?}",
+            e
+        );
     }
 
     // Get the service name pointer before moving client_impl
@@ -959,8 +1053,9 @@ pub extern "C" fn rmw_create_service(
     let entity = zserver_builder.entity.clone();
 
     // Create shared callback and user_data holders that will be populated after ServiceImpl is created
-    let callback_holder: std::sync::Arc<std::sync::Mutex<crate::ros::rmw_service_new_request_callback_t>> =
-        std::sync::Arc::new(std::sync::Mutex::new(None));
+    let callback_holder: std::sync::Arc<
+        std::sync::Mutex<crate::ros::rmw_service_new_request_callback_t>,
+    > = std::sync::Arc::new(std::sync::Mutex::new(None));
     let user_data_holder = std::sync::Arc::new(std::sync::Mutex::new(0usize)); // Store pointer as usize for thread safety
     let unread_count_holder = std::sync::Arc::new(std::sync::Mutex::new(0usize)); // Track unread requests
 
@@ -1016,8 +1111,14 @@ pub extern "C" fn rmw_create_service(
     };
 
     // Add local entity to graph for immediate discovery
-    if let Err(e) = service_impl.graph.add_local_entity(ros_z::entity::Entity::Endpoint(entity)) {
-        tracing::trace!("rmw_create_service: Failed to add local entity to graph: {:?}", e);
+    if let Err(e) = service_impl
+        .graph
+        .add_local_entity(ros_z::entity::Entity::Endpoint(entity))
+    {
+        tracing::trace!(
+            "rmw_create_service: Failed to add local entity to graph: {:?}",
+            e
+        );
     }
 
     let service = Box::new(rmw_service_t {
@@ -1139,11 +1240,7 @@ pub extern "C" fn rmw_get_topic_names_and_types(
 
     // Initialize names_and_types
     unsafe {
-        let ret = rmw_names_and_types_init(
-            topic_names_and_types,
-            topic_count,
-            allocator as *mut _,
-        );
+        let ret = rmw_names_and_types_init(topic_names_and_types, topic_count, allocator as *mut _);
         if ret != RMW_RET_OK as i32 {
             return RMW_RET_BAD_ALLOC as _;
         }
@@ -1159,10 +1256,18 @@ pub extern "C" fn rmw_get_topic_names_and_types(
                 }
             };
 
-            (*topic_names_and_types).names.data.add(index).write(
-                rcutils_strdup(topic_cstr.as_ptr(), *allocator),
-            );
-            if (*topic_names_and_types).names.data.add(index).read().is_null() {
+            (*topic_names_and_types)
+                .names
+                .data
+                .add(index)
+                .write(rcutils_strdup(topic_cstr.as_ptr(), *allocator));
+            if (*topic_names_and_types)
+                .names
+                .data
+                .add(index)
+                .read()
+                .is_null()
+            {
                 rmw_names_and_types_fini(topic_names_and_types);
                 return RMW_RET_BAD_ALLOC as _;
             }
@@ -1202,7 +1307,6 @@ pub extern "C" fn rmw_get_topic_names_and_types(
                     return RMW_RET_BAD_ALLOC as _;
                 }
             }
-
         }
     }
 
@@ -1238,11 +1342,8 @@ pub extern "C" fn rmw_get_service_names_and_types(
 
     // Initialize names_and_types
     unsafe {
-        let ret = rmw_names_and_types_init(
-            service_names_and_types,
-            service_count,
-            allocator as *mut _,
-        );
+        let ret =
+            rmw_names_and_types_init(service_names_and_types, service_count, allocator as *mut _);
         if ret != RMW_RET_OK as i32 {
             return RMW_RET_BAD_ALLOC as _;
         }
@@ -1258,10 +1359,18 @@ pub extern "C" fn rmw_get_service_names_and_types(
                 }
             };
 
-            (*service_names_and_types).names.data.add(index).write(
-                rcutils_strdup(service_cstr.as_ptr(), *allocator),
-            );
-            if (*service_names_and_types).names.data.add(index).read().is_null() {
+            (*service_names_and_types)
+                .names
+                .data
+                .add(index)
+                .write(rcutils_strdup(service_cstr.as_ptr(), *allocator));
+            if (*service_names_and_types)
+                .names
+                .data
+                .add(index)
+                .read()
+                .is_null()
+            {
                 rmw_names_and_types_fini(service_names_and_types);
                 return RMW_RET_BAD_ALLOC as _;
             }
@@ -1301,7 +1410,6 @@ pub extern "C" fn rmw_get_service_names_and_types(
                     return RMW_RET_BAD_ALLOC as _;
                 }
             }
-
         }
     }
 
@@ -1330,7 +1438,8 @@ pub extern "C" fn rmw_count_publishers(
 
     // Query graph for publisher count on this topic
     let publisher_count = node_impl
-        .inner.graph
+        .inner
+        .graph
         .count(ros_z::entity::EntityKind::Publisher, topic_str);
 
     unsafe {
@@ -1361,7 +1470,8 @@ pub extern "C" fn rmw_count_subscribers(
 
     // Query graph for subscriber count on this topic
     let subscriber_count = node_impl
-        .inner.graph
+        .inner
+        .graph
         .count(ros_z::entity::EntityKind::Subscription, topic_str);
 
     unsafe {
@@ -1407,7 +1517,8 @@ pub extern "C" fn rmw_count_clients(
 
     // Query graph for client count on this service
     let client_count = node_impl
-        .inner.graph
+        .inner
+        .graph
         .count_by_service(ros_z::entity::EntityKind::Client, service_str);
 
     unsafe {
@@ -1438,7 +1549,8 @@ pub extern "C" fn rmw_count_services(
 
     // Query graph for service count on this service
     let service_count = node_impl
-        .inner.graph
+        .inner
+        .graph
         .count_by_service(ros_z::entity::EntityKind::Service, service_str);
 
     unsafe {
@@ -1470,10 +1582,10 @@ pub extern "C" fn rmw_get_publishers_info_by_topic(
     };
 
     // Get publishers for this topic
-    let publishers = node_impl.inner.graph.get_entities_by_topic(
-        ros_z::entity::EntityKind::Publisher,
-        topic_str,
-    );
+    let publishers = node_impl
+        .inner
+        .graph
+        .get_entities_by_topic(ros_z::entity::EntityKind::Publisher, topic_str);
 
     let count = publishers.len();
 
@@ -1569,7 +1681,12 @@ pub extern "C" fn rmw_get_subscriber_names_and_types_by_node(
     _no_demangle: bool,
     topic_names_and_types: *mut rmw_names_and_types_t,
 ) -> rmw_ret_t {
-    if node.is_null() || allocator.is_null() || node_name.is_null() || node_namespace.is_null() || topic_names_and_types.is_null() {
+    if node.is_null()
+        || allocator.is_null()
+        || node_name.is_null()
+        || node_namespace.is_null()
+        || topic_names_and_types.is_null()
+    {
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
@@ -1588,7 +1705,10 @@ pub extern "C" fn rmw_get_subscriber_names_and_types_by_node(
         Err(_) => return RMW_RET_INVALID_ARGUMENT as _,
     };
 
-    let node_key = (normalize_namespace(target_node_ns), target_node_name.to_string());
+    let node_key = (
+        normalize_namespace(target_node_ns),
+        target_node_name.to_string(),
+    );
 
     // Check if the node exists in the graph
     if !node_impl.inner.graph.node_exists(node_key.clone()) {
@@ -1596,10 +1716,10 @@ pub extern "C" fn rmw_get_subscriber_names_and_types_by_node(
     }
 
     // Get entities for this node
-    let entities_and_types = node_impl.inner.graph.get_names_and_types_by_node(
-        node_key,
-        ros_z::entity::EntityKind::Subscription,
-    );
+    let entities_and_types = node_impl
+        .inner
+        .graph
+        .get_names_and_types_by_node(node_key, ros_z::entity::EntityKind::Subscription);
 
     // Group by entity name
     let mut entity_map: std::collections::HashMap<String, Vec<String>> =
@@ -1612,11 +1732,8 @@ pub extern "C" fn rmw_get_subscriber_names_and_types_by_node(
 
     // Initialize names_and_types
     unsafe {
-        let ret = rmw_names_and_types_init(
-            topic_names_and_types,
-            entity_count,
-            allocator as *mut _,
-        );
+        let ret =
+            rmw_names_and_types_init(topic_names_and_types, entity_count, allocator as *mut _);
         if ret != RMW_RET_OK as i32 {
             return RMW_RET_BAD_ALLOC as _;
         }
@@ -1631,10 +1748,18 @@ pub extern "C" fn rmw_get_subscriber_names_and_types_by_node(
                 }
             };
 
-            (*topic_names_and_types).names.data.add(index).write(
-                rcutils_strdup(entity_cstr.as_ptr(), *allocator),
-            );
-            if (*topic_names_and_types).names.data.add(index).read().is_null() {
+            (*topic_names_and_types)
+                .names
+                .data
+                .add(index)
+                .write(rcutils_strdup(entity_cstr.as_ptr(), *allocator));
+            if (*topic_names_and_types)
+                .names
+                .data
+                .add(index)
+                .read()
+                .is_null()
+            {
                 rmw_names_and_types_fini(topic_names_and_types);
                 return RMW_RET_BAD_ALLOC as _;
             }
@@ -1674,7 +1799,6 @@ pub extern "C" fn rmw_get_subscriber_names_and_types_by_node(
                     return RMW_RET_BAD_ALLOC as _;
                 }
             }
-
         }
     }
 
@@ -1705,11 +1829,7 @@ pub extern "C" fn rmw_serialize(
             // Need to reallocate
             if !msg.buffer.is_null() {
                 // Drop the old buffer
-                let _ = Vec::from_raw_parts(
-                    msg.buffer,
-                    msg.buffer_length,
-                    msg.buffer_capacity,
-                );
+                let _ = Vec::from_raw_parts(msg.buffer, msg.buffer_length, msg.buffer_capacity);
             }
             // Allocate new buffer
             let mut new_buffer = vec![0u8; serialized.len()];
@@ -1851,7 +1971,8 @@ pub extern "C" fn rmw_publisher_event_init(
 
     // Fill the rmw_event_t structure
     unsafe {
-        (*rmw_event).implementation_identifier = crate::RMW_ZENOH_IDENTIFIER.as_ptr() as *const std::os::raw::c_char;
+        (*rmw_event).implementation_identifier =
+            crate::RMW_ZENOH_IDENTIFIER.as_ptr() as *const std::os::raw::c_char;
         (*rmw_event).data = Box::into_raw(event_handle) as *mut std::os::raw::c_void;
         (*rmw_event).event_type = event_type;
     }
@@ -1900,7 +2021,8 @@ pub extern "C" fn rmw_subscription_event_init(
 
     // Fill the rmw_event_t structure
     unsafe {
-        (*rmw_event).implementation_identifier = crate::RMW_ZENOH_IDENTIFIER.as_ptr() as *const std::os::raw::c_char;
+        (*rmw_event).implementation_identifier =
+            crate::RMW_ZENOH_IDENTIFIER.as_ptr() as *const std::os::raw::c_char;
         (*rmw_event).data = Box::into_raw(event_handle) as *mut std::os::raw::c_void;
         (*rmw_event).event_type = event_type;
     }
@@ -1979,7 +2101,7 @@ pub extern "C" fn rmw_subscription_set_on_new_message_callback(
 
     // Set user_data first
     if let Ok(mut ud) = subscription_impl.callback_user_data.lock() {
-        *ud = user_data as usize;  // Store pointer as usize for thread safety
+        *ud = user_data as usize; // Store pointer as usize for thread safety
     }
 
     // Then set callback and check for unread messages
@@ -2113,7 +2235,9 @@ pub extern "C" fn rmw_get_gid_for_publisher(
     if gid.is_null() {
         return RMW_RET_INVALID_ARGUMENT as _;
     }
-    if unsafe { (*publisher).implementation_identifier } != crate::RMW_ZENOH_IDENTIFIER.as_ptr() as *const _ {
+    if unsafe { (*publisher).implementation_identifier }
+        != crate::RMW_ZENOH_IDENTIFIER.as_ptr() as *const _
+    {
         return RMW_RET_INCORRECT_RMW_IMPLEMENTATION as _;
     }
 
@@ -2142,7 +2266,9 @@ pub extern "C" fn rmw_get_gid_for_client(
     if gid.is_null() {
         return RMW_RET_INVALID_ARGUMENT as _;
     }
-    if unsafe { (*client).implementation_identifier } != crate::RMW_ZENOH_IDENTIFIER.as_ptr() as *const _ {
+    if unsafe { (*client).implementation_identifier }
+        != crate::RMW_ZENOH_IDENTIFIER.as_ptr() as *const _
+    {
         return RMW_RET_INCORRECT_RMW_IMPLEMENTATION as _;
     }
 
@@ -2252,7 +2378,10 @@ pub extern "C" fn rmw_service_server_is_available(
     };
 
     // Count servers for this service (namespace is included in service_name)
-    let server_count = node_impl.inner.graph.count(ros_z::entity::EntityKind::Service, service_name);
+    let server_count = node_impl
+        .inner
+        .graph
+        .count(ros_z::entity::EntityKind::Service, service_name);
 
     unsafe {
         *is_available = server_count > 0;
@@ -2292,8 +2421,6 @@ pub extern "C" fn rmw_fini_subscription_allocation(
 ) -> rmw_ret_t {
     RMW_RET_UNSUPPORTED as _
 }
-
-
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rmw_take_dynamic_message(
@@ -2371,7 +2498,12 @@ pub extern "C" fn rmw_get_client_names_and_types_by_node(
     node_namespace: *const std::os::raw::c_char,
     service_names_and_types: *mut rmw_names_and_types_t,
 ) -> rmw_ret_t {
-    if node.is_null() || allocator.is_null() || node_name.is_null() || node_namespace.is_null() || service_names_and_types.is_null() {
+    if node.is_null()
+        || allocator.is_null()
+        || node_name.is_null()
+        || node_namespace.is_null()
+        || service_names_and_types.is_null()
+    {
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
@@ -2389,17 +2521,20 @@ pub extern "C" fn rmw_get_client_names_and_types_by_node(
         Err(_) => return RMW_RET_INVALID_ARGUMENT as _,
     };
 
-    let node_key = (normalize_namespace(target_node_ns), target_node_name.to_string());
+    let node_key = (
+        normalize_namespace(target_node_ns),
+        target_node_name.to_string(),
+    );
 
     // Check if the node exists in the graph
     if !node_impl.inner.graph.node_exists(node_key.clone()) {
         return RMW_RET_NODE_NAME_NON_EXISTENT as _;
     }
 
-    let entities_and_types = node_impl.inner.graph.get_names_and_types_by_node(
-        node_key,
-        ros_z::entity::EntityKind::Client,
-    );
+    let entities_and_types = node_impl
+        .inner
+        .graph
+        .get_names_and_types_by_node(node_key, ros_z::entity::EntityKind::Client);
 
     let mut entity_map: std::collections::HashMap<String, Vec<String>> =
         std::collections::HashMap::new();
@@ -2410,11 +2545,8 @@ pub extern "C" fn rmw_get_client_names_and_types_by_node(
     let entity_count = entity_map.len();
 
     unsafe {
-        let ret = rmw_names_and_types_init(
-            service_names_and_types,
-            entity_count,
-            allocator as *mut _,
-        );
+        let ret =
+            rmw_names_and_types_init(service_names_and_types, entity_count, allocator as *mut _);
         if ret != RMW_RET_OK as i32 {
             return RMW_RET_BAD_ALLOC as _;
         }
@@ -2428,10 +2560,18 @@ pub extern "C" fn rmw_get_client_names_and_types_by_node(
                 }
             };
 
-            (*service_names_and_types).names.data.add(index).write(
-                rcutils_strdup(entity_cstr.as_ptr(), *allocator),
-            );
-            if (*service_names_and_types).names.data.add(index).read().is_null() {
+            (*service_names_and_types)
+                .names
+                .data
+                .add(index)
+                .write(rcutils_strdup(entity_cstr.as_ptr(), *allocator));
+            if (*service_names_and_types)
+                .names
+                .data
+                .add(index)
+                .read()
+                .is_null()
+            {
                 rmw_names_and_types_fini(service_names_and_types);
                 return RMW_RET_BAD_ALLOC as _;
             }
@@ -2469,7 +2609,6 @@ pub extern "C" fn rmw_get_client_names_and_types_by_node(
                     return RMW_RET_BAD_ALLOC as _;
                 }
             }
-
         }
     }
 
@@ -2485,7 +2624,12 @@ pub extern "C" fn rmw_get_publisher_names_and_types_by_node(
     _no_demangle: bool,
     topic_names_and_types: *mut rmw_names_and_types_t,
 ) -> rmw_ret_t {
-    if node.is_null() || allocator.is_null() || node_name.is_null() || node_namespace.is_null() || topic_names_and_types.is_null() {
+    if node.is_null()
+        || allocator.is_null()
+        || node_name.is_null()
+        || node_namespace.is_null()
+        || topic_names_and_types.is_null()
+    {
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
@@ -2503,17 +2647,20 @@ pub extern "C" fn rmw_get_publisher_names_and_types_by_node(
         Err(_) => return RMW_RET_INVALID_ARGUMENT as _,
     };
 
-    let node_key = (normalize_namespace(target_node_ns), target_node_name.to_string());
+    let node_key = (
+        normalize_namespace(target_node_ns),
+        target_node_name.to_string(),
+    );
 
     // Check if the node exists in the graph
     if !node_impl.inner.graph.node_exists(node_key.clone()) {
         return RMW_RET_NODE_NAME_NON_EXISTENT as _;
     }
 
-    let entities_and_types = node_impl.inner.graph.get_names_and_types_by_node(
-        node_key,
-        ros_z::entity::EntityKind::Publisher,
-    );
+    let entities_and_types = node_impl
+        .inner
+        .graph
+        .get_names_and_types_by_node(node_key, ros_z::entity::EntityKind::Publisher);
 
     let mut entity_map: std::collections::HashMap<String, Vec<String>> =
         std::collections::HashMap::new();
@@ -2522,15 +2669,17 @@ pub extern "C" fn rmw_get_publisher_names_and_types_by_node(
     }
 
     let entity_count = entity_map.len();
-    tracing::debug!("rmw_get_publisher_names_and_types_by_node: target_node=({:?}, {:?}), entity_count={}, topics={:?}",
-        target_node_ns, target_node_name, entity_count, entity_map.keys().collect::<Vec<_>>());
+    tracing::debug!(
+        "rmw_get_publisher_names_and_types_by_node: target_node=({:?}, {:?}), entity_count={}, topics={:?}",
+        target_node_ns,
+        target_node_name,
+        entity_count,
+        entity_map.keys().collect::<Vec<_>>()
+    );
 
     unsafe {
-        let ret = rmw_names_and_types_init(
-            topic_names_and_types,
-            entity_count,
-            allocator as *mut _,
-        );
+        let ret =
+            rmw_names_and_types_init(topic_names_and_types, entity_count, allocator as *mut _);
         if ret != RMW_RET_OK as i32 {
             return RMW_RET_BAD_ALLOC as _;
         }
@@ -2544,10 +2693,18 @@ pub extern "C" fn rmw_get_publisher_names_and_types_by_node(
                 }
             };
 
-            (*topic_names_and_types).names.data.add(index).write(
-                rcutils_strdup(entity_cstr.as_ptr(), *allocator),
-            );
-            if (*topic_names_and_types).names.data.add(index).read().is_null() {
+            (*topic_names_and_types)
+                .names
+                .data
+                .add(index)
+                .write(rcutils_strdup(entity_cstr.as_ptr(), *allocator));
+            if (*topic_names_and_types)
+                .names
+                .data
+                .add(index)
+                .read()
+                .is_null()
+            {
                 rmw_names_and_types_fini(topic_names_and_types);
                 return RMW_RET_BAD_ALLOC as _;
             }
@@ -2585,7 +2742,6 @@ pub extern "C" fn rmw_get_publisher_names_and_types_by_node(
                     return RMW_RET_BAD_ALLOC as _;
                 }
             }
-
         }
     }
 
@@ -2613,7 +2769,12 @@ pub extern "C" fn rmw_get_service_names_and_types_by_node(
     node_namespace: *const std::os::raw::c_char,
     service_names_and_types: *mut rmw_names_and_types_t,
 ) -> rmw_ret_t {
-    if node.is_null() || allocator.is_null() || node_name.is_null() || node_namespace.is_null() || service_names_and_types.is_null() {
+    if node.is_null()
+        || allocator.is_null()
+        || node_name.is_null()
+        || node_namespace.is_null()
+        || service_names_and_types.is_null()
+    {
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
@@ -2631,17 +2792,20 @@ pub extern "C" fn rmw_get_service_names_and_types_by_node(
         Err(_) => return RMW_RET_INVALID_ARGUMENT as _,
     };
 
-    let node_key = (normalize_namespace(target_node_ns), target_node_name.to_string());
+    let node_key = (
+        normalize_namespace(target_node_ns),
+        target_node_name.to_string(),
+    );
 
     // Check if the node exists in the graph
     if !node_impl.inner.graph.node_exists(node_key.clone()) {
         return RMW_RET_NODE_NAME_NON_EXISTENT as _;
     }
 
-    let entities_and_types = node_impl.inner.graph.get_names_and_types_by_node(
-        node_key,
-        ros_z::entity::EntityKind::Service,
-    );
+    let entities_and_types = node_impl
+        .inner
+        .graph
+        .get_names_and_types_by_node(node_key, ros_z::entity::EntityKind::Service);
 
     let mut entity_map: std::collections::HashMap<String, Vec<String>> =
         std::collections::HashMap::new();
@@ -2652,11 +2816,8 @@ pub extern "C" fn rmw_get_service_names_and_types_by_node(
     let entity_count = entity_map.len();
 
     unsafe {
-        let ret = rmw_names_and_types_init(
-            service_names_and_types,
-            entity_count,
-            allocator as *mut _,
-        );
+        let ret =
+            rmw_names_and_types_init(service_names_and_types, entity_count, allocator as *mut _);
         if ret != RMW_RET_OK as i32 {
             return RMW_RET_BAD_ALLOC as _;
         }
@@ -2670,10 +2831,18 @@ pub extern "C" fn rmw_get_service_names_and_types_by_node(
                 }
             };
 
-            (*service_names_and_types).names.data.add(index).write(
-                rcutils_strdup(entity_cstr.as_ptr(), *allocator),
-            );
-            if (*service_names_and_types).names.data.add(index).read().is_null() {
+            (*service_names_and_types)
+                .names
+                .data
+                .add(index)
+                .write(rcutils_strdup(entity_cstr.as_ptr(), *allocator));
+            if (*service_names_and_types)
+                .names
+                .data
+                .add(index)
+                .read()
+                .is_null()
+            {
                 rmw_names_and_types_fini(service_names_and_types);
                 return RMW_RET_BAD_ALLOC as _;
             }
@@ -2711,7 +2880,6 @@ pub extern "C" fn rmw_get_service_names_and_types_by_node(
                     return RMW_RET_BAD_ALLOC as _;
                 }
             }
-
         }
     }
 
@@ -2726,7 +2894,8 @@ pub extern "C" fn rmw_get_subscriptions_info_by_topic(
     _no_mangle: bool,
     subscriptions_info: *mut rmw_topic_endpoint_info_array_t,
 ) -> rmw_ret_t {
-    if node.is_null() || allocator.is_null() || topic_name.is_null() || subscriptions_info.is_null() {
+    if node.is_null() || allocator.is_null() || topic_name.is_null() || subscriptions_info.is_null()
+    {
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
@@ -2741,10 +2910,10 @@ pub extern "C" fn rmw_get_subscriptions_info_by_topic(
     };
 
     // Get subscriptions for this topic
-    let subscriptions = node_impl.inner.graph.get_entities_by_topic(
-        ros_z::entity::EntityKind::Subscription,
-        topic_str,
-    );
+    let subscriptions = node_impl
+        .inner
+        .graph
+        .get_entities_by_topic(ros_z::entity::EntityKind::Subscription, topic_str);
 
     let count = subscriptions.len();
 

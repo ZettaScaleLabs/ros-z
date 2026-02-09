@@ -11,10 +11,10 @@ use std::sync::atomic::AtomicBool;
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
 
-use ros_z::{Builder, Result, define_action};
-use ros_z::action::*;
 use ros_z::action::state::*;
+use ros_z::action::*;
 use ros_z::context::ZContextBuilder;
+use ros_z::{Builder, Result, define_action};
 use serde::{Deserialize, Serialize};
 
 // Simple test action type
@@ -62,7 +62,9 @@ async fn test_terminated_goal_expiration() -> Result<()> {
         manager.goals.insert(
             goal_id,
             ServerGoalState::Terminated {
-                result: TestResult { sequence: vec![0, 1, 1, 2, 3, 5] },
+                result: TestResult {
+                    sequence: vec![0, 1, 1, 2, 3, 5],
+                },
                 status: GoalStatus::Succeeded,
                 timestamp: now,
                 expires_at: Some(now + Duration::from_secs(1)),
@@ -249,7 +251,9 @@ async fn test_multiple_goals_expiration() -> Result<()> {
         manager.goals.insert(
             goal_id1,
             ServerGoalState::Terminated {
-                result: TestResult { sequence: vec![0, 1] },
+                result: TestResult {
+                    sequence: vec![0, 1],
+                },
                 status: GoalStatus::Succeeded,
                 timestamp: now,
                 expires_at: Some(expires),

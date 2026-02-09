@@ -22,7 +22,9 @@ impl std::fmt::Display for TopicNameError {
         match self {
             Self::Empty => write!(f, "Topic name is empty"),
             Self::EndsWithSlash => write!(f, "Topic name ends with forward slash"),
-            Self::InvalidCharacters(s) => write!(f, "Topic name contains invalid characters: {}", s),
+            Self::InvalidCharacters(s) => {
+                write!(f, "Topic name contains invalid characters: {}", s)
+            }
             Self::InvalidNamespace(s) => write!(f, "Invalid namespace: {}", s),
             Self::InvalidNodeName(s) => write!(f, "Invalid node name: {}", s),
         }
@@ -41,7 +43,9 @@ fn is_valid_topic_component(component: &str) -> bool {
     if !bytes[0].is_ascii_alphabetic() && bytes[0] != b'_' {
         return false;
     }
-    bytes[1..].iter().all(|&b| b.is_ascii_alphanumeric() || b == b'_')
+    bytes[1..]
+        .iter()
+        .all(|&b| b.is_ascii_alphanumeric() || b == b'_')
 }
 
 /// Validate a namespace string
@@ -53,7 +57,7 @@ fn validate_namespace(namespace: &str) -> Result<(), TopicNameError> {
 
     if namespace.ends_with('/') {
         return Err(TopicNameError::InvalidNamespace(
-            "namespace cannot end with '/'".to_string()
+            "namespace cannot end with '/'".to_string(),
         ));
     }
 
@@ -62,9 +66,10 @@ fn validate_namespace(namespace: &str) -> Result<(), TopicNameError> {
             continue; // Leading slash creates empty first component
         }
         if !is_valid_topic_component(part) {
-            return Err(TopicNameError::InvalidNamespace(
-                format!("invalid component '{}'", part)
-            ));
+            return Err(TopicNameError::InvalidNamespace(format!(
+                "invalid component '{}'",
+                part
+            )));
         }
     }
     Ok(())
@@ -73,12 +78,15 @@ fn validate_namespace(namespace: &str) -> Result<(), TopicNameError> {
 /// Validate a node name
 fn validate_node_name(node_name: &str) -> Result<(), TopicNameError> {
     if node_name.is_empty() {
-        return Err(TopicNameError::InvalidNodeName("node name is empty".to_string()));
+        return Err(TopicNameError::InvalidNodeName(
+            "node name is empty".to_string(),
+        ));
     }
     if !is_valid_topic_component(node_name) {
-        return Err(TopicNameError::InvalidNodeName(
-            format!("invalid node name '{}'", node_name)
-        ));
+        return Err(TopicNameError::InvalidNodeName(format!(
+            "invalid node name '{}'",
+            node_name
+        )));
     }
     Ok(())
 }
@@ -146,7 +154,7 @@ pub fn qualify_topic_name(
         let topic = topic.strip_suffix('/').unwrap_or(topic);
         if topic.is_empty() || topic == "/" {
             return Err(TopicNameError::InvalidCharacters(
-                "topic cannot be just '/'".to_string()
+                "topic cannot be just '/'".to_string(),
             ));
         }
         topic.to_string()
@@ -159,9 +167,10 @@ pub fn qualify_topic_name(
         if !topic_suffix.is_empty() {
             for part in topic_suffix.split('/') {
                 if !part.is_empty() && !is_valid_topic_component(part) {
-                    return Err(TopicNameError::InvalidCharacters(
-                        format!("invalid component '{}' in private topic", part)
-                    ));
+                    return Err(TopicNameError::InvalidCharacters(format!(
+                        "invalid component '{}' in private topic",
+                        part
+                    )));
                 }
             }
         }
@@ -184,9 +193,10 @@ pub fn qualify_topic_name(
         // Validate topic components
         for part in topic.split('/') {
             if !part.is_empty() && !is_valid_topic_component(part) {
-                return Err(TopicNameError::InvalidCharacters(
-                    format!("invalid component '{}'", part)
-                ));
+                return Err(TopicNameError::InvalidCharacters(format!(
+                    "invalid component '{}'",
+                    part
+                )));
             }
         }
 
@@ -277,10 +287,7 @@ mod tests {
             qualify_topic_name("~my_topic", "/ns", "node").unwrap(),
             "/ns/node/my_topic"
         );
-        assert_eq!(
-            qualify_topic_name("~", "/ns", "node").unwrap(),
-            "/ns/node"
-        );
+        assert_eq!(qualify_topic_name("~", "/ns", "node").unwrap(), "/ns/node");
         assert_eq!(
             qualify_topic_name("~/my_topic", "/ns", "node").unwrap(),
             "/ns/node/my_topic"

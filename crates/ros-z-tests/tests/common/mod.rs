@@ -6,8 +6,8 @@ use std::time::Duration;
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 use ros_z::Builder;
-use zenoh::config::WhatAmI;
 use zenoh::Wait;
+use zenoh::config::WhatAmI;
 
 /// Helper to manage background processes with automatic cleanup
 #[allow(dead_code)]
@@ -51,7 +51,10 @@ impl Drop for ProcessGuard {
             loop {
                 match child.try_wait() {
                     Ok(Some(status)) => {
-                        println!("Process {} exited gracefully with status: {:?}", self.name, status);
+                        println!(
+                            "Process {} exited gracefully with status: {:?}",
+                            self.name, status
+                        );
                         return;
                     }
                     Ok(None) => {
@@ -110,8 +113,12 @@ impl TestRouter {
         // Create Zenoh router session programmatically
         let mut config = zenoh::Config::default();
         config.set_mode(Some(WhatAmI::Router)).unwrap();
-        config.insert_json5("listen/endpoints", &format!("[\"{}\"]", endpoint)).unwrap();
-        config.insert_json5("scouting/multicast/enabled", "false").unwrap();
+        config
+            .insert_json5("listen/endpoints", &format!("[\"{}\"]", endpoint))
+            .unwrap();
+        config
+            .insert_json5("scouting/multicast/enabled", "false")
+            .unwrap();
 
         let session = zenoh::open(config)
             .wait()
@@ -142,12 +149,16 @@ impl TestRouter {
 
 /// Create a ros-z context configured to connect to a specific Zenoh router
 #[allow(dead_code)]
-pub fn create_ros_z_context_with_router(router: &TestRouter) -> ros_z::Result<ros_z::context::ZContext> {
+pub fn create_ros_z_context_with_router(
+    router: &TestRouter,
+) -> ros_z::Result<ros_z::context::ZContext> {
     create_ros_z_context_with_endpoint(router.endpoint())
 }
 
 /// Create a ros-z context configured to connect to a specific endpoint
-pub fn create_ros_z_context_with_endpoint(endpoint: &str) -> ros_z::Result<ros_z::context::ZContext> {
+pub fn create_ros_z_context_with_endpoint(
+    endpoint: &str,
+) -> ros_z::Result<ros_z::context::ZContext> {
     use ros_z::{Builder, context::ZContextBuilder};
 
     ZContextBuilder::default()
@@ -175,19 +186,22 @@ pub fn wait_for_service_ready(
     loop {
         // Try to create a client and send a test request
         if let Ok(node) = ctx.create_node("service_readiness_checker").build()
-            && let Ok(client) = node.create_client::<protobuf_demo::Calculate>(service_name).build() {
-                // Try a simple test request (add 1 + 1 = 2)
-                let test_request = protobuf_demo::CalculateRequest {
-                    a: 1.0,
-                    b: 1.0,
-                    operation: "add".to_string(),
-                };
+            && let Ok(client) = node
+                .create_client::<protobuf_demo::Calculate>(service_name)
+                .build()
+        {
+            // Try a simple test request (add 1 + 1 = 2)
+            let test_request = protobuf_demo::CalculateRequest {
+                a: 1.0,
+                b: 1.0,
+                operation: "add".to_string(),
+            };
 
-                let rt = tokio::runtime::Runtime::new()?;
-                let result = rt.block_on(async {
-                    client.send_request(&test_request).await?;
-                    client.take_response_timeout(Duration::from_millis(500))
-                });
+            let rt = tokio::runtime::Runtime::new()?;
+            let result = rt.block_on(async {
+                client.send_request(&test_request).await?;
+                client.take_response_timeout(Duration::from_millis(500))
+            });
 
             if result.is_ok() {
                 println!("Service '{}' is ready", service_name);
@@ -197,7 +211,11 @@ pub fn wait_for_service_ready(
 
         // Check timeout
         if start_time.elapsed() >= timeout {
-            return Err(format!("Service '{}' did not become ready within {:?}", service_name, timeout).into());
+            return Err(format!(
+                "Service '{}' did not become ready within {:?}",
+                service_name, timeout
+            )
+            .into());
         }
 
         // Wait a bit before retrying
@@ -314,7 +332,11 @@ pub fn spawn_python_listener(endpoint: &str, topic: &str, timeout_sec: f32) -> P
 /// Spawn Python service_demo.py as server
 #[cfg(feature = "python-interop")]
 #[allow(dead_code)]
-pub fn spawn_python_service_server(endpoint: &str, service_name: &str, max_requests: u32) -> ProcessGuard {
+pub fn spawn_python_service_server(
+    endpoint: &str,
+    service_name: &str,
+    max_requests: u32,
+) -> ProcessGuard {
     use std::os::unix::process::CommandExt;
 
     let child = Command::new(python_executable())
@@ -335,7 +357,12 @@ pub fn spawn_python_service_server(endpoint: &str, service_name: &str, max_reque
 /// Spawn Python service_demo.py as client
 #[cfg(feature = "python-interop")]
 #[allow(dead_code)]
-pub fn spawn_python_service_client(endpoint: &str, service_name: &str, a: i64, b: i64) -> ProcessGuard {
+pub fn spawn_python_service_client(
+    endpoint: &str,
+    service_name: &str,
+    a: i64,
+    b: i64,
+) -> ProcessGuard {
     use std::os::unix::process::CommandExt;
 
     let child = Command::new(python_executable())
@@ -475,7 +502,9 @@ pub fn create_ros_z_context_ros2dds() -> ros_z::Result<ros_z::context::ZContext>
 /// Create a ros-z context for ros2dds backend with a specific endpoint
 #[cfg(feature = "ros2dds-interop")]
 #[allow(dead_code)]
-pub fn create_ros_z_context_ros2dds_with_endpoint(endpoint: &str) -> ros_z::Result<ros_z::context::ZContext> {
+pub fn create_ros_z_context_ros2dds_with_endpoint(
+    endpoint: &str,
+) -> ros_z::Result<ros_z::context::ZContext> {
     use ros_z::context::ZContextBuilder;
 
     ZContextBuilder::default()

@@ -14,8 +14,8 @@ graph LR
     B --> C[Parse & Resolve]
     C --> D[Type Hashing]
     D --> E[Code Generation]
-    E --> F[CDR Adapter]
-    E --> G[Protobuf Adapter]
+    E --> F[Rust Generator]
+    E --> G[Protobuf Generator]
     F --> H[Rust Structs + Traits]
     G --> I[Proto Files + Rust]
     H --> J[ros-z-msgs]
@@ -54,7 +54,7 @@ ros-z-codegen's orchestration capabilities:
 
 - Coordinates message discovery across sources
 - Manages build-time code generation
-- Provides serialization adapters
+- Provides code generators for different serialization formats
 - Generates ros-z-specific traits
 
 **Discovery workflow:**
@@ -82,16 +82,16 @@ sequenceDiagram
     B->>B: Generate Rust code
 ```
 
-### Serialization Adapters
+### Code Generators
 
-**CDR Adapter (default):**
+**Rust Generator (default):**
 
 - Generates structs with serde
-- CDR-compatible serialization
+- CDR-compatible serialization via ros-z-cdr
 - Full ROS 2 DDS interoperability
 - No additional dependencies
 
-**Protobuf Adapter (optional):**
+**Protobuf Generator (optional):**
 
 - Generates `.proto` files
 - Protobuf-compatible types

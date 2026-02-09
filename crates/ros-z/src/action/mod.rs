@@ -10,12 +10,17 @@ pub mod server;
 pub mod state;
 
 // Re-export type-state markers for documentation and advanced usage
-pub use server::{Requested, Accepted, Executing};
+pub use server::{Accepted, Executing, Requested};
 
 /// Core trait for ROS 2 actions
 pub trait ZAction: Send + Sync + 'static {
     type Goal: ZMessage + Clone + Send + Sync + serde::Serialize + for<'de> serde::Deserialize<'de>;
-    type Result: ZMessage + Clone + Send + Sync + serde::Serialize + for<'de> serde::Deserialize<'de>;
+    type Result: ZMessage
+        + Clone
+        + Send
+        + Sync
+        + serde::Serialize
+        + for<'de> serde::Deserialize<'de>;
     type Feedback: ZMessage + Clone + serde::Serialize + for<'de> serde::Deserialize<'de>;
 
     fn name() -> &'static str;

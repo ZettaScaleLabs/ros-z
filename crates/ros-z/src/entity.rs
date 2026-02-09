@@ -1,8 +1,8 @@
 use std::fmt::Display;
 use std::ops::Deref;
 
-use zenoh::{Result, key_expr::KeyExpr, session::ZenohId};
 use tracing::debug;
+use zenoh::{Result, key_expr::KeyExpr, session::ZenohId};
 
 use crate::{attachment::GidArray, qos::QosProfile};
 use sha2::Digest;
@@ -330,8 +330,10 @@ impl TryFrom<&EndpointEntity> for LivelinessKE {
             "{ADMIN_SPACE}/{domain_id}/{z_id}/{node_id}/{id}/{kind}/{node_enclave_str}/{node_namespace}/{node_name}/{topic_name}/{type_info}/{qos}",
         );
 
-        debug!("[ENT] Liveliness KE: topic={}, kind={:?}, ke={}",
-            value.topic, value.kind, ke);
+        debug!(
+            "[ENT] Liveliness KE: topic={}, kind={:?}, ke={}",
+            value.topic, value.kind, ke
+        );
 
         Ok(LivelinessKE(ke.try_into()?))
     }
@@ -440,7 +442,11 @@ impl EndpointEntity {
         let mut gid = GidArray::default();
         let len = gid.len();
         gid.copy_from_slice(&hash[..len]);
-        debug!("[ENT] Generated GID for topic={}: {:02x?}", self.topic, &gid[..4]);
+        debug!(
+            "[ENT] Generated GID for topic={}: {:02x?}",
+            self.topic,
+            &gid[..4]
+        );
         gid
     }
 }

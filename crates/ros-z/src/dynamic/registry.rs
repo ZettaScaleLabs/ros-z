@@ -8,9 +8,9 @@ use std::sync::{Arc, OnceLock, RwLock};
 
 #[cfg(feature = "dynamic-schema-loader")]
 use super::error::DynamicError;
+use super::schema::MessageSchema;
 #[cfg(feature = "dynamic-schema-loader")]
 use super::schema::{FieldSchema, FieldType};
-use super::schema::MessageSchema;
 
 /// Global registry of message schemas.
 ///
@@ -135,7 +135,11 @@ fn convert_field_type(
 ) -> Result<FieldType, DynamicError> {
     use ros_z_codegen::types::ArrayType;
 
-    let base_type = convert_base_type(&field.field_type.base_type, &field.field_type.package, resolver)?;
+    let base_type = convert_base_type(
+        &field.field_type.base_type,
+        &field.field_type.package,
+        resolver,
+    )?;
 
     match &field.field_type.array {
         ArrayType::Single => Ok(base_type),
@@ -184,4 +188,3 @@ fn convert_base_type(
 
     Ok(FieldType::Message(schema))
 }
-

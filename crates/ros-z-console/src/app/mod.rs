@@ -48,8 +48,8 @@ pub struct App {
     pub live_metrics: Arc<Mutex<LiveMetrics>>,
 
     // Cached graph data for rendering (to reduce lock contention)
-    pub cached_topics: Vec<(String, String)>,   // (topic_name, type_name)
-    pub cached_nodes: Vec<(String, String)>,    // (node_name, namespace)
+    pub cached_topics: Vec<(String, String)>, // (topic_name, type_name)
+    pub cached_nodes: Vec<(String, String)>,  // (node_name, namespace)
     pub cached_services: Vec<(String, String)>, // (service_name, type_name)
 
     pub cache_timestamp: std::time::Instant,
@@ -322,9 +322,7 @@ impl App {
             .as_secs() as i64;
 
         // Store topics as JSON array
-        let topics_json = serde_json::to_string(
-            &self.measuring_topics.iter().collect::<Vec<_>>()
-        )?;
+        let topics_json = serde_json::to_string(&self.measuring_topics.iter().collect::<Vec<_>>())?;
 
         conn.execute(
             "INSERT INTO recordings (start_time, topics) VALUES (?1, ?2)",
@@ -509,10 +507,9 @@ impl App {
         } else {
             // Add to measurement
             self.measuring_topics.insert(topic.to_string());
-            self.topic_metrics.lock().insert(
-                topic.to_string(),
-                TopicMetrics::default(),
-            );
+            self.topic_metrics
+                .lock()
+                .insert(topic.to_string(), TopicMetrics::default());
             self.set_temp_status(format!("Added {} to measurement", topic));
         }
         // Restart multi-topic monitoring with updated list

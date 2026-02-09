@@ -8,8 +8,8 @@
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
-use zenoh_buffers::buffer::SplitBuffer;
 use zenoh_buffers::ZBuf as ZenohZBuf;
+use zenoh_buffers::buffer::SplitBuffer;
 
 /// ROS-Z wrapper around Zenoh's ZBuf with optimized serde.
 ///
@@ -160,9 +160,7 @@ impl<'de> Deserialize<'de> for ZBuf {
             }
         }
 
-        deserializer
-            .deserialize_bytes(BytesVisitor)
-            .map(ZBuf::from)
+        deserializer.deserialize_bytes(BytesVisitor).map(ZBuf::from)
     }
 }
 

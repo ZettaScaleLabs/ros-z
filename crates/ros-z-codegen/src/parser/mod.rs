@@ -3,7 +3,7 @@ pub mod msg;
 pub mod srv;
 
 use crate::types::{ArrayType, Constant, DefaultValue, Field, FieldType};
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
 /// Strip comments from a line (everything after '#')
 pub fn strip_comment(line: &str) -> &str {
@@ -19,7 +19,10 @@ pub fn parse_constant(line: &str, line_num: usize) -> Result<Constant> {
 
     let type_and_name: Vec<&str> = parts[0].split_whitespace().collect();
     if type_and_name.is_empty() || type_and_name.len() > 2 {
-        bail!("Line {}: Invalid constant declaration, expected 'type NAME'", line_num);
+        bail!(
+            "Line {}: Invalid constant declaration, expected 'type NAME'",
+            line_num
+        );
     }
 
     let (const_type, name) = if type_and_name.len() == 2 {
@@ -52,7 +55,11 @@ pub fn parse_field(line: &str, source_package: &str, line_num: usize) -> Result<
         None
     };
 
-    Ok(Field { name, field_type, default })
+    Ok(Field {
+        name,
+        field_type,
+        default,
+    })
 }
 
 /// Parse a field type string (e.g., "uint8[]", "geometry_msgs/Point", "string<=50")
@@ -62,7 +69,8 @@ pub fn parse_field_type(type_str: &str, _source_package: &str) -> Result<FieldTy
         // Check if this is a bounded array (has brackets) or bounded string (no brackets)
         if !type_str.contains('[') {
             let base = &type_str[..idx];
-            let _bound = type_str[idx+2..].parse::<usize>()
+            let _bound = type_str[idx + 2..]
+                .parse::<usize>()
                 .with_context(|| format!("Invalid string bound in '{}'", type_str))?;
             // For now, treat as unbounded (can add bounded support later)
             return Ok(FieldType {
@@ -80,16 +88,22 @@ pub fn parse_field_type(type_str: &str, _source_package: &str) -> Result<FieldTy
         }
 
         let base = &type_str[..idx];
-        let array_str = &type_str[idx+1..type_str.len()-1];
+        let array_str = &type_str[idx + 1..type_str.len() - 1];
 
         let array = if array_str.is_empty() {
             ArrayType::Unbounded
         } else if let Some(stripped) = array_str.strip_prefix("<=") {
-            ArrayType::Bounded(stripped.parse()
-                .with_context(|| format!("Invalid bounded array size in '{}'", type_str))?)
+            ArrayType::Bounded(
+                stripped
+                    .parse()
+                    .with_context(|| format!("Invalid bounded array size in '{}'", type_str))?,
+            )
         } else {
-            ArrayType::Fixed(array_str.parse()
-                .with_context(|| format!("Invalid fixed array size in '{}'", type_str))?)
+            ArrayType::Fixed(
+                array_str
+                    .parse()
+                    .with_context(|| format!("Invalid fixed array size in '{}'", type_str))?,
+            )
         };
 
         (base, array)
@@ -100,7 +114,7 @@ pub fn parse_field_type(type_str: &str, _source_package: &str) -> Result<FieldTy
     // Parse package/Type or Type
     let (package, base_type) = if let Some(idx) = base_str.find('/') {
         let pkg = base_str[..idx].to_string();
-        let typ = base_str[idx+1..].to_string();
+        let typ = base_str[idx + 1..].to_string();
         (Some(pkg), typ)
     } else {
         // Special case: Header -> std_msgs/Header
@@ -111,14 +125,18 @@ pub fn parse_field_type(type_str: &str, _source_package: &str) -> Result<FieldTy
         }
     };
 
-    Ok(FieldType { base_type, package, array })
+    Ok(FieldType {
+        base_type,
+        package,
+        array,
+    })
 }
 
 /// Parse a default value
 pub fn parse_default_value(s: &str) -> Result<DefaultValue> {
     if s.starts_with('[') && s.ends_with(']') {
         // Parse array
-        let inner = &s[1..s.len()-1];
+        let inner = &s[1..s.len() - 1];
         if inner.is_empty() {
             bail!("Empty array default value: {}", s);
         }
@@ -178,8 +196,10 @@ pub fn parse_default_value(s: &str) -> Result<DefaultValue> {
         let mut strings = Vec::new();
         let mut all_string = true;
         for elem in &elements {
-            if (elem.starts_with('"') && elem.ends_with('"')) || (elem.starts_with('\'') && elem.ends_with('\'')) {
-                strings.push(elem[1..elem.len()-1].to_string());
+            if (elem.starts_with('"') && elem.ends_with('"'))
+                || (elem.starts_with('\'') && elem.ends_with('\''))
+            {
+                strings.push(elem[1..elem.len() - 1].to_string());
             } else {
                 all_string = false;
                 break;
@@ -194,8 +214,9 @@ pub fn parse_default_value(s: &str) -> Result<DefaultValue> {
         Ok(DefaultValue::Bool(true))
     } else if s == "false" || s == "False" {
         Ok(DefaultValue::Bool(false))
-    } else if (s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')) {
-        Ok(DefaultValue::String(s[1..s.len()-1].to_string()))
+    } else if (s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\''))
+    {
+        Ok(DefaultValue::String(s[1..s.len() - 1].to_string()))
     } else if let Ok(i) = s.parse::<i64>() {
         Ok(DefaultValue::Int(i))
     } else if let Ok(f) = s.parse::<f64>() {

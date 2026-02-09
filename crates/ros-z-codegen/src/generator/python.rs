@@ -22,9 +22,15 @@ pub fn generate_python_package(
 
     // Generate service Request/Response classes with service type hash
     for srv in services {
-        code.push_str(&generate_python_service_message(&srv.request, &srv.type_hash)?);
+        code.push_str(&generate_python_service_message(
+            &srv.request,
+            &srv.type_hash,
+        )?);
         code.push('\n');
-        code.push_str(&generate_python_service_message(&srv.response, &srv.type_hash)?);
+        code.push_str(&generate_python_service_message(
+            &srv.response,
+            &srv.type_hash,
+        )?);
         code.push('\n');
     }
 
@@ -37,17 +43,26 @@ fn generate_python_message(msg: &ResolvedMessage) -> Result<String> {
 }
 
 /// Generate Python msgspec class for a service request/response message
-fn generate_python_service_message(msg: &ResolvedMessage, svc_hash: &crate::types::TypeHash) -> Result<String> {
+fn generate_python_service_message(
+    msg: &ResolvedMessage,
+    svc_hash: &crate::types::TypeHash,
+) -> Result<String> {
     generate_python_message_with_svc_hash(msg, Some(svc_hash))
 }
 
 /// Generate Python msgspec class for a message, optionally with service type hash
-fn generate_python_message_with_svc_hash(msg: &ResolvedMessage, svc_hash: Option<&crate::types::TypeHash>) -> Result<String> {
+fn generate_python_message_with_svc_hash(
+    msg: &ResolvedMessage,
+    svc_hash: Option<&crate::types::TypeHash>,
+) -> Result<String> {
     let name = &msg.parsed.name;
     let package = &msg.parsed.package;
     let hash = msg.type_hash.to_rihs_string();
 
-    let mut code = format!("class {}(msgspec.Struct, frozen=True, kw_only=True):\n", name);
+    let mut code = format!(
+        "class {}(msgspec.Struct, frozen=True, kw_only=True):\n",
+        name
+    );
 
     // Generate fields
     if msg.parsed.fields.is_empty() {
@@ -61,11 +76,17 @@ fn generate_python_message_with_svc_hash(msg: &ResolvedMessage, svc_hash: Option
     }
 
     // Add metadata
-    code.push_str(&format!("\n    __msgtype__: ClassVar[str] = '{}/msg/{}'\n", package, name));
+    code.push_str(&format!(
+        "\n    __msgtype__: ClassVar[str] = '{}/msg/{}'\n",
+        package, name
+    ));
 
     // Use service type hash for service request/response, message type hash for regular messages
     if let Some(srv_type_hash) = svc_hash {
-        code.push_str(&format!("    __hash__: ClassVar[str] = '{}'\n", srv_type_hash.to_rihs_string()));
+        code.push_str(&format!(
+            "    __hash__: ClassVar[str] = '{}'\n",
+            srv_type_hash.to_rihs_string()
+        ));
     } else {
         code.push_str(&format!("    __hash__: ClassVar[str] = '{}'\n", hash));
     }
@@ -77,8 +98,8 @@ fn generate_python_message_with_svc_hash(msg: &ResolvedMessage, svc_hash: Option
 fn to_python_type(field_type: &FieldType) -> Result<String> {
     let base = match field_type.base_type.as_str() {
         "bool" => "bool",
-        "byte" | "char" | "uint8" | "int8" | "uint16" | "int16"
-        | "uint32" | "int32" | "uint64" | "int64" => "int",
+        "byte" | "char" | "uint8" | "int8" | "uint16" | "int16" | "uint32" | "int32" | "uint64"
+        | "int64" => "int",
         "float32" | "float64" => "float",
         "string" => "str",
         custom => {
@@ -122,8 +143,8 @@ fn python_default(field_type: &FieldType) -> String {
     match &field_type.array {
         ArrayType::Single => match field_type.base_type.as_str() {
             "bool" => "False".to_string(),
-            "byte" | "char" | "uint8" | "int8" | "uint16" | "int16"
-            | "uint32" | "int32" | "uint64" | "int64" => "0".to_string(),
+            "byte" | "char" | "uint8" | "int8" | "uint16" | "int16" | "uint32" | "int32"
+            | "uint64" | "int64" => "0".to_string(),
             "float32" | "float64" => "0.0".to_string(),
             "string" => "''".to_string(),
             _ => "None".to_string(), // Custom types need factory
@@ -134,7 +155,11 @@ fn python_default(field_type: &FieldType) -> String {
                 package: field_type.package.clone(),
                 array: ArrayType::Single,
             });
-            format!("({}{})", elem_default, format!(", {}", elem_default).repeat(*n - 1))
+            format!(
+                "({}{})",
+                elem_default,
+                format!(", {}", elem_default).repeat(*n - 1)
+            )
         }
         ArrayType::Bounded(_) | ArrayType::Unbounded => {
             if matches!(field_type.base_type.as_str(), "uint8" | "byte") {

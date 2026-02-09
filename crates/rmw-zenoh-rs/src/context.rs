@@ -1,10 +1,9 @@
-use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
-
-use crate::ros::*;
-use crate::rmw_impl_has_impl_ptr;
 use crate::node::NodeImpl;
+use crate::rmw_impl_has_impl_ptr;
+use crate::ros::*;
 use crate::traits::*;
 use crate::utils::Notifier;
 use ros_z::Builder;
@@ -80,9 +79,14 @@ impl ContextImpl {
         // Set up the guard condition trigger function for graph events
         // This allows graph changes to trigger RMW guard conditions
         let trigger_fn: ros_z::event::GraphGuardConditionTrigger = Box::new(|gc_ptr| {
-            crate::guard_condition::rmw_trigger_guard_condition(gc_ptr as *const crate::ros::rmw_guard_condition_t);
+            crate::guard_condition::rmw_trigger_guard_condition(
+                gc_ptr as *const crate::ros::rmw_guard_condition_t,
+            );
         });
-        zcontext.graph().event_manager.set_guard_condition_trigger(trigger_fn);
+        zcontext
+            .graph()
+            .event_manager
+            .set_guard_condition_trigger(trigger_fn);
 
         Ok(Self {
             zcontext: Arc::new(zcontext),
@@ -102,16 +106,15 @@ impl ContextImpl {
         _context: *mut rmw_context_t,
         _options: *const rcl_node_options_t,
     ) -> Result<NodeImpl, String> {
-        let name_str = unsafe { std::ffi::CStr::from_ptr(name) }.to_str()
+        let name_str = unsafe { std::ffi::CStr::from_ptr(name) }
+            .to_str()
             .map_err(|e| format!("Invalid name string: {}", e))?;
-        let namespace_str = unsafe { std::ffi::CStr::from_ptr(namespace_) }.to_str()
+        let namespace_str = unsafe { std::ffi::CStr::from_ptr(namespace_) }
+            .to_str()
             .map_err(|e| format!("Invalid namespace string: {}", e))?;
 
-        let node_impl = NodeImpl::new(
-            &self.zcontext,
-            name_str,
-            namespace_str,
-        ).map_err(|e| format!("Failed to create node: {}", e))?;
+        let node_impl = NodeImpl::new(&self.zcontext, name_str, namespace_str)
+            .map_err(|e| format!("Failed to create node: {}", e))?;
 
         Ok(node_impl)
     }
@@ -141,7 +144,8 @@ pub extern "C" fn rmw_init_options_init(
         (*init_options).implementation_identifier = c"rmw_zenoh_rs".as_ptr();
 
         // Initialize discovery options (required by rolling)
-        (*init_options).discovery_options = crate::ros::rmw_get_zero_initialized_discovery_options();
+        (*init_options).discovery_options =
+            crate::ros::rmw_get_zero_initialized_discovery_options();
         let allocator_ptr = &allocator as *const _ as *mut _;
         let ret = crate::ros::rmw_discovery_options_init(
             &mut (*init_options).discovery_options,
@@ -216,10 +220,8 @@ pub extern "C" fn rmw_init_options_copy(
             let allocator = &(*src).allocator;
 
             if let Some(allocate) = allocator.allocate {
-                let new_enclave = allocate(
-                    enclave_bytes.len(),
-                    allocator.state,
-                ) as *mut std::os::raw::c_char;
+                let new_enclave =
+                    allocate(enclave_bytes.len(), allocator.state) as *mut std::os::raw::c_char;
 
                 if new_enclave.is_null() {
                     rmw_set_error_string(c"Failed to allocate memory for enclave".as_ptr());
@@ -259,17 +261,17 @@ pub extern "C" fn rmw_init_options_fini(init_options: *mut rmw_init_options_t) -
         if !(*init_options).enclave.is_null() {
             let allocator = &(*init_options).allocator;
             if let Some(deallocate) = allocator.deallocate {
-                deallocate(
-                    (*init_options).enclave as *mut _,
-                    allocator.state,
-                );
+                deallocate((*init_options).enclave as *mut _, allocator.state);
                 (*init_options).enclave = std::ptr::null_mut();
             }
         }
 
         // Finalize security options (required to free allocated security_root_path)
         let allocator_ptr = &(*init_options).allocator as *const _ as *mut _;
-        let ret = crate::ros::rmw_security_options_fini(&mut (*init_options).security_options, allocator_ptr);
+        let ret = crate::ros::rmw_security_options_fini(
+            &mut (*init_options).security_options,
+            allocator_ptr,
+        );
         if ret != (RMW_RET_OK as rmw_ret_t) {
             return ret;
         }
@@ -303,10 +305,7 @@ pub extern "C" fn rmw_init(
     zenoh::init_log_from_env_or("error");
 
     // Log RMW initialization
-    tracing::info!(
-        "rmw_zenoh_rs v{} initialized",
-        env!("CARGO_PKG_VERSION")
-    );
+    tracing::info!("rmw_zenoh_rs v{} initialized", env!("CARGO_PKG_VERSION"));
 
     // Check if already initialized
     if !unsafe { (*context).impl_.is_null() } {

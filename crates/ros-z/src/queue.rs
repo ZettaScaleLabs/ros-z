@@ -59,7 +59,8 @@ impl<T> BoundedQueue<T> {
         while data.is_empty() {
             self.not_empty.wait(&mut data);
         }
-        data.pop_front().expect("queue should not be empty after wait")
+        data.pop_front()
+            .expect("queue should not be empty after wait")
     }
 
     /// Receive with timeout.

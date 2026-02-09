@@ -12,8 +12,8 @@ use crate::entity::{
     ADMIN_SPACE, EndpointEntity, Entity, EntityKind, LivelinessKE, NodeKey, Topic,
 };
 use crate::event::GraphEventManager;
-use zenoh::{Result, Session, Wait, pubsub::Subscriber, sample::SampleKind, session::ZenohId};
 use tracing;
+use zenoh::{Result, Session, Wait, pubsub::Subscriber, sample::SampleKind, session::ZenohId};
 
 /// A serializable snapshot of the ROS graph state
 #[derive(Debug, Clone, Serialize)]
@@ -85,7 +85,12 @@ impl GraphData {
     fn remove(&mut self, ke: &LivelinessKE) {
         let was_cached = self.cached.remove(ke);
         let was_parsed = self.parsed.remove(ke);
-        debug!("[GRF] Removed KE: {}, cached={}, parsed={}", ke.0, was_cached, was_parsed.is_some());
+        debug!(
+            "[GRF] Removed KE: {}, cached={}, parsed={}",
+            ke.0,
+            was_cached,
+            was_parsed.is_some()
+        );
 
         if was_parsed.is_some() {
             tracing::debug!("remove: Removed from parsed");
@@ -143,28 +148,40 @@ impl GraphData {
                     let node_key = x.key();
                     tracing::debug!(
                         "parse: Storing Node entity with key=({:?}, {:?})",
-                        node_key.0, node_key.1
+                        node_key.0,
+                        node_key.1
                     );
                     let slab = self
                         .by_node
                         .entry(node_key)
                         .or_insert_with(|| Slab::with_capacity(DEFAULT_SLAB_CAPACITY));
 
-                            // If slab is full, remove failing weak pointers first
-                            if slab.len() >= slab.capacity() {
-                                slab.retain(|_, weak_ptr| weak_ptr.upgrade().is_some());
-                            }
+                    // If slab is full, remove failing weak pointers first
+                    if slab.len() >= slab.capacity() {
+                        slab.retain(|_, weak_ptr| weak_ptr.upgrade().is_some());
+                    }
 
-                            slab.insert(weak);
+                    slab.insert(weak);
                 }
                 Entity::Endpoint(x) => {
-                    debug!("[GRF] Parsed endpoint: kind={:?}, topic={}, node={}/{}",
-                        x.kind, x.topic, x.node.namespace, x.node.name);
+                    debug!(
+                        "[GRF] Parsed endpoint: kind={:?}, topic={}, node={}/{}",
+                        x.kind, x.topic, x.node.namespace, x.node.name
+                    );
                     let node_key = x.node.key();
-                    let type_str = x.type_info.as_ref().map(|t| t.name.as_str()).unwrap_or("unknown");
+                    let type_str = x
+                        .type_info
+                        .as_ref()
+                        .map(|t| t.name.as_str())
+                        .unwrap_or("unknown");
                     tracing::debug!(
                         "parse: Storing Endpoint ({:?}) for node_key=({:?}, {:?}), topic={}, type={}, id={}",
-                        x.kind, node_key.0, node_key.1, x.topic, type_str, x.id
+                        x.kind,
+                        node_key.0,
+                        node_key.1,
+                        x.topic,
+                        type_str,
+                        x.id
                     );
 
                     // Index by topic for Publisher/Subscription entities
@@ -224,7 +241,12 @@ impl GraphData {
         }
 
         if let Some(entities) = self.by_node.get_mut(&node_key) {
-            tracing::debug!("visit_by_node: Found {} entities in slab for node ({:?}, {:?})", entities.len(), node_key.0, node_key.1);
+            tracing::debug!(
+                "visit_by_node: Found {} entities in slab for node ({:?}, {:?})",
+                entities.len(),
+                node_key.0,
+                node_key.1
+            );
             let mut upgraded = 0;
             let mut failed = 0;
             entities.retain(|_, weak| {
@@ -237,9 +259,17 @@ impl GraphData {
                     false
                 }
             });
-            tracing::debug!("visit_by_node: Upgraded {} entities, failed to upgrade {}", upgraded, failed);
+            tracing::debug!(
+                "visit_by_node: Upgraded {} entities, failed to upgrade {}",
+                upgraded,
+                failed
+            );
         } else {
-            tracing::debug!("visit_by_node: No entities found for node ({:?}, {:?})", node_key.0, node_key.1);
+            tracing::debug!(
+                "visit_by_node: No entities found for node ({:?}, {:?})",
+                node_key.0,
+                node_key.1
+            );
         }
     }
 
@@ -342,7 +372,11 @@ impl Graph {
                 let mut graph_data_guard = c_graph_data.lock();
                 let key_expr = sample.key_expr().to_owned();
                 let ke = LivelinessKE(key_expr.clone());
-                tracing::debug!("Received liveliness token: {} kind={:?}", key_expr, sample.kind());
+                tracing::debug!(
+                    "Received liveliness token: {} kind={:?}",
+                    key_expr,
+                    sample.kind()
+                );
 
                 match sample.kind() {
                     SampleKind::Put => {
@@ -351,8 +385,13 @@ impl Graph {
                         // Only insert if not already parsed (avoid duplicates from liveliness query)
                         let already_parsed = graph_data_guard.parsed.contains_key(&ke);
                         let already_cached = graph_data_guard.cached.contains(&ke);
-                        tracing::debug!("  Check: parsed={}, cached={}, parsed.len()={}, cached.len()={}",
-                            already_parsed, already_cached, graph_data_guard.parsed.len(), graph_data_guard.cached.len());
+                        tracing::debug!(
+                            "  Check: parsed={}, cached={}, parsed.len()={}, cached.len()={}",
+                            already_parsed,
+                            already_cached,
+                            graph_data_guard.parsed.len(),
+                            graph_data_guard.cached.len()
+                        );
                         if already_parsed {
                             tracing::debug!("  Skipping - already in parsed");
                         } else if already_cached {
@@ -368,7 +407,11 @@ impl Graph {
                                 c_event_manager.trigger_graph_change(&entity, true, c_zid);
                             }
                             Err(e) => {
-                                tracing::warn!("Failed to parse liveliness token {}: {:?}", key_expr, e);
+                                tracing::warn!(
+                                    "Failed to parse liveliness token {}: {:?}",
+                                    key_expr,
+                                    e
+                                );
                             }
                         }
                     }
@@ -384,7 +427,6 @@ impl Graph {
                 }
             })
             .wait()?;
-
 
         // Query existing liveliness tokens from all connected sessions
         // This is crucial for cross-context discovery where entities from other sessions
@@ -416,7 +458,10 @@ impl Graph {
 
                     if !is_local {
                         // Only insert entities from other sessions
-                        tracing::debug!("Graph: Adding cross-context entity: {}", key_expr.as_str());
+                        tracing::debug!(
+                            "Graph: Adding cross-context entity: {}",
+                            key_expr.as_str()
+                        );
                         graph_data.lock().insert(ke);
                     } else {
                         filtered_count += 1;
@@ -481,7 +526,10 @@ impl Graph {
             }
             Entity::Endpoint(endpoint) => {
                 // Index by topic for Publisher/Subscription
-                if matches!(endpoint.kind, EntityKind::Publisher | EntityKind::Subscription) {
+                if matches!(
+                    endpoint.kind,
+                    EntityKind::Publisher | EntityKind::Subscription
+                ) {
                     let topic_slab = data
                         .by_topic
                         .entry(endpoint.topic.clone())
@@ -525,7 +573,8 @@ impl Graph {
         // Only trigger graph change event if this is a new entity
         // (to avoid double-counting when liveliness already triggered it)
         if !already_exists {
-            self.event_manager.trigger_graph_change(&entity, true, self.zid);
+            self.event_manager
+                .trigger_graph_change(&entity, true, self.zid);
         }
 
         Ok(())
@@ -557,16 +606,22 @@ impl Graph {
             }
             Entity::Endpoint(endpoint_entity) => {
                 // Remove from by_topic or by_service depending on kind
-                if matches!(endpoint_entity.kind, EntityKind::Publisher | EntityKind::Subscription)
-                    && let Some(slab) = data.by_topic.get_mut(&endpoint_entity.topic) {
+                if matches!(
+                    endpoint_entity.kind,
+                    EntityKind::Publisher | EntityKind::Subscription
+                ) && let Some(slab) = data.by_topic.get_mut(&endpoint_entity.topic)
+                {
                     slab.retain(|_, weak| {
                         weak.upgrade().is_some_and(|arc| {
                             LivelinessKE::try_from(&*arc).ok().as_ref() != Some(&ke)
                         })
                     });
                 }
-                if matches!(endpoint_entity.kind, EntityKind::Service | EntityKind::Client)
-                    && let Some(slab) = data.by_service.get_mut(&endpoint_entity.topic) {
+                if matches!(
+                    endpoint_entity.kind,
+                    EntityKind::Service | EntityKind::Client
+                ) && let Some(slab) = data.by_service.get_mut(&endpoint_entity.topic)
+                {
                     slab.retain(|_, weak| {
                         weak.upgrade().is_some_and(|arc| {
                             LivelinessKE::try_from(&*arc).ok().as_ref() != Some(&ke)
@@ -588,7 +643,8 @@ impl Graph {
         drop(data);
 
         // Trigger graph change event
-        self.event_manager.trigger_graph_change(entity, false, self.zid);
+        self.event_manager
+            .trigger_graph_change(entity, false, self.zid);
 
         Ok(())
     }
@@ -684,7 +740,10 @@ impl Graph {
             slab.retain(|_, weak| {
                 if let Some(ent) = weak.upgrade() {
                     // Skip expensive get_endpoint() if we already found the type
-                    if let Some(enp) = ent.get_endpoint() && found_type.is_none() && enp.kind == EntityKind::Service {
+                    if let Some(enp) = ent.get_endpoint()
+                        && found_type.is_none()
+                        && enp.kind == EntityKind::Service
+                    {
                         found_type = enp.type_info.as_ref().map(|x| x.name.clone());
                     }
                     true
@@ -721,9 +780,10 @@ impl Graph {
                     {
                         // Include both publishers and subscribers
                         if matches!(enp.kind, EntityKind::Publisher | EntityKind::Subscription)
-                            && let Some(type_info) = &enp.type_info {
-                                found_type = Some(type_info.name.clone());
-                            }
+                            && let Some(type_info) = &enp.type_info
+                        {
+                            found_type = Some(type_info.name.clone());
+                        }
                     }
                     true
                 } else {
@@ -756,28 +816,38 @@ impl Graph {
 
         tracing::debug!(
             "get_names_and_types_by_node: Looking for node_key=({:?}, {:?}), kind={:?}",
-            node_ns, node_name, kind
+            node_ns,
+            node_name,
+            kind
         );
 
         if !data.cached.is_empty() {
-            tracing::debug!("get_names_and_types_by_node: Parsing {} cached entries", data.cached.len());
+            tracing::debug!(
+                "get_names_and_types_by_node: Parsing {} cached entries",
+                data.cached.len()
+            );
             data.parse();
         }
 
         data.visit_by_node(node_key, |ent| {
             if let Some(enp) = ent.get_endpoint()
                 && enp.kind == kind
-                && let Some(type_info) = &enp.type_info {
-                    // Insert into set for automatic deduplication
-                    res_set.insert((enp.topic.clone(), type_info.name.clone()));
-                }
+                && let Some(type_info) = &enp.type_info
+            {
+                // Insert into set for automatic deduplication
+                res_set.insert((enp.topic.clone(), type_info.name.clone()));
+            }
         });
 
         let res: Vec<_> = res_set.into_iter().collect();
 
         tracing::debug!(
             "get_names_and_types_by_node: Returning {} topics for node ({:?}, {:?}), kind={:?}: {:?}",
-            res.len(), node_ns, node_name, kind, res
+            res.len(),
+            node_ns,
+            node_name,
+            kind,
+            res
         );
 
         res
@@ -913,7 +983,10 @@ impl Graph {
     /// - Looks for topics with the "/_action/feedback" suffix
     /// - Extracts the action name by removing the suffix
     /// - Extracts the action type by removing the "_FeedbackMessage" suffix from the type
-    fn filter_action_names_and_types(&self, topics: Vec<(String, String)>) -> Vec<(String, String)> {
+    fn filter_action_names_and_types(
+        &self,
+        topics: Vec<(String, String)>,
+    ) -> Vec<(String, String)> {
         const ACTION_NAME_SUFFIX: &str = "/_action/feedback";
         const ACTION_TYPE_SUFFIX: &str = "_FeedbackMessage";
 

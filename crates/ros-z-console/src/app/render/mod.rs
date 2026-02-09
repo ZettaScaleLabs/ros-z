@@ -23,8 +23,8 @@ use ratatui::{
     widgets::{Block, Borders, List, Paragraph, Scrollbar, ScrollbarOrientation},
 };
 
-use crate::app::state::*;
 use crate::app::App;
+use crate::app::state::*;
 
 use common::{border_style, border_type};
 
@@ -244,29 +244,29 @@ impl App {
         let filter_text = self.filter_input.to_lowercase();
         let list_width = area.width.saturating_sub(4) as usize;
 
-        let (items, total_count): (Vec<ratatui::widgets::ListItem>, usize) = match self.current_panel
-        {
-            Panel::Topics => {
-                let total = self.cached_topics.len();
-                let items = self.render_topic_list_items(&filter_text, list_width);
-                (items, total)
-            }
-            Panel::Services => {
-                let total = self.cached_services.len();
-                let items = self.render_service_list_items(&filter_text, list_width);
-                (items, total)
-            }
-            Panel::Nodes => {
-                let total = self.cached_nodes.len();
-                let items = self.render_node_list_items(&filter_text, list_width);
-                (items, total)
-            }
-            Panel::Measure => {
-                let items = self.render_measure_list_items(list_width);
-                let total = self.measuring_topics.len();
-                (items, total)
-            }
-        };
+        let (items, total_count): (Vec<ratatui::widgets::ListItem>, usize) =
+            match self.current_panel {
+                Panel::Topics => {
+                    let total = self.cached_topics.len();
+                    let items = self.render_topic_list_items(&filter_text, list_width);
+                    (items, total)
+                }
+                Panel::Services => {
+                    let total = self.cached_services.len();
+                    let items = self.render_service_list_items(&filter_text, list_width);
+                    (items, total)
+                }
+                Panel::Nodes => {
+                    let total = self.cached_nodes.len();
+                    let items = self.render_node_list_items(&filter_text, list_width);
+                    (items, total)
+                }
+                Panel::Measure => {
+                    let items = self.render_measure_list_items(list_width);
+                    let total = self.measuring_topics.len();
+                    (items, total)
+                }
+            };
 
         // Clamp selected_index to filtered results
         if !items.is_empty() && self.selected_index >= items.len() {
@@ -283,7 +283,12 @@ impl App {
         let title = if self.current_panel == Panel::Measure {
             format!(" {} ({}) ", panel_name, total_count)
         } else if !filter_text.is_empty() {
-            format!(" {} ({}/{} filtered) ", panel_name, items.len(), total_count)
+            format!(
+                " {} ({}/{} filtered) ",
+                panel_name,
+                items.len(),
+                total_count
+            )
         } else {
             format!(" {} ", panel_name)
         };

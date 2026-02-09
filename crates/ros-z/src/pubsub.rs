@@ -2,9 +2,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 use std::{marker::PhantomData, sync::Arc};
 
+use tracing::{debug, trace, warn};
 use zenoh::liveliness::LivelinessToken;
 use zenoh::{Result, Session, Wait, sample::Sample};
-use tracing::{debug, trace, warn};
 
 use crate::Builder;
 use crate::attachment::{Attachment, GidArray};
@@ -227,7 +227,11 @@ where
 {
     fn new_attchment(&self) -> Attachment {
         let sn = self.sn.fetch_add(1, Ordering::Relaxed);
-        trace!("[PUB] Creating attachment: sn={}, gid={:02x?}", sn, &self.gid[..4]);
+        trace!(
+            "[PUB] Creating attachment: sn={}, gid={:02x?}",
+            sn,
+            &self.gid[..4]
+        );
         Attachment::new(sn as _, self.gid)
     }
 
@@ -249,13 +253,18 @@ where
                 match S::serialize_to_shm(msg, estimated_size, shm_cfg.provider()) {
                     Ok((zbuf, actual_size)) => {
                         tracing::Span::current().record("used_shm", true);
-                        debug!("[PUB] Serialized {}B directly to SHM (estimated: {}B)",
-                               actual_size, estimated_size);
+                        debug!(
+                            "[PUB] Serialized {}B directly to SHM (estimated: {}B)",
+                            actual_size, estimated_size
+                        );
                         (zbuf, actual_size)
                     }
                     Err(e) => {
                         tracing::Span::current().record("used_shm", false);
-                        warn!("[PUB] Direct SHM serialization failed: {}. Using regular memory", e);
+                        warn!(
+                            "[PUB] Direct SHM serialization failed: {}. Using regular memory",
+                            e
+                        );
                         let zbuf = S::serialize_to_zbuf(msg);
                         let size = zbuf.len();
                         (zbuf, size)
@@ -263,8 +272,11 @@ where
                 }
             } else {
                 tracing::Span::current().record("used_shm", false);
-                trace!("[PUB] Estimated size {}B < threshold {}B, using regular memory",
-                       estimated_size, shm_cfg.threshold());
+                trace!(
+                    "[PUB] Estimated size {}B < threshold {}B, using regular memory",
+                    estimated_size,
+                    shm_cfg.threshold()
+                );
                 let zbuf = S::serialize_to_zbuf(msg);
                 let size = zbuf.len();
                 (zbuf, size)
@@ -455,7 +467,10 @@ where
 
         let topic_ke = B::topic_key_expr(&self.entity)?;
         let key_expr = (*topic_ke).clone(); // Deref and clone the KeyExpr
-        debug!("[SUB] Key expression: {}, qos={:?}", key_expr, self.entity.qos);
+        debug!(
+            "[SUB] Key expression: {}, qos={:?}",
+            key_expr, self.entity.qos
+        );
 
         let mut sub_builder = self
             .session
@@ -583,23 +598,27 @@ where
 {
     /// Receive the next serialized message (raw sample)
     pub fn recv_serialized(&self) -> Result<Sample> {
-        let queue = self.queue.as_ref()
-            .ok_or_else(|| zenoh::Error::from("Subscriber was built with callback, no queue available"))?;
+        let queue = self.queue.as_ref().ok_or_else(|| {
+            zenoh::Error::from("Subscriber was built with callback, no queue available")
+        })?;
         Ok(queue.recv())
     }
 
     /// Async receive the next serialized message (raw sample)
     pub async fn async_recv_serialized(&self) -> Result<Sample> {
-        let queue = self.queue.as_ref()
-            .ok_or_else(|| zenoh::Error::from("Subscriber was built with callback, no queue available"))?;
+        let queue = self.queue.as_ref().ok_or_else(|| {
+            zenoh::Error::from("Subscriber was built with callback, no queue available")
+        })?;
         Ok(queue.recv_async().await)
     }
 
     /// Receive the next serialized message with timeout
     pub fn recv_serialized_timeout(&self, timeout: Duration) -> Result<Sample> {
-        let queue = self.queue.as_ref()
-            .ok_or_else(|| zenoh::Error::from("Subscriber was built with callback, no queue available"))?;
-        queue.recv_timeout(timeout)
+        let queue = self.queue.as_ref().ok_or_else(|| {
+            zenoh::Error::from("Subscriber was built with callback, no queue available")
+        })?;
+        queue
+            .recv_timeout(timeout)
             .ok_or_else(|| zenoh::Error::from("Receive timed out"))
     }
 
@@ -626,8 +645,9 @@ where
     pub fn recv(&self) -> Result<S::Output> {
         trace!("[SUB] Waiting for message");
 
-        let queue = self.queue.as_ref()
-            .ok_or_else(|| zenoh::Error::from("Subscriber was built with callback, no queue available"))?;
+        let queue = self.queue.as_ref().ok_or_else(|| {
+            zenoh::Error::from("Subscriber was built with callback, no queue available")
+        })?;
         let sample = queue.recv();
         let payload = sample.payload().to_bytes();
 
@@ -638,9 +658,11 @@ where
     }
 
     pub fn recv_timeout(&self, timeout: Duration) -> Result<S::Output> {
-        let queue = self.queue.as_ref()
-            .ok_or_else(|| zenoh::Error::from("Subscriber was built with callback, no queue available"))?;
-        let sample = queue.recv_timeout(timeout)
+        let queue = self.queue.as_ref().ok_or_else(|| {
+            zenoh::Error::from("Subscriber was built with callback, no queue available")
+        })?;
+        let sample = queue
+            .recv_timeout(timeout)
             .ok_or_else(|| zenoh::Error::from("Receive timed out"))?;
         let payload = sample.payload().to_bytes();
         S::deserialize(&payload).map_err(|e| zenoh::Error::from(e.to_string()))
@@ -648,8 +670,9 @@ where
 
     /// Async receive and deserialize the next message
     pub async fn async_recv(&self) -> Result<S::Output> {
-        let queue = self.queue.as_ref()
-            .ok_or_else(|| zenoh::Error::from("Subscriber was built with callback, no queue available"))?;
+        let queue = self.queue.as_ref().ok_or_else(|| {
+            zenoh::Error::from("Subscriber was built with callback, no queue available")
+        })?;
         let sample = queue.recv_async().await;
         let payload = sample.payload().to_bytes();
         S::deserialize(&payload).map_err(|e| zenoh::Error::from(e.to_string()))
@@ -696,9 +719,10 @@ impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicCdrSerd
 
     /// Receive a dynamic message with timeout.
     pub fn recv_timeout(&self, timeout: Duration) -> Result<crate::dynamic::DynamicMessage> {
-        let schema = self.dyn_schema.as_ref().ok_or_else(|| {
-            zenoh::Error::from("dyn_schema required for DynamicMessage")
-        })?;
+        let schema = self
+            .dyn_schema
+            .as_ref()
+            .ok_or_else(|| zenoh::Error::from("dyn_schema required for DynamicMessage"))?;
 
         let queue = self.queue.as_ref().ok_or_else(|| {
             zenoh::Error::from("Subscriber was built with callback, no queue available")
@@ -715,9 +739,10 @@ impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicCdrSerd
 
     /// Async receive a dynamic message.
     pub async fn async_recv(&self) -> Result<crate::dynamic::DynamicMessage> {
-        let schema = self.dyn_schema.as_ref().ok_or_else(|| {
-            zenoh::Error::from("dyn_schema required for DynamicMessage")
-        })?;
+        let schema = self
+            .dyn_schema
+            .as_ref()
+            .ok_or_else(|| zenoh::Error::from("dyn_schema required for DynamicMessage"))?;
 
         let queue = self.queue.as_ref().ok_or_else(|| {
             zenoh::Error::from("Subscriber was built with callback, no queue available")

@@ -122,7 +122,11 @@ mod tests {
         for (i, handle) in handles.into_iter().enumerate() {
             let result = handle.await.unwrap();
             let expected_value = (i + 1) as i32 * 20; // order * 2
-            assert_eq!(result.value, expected_value, "Result mismatch for client {}", i);
+            assert_eq!(
+                result.value, expected_value,
+                "Result mismatch for client {}",
+                i
+            );
         }
 
         Ok(())

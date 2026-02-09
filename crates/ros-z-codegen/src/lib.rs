@@ -8,7 +8,7 @@ pub mod types;
 
 // Legacy adapters (will be migrated to use ResolvedMessage)
 #[cfg(feature = "protobuf")]
-pub mod protobuf_adapter;
+pub mod protobuf_generator;
 
 pub mod python_msgspec_generator;
 use std::path::{Path, PathBuf};
@@ -386,7 +386,7 @@ impl MessageGenerator {
     /// Generate protobuf types
     #[cfg(feature = "protobuf")]
     fn generate_protobuf_types(&self, messages: &[ResolvedMessage]) -> Result<()> {
-        use crate::protobuf_adapter::ProtobufMessageGenerator;
+        use crate::protobuf_generator::ProtobufMessageGenerator;
 
         let proto_dir = self.config.output_dir.join("proto");
         let generator = ProtobufMessageGenerator::new(&proto_dir);

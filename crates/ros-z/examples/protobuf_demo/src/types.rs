@@ -1,5 +1,9 @@
 /// Shared protobuf type definitions and trait implementations
-use ros_z::{MessageTypeInfo, ServiceTypeInfo, WithTypeInfo, entity::TypeHash, msg::{ProtobufSerdes, ZMessage, ZService}};
+use ros_z::{
+    MessageTypeInfo, ServiceTypeInfo, WithTypeInfo,
+    entity::TypeHash,
+    msg::{ProtobufSerdes, ZMessage, ZService},
+};
 
 // Include protobuf messages generated from sensor_data.proto
 pub mod generated {

@@ -57,7 +57,9 @@ pub struct ZActionClientBuilder<'a, A: ZAction, B = crate::backend::DefaultBacke
 }
 
 impl<'a, A: ZAction, B> ZActionClientBuilder<'a, A, B> {
-    pub fn with_backend<B2: crate::backend::KeyExprBackend>(self) -> ZActionClientBuilder<'a, A, B2> {
+    pub fn with_backend<B2: crate::backend::KeyExprBackend>(
+        self,
+    ) -> ZActionClientBuilder<'a, A, B2> {
         ZActionClientBuilder {
             action_name: self.action_name,
             node: self.node,
@@ -199,8 +201,9 @@ where
             feedback_topic_name
         );
         let goal_board_feedback = goal_board.clone();
-        let feedback_sub =
-            feedback_sub_builder.with_backend::<B>().build_with_callback(move |msg: FeedbackMessage<A>| {
+        let feedback_sub = feedback_sub_builder
+            .with_backend::<B>()
+            .build_with_callback(move |msg: FeedbackMessage<A>| {
                 tracing::trace!("Feedback callback received for goal {:?}", msg.goal_id);
                 if let Some(channels) = goal_board_feedback.active_goals.get(&msg.goal_id) {
                     tracing::trace!("Routing feedback to goal {:?}", msg.goal_id);
@@ -221,30 +224,32 @@ where
             status_sub_builder.entity.qos = qos;
         }
         let goal_board_status = goal_board.clone();
-        let status_sub = status_sub_builder.with_backend::<B>().build_with_callback(move |msg: StatusMessage| {
-            tracing::trace!(
-                "Status callback received with {} statuses",
-                msg.status_list.len()
-            );
-            for status_info in msg.status_list {
-                if let Some(channels) = goal_board_status
-                    .active_goals
-                    .get(&status_info.goal_info.goal_id)
-                {
-                    tracing::trace!(
-                        "Routing status {:?} to goal {:?}",
-                        status_info.status,
-                        status_info.goal_info.goal_id
-                    );
-                    let _ = channels.status_tx.send(status_info.status);
-                } else {
-                    tracing::trace!(
-                        "No active goal found for status {:?}",
-                        status_info.goal_info.goal_id
-                    );
+        let status_sub = status_sub_builder.with_backend::<B>().build_with_callback(
+            move |msg: StatusMessage| {
+                tracing::trace!(
+                    "Status callback received with {} statuses",
+                    msg.status_list.len()
+                );
+                for status_info in msg.status_list {
+                    if let Some(channels) = goal_board_status
+                        .active_goals
+                        .get(&status_info.goal_info.goal_id)
+                    {
+                        tracing::trace!(
+                            "Routing status {:?} to goal {:?}",
+                            status_info.status,
+                            status_info.goal_info.goal_id
+                        );
+                        let _ = channels.status_tx.send(status_info.status);
+                    } else {
+                        tracing::trace!(
+                            "No active goal found for status {:?}",
+                            status_info.goal_info.goal_id
+                        );
+                    }
                 }
-            }
-        })?;
+            },
+        )?;
 
         Ok(ZActionClient {
             goal_client: Arc::new(goal_client),

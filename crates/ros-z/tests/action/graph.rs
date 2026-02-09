@@ -92,7 +92,8 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_action_client_server_discovery() -> Result<()> {
-        let (_ctx, _client_node, _server_node, client, server) = setup_test_with_client_server().await?;
+        let (_ctx, _client_node, _server_node, client, server) =
+            setup_test_with_client_server().await?;
 
         // Test that action clients and servers can discover each other
         // This would involve checking the graph for action-related entities

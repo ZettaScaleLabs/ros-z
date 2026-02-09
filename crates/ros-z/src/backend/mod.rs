@@ -14,7 +14,7 @@ pub mod rmw_zenoh;
 #[cfg(feature = "ros2dds")]
 pub mod ros2dds;
 
-use zenoh::{key_expr::KeyExpr, session::ZenohId, Result};
+use zenoh::{Result, key_expr::KeyExpr, session::ZenohId};
 
 use crate::{
     entity::{EndpointEntity, Entity, LivelinessKE, NodeEntity, TopicKE},

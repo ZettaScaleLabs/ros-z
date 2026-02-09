@@ -1,8 +1,8 @@
-use std::sync::Arc;
-use crate::ros::*;
 use crate::rmw_impl_has_data_ptr;
+use crate::ros::*;
 use crate::traits::*;
 use crate::utils::Notifier;
+use std::sync::Arc;
 
 /// Guard condition implementation for RMW
 #[derive(Debug, Default)]
@@ -13,10 +13,7 @@ pub struct GuardConditionImpl {
 
 impl GuardConditionImpl {
     pub(crate) fn trigger(&mut self) -> Result<(), ()> {
-        let notifier = self
-            .notifier
-            .as_ref()
-            .ok_or(())?;
+        let notifier = self.notifier.as_ref().ok_or(())?;
         self.triggered = true;
         notifier.notify_all();
         Ok(())
@@ -33,7 +30,11 @@ impl crate::traits::Waitable for GuardConditionImpl {
     }
 }
 
-rmw_impl_has_data_ptr!(rmw_guard_condition_t, rmw_guard_condition_impl_t, GuardConditionImpl);
+rmw_impl_has_data_ptr!(
+    rmw_guard_condition_t,
+    rmw_guard_condition_impl_t,
+    GuardConditionImpl
+);
 
 // RMW Guard Condition Functions
 #[unsafe(no_mangle)]

@@ -1,10 +1,10 @@
-use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyTuple};
-use std::sync::Arc;
-use ros_z::context::{ZContext, ZContextBuilder};
-use ros_z::Builder;
 use crate::error::IntoPyErr;
 use crate::node::PyZNodeBuilder;
+use pyo3::prelude::*;
+use pyo3::types::{PyDict, PyTuple};
+use ros_z::Builder;
+use ros_z::context::{ZContext, ZContextBuilder};
+use std::sync::Arc;
 
 #[pyclass(name = "ZContextBuilder")]
 #[derive(Default)]
@@ -32,7 +32,10 @@ impl PyZContextBuilder {
     }
 
     /// Connect to specific Zenoh endpoints (e.g., "tcp/127.0.0.1:7447")
-    pub fn with_connect_endpoints(mut slf: PyRefMut<'_, Self>, endpoints: Vec<String>) -> PyRefMut<'_, Self> {
+    pub fn with_connect_endpoints(
+        mut slf: PyRefMut<'_, Self>,
+        endpoints: Vec<String>,
+    ) -> PyRefMut<'_, Self> {
         slf.builder = std::mem::take(&mut slf.builder).with_connect_endpoints(endpoints);
         slf
     }
@@ -47,9 +50,7 @@ impl PyZContextBuilder {
     pub fn build(&mut self) -> PyResult<PyZContext> {
         let builder = std::mem::take(&mut self.builder);
         let ctx = builder.build().map_err(|e| e.into_pyerr())?;
-        Ok(PyZContext {
-            ctx: Arc::new(ctx),
-        })
+        Ok(PyZContext { ctx: Arc::new(ctx) })
     }
 }
 

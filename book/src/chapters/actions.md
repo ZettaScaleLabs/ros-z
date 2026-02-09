@@ -77,51 +77,83 @@ sequenceDiagram
 Actions excel when operations take more than a few seconds and users need visibility into progress. For sub-second operations, prefer services for simplicity.
 ```
 
-## Example Patterns
+## Action Server Example
 
-**Action Server:**
-
-```rust,ignore
-let action_server = node
-    .create_action_server::<Fibonacci>("/fibonacci")
-    .build()?;
-
-loop {
-    let goal = action_server.accept_goal()?;
-
-    // Send periodic feedback
-    for i in 0..goal.order {
-        action_server.send_feedback(FeedbackMsg {
-            current: i,
-            sequence: compute_partial(i)
-        })?;
-    }
-
-    // Send final result
-    action_server.send_result(ResultMsg {
-        sequence: compute_final(goal.order)
-    })?;
-}
-```
-
-**Action Client:**
+This example demonstrates an action server that computes Fibonacci sequences. The server accepts goals, publishes periodic feedback with partial results, and supports cancellation.
 
 ```rust,ignore
-let action_client = node
-    .create_action_client::<Fibonacci>("/fibonacci")
-    .build()?;
-
-let goal_handle = action_client.send_goal(GoalMsg {
-    order: 10
-}).await?;
-
-while let Some(feedback) = goal_handle.feedback().await {
-    println!("Progress: {}", feedback.current);
-}
-
-let result = goal_handle.get_result().await?;
-println!("Final: {:?}", result.sequence);
+{{#include ../../../crates/ros-z/examples/demo_nodes/fibonacci_action_server.rs:full_example}}
 ```
+
+**Key points:**
+
+- **Handler Pattern**: Uses `.with_handler()` to define asynchronous goal execution
+- **Feedback Publishing**: Sends partial results periodically via `publish_feedback()`
+- **Cancellation Support**: Checks `is_cancel_requested()` and handles graceful cancellation
+- **Completion**: Uses `.succeed()` or `.canceled()` to send final result
+
+**Running the server:**
+
+```bash
+# Start Zenoh router first
+cargo run --example zenoh_router
+
+# Run the server (runs until Ctrl+C)
+cargo run --example demo_nodes_fibonacci_action_server
+```
+
+## Action Client Example
+
+This example demonstrates an action client that sends goals and monitors execution progress with feedback updates.
+
+```rust,ignore
+{{#include ../../../crates/ros-z/examples/demo_nodes/fibonacci_action_client.rs:full_example}}
+```
+
+**Key points:**
+
+- **Goal Sending**: Uses `send_goal()` to submit goals and get a handle
+- **Feedback Monitoring**: Spawns async task to receive and display feedback
+- **Result Handling**: Waits for completion with timeout and error handling
+- **Type Safety**: Strongly-typed goal, feedback, and result messages
+
+**Running the client:**
+
+```bash
+# Basic usage - compute Fibonacci(10)
+cargo run --example demo_nodes_fibonacci_action_client
+
+# Compute Fibonacci(15)
+cargo run --example demo_nodes_fibonacci_action_client -- --order 15
+
+# Connect to specific router
+cargo run --example demo_nodes_fibonacci_action_client -- --endpoint tcp/localhost:7447
+```
+
+## Complete Action Workflow
+
+**Terminal 1 - Start Zenoh Router:**
+
+```bash
+cargo run --example zenoh_router
+```
+
+**Terminal 2 - Start Action Server:**
+
+```bash
+cargo run --example demo_nodes_fibonacci_action_server
+```
+
+**Terminal 3 - Send Goals from Client:**
+
+```bash
+cargo run --example demo_nodes_fibonacci_action_client -- --order 10
+```
+
+You'll see:
+
+- **Client**: Goal sent, feedback updates with partial sequences, final result
+- **Server**: Goal received, executing with feedback, completion status
 
 ```admonish warning
 Always implement timeout mechanisms for action clients. Long-running actions can fail or hang, and clients need graceful degradation strategies.

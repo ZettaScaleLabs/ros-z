@@ -19,7 +19,7 @@ pub(crate) fn python_type_to_rust_type(python_type: &str) -> String {
     }
 
     let package = parts[0];
-    let category = parts[1];  // Usually "msg", "srv", or "action"
+    let category = parts[1]; // Usually "msg", "srv", or "action"
     let msg_name = parts[2];
 
     // Convert to Rust format: package::category::dds_::MessageName_

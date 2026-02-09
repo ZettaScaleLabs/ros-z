@@ -5,15 +5,19 @@ use ros_z_msgs::action_tutorials_interfaces::{
     FibonacciFeedback, FibonacciResult, action::Fibonacci,
 };
 
+// ANCHOR: full_example
 /// Fibonacci action server node that computes Fibonacci sequences
 ///
 /// # Arguments
 /// * `ctx` - The ROS-Z context
 /// * `timeout` - Optional timeout duration. If None, runs until ctrl+c.
 pub async fn run_fibonacci_action_server(ctx: ZContext, timeout: Option<Duration>) -> Result<()> {
+    // ANCHOR: node_setup
     // Create a node named "fibonacci_action_server"
     let node = ctx.create_node("fibonacci_action_server").build()?;
+    // ANCHOR_END: node_setup
 
+    // ANCHOR: action_server_setup
     // Create an action server
     // Note: The server variable must be kept alive for the duration of the function
     // to ensure the action server and its background tasks remain active
@@ -29,6 +33,7 @@ pub async fn run_fibonacci_action_server(ctx: ZContext, timeout: Option<Duration
             let mut canceled = false;
             let mut cancel_sequence = None;
 
+            // ANCHOR: execution_loop
             for i in 2..=order {
                 // Check for cancellation
                 if executing.is_cancel_requested() {
@@ -50,7 +55,9 @@ pub async fn run_fibonacci_action_server(ctx: ZContext, timeout: Option<Duration
 
                 tokio::time::sleep(Duration::from_millis(500)).await;
             }
+            // ANCHOR_END: execution_loop
 
+            // ANCHOR: completion
             if canceled {
                 executing
                     .canceled(FibonacciResult {
@@ -61,7 +68,9 @@ pub async fn run_fibonacci_action_server(ctx: ZContext, timeout: Option<Duration
                 println!("Goal succeeded!");
                 executing.succeed(FibonacciResult { sequence }).unwrap();
             }
+            // ANCHOR_END: completion
         });
+    // ANCHOR_END: action_server_setup
 
     println!("Fibonacci action server started");
 
@@ -74,6 +83,7 @@ pub async fn run_fibonacci_action_server(ctx: ZContext, timeout: Option<Duration
 
     Ok(())
 }
+// ANCHOR_END: full_example
 
 // Only compile main when building as a binary (not when included as a module)
 #[cfg(not(any(test, doctest)))]

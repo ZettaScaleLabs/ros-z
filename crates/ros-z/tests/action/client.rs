@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::num::NonZeroUsize;
+use std::sync::Arc;
 
 use ros_z::{Builder, Result, context::ZContextBuilder, define_action};
 use serde::{Deserialize, Serialize};
@@ -99,9 +99,9 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
 
         // Verify server is discoverable through graph
-        let server_names_types = node.graph.get_action_server_names_and_types_by_node(
-            node.entity.key(),
-        );
+        let server_names_types = node
+            .graph
+            .get_action_server_names_and_types_by_node(node.entity.key());
         assert!(!server_names_types.is_empty());
 
         Ok(())
@@ -112,9 +112,9 @@ mod tests {
         let (node, _client) = setup_test_with_client().await?;
 
         // Verify action name through graph introspection
-        let client_names_types = node.graph.get_action_client_names_and_types_by_node(
-            node.entity.key(),
-        );
+        let client_names_types = node
+            .graph
+            .get_action_client_names_and_types_by_node(node.entity.key());
 
         // Should find the action client with the expected name
         let action_found = client_names_types

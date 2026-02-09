@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use zenoh::Result;
 
 use crate::GidArray;
@@ -81,7 +81,12 @@ impl EventsManager {
         self.update_event_status_with_policy(event_type, change, 0);
     }
 
-    pub fn update_event_status_with_policy(&mut self, event_type: ZenohEventType, change: i32, policy_kind: u32) {
+    pub fn update_event_status_with_policy(
+        &mut self,
+        event_type: ZenohEventType,
+        change: i32,
+        policy_kind: u32,
+    ) {
         let event_id = event_type as usize;
 
         {
@@ -192,11 +197,21 @@ impl GraphEventManager {
         self.trigger_event_with_policy(entity_gid, event_type, change, 0);
     }
 
-    pub fn trigger_event_with_policy(&self, entity_gid: &GidArray, event_type: ZenohEventType, change: i32, policy_kind: u32) {
+    pub fn trigger_event_with_policy(
+        &self,
+        entity_gid: &GidArray,
+        event_type: ZenohEventType,
+        change: i32,
+        policy_kind: u32,
+    ) {
         // For QoS incompatibility events, we need to pass policy_kind through a different mechanism
         // since callbacks only take i32. We'll encode it in the change parameter's upper bits for now.
         // This is a workaround - ideally we'd change the callback signature.
-        let encoded_change = if policy_kind != 0 && (matches!(event_type, ZenohEventType::RequestedQosIncompatible | ZenohEventType::OfferedQosIncompatible)) {
+        let encoded_change = if policy_kind != 0
+            && (matches!(
+                event_type,
+                ZenohEventType::RequestedQosIncompatible | ZenohEventType::OfferedQosIncompatible
+            )) {
             // Encode policy_kind in upper 16 bits, change in lower 16 bits
             // This works because change is always small (number of incompatible entities)
             ((policy_kind as i32) << 16) | (change & 0xFFFF)
@@ -206,12 +221,18 @@ impl GraphEventManager {
 
         let callbacks = self.event_callbacks.lock().unwrap();
         if let Some(entity_callbacks) = callbacks.get(entity_gid)
-            && let Some(callback) = entity_callbacks.get(&event_type) {
-                callback(encoded_change);
-            }
+            && let Some(callback) = entity_callbacks.get(&event_type)
+        {
+            callback(encoded_change);
+        }
     }
 
-    pub fn trigger_graph_change(&self, entity: &crate::entity::Entity, appeared: bool, _local_zid: zenoh::session::ZenohId) {
+    pub fn trigger_graph_change(
+        &self,
+        entity: &crate::entity::Entity,
+        appeared: bool,
+        _local_zid: zenoh::session::ZenohId,
+    ) {
         use crate::entity::EntityKind;
 
         let change = if appeared { 1 } else { -1 };
@@ -233,7 +254,7 @@ impl GraphEventManager {
                 EntityKind::Publisher => ZenohEventType::SubscriptionMatched,
                 EntityKind::Subscription => ZenohEventType::PublicationMatched,
                 EntityKind::Service => return, // TODO: Add service matched events
-                EntityKind::Client => return, // TODO: Add service matched events
+                EntityKind::Client => return,  // TODO: Add service matched events
                 EntityKind::Node => unreachable!("EndpointEntity should not have Node kind"),
             },
             crate::entity::Entity::Node(_) => return, // Node changes don't trigger matched events

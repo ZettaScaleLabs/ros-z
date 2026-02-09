@@ -36,6 +36,13 @@ jobs:
         env:
           NIX_ACCEPT_FLAKE_CONFIG: 1
 
+      - name: Check example documentation coverage
+        run: |
+          nix develop '.#pureRust-ci' -c nu scripts/check-example-coverage.nu
+        env:
+          NIX_ACCEPT_FLAKE_CONFIG: 1
+        continue-on-error: true  # Don't fail the build, just warn
+
   publish_doc:
     name: Publish to GitHub Pages
     if: github.ref == 'refs/heads/main'
