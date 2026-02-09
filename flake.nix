@@ -26,6 +26,7 @@
           "jazzy" # default
           "rolling"
           "humble" # LTS
+          "kilted"
         ];
 
         pkgs = import nixpkgs {
