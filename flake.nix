@@ -345,6 +345,8 @@
             git-hooks
             system
             rustfmtNightly
+            rustToolchain
+            docTools
             ;
         };
       in

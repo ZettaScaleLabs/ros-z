@@ -3,6 +3,12 @@
   git-hooks,
   system,
   rustfmtNightly,
+  rustToolchain ? pkgs.rust-bin.stable.latest.default,
+  docTools ? [
+    pkgs.mdbook
+    pkgs.mdbook-admonish
+    pkgs.mdbook-mermaid
+  ],
 }:
 let
   # yamllint configuration
@@ -49,6 +55,10 @@ git-hooks.lib.${system}.run {
   src = ./..;
   tools = {
     rustfmt = rustfmtNightly;
+    cargo = rustToolchain;
+    mdbook = pkgs.mdbook;
+    mdbook-admonish = pkgs.mdbook-admonish;
+    mdbook-mermaid = pkgs.mdbook-mermaid;
   };
   hooks = {
     # Rust tooling
@@ -101,7 +111,14 @@ git-hooks.lib.${system}.run {
       enable = true;
       name = "mdbook-build";
       description = "Build mdbook documentation";
-      entry = "${pkgs.mdbook}/bin/mdbook build book";
+      entry = toString (
+        pkgs.writeShellScript "mdbook-build-with-deps" ''
+          # Install preprocessors if not already installed
+          ${pkgs.mdbook-admonish}/bin/mdbook-admonish install book/ 2>/dev/null || true
+          ${pkgs.mdbook-mermaid}/bin/mdbook-mermaid install book/ 2>/dev/null || true
+          exec ${pkgs.mdbook}/bin/mdbook build book
+        ''
+      );
       files = "book/.*\\.(md|toml)$";
       pass_filenames = false;
     };
@@ -110,7 +127,16 @@ git-hooks.lib.${system}.run {
       enable = true;
       name = "mdbook-test";
       description = "Test mdbook code examples";
-      entry = "${pkgs.mdbook}/bin/mdbook test book";
+      entry = toString (
+        pkgs.writeShellScript "mdbook-test-with-deps" ''
+          # Install preprocessors if not already installed
+          ${pkgs.mdbook-admonish}/bin/mdbook-admonish install book/ 2>/dev/null || true
+          ${pkgs.mdbook-mermaid}/bin/mdbook-mermaid install book/ 2>/dev/null || true
+          # Run mdbook test with cargo/rustdoc in PATH
+          export PATH="${rustToolchain}/bin:$PATH"
+          exec ${pkgs.mdbook}/bin/mdbook test book
+        ''
+      );
       files = "book/.*\\.md$|crates/.*/examples/.*\\.rs$";
       pass_filenames = false;
     };
