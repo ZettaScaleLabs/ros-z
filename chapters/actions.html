@@ -266,43 +266,184 @@
 <p>Actions excel when operations take more than a few seconds and users need visibility into progress. For sub-second operations, prefer services for simplicity.</p>
 </div>
 </div>
-<h2 id="example-patterns"><a class="header" href="#example-patterns">Example Patterns</a></h2>
-<p><strong>Action Server:</strong></p>
-<pre><code class="language-rust ignore">let action_server = node
-    .create_action_server::&lt;Fibonacci&gt;("/fibonacci")
-    .build()?;
+<h2 id="action-server-example"><a class="header" href="#action-server-example">Action Server Example</a></h2>
+<p>This example demonstrates an action server that computes Fibonacci sequences. The server accepts goals, publishes periodic feedback with partial results, and supports cancellation.</p>
+<pre><code class="language-rust ignore">/// Fibonacci action server node that computes Fibonacci sequences
+///
+/// # Arguments
+/// * `ctx` - The ROS-Z context
+/// * `timeout` - Optional timeout duration. If None, runs until ctrl+c.
+pub async fn run_fibonacci_action_server(ctx: ZContext, timeout: Option&lt;Duration&gt;) -&gt; Result&lt;()&gt; {
+    // Create a node named "fibonacci_action_server"
+    let node = ctx.create_node("fibonacci_action_server").build()?;
 
-loop {
-    let goal = action_server.accept_goal()?;
+    // Create an action server
+    // Note: The server variable must be kept alive for the duration of the function
+    // to ensure the action server and its background tasks remain active
+    let _server = node
+        .create_action_server::&lt;Fibonacci&gt;("fibonacci")
+        .build()?
+        .with_handler(|executing: ExecutingGoal&lt;Fibonacci&gt;| async move {
+            let order = executing.goal.order;
+            let mut sequence = vec![0, 1];
 
-    // Send periodic feedback
-    for i in 0..goal.order {
-        action_server.send_feedback(FeedbackMsg {
-            current: i,
-            sequence: compute_partial(i)
-        })?;
+            println!("Executing Fibonacci goal with order {}", order);
+
+            let mut canceled = false;
+            let mut cancel_sequence = None;
+
+            for i in 2..=order {
+                // Check for cancellation
+                if executing.is_cancel_requested() {
+                    println!("Goal canceled!");
+                    canceled = true;
+                    cancel_sequence = Some(sequence.clone());
+                    break;
+                }
+
+                let next = sequence[i as usize - 1] + sequence[i as usize - 2];
+                sequence.push(next);
+
+                // Publish feedback
+                executing
+                    .publish_feedback(FibonacciFeedback {
+                        partial_sequence: sequence.clone(),
+                    })
+                    .expect("Failed to publish feedback");
+
+                tokio::time::sleep(Duration::from_millis(500)).await;
+            }
+
+            if canceled {
+                executing
+                    .canceled(FibonacciResult {
+                        sequence: cancel_sequence.unwrap(),
+                    })
+                    .unwrap();
+            } else {
+                println!("Goal succeeded!");
+                executing.succeed(FibonacciResult { sequence }).unwrap();
+            }
+        });
+
+    println!("Fibonacci action server started");
+
+    if let Some(timeout) = timeout {
+        // For testing: run for the specified timeout
+        tokio::time::sleep(timeout).await;
+    } else {
+        tokio::signal::ctrl_c().await?;
     }
 
-    // Send final result
-    action_server.send_result(ResultMsg {
-        sequence: compute_final(goal.order)
-    })?;
+    Ok(())
 }</code></pre>
-<p><strong>Action Client:</strong></p>
-<pre><code class="language-rust ignore">let action_client = node
-    .create_action_client::&lt;Fibonacci&gt;("/fibonacci")
-    .build()?;
+<p><strong>Key points:</strong></p>
+<ul>
+<li><strong>Handler Pattern</strong>: Uses <code>.with_handler()</code> to define asynchronous goal execution</li>
+<li><strong>Feedback Publishing</strong>: Sends partial results periodically via <code>publish_feedback()</code></li>
+<li><strong>Cancellation Support</strong>: Checks <code>is_cancel_requested()</code> and handles graceful cancellation</li>
+<li><strong>Completion</strong>: Uses <code>.succeed()</code> or <code>.canceled()</code> to send final result</li>
+</ul>
+<p><strong>Running the server:</strong></p>
+<pre><code class="language-bash"># Start Zenoh router first
+cargo run --example zenoh_router
 
-let goal_handle = action_client.send_goal(GoalMsg {
-    order: 10
-}).await?;
+# Run the server (runs until Ctrl+C)
+cargo run --example demo_nodes_fibonacci_action_server
+</code></pre>
+<h2 id="action-client-example"><a class="header" href="#action-client-example">Action Client Example</a></h2>
+<p>This example demonstrates an action client that sends goals and monitors execution progress with feedback updates.</p>
+<pre><code class="language-rust ignore">/// Fibonacci action client node that sends goals to compute Fibonacci sequences
+///
+/// # Arguments
+/// * `ctx` - The ROS-Z context
+/// * `order` - The order of the Fibonacci sequence to compute
+pub async fn run_fibonacci_action_client(ctx: ZContext, order: i32) -&gt; Result&lt;Vec&lt;i32&gt;&gt; {
+    // Create a node named "fibonacci_action_client"
+    let node = ctx.create_node("fibonacci_action_client").build()?;
 
-while let Some(feedback) = goal_handle.feedback().await {
-    println!("Progress: {}", feedback.current);
-}
+    // Create an action client
+    let client = node
+        .create_action_client::&lt;Fibonacci&gt;("fibonacci")
+        .build()?;
 
-let result = goal_handle.get_result().await?;
-println!("Final: {:?}", result.sequence);</code></pre>
+    // Wait a bit for the server to be discovered
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+
+    println!(
+        "Fibonacci action client started, sending goal with order {}",
+        order
+    );
+
+    // Send the goal
+    let mut goal_handle = client.send_goal(FibonacciGoal { order }).await?;
+    println!("Goal sent and accepted!");
+
+    // Set up feedback monitoring
+    if let Some(mut feedback_stream) = goal_handle.feedback() {
+        tokio::spawn(async move {
+            while let Some(fb) = feedback_stream.recv().await {
+                println!("Feedback: {:?}", fb.partial_sequence);
+            }
+        });
+    }
+
+    // Wait for the result with timeout
+    println!("Waiting for result (timeout: 10s)...");
+    let result = match tokio::time::timeout(
+        tokio::time::Duration::from_secs(10),
+        goal_handle.result(),
+    )
+    .await
+    {
+        Ok(Ok(result)) =&gt; {
+            println!("Final result: {:?}", result.sequence);
+            result
+        }
+        Ok(Err(e)) =&gt; {
+            eprintln!("Action failed: {}", e);
+            return Err(e);
+        }
+        Err(_) =&gt; {
+            eprintln!("Timeout waiting for action result");
+            return Err(zenoh::Error::from("Timeout waiting for action result"));
+        }
+    };
+
+    Ok(result.sequence)
+}</code></pre>
+<p><strong>Key points:</strong></p>
+<ul>
+<li><strong>Goal Sending</strong>: Uses <code>send_goal()</code> to submit goals and get a handle</li>
+<li><strong>Feedback Monitoring</strong>: Spawns async task to receive and display feedback</li>
+<li><strong>Result Handling</strong>: Waits for completion with timeout and error handling</li>
+<li><strong>Type Safety</strong>: Strongly-typed goal, feedback, and result messages</li>
+</ul>
+<p><strong>Running the client:</strong></p>
+<pre><code class="language-bash"># Basic usage - compute Fibonacci(10)
+cargo run --example demo_nodes_fibonacci_action_client
+
+# Compute Fibonacci(15)
+cargo run --example demo_nodes_fibonacci_action_client -- --order 15
+
+# Connect to specific router
+cargo run --example demo_nodes_fibonacci_action_client -- --endpoint tcp/localhost:7447
+</code></pre>
+<h2 id="complete-action-workflow"><a class="header" href="#complete-action-workflow">Complete Action Workflow</a></h2>
+<p><strong>Terminal 1 - Start Zenoh Router:</strong></p>
+<pre><code class="language-bash">cargo run --example zenoh_router
+</code></pre>
+<p><strong>Terminal 2 - Start Action Server:</strong></p>
+<pre><code class="language-bash">cargo run --example demo_nodes_fibonacci_action_server
+</code></pre>
+<p><strong>Terminal 3 - Send Goals from Client:</strong></p>
+<pre><code class="language-bash">cargo run --example demo_nodes_fibonacci_action_client -- --order 10
+</code></pre>
+<p>You'll see:</p>
+<ul>
+<li><strong>Client</strong>: Goal sent, feedback updates with partial sequences, final result</li>
+<li><strong>Server</strong>: Goal received, executing with feedback, completion status</li>
+</ul>
 <div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
 <div class="admonition-title">
 <div id="admonition-warning-title">

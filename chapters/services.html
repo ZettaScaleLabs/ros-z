@@ -220,10 +220,7 @@
 </div>
 <h2 id="service-server-example"><a class="header" href="#service-server-example">Service Server Example</a></h2>
 <p>This example demonstrates a service server that adds two integers. The server waits for requests, processes them, and sends responses back to clients.</p>
-<pre><code class="language-rust ignore">use ros_z::{Builder, Result, context::ZContext};
-use ros_z_msgs::example_interfaces::{AddTwoIntsResponse, srv::AddTwoInts};
-
-/// AddTwoInts server node that provides a service to add two integers
+<pre><code class="language-rust ignore">/// AddTwoInts server node that provides a service to add two integers
 ///
 /// # Arguments
 /// * `ctx` - The ROS-Z context
@@ -286,12 +283,7 @@ cargo run --example demo_nodes_add_two_ints_server -- --endpoint tcp/localhost:7
 </code></pre>
 <h2 id="service-client-example"><a class="header" href="#service-client-example">Service Client Example</a></h2>
 <p>This example demonstrates a service client that sends addition requests to the server and displays the results.</p>
-<pre><code class="language-rust ignore">use std::time::Duration;
-
-use ros_z::{Builder, Result, context::ZContext};
-use ros_z_msgs::example_interfaces::{AddTwoIntsRequest, srv::AddTwoInts};
-
-/// AddTwoInts client node that calls the service to add two integers
+<pre><code class="language-rust ignore">/// AddTwoInts client node that calls the service to add two integers
 ///
 /// # Arguments
 /// * `ctx` - The ROS-Z context

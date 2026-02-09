@@ -216,16 +216,7 @@
 </div>
 <h2 id="publisher-example"><a class="header" href="#publisher-example">Publisher Example</a></h2>
 <p>This example demonstrates publishing "Hello World" messages to a topic. The publisher sends messages periodically, showcasing the fundamental publishing pattern.</p>
-<pre><code class="language-rust ignore">use std::{num::NonZeroUsize, time::Duration};
-
-use ros_z::{
-    Builder, Result,
-    context::ZContext,
-    qos::{QosHistory, QosProfile},
-};
-use ros_z_msgs::std_msgs::String as RosString;
-
-/// Talker node that publishes "Hello World" messages to a topic
+<pre><code class="language-rust ignore">/// Talker node that publishes "Hello World" messages to a topic
 ///
 /// # Arguments
 /// * `ctx` - The ROS-Z context
@@ -296,16 +287,7 @@ cargo run --example demo_nodes_talker -- --max-count 10
 </code></pre>
 <h2 id="subscriber-example"><a class="header" href="#subscriber-example">Subscriber Example</a></h2>
 <p>This example demonstrates subscribing to messages from a topic. The subscriber receives and displays messages, showing both timeout-based and async reception patterns.</p>
-<pre><code class="language-rust ignore">use std::{num::NonZeroUsize, time::Duration};
-
-use ros_z::{
-    Builder, Result,
-    context::ZContext,
-    qos::{QosHistory, QosProfile},
-};
-use ros_z_msgs::std_msgs::String as RosString;
-
-/// Listener node that subscribes to a topic
+<pre><code class="language-rust ignore">/// Listener node that subscribes to a topic
 ///
 /// # Arguments
 /// * `ctx` - The ROS-Z context

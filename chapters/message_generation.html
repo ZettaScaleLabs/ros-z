@@ -202,8 +202,8 @@
     B --&gt; C[Parse &amp; Resolve]
     C --&gt; D[Type Hashing]
     D --&gt; E[Code Generation]
-    E --&gt; F[CDR Adapter]
-    E --&gt; G[Protobuf Adapter]
+    E --&gt; F[Rust Generator]
+    E --&gt; G[Protobuf Generator]
     F --&gt; H[Rust Structs + Traits]
     G --&gt; I[Proto Files + Rust]
     H --&gt; J[ros-z-msgs]
@@ -244,7 +244,7 @@
 <ul>
 <li>Coordinates message discovery across sources</li>
 <li>Manages build-time code generation</li>
-<li>Provides serialization adapters</li>
+<li>Provides code generators for different serialization formats</li>
 <li>Generates ros-z-specific traits</li>
 </ul>
 <p><strong>Discovery workflow:</strong></p>
@@ -269,15 +269,15 @@
     D--&gt;&gt;B: Package paths
     B-&gt;&gt;B: Generate Rust code
 </pre>
-<h3 id="serialization-adapters"><a class="header" href="#serialization-adapters">Serialization Adapters</a></h3>
-<p><strong>CDR Adapter (default):</strong></p>
+<h3 id="code-generators"><a class="header" href="#code-generators">Code Generators</a></h3>
+<p><strong>Rust Generator (default):</strong></p>
 <ul>
 <li>Generates structs with serde</li>
-<li>CDR-compatible serialization</li>
+<li>CDR-compatible serialization via ros-z-cdr</li>
 <li>Full ROS 2 DDS interoperability</li>
 <li>No additional dependencies</li>
 </ul>
-<p><strong>Protobuf Adapter (optional):</strong></p>
+<p><strong>Protobuf Generator (optional):</strong></p>
 <ul>
 <li>Generates <code>.proto</code> files</li>
 <li>Protobuf-compatible types</li>

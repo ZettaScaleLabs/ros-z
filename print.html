@@ -275,26 +275,45 @@ while let Ok(msg) = sub.recv() {
 <p>This guide assumes basic Rust knowledge. If you're new to Rust, complete the <a href="https://doc.rust-lang.org/book/">Rust Book</a> first for the best experience.</p>
 </div>
 </div>
-<h2 id="setup"><a class="header" href="#setup">Setup</a></h2>
-<p>Add ros-z dependencies to your <code>Cargo.toml</code>:</p>
-<pre><code class="language-toml">[dependencies]
-ros-z = "*"
-ros-z-msgs = "*"  # Standard ROS 2 message types
-tokio = { version = "1", features = ["full"] }  # Async runtime
+<h2 id="choose-your-path"><a class="header" href="#choose-your-path">Choose Your Path</a></h2>
+<p>There are two ways to get started with ros-z:</p>
+<ol>
+<li><strong><a href="chapters/quick_start.html#option-1-try-the-examples">Try the Examples</a></strong> - Clone the ros-z repository and run pre-built examples (fastest way to see it in action)</li>
+<li><strong><a href="chapters/quick_start.html#option-2-create-your-own-project">Create Your Own Project</a></strong> - Start a new Rust project with ros-z as a dependency</li>
+</ol>
+<hr />
+<h2 id="option-1-try-the-examples"><a class="header" href="#option-1-try-the-examples">Option 1: Try the Examples</a></h2>
+<p>The quickest way to experience ros-z is to run the included examples from the repository.</p>
+<h3 id="clone-the-repository"><a class="header" href="#clone-the-repository">Clone the Repository</a></h3>
+<pre><code class="language-bash">git clone https://github.com/ZettaScaleLabs/ros-z.git
+cd ros-z
 </code></pre>
-<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+<h3 id="start-the-zenoh-router"><a class="header" href="#start-the-zenoh-router">Start the Zenoh Router</a></h3>
+<p>ros-z uses a router-based architecture (matching ROS 2's <code>rmw_zenoh</code>), so you'll need to start a Zenoh router first.</p>
+<p><strong>Terminal 1 - Start the Router:</strong></p>
+<pre><code class="language-bash">cargo run --example zenoh_router
+</code></pre>
+<h3 id="run-the-pubsub-example"><a class="header" href="#run-the-pubsub-example">Run the Pub/Sub Example</a></h3>
+<p>Open two more terminals in the same <code>ros-z</code> directory:</p>
+<p><strong>Terminal 2 - Start the Listener:</strong></p>
+<pre><code class="language-bash">cargo run --example z_pubsub -- -r listener
+</code></pre>
+<p><strong>Terminal 3 - Start the Talker:</strong></p>
+<pre><code class="language-bash">cargo run --example z_pubsub -- -r talker
+</code></pre>
+<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
 <div class="admonition-title">
-<div id="admonition-note-title">
-<p>Note</p>
+<div id="admonition-success-title">
+<p>Success</p>
 </div>
-<a class="admonition-anchor-link" href="chapters/quick_start.html#admonition-note"></a>
+<a class="admonition-anchor-link" href="chapters/quick_start.html#admonition-success"></a>
 </div>
 <div>
-<p>An async runtime is required for ros-z. This example uses Tokio, the most popular choice in the Rust ecosystem.</p>
+<p>You should see the listener receiving messages published by the talker in real-time. Press Ctrl+C to stop any process.</p>
 </div>
 </div>
-<h2 id="your-1st-example"><a class="header" href="#your-1st-example">Your 1st Example</a></h2>
-<p>Here's a complete publisher and subscriber in one application:</p>
+<h3 id="understanding-the-code"><a class="header" href="#understanding-the-code">Understanding the Code</a></h3>
+<p>Here's the complete example you just ran:</p>
 <pre><code class="language-rust ignore">use std::time::Duration;
 
 use clap::{Parser, ValueEnum};
@@ -440,6 +459,146 @@ struct Args {
     #[arg(short, long, value_enum, default_value = "rmw-zenoh")]
     backend: Backend,
 }</code></pre>
+<hr />
+<h2 id="option-2-create-your-own-project"><a class="header" href="#option-2-create-your-own-project">Option 2: Create Your Own Project</a></h2>
+<p>Ready to build your own ros-z application? Follow these steps to create a new project from scratch.</p>
+<h3 id="1-install-the-zenoh-router"><a class="header" href="#1-install-the-zenoh-router">1. Install the Zenoh Router</a></h3>
+<p>Since you won't have access to the <code>zenoh_router</code> example outside the ros-z repository, you'll need to install a Zenoh router. Here are the quickest options:</p>
+<p><strong>Option A: Using cargo (if you have Rust):</strong></p>
+<pre><code class="language-bash">cargo install zenohd
+</code></pre>
+<p><strong>Option B: Using pre-built binary (no Rust needed):</strong></p>
+<p>Download the latest release for your platform from:
+<strong><a href="https://github.com/eclipse-zenoh/zenoh/releases">https://github.com/eclipse-zenoh/zenoh/releases</a></strong></p>
+<p>Then extract and run:</p>
+<pre><code class="language-bash">unzip zenoh-*.zip
+chmod +x zenohd
+./zenohd
+</code></pre>
+<p><strong>Option C: Using Docker:</strong></p>
+<pre><code class="language-bash">docker run --init --net host eclipse/zenoh:latest
+</code></pre>
+<p><strong>Start the router:</strong></p>
+<pre><code class="language-bash">zenohd
+</code></pre>
+<div id="admonition-tip-1" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-1-title">
+<div class="admonition-title">
+<div id="admonition-tip-1-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/quick_start.html#admonition-tip-1"></a>
+</div>
+<div>
+<p>For more installation options (apt, brew, Windows, etc.), see the comprehensive <a href="chapters/./networking.html#running-the-zenoh-router">Zenoh Router Installation Guide</a>.</p>
+</div>
+</div>
+<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+<div class="admonition-title">
+<div id="admonition-note-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/quick_start.html#admonition-note"></a>
+</div>
+<div>
+<p>Keep the router running in a separate terminal. All ros-z applications will connect to it.</p>
+</div>
+</div>
+<h3 id="2-create-a-new-rust-project"><a class="header" href="#2-create-a-new-rust-project">2. Create a New Rust Project</a></h3>
+<pre><code class="language-bash">cargo new my_ros_z_project
+cd my_ros_z_project
+</code></pre>
+<h3 id="3-add-dependencies"><a class="header" href="#3-add-dependencies">3. Add Dependencies</a></h3>
+<p>Add ros-z to your <code>Cargo.toml</code>:</p>
+<pre><code class="language-toml">[dependencies]
+ros-z = "*"
+ros-z-msgs = "*"  # Standard ROS 2 message types
+tokio = { version = "1", features = ["full"] }  # Async runtime
+</code></pre>
+<div id="admonition-note-1" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-1-title">
+<div class="admonition-title">
+<div id="admonition-note-1-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/quick_start.html#admonition-note-1"></a>
+</div>
+<div>
+<p>An async runtime is required for ros-z. This example uses Tokio, the most popular choice in the Rust ecosystem.</p>
+</div>
+</div>
+<h3 id="4-write-your-first-application"><a class="header" href="#4-write-your-first-application">4. Write Your First Application</a></h3>
+<p>Replace the contents of <code>src/main.rs</code> with this simple publisher example:</p>
+<pre><code class="language-rust ignore">use std::time::Duration;
+use ros_z::{Builder, Result, context::ZContextBuilder};
+use ros_z_msgs::std_msgs::String as RosString;
+
+#[tokio::main]
+async fn main() -&gt; Result&lt;()&gt; {
+    // Initialize ros-z context (connects to router on localhost:7447)
+    let ctx = ZContextBuilder::default().build()?;
+
+    // Create a ROS 2 node
+    let node = ctx.create_node("my_talker").build()?;
+
+    // Create a publisher for the /chatter topic
+    let pub_handle = node.create_pub::&lt;RosString&gt;("/chatter").build()?;
+
+    // Publish messages every second
+    let mut count = 0;
+    loop {
+        let msg = RosString {
+            data: format!("Hello from ros-z #{}", count),
+        };
+        println!("Publishing: {}", msg.data);
+        pub_handle.async_publish(&amp;msg).await?;
+
+        count += 1;
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+}</code></pre>
+<h3 id="5-run-your-application"><a class="header" href="#5-run-your-application">5. Run Your Application</a></h3>
+<p>Make sure the Zenoh router (<code>zenohd</code>) is running in another terminal, then:</p>
+<pre><code class="language-bash">cargo run
+</code></pre>
+<div id="admonition-success-1" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-1-title">
+<div class="admonition-title">
+<div id="admonition-success-1-title">
+<p>Success</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/quick_start.html#admonition-success-1"></a>
+</div>
+<div>
+<p>You should see messages being published every second. The application will continue until you press Ctrl+C.</p>
+</div>
+</div>
+<h3 id="6-test-with-multiple-nodes"><a class="header" href="#6-test-with-multiple-nodes">6. Test with Multiple Nodes</a></h3>
+<p>Open another terminal and create a simple listener to verify communication:</p>
+<p><strong>Create <code>src/bin/listener.rs</code>:</strong></p>
+<pre><code class="language-rust ignore">use ros_z::{Builder, Result, context::ZContextBuilder};
+use ros_z_msgs::std_msgs::String as RosString;
+
+#[tokio::main]
+async fn main() -&gt; Result&lt;()&gt; {
+    let ctx = ZContextBuilder::default().build()?;
+    let node = ctx.create_node("my_listener").build()?;
+    let sub = node.create_sub::&lt;RosString&gt;("/chatter").build()?;
+
+    println!("Listening on /chatter...");
+    while let Ok(msg) = sub.async_recv().await {
+        println!("Received: {}", msg.data);
+    }
+    Ok(())
+}</code></pre>
+<p><strong>Run both:</strong></p>
+<pre><code class="language-bash"># Terminal 1: Router
+zenohd
+
+# Terminal 2: Publisher
+cargo run
+
+# Terminal 3: Listener
+cargo run --bin listener
+</code></pre>
+<hr />
 <h2 id="key-components"><a class="header" href="#key-components">Key Components</a></h2>
 <div class="table-wrapper"><table><thead><tr><th>Component</th><th>Purpose</th><th>Usage</th></tr></thead><tbody>
 <tr><td><strong>ZContextBuilder</strong></td><td>Initialize ros-z environment</td><td>Entry point, configure settings</td></tr>
@@ -448,31 +607,7 @@ struct Args {
 <tr><td><strong>Publisher</strong></td><td>Sends messages to topics</td><td><code>node.create_pub::&lt;Type&gt;("topic")</code></td></tr>
 <tr><td><strong>Subscriber</strong></td><td>Receives messages from topics</td><td><code>node.create_sub::&lt;Type&gt;("topic")</code></td></tr>
 </tbody></table>
-</div>
-<h2 id="running-the-application"><a class="header" href="#running-the-application">Running the Application</a></h2>
-<p>ros-z uses a router-based architecture (matching ROS 2's <code>rmw_zenoh</code>), so you'll need to start a Zenoh router first.</p>
-<p>Open three terminal windows and run:</p>
-<p><strong>Terminal 1 - Start the Zenoh Router:</strong></p>
-<pre><code class="language-bash">cargo run --example zenoh_router
-</code></pre>
-<p><strong>Terminal 2 - Start the Listener:</strong></p>
-<pre><code class="language-bash">cargo run --example z_pubsub -- -r listener
-</code></pre>
-<p><strong>Terminal 3 - Start the Talker:</strong></p>
-<pre><code class="language-bash">cargo run --example z_pubsub -- -r talker
-</code></pre>
-<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
-<div class="admonition-title">
-<div id="admonition-success-title">
-<p>Success</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/quick_start.html#admonition-success"></a>
-</div>
-<div>
-<p>You should see the listener receiving messages published by the talker in real-time. Press Ctrl+C to stop any process.</p>
-</div>
-</div>
-<div id="admonition-why-a-zenoh-router" class="admonition admonish-tip" role="note" aria-labelledby="admonition-why-a-zenoh-router-title">
+</div><div id="admonition-why-a-zenoh-router" class="admonition admonish-tip" role="note" aria-labelledby="admonition-why-a-zenoh-router-title">
 <div class="admonition-title">
 <div id="admonition-why-a-zenoh-router-title">
 <p>Why a Zenoh router?</p>
@@ -480,13 +615,13 @@ struct Args {
 <a class="admonition-anchor-link" href="chapters/quick_start.html#admonition-why-a-zenoh-router"></a>
 </div>
 <div>
-<p>ros-z now uses router-based discovery by default, aligning with ROS 2's official Zenoh middleware (<code>rmw_zenoh_cpp</code>). This provides:</p>
+<p>ros-z uses router-based discovery by default, aligning with ROS 2's official Zenoh middleware (<code>rmw_zenoh_cpp</code>). This provides:</p>
 <ul>
 <li><strong>Better scalability</strong> for large deployments with many nodes</li>
 <li><strong>Lower network overhead</strong> compared to multicast discovery</li>
 <li><strong>Production-ready</strong> architecture used in real ROS 2 systems</li>
 </ul>
-<p>See the <a href="chapters/./networking.html">Zenoh Configuration</a> chapter for customization options, including how to revert to multicast scouting mode if needed.</p>
+<p>See the <a href="chapters/./networking.html">Networking</a> chapter for customization options, including how to revert to multicast scouting mode if needed.</p>
 </div>
 </div>
 <h2 id="whats-happening"><a class="header" href="#whats-happening">What's Happening?</a></h2>
@@ -563,16 +698,7 @@ struct Args {
 </div>
 <h2 id="publisher-example"><a class="header" href="#publisher-example">Publisher Example</a></h2>
 <p>This example demonstrates publishing "Hello World" messages to a topic. The publisher sends messages periodically, showcasing the fundamental publishing pattern.</p>
-<pre><code class="language-rust ignore">use std::{num::NonZeroUsize, time::Duration};
-
-use ros_z::{
-    Builder, Result,
-    context::ZContext,
-    qos::{QosHistory, QosProfile},
-};
-use ros_z_msgs::std_msgs::String as RosString;
-
-/// Talker node that publishes "Hello World" messages to a topic
+<pre><code class="language-rust ignore">/// Talker node that publishes "Hello World" messages to a topic
 ///
 /// # Arguments
 /// * `ctx` - The ROS-Z context
@@ -643,16 +769,7 @@ cargo run --example demo_nodes_talker -- --max-count 10
 </code></pre>
 <h2 id="subscriber-example"><a class="header" href="#subscriber-example">Subscriber Example</a></h2>
 <p>This example demonstrates subscribing to messages from a topic. The subscriber receives and displays messages, showing both timeout-based and async reception patterns.</p>
-<pre><code class="language-rust ignore">use std::{num::NonZeroUsize, time::Duration};
-
-use ros_z::{
-    Builder, Result,
-    context::ZContext,
-    qos::{QosHistory, QosProfile},
-};
-use ros_z_msgs::std_msgs::String as RosString;
-
-/// Listener node that subscribes to a topic
+<pre><code class="language-rust ignore">/// Listener node that subscribes to a topic
 ///
 /// # Arguments
 /// * `ctx` - The ROS-Z context
@@ -897,10 +1014,7 @@ ros2 topic info /chatter
 </div>
 <h2 id="service-server-example"><a class="header" href="#service-server-example">Service Server Example</a></h2>
 <p>This example demonstrates a service server that adds two integers. The server waits for requests, processes them, and sends responses back to clients.</p>
-<pre><code class="language-rust ignore">use ros_z::{Builder, Result, context::ZContext};
-use ros_z_msgs::example_interfaces::{AddTwoIntsResponse, srv::AddTwoInts};
-
-/// AddTwoInts server node that provides a service to add two integers
+<pre><code class="language-rust ignore">/// AddTwoInts server node that provides a service to add two integers
 ///
 /// # Arguments
 /// * `ctx` - The ROS-Z context
@@ -963,12 +1077,7 @@ cargo run --example demo_nodes_add_two_ints_server -- --endpoint tcp/localhost:7
 </code></pre>
 <h2 id="service-client-example"><a class="header" href="#service-client-example">Service Client Example</a></h2>
 <p>This example demonstrates a service client that sends addition requests to the server and displays the results.</p>
-<pre><code class="language-rust ignore">use std::time::Duration;
-
-use ros_z::{Builder, Result, context::ZContext};
-use ros_z_msgs::example_interfaces::{AddTwoIntsRequest, srv::AddTwoInts};
-
-/// AddTwoInts client node that calls the service to add two integers
+<pre><code class="language-rust ignore">/// AddTwoInts client node that calls the service to add two integers
 ///
 /// # Arguments
 /// * `ctx` - The ROS-Z context
@@ -1241,43 +1350,184 @@ ros2 service info /add_two_ints
 <p>Actions excel when operations take more than a few seconds and users need visibility into progress. For sub-second operations, prefer services for simplicity.</p>
 </div>
 </div>
-<h2 id="example-patterns"><a class="header" href="#example-patterns">Example Patterns</a></h2>
-<p><strong>Action Server:</strong></p>
-<pre><code class="language-rust ignore">let action_server = node
-    .create_action_server::&lt;Fibonacci&gt;("/fibonacci")
-    .build()?;
+<h2 id="action-server-example"><a class="header" href="#action-server-example">Action Server Example</a></h2>
+<p>This example demonstrates an action server that computes Fibonacci sequences. The server accepts goals, publishes periodic feedback with partial results, and supports cancellation.</p>
+<pre><code class="language-rust ignore">/// Fibonacci action server node that computes Fibonacci sequences
+///
+/// # Arguments
+/// * `ctx` - The ROS-Z context
+/// * `timeout` - Optional timeout duration. If None, runs until ctrl+c.
+pub async fn run_fibonacci_action_server(ctx: ZContext, timeout: Option&lt;Duration&gt;) -&gt; Result&lt;()&gt; {
+    // Create a node named "fibonacci_action_server"
+    let node = ctx.create_node("fibonacci_action_server").build()?;
 
-loop {
-    let goal = action_server.accept_goal()?;
+    // Create an action server
+    // Note: The server variable must be kept alive for the duration of the function
+    // to ensure the action server and its background tasks remain active
+    let _server = node
+        .create_action_server::&lt;Fibonacci&gt;("fibonacci")
+        .build()?
+        .with_handler(|executing: ExecutingGoal&lt;Fibonacci&gt;| async move {
+            let order = executing.goal.order;
+            let mut sequence = vec![0, 1];
 
-    // Send periodic feedback
-    for i in 0..goal.order {
-        action_server.send_feedback(FeedbackMsg {
-            current: i,
-            sequence: compute_partial(i)
-        })?;
+            println!("Executing Fibonacci goal with order {}", order);
+
+            let mut canceled = false;
+            let mut cancel_sequence = None;
+
+            for i in 2..=order {
+                // Check for cancellation
+                if executing.is_cancel_requested() {
+                    println!("Goal canceled!");
+                    canceled = true;
+                    cancel_sequence = Some(sequence.clone());
+                    break;
+                }
+
+                let next = sequence[i as usize - 1] + sequence[i as usize - 2];
+                sequence.push(next);
+
+                // Publish feedback
+                executing
+                    .publish_feedback(FibonacciFeedback {
+                        partial_sequence: sequence.clone(),
+                    })
+                    .expect("Failed to publish feedback");
+
+                tokio::time::sleep(Duration::from_millis(500)).await;
+            }
+
+            if canceled {
+                executing
+                    .canceled(FibonacciResult {
+                        sequence: cancel_sequence.unwrap(),
+                    })
+                    .unwrap();
+            } else {
+                println!("Goal succeeded!");
+                executing.succeed(FibonacciResult { sequence }).unwrap();
+            }
+        });
+
+    println!("Fibonacci action server started");
+
+    if let Some(timeout) = timeout {
+        // For testing: run for the specified timeout
+        tokio::time::sleep(timeout).await;
+    } else {
+        tokio::signal::ctrl_c().await?;
     }
 
-    // Send final result
-    action_server.send_result(ResultMsg {
-        sequence: compute_final(goal.order)
-    })?;
+    Ok(())
 }</code></pre>
-<p><strong>Action Client:</strong></p>
-<pre><code class="language-rust ignore">let action_client = node
-    .create_action_client::&lt;Fibonacci&gt;("/fibonacci")
-    .build()?;
+<p><strong>Key points:</strong></p>
+<ul>
+<li><strong>Handler Pattern</strong>: Uses <code>.with_handler()</code> to define asynchronous goal execution</li>
+<li><strong>Feedback Publishing</strong>: Sends partial results periodically via <code>publish_feedback()</code></li>
+<li><strong>Cancellation Support</strong>: Checks <code>is_cancel_requested()</code> and handles graceful cancellation</li>
+<li><strong>Completion</strong>: Uses <code>.succeed()</code> or <code>.canceled()</code> to send final result</li>
+</ul>
+<p><strong>Running the server:</strong></p>
+<pre><code class="language-bash"># Start Zenoh router first
+cargo run --example zenoh_router
 
-let goal_handle = action_client.send_goal(GoalMsg {
-    order: 10
-}).await?;
+# Run the server (runs until Ctrl+C)
+cargo run --example demo_nodes_fibonacci_action_server
+</code></pre>
+<h2 id="action-client-example"><a class="header" href="#action-client-example">Action Client Example</a></h2>
+<p>This example demonstrates an action client that sends goals and monitors execution progress with feedback updates.</p>
+<pre><code class="language-rust ignore">/// Fibonacci action client node that sends goals to compute Fibonacci sequences
+///
+/// # Arguments
+/// * `ctx` - The ROS-Z context
+/// * `order` - The order of the Fibonacci sequence to compute
+pub async fn run_fibonacci_action_client(ctx: ZContext, order: i32) -&gt; Result&lt;Vec&lt;i32&gt;&gt; {
+    // Create a node named "fibonacci_action_client"
+    let node = ctx.create_node("fibonacci_action_client").build()?;
 
-while let Some(feedback) = goal_handle.feedback().await {
-    println!("Progress: {}", feedback.current);
-}
+    // Create an action client
+    let client = node
+        .create_action_client::&lt;Fibonacci&gt;("fibonacci")
+        .build()?;
 
-let result = goal_handle.get_result().await?;
-println!("Final: {:?}", result.sequence);</code></pre>
+    // Wait a bit for the server to be discovered
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+
+    println!(
+        "Fibonacci action client started, sending goal with order {}",
+        order
+    );
+
+    // Send the goal
+    let mut goal_handle = client.send_goal(FibonacciGoal { order }).await?;
+    println!("Goal sent and accepted!");
+
+    // Set up feedback monitoring
+    if let Some(mut feedback_stream) = goal_handle.feedback() {
+        tokio::spawn(async move {
+            while let Some(fb) = feedback_stream.recv().await {
+                println!("Feedback: {:?}", fb.partial_sequence);
+            }
+        });
+    }
+
+    // Wait for the result with timeout
+    println!("Waiting for result (timeout: 10s)...");
+    let result = match tokio::time::timeout(
+        tokio::time::Duration::from_secs(10),
+        goal_handle.result(),
+    )
+    .await
+    {
+        Ok(Ok(result)) =&gt; {
+            println!("Final result: {:?}", result.sequence);
+            result
+        }
+        Ok(Err(e)) =&gt; {
+            eprintln!("Action failed: {}", e);
+            return Err(e);
+        }
+        Err(_) =&gt; {
+            eprintln!("Timeout waiting for action result");
+            return Err(zenoh::Error::from("Timeout waiting for action result"));
+        }
+    };
+
+    Ok(result.sequence)
+}</code></pre>
+<p><strong>Key points:</strong></p>
+<ul>
+<li><strong>Goal Sending</strong>: Uses <code>send_goal()</code> to submit goals and get a handle</li>
+<li><strong>Feedback Monitoring</strong>: Spawns async task to receive and display feedback</li>
+<li><strong>Result Handling</strong>: Waits for completion with timeout and error handling</li>
+<li><strong>Type Safety</strong>: Strongly-typed goal, feedback, and result messages</li>
+</ul>
+<p><strong>Running the client:</strong></p>
+<pre><code class="language-bash"># Basic usage - compute Fibonacci(10)
+cargo run --example demo_nodes_fibonacci_action_client
+
+# Compute Fibonacci(15)
+cargo run --example demo_nodes_fibonacci_action_client -- --order 15
+
+# Connect to specific router
+cargo run --example demo_nodes_fibonacci_action_client -- --endpoint tcp/localhost:7447
+</code></pre>
+<h2 id="complete-action-workflow"><a class="header" href="#complete-action-workflow">Complete Action Workflow</a></h2>
+<p><strong>Terminal 1 - Start Zenoh Router:</strong></p>
+<pre><code class="language-bash">cargo run --example zenoh_router
+</code></pre>
+<p><strong>Terminal 2 - Start Action Server:</strong></p>
+<pre><code class="language-bash">cargo run --example demo_nodes_fibonacci_action_server
+</code></pre>
+<p><strong>Terminal 3 - Send Goals from Client:</strong></p>
+<pre><code class="language-bash">cargo run --example demo_nodes_fibonacci_action_client -- --order 10
+</code></pre>
+<p>You'll see:</p>
+<ul>
+<li><strong>Client</strong>: Goal sent, feedback updates with partial sequences, final result</li>
+<li><strong>Server</strong>: Goal received, executing with feedback, completion status</li>
+</ul>
 <div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
 <div class="admonition-title">
 <div id="admonition-warning-title">
@@ -1537,22 +1787,55 @@ cargo build --features rolling
 cargo build --features iron
 </code></pre>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="running-examples"><a class="header" href="#running-examples">Running Examples</a></h1>
-<p>Once you've added ros-z to your project, you can run the included examples to see it in action.</p>
-<div id="admonition-important" class="admonition admonish-tip" role="note" aria-labelledby="admonition-important-title">
+<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
 <div class="admonition-title">
-<div id="admonition-important-title">
-<p>Important</p>
+<div id="admonition-note-title">
+<p>Note</p>
 </div>
-<a class="admonition-anchor-link" href="chapters/examples.html#admonition-important"></a>
+<a class="admonition-anchor-link" href="chapters/examples.html#admonition-note"></a>
 </div>
 <div>
-<p><strong>All examples require a Zenoh router to be running first</strong> (see <a href="chapters/./networking.html">Networking</a> for why ros-z uses router-based architecture by default):</p>
+<p>The examples described here are part of the ros-z repository. To run them, you must first clone the repository.</p>
+</div>
+</div>
+<pre><code class="language-bash">git clone https://github.com/ZettaScaleLabs/ros-z.git
+cd ros-z
+</code></pre>
+<h2 id="start-the-zenoh-router-1"><a class="header" href="#start-the-zenoh-router-1">Start the Zenoh Router</a></h2>
+<p>All examples require a Zenoh router to be running first (see <a href="chapters/./networking.html">Networking</a> for why ros-z uses router-based architecture by default).</p>
+<h2 id="from-the-ros-z-repository"><a class="header" href="#from-the-ros-z-repository">From the ros-z Repository</a></h2>
+<p>If you're working in the ros-z repository, use the included router example:</p>
 <pre><code class="language-bash">cargo run --example zenoh_router
 </code></pre>
+<h2 id="from-your-own-project"><a class="header" href="#from-your-own-project">From Your Own Project</a></h2>
+<p>If you're working on your own project, you need to install a Zenoh router. Quick options:</p>
+<pre><code class="language-bash"># Using cargo
+cargo install zenohd
+
+# Using Docker
+docker run --init --net host eclipse/zenoh:latest
+
+# Using apt (Ubuntu/Debian)
+echo "deb [trusted=yes] https://download.eclipse.org/zenoh/debian-repo/ /" | sudo tee /etc/apt/sources.list.d/zenoh.list
+sudo apt update &amp;&amp; sudo apt install zenoh
+</code></pre>
+<p>Then run:</p>
+<pre><code class="language-bash">zenohd
+</code></pre>
+<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
+<div class="admonition-title">
+<div id="admonition-tip-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/examples.html#admonition-tip"></a>
+</div>
+<div>
+<p>See the comprehensive <a href="chapters/./networking.html#running-the-zenoh-router">Zenoh Router Installation Guide</a> for all installation methods including pre-built binaries, package managers, and more.</p>
 </div>
 </div>
-<p>Leave this running in a separate terminal, then run any example in another terminal.</p>
+<hr />
 <h2 id="available-examples"><a class="header" href="#available-examples">Available Examples</a></h2>
+<p>Leave the router running in a separate terminal, then run any example in another terminal from the ros-z repository root:</p>
 <pre><code class="language-bash"># Pure Rust example with custom messages (no ros-z-msgs needed)
 cargo run --example z_custom_message -- --mode status-pub
 
@@ -1562,9 +1845,31 @@ cargo run --example twist_pub         # Publishing geometry_msgs
 cargo run --example battery_state_sub # Receiving sensor_msgs
 cargo run --example z_srvcli          # Service example with example_interfaces
 </code></pre>
-<p>See the <a href="chapters/./networking.html">Networking</a> chapter for router setup details and alternative configurations.</p>
+<div id="admonition-tip-1" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-1-title">
+<div class="admonition-title">
+<div id="admonition-tip-1-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/examples.html#admonition-tip-1"></a>
+</div>
+<div>
+<p>For a detailed walkthrough of creating your own project with ros-z (not using the repository examples), see the <a href="chapters/./quick_start.html#option-2-create-your-own-project">Quick Start</a> guide.</p>
+</div>
+</div>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="networking"><a class="header" href="#networking">Networking</a></h1>
 <p><strong>Configure ros-z's Zenoh transport layer for optimal performance in your deployment environment.</strong> ros-z uses router-based architecture by default, matching ROS 2's official <code>rmw_zenoh_cpp</code> middleware for production-ready scalability.</p>
+<div align="center">
+<pre class="mermaid">graph TB
+    Router[&quot;zenohd &lt;br&gt; (router)&quot;]
+
+    Talker[&quot;Talker node &lt;br&gt; (peer)&quot;]
+    Listener[&quot;Listener node &lt;br&gt; (peer)&quot;]
+
+    Router &lt;--&gt;|Discovery| Talker
+    Router &lt;--&gt;|Discovery| Listener
+    Talker &lt;-.-&gt;|P2P Communication| Listener
+</pre>
+</div>
 <h2 id="router-based-architecture"><a class="header" href="#router-based-architecture">Router-Based Architecture</a></h2>
 <p>ros-z uses a centralized Zenoh router for node discovery and communication, providing:</p>
 <div class="table-wrapper"><table><thead><tr><th>Benefit</th><th>Description</th></tr></thead><tbody>
@@ -1575,11 +1880,7 @@ cargo run --example z_srvcli          # Service example with example_interfaces
 </tbody></table>
 </div>
 <h2 id="quick-start-1"><a class="header" href="#quick-start-1">Quick Start</a></h2>
-<p>The simplest way to get started is using the built-in router example:</p>
-<p><strong>Terminal 1 - Start the Router:</strong></p>
-<pre><code class="language-bash">cargo run --example zenoh_router
-</code></pre>
-<p><strong>Terminal 2 - Run Your Application:</strong></p>
+<p>The default ros-z configuration connects to a Zenoh router on <code>tcp/localhost:7447</code>:</p>
 <pre><code class="language-rust ignore">use ros_z::context::ZContextBuilder;
 use ros_z::Builder;
 
@@ -1594,17 +1895,210 @@ let node = ctx.create_node("my_node").build()?;</code></pre>
 <a class="admonition-anchor-link" href="chapters/networking.html#admonition-success"></a>
 </div>
 <div>
-<p>That's it! The default configuration automatically connects to the router on <code>tcp/localhost:7447</code>.</p>
+<p>That's it! The default configuration automatically connects to the router. Now you just need to run one.</p>
 </div>
 </div>
 <h2 id="running-the-zenoh-router"><a class="header" href="#running-the-zenoh-router">Running the Zenoh Router</a></h2>
-<h3 id="option-1-built-in-router-example"><a class="header" href="#option-1-built-in-router-example">Option 1: Built-in Router Example</a></h3>
-<p>ros-z provides a built-in router example that's ROS-compatible out of the box.</p>
-<pre><code class="language-bash">cargo run --example zenoh_router
+<p>ros-z applications require a Zenoh router to be running. There are several ways to get one - choose based on your environment and requirements.</p>
+<h3 id="quick-comparison"><a class="header" href="#quick-comparison">Quick Comparison</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>Best For</th><th>Requires</th><th>Setup Speed</th></tr></thead><tbody>
+<tr><td><a href="chapters/networking.html#method-1-cargo-install">Cargo Install</a></td><td>Rust developers</td><td>Rust toolchain</td><td>Slower (build from source)</td></tr>
+<tr><td><a href="chapters/networking.html#method-2-pre-built-binary">Pre-built Binary</a></td><td>Quick setup, no Rust</td><td>None</td><td>Fast</td></tr>
+<tr><td><a href="chapters/networking.html#method-3-docker">Docker</a></td><td>Containers, CI/CD</td><td>Docker</td><td>Fast</td></tr>
+<tr><td><a href="chapters/networking.html#method-4-package-manager-apt-brew">Package Manager</a></td><td>System-wide install</td><td>apt/brew/etc</td><td>Fast</td></tr>
+<tr><td><a href="chapters/networking.html#method-5-ros-z-example-router">ros-z Example</a></td><td>ros-z repo developers</td><td>ros-z repository</td><td>Very Fast</td></tr>
+<tr><td><a href="chapters/networking.html#method-6-ros-2-rmw_zenoh">ROS 2 rmw_zenoh</a></td><td>ROS 2 interop testing</td><td>ROS 2 installed</td><td>Already installed</td></tr>
+</tbody></table>
+</div>
+<hr />
+<h3 id="method-1-cargo-install"><a class="header" href="#method-1-cargo-install">Method 1: Cargo Install</a></h3>
+<p><strong>Recommended for Rust developers building standalone projects.</strong></p>
+<p>Install the official Zenoh router using Cargo:</p>
+<pre><code class="language-bash">cargo install zenohd
 </code></pre>
-<p>Listens on <code>tcp/[::]:7447</code> (all interfaces, port 7447).</p>
-<h3 id="option-2-official-zenoh-router"><a class="header" href="#option-2-official-zenoh-router">Option 2: Official Zenoh Router</a></h3>
-<p>You can also use the official Zenoh router: <a href="https://zenoh.io/docs/getting-started/installation/#installing-the-zenoh-router">https://zenoh.io/docs/getting-started/installation/#installing-the-zenoh-router</a>.</p>
+<p>Run the router:</p>
+<pre><code class="language-bash">zenohd
+</code></pre>
+<p><strong>Pros:</strong></p>
+<ul>
+<li>Always up-to-date with latest Zenoh</li>
+<li>Builds optimized for your system</li>
+<li>Easy to update: <code>cargo install zenohd --force</code></li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul>
+<li>Requires Rust toolchain</li>
+<li>Takes 2-5 minutes to compile</li>
+</ul>
+<hr />
+<h3 id="method-2-pre-built-binary"><a class="header" href="#method-2-pre-built-binary">Method 2: Pre-built Binary</a></h3>
+<p><strong>Fastest way to get started without Rust installed.</strong></p>
+<p><strong>Download:</strong> Go to the <a href="https://github.com/eclipse-zenoh/zenoh/releases">Zenoh Releases page</a> and download the appropriate archive for your platform:</p>
+<ul>
+<li>Linux (x86_64): <code>zenoh-*-x86_64-unknown-linux-gnu-standalone.zip</code></li>
+<li>macOS (Apple Silicon): <code>zenoh-*-aarch64-apple-darwin-standalone.zip</code></li>
+<li>macOS (Intel): <code>zenoh-*-x86_64-apple-darwin-standalone.zip</code></li>
+<li>Windows: <code>zenoh-*-x86_64-pc-windows-msvc-standalone.zip</code></li>
+</ul>
+<p><strong>Extract and run:</strong></p>
+<p>Linux/macOS:</p>
+<pre><code class="language-bash">unzip zenoh-*.zip
+chmod +x zenohd
+./zenohd
+</code></pre>
+<p>Windows (PowerShell):</p>
+<pre><code class="language-powershell">Expand-Archive zenoh-*.zip
+.\zenoh\zenohd.exe
+</code></pre>
+<p><strong>Pros:</strong></p>
+<ul>
+<li>No build tools required</li>
+<li>Instant startup</li>
+<li>Portable - can run from any directory</li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul>
+<li>Manual download and extraction</li>
+<li>Need to track updates yourself</li>
+</ul>
+<p><strong>More info:</strong> <a href="https://zenoh.io/docs/getting-started/installation/">https://zenoh.io/docs/getting-started/installation/</a></p>
+<hr />
+<h3 id="method-3-docker"><a class="header" href="#method-3-docker">Method 3: Docker</a></h3>
+<p><strong>Perfect for containerized deployments and CI/CD pipelines.</strong></p>
+<p>Pull and run the official Zenoh router image:</p>
+<pre><code class="language-bash">docker run --init --net host eclipse/zenoh:latest
+</code></pre>
+<p><strong>For production with persistent config:</strong></p>
+<pre><code class="language-bash">docker run -d \
+  --name zenoh-router \
+  --net host \
+  -v /path/to/config:/zenoh/config \
+  eclipse/zenoh:latest \
+  --config /zenoh/config/zenoh.json5
+</code></pre>
+<p><strong>Pros:</strong></p>
+<ul>
+<li>Isolated from host system</li>
+<li>Easy to deploy and scale</li>
+<li>Works great in Kubernetes/Docker Compose</li>
+<li>Consistent across environments</li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul>
+<li>Requires Docker installed</li>
+<li>Network setup can be tricky (use <code>--net host</code> for simplicity)</li>
+</ul>
+<p><strong>Docker Hub:</strong> <a href="https://hub.docker.com/r/eclipse/zenoh/tags">https://hub.docker.com/r/eclipse/zenoh/tags</a></p>
+<hr />
+<h3 id="method-4-package-manager-apt-brew"><a class="header" href="#method-4-package-manager-apt-brew">Method 4: Package Manager (apt, brew)</a></h3>
+<p><strong>Best for system-wide installation on Linux/macOS.</strong></p>
+<p><strong>Ubuntu/Debian (via apt):</strong></p>
+<pre><code class="language-bash">echo "deb [trusted=yes] https://download.eclipse.org/zenoh/debian-repo/ /" | sudo tee /etc/apt/sources.list.d/zenoh.list
+sudo apt update
+sudo apt install zenoh
+</code></pre>
+<p>Run as a service:</p>
+<pre><code class="language-bash">sudo systemctl enable zenoh
+sudo systemctl start zenoh
+</code></pre>
+<p>Or run manually:</p>
+<pre><code class="language-bash">zenohd
+</code></pre>
+<p><strong>macOS (via Homebrew):</strong></p>
+<pre><code class="language-bash">brew tap eclipse-zenoh/homebrew-zenoh
+brew install zenoh
+zenohd
+</code></pre>
+<p><strong>Arch Linux (via AUR):</strong></p>
+<pre><code class="language-bash">yay -S zenoh
+zenohd
+</code></pre>
+<p><strong>Pros:</strong></p>
+<ul>
+<li>System-wide installation</li>
+<li>Easy updates via package manager</li>
+<li>Can run as systemd service (Linux)</li>
+<li>Integrates with OS security/firewall settings</li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul>
+<li>May not have the absolute latest version</li>
+<li>Requires sudo/admin privileges</li>
+</ul>
+<hr />
+<h3 id="method-5-ros-z-example-router"><a class="header" href="#method-5-ros-z-example-router">Method 5: ros-z Example Router</a></h3>
+<p><strong>Only available when working in the ros-z repository - perfect for quick development/testing.</strong></p>
+<p>If you've cloned the ros-z repository:</p>
+<pre><code class="language-bash">cd /path/to/ros-z
+cargo run --example zenoh_router
+</code></pre>
+<p>This runs a pre-configured router that matches ros-z defaults exactly.</p>
+<p><strong>Pros:</strong></p>
+<ul>
+<li>No installation needed</li>
+<li>Already configured for ros-z</li>
+<li>Useful for debugging ros-z itself</li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul>
+<li>Only available in the ros-z repository</li>
+<li>Not suitable for standalone projects</li>
+<li>Slower startup (rebuilds if code changes)</li>
+</ul>
+<div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
+<div class="admonition-title">
+<div id="admonition-warning-title">
+<p>Warning</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/networking.html#admonition-warning"></a>
+</div>
+<div>
+<p>This method is for ros-z repository development only. If you're building your own project with ros-z as a dependency, use one of the other methods instead.</p>
+</div>
+</div>
+<hr />
+<h3 id="method-6-ros-2-rmw_zenoh"><a class="header" href="#method-6-ros-2-rmw_zenoh">Method 6: ROS 2 rmw_zenoh</a></h3>
+<p><strong>Use this if you have ROS 2 installed and want to test interoperability with ROS 2 nodes.</strong></p>
+<p>If you have ROS 2 Jazzy or newer with the Zenoh middleware:</p>
+<pre><code class="language-bash">ros2 run rmw_zenoh_cpp rmw_zenohd
+</code></pre>
+<p><strong>Pros:</strong></p>
+<ul>
+<li>Already installed with ROS 2 Jazzy+</li>
+<li>Guaranteed compatibility with ROS 2 nodes</li>
+<li>Can interoperate ros-z nodes with C++/Python ROS 2 nodes</li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul>
+<li>Requires full ROS 2 installation</li>
+<li>Overkill if you only want to use ros-z</li>
+</ul>
+<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
+<div class="admonition-title">
+<div id="admonition-tip-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/networking.html#admonition-tip"></a>
+</div>
+<div>
+<p>This is excellent for testing interoperability - run ros-z nodes alongside standard ROS 2 nodes using the same router.</p>
+</div>
+</div>
+<hr />
+<h2 id="verifying-the-router-is-running"><a class="header" href="#verifying-the-router-is-running">Verifying the Router is Running</a></h2>
+<p>After starting a router with any method above, verify it's working:</p>
+<p><strong>Check the router is listening on port 7447:</strong></p>
+<pre><code class="language-bash"># Linux/macOS
+netstat -an | grep 7447
+
+# Or use lsof
+lsof -i :7447
+</code></pre>
+<p><strong>Test with a ros-z application:</strong></p>
+<pre><code class="language-bash"># In another terminal, try running a ros-z node
+# If it connects successfully, the router is working
+</code></pre>
+<p>You should see log output from the router showing connections when your ros-z nodes start.</p>
 <h2 id="next-steps-2"><a class="header" href="#next-steps-2">Next Steps</a></h2>
 <p>Choose the configuration approach that fits your needs:</p>
 <ul>
@@ -1804,8 +2298,8 @@ let ctx = ZContextBuilder::default()
     B --&gt; C[Parse &amp; Resolve]
     C --&gt; D[Type Hashing]
     D --&gt; E[Code Generation]
-    E --&gt; F[CDR Adapter]
-    E --&gt; G[Protobuf Adapter]
+    E --&gt; F[Rust Generator]
+    E --&gt; G[Protobuf Generator]
     F --&gt; H[Rust Structs + Traits]
     G --&gt; I[Proto Files + Rust]
     H --&gt; J[ros-z-msgs]
@@ -1846,7 +2340,7 @@ let ctx = ZContextBuilder::default()
 <ul>
 <li>Coordinates message discovery across sources</li>
 <li>Manages build-time code generation</li>
-<li>Provides serialization adapters</li>
+<li>Provides code generators for different serialization formats</li>
 <li>Generates ros-z-specific traits</li>
 </ul>
 <p><strong>Discovery workflow:</strong></p>
@@ -1871,15 +2365,15 @@ let ctx = ZContextBuilder::default()
     D--&gt;&gt;B: Package paths
     B-&gt;&gt;B: Generate Rust code
 </pre>
-<h3 id="serialization-adapters"><a class="header" href="#serialization-adapters">Serialization Adapters</a></h3>
-<p><strong>CDR Adapter (default):</strong></p>
+<h3 id="code-generators"><a class="header" href="#code-generators">Code Generators</a></h3>
+<p><strong>Rust Generator (default):</strong></p>
 <ul>
 <li>Generates structs with serde</li>
-<li>CDR-compatible serialization</li>
+<li>CDR-compatible serialization via ros-z-cdr</li>
 <li>Full ROS 2 DDS interoperability</li>
 <li>No additional dependencies</li>
 </ul>
-<p><strong>Protobuf Adapter (optional):</strong></p>
+<p><strong>Protobuf Generator (optional):</strong></p>
 <ul>
 <li>Generates <code>.proto</code> files</li>
 <li>Protobuf-compatible types</li>
@@ -4549,7 +5043,7 @@ ros2 run demo_nodes_cpp listener
 <li>Rust toolchain</li>
 <li>maturin (<code>pip install maturin</code>)</li>
 </ul>
-<h3 id="setup-1"><a class="header" href="#setup-1">Setup</a></h3>
+<h3 id="setup"><a class="header" href="#setup">Setup</a></h3>
 <pre><code class="language-bash"># Create and activate virtual environment
 cd ros-z-py
 python -m venv .venv
