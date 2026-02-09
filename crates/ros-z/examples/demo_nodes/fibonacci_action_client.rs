@@ -1,5 +1,5 @@
 use ros_z::{Builder, Result, context::ZContext};
-use ros_z_msgs::action_tutorials_interfaces::{FibonacciGoal, action::Fibonacci};
+use ros_z_msgs::example_interfaces::{FibonacciGoal, action::Fibonacci};
 
 // ANCHOR: full_example
 /// Fibonacci action client node that sends goals to compute Fibonacci sequences
@@ -39,7 +39,7 @@ pub async fn run_fibonacci_action_client(ctx: ZContext, order: i32) -> Result<Ve
     if let Some(mut feedback_stream) = goal_handle.feedback() {
         tokio::spawn(async move {
             while let Some(fb) = feedback_stream.recv().await {
-                println!("Feedback: {:?}", fb.partial_sequence);
+                println!("Feedback: {:?}", fb.sequence);
             }
         });
     }

@@ -1,9 +1,7 @@
 use std::time::Duration;
 
 use ros_z::{Builder, Result, action::server::ExecutingGoal, context::ZContext};
-use ros_z_msgs::action_tutorials_interfaces::{
-    FibonacciFeedback, FibonacciResult, action::Fibonacci,
-};
+use ros_z_msgs::example_interfaces::{FibonacciFeedback, FibonacciResult, action::Fibonacci};
 
 // ANCHOR: full_example
 /// Fibonacci action server node that computes Fibonacci sequences
@@ -49,7 +47,7 @@ pub async fn run_fibonacci_action_server(ctx: ZContext, timeout: Option<Duration
                 // Publish feedback
                 executing
                     .publish_feedback(FibonacciFeedback {
-                        partial_sequence: sequence.clone(),
+                        sequence: sequence.clone(),
                     })
                     .expect("Failed to publish feedback");
 
