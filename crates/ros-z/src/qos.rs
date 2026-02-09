@@ -135,6 +135,26 @@ pub struct QosProfile {
     pub liveliness_lease_duration: Duration,
 }
 
+impl QosProfile {
+    /// Convert to ros-z-protocol's QosProfile for key expression generation
+    pub fn to_protocol_qos(&self) -> ros_z_protocol::qos::QosProfile {
+        ros_z_protocol::qos::QosProfile {
+            reliability: match self.reliability {
+                QosReliability::Reliable => ros_z_protocol::qos::QosReliability::Reliable,
+                QosReliability::BestEffort => ros_z_protocol::qos::QosReliability::BestEffort,
+            },
+            durability: match self.durability {
+                QosDurability::TransientLocal => ros_z_protocol::qos::QosDurability::TransientLocal,
+                QosDurability::Volatile => ros_z_protocol::qos::QosDurability::Volatile,
+            },
+            history: match self.history {
+                QosHistory::KeepLast(depth) => ros_z_protocol::qos::QosHistory::KeepLast(depth.get()),
+                QosHistory::KeepAll => ros_z_protocol::qos::QosHistory::KeepAll,
+            },
+        }
+    }
+}
+
 impl fmt::Display for QosProfile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(

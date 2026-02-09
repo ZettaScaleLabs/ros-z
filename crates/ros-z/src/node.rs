@@ -29,6 +29,7 @@ pub struct ZNode {
     pub remap_rules: RemapRules,
     _lv_token: LivelinessToken,
     pub(crate) shm_config: Option<Arc<crate::shm::ShmConfig>>,
+    pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
     /// Optional type description service for this node.
     /// Enabled via `ZNodeBuilder::with_type_description_service()`.
     /// The service uses callback mode and requires no background task.
@@ -45,6 +46,7 @@ pub struct ZNodeBuilder {
     pub graph: Arc<Graph>,
     pub remap_rules: RemapRules,
     pub(crate) shm_config: Option<Arc<crate::shm::ShmConfig>>,
+    pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
     /// Whether to enable the type description service for this node.
     pub enable_type_desc_service: bool,
 }
@@ -136,7 +138,7 @@ impl Builder for ZNodeBuilder {
             self.namespace.clone(),
             self.enclave,
         );
-        let lv_token_ke = node.lv_token_key_expr()?;
+        let lv_token_ke = crate::entity::node_lv_token_key_expr(&node)?;
         debug!("[NOD] Liveliness token KE: {}", lv_token_ke);
 
         let lv_token = self
@@ -173,6 +175,7 @@ impl Builder for ZNodeBuilder {
             graph: self.graph,
             remap_rules: self.remap_rules,
             shm_config: self.shm_config,
+            keyexpr_format: self.keyexpr_format,
             type_desc_service,
         })
     }
@@ -217,6 +220,7 @@ impl ZNode {
             session: self.session.clone(),
             with_attachment: true,
             shm_config: self.shm_config.clone(),
+            keyexpr_format: self.keyexpr_format,
             dyn_schema: None,
             _phantom_data: Default::default(),
         }
@@ -255,6 +259,7 @@ impl ZNode {
         ZSubBuilder {
             entity,
             session: self.session.clone(),
+            keyexpr_format: self.keyexpr_format,
             dyn_schema: None,
             locality: None,
             _phantom_data: Default::default(),
@@ -294,6 +299,7 @@ impl ZNode {
         ZServerBuilder {
             entity,
             session: self.session.clone(),
+            keyexpr_format: self.keyexpr_format,
             _phantom_data: Default::default(),
         }
     }
@@ -331,6 +337,7 @@ impl ZNode {
         ZClientBuilder {
             entity,
             session: self.session.clone(),
+            keyexpr_format: self.keyexpr_format,
             _phantom_data: Default::default(),
         }
     }

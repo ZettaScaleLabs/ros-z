@@ -29,16 +29,15 @@
 //! cargo run --example z_pubsub_ros2dds --features ros2dds -- --role listener --topic chatter
 //! ```
 
-use std::{num::NonZeroUsize, time::Duration};
+use std::time::Duration;
 
 use clap::Parser;
 use ros_z::{
     TypeHash,
-    backend::Ros2DdsBackend,
-    entity::{EndpointEntity, EntityKind, NodeEntity, TypeInfo},
-    qos::{QosDurability, QosHistory, QosProfile, QosReliability},
+    entity::{NodeEntity, TypeInfo},
 };
 use ros_z_cdr::{CdrSerializer, LittleEndian};
+use ros_z_protocol::entity::{EndpointEntity, EntityKind};
 use serde::{Deserialize, Serialize};
 use zenoh::{Wait, key_expr::KeyExpr};
 
@@ -114,11 +113,10 @@ async fn main() -> ros_z::Result<()> {
     let type_info = TypeInfo::new("std_msgs/msg/String", TypeHash::zero());
 
     // QoS profile - use Reliable/Volatile for standard compatibility
-    let qos = QosProfile {
-        reliability: QosReliability::Reliable,
-        durability: QosDurability::Volatile,
-        history: QosHistory::KeepLast(NonZeroUsize::new(10).unwrap()),
-        ..Default::default()
+    let qos = ros_z_protocol::qos::QosProfile {
+        reliability: ros_z_protocol::qos::QosReliability::Reliable,
+        durability: ros_z_protocol::qos::QosDurability::Volatile,
+        history: ros_z_protocol::qos::QosHistory::KeepLast(10),
     };
 
     let entity_kind = match args.role.as_str() {
@@ -135,9 +133,10 @@ async fn main() -> ros_z::Result<()> {
         qos,
     };
 
-    // Generate key expressions using ros2dds backend
-    let topic_ke = entity.topic_key_expr_with::<Ros2DdsBackend>()?;
-    let liveliness_ke = entity.lv_token_key_expr_with::<Ros2DdsBackend>(&zid)?;
+    // Generate key expressions using ros2dds format
+    let format = ros_z_protocol::KeyExprFormat::Ros2Dds;
+    let topic_ke = format.topic_key_expr(&entity)?;
+    let liveliness_ke = format.liveliness_key_expr(&entity, &zid)?;
 
     println!("Role:           {}", args.role);
     println!("Topic:          {}", topic);

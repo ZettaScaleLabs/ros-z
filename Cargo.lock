@@ -2727,6 +2727,7 @@ dependencies = [
  "ros-z-cdr",
  "ros-z-codegen",
  "ros-z-msgs",
+ "ros-z-protocol",
  "ros-z-schema",
  "serde",
  "serde_json",
@@ -2802,13 +2803,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ros-z-keyexpr"
-version = "0.1.0"
-dependencies = [
- "zenoh",
-]
-
-[[package]]
 name = "ros-z-msgs"
 version = "0.1.0"
 dependencies = [
@@ -2828,6 +2822,13 @@ dependencies = [
  "serde_bytes",
  "smart-default",
  "zenoh-buffers",
+]
+
+[[package]]
+name = "ros-z-protocol"
+version = "0.1.0"
+dependencies = [
+ "zenoh",
 ]
 
 [[package]]

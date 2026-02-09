@@ -1,13 +1,13 @@
 [package]
-name = "ros-z-keyexpr"
+name = "ros-z-protocol"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.75"
 authors = ["ZettaScale Technology <contact@zettascale.tech>"]
-description = "Key expression format handling for ros-z (ROS 2 over Zenoh)"
+description = "ROS 2 over Zenoh protocol: entity types and key expression formats"
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/ZettaScaleLabs/ros-z"
-keywords = ["ros2", "zenoh", "robotics", "middleware"]
+keywords = ["ros2", "zenoh", "robotics", "middleware", "protocol"]
 categories = ["network-programming", "robotics"]
 
 [features]

@@ -166,6 +166,7 @@ fn test_zpub_builder_with_dyn_schema() {
     let builder: ZPubBuilder<DynamicMessage> = ZPubBuilder {
         entity: Default::default(),
         session: std::sync::Arc::new(zenoh::Wait::wait(zenoh::open(zenoh::Config::default())).unwrap()),
+        keyexpr_format: ros_z_protocol::KeyExprFormat::default(),
         with_attachment: true,
         shm_config: None,
         dyn_schema: None,
@@ -193,6 +194,7 @@ fn test_zpub_builder_with_serdes_preserves_schema() {
     let builder: ZPubBuilder<DynamicMessage> = ZPubBuilder {
         entity: Default::default(),
         session: std::sync::Arc::new(zenoh::Wait::wait(zenoh::open(zenoh::Config::default())).unwrap()),
+        keyexpr_format: ros_z_protocol::KeyExprFormat::default(),
         with_attachment: true,
         shm_config: None,
         dyn_schema: Some(schema.clone()),

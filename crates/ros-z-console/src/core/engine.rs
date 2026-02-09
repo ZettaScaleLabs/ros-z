@@ -58,18 +58,22 @@ impl CoreEngine {
         let session = Arc::new(session);
 
         // Initialize graph with backend-specific liveliness pattern and parser
-        use ros_z::backend::{KeyExprBackend, RmwZenohBackend, Ros2DdsBackend};
+        let format = match backend {
+            Backend::RmwZenoh => ros_z_protocol::KeyExprFormat::RmwZenoh,
+            Backend::Ros2Dds => ros_z_protocol::KeyExprFormat::Ros2Dds,
+        };
 
         let (_liveliness_pattern, graph) = match backend {
             Backend::RmwZenoh => {
                 // RmwZenoh format: @ros2_lv/{domain_id}/**
                 let pattern = format!("@ros2_lv/{domain_id}/**");
                 tracing::info!("Graph liveliness pattern (RmwZenoh): {}", pattern);
+                let fmt = format;
                 let g = Graph::new_with_pattern(
                     &session,
                     domain_id,
                     pattern.clone(),
-                    RmwZenohBackend::parse_liveliness,
+                    move |ke| fmt.parse_liveliness(ke),
                 )?;
                 (pattern, g)
             }
@@ -77,11 +81,12 @@ impl CoreEngine {
                 // Ros2Dds format: @/<zenoh_id>/@ros2_lv/**
                 let pattern = "@/*/@ros2_lv/**".to_string();
                 tracing::info!("Graph liveliness pattern (Ros2Dds): {}", pattern);
+                let fmt = format;
                 let g = Graph::new_with_pattern(
                     &session,
                     domain_id,
                     pattern.clone(),
-                    Ros2DdsBackend::parse_liveliness,
+                    move |ke| fmt.parse_liveliness(ke),
                 )?;
                 (pattern, g)
             }

@@ -20,13 +20,13 @@
 //!
 //! ```toml
 //! [dependencies]
-//! ros-z-keyexpr = { version = "0.1", default-features = false }
+//! ros-z-protocol = { version = "0.1", default-features = false }
 //! ```
 //!
 //! # Example
 //!
 //! ```rust
-//! use ros_z_keyexpr::{KeyExprFormat, entity::*};
+//! use ros_z_protocol::{KeyExprFormat, entity::*};
 //!
 //! let format = KeyExprFormat::default(); // RmwZenoh
 //! let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();

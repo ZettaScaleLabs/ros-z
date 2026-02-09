@@ -1,316 +1,73 @@
-use std::fmt::Display;
-use std::ops::Deref;
+//! Entity types for ROS 2 entities in ros-z.
+//!
+//! This module re-exports entity types from ros-z-protocol and adds
+//! ros-z-specific extensions.
 
-use tracing::debug;
-use zenoh::{Result, key_expr::KeyExpr, session::ZenohId};
+// Re-export all entity types from ros-z-protocol
+pub use ros_z_protocol::entity::*;
 
-use crate::{attachment::GidArray, qos::QosProfile};
-use sha2::Digest;
+use zenoh::{Result, key_expr::KeyExpr};
 
-const EMPTY_NAMESPACE: &str = "%";
-const EMPTY_ENCLAVE: &str = "%";
-const EMPTY_TOPIC_TYPE: &str = "EMPTY_TOPIC_TYPE";
-const EMPTY_TOPIC_HASH: &str = "EMPTY_TOPIC_HASH";
-#[cfg(feature = "no-type-hash")]
-const HUMBLE_TYPE_HASH_PLACEHOLDER: &str = "TypeHashNotSupported";
+// Constants for ros-z-specific functionality
 pub const ADMIN_SPACE: &str = "@ros2_lv";
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct LivelinessKE(pub KeyExpr<'static>);
-
-impl LivelinessKE {
-    /// Create a new LivelinessKE from a KeyExpr
-    pub fn new(ke: KeyExpr<'static>) -> Self {
-        Self(ke)
-    }
-}
-
-impl Deref for LivelinessKE {
-    type Target = KeyExpr<'static>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-pub struct TopicKE(KeyExpr<'static>);
-
-impl TopicKE {
-    /// Create a new TopicKE from a KeyExpr
-    pub fn new(ke: KeyExpr<'static>) -> Self {
-        Self(ke)
-    }
-}
-
-impl Deref for TopicKE {
-    type Target = KeyExpr<'static>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
+// Type aliases
 type NodeName = String;
 type NodeNamespace = String;
 pub type NodeKey = (NodeNamespace, NodeName);
-
-#[derive(Default, Debug, Hash, Clone, PartialEq, Eq)]
-pub struct NodeEntity {
-    pub domain_id: usize,
-    pub z_id: ZenohId,
-    pub id: usize,
-    pub name: String,
-    pub namespace: String,
-    pub enclave: String,
-}
-
-impl NodeEntity {
-    pub fn new(
-        domain_id: usize,
-        z_id: ZenohId,
-        id: usize,
-        name: String,
-        namespace: String,
-        enclave: String,
-    ) -> Self {
-        Self {
-            domain_id,
-            z_id,
-            id,
-            name,
-            namespace,
-            enclave,
-        }
-    }
-
-    pub fn key(&self) -> NodeKey {
-        // Normalize namespace: "/" (root namespace) should be treated as "" (empty)
-        // This ensures consistent HashMap lookups across local and remote entities
-        let normalized_namespace = if self.namespace == "/" {
-            String::new()
-        } else {
-            self.namespace.clone()
-        };
-        (normalized_namespace, self.name.clone())
-    }
-
-    pub fn lv_token_key_expr(&self) -> Result<KeyExpr<'static>> {
-        let ke: LivelinessKE = self.try_into()?;
-        Ok(ke.0)
-    }
-}
-
-impl TryFrom<&NodeEntity> for LivelinessKE {
-    type Error = zenoh::Error;
-
-    // <ADMIN_SPACE>/<domain_id>/<zid>/<nid>/<eid>/<entity_kind>/<enclave>/<namespace>/<node_name>
-    fn try_from(value: &NodeEntity) -> std::result::Result<Self, Self::Error> {
-        let NodeEntity {
-            domain_id,
-            z_id,
-            id,
-            name,
-            namespace,
-            enclave,
-        } = value;
-        let namespace = if namespace.is_empty() {
-            EMPTY_NAMESPACE
-        } else {
-            &mangle_name(namespace)
-        };
-        let enclave_str = if enclave.is_empty() {
-            EMPTY_ENCLAVE
-        } else {
-            &mangle_name(enclave)
-        };
-        let entity_kind = EntityKind::Node;
-        let name = mangle_name(name);
-        Ok(LivelinessKE(
-            format!("{ADMIN_SPACE}/{domain_id}/{z_id}/{id}/{id}/{entity_kind}/{enclave_str}/{namespace}/{name}")
-                .try_into()?,
-        ))
-    }
-}
-
-#[derive(Default, Debug, Hash, strum::EnumString, strum::Display, Eq, PartialEq, Clone, Copy)]
-pub enum EntityKind {
-    #[default]
-    #[strum(serialize = "NN")]
-    Node,
-    #[strum(serialize = "MP")]
-    Publisher,
-    #[strum(serialize = "MS")]
-    Subscription,
-    #[strum(serialize = "SS")]
-    Service,
-    #[strum(serialize = "SC")]
-    Client,
-}
-
-#[derive(Debug, Hash, PartialEq, Eq, Clone)]
-pub struct TypeHash {
-    pub version: u8,
-    pub value: [u8; 32],
-}
-
-impl TypeHash {
-    pub const fn new(version: u8, value: [u8; 32]) -> Self {
-        Self { version, value }
-    }
-
-    /// Creates a zero/placeholder TypeHash (RIHS01 version with all zeros)
-    /// Useful for generic wrapper types where actual hash is instance-specific
-    pub const fn zero() -> Self {
-        Self {
-            version: 1,
-            value: [0u8; 32],
-        }
-    }
-
-    /// Creates a Humble-compatible placeholder TypeHash
-    /// In Humble (rmw_zenoh v0.1.8), type hashes are not supported,
-    /// so a constant placeholder "TypeHashNotSupported" is used instead
-    #[cfg(feature = "humble-compat")]
-    pub const fn humble_placeholder() -> Self {
-        Self::zero() // Use zero hash as placeholder for Humble
-    }
-
-    pub fn from_rihs_string(rihs_str: &str) -> Option<Self> {
-        // Handle Humble's placeholder
-        #[cfg(feature = "humble-compat")]
-        if rihs_str == HUMBLE_TYPE_HASH_PLACEHOLDER {
-            return Some(Self::zero());
-        }
-        if let Some(hex_part) = rihs_str.strip_prefix("RIHS01_")
-            && hex_part.len() == 64
-        {
-            let mut hash_bytes = [0u8; 32];
-            for (i, chunk) in hex_part.as_bytes().chunks(2).enumerate() {
-                if i < 32 {
-                    if let Ok(byte_val) =
-                        u8::from_str_radix(std::str::from_utf8(chunk).unwrap_or("00"), 16)
-                    {
-                        hash_bytes[i] = byte_val;
-                    } else {
-                        return None;
-                    }
-                }
-            }
-            return Some(TypeHash {
-                version: 1,
-                value: hash_bytes,
-            });
-        }
-        None
-    }
-
-    pub fn to_rihs_string(&self) -> String {
-        #[cfg(feature = "no-type-hash")]
-        {
-            // In Humble, always use the placeholder regardless of actual hash value
-            HUMBLE_TYPE_HASH_PLACEHOLDER.to_string()
-        }
-
-        #[cfg(not(feature = "no-type-hash"))]
-        {
-            match self.version {
-                1 => {
-                    let hex_str: String = self.value.iter().map(|b| format!("{:02x}", b)).collect();
-                    format!("RIHS01_{}", hex_str)
-                }
-                _ => format!(
-                    "RIHS{:02x}_{}",
-                    self.version,
-                    self.value
-                        .iter()
-                        .map(|b| format!("{:02x}", b))
-                        .collect::<String>()
-                ),
-            }
-        }
-    }
-}
-
-impl Display for TypeHash {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_rihs_string())
-    }
-}
-
-#[derive(Debug, Hash, PartialEq, Eq, Clone)]
-pub struct TypeInfo {
-    pub name: String,
-    pub hash: TypeHash,
-}
-
-impl TypeInfo {
-    pub fn new(name: &str, hash: TypeHash) -> Self {
-        TypeInfo {
-            name: name.to_string(),
-            hash,
-        }
-    }
-}
-
-impl Display for TypeInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let Self { name, hash } = self;
-        write!(f, "{name}/{}", hash.to_rihs_string())
-    }
-}
-
 pub type Topic = String;
 
-#[derive(Default, Debug, Hash, PartialEq, Eq, Clone)]
-pub struct EndpointEntity {
-    pub id: usize,
-    pub node: NodeEntity,
-    pub kind: EntityKind,
-    pub topic: Topic,
-    pub type_info: Option<TypeInfo>,
-    pub qos: QosProfile,
+// Extension functions for NodeEntity (can't use impl due to orphan rules)
+
+/// Get the key for this node (namespace, name)
+pub fn node_key(entity: &NodeEntity) -> NodeKey {
+    // Normalize namespace: "/" (root namespace) should be treated as "" (empty)
+    // This ensures consistent HashMap lookups across local and remote entities
+    let normalized_namespace = if entity.namespace == "/" {
+        String::new()
+    } else {
+        entity.namespace.clone()
+    };
+    (normalized_namespace, entity.name.clone())
 }
 
-fn mangle_name(name: &str) -> String {
-    name.replace("/", "%")
+/// Get the liveliness token key expression for a node
+pub fn node_lv_token_key_expr(entity: &NodeEntity) -> Result<KeyExpr<'static>> {
+    let ke = node_to_liveliness_ke(entity)?;
+    Ok(ke.0)
 }
 
-fn demangle_name(name: &str) -> String {
-    name.replace("%", "/")
+// Extension functions for EndpointEntity
+
+/// Get the GID (globally unique identifier) for this endpoint
+pub fn endpoint_gid(entity: &EndpointEntity) -> crate::attachment::GidArray {
+    use sha2::Digest;
+    let mut hasher = sha2::Sha256::new();
+    // ZenohId has to_le_bytes() method
+    hasher.update(entity.node.z_id.to_le_bytes());
+    hasher.update(&entity.id.to_le_bytes());
+    let hash = hasher.finalize();
+    let mut gid = [0u8; 16];
+    gid.copy_from_slice(&hash[..16]);
+    gid
 }
 
-impl TryFrom<&EndpointEntity> for LivelinessKE {
-    type Error = zenoh::Error;
+// Helper functions for converting entities to LivelinessKE
+// Note: Can't implement TryFrom due to orphan rules (both types are from ros-z-protocol)
 
-    // <ADMIN_SPACE>/<domain_id>/<zid>/<nid>/<eid>/<entity_kind>/<enclave>/<namespace>/<node_name>/<topic_name>/<topic_type>/<topic_type_hash>/<topic_qos>
-    fn try_from(value: &EndpointEntity) -> std::result::Result<Self, Self::Error> {
-        let EndpointEntity {
-            id,
-            node:
-                NodeEntity {
-                    domain_id,
-                    z_id,
-                    id: node_id,
-                    name: node_name,
-                    namespace: node_namespace,
-                    enclave: node_enclave,
-                },
-            kind,
-            topic: topic_name,
-            type_info,
-            qos,
-        } = value;
+/// Convert a NodeEntity to a LivelinessKE using the default format
+pub fn node_to_liveliness_ke(entity: &NodeEntity) -> Result<LivelinessKE> {
+    let format = ros_z_protocol::KeyExprFormat::default();
+    format.node_liveliness_key_expr(entity)
+}
 
-        let node_namespace = if node_namespace.is_empty() {
-            EMPTY_NAMESPACE
-        } else {
-            &mangle_name(node_namespace)
-        };
-        let node_enclave_str = if node_enclave.is_empty() {
-            EMPTY_ENCLAVE
-        } else {
-            &mangle_name(node_enclave)
-        };
-        let node_name = mangle_name(node_name);
+/// Convert an EndpointEntity to a LivelinessKE using the default format
+pub fn endpoint_to_liveliness_ke(entity: &EndpointEntity) -> Result<LivelinessKE> {
+    let format = ros_z_protocol::KeyExprFormat::default();
+    format.liveliness_key_expr(entity, &entity.node.z_id)
+}
 
+<<<<<<< HEAD
         // Mangle all slashes in topic name for liveliness tokens
         // Unlike TopicKE which uses slashes as part of the key expression,
         // LivelinessKE uses slashes as field delimiters, so ALL slashes
@@ -336,16 +93,25 @@ impl TryFrom<&EndpointEntity> for LivelinessKE {
         );
 
         Ok(LivelinessKE(ke.try_into()?))
+=======
+/// Convert an Entity to a LivelinessKE using the default format
+pub fn entity_to_liveliness_ke(entity: &Entity) -> Result<LivelinessKE> {
+    match entity {
+        Entity::Node(n) => node_to_liveliness_ke(n),
+        Entity::Endpoint(e) => endpoint_to_liveliness_ke(e),
+>>>>>>> 9acf7d3 (refactor: rename to ros-z-protocol and remove backend trait)
     }
 }
 
-impl TryFrom<EndpointEntity> for LivelinessKE {
-    type Error = zenoh::Error;
-    fn try_from(value: EndpointEntity) -> std::result::Result<Self, Self::Error> {
-        LivelinessKE::try_from(&value)
+/// Get the kind of entity
+pub fn entity_kind(entity: &Entity) -> EntityKind {
+    match entity {
+        Entity::Node(_) => EntityKind::Node,
+        Entity::Endpoint(e) => e.kind,
     }
 }
 
+<<<<<<< HEAD
 impl TryFrom<&Entity> for LivelinessKE {
     type Error = zenoh::Error;
     fn try_from(value: &Entity) -> std::result::Result<Self, Self::Error> {
@@ -618,5 +384,12 @@ impl TryFrom<&LivelinessKE> for Entity {
                 })
             }
         })
+=======
+/// Get the endpoint entity if this is an endpoint
+pub fn entity_get_endpoint(entity: &Entity) -> Option<&EndpointEntity> {
+    match entity {
+        Entity::Node(_) => None,
+        Entity::Endpoint(e) => Some(e),
+>>>>>>> 9acf7d3 (refactor: rename to ros-z-protocol and remove backend trait)
     }
 }

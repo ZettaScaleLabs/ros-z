@@ -269,6 +269,7 @@ impl TypeDescriptionService {
         let server_builder: ZServerBuilder<GetTypeDescription> = ZServerBuilder {
             entity,
             session,
+            keyexpr_format: ros_z_protocol::KeyExprFormat::default(),
             _phantom_data: Default::default(),
         };
 
