@@ -4825,9 +4825,7 @@ robot/sensors/camera/**       # Topic /robot/sensors/camera
 </div>
 <h2 id="api-usage"><a class="header" href="#api-usage">API Usage</a></h2>
 <h3 id="specifying-format-at-context-creation"><a class="header" href="#specifying-format-at-context-creation">Specifying Format at Context Creation</a></h3>
-<pre><pre class="playground"><code class="language-rust edition2021"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use ros_z::context::ZContextBuilder;
+<pre><code class="language-rust ignore">use ros_z::context::ZContextBuilder;
 use ros_z_protocol::KeyExprFormat;
 
 // Default (RmwZenoh)
@@ -4841,8 +4839,7 @@ let ctx = ZContextBuilder::default()
 // Ros2Dds format for DDS bridge compatibility
 let ctx = ZContextBuilder::default()
     .keyexpr_format(KeyExprFormat::Ros2Dds)
-    .build()?;
-<span class="boring">}</span></code></pre></pre>
+    .build()?;</code></pre>
 <p><strong>Key points:</strong></p>
 <ul>
 <li>Format is set at context creation time</li>
@@ -4852,9 +4849,7 @@ let ctx = ZContextBuilder::default()
 </ul>
 <h3 id="creating-entities"><a class="header" href="#creating-entities">Creating Entities</a></h3>
 <p>Once the context is created with a format, all entities inherit it:</p>
-<pre><pre class="playground"><code class="language-rust edition2021"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use ros_z_msgs::std_msgs::String as RosString;
+<pre><code class="language-rust ignore">use ros_z_msgs::std_msgs::String as RosString;
 use ros_z::Builder;
 
 // Create context with RmwZenoh format (default)
@@ -4869,13 +4864,10 @@ let pub_rmw = node
 // Subscriber uses same format
 let sub_rmw = node
     .create_sub::&lt;RosString&gt;("chatter")
-    .build()?;
-<span class="boring">}</span></code></pre></pre>
+    .build()?;</code></pre>
 <h3 id="mixing-formats-advanced"><a class="header" href="#mixing-formats-advanced">Mixing Formats (Advanced)</a></h3>
 <p>To communicate with both RmwZenoh and Ros2Dds systems, create separate contexts:</p>
-<pre><pre class="playground"><code class="language-rust edition2021"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Context for rmw_zenoh_cpp nodes
+<pre><code class="language-rust ignore">// Context for rmw_zenoh_cpp nodes
 let ctx_rmw = ZContextBuilder::default()
     .keyexpr_format(KeyExprFormat::RmwZenoh)
     .build()?;
@@ -4887,8 +4879,7 @@ let ctx_dds = ZContextBuilder::default()
 
 // Create nodes from each context
 let node_rmw = ctx_rmw.create_node("rmw_node").build()?;
-let node_dds = ctx_dds.create_node("dds_node").build()?;
-<span class="boring">}</span></code></pre></pre>
+let node_dds = ctx_dds.create_node("dds_node").build()?;</code></pre>
 <h2 id="architecture-diagrams"><a class="header" href="#architecture-diagrams">Architecture Diagrams</a></h2>
 <h3 id="rmwzenoh-format-architecture"><a class="header" href="#rmwzenoh-format-architecture">RmwZenoh Format Architecture</a></h3>
 <pre class="mermaid">graph LR
@@ -4957,9 +4948,7 @@ Name:      /gripper    →  %gripper
 ros-z-protocol = { version = "0.1", features = ["rmw-zenoh", "ros2dds"] }
 </code></pre>
 <p><strong>Using ros-z-protocol directly:</strong></p>
-<pre><pre class="playground"><code class="language-rust edition2021"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use ros_z_protocol::{KeyExprFormat, entity::*};
+<pre><code class="language-rust ignore">use ros_z_protocol::{KeyExprFormat, entity::*};
 
 let format = KeyExprFormat::default(); // RmwZenoh
 
@@ -4970,8 +4959,7 @@ let topic_ke = format.topic_key_expr(&amp;entity)?;
 let lv_ke = format.liveliness_key_expr(&amp;entity, &amp;zid)?;
 
 // Parse liveliness token back to entity
-let parsed_entity = format.parse_liveliness(&amp;lv_ke)?;
-<span class="boring">}</span></code></pre></pre>
+let parsed_entity = format.parse_liveliness(&amp;lv_ke)?;</code></pre>
 <p>See the <a href="https://docs.rs/ros-z-protocol">ros-z-protocol documentation</a> for details.</p>
 <h2 id="troubleshooting-4"><a class="header" href="#troubleshooting-4">Troubleshooting</a></h2>
 <h3 id="multi-segment-topics-not-working"><a class="header" href="#multi-segment-topics-not-working">Multi-Segment Topics Not Working?</a></h3>
@@ -4998,12 +4986,9 @@ let parsed_entity = format.parse_liveliness(&amp;lv_ke)?;
 </ul>
 <h3 id="no-messages-through-zenoh-bridge-ros2dds"><a class="header" href="#no-messages-through-zenoh-bridge-ros2dds">No Messages Through zenoh-bridge-ros2dds?</a></h3>
 <p><strong>Check format:</strong> Ensure ros-z uses <code>KeyExprFormat::Ros2Dds</code>:</p>
-<pre><pre class="playground"><code class="language-rust edition2021"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>let ctx = ZContextBuilder::default()
+<pre><code class="language-rust ignore">let ctx = ZContextBuilder::default()
     .keyexpr_format(KeyExprFormat::Ros2Dds)
-    .build()?;
-<span class="boring">}</span></code></pre></pre>
+    .build()?;</code></pre>
 <p><strong>Check bridge configuration:</strong> Verify <code>zenoh-bridge-ros2dds</code> is running and connected to the same Zenoh router as ros-z.</p>
 <h2 id="format-comparison"><a class="header" href="#format-comparison">Format Comparison</a></h2>
 <h3 id="when-to-use-rmwzenoh-format"><a class="header" href="#when-to-use-rmwzenoh-format">When to Use RmwZenoh Format</a></h3>
