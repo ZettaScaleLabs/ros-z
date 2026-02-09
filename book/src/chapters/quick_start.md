@@ -82,16 +82,15 @@ cargo install zenohd
 
 **Option B: Using pre-built binary (no Rust needed):**
 
-```bash
-# Linux
-wget https://github.com/eclipse-zenoh/zenoh/releases/latest/download/zenoh-x86_64-unknown-linux-gnu.zip
-unzip zenoh-x86_64-unknown-linux-gnu.zip
-chmod +x zenohd
+Download the latest release for your platform from:
+**<https://github.com/eclipse-zenoh/zenoh/releases>**
 
-# macOS (Apple Silicon)
-wget https://github.com/eclipse-zenoh/zenoh/releases/latest/download/zenoh-aarch64-apple-darwin.zip
-unzip zenoh-aarch64-apple-darwin.zip
+Then extract and run:
+
+```bash
+unzip zenoh-*.zip
 chmod +x zenohd
+./zenohd
 ```
 
 **Option C: Using Docker:**
@@ -140,7 +139,7 @@ An async runtime is required for ros-z. This example uses Tokio, the most popula
 
 Replace the contents of `src/main.rs` with this simple publisher example:
 
-```rust
+```rust,ignore
 use std::time::Duration;
 use ros_z::{Builder, Result, context::ZContextBuilder};
 use ros_z_msgs::std_msgs::String as RosString;
@@ -189,7 +188,7 @@ Open another terminal and create a simple listener to verify communication:
 
 **Create `src/bin/listener.rs`:**
 
-```rust
+```rust,ignore
 use ros_z::{Builder, Result, context::ZContextBuilder};
 use ros_z_msgs::std_msgs::String as RosString;
 

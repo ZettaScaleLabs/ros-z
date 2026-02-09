@@ -95,5 +95,24 @@ git-hooks.lib.${system}.run {
     };
 
     nixfmt-rfc-style.enable = true;
+
+    # Documentation testing
+    mdbook-build = {
+      enable = true;
+      name = "mdbook-build";
+      description = "Build mdbook documentation";
+      entry = "${pkgs.mdbook}/bin/mdbook build book";
+      files = "book/.*\\.(md|toml)$";
+      pass_filenames = false;
+    };
+
+    mdbook-test = {
+      enable = true;
+      name = "mdbook-test";
+      description = "Test mdbook code examples";
+      entry = "${pkgs.mdbook}/bin/mdbook test book";
+      files = "book/.*\\.md$|crates/.*/examples/.*\\.rs$";
+      pass_filenames = false;
+    };
   };
 }

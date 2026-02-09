@@ -1,14 +1,12 @@
 # Running Examples
 
 ```admonish note
-The examples described here are part of the ros-z repository. To run them, you must first clone the repository:
+The examples described here are part of the ros-z repository. To run them, you must first clone the repository.
+```
 
 ```bash
 git clone https://github.com/ZettaScaleLabs/ros-z.git
 cd ros-z
-```
-
-<!-- markdownlint-disable-next-line MD040 -->
 ```
 
 ## Start the Zenoh Router

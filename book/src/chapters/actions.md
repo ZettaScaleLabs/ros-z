@@ -82,7 +82,7 @@ Actions excel when operations take more than a few seconds and users need visibi
 This example demonstrates an action server that computes Fibonacci sequences. The server accepts goals, publishes periodic feedback with partial results, and supports cancellation.
 
 ```rust,ignore
-{{#include ../../../ros-z/examples/demo_nodes/fibonacci_action_server.rs:full_example}}
+{{#include ../../../crates/ros-z/examples/demo_nodes/fibonacci_action_server.rs:full_example}}
 ```
 
 **Key points:**
@@ -107,7 +107,7 @@ cargo run --example demo_nodes_fibonacci_action_server
 This example demonstrates an action client that sends goals and monitors execution progress with feedback updates.
 
 ```rust,ignore
-{{#include ../../../ros-z/examples/demo_nodes/fibonacci_action_client.rs:full_example}}
+{{#include ../../../crates/ros-z/examples/demo_nodes/fibonacci_action_client.rs:full_example}}
 ```
 
 **Key points:**

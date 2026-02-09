@@ -2,6 +2,22 @@
 
 **Configure ros-z's Zenoh transport layer for optimal performance in your deployment environment.** ros-z uses router-based architecture by default, matching ROS 2's official `rmw_zenoh_cpp` middleware for production-ready scalability.
 
+<div align="center">
+
+```mermaid
+graph TB
+    Router["zenohd <br> (router)"]
+
+    Talker["Talker node <br> (peer)"]
+    Listener["Listener node <br> (peer)"]
+
+    Router <-->|Discovery| Talker
+    Router <-->|Discovery| Listener
+    Talker <-.->|P2P Communication| Listener
+```
+
+</div>
+
 ## Router-Based Architecture
 
 ros-z uses a centralized Zenoh router for node discovery and communication, providing:
@@ -36,13 +52,13 @@ ros-z applications require a Zenoh router to be running. There are several ways 
 
 ### Quick Comparison
 
-| Method | Best For | Requires | Installation Time |
-|--------|----------|----------|-------------------|
-| [Cargo Install](#method-1-cargo-install) | Rust developers | Rust toolchain | 2-5 minutes |
-| [Pre-built Binary](#method-2-pre-built-binary) | Quick setup, no Rust | None | < 1 minute |
-| [Docker](#method-3-docker) | Containers, CI/CD | Docker | < 1 minute |
-| [Package Manager](#method-4-package-manager-apt-brew) | System-wide install | apt/brew/etc | < 1 minute |
-| [ros-z Example](#method-5-ros-z-example-router) | ros-z repo developers | ros-z repository | 30 seconds |
+| Method | Best For | Requires | Setup Speed |
+|--------|----------|----------|-------------|
+| [Cargo Install](#method-1-cargo-install) | Rust developers | Rust toolchain | Slower (build from source) |
+| [Pre-built Binary](#method-2-pre-built-binary) | Quick setup, no Rust | None | Fast |
+| [Docker](#method-3-docker) | Containers, CI/CD | Docker | Fast |
+| [Package Manager](#method-4-package-manager-apt-brew) | System-wide install | apt/brew/etc | Fast |
+| [ros-z Example](#method-5-ros-z-example-router) | ros-z repo developers | ros-z repository | Very Fast |
 | [ROS 2 rmw_zenoh](#method-6-ros-2-rmw_zenoh) | ROS 2 interop testing | ROS 2 installed | Already installed |
 
 ---
@@ -80,40 +96,27 @@ zenohd
 
 **Fastest way to get started without Rust installed.**
 
-Download the latest release for your platform:
+**Download:** Go to the [Zenoh Releases page](https://github.com/eclipse-zenoh/zenoh/releases) and download the appropriate archive for your platform:
 
-**Linux (x86_64):**
+- Linux (x86_64): `zenoh-*-x86_64-unknown-linux-gnu-standalone.zip`
+- macOS (Apple Silicon): `zenoh-*-aarch64-apple-darwin-standalone.zip`
+- macOS (Intel): `zenoh-*-x86_64-apple-darwin-standalone.zip`
+- Windows: `zenoh-*-x86_64-pc-windows-msvc-standalone.zip`
+
+**Extract and run:**
+
+Linux/macOS:
 
 ```bash
-wget https://github.com/eclipse-zenoh/zenoh/releases/latest/download/zenoh-x86_64-unknown-linux-gnu.zip
-unzip zenoh-x86_64-unknown-linux-gnu.zip
+unzip zenoh-*.zip
 chmod +x zenohd
 ./zenohd
 ```
 
-**macOS (Apple Silicon):**
-
-```bash
-wget https://github.com/eclipse-zenoh/zenoh/releases/latest/download/zenoh-aarch64-apple-darwin.zip
-unzip zenoh-aarch64-apple-darwin.zip
-chmod +x zenohd
-./zenohd
-```
-
-**macOS (Intel):**
-
-```bash
-wget https://github.com/eclipse-zenoh/zenoh/releases/latest/download/zenoh-x86_64-apple-darwin.zip
-unzip zenoh-x86_64-apple-darwin.zip
-chmod +x zenohd
-./zenohd
-```
-
-**Windows (PowerShell):**
+Windows (PowerShell):
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/eclipse-zenoh/zenoh/releases/latest/download/zenoh-x86_64-pc-windows-msvc.zip" -OutFile "zenoh.zip"
-Expand-Archive zenoh.zip
+Expand-Archive zenoh-*.zip
 .\zenoh\zenohd.exe
 ```
 
@@ -165,7 +168,7 @@ docker run -d \
 - Requires Docker installed
 - Network setup can be tricky (use `--net host` for simplicity)
 
-**Docker Hub:** <https://hub.docker.com/r/eclipse/zenoh>
+**Docker Hub:** <https://hub.docker.com/r/eclipse/zenoh/tags>
 
 ---
 
