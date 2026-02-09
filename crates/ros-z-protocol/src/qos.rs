@@ -36,7 +36,7 @@ impl QosProfile {
             return Err(QosDecodeError::InvalidFormat);
         }
 
-        // Parse reliability - empty means default (BestEffort)
+        // Parse reliability - empty means default (Reliable)
         let reliability = if parts[1].is_empty() {
             QosReliability::default()
         } else {
@@ -70,11 +70,13 @@ impl QosProfile {
 }
 
 /// QoS reliability policy.
+///
+/// ROS 2 default: Reliable
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[repr(u8)]
 pub enum QosReliability {
-    #[default]
     BestEffort = 0,
+    #[default]
     Reliable = 1,
 }
 
