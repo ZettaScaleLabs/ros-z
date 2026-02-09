@@ -5,6 +5,9 @@ node_modules
 .cargo
 compile_commands.json
 _*
+!crates/ros-z-py/python/**/__init__.py
+!crates/ros-z-msgs/python/ros_z_msgs_py/__init__.py
+# Old paths (pre-reorganization) - kept for backwards compatibility
 !ros-z-py/python/**/__init__.py
 !ros-z-msgs/python/ros_z_msgs_py/__init__.py
 result*
@@ -12,6 +15,11 @@ result*
 __pycache__/
 
 # Auto-generated Python message types (regenerated from .msg files during Rust build)
+# Updated paths after crates/ reorganization (e781dce)
+crates/ros-z-msgs/python/build/lib/ros_z_msgs_py/types/*.py
+crates/ros-z-msgs/python/ros_z_msgs_py/types/*.py
+crates/ros-z-msgs/python/ros_z_msgs_py/types/__init__.py
+# Old paths (pre-reorganization) - kept for backwards compatibility
 ros-z-msgs/python/build/lib/ros_z_msgs_py/types/*.py
 ros-z-msgs/python/ros_z_msgs_py/types/*.py
 ros-z-msgs/python/ros_z_msgs_py/types/__init__.py

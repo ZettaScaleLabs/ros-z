@@ -6,7 +6,7 @@
 //! - Topic: `<domain_id>/<topic>/<type>/<hash>`
 //! - Liveliness: `@ros2_lv/<domain_id>/<zid>/<nid>/<eid>/<kind>/<enclave>/<ns>/<name>[/<topic>/<type>/<hash>/<qos>]`
 
-use zenoh::{Result, key_expr::KeyExpr, session::ZenohId};
+use zenoh::{key_expr::KeyExpr, session::ZenohId, Result};
 
 use crate::{
     entity::{
@@ -16,7 +16,7 @@ use crate::{
     qos::QosProfile,
 };
 
-use super::KeyExprBackend;
+use super::KeyExprFormatter;
 
 /// Placeholder for empty namespace/enclave.
 pub const EMPTY_PLACEHOLDER: &str = "%";
@@ -26,9 +26,9 @@ pub const EMPTY_TOPIC_TYPE: &str = "EMPTY_TOPIC_TYPE";
 pub const EMPTY_TOPIC_HASH: &str = "EMPTY_TOPIC_HASH";
 
 /// rmw_zenoh compatible backend.
-pub struct RmwZenohBackend;
+pub struct RmwZenohFormatter;
 
-impl KeyExprBackend for RmwZenohBackend {
+impl KeyExprFormatter for RmwZenohFormatter {
     const ESCAPE_CHAR: char = '%';
     const ADMIN_SPACE: &'static str = "@ros2_lv";
 
@@ -249,13 +249,13 @@ mod tests {
 
     #[test]
     fn test_mangle_demangle() {
-        assert_eq!(RmwZenohBackend::mangle_name("/chatter"), "%chatter");
+        assert_eq!(RmwZenohFormatter::mangle_name("/chatter"), "%chatter");
         assert_eq!(
-            RmwZenohBackend::mangle_name("std_msgs/msg/String"),
+            RmwZenohFormatter::mangle_name("std_msgs/msg/String"),
             "std_msgs%msg%String"
         );
         assert_eq!(
-            RmwZenohBackend::demangle_name("std_msgs%msg%String"),
+            RmwZenohFormatter::demangle_name("std_msgs%msg%String"),
             "std_msgs/msg/String"
         );
     }
@@ -263,9 +263,9 @@ mod tests {
     #[test]
     fn test_qos_encode_decode() {
         let qos = QosProfile::default();
-        let encoded = RmwZenohBackend::encode_qos(&qos, false);
+        let encoded = RmwZenohFormatter::encode_qos(&qos, false);
 
-        let (keyless, decoded) = RmwZenohBackend::decode_qos(&encoded).unwrap();
+        let (keyless, decoded) = RmwZenohFormatter::decode_qos(&encoded).unwrap();
         assert!(!keyless);
         assert_eq!(decoded.reliability, qos.reliability);
         assert_eq!(decoded.durability, qos.durability);
@@ -279,9 +279,9 @@ mod tests {
             history: QosHistory::from_depth(10),
             ..Default::default()
         };
-        let encoded = RmwZenohBackend::encode_qos(&qos, false);
+        let encoded = RmwZenohFormatter::encode_qos(&qos, false);
 
-        let (keyless, decoded) = RmwZenohBackend::decode_qos(&encoded).unwrap();
+        let (keyless, decoded) = RmwZenohFormatter::decode_qos(&encoded).unwrap();
         assert!(!keyless);
         assert_eq!(decoded.reliability, QosReliability::Reliable);
         assert_eq!(decoded.durability, QosDurability::TransientLocal);
@@ -293,14 +293,7 @@ mod tests {
     #[test]
     fn test_topic_key_expr_format() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(
-            0,
-            zid,
-            0,
-            "test_node".to_string(),
-            "/".to_string(),
-            String::new(),
-        );
+        let node = NodeEntity::new(0, zid, 0, "test_node".to_string(), "/".to_string(), String::new());
 
         let entity = EndpointEntity {
             id: 1,
@@ -311,26 +304,14 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let topic_ke = RmwZenohBackend::topic_key_expr(&entity).unwrap();
+        let topic_ke = RmwZenohFormatter::topic_key_expr(&entity).unwrap();
         let ke_str = topic_ke.as_str();
 
         // rmw_zenoh format: <domain_id>/<topic>/<type>/<hash>
-        assert!(
-            ke_str.starts_with("0/"),
-            "Should start with domain ID '0/', got: {}",
-            ke_str
-        );
-        assert!(
-            ke_str.contains("/chatter/"),
-            "Should contain '/chatter/', got: {}",
-            ke_str
-        );
+        assert!(ke_str.starts_with("0/"), "Should start with domain ID '0/', got: {}", ke_str);
+        assert!(ke_str.contains("/chatter/"), "Should contain '/chatter/', got: {}", ke_str);
         // Note: rmw_zenoh does NOT escape slashes in topic key expression
-        assert!(
-            ke_str.contains("std_msgs/msg/String"),
-            "Should contain type name, got: {}",
-            ke_str
-        );
+        assert!(ke_str.contains("std_msgs/msg/String"), "Should contain type name, got: {}", ke_str);
     }
 
     /// Test liveliness key expression format matches rmw_zenoh.
@@ -339,14 +320,7 @@ mod tests {
     #[test]
     fn test_liveliness_key_expr_format() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(
-            0,
-            zid,
-            0,
-            "test_node".to_string(),
-            "/".to_string(),
-            String::new(),
-        );
+        let node = NodeEntity::new(0, zid, 0, "test_node".to_string(), "/".to_string(), String::new());
 
         let entity = EndpointEntity {
             id: 1,
@@ -357,43 +331,23 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let liveliness_ke = RmwZenohBackend::liveliness_key_expr(&entity, &zid).unwrap();
+        let liveliness_ke = RmwZenohFormatter::liveliness_key_expr(&entity, &zid).unwrap();
         let ke_str = liveliness_ke.as_str();
 
         // Should start with @ros2_lv
-        assert!(
-            ke_str.starts_with("@ros2_lv/"),
-            "Should start with '@ros2_lv/', got: {}",
-            ke_str
-        );
+        assert!(ke_str.starts_with("@ros2_lv/"), "Should start with '@ros2_lv/', got: {}", ke_str);
 
         // Should contain domain ID
-        assert!(
-            ke_str.contains("/0/"),
-            "Should contain domain '/0/', got: {}",
-            ke_str
-        );
+        assert!(ke_str.contains("/0/"), "Should contain domain '/0/', got: {}", ke_str);
 
         // Should contain MP for Publisher
-        assert!(
-            ke_str.contains("/MP/"),
-            "Should contain '/MP/' for Publisher, got: {}",
-            ke_str
-        );
+        assert!(ke_str.contains("/MP/"), "Should contain '/MP/' for Publisher, got: {}", ke_str);
 
         // Should contain node name
-        assert!(
-            ke_str.contains("/test_node/"),
-            "Should contain '/test_node/', got: {}",
-            ke_str
-        );
+        assert!(ke_str.contains("/test_node/"), "Should contain '/test_node/', got: {}", ke_str);
 
         // Should contain escaped topic name
-        assert!(
-            ke_str.contains("/chatter/"),
-            "Should contain '/chatter/', got: {}",
-            ke_str
-        );
+        assert!(ke_str.contains("/chatter/"), "Should contain '/chatter/', got: {}", ke_str);
 
         // Should contain escaped type name
         assert!(
@@ -407,14 +361,7 @@ mod tests {
     #[test]
     fn test_subscriber_liveliness_key_expr() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(
-            0,
-            zid,
-            0,
-            "test_node".to_string(),
-            "/".to_string(),
-            String::new(),
-        );
+        let node = NodeEntity::new(0, zid, 0, "test_node".to_string(), "/".to_string(), String::new());
 
         let entity = EndpointEntity {
             id: 1,
@@ -425,125 +372,74 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let liveliness_ke = RmwZenohBackend::liveliness_key_expr(&entity, &zid).unwrap();
+        let liveliness_ke = RmwZenohFormatter::liveliness_key_expr(&entity, &zid).unwrap();
         let ke_str = liveliness_ke.as_str();
 
         // Should contain MS for Subscription
-        assert!(
-            ke_str.contains("/MS/"),
-            "Should contain '/MS/' for Subscription, got: {}",
-            ke_str
-        );
+        assert!(ke_str.contains("/MS/"), "Should contain '/MS/' for Subscription, got: {}", ke_str);
     }
 
     /// Test service server liveliness key expression
     #[test]
     fn test_service_liveliness_key_expr() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(
-            0,
-            zid,
-            0,
-            "test_node".to_string(),
-            "/".to_string(),
-            String::new(),
-        );
+        let node = NodeEntity::new(0, zid, 0, "test_node".to_string(), "/".to_string(), String::new());
 
         let entity = EndpointEntity {
             id: 1,
             node,
             kind: EntityKind::Service,
             topic: "add_two_ints".to_string(),
-            type_info: Some(TypeInfo::new(
-                "example_interfaces/srv/AddTwoInts",
-                TypeHash::zero(),
-            )),
+            type_info: Some(TypeInfo::new("example_interfaces/srv/AddTwoInts", TypeHash::zero())),
             qos: QosProfile::default(),
         };
 
-        let liveliness_ke = RmwZenohBackend::liveliness_key_expr(&entity, &zid).unwrap();
+        let liveliness_ke = RmwZenohFormatter::liveliness_key_expr(&entity, &zid).unwrap();
         let ke_str = liveliness_ke.as_str();
 
         // Should contain SS for Service
-        assert!(
-            ke_str.contains("/SS/"),
-            "Should contain '/SS/' for Service, got: {}",
-            ke_str
-        );
+        assert!(ke_str.contains("/SS/"), "Should contain '/SS/' for Service, got: {}", ke_str);
     }
 
     /// Test client liveliness key expression
     #[test]
     fn test_client_liveliness_key_expr() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(
-            0,
-            zid,
-            0,
-            "test_node".to_string(),
-            "/".to_string(),
-            String::new(),
-        );
+        let node = NodeEntity::new(0, zid, 0, "test_node".to_string(), "/".to_string(), String::new());
 
         let entity = EndpointEntity {
             id: 1,
             node,
             kind: EntityKind::Client,
             topic: "add_two_ints".to_string(),
-            type_info: Some(TypeInfo::new(
-                "example_interfaces/srv/AddTwoInts",
-                TypeHash::zero(),
-            )),
+            type_info: Some(TypeInfo::new("example_interfaces/srv/AddTwoInts", TypeHash::zero())),
             qos: QosProfile::default(),
         };
 
-        let liveliness_ke = RmwZenohBackend::liveliness_key_expr(&entity, &zid).unwrap();
+        let liveliness_ke = RmwZenohFormatter::liveliness_key_expr(&entity, &zid).unwrap();
         let ke_str = liveliness_ke.as_str();
 
         // Should contain SC for Client
-        assert!(
-            ke_str.contains("/SC/"),
-            "Should contain '/SC/' for Client, got: {}",
-            ke_str
-        );
+        assert!(ke_str.contains("/SC/"), "Should contain '/SC/' for Client, got: {}", ke_str);
     }
 
     /// Test node liveliness key expression
     #[test]
     fn test_node_liveliness_key_expr() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(
-            0,
-            zid,
-            0,
-            "test_node".to_string(),
-            "/my_namespace".to_string(),
-            String::new(),
-        );
+        let node = NodeEntity::new(0, zid, 0, "test_node".to_string(), "/my_namespace".to_string(), String::new());
 
-        let liveliness_ke = RmwZenohBackend::node_liveliness_key_expr(&node).unwrap();
+        let liveliness_ke = RmwZenohFormatter::node_liveliness_key_expr(&node).unwrap();
         let ke_str = liveliness_ke.as_str();
 
         // Should start with @ros2_lv
-        assert!(
-            ke_str.starts_with("@ros2_lv/"),
-            "Should start with '@ros2_lv/', got: {}",
-            ke_str
-        );
+        assert!(ke_str.starts_with("@ros2_lv/"), "Should start with '@ros2_lv/', got: {}", ke_str);
 
         // Should contain NN for Node
-        assert!(
-            ke_str.contains("/NN/"),
-            "Should contain '/NN/' for Node, got: {}",
-            ke_str
-        );
+        assert!(ke_str.contains("/NN/"), "Should contain '/NN/' for Node, got: {}", ke_str);
 
         // Should contain node name
-        assert!(
-            ke_str.contains("/test_node"),
-            "Should contain '/test_node', got: {}",
-            ke_str
-        );
+        assert!(ke_str.contains("/test_node"), "Should contain '/test_node', got: {}", ke_str);
     }
 
     // ==================== Topic Key Expression Tests ====================
@@ -574,7 +470,7 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let topic_ke = RmwZenohBackend::topic_key_expr(&entity).unwrap();
+        let topic_ke = RmwZenohFormatter::topic_key_expr(&entity).unwrap();
         let ke_str = topic_ke.as_str();
 
         // MUST preserve internal slashes: 0/talker/get_type_description/...
@@ -606,7 +502,7 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let topic_ke = RmwZenohBackend::topic_key_expr(&entity).unwrap();
+        let topic_ke = RmwZenohFormatter::topic_key_expr(&entity).unwrap();
         let ke_str = topic_ke.as_str();
 
         assert!(
@@ -634,7 +530,7 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let topic_ke = RmwZenohBackend::topic_key_expr(&entity).unwrap();
+        let topic_ke = RmwZenohFormatter::topic_key_expr(&entity).unwrap();
         let ke_str = topic_ke.as_str();
 
         // Should preserve slashes: 0/ns/topic/...
@@ -668,7 +564,7 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let topic_ke = RmwZenohBackend::topic_key_expr(&entity).unwrap();
+        let topic_ke = RmwZenohFormatter::topic_key_expr(&entity).unwrap();
         let ke_str = topic_ke.as_str();
 
         // Should preserve slashes: 0/robot/sensor/data/...
@@ -705,7 +601,7 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let topic_ke = RmwZenohBackend::topic_key_expr(&entity).unwrap();
+        let topic_ke = RmwZenohFormatter::topic_key_expr(&entity).unwrap();
         let ke_str = topic_ke.as_str();
 
         // Should preserve internal slashes: 0/fibonacci/_action/send_goal/...
@@ -737,7 +633,7 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let topic_ke = RmwZenohBackend::topic_key_expr(&entity).unwrap();
+        let topic_ke = RmwZenohFormatter::topic_key_expr(&entity).unwrap();
         let ke_str = topic_ke.as_str();
 
         // Should become: 0/my_service/...
@@ -768,7 +664,7 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let topic_ke = RmwZenohBackend::topic_key_expr(&entity).unwrap();
+        let topic_ke = RmwZenohFormatter::topic_key_expr(&entity).unwrap();
         let ke_str = topic_ke.as_str();
 
         // Should use placeholders: 0/chatter/EMPTY_TOPIC_TYPE/EMPTY_TOPIC_HASH
@@ -800,7 +696,7 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let topic_ke = RmwZenohBackend::topic_key_expr(&entity).unwrap();
+        let topic_ke = RmwZenohFormatter::topic_key_expr(&entity).unwrap();
         let ke_str = topic_ke.as_str();
 
         // Type name should be demangled in key expression
@@ -834,7 +730,7 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let liveliness_ke = RmwZenohBackend::liveliness_key_expr(&entity, &zid).unwrap();
+        let liveliness_ke = RmwZenohFormatter::liveliness_key_expr(&entity, &zid).unwrap();
         let ke_str = liveliness_ke.as_str();
 
         // Liveliness token MUST mangle topic name: %talker%get_type_description
@@ -867,7 +763,7 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let liveliness_ke = RmwZenohBackend::liveliness_key_expr(&entity, &zid).unwrap();
+        let liveliness_ke = RmwZenohFormatter::liveliness_key_expr(&entity, &zid).unwrap();
         let ke_str = liveliness_ke.as_str();
 
         // Namespace should be mangled: %robot%sensors
@@ -901,7 +797,7 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let liveliness_ke = RmwZenohBackend::liveliness_key_expr(&entity, &zid).unwrap();
+        let liveliness_ke = RmwZenohFormatter::liveliness_key_expr(&entity, &zid).unwrap();
         let ke_str = liveliness_ke.as_str();
 
         // Empty namespace should use placeholder
@@ -933,7 +829,7 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let liveliness_ke = RmwZenohBackend::liveliness_key_expr(&entity, &zid).unwrap();
+        let liveliness_ke = RmwZenohFormatter::liveliness_key_expr(&entity, &zid).unwrap();
         let ke_str = liveliness_ke.as_str();
 
         // Root namespace should be treated as empty
@@ -963,7 +859,7 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let liveliness_ke = RmwZenohBackend::liveliness_key_expr(&entity, &zid).unwrap();
+        let liveliness_ke = RmwZenohFormatter::liveliness_key_expr(&entity, &zid).unwrap();
         let ke_str = liveliness_ke.as_str();
 
         // Type name should be mangled in liveliness: sensor_msgs%msg%Image
@@ -1002,7 +898,7 @@ mod tests {
             qos,
         };
 
-        let liveliness_ke = RmwZenohBackend::liveliness_key_expr(&entity, &zid).unwrap();
+        let liveliness_ke = RmwZenohFormatter::liveliness_key_expr(&entity, &zid).unwrap();
         let ke_str = liveliness_ke.as_str();
 
         // QoS should be encoded at the end
@@ -1046,8 +942,8 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let liveliness_ke = RmwZenohBackend::liveliness_key_expr(&original, &zid).unwrap();
-        let parsed = RmwZenohBackend::parse_liveliness(&*liveliness_ke).unwrap();
+        let liveliness_ke = RmwZenohFormatter::liveliness_key_expr(&original, &zid).unwrap();
+        let parsed = RmwZenohFormatter::parse_liveliness(&*liveliness_ke).unwrap();
 
         if let Entity::Endpoint(parsed_entity) = parsed {
             assert_eq!(parsed_entity.id, original.id);
@@ -1079,8 +975,8 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let liveliness_ke = RmwZenohBackend::liveliness_key_expr(&original, &zid).unwrap();
-        let parsed = RmwZenohBackend::parse_liveliness(&*liveliness_ke).unwrap();
+        let liveliness_ke = RmwZenohFormatter::liveliness_key_expr(&original, &zid).unwrap();
+        let parsed = RmwZenohFormatter::parse_liveliness(&*liveliness_ke).unwrap();
 
         if let Entity::Endpoint(parsed_entity) = parsed {
             assert_eq!(parsed_entity.id, original.id);
@@ -1110,8 +1006,8 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let liveliness_ke = RmwZenohBackend::liveliness_key_expr(&original, &zid).unwrap();
-        let parsed = RmwZenohBackend::parse_liveliness(&*liveliness_ke).unwrap();
+        let liveliness_ke = RmwZenohFormatter::liveliness_key_expr(&original, &zid).unwrap();
+        let parsed = RmwZenohFormatter::parse_liveliness(&*liveliness_ke).unwrap();
 
         if let Entity::Endpoint(parsed_entity) = parsed {
             assert!(
@@ -1136,8 +1032,8 @@ mod tests {
             String::new(),
         );
 
-        let liveliness_ke = RmwZenohBackend::node_liveliness_key_expr(&node).unwrap();
-        let parsed = RmwZenohBackend::parse_liveliness(&*liveliness_ke).unwrap();
+        let liveliness_ke = RmwZenohFormatter::node_liveliness_key_expr(&node).unwrap();
+        let parsed = RmwZenohFormatter::parse_liveliness(&*liveliness_ke).unwrap();
 
         if let Entity::Node(parsed_node) = parsed {
             assert_eq!(parsed_node.id, node.id);
@@ -1166,7 +1062,7 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let topic_ke = RmwZenohBackend::topic_key_expr(&entity).unwrap();
+        let topic_ke = RmwZenohFormatter::topic_key_expr(&entity).unwrap();
         let ke_str = topic_ke.as_str();
 
         // Should just be: 0/simple_topic/...
@@ -1196,7 +1092,7 @@ mod tests {
         };
 
         // Should return an error because Zenoh KeyExpr rejects consecutive slashes
-        let result = RmwZenohBackend::topic_key_expr(&entity);
+        let result = RmwZenohFormatter::topic_key_expr(&entity);
         assert!(
             result.is_err(),
             "Consecutive slashes should be rejected by Zenoh KeyExpr"
@@ -1222,7 +1118,7 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let topic_ke = RmwZenohBackend::topic_key_expr(&entity).unwrap();
+        let topic_ke = RmwZenohFormatter::topic_key_expr(&entity).unwrap();
         let ke_str = topic_ke.as_str();
 
         // DDS type name should be preserved exactly
@@ -1249,7 +1145,7 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let topic_ke = RmwZenohBackend::topic_key_expr(&entity).unwrap();
+        let topic_ke = RmwZenohFormatter::topic_key_expr(&entity).unwrap();
         let ke_str = topic_ke.as_str();
 
         // Should handle long names correctly (strip leading slash, keep internal ones)

@@ -1,0 +1,26 @@
+[package]
+name = "ros-z-keyexpr"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+authors = ["ZettaScale Technology <contact@zettascale.tech>"]
+description = "Key expression format handling for ros-z (ROS 2 over Zenoh)"
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/ZettaScaleLabs/ros-z"
+keywords = ["ros2", "zenoh", "robotics", "middleware"]
+categories = ["network-programming", "robotics"]
+
+[features]
+default = ["std", "rmw-zenoh"]
+std = ["zenoh/default"]
+rmw-zenoh = []
+ros2dds = []
+
+[dependencies]
+zenoh = { version = "1.1.1", default-features = false }
+
+[dev-dependencies]
+zenoh = { version = "1.1.1", default-features = false }
+
+[package.metadata.docs.rs]
+all-features = true

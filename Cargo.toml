@@ -11,6 +11,7 @@ members = [
   "crates/ros-z-cdr",
   "crates/ros-z-codegen",
   "crates/ros-z-derive",
+  "crates/ros-z-keyexpr",
   "crates/ros-z-py",
   "crates/rmw-zenoh-rs",
   "crates/ros-z-schema",
