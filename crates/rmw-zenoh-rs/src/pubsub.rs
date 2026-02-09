@@ -5,6 +5,31 @@ use crate::ros::*;
 use crate::traits::{BorrowData, Waitable};
 use zenoh::{Result, sample::Sample};
 
+// Helper function to convert protocol QoS to ros_z QoS
+pub fn protocol_qos_to_ros_z_qos(qos: &ros_z_protocol::qos::QosProfile) -> ros_z::qos::QosProfile {
+    ros_z::qos::QosProfile {
+        reliability: match qos.reliability {
+            ros_z_protocol::qos::QosReliability::Reliable => ros_z::qos::QosReliability::Reliable,
+            ros_z_protocol::qos::QosReliability::BestEffort => {
+                ros_z::qos::QosReliability::BestEffort
+            }
+        },
+        durability: match qos.durability {
+            ros_z_protocol::qos::QosDurability::TransientLocal => {
+                ros_z::qos::QosDurability::TransientLocal
+            }
+            ros_z_protocol::qos::QosDurability::Volatile => ros_z::qos::QosDurability::Volatile,
+        },
+        history: match qos.history {
+            ros_z_protocol::qos::QosHistory::KeepLast(depth) => {
+                ros_z::qos::QosHistory::from_depth(depth)
+            }
+            ros_z_protocol::qos::QosHistory::KeepAll => ros_z::qos::QosHistory::KeepAll,
+        },
+        ..Default::default()
+    }
+}
+
 /// Publisher implementation for RMW
 pub struct PublisherImpl {
     pub inner: ros_z::pubsub::ZPub<crate::msg::RosMessage, crate::msg::RosSerdes>,
@@ -274,8 +299,9 @@ pub extern "C" fn rmw_publisher_count_matched_subscriptions(
     let count = entities
         .iter()
         .filter(|entity| {
-            if let Some(endpoint) = entity.get_endpoint() {
-                let sub_qos = crate::qos::ros_z_qos_to_rmw_qos(&endpoint.qos);
+            if let Some(endpoint) = ros_z::entity::entity_get_endpoint(entity) {
+                let sub_qos =
+                    crate::qos::ros_z_qos_to_rmw_qos(&protocol_qos_to_ros_z_qos(&endpoint.qos));
                 crate::qos::qos_profiles_are_compatible(pub_qos, &sub_qos)
             } else {
                 false
@@ -549,8 +575,9 @@ pub extern "C" fn rmw_subscription_count_matched_publishers(
     let count = entities
         .iter()
         .filter(|entity| {
-            if let Some(endpoint) = entity.get_endpoint() {
-                let pub_qos = crate::qos::ros_z_qos_to_rmw_qos(&endpoint.qos);
+            if let Some(endpoint) = ros_z::entity::entity_get_endpoint(entity) {
+                let pub_qos =
+                    crate::qos::ros_z_qos_to_rmw_qos(&protocol_qos_to_ros_z_qos(&endpoint.qos));
                 crate::qos::qos_profiles_are_compatible(&pub_qos, sub_qos)
             } else {
                 false

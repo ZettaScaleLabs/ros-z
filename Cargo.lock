@@ -2687,6 +2687,7 @@ dependencies = [
  "parking_lot",
  "ros-z",
  "ros-z-cdr",
+ "ros-z-protocol",
  "serde",
  "strum 0.27.2",
  "tracing",

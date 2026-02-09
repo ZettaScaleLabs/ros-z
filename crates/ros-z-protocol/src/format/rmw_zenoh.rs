@@ -277,7 +277,6 @@ mod tests {
             reliability: QosReliability::Reliable,
             durability: QosDurability::TransientLocal,
             history: QosHistory::from_depth(10),
-            ..Default::default()
         };
         let encoded = RmwZenohFormatter::encode_qos(&qos, false);
 
@@ -1094,7 +1093,6 @@ mod tests {
             reliability: QosReliability::Reliable,
             durability: QosDurability::TransientLocal,
             history: QosHistory::from_depth(10),
-            ..Default::default()
         };
 
         let entity = EndpointEntity {
@@ -1151,7 +1149,7 @@ mod tests {
         };
 
         let liveliness_ke = RmwZenohFormatter::liveliness_key_expr(&original, &zid).unwrap();
-        let parsed = RmwZenohFormatter::parse_liveliness(&*liveliness_ke).unwrap();
+        let parsed = RmwZenohFormatter::parse_liveliness(&liveliness_ke).unwrap();
 
         if let Entity::Endpoint(parsed_entity) = parsed {
             assert_eq!(parsed_entity.id, original.id);
@@ -1191,7 +1189,7 @@ mod tests {
         };
 
         let liveliness_ke = RmwZenohFormatter::liveliness_key_expr(&original, &zid).unwrap();
-        let parsed = RmwZenohFormatter::parse_liveliness(&*liveliness_ke).unwrap();
+        let parsed = RmwZenohFormatter::parse_liveliness(&liveliness_ke).unwrap();
 
         if let Entity::Endpoint(parsed_entity) = parsed {
             assert_eq!(parsed_entity.id, original.id);
@@ -1229,7 +1227,7 @@ mod tests {
         };
 
         let liveliness_ke = RmwZenohFormatter::liveliness_key_expr(&original, &zid).unwrap();
-        let parsed = RmwZenohFormatter::parse_liveliness(&*liveliness_ke).unwrap();
+        let parsed = RmwZenohFormatter::parse_liveliness(&liveliness_ke).unwrap();
 
         if let Entity::Endpoint(parsed_entity) = parsed {
             assert!(
@@ -1255,7 +1253,7 @@ mod tests {
         );
 
         let liveliness_ke = RmwZenohFormatter::node_liveliness_key_expr(&node).unwrap();
-        let parsed = RmwZenohFormatter::parse_liveliness(&*liveliness_ke).unwrap();
+        let parsed = RmwZenohFormatter::parse_liveliness(&liveliness_ke).unwrap();
 
         if let Entity::Node(parsed_node) = parsed {
             assert_eq!(parsed_node.id, node.id);

@@ -385,8 +385,8 @@ where
         F: Fn() + Send + Sync + 'static,
     {
         let queue_size = match self.entity.qos.history {
-            QosHistory::KeepLast(depth) => depth.get(),
-            QosHistory::KeepAll => usize::MAX,
+            ros_z_protocol::qos::QosHistory::KeepLast(depth) => depth,
+            ros_z_protocol::qos::QosHistory::KeepAll => usize::MAX,
         };
         let queue = Arc::new(BoundedQueue::new(queue_size));
         self.build_internal(

@@ -306,7 +306,6 @@ mod tests {
             reliability: QosReliability::Reliable,
             durability: QosDurability::TransientLocal,
             history: QosHistory::from_depth(10),
-            ..Default::default()
         };
         let encoded = Ros2DdsFormatter::encode_qos(&qos, false);
         assert_eq!(encoded, "K:1:1:0,10");

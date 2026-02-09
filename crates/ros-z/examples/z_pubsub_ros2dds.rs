@@ -141,7 +141,7 @@ async fn main() -> ros_z::Result<()> {
     println!("Role:           {}", args.role);
     println!("Topic:          {}", topic);
     println!("Topic KE:       {}", topic_ke);
-    println!("Liveliness KE:  {}", liveliness_ke);
+    println!("Liveliness KE:  {}", liveliness_ke.as_str());
     println!();
 
     match args.role.as_str() {

@@ -19,6 +19,7 @@ cxx = { workspace = true }
 ros-z-cdr = { workspace = true }
 serde = { workspace = true, features = ["serde_derive"] }
 ros-z = { workspace = true, features = ["rmw"] }
+ros-z-protocol = { workspace = true }
 strum = { workspace = true, features = ["derive"] }
 
 [lib]

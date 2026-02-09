@@ -27,6 +27,7 @@ default-members = ["crates/ros-z", "crates/ros-z-codegen"]
 # Workspace members
 ros-z = { version = "*", path = "crates/ros-z" }
 ros-z-codegen = { version = "*", path = "crates/ros-z-codegen" }
+ros-z-protocol = { version = "*", path = "crates/ros-z-protocol" }
 rmw-zenoh-rs = { version = "*", path = "crates/rmw-zenoh-rs" }
 ros-z-schema = { version = "*", path = "crates/ros-z-schema" }
 
