@@ -3,11 +3,12 @@
 use std::{
     collections::HashMap,
     marker::PhantomData,
-    sync::{atomic::AtomicUsize, Arc},
+    sync::{Arc, atomic::AtomicUsize},
     time::Duration,
 };
 
 use serde::Deserialize;
+use tracing::{debug, error, info, trace, warn};
 use zenoh::{
     Result, Session, Wait, bytes,
     key_expr::KeyExpr,
@@ -15,7 +16,6 @@ use zenoh::{
     query::{Query, Reply},
     sample::Sample,
 };
-use tracing::{error, info, debug, warn, trace};
 
 use std::sync::atomic::Ordering;
 
@@ -103,7 +103,9 @@ where
         let key_expr = (*topic_ke).clone(); // Deref and clone the KeyExpr
         debug!("[CLN] Key expression: {}", key_expr);
 
-        let inner = self.session.declare_querier(key_expr)
+        let inner = self
+            .session
+            .declare_querier(key_expr)
             .target(zenoh::query::QueryTarget::AllComplete)
             .consolidation(zenoh::query::ConsolidationMode::None)
             .timeout(Duration::from_secs(10))
@@ -169,7 +171,8 @@ where
     pub fn take_response_timeout(&self, timeout: Duration) -> Result<T::Response>
     where
         T::Response: ZMessage,
-        for<'a> <T::Response as ZMessage>::Serdes: ZDeserializer<Output = T::Response, Input<'a> = &'a [u8]>,
+        for<'a> <T::Response as ZMessage>::Serdes:
+            ZDeserializer<Output = T::Response, Input<'a> = &'a [u8]>,
     {
         let sample = self.take_sample_timeout(timeout)?;
         let payload_bytes = sample.payload().to_bytes();
@@ -180,7 +183,8 @@ where
     pub async fn take_response_async(&self) -> Result<T::Response>
     where
         T::Response: ZMessage,
-        for<'a> <T::Response as ZMessage>::Serdes: ZDeserializer<Output = T::Response, Input<'a> = &'a [u8]>,
+        for<'a> <T::Response as ZMessage>::Serdes:
+            ZDeserializer<Output = T::Response, Input<'a> = &'a [u8]>,
     {
         let sample = self.rx.recv_async().await?;
         let payload_bytes = sample.payload().to_bytes();
@@ -216,7 +220,9 @@ where
                         debug!("[CLN] Reply received: len={}", sample.payload().len());
                         // Use try_send for bounded channel - if full, drop the response (QoS depth enforcement)
                         if tx.try_send(sample).is_err() {
-                            tracing::warn!("Client response queue full, dropping response (QoS depth enforced)");
+                            tracing::warn!(
+                                "Client response queue full, dropping response (QoS depth enforced)"
+                            );
                         }
                     }
                     Err(e) => {
@@ -246,7 +252,9 @@ where
                     Ok(sample) => {
                         // Use try_send for bounded channel - if full, drop the response (QoS depth enforcement)
                         if tx.try_send(sample).is_err() {
-                            tracing::warn!("Client response queue full, dropping response (QoS depth enforced)");
+                            tracing::warn!(
+                                "Client response queue full, dropping response (QoS depth enforced)"
+                            );
                         }
                         notify();
                     }
@@ -256,7 +264,8 @@ where
                         tracing::debug!("Client reply error: {:?}", err);
                     }
                 }
-            }).wait()?;
+            })
+            .wait()?;
         Ok(sn)
     }
 }
@@ -293,7 +302,9 @@ where
     /// Panics if the server was built with `build_with_callback()` and has no queue.
     /// Action servers always have queues and will never panic.
     pub fn queue(&self) -> &Arc<BoundedQueue<Q>> {
-        self.queue.as_ref().expect("Server was built with callback mode, no queue available")
+        self.queue
+            .as_ref()
+            .expect("Server was built with callback mode, no queue available")
     }
 }
 
@@ -347,8 +358,11 @@ where
             .declare_queryable(&key_expr)
             .complete(true)
             .callback(move |query| {
-                debug!("[SRV] Query received: ke={}, selector={}",
-                    query.key_expr(), query.selector());
+                debug!(
+                    "[SRV] Query received: ke={}, selector={}",
+                    query.key_expr(),
+                    query.selector()
+                );
 
                 if let Some(att) = query.attachment() {
                     trace!("[SRV] Query has attachment");
@@ -448,9 +462,11 @@ where
     ///
     /// This method is useful when custom deserialization logic is needed.
     pub fn take_query(&self) -> Result<Query> {
-        let queue = self.queue.as_ref()
-            .ok_or_else(|| zenoh::Error::from("Server was built with callback, no queue available"))?;
-        queue.try_recv()
+        let queue = self.queue.as_ref().ok_or_else(|| {
+            zenoh::Error::from("Server was built with callback, no queue available")
+        })?;
+        queue
+            .try_recv()
             .ok_or_else(|| zenoh::Error::from("No query available"))
     }
 
@@ -465,12 +481,14 @@ where
     pub fn take_request(&mut self) -> Result<(QueryKey, T::Request)>
     where
         T::Request: ZMessage + Send + Sync + 'static,
-        for<'a> <T::Request as ZMessage>::Serdes: ZDeserializer<Output = T::Request, Input<'a> = &'a [u8]>,
+        for<'a> <T::Request as ZMessage>::Serdes:
+            ZDeserializer<Output = T::Request, Input<'a> = &'a [u8]>,
     {
         trace!("[SRV] Waiting for request");
 
-        let queue = self.queue.as_ref()
-            .ok_or_else(|| zenoh::Error::from("Server was built with callback, no queue available"))?;
+        let queue = self.queue.as_ref().ok_or_else(|| {
+            zenoh::Error::from("Server was built with callback, no queue available")
+        })?;
         let query = queue.recv();
         let attachment: Attachment = query.attachment().unwrap().try_into()?;
         let key: QueryKey = attachment.into();
@@ -500,10 +518,12 @@ where
     pub async fn take_request_async(&mut self) -> Result<(QueryKey, T::Request)>
     where
         T::Request: ZMessage + Send + Sync + 'static,
-        for<'a> <T::Request as ZMessage>::Serdes: ZDeserializer<Output = T::Request, Input<'a> = &'a [u8]>,
+        for<'a> <T::Request as ZMessage>::Serdes:
+            ZDeserializer<Output = T::Request, Input<'a> = &'a [u8]>,
     {
-        let queue = self.queue.as_ref()
-            .ok_or_else(|| zenoh::Error::from("Server was built with callback, no queue available"))?;
+        let queue = self.queue.as_ref().ok_or_else(|| {
+            zenoh::Error::from("Server was built with callback, no queue available")
+        })?;
         let query = queue.recv_async().await;
         let attachment: Attachment = query.attachment().unwrap().try_into()?;
         let key: QueryKey = attachment.into();
@@ -528,7 +548,10 @@ where
         payload_len = tracing::field::Empty
     ))]
     pub fn send_response(&mut self, msg: &T::Response, key: &QueryKey) -> Result<()> {
-        debug!("[SRV] Looking for query with key sn:{}, gid:{:?}", key.sn, key.gid);
+        debug!(
+            "[SRV] Looking for query with key sn:{}, gid:{:?}",
+            key.sn, key.gid
+        );
         match self.map.remove(key) {
             Some(query) => {
                 let payload = msg.serialize();

@@ -255,7 +255,8 @@ fn session_specific_overrides() -> &'static [ConfigOverride] {
 /// Returns a Vec containing all router-specific and common overrides.
 /// The Vec is cloned from static storage for modification if needed.
 pub fn router_overrides() -> Vec<ConfigOverride> {
-    let mut overrides = Vec::with_capacity(router_specific_overrides().len() + common_overrides().len());
+    let mut overrides =
+        Vec::with_capacity(router_specific_overrides().len() + common_overrides().len());
     overrides.extend_from_slice(router_specific_overrides());
     overrides.extend_from_slice(common_overrides());
     overrides
@@ -266,7 +267,8 @@ pub fn router_overrides() -> Vec<ConfigOverride> {
 /// Returns a Vec containing all session-specific and common overrides.
 /// The Vec is cloned from static storage for modification if needed.
 pub fn session_overrides() -> Vec<ConfigOverride> {
-    let mut overrides = Vec::with_capacity(session_specific_overrides().len() + common_overrides().len());
+    let mut overrides =
+        Vec::with_capacity(session_specific_overrides().len() + common_overrides().len());
     overrides.extend_from_slice(session_specific_overrides());
     overrides.extend_from_slice(common_overrides());
     overrides
@@ -386,7 +388,8 @@ fn generate_json5_with_comments(
 
                 output.push_str(&format!("{}  \"{}\": ", indent, key));
 
-                let nested = generate_json5_with_comments(val, comments, &new_path, indent_level + 1);
+                let nested =
+                    generate_json5_with_comments(val, comments, &new_path, indent_level + 1);
                 // Trim the nested output if it's a simple value
                 let nested_trimmed = if matches!(val, JsonValue::Object(_) | JsonValue::Array(_)) {
                     nested
@@ -406,7 +409,10 @@ fn generate_json5_with_comments(
         JsonValue::Array(arr) => {
             if arr.is_empty() {
                 output.push_str("[]");
-            } else if arr.iter().all(|v| !matches!(v, JsonValue::Object(_) | JsonValue::Array(_))) {
+            } else if arr
+                .iter()
+                .all(|v| !matches!(v, JsonValue::Object(_) | JsonValue::Array(_)))
+            {
                 // Inline simple arrays
                 output.push('[');
                 for (i, item) in arr.iter().enumerate() {
@@ -421,7 +427,15 @@ fn generate_json5_with_comments(
                 output.push_str("[\n");
                 for (i, item) in arr.iter().enumerate() {
                     output.push_str(&format!("{}  ", indent));
-                    output.push_str(generate_json5_with_comments(item, comments, current_path, indent_level + 1).trim());
+                    output.push_str(
+                        generate_json5_with_comments(
+                            item,
+                            comments,
+                            current_path,
+                            indent_level + 1,
+                        )
+                        .trim(),
+                    );
                     if i < arr.len() - 1 {
                         output.push(',');
                     }
@@ -461,7 +475,11 @@ impl RouterConfigBuilder {
     ///     .build()?;
     /// ```
     pub fn with_listen_port(mut self, port: u16) -> Self {
-        if let Some(listen) = self.overrides.iter_mut().find(|o| o.key == "listen/endpoints") {
+        if let Some(listen) = self
+            .overrides
+            .iter_mut()
+            .find(|o| o.key == "listen/endpoints")
+        {
             listen.value = serde_json::json!([format!("tcp/[::]:{}", port)]);
         }
         self
@@ -476,7 +494,11 @@ impl RouterConfigBuilder {
     ///     .build()?;
     /// ```
     pub fn with_listen_endpoint(mut self, endpoint: &str) -> Self {
-        if let Some(listen) = self.overrides.iter_mut().find(|o| o.key == "listen/endpoints") {
+        if let Some(listen) = self
+            .overrides
+            .iter_mut()
+            .find(|o| o.key == "listen/endpoints")
+        {
             listen.value = serde_json::json!([endpoint]);
         }
         self
@@ -541,7 +563,11 @@ impl SessionConfigBuilder {
     ///     .build()?;
     /// ```
     pub fn with_router_endpoint(mut self, endpoint: &str) -> Self {
-        if let Some(connect) = self.overrides.iter_mut().find(|o| o.key == "connect/endpoints") {
+        if let Some(connect) = self
+            .overrides
+            .iter_mut()
+            .find(|o| o.key == "connect/endpoints")
+        {
             connect.value = serde_json::json!([endpoint]);
         }
         self
@@ -697,7 +723,7 @@ mod tests {
             .with_override(
                 "transport/unicast/max_sessions",
                 serde_json::json!(20000),
-                "Custom increased sessions"
+                "Custom increased sessions",
             )
             .build()
             .expect("Failed to build");

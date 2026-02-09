@@ -37,7 +37,10 @@ impl ZSerializer for RosSerdes {
         zenoh_buffers::ZBuf::from(bytes)
     }
 
-    fn serialize_to_zbuf_with_hint(input: Self::Input<'_>, _capacity_hint: usize) -> zenoh_buffers::ZBuf {
+    fn serialize_to_zbuf_with_hint(
+        input: Self::Input<'_>,
+        _capacity_hint: usize,
+    ) -> zenoh_buffers::ZBuf {
         // RosMessage uses C FFI serialization which produces Vec<u8>
         // We can't pre-allocate based on hint, so just use the regular path
         Self::serialize_to_zbuf(input)
@@ -54,8 +57,8 @@ impl ZSerializer for RosSerdes {
         let data = unsafe { ts.serialize_message(*msg) };
         let actual_size = data.len();
 
-        use zenoh::shm::{BlockOn, GarbageCollect};
         use zenoh::Wait;
+        use zenoh::shm::{BlockOn, GarbageCollect};
 
         let mut shm_buf = provider
             .alloc(actual_size)

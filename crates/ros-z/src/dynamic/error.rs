@@ -85,7 +85,11 @@ impl fmt::Display for DynamicError {
                 write!(f, "CDR deserialization error: {}", msg)
             }
             DynamicError::SchemaLoadError { package, source } => {
-                write!(f, "Failed to load schema for package '{}': {}", package, source)
+                write!(
+                    f,
+                    "Failed to load schema for package '{}': {}",
+                    package, source
+                )
             }
             DynamicError::RegistryLockPoisoned => {
                 write!(f, "Schema registry lock was poisoned")

@@ -60,7 +60,10 @@ fn test_from_dynamic_type_mismatch() {
     assert_eq!(i32::from_dynamic(&DynamicValue::Bool(true)), None);
     assert_eq!(bool::from_dynamic(&DynamicValue::Int32(42)), None);
     assert_eq!(String::from_dynamic(&DynamicValue::Float64(1.5)), None);
-    assert_eq!(f64::from_dynamic(&DynamicValue::String("hello".to_string())), None);
+    assert_eq!(
+        f64::from_dynamic(&DynamicValue::String("hello".to_string())),
+        None
+    );
 }
 
 #[test]

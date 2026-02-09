@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::types::{ResolvedMessage, Field, ArrayType};
+use crate::types::{ArrayType, Field, ResolvedMessage};
 
 /// Adapter for generating protobuf definitions and Rust code from ROS messages
 pub struct ProtobufMessageGenerator {
@@ -18,10 +18,7 @@ impl ProtobufMessageGenerator {
     }
 
     /// Generate .proto files from resolved ROS messages
-    pub fn generate_proto_files(
-        &self,
-        messages: &[ResolvedMessage],
-    ) -> Result<Vec<PathBuf>> {
+    pub fn generate_proto_files(&self, messages: &[ResolvedMessage]) -> Result<Vec<PathBuf>> {
         // Create proto directory if it doesn't exist
         fs::create_dir_all(&self.proto_dir).context("Failed to create proto directory")?;
 
@@ -114,11 +111,7 @@ impl ProtobufMessageGenerator {
     }
 
     /// Collect all package dependencies for a message
-    fn collect_dependencies(
-        &self,
-        msg: &ResolvedMessage,
-        dependencies: &mut BTreeSet<String>,
-    ) {
+    fn collect_dependencies(&self, msg: &ResolvedMessage, dependencies: &mut BTreeSet<String>) {
         for field in &msg.parsed.fields {
             // Check if field has an explicit package reference
             if let Some(ref package_name) = field.field_type.package {
@@ -138,8 +131,20 @@ impl ProtobufMessageGenerator {
     fn is_primitive(type_name: &str) -> bool {
         matches!(
             type_name,
-            "bool" | "byte" | "uint8" | "char" | "int8" | "int16" | "uint16"
-                | "int32" | "uint32" | "int64" | "uint64" | "float32" | "float64" | "string"
+            "bool"
+                | "byte"
+                | "uint8"
+                | "char"
+                | "int8"
+                | "int16"
+                | "uint16"
+                | "int32"
+                | "uint32"
+                | "int64"
+                | "uint64"
+                | "float32"
+                | "float64"
+                | "string"
         )
     }
 
@@ -267,10 +272,7 @@ impl ProtobufMessageGenerator {
     }
 
     /// Generate MessageTypeInfo implementations for protobuf types
-    pub fn generate_type_info_impls(
-        &self,
-        messages: &[ResolvedMessage],
-    ) -> Result<String> {
+    pub fn generate_type_info_impls(&self, messages: &[ResolvedMessage]) -> Result<String> {
         let mut impls = String::new();
 
         impls.push_str("// MessageTypeInfo implementations for protobuf types\n\n");
@@ -282,8 +284,12 @@ impl ProtobufMessageGenerator {
             // Convert ROS message name to prost naming convention
             let proto_struct_name = self.convert_to_prost_naming(msg_name);
 
-        // Rust type name for the protobuf struct
-        let proto_type = format!("proto::{}::{}", package.replace("-", "_"), proto_struct_name);
+            // Rust type name for the protobuf struct
+            let proto_type = format!(
+                "proto::{}::{}",
+                package.replace("-", "_"),
+                proto_struct_name
+            );
 
             // ROS2 type name
             let ros2_type_name = format!("{}::msg::dds_::{}_", package, msg_name);

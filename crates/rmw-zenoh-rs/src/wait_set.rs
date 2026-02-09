@@ -1,5 +1,5 @@
-use crate::traits::{Waitable, OwnData, BorrowImpl};
 use crate::ros::*;
+use crate::traits::{BorrowImpl, OwnData, Waitable};
 use std::sync::Arc;
 
 /// Wait set implementation for RMW
@@ -81,7 +81,8 @@ impl WaitSetImpl {
                 continue;
             }
             unsafe {
-                let sub_impl = &*((*sub_impl_ptr) as *const _ as *const crate::pubsub::SubscriptionImpl);
+                let sub_impl =
+                    &*((*sub_impl_ptr) as *const _ as *const crate::pubsub::SubscriptionImpl);
                 if sub_impl.is_ready() {
                     return true;
                 }
@@ -94,7 +95,8 @@ impl WaitSetImpl {
                 continue;
             }
             unsafe {
-                let gc_impl = &*(*gc_impl_ptr as *const _ as *const crate::guard_condition::GuardConditionImpl);
+                let gc_impl = &*(*gc_impl_ptr as *const _
+                    as *const crate::guard_condition::GuardConditionImpl);
                 if gc_impl.is_ready() {
                     return true;
                 }
@@ -234,7 +236,8 @@ pub extern "C" fn rmw_wait(
     if !guard_conditions.is_null() {
         let gc_array = unsafe { &*guard_conditions };
         for i in 0..gc_array.guard_condition_count {
-            let gc_impl = unsafe { *gc_array.guard_conditions.add(i) as *mut rmw_guard_condition_impl_t };
+            let gc_impl =
+                unsafe { *gc_array.guard_conditions.add(i) as *mut rmw_guard_condition_impl_t };
             if !gc_impl.is_null() {
                 wait_set_impl.guard_conditions.push(gc_impl);
             }
@@ -276,7 +279,10 @@ pub extern "C" fn rmw_wait(
 
     // Wait for ready entities
     let timeout = if wait_timeout.is_null() {
-        rmw_time_t { sec: u64::MAX, nsec: 0 }
+        rmw_time_t {
+            sec: u64::MAX,
+            nsec: 0,
+        }
     } else {
         unsafe { *wait_timeout }
     };
@@ -289,10 +295,12 @@ pub extern "C" fn rmw_wait(
         if !subscriptions.is_null() {
             let sub_array = unsafe { &mut *subscriptions };
             for i in 0..sub_array.subscriber_count {
-                let sub_impl_ptr = unsafe { *sub_array.subscribers.add(i) as *mut rmw_subscription_impl_t };
+                let sub_impl_ptr =
+                    unsafe { *sub_array.subscribers.add(i) as *mut rmw_subscription_impl_t };
                 if !sub_impl_ptr.is_null() {
                     unsafe {
-                        let sub_impl = &*(sub_impl_ptr as *const _ as *const crate::pubsub::SubscriptionImpl);
+                        let sub_impl =
+                            &*(sub_impl_ptr as *const _ as *const crate::pubsub::SubscriptionImpl);
                         if !sub_impl.is_ready() {
                             // Not ready - NULL in place
                             *sub_array.subscribers.add(i) = std::ptr::null_mut();
@@ -309,7 +317,8 @@ pub extern "C" fn rmw_wait(
                 let srv_impl_ptr = unsafe { *srv_array.services.add(i) as *mut rmw_service_impl_t };
                 if !srv_impl_ptr.is_null() {
                     unsafe {
-                        let srv_impl = &*(srv_impl_ptr as *const _ as *const crate::service::ServiceImpl);
+                        let srv_impl =
+                            &*(srv_impl_ptr as *const _ as *const crate::service::ServiceImpl);
                         if !srv_impl.is_ready() {
                             *srv_array.services.add(i) = std::ptr::null_mut();
                         }
@@ -325,7 +334,8 @@ pub extern "C" fn rmw_wait(
                 let cli_impl_ptr = unsafe { *cli_array.clients.add(i) as *mut rmw_client_impl_t };
                 if !cli_impl_ptr.is_null() {
                     unsafe {
-                        let cli_impl = &*(cli_impl_ptr as *const _ as *const crate::service::ClientImpl);
+                        let cli_impl =
+                            &*(cli_impl_ptr as *const _ as *const crate::service::ClientImpl);
                         if !cli_impl.is_ready() {
                             *cli_array.clients.add(i) = std::ptr::null_mut();
                         }
@@ -339,12 +349,17 @@ pub extern "C" fn rmw_wait(
         // RCL relies on array indices matching between calls to rcl_wait_set_add_* and rmw_wait results
         if !guard_conditions.is_null() {
             let gc_array = unsafe { &mut *guard_conditions };
-            tracing::debug!("[rmw_wait] Checking {} guard conditions", gc_array.guard_condition_count);
+            tracing::debug!(
+                "[rmw_wait] Checking {} guard conditions",
+                gc_array.guard_condition_count
+            );
             for i in 0..gc_array.guard_condition_count {
-                let gc_impl_ptr = unsafe { *gc_array.guard_conditions.add(i) as *mut rmw_guard_condition_impl_t };
+                let gc_impl_ptr =
+                    unsafe { *gc_array.guard_conditions.add(i) as *mut rmw_guard_condition_impl_t };
                 if !gc_impl_ptr.is_null() {
                     unsafe {
-                        let gc_impl = &mut *(gc_impl_ptr as *mut crate::guard_condition::GuardConditionImpl);
+                        let gc_impl =
+                            &mut *(gc_impl_ptr as *mut crate::guard_condition::GuardConditionImpl);
                         tracing::debug!("[rmw_wait] GC {}: is_ready={}", i, gc_impl.is_ready());
                         if !gc_impl.is_ready() {
                             // Not ready - set to NULL in place

@@ -125,7 +125,7 @@ impl SizeEstimation for f64 {
 impl SizeEstimation for String {
     #[inline]
     fn estimated_cdr_size(&self) -> usize {
-        4 + self.len()  // Length prefix + string data
+        4 + self.len() // Length prefix + string data
     }
 }
 
@@ -151,9 +151,9 @@ mod tests {
     #[test]
     fn test_string_size_estimation() {
         let s = "hello".to_string();
-        assert_eq!(s.estimated_cdr_size(), 4 + 5);  // Length prefix + 5 chars
+        assert_eq!(s.estimated_cdr_size(), 4 + 5); // Length prefix + 5 chars
 
         let empty = String::new();
-        assert_eq!(empty.estimated_cdr_size(), 4);  // Just length prefix
+        assert_eq!(empty.estimated_cdr_size(), 4); // Just length prefix
     }
 }

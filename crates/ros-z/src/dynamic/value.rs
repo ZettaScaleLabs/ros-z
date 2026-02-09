@@ -225,12 +225,8 @@ pub fn default_for_type(field_type: &FieldType) -> DynamicValue {
         FieldType::Float32 => DynamicValue::Float32(0.0),
         FieldType::Float64 => DynamicValue::Float64(0.0),
         FieldType::String | FieldType::BoundedString(_) => DynamicValue::String(String::new()),
-        FieldType::Message(schema) => {
-            DynamicValue::Message(Box::new(DynamicMessage::new(schema)))
-        }
-        FieldType::Array(inner, len) => {
-            DynamicValue::Array(vec![default_for_type(inner); *len])
-        }
+        FieldType::Message(schema) => DynamicValue::Message(Box::new(DynamicMessage::new(schema))),
+        FieldType::Array(inner, len) => DynamicValue::Array(vec![default_for_type(inner); *len]),
         FieldType::Sequence(_) | FieldType::BoundedSequence(_, _) => {
             DynamicValue::Array(Vec::new())
         }

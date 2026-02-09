@@ -45,9 +45,11 @@ pub fn deserialize_cdr(
     let header = &data[0..4];
     let representation_identifier = &header[0..2];
     if representation_identifier != [0x00, 0x01] {
-        return Err(DynamicError::DeserializationError(
-            format!("Expected CDR_LE encapsulation ({:?}), found {:?}", [0x00, 0x01], representation_identifier),
-        ));
+        return Err(DynamicError::DeserializationError(format!(
+            "Expected CDR_LE encapsulation ({:?}), found {:?}",
+            [0x00, 0x01],
+            representation_identifier
+        )));
     }
 
     let payload = &data[4..];
@@ -155,14 +157,24 @@ fn deserialize_value(
         FieldType::Int32 => Ok(DynamicValue::Int32(reader.read_i32().map_err(map_cdr_err)?)),
         FieldType::Int64 => Ok(DynamicValue::Int64(reader.read_i64().map_err(map_cdr_err)?)),
         FieldType::Uint8 => Ok(DynamicValue::Uint8(reader.read_u8().map_err(map_cdr_err)?)),
-        FieldType::Uint16 => Ok(DynamicValue::Uint16(reader.read_u16().map_err(map_cdr_err)?)),
-        FieldType::Uint32 => Ok(DynamicValue::Uint32(reader.read_u32().map_err(map_cdr_err)?)),
-        FieldType::Uint64 => Ok(DynamicValue::Uint64(reader.read_u64().map_err(map_cdr_err)?)),
-        FieldType::Float32 => Ok(DynamicValue::Float32(reader.read_f32().map_err(map_cdr_err)?)),
-        FieldType::Float64 => Ok(DynamicValue::Float64(reader.read_f64().map_err(map_cdr_err)?)),
-        FieldType::String | FieldType::BoundedString(_) => {
-            Ok(DynamicValue::String(reader.read_string().map_err(map_cdr_err)?))
-        }
+        FieldType::Uint16 => Ok(DynamicValue::Uint16(
+            reader.read_u16().map_err(map_cdr_err)?,
+        )),
+        FieldType::Uint32 => Ok(DynamicValue::Uint32(
+            reader.read_u32().map_err(map_cdr_err)?,
+        )),
+        FieldType::Uint64 => Ok(DynamicValue::Uint64(
+            reader.read_u64().map_err(map_cdr_err)?,
+        )),
+        FieldType::Float32 => Ok(DynamicValue::Float32(
+            reader.read_f32().map_err(map_cdr_err)?,
+        )),
+        FieldType::Float64 => Ok(DynamicValue::Float64(
+            reader.read_f64().map_err(map_cdr_err)?,
+        )),
+        FieldType::String | FieldType::BoundedString(_) => Ok(DynamicValue::String(
+            reader.read_string().map_err(map_cdr_err)?,
+        )),
 
         // Fixed-size array
         FieldType::Array(inner, len) => {

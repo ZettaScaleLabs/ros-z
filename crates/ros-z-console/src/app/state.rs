@@ -94,10 +94,9 @@ pub struct LiveMetrics {
     pub bytes_sec: f64,
     pub avg_payload: u64,
     pub samples: VecDeque<(Instant, usize)>,
-    pub rate_history: VecDeque<u64>,      // msg/s history for sparkline
+    pub rate_history: VecDeque<u64>, // msg/s history for sparkline
     pub bandwidth_history: VecDeque<u64>, // KB/s * 10 history for sparkline (scaled for precision)
 }
-
 
 #[derive(Clone, Default)]
 pub enum ConnectionStatus {
@@ -112,9 +111,9 @@ pub struct TopicMetrics {
     pub msg_count: u64,
     pub byte_count: u64,
     pub last_msg_time: Option<Instant>,
-    pub rate_history: VecDeque<u64>,      // msg/s history (raw per-second counts)
+    pub rate_history: VecDeque<u64>, // msg/s history (raw per-second counts)
     pub bandwidth_history: VecDeque<u64>, // KB/s * 10 history (raw per-second)
-    pub current_rate: f64,                // Smoothed rate (EMA)
-    pub current_bandwidth: f64,           // Smoothed bandwidth (EMA)
-    pub samples_collected: u64,           // Track if we have enough data for EMA
+    pub current_rate: f64,           // Smoothed rate (EMA)
+    pub current_bandwidth: f64,      // Smoothed bandwidth (EMA)
+    pub samples_collected: u64,      // Track if we have enough data for EMA
 }

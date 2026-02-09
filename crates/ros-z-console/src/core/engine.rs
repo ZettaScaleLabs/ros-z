@@ -44,9 +44,9 @@ impl CoreEngine {
         config.insert_json5("mode", "\"peer\"")?;
         config.insert_json5("connect/endpoints", &format!("[\"{}\"]", router_addr))?;
 
-        let session = zenoh::open(config).await.map_err(|e| {
-            format!("Failed to initialize Zenoh session: {}", e)
-        })?;
+        let session = zenoh::open(config)
+            .await
+            .map_err(|e| format!("Failed to initialize Zenoh session: {}", e))?;
         let session = Arc::new(session);
 
         // Initialize graph with backend-specific liveliness pattern and parser

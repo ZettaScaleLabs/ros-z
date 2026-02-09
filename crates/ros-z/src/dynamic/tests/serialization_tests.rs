@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::dynamic::message::DynamicMessage;
 use crate::dynamic::schema::{FieldType, MessageSchema};
-use crate::dynamic::serialization::{deserialize_cdr, serialize_cdr, CDR_HEADER_LE};
+use crate::dynamic::serialization::{CDR_HEADER_LE, deserialize_cdr, serialize_cdr};
 use crate::dynamic::value::DynamicValue;
 
 fn create_point_schema() -> Arc<MessageSchema> {
@@ -231,7 +231,10 @@ fn test_cdr_roundtrip_all_primitives() {
     assert_eq!(decoded.get::<u64>("uint64_field").unwrap(), 10000000000);
     assert!((decoded.get::<f32>("float32_field").unwrap() - 1.5).abs() < 0.001);
     assert!((decoded.get::<f64>("float64_field").unwrap() - 2.5).abs() < 0.0000001);
-    assert_eq!(decoded.get::<String>("string_field").unwrap(), "test string");
+    assert_eq!(
+        decoded.get::<String>("string_field").unwrap(),
+        "test string"
+    );
 }
 
 #[test]

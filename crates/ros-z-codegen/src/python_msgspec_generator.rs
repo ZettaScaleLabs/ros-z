@@ -3,8 +3,8 @@
 //! This module generates both Python msgspec structs and complete Rust PyO3 modules
 //! from ROS message definitions, eliminating the need for manual registry code.
 
-use anyhow::Result;
 use crate::types::{ArrayType, FieldType, ResolvedMessage, ResolvedService};
+use anyhow::Result;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use std::collections::HashMap;
@@ -21,7 +21,8 @@ pub fn generate_python_bindings(
     // Group messages by package
     let mut packages: HashMap<String, Vec<&ResolvedMessage>> = HashMap::new();
     for msg in messages {
-        packages.entry(msg.parsed.package.clone())
+        packages
+            .entry(msg.parsed.package.clone())
             .or_default()
             .push(msg);
     }
@@ -33,18 +34,22 @@ pub fn generate_python_bindings(
         let svc_hash = srv.type_hash.to_rihs_string();
 
         // Add request message
-        service_messages.entry(srv.request.parsed.package.clone())
+        service_messages
+            .entry(srv.request.parsed.package.clone())
             .or_default()
             .push(&srv.request);
-        service_hashes.entry(srv.request.parsed.package.clone())
+        service_hashes
+            .entry(srv.request.parsed.package.clone())
             .or_default()
             .insert(srv.request.parsed.name.clone(), svc_hash.clone());
 
         // Add response message
-        service_messages.entry(srv.response.parsed.package.clone())
+        service_messages
+            .entry(srv.response.parsed.package.clone())
             .or_default()
             .push(&srv.response);
-        service_hashes.entry(srv.response.parsed.package.clone())
+        service_hashes
+            .entry(srv.response.parsed.package.clone())
             .or_default()
             .insert(srv.response.parsed.name.clone(), svc_hash);
     }
@@ -52,9 +57,20 @@ pub fn generate_python_bindings(
     // Generate Python msgspec structs (one file per package)
     for (package_name, package_msgs) in &packages {
         // Combine regular messages with service Request/Response for this package
-        let srv_msgs = service_messages.get(package_name).map(|v| v.as_slice()).unwrap_or(&[]);
-        let svc_hashes = service_hashes.get(package_name).cloned().unwrap_or_default();
-        let python_code = generate_python_package_with_services(package_name, package_msgs, srv_msgs, &svc_hashes)?;
+        let srv_msgs = service_messages
+            .get(package_name)
+            .map(|v| v.as_slice())
+            .unwrap_or(&[]);
+        let svc_hashes = service_hashes
+            .get(package_name)
+            .cloned()
+            .unwrap_or_default();
+        let python_code = generate_python_package_with_services(
+            package_name,
+            package_msgs,
+            srv_msgs,
+            &svc_hashes,
+        )?;
         let output_path = python_output_dir.join(format!("{}.py", package_name));
         fs::write(output_path, python_code)?;
     }
@@ -62,8 +78,12 @@ pub fn generate_python_bindings(
     // Generate Python files for packages that only have service types
     for (package_name, srv_msgs) in &service_messages {
         if !packages.contains_key(package_name) {
-            let svc_hashes = service_hashes.get(package_name).cloned().unwrap_or_default();
-            let python_code = generate_python_package_with_services(package_name, &[], srv_msgs, &svc_hashes)?;
+            let svc_hashes = service_hashes
+                .get(package_name)
+                .cloned()
+                .unwrap_or_default();
+            let python_code =
+                generate_python_package_with_services(package_name, &[], srv_msgs, &svc_hashes)?;
             let output_path = python_output_dir.join(format!("{}.py", package_name));
             fs::write(output_path, python_code)?;
         }
@@ -123,20 +143,23 @@ fn rust_to_python_type(field_type: &FieldType, current_package: &str) -> Result<
     let is_array = !matches!(field_type.array, ArrayType::Single);
 
     // Special case: byte[] and uint8[] unbounded arrays use bytes type for performance
-    if is_array && matches!(base_type.as_str(), "byte" | "uint8") && matches!(field_type.array, ArrayType::Unbounded) {
+    if is_array
+        && matches!(base_type.as_str(), "byte" | "uint8")
+        && matches!(field_type.array, ArrayType::Unbounded)
+    {
         return Ok("bytes".to_string());
     }
 
     // First check if this is a primitive type
     let python_type = match base_type.as_str() {
         "bool" => "bool",
-        "byte" | "int8" | "char" | "uint8" | "int16" | "uint16" | "int32" | "uint32" | "int64" | "uint64" => "int",
+        "byte" | "int8" | "char" | "uint8" | "int16" | "uint16" | "int32" | "uint32" | "int64"
+        | "uint64" => "int",
         "float32" | "float64" => "float",
         "string" | "wstring" => "str",
         _ => {
             // Not a primitive type - it's a nested message
-            let package = field_type.package.as_deref()
-                .unwrap_or(current_package);
+            let package = field_type.package.as_deref().unwrap_or(current_package);
 
             return Ok(if is_array {
                 format!("list[\"{}.{}\"]", package, base_type)
@@ -159,7 +182,8 @@ fn get_python_default(field_type: &FieldType) -> String {
     match &field_type.array {
         ArrayType::Single => match field_type.base_type.as_str() {
             "bool" => "False".to_string(),
-            "byte" | "int8" | "char" | "uint8" | "int16" | "uint16" | "int32" | "uint32" | "int64" | "uint64" => "0".to_string(),
+            "byte" | "int8" | "char" | "uint8" | "int16" | "uint16" | "int32" | "uint32"
+            | "int64" | "uint64" => "0".to_string(),
             "float32" | "float64" => "0.0".to_string(),
             "string" | "wstring" => "\"\"".to_string(),
             type_str if type_str.contains("Time") || type_str.contains("Duration") => {
@@ -170,7 +194,7 @@ fn get_python_default(field_type: &FieldType) -> String {
         // Special case: byte[] and uint8[] unbounded arrays default to empty bytes
         ArrayType::Unbounded if matches!(field_type.base_type.as_str(), "byte" | "uint8") => {
             "b\"\"".to_string()
-        },
+        }
         ArrayType::Fixed(_) | ArrayType::Bounded(_) | ArrayType::Unbounded => {
             "msgspec.field(default_factory=list)".to_string()
         }
@@ -301,7 +325,10 @@ fn generate_complete_rust_module(
     // Also add service Request/Response to lookup map
     for srv in services {
         let req_key = format!("{}/{}", srv.request.parsed.package, srv.request.parsed.name);
-        let resp_key = format!("{}/{}", srv.response.parsed.package, srv.response.parsed.name);
+        let resp_key = format!(
+            "{}/{}",
+            srv.response.parsed.package, srv.response.parsed.name
+        );
         all_messages.insert(req_key, &srv.request);
         all_messages.insert(resp_key, &srv.response);
     }
@@ -328,7 +355,8 @@ fn generate_complete_rust_module(
     // Generate service package modules
     let mut service_packages: HashMap<String, Vec<&ResolvedService>> = HashMap::new();
     for srv in services {
-        service_packages.entry(srv.parsed.package.clone())
+        service_packages
+            .entry(srv.parsed.package.clone())
             .or_default()
             .push(srv);
     }
@@ -499,8 +527,14 @@ fn generate_helper_functions(
     }
     for srv in services {
         type_names.push(format!("{}/srv/{}", srv.parsed.package, srv.parsed.name));
-        type_names.push(format!("{}/srv/{}_Request", srv.parsed.package, srv.parsed.name));
-        type_names.push(format!("{}/srv/{}_Response", srv.parsed.package, srv.parsed.name));
+        type_names.push(format!(
+            "{}/srv/{}_Request",
+            srv.parsed.package, srv.parsed.name
+        ));
+        type_names.push(format!(
+            "{}/srv/{}_Response",
+            srv.parsed.package, srv.parsed.name
+        ));
     }
 
     // Generate type hash match arms
@@ -657,7 +691,9 @@ fn generate_serialize_to_zbuf(
 }
 
 fn generate_python_init(packages: &HashMap<String, Vec<&ResolvedMessage>>) -> Result<String> {
-    let mut code = "\"\"\"Auto-generated ROS 2 message types package.\"\"\"\n\n# Import all message types\n".to_string();
+    let mut code =
+        "\"\"\"Auto-generated ROS 2 message types package.\"\"\"\n\n# Import all message types\n"
+            .to_string();
 
     for package_name in packages.keys() {
         code.push_str(&format!("from . import {}\n", package_name));

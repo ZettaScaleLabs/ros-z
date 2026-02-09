@@ -68,7 +68,7 @@ mod tests;
 // Re-export main types
 pub use error::DynamicError;
 pub use message::{DynamicMessage, DynamicMessageBuilder};
-pub use registry::{get_schema, has_schema, register_schema, SchemaRegistry};
+pub use registry::{SchemaRegistry, get_schema, has_schema, register_schema};
 pub use schema::{FieldSchema, FieldType, MessageSchema, MessageSchemaBuilder};
 pub use serdes::DynamicCdrSerdes;
 pub use serialization::SerializationFormat;

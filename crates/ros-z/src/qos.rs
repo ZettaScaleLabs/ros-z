@@ -44,7 +44,7 @@ impl QosHistory {
         };
         Self::KeepLast(
             NonZeroUsize::new(normalized_depth)
-                .unwrap_or_else(|| NonZeroUsize::new(DEFAULT_HISTORY_DEPTH).unwrap())
+                .unwrap_or_else(|| NonZeroUsize::new(DEFAULT_HISTORY_DEPTH).unwrap()),
         )
     }
 }
@@ -250,9 +250,7 @@ impl QosProfile {
             };
             format!(
                 "{},{},{}",
-                kind,
-                self.liveliness_lease_duration.sec,
-                self.liveliness_lease_duration.nsec
+                kind, self.liveliness_lease_duration.sec, self.liveliness_lease_duration.nsec
             )
         } else {
             ",,".to_string()
@@ -297,8 +295,10 @@ impl QosProfile {
                     };
                     match (kind, depth) {
                         ("", d) | ("0", d) | ("1", d) => {
-                            let depth_usize: usize = d.parse().map_err(|_| QosDecodeError::InvalidHistory)?;
-                            let non_zero_depth = NonZeroUsize::new(depth_usize).ok_or(QosDecodeError::InvalidHistoryDepth)?;
+                            let depth_usize: usize =
+                                d.parse().map_err(|_| QosDecodeError::InvalidHistory)?;
+                            let non_zero_depth = NonZeroUsize::new(depth_usize)
+                                .ok_or(QosDecodeError::InvalidHistoryDepth)?;
                             QosHistory::KeepLast(non_zero_depth)
                         }
                         ("2", _) => QosHistory::KeepAll,
@@ -314,8 +314,16 @@ impl QosProfile {
             Some(x) if x.is_empty() || x == "," => Duration::default(),
             Some(x) => {
                 let mut iter = x.split(",");
-                let sec = iter.next().unwrap_or("").parse().unwrap_or(Duration::INFINITE.sec);
-                let nsec = iter.next().unwrap_or("").parse().unwrap_or(Duration::INFINITE.nsec);
+                let sec = iter
+                    .next()
+                    .unwrap_or("")
+                    .parse()
+                    .unwrap_or(Duration::INFINITE.sec);
+                let nsec = iter
+                    .next()
+                    .unwrap_or("")
+                    .parse()
+                    .unwrap_or(Duration::INFINITE.nsec);
                 Duration { sec, nsec }
             }
             None => Duration::default(),
@@ -326,8 +334,16 @@ impl QosProfile {
             Some(x) if x.is_empty() || x == "," => Duration::default(),
             Some(x) => {
                 let mut iter = x.split(",");
-                let sec = iter.next().unwrap_or("").parse().unwrap_or(Duration::INFINITE.sec);
-                let nsec = iter.next().unwrap_or("").parse().unwrap_or(Duration::INFINITE.nsec);
+                let sec = iter
+                    .next()
+                    .unwrap_or("")
+                    .parse()
+                    .unwrap_or(Duration::INFINITE.sec);
+                let nsec = iter
+                    .next()
+                    .unwrap_or("")
+                    .parse()
+                    .unwrap_or(Duration::INFINITE.nsec);
                 Duration { sec, nsec }
             }
             None => Duration::default(),
@@ -344,8 +360,16 @@ impl QosProfile {
                     "3" => QosLiveliness::ManualByTopic,
                     _ => QosLiveliness::default(),
                 };
-                let sec = iter.next().unwrap_or("").parse().unwrap_or(Duration::INFINITE.sec);
-                let nsec = iter.next().unwrap_or("").parse().unwrap_or(Duration::INFINITE.nsec);
+                let sec = iter
+                    .next()
+                    .unwrap_or("")
+                    .parse()
+                    .unwrap_or(Duration::INFINITE.sec);
+                let nsec = iter
+                    .next()
+                    .unwrap_or("")
+                    .parse()
+                    .unwrap_or(Duration::INFINITE.nsec);
                 (kind, Duration { sec, nsec })
             }
             None => (QosLiveliness::default(), Duration::default()),

@@ -23,7 +23,10 @@ pub fn format_qos_detail(qos: &QosProfile) -> String {
         lines.push(format!("    Lifespan: {}", qos.lifespan));
     }
     if qos.liveliness_lease_duration != QosDuration::INFINITE {
-        lines.push(format!("    Lease Duration: {}", qos.liveliness_lease_duration));
+        lines.push(format!(
+            "    Lease Duration: {}",
+            qos.liveliness_lease_duration
+        ));
     }
     lines.join("\n")
 }

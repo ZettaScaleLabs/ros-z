@@ -12,7 +12,11 @@ use super::common::*;
 
 impl App {
     /// Render node list items
-    pub fn render_node_list_items(&self, filter_text: &str, list_width: usize) -> Vec<ListItem<'static>> {
+    pub fn render_node_list_items(
+        &self,
+        filter_text: &str,
+        list_width: usize,
+    ) -> Vec<ListItem<'static>> {
         let all_nodes = &self.cached_nodes;
 
         let filtered: Vec<_> = self.filter_items(all_nodes, filter_text, |(name, namespace)| {
@@ -107,7 +111,11 @@ impl App {
         }
 
         if !services.is_empty() {
-            detail.push_str(&format!("\n{} Services ({}):\n", expand_hint, services.len()));
+            detail.push_str(&format!(
+                "\n{} Services ({}):\n",
+                expand_hint,
+                services.len()
+            ));
             for (service, type_name) in &services {
                 if show_types {
                     detail.push_str(&format!("  +-- {} ({})\n", service, type_name));

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use ros_z::msg::{ZMessage, ZSerializer, ZDeserializer};
+use ros_z::msg::{ZDeserializer, ZMessage, ZSerializer};
 use ros_z::pubsub::{ZPub, ZSub};
 use std::time::Duration;
 use zenoh::bytes::ZBytes;
@@ -44,7 +44,9 @@ where
     S: for<'a> ZSerializer<Input<'a> = &'a T> + Send + Sync + 'static,
 {
     fn publish(&self, data: ZBytes) -> Result<()> {
-        self.inner.publish_serialized(data).map_err(|e| anyhow::anyhow!(e))
+        self.inner
+            .publish_serialized(data)
+            .map_err(|e| anyhow::anyhow!(e))
     }
 }
 
@@ -66,17 +68,21 @@ where
 {
     fn recv_sample(&self, timeout: Option<Duration>) -> Result<Sample> {
         if let Some(t) = timeout {
-            let queue = self.inner.queue.as_ref()
-                .ok_or_else(|| anyhow::anyhow!("Subscriber was built with callback, no queue available"))?;
-            queue.recv_timeout(t).ok_or_else(|| anyhow::anyhow!("Receive timeout"))
+            let queue = self.inner.queue.as_ref().ok_or_else(|| {
+                anyhow::anyhow!("Subscriber was built with callback, no queue available")
+            })?;
+            queue
+                .recv_timeout(t)
+                .ok_or_else(|| anyhow::anyhow!("Receive timeout"))
         } else {
             self.inner.recv_serialized().map_err(|e| anyhow::anyhow!(e))
         }
     }
 
     fn try_recv_sample(&self) -> Result<Option<Sample>> {
-        let queue = self.inner.queue.as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Subscriber was built with callback, no queue available"))?;
+        let queue = self.inner.queue.as_ref().ok_or_else(|| {
+            anyhow::anyhow!("Subscriber was built with callback, no queue available")
+        })?;
 
         Ok(queue.try_recv())
     }

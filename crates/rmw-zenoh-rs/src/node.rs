@@ -1,9 +1,9 @@
 use std::ffi::CString;
 
-use crate::ros::*;
 use crate::rmw_impl_has_data_ptr;
-use ros_z::Builder;
+use crate::ros::*;
 use crate::traits::*;
+use ros_z::Builder;
 
 /// Node implementation for RMW
 pub struct NodeImpl {
@@ -15,21 +15,25 @@ pub struct NodeImpl {
 }
 
 impl NodeImpl {
-    pub fn new(zcontext: &ros_z::context::ZContext, name: &str, namespace: &str) -> Result<Self, String> {
-        let name_cstr = CString::new(name)
-            .map_err(|e| format!("Invalid name string: {}", e))?;
-        let namespace_cstr = CString::new(namespace)
-            .map_err(|e| format!("Invalid namespace string: {}", e))?;
+    pub fn new(
+        zcontext: &ros_z::context::ZContext,
+        name: &str,
+        namespace: &str,
+    ) -> Result<Self, String> {
+        let name_cstr = CString::new(name).map_err(|e| format!("Invalid name string: {}", e))?;
+        let namespace_cstr =
+            CString::new(namespace).map_err(|e| format!("Invalid namespace string: {}", e))?;
         let fq_name = if namespace.is_empty() || namespace == "/" {
             format!("/{}", name)
         } else {
             format!("{}/{}", namespace, name)
         };
-        let fq_name_cstr = CString::new(fq_name)
-            .map_err(|e| format!("Invalid fully qualified name: {}", e))?;
+        let fq_name_cstr =
+            CString::new(fq_name).map_err(|e| format!("Invalid fully qualified name: {}", e))?;
 
         // Use ZContext's create_node method
-        let inner = zcontext.create_node(name)
+        let inner = zcontext
+            .create_node(name)
             .with_namespace(namespace)
             .build()
             .map_err(|e| format!("Failed to build node: {}", e))?;
@@ -82,10 +86,18 @@ pub extern "C" fn rmw_create_node(
     node_impl.graph_guard_condition = graph_guard_condition;
 
     // Register the graph guard condition with the graph event manager
-    node_impl.inner.graph.event_manager.register_graph_guard_condition(graph_guard_condition as *mut std::ffi::c_void);
+    node_impl
+        .inner
+        .graph
+        .event_manager
+        .register_graph_guard_condition(graph_guard_condition as *mut std::ffi::c_void);
 
     // Add node to local graph for immediate discovery
-    if let Err(e) = node_impl.inner.graph.add_local_entity(ros_z::entity::Entity::Node(node_impl.inner.entity.clone())) {
+    if let Err(e) = node_impl
+        .inner
+        .graph
+        .add_local_entity(ros_z::entity::Entity::Node(node_impl.inner.entity.clone()))
+    {
         tracing::warn!("Failed to add node to local graph: {}", e);
     }
 
@@ -118,13 +130,23 @@ pub extern "C" fn rmw_destroy_node(node: *mut rmw_node_t) -> rmw_ret_t {
     // Remove node from local graph and destroy the graph guard condition
     if let Ok(node_impl) = node.borrow_data() {
         // Remove node from local graph
-        if let Err(e) = node_impl.inner.graph.remove_local_entity(&ros_z::entity::Entity::Node(node_impl.inner.entity.clone())) {
+        if let Err(e) = node_impl
+            .inner
+            .graph
+            .remove_local_entity(&ros_z::entity::Entity::Node(node_impl.inner.entity.clone()))
+        {
             tracing::warn!("Failed to remove node from local graph: {}", e);
         }
 
         if !node_impl.graph_guard_condition.is_null() {
             // Unregister from graph event manager
-            node_impl.inner.graph.event_manager.unregister_graph_guard_condition(node_impl.graph_guard_condition as *mut std::ffi::c_void);
+            node_impl
+                .inner
+                .graph
+                .event_manager
+                .unregister_graph_guard_condition(
+                    node_impl.graph_guard_condition as *mut std::ffi::c_void,
+                );
             crate::guard_condition::rmw_destroy_guard_condition(node_impl.graph_guard_condition);
         }
     }
@@ -135,8 +157,6 @@ pub extern "C" fn rmw_destroy_node(node: *mut rmw_node_t) -> rmw_ret_t {
     drop(unsafe { Box::from_raw(node) });
     RMW_RET_OK as _
 }
-
-
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rmw_get_node_names(
@@ -199,18 +219,20 @@ pub extern "C" fn rmw_get_node_names(
                 }
             };
 
-            (*node_names).data.add(i).write(
-                rcutils_strdup(name_cstr.as_ptr(), allocator)
-            );
+            (*node_names)
+                .data
+                .add(i)
+                .write(rcutils_strdup(name_cstr.as_ptr(), allocator));
             if (*node_names).data.add(i).read().is_null() {
                 rcutils_string_array_fini(node_names);
                 rcutils_string_array_fini(node_namespaces);
                 return RMW_RET_BAD_ALLOC as _;
             }
 
-            (*node_namespaces).data.add(i).write(
-                rcutils_strdup(ns_cstr.as_ptr(), allocator)
-            );
+            (*node_namespaces)
+                .data
+                .add(i)
+                .write(rcutils_strdup(ns_cstr.as_ptr(), allocator));
             if (*node_namespaces).data.add(i).read().is_null() {
                 rcutils_string_array_fini(node_names);
                 rcutils_string_array_fini(node_namespaces);
@@ -303,9 +325,10 @@ pub extern "C" fn rmw_get_node_names_with_enclaves(
                 }
             };
 
-            (*node_names).data.add(i).write(
-                rcutils_strdup(name_cstr.as_ptr(), allocator)
-            );
+            (*node_names)
+                .data
+                .add(i)
+                .write(rcutils_strdup(name_cstr.as_ptr(), allocator));
             if (*node_names).data.add(i).read().is_null() {
                 rcutils_string_array_fini(node_names);
                 rcutils_string_array_fini(node_namespaces);
@@ -313,9 +336,10 @@ pub extern "C" fn rmw_get_node_names_with_enclaves(
                 return RMW_RET_BAD_ALLOC as _;
             }
 
-            (*node_namespaces).data.add(i).write(
-                rcutils_strdup(ns_cstr.as_ptr(), allocator)
-            );
+            (*node_namespaces)
+                .data
+                .add(i)
+                .write(rcutils_strdup(ns_cstr.as_ptr(), allocator));
             if (*node_namespaces).data.add(i).read().is_null() {
                 rcutils_string_array_fini(node_names);
                 rcutils_string_array_fini(node_namespaces);
@@ -323,9 +347,10 @@ pub extern "C" fn rmw_get_node_names_with_enclaves(
                 return RMW_RET_BAD_ALLOC as _;
             }
 
-            (*enclaves).data.add(i).write(
-                rcutils_strdup(enclave_cstr.as_ptr(), allocator)
-            );
+            (*enclaves)
+                .data
+                .add(i)
+                .write(rcutils_strdup(enclave_cstr.as_ptr(), allocator));
             if (*enclaves).data.add(i).read().is_null() {
                 rcutils_string_array_fini(node_names);
                 rcutils_string_array_fini(node_namespaces);

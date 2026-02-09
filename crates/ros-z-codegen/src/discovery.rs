@@ -84,10 +84,11 @@ pub fn discover_package_name(package_path: &Path) -> Result<String> {
 
         // Simple XML parsing to extract <name>
         if let Some(start) = content.find("<name>")
-            && let Some(end) = content[start..].find("</name>") {
-                let name = &content[start + 6..start + end];
-                return Ok(name.trim().to_string());
-            }
+            && let Some(end) = content[start..].find("</name>")
+        {
+            let name = &content[start + 6..start + end];
+            return Ok(name.trim().to_string());
+        }
     }
 
     // Fallback to directory name
@@ -95,7 +96,12 @@ pub fn discover_package_name(package_path: &Path) -> Result<String> {
         .file_name()
         .and_then(|s| s.to_str())
         .map(|s| s.to_string())
-        .ok_or_else(|| anyhow::anyhow!("Cannot determine package name from path: {:?}", package_path))
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "Cannot determine package name from path: {:?}",
+                package_path
+            )
+        })
 }
 
 /// Discover all messages, services, and actions from multiple package paths
@@ -182,8 +188,11 @@ mod tests {
         let srv_dir = temp_dir.path().join("srv");
         fs::create_dir(&srv_dir).unwrap();
 
-        fs::write(srv_dir.join("AddTwoInts.srv"), "int64 a\nint64 b\n---\nint64 sum\n")
-            .unwrap();
+        fs::write(
+            srv_dir.join("AddTwoInts.srv"),
+            "int64 a\nint64 b\n---\nint64 sum\n",
+        )
+        .unwrap();
 
         let services = discover_services(temp_dir.path(), "test_pkg").unwrap();
         assert_eq!(services.len(), 1);

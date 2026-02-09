@@ -71,18 +71,31 @@ pub fn to_hash_version(msg: &TypeDescriptionMsg) -> TypeDescriptionMsgForHash<'_
     TypeDescriptionMsgForHash {
         type_description: TypeDescriptionForHash {
             type_name: &msg.type_description.type_name,
-            fields: msg.type_description.fields.iter().map(|f| FieldDescriptionForHash {
-                name: &f.name,
-                field_type: &f.field_type,
-            }).collect(),
+            fields: msg
+                .type_description
+                .fields
+                .iter()
+                .map(|f| FieldDescriptionForHash {
+                    name: &f.name,
+                    field_type: &f.field_type,
+                })
+                .collect(),
         },
-        referenced_type_descriptions: msg.referenced_type_descriptions.iter().map(|td| TypeDescriptionForHash {
-            type_name: &td.type_name,
-            fields: td.fields.iter().map(|f| FieldDescriptionForHash {
-                name: &f.name,
-                field_type: &f.field_type,
-            }).collect(),
-        }).collect(),
+        referenced_type_descriptions: msg
+            .referenced_type_descriptions
+            .iter()
+            .map(|td| TypeDescriptionForHash {
+                type_name: &td.type_name,
+                fields: td
+                    .fields
+                    .iter()
+                    .map(|f| FieldDescriptionForHash {
+                        name: &f.name,
+                        field_type: &f.field_type,
+                    })
+                    .collect(),
+            })
+            .collect(),
     }
 }
 

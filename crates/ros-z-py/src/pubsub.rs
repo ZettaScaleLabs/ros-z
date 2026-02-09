@@ -1,8 +1,8 @@
-use pyo3::prelude::*;
-use pyo3::types::PyBytes;
+use crate::error::IntoPyErr;
 use crate::payload_view::ZPayloadView;
 use crate::traits::{RawPublisher, RawSubscriber};
-use crate::error::IntoPyErr;
+use pyo3::prelude::*;
+use pyo3::types::PyBytes;
 use std::time::Duration;
 
 #[pyclass(name = "ZPublisher")]
@@ -28,9 +28,7 @@ impl PyZPublisher {
         let zbuf = ros_z_msgs::serialize_to_zbuf(&self.type_name, data)?;
 
         // Publish the ZBuf directly
-        self.inner
-            .publish(zbuf.into())
-            .map_err(|e| e.into_pyerr())
+        self.inner.publish(zbuf.into()).map_err(|e| e.into_pyerr())
     }
 
     /// Publish pre-serialized CDR bytes directly
@@ -38,9 +36,7 @@ impl PyZPublisher {
     /// Use this for zero-copy forwarding of received messages (e.g., in a pong responder).
     /// The bytes should be in CDR format (as returned by recv_serialized/try_recv_serialized).
     fn publish_raw(&self, data: &[u8]) -> PyResult<()> {
-        self.inner
-            .publish(data.into())
-            .map_err(|e| e.into_pyerr())
+        self.inner.publish(data.into()).map_err(|e| e.into_pyerr())
     }
 
     /// Get the topic name (for debugging)
@@ -89,7 +85,10 @@ impl PyZSubscriber {
             Err(e) => {
                 // Check if it's a timeout error
                 let err_str = e.to_string();
-                if err_str.contains("timeout") || err_str.contains("Timeout") || err_str.contains("timed out") {
+                if err_str.contains("timeout")
+                    || err_str.contains("Timeout")
+                    || err_str.contains("timed out")
+                {
                     Ok(None)
                 } else {
                     Err(e.into_pyerr())
@@ -119,7 +118,11 @@ impl PyZSubscriber {
     ///
     /// Returns bytes object containing the CDR-serialized message.
     #[pyo3(signature = (timeout=None))]
-    unsafe fn recv_serialized(&self, py: Python, timeout: Option<f64>) -> PyResult<Option<Py<PyBytes>>> {
+    unsafe fn recv_serialized(
+        &self,
+        py: Python,
+        timeout: Option<f64>,
+    ) -> PyResult<Option<Py<PyBytes>>> {
         let timeout_duration = timeout.map(Duration::from_secs_f64);
 
         // Release GIL while waiting to allow other Python threads to run
@@ -130,7 +133,10 @@ impl PyZSubscriber {
             Err(e) => {
                 // Check if it's a timeout error
                 let err_str = e.to_string();
-                if err_str.contains("timeout") || err_str.contains("Timeout") || err_str.contains("timed out") {
+                if err_str.contains("timeout")
+                    || err_str.contains("Timeout")
+                    || err_str.contains("timed out")
+                {
                     Ok(None)
                 } else {
                     Err(e.into_pyerr())
@@ -143,7 +149,11 @@ impl PyZSubscriber {
     ///
     /// Returns bytes object containing the CDR-serialized message, or None.
     unsafe fn try_recv_serialized(&self, py: Python) -> PyResult<Option<Py<PyBytes>>> {
-        match self.inner.try_recv_serialized().map_err(|e| e.into_pyerr())? {
+        match self
+            .inner
+            .try_recv_serialized()
+            .map_err(|e| e.into_pyerr())?
+        {
             Some(data) => Ok(Some(PyBytes::new_bound(py, &data).into())),
             None => Ok(None),
         }
@@ -180,7 +190,10 @@ impl PyZSubscriber {
             }
             Err(e) => {
                 let err_str = e.to_string();
-                if err_str.contains("timeout") || err_str.contains("Timeout") || err_str.contains("timed out") {
+                if err_str.contains("timeout")
+                    || err_str.contains("Timeout")
+                    || err_str.contains("timed out")
+                {
                     Ok(None)
                 } else {
                     Err(e.into_pyerr())

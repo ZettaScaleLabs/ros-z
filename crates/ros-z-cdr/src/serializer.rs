@@ -1,7 +1,7 @@
 //! Fast CDR serializer optimized for direct buffer output.
 
 use byteorder::ByteOrder;
-use serde::{ser, Serialize};
+use serde::{Serialize, ser};
 use zenoh_buffers::ZBuf;
 
 use crate::buffer::CdrBuffer;

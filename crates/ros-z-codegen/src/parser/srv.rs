@@ -1,6 +1,6 @@
 use crate::parser::msg::parse_msg_string;
 use crate::types::ParsedService;
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::path::Path;
 
 /// Parse a .srv file from a path
@@ -12,7 +12,8 @@ pub fn parse_srv_file(path: &Path, package: &str) -> Result<ParsedService> {
 
 /// Parse a .srv file from a string
 pub fn parse_srv_string(source: &str, package: &str, path: &Path) -> Result<ParsedService> {
-    let name = path.file_stem()
+    let name = path
+        .file_stem()
         .context("Invalid filename")?
         .to_str()
         .context("Non-UTF8 filename")?
@@ -30,7 +31,10 @@ pub fn parse_srv_string(source: &str, package: &str, path: &Path) -> Result<Pars
     }
 
     if delimiter_indices.len() != 1 {
-        bail!("Service must have exactly one '---' delimiter, found {}", delimiter_indices.len());
+        bail!(
+            "Service must have exactly one '---' delimiter, found {}",
+            delimiter_indices.len()
+        );
     }
 
     let delimiter_idx = delimiter_indices[0];
@@ -140,10 +144,19 @@ geometry_msgs/Point result
         let srv = parse_srv_string(srv_content, "test_srvs", &path).unwrap();
 
         assert_eq!(srv.request.fields.len(), 2);
-        assert_eq!(srv.request.fields[0].field_type.package, Some("std_msgs".to_string()));
-        assert_eq!(srv.request.fields[1].field_type.package, Some("geometry_msgs".to_string()));
+        assert_eq!(
+            srv.request.fields[0].field_type.package,
+            Some("std_msgs".to_string())
+        );
+        assert_eq!(
+            srv.request.fields[1].field_type.package,
+            Some("geometry_msgs".to_string())
+        );
         assert_eq!(srv.response.fields.len(), 2);
-        assert_eq!(srv.response.fields[1].field_type.package, Some("geometry_msgs".to_string()));
+        assert_eq!(
+            srv.response.fields[1].field_type.package,
+            Some("geometry_msgs".to_string())
+        );
     }
 
     #[test]

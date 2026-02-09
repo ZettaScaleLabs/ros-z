@@ -1,8 +1,8 @@
 use anyhow::Result;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use ros_z::msg::{ZMessage, ZService, ZDeserializer};
-use ros_z::service::{ZClient, ZServer, QueryKey};
+use ros_z::msg::{ZDeserializer, ZMessage, ZService};
+use ros_z::service::{QueryKey, ZClient, ZServer};
 use std::time::Duration;
 
 /// Type-erased client trait for Python interop
@@ -11,7 +11,6 @@ pub(crate) trait RawClient: Send + Sync {
     fn take_response_serialized(&self, timeout: Option<Duration>) -> Result<Vec<u8>>;
     fn try_take_response_serialized(&self) -> Result<Option<Vec<u8>>>;
 }
-
 
 /// Wrapper for ZClient that implements RawClient
 pub struct ZClientWrapper<T: ZService> {
@@ -29,24 +28,26 @@ where
     T: ZService + Send + Sync + 'static,
     T::Request: ZMessage + Send + Sync + 'static,
     T::Response: ZMessage + Send + Sync + 'static,
-    for<'a> <T::Request as ZMessage>::Serdes: ZDeserializer<Output = T::Request, Input<'a> = &'a [u8]>,
-    for<'a> <T::Response as ZMessage>::Serdes: ZDeserializer<Output = T::Response, Input<'a> = &'a [u8]>,
+    for<'a> <T::Request as ZMessage>::Serdes:
+        ZDeserializer<Output = T::Request, Input<'a> = &'a [u8]>,
+    for<'a> <T::Response as ZMessage>::Serdes:
+        ZDeserializer<Output = T::Response, Input<'a> = &'a [u8]>,
 {
     fn send_request_serialized(&self, data: &[u8]) -> Result<()> {
         // Deserialize the request from CDR bytes
         let request = <T::Request as ZMessage>::deserialize(data)
             .map_err(|e| anyhow::anyhow!("Failed to deserialize request: {:?}", e))?;
-        
+
         // Send the request (this is async in Rust, but we'll block here for Python)
-        let rt = tokio::runtime::Handle::try_current()
-            .or_else(|_| {
-                // If no runtime exists, create a new one
-                tokio::runtime::Runtime::new()
-                    .map(|rt| rt.handle().clone())
-            })?;
-        
+        let rt = tokio::runtime::Handle::try_current().or_else(|_| {
+            // If no runtime exists, create a new one
+            tokio::runtime::Runtime::new().map(|rt| rt.handle().clone())
+        })?;
+
         rt.block_on(async {
-            self.inner.send_request(&request).await
+            self.inner
+                .send_request(&request)
+                .await
                 .map_err(|e| anyhow::anyhow!("Failed to send request: {}", e))
         })
     }
@@ -54,7 +55,9 @@ where
     fn take_response_serialized(&self, timeout: Option<Duration>) -> Result<Vec<u8>> {
         // Use a very long timeout if none specified (1 hour should be sufficient)
         let timeout_duration = timeout.unwrap_or(Duration::from_secs(3600));
-        let response = self.inner.take_response_timeout(timeout_duration)
+        let response = self
+            .inner
+            .take_response_timeout(timeout_duration)
             .map_err(|e| anyhow::anyhow!("Failed to receive response: {}", e))?;
 
         // Serialize the response to CDR bytes
@@ -67,7 +70,10 @@ where
             Ok(response) => Ok(Some(response.serialize())),
             Err(e) => {
                 let err_str = e.to_string();
-                if err_str.contains("timeout") || err_str.contains("Timeout") || err_str.contains("No sample available") {
+                if err_str.contains("timeout")
+                    || err_str.contains("Timeout")
+                    || err_str.contains("No sample available")
+                {
                     Ok(None)
                 } else {
                     Err(anyhow::anyhow!("Failed to receive response: {}", e))
@@ -102,14 +108,19 @@ where
     T: ZService + Send + Sync + 'static,
     T::Request: ZMessage + Send + Sync + 'static,
     T::Response: ZMessage + Send + Sync + 'static,
-    for<'a> <T::Request as ZMessage>::Serdes: ZDeserializer<Output = T::Request, Input<'a> = &'a [u8]>,
-    for<'a> <T::Response as ZMessage>::Serdes: ZDeserializer<Output = T::Response, Input<'a> = &'a [u8]>,
+    for<'a> <T::Request as ZMessage>::Serdes:
+        ZDeserializer<Output = T::Request, Input<'a> = &'a [u8]>,
+    for<'a> <T::Response as ZMessage>::Serdes:
+        ZDeserializer<Output = T::Response, Input<'a> = &'a [u8]>,
 {
     fn take_request_serialized(&self) -> Result<(QueryKey, Vec<u8>)> {
-        let mut server = self.inner.lock()
+        let mut server = self
+            .inner
+            .lock()
             .map_err(|e| anyhow::anyhow!("Failed to lock server: {}", e))?;
 
-        let (key, request) = server.take_request()
+        let (key, request) = server
+            .take_request()
             .map_err(|e| anyhow::anyhow!("Failed to receive request: {}", e))?;
 
         // Serialize the request to CDR bytes
@@ -120,15 +131,17 @@ where
         // Deserialize the response from CDR bytes
         let response = <T::Response as ZMessage>::deserialize(data)
             .map_err(|e| anyhow::anyhow!("Failed to deserialize response: {:?}", e))?;
-        
-        let mut server = self.inner.lock()
+
+        let mut server = self
+            .inner
+            .lock()
             .map_err(|e| anyhow::anyhow!("Failed to lock server: {}", e))?;
-        
-        server.send_response(&response, key)
+
+        server
+            .send_response(&response, key)
             .map_err(|e| anyhow::anyhow!("Failed to send response: {}", e))
     }
 }
-
 
 /// Python wrapper for service client
 #[pyclass(name = "ZClient")]
@@ -144,7 +157,11 @@ impl PyZClient {
         // e.g., "example_interfaces/srv/AddTwoInts" -> "example_interfaces/srv/AddTwoInts_Request"
         let request_type_name = format!("{}_Request", service_type);
         let response_type_name = format!("{}_Response", service_type);
-        Self { inner, request_type_name, response_type_name }
+        Self {
+            inner,
+            request_type_name,
+            response_type_name,
+        }
     }
 }
 
@@ -179,20 +196,23 @@ impl PyZClient {
         let timeout_duration = timeout.map(Duration::from_secs_f64);
 
         // Release GIL during blocking operation
-        let result = py.allow_threads(|| {
-            self.inner.take_response_serialized(timeout_duration)
-        });
+        let result = py.allow_threads(|| self.inner.take_response_serialized(timeout_duration));
 
         match result {
             Ok(cdr_bytes) => {
                 // Deserialize CDR bytes to Python object using the registry (Response type)
-                let obj = ros_z_msgs::deserialize_from_cdr(&self.response_type_name, py, &cdr_bytes)?;
+                let obj =
+                    ros_z_msgs::deserialize_from_cdr(&self.response_type_name, py, &cdr_bytes)?;
                 Ok(Some(obj))
             }
             Err(e) => {
                 // Check if it's a timeout error
                 let err_str = e.to_string();
-                if err_str.contains("timeout") || err_str.contains("Timeout") || err_str.contains("timed out") || err_str.contains("No sample available") {
+                if err_str.contains("timeout")
+                    || err_str.contains("Timeout")
+                    || err_str.contains("timed out")
+                    || err_str.contains("No sample available")
+                {
                     Ok(None)
                 } else {
                     Err(pyo3::exceptions::PyRuntimeError::new_err(err_str))
@@ -209,7 +229,8 @@ impl PyZClient {
         match self.inner.try_take_response_serialized() {
             Ok(Some(cdr_bytes)) => {
                 // Deserialize CDR bytes to Python object using the registry (Response type)
-                let obj = ros_z_msgs::deserialize_from_cdr(&self.response_type_name, py, &cdr_bytes)?;
+                let obj =
+                    ros_z_msgs::deserialize_from_cdr(&self.response_type_name, py, &cdr_bytes)?;
                 Ok(Some(obj))
             }
             Ok(None) => Ok(None),
@@ -219,7 +240,10 @@ impl PyZClient {
 
     /// Get the service type name (for debugging)
     unsafe fn get_type_name(&self) -> String {
-        format!("request={}, response={}", self.request_type_name, self.response_type_name)
+        format!(
+            "request={}, response={}",
+            self.request_type_name, self.response_type_name
+        )
     }
 }
 
@@ -255,13 +279,15 @@ impl PyZServer {
     unsafe fn take_request(&self, py: Python) -> PyResult<(PyObject, PyObject)> {
         // Release GIL during blocking operation to allow other Python threads to run
         let result = py.allow_threads(|| {
-            let inner = self.inner.lock()
+            let inner = self
+                .inner
+                .lock()
                 .map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
             inner.take_request_serialized()
         });
 
-        let (key, cdr_bytes) = result
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        let (key, cdr_bytes) =
+            result.map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
 
         // Deserialize CDR bytes to Python object using the registry (Request type)
         let obj = ros_z_msgs::deserialize_from_cdr(&self.request_type_name, py, &cdr_bytes)?;
@@ -279,9 +305,15 @@ impl PyZServer {
     /// Args:
     ///     response: Response message (msgspec.Struct)
     ///     request_id: Request ID from take_request()
-    unsafe fn send_response(&self, py: Python, response: &Bound<'_, PyAny>, request_id: &Bound<'_, PyDict>) -> PyResult<()> {
+    unsafe fn send_response(
+        &self,
+        py: Python,
+        response: &Bound<'_, PyAny>,
+        request_id: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
         // Serialize Python message to CDR bytes using the registry (Response type)
-        let cdr_bytes = ros_z_msgs::serialize_to_cdr(&self.response_type_name, response.py(), response)?;
+        let cdr_bytes =
+            ros_z_msgs::serialize_to_cdr(&self.response_type_name, response.py(), response)?;
 
         // Extract QueryKey from request_id dict
         let sn: i64 = request_id.get_item("sn")?.unwrap().extract()?;
@@ -292,14 +324,20 @@ impl PyZServer {
 
         // Release GIL during blocking operation
         py.allow_threads(|| {
-            let inner = self.inner.lock()
+            let inner = self
+                .inner
+                .lock()
                 .map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
             inner.send_response_serialized(&cdr_bytes, &key)
-        }).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        })
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Get the service type name (for debugging)
     unsafe fn get_type_name(&self) -> String {
-        format!("request={}, response={}", self.request_type_name, self.response_type_name)
+        format!(
+            "request={}, response={}",
+            self.request_type_name, self.response_type_name
+        )
     }
 }

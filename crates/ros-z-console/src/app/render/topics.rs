@@ -8,14 +8,18 @@ use ratatui::{
 };
 use ros_z::entity::EntityKind;
 
-use crate::app::state::*;
 use crate::app::App;
+use crate::app::state::*;
 
 use super::common::*;
 
 impl App {
     /// Render topic list items
-    pub fn render_topic_list_items(&self, filter_text: &str, list_width: usize) -> Vec<ListItem<'static>> {
+    pub fn render_topic_list_items(
+        &self,
+        filter_text: &str,
+        list_width: usize,
+    ) -> Vec<ListItem<'static>> {
         let all_topics = &self.cached_topics;
 
         let filtered: Vec<_> = self.filter_items(all_topics, filter_text, |(topic, type_name)| {
@@ -47,7 +51,8 @@ impl App {
                 let icon_width = 2; // "# "
                 let indicator_width = measure_indicator.len();
                 let rate_width = rate_str.len();
-                let topic_max_width = list_width.saturating_sub(icon_width + indicator_width + rate_width);
+                let topic_max_width =
+                    list_width.saturating_sub(icon_width + indicator_width + rate_width);
                 let display_topic = truncate_with_ellipsis(topic, topic_max_width);
 
                 // Build the line with highlighted topic
@@ -61,7 +66,11 @@ impl App {
                     ));
                 }
 
-                spans.extend(create_highlighted_spans(&display_topic, filter_text, base_style));
+                spans.extend(create_highlighted_spans(
+                    &display_topic,
+                    filter_text,
+                    base_style,
+                ));
                 spans.push(Span::styled(
                     rate_str,
                     ratatui::style::Style::default().fg(rate_color),

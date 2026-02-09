@@ -1,8 +1,4 @@
-use ros_z::{
-    Builder, Result,
-    context::ZContextBuilder,
-    define_action,
-};
+use ros_z::{Builder, Result, context::ZContextBuilder, define_action};
 use serde::{Deserialize, Serialize};
 
 // Define test action messages (similar to Fibonacci)
@@ -78,10 +74,9 @@ mod tests {
         assert!(goal_id.is_valid()); // ID should not be all zeros
 
         // Get result
-        let result = tokio::time::timeout(
-            std::time::Duration::from_secs(2),
-            goal_handle.result()
-        ).await.expect("timeout waiting for result")?;
+        let result = tokio::time::timeout(std::time::Duration::from_secs(2), goal_handle.result())
+            .await
+            .expect("timeout waiting for result")?;
         assert_eq!(result.value, 42);
 
         Ok(())
@@ -103,10 +98,9 @@ mod tests {
         let goal_handle = client.send_goal(TestGoal { order: 10 }).await?;
 
         // Wait for completion - this will internally wait for terminal status
-        let result = tokio::time::timeout(
-            std::time::Duration::from_secs(2),
-            goal_handle.result()
-        ).await.expect("timeout waiting for result")?;
+        let result = tokio::time::timeout(std::time::Duration::from_secs(2), goal_handle.result())
+            .await
+            .expect("timeout waiting for result")?;
         assert_eq!(result.value, 42);
 
         Ok(())
@@ -143,10 +137,9 @@ mod tests {
         }
 
         // Wait for result
-        let result = tokio::time::timeout(
-            std::time::Duration::from_secs(2),
-            goal_handle.result()
-        ).await.expect("timeout waiting for result")?;
+        let result = tokio::time::timeout(std::time::Duration::from_secs(2), goal_handle.result())
+            .await
+            .expect("timeout waiting for result")?;
         assert_eq!(result.value, 42);
 
         // Give feedback collection time
@@ -182,8 +175,10 @@ mod tests {
         // Cancel the goal
         let cancel_response = tokio::time::timeout(
             std::time::Duration::from_secs(2),
-            client.cancel_goal(goal_id)
-        ).await.expect("timeout waiting for cancel response")?;
+            client.cancel_goal(goal_id),
+        )
+        .await
+        .expect("timeout waiting for cancel response")?;
         assert!(!cancel_response.goals_canceling.is_empty());
 
         Ok(())
@@ -211,14 +206,14 @@ mod tests {
         assert_ne!(id1, id2);
 
         // Get results
-        let result1 = tokio::time::timeout(
-            std::time::Duration::from_secs(2),
-            goal_handle1.result()
-        ).await.expect("timeout waiting for result1")?;
-        let result2 = tokio::time::timeout(
-            std::time::Duration::from_secs(2),
-            goal_handle2.result()
-        ).await.expect("timeout waiting for result2")?;
+        let result1 =
+            tokio::time::timeout(std::time::Duration::from_secs(2), goal_handle1.result())
+                .await
+                .expect("timeout waiting for result1")?;
+        let result2 =
+            tokio::time::timeout(std::time::Duration::from_secs(2), goal_handle2.result())
+                .await
+                .expect("timeout waiting for result2")?;
 
         assert_eq!(result1.value, 42);
         assert_eq!(result2.value, 42);

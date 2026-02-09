@@ -6,7 +6,7 @@
 //! - Topic: `<domain_id>/<topic>/<type>/<hash>`
 //! - Liveliness: `@ros2_lv/<domain_id>/<zid>/<nid>/<eid>/<kind>/<enclave>/<ns>/<name>[/<topic>/<type>/<hash>/<qos>]`
 
-use zenoh::{key_expr::KeyExpr, session::ZenohId, Result};
+use zenoh::{Result, key_expr::KeyExpr, session::ZenohId};
 
 use crate::{
     entity::{
@@ -292,7 +292,14 @@ mod tests {
     #[test]
     fn test_topic_key_expr_format() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test_node".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test_node".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         let entity = EndpointEntity {
             id: 1,
@@ -307,10 +314,22 @@ mod tests {
         let ke_str = topic_ke.as_str();
 
         // rmw_zenoh format: <domain_id>/<topic>/<type>/<hash>
-        assert!(ke_str.starts_with("0/"), "Should start with domain ID '0/', got: {}", ke_str);
-        assert!(ke_str.contains("/chatter/"), "Should contain '/chatter/', got: {}", ke_str);
+        assert!(
+            ke_str.starts_with("0/"),
+            "Should start with domain ID '0/', got: {}",
+            ke_str
+        );
+        assert!(
+            ke_str.contains("/chatter/"),
+            "Should contain '/chatter/', got: {}",
+            ke_str
+        );
         // Note: rmw_zenoh does NOT escape slashes in topic key expression
-        assert!(ke_str.contains("std_msgs/msg/String"), "Should contain type name, got: {}", ke_str);
+        assert!(
+            ke_str.contains("std_msgs/msg/String"),
+            "Should contain type name, got: {}",
+            ke_str
+        );
     }
 
     /// Test liveliness key expression format matches rmw_zenoh.
@@ -319,7 +338,14 @@ mod tests {
     #[test]
     fn test_liveliness_key_expr_format() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test_node".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test_node".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         let entity = EndpointEntity {
             id: 1,
@@ -334,19 +360,39 @@ mod tests {
         let ke_str = liveliness_ke.as_str();
 
         // Should start with @ros2_lv
-        assert!(ke_str.starts_with("@ros2_lv/"), "Should start with '@ros2_lv/', got: {}", ke_str);
+        assert!(
+            ke_str.starts_with("@ros2_lv/"),
+            "Should start with '@ros2_lv/', got: {}",
+            ke_str
+        );
 
         // Should contain domain ID
-        assert!(ke_str.contains("/0/"), "Should contain domain '/0/', got: {}", ke_str);
+        assert!(
+            ke_str.contains("/0/"),
+            "Should contain domain '/0/', got: {}",
+            ke_str
+        );
 
         // Should contain MP for Publisher
-        assert!(ke_str.contains("/MP/"), "Should contain '/MP/' for Publisher, got: {}", ke_str);
+        assert!(
+            ke_str.contains("/MP/"),
+            "Should contain '/MP/' for Publisher, got: {}",
+            ke_str
+        );
 
         // Should contain node name
-        assert!(ke_str.contains("/test_node/"), "Should contain '/test_node/', got: {}", ke_str);
+        assert!(
+            ke_str.contains("/test_node/"),
+            "Should contain '/test_node/', got: {}",
+            ke_str
+        );
 
         // Should contain escaped topic name
-        assert!(ke_str.contains("/chatter/"), "Should contain '/chatter/', got: {}", ke_str);
+        assert!(
+            ke_str.contains("/chatter/"),
+            "Should contain '/chatter/', got: {}",
+            ke_str
+        );
 
         // Should contain escaped type name
         assert!(
@@ -360,7 +406,14 @@ mod tests {
     #[test]
     fn test_subscriber_liveliness_key_expr() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test_node".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test_node".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         let entity = EndpointEntity {
             id: 1,
@@ -375,21 +428,35 @@ mod tests {
         let ke_str = liveliness_ke.as_str();
 
         // Should contain MS for Subscription
-        assert!(ke_str.contains("/MS/"), "Should contain '/MS/' for Subscription, got: {}", ke_str);
+        assert!(
+            ke_str.contains("/MS/"),
+            "Should contain '/MS/' for Subscription, got: {}",
+            ke_str
+        );
     }
 
     /// Test service server liveliness key expression
     #[test]
     fn test_service_liveliness_key_expr() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test_node".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test_node".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         let entity = EndpointEntity {
             id: 1,
             node,
             kind: EntityKind::Service,
             topic: "add_two_ints".to_string(),
-            type_info: Some(TypeInfo::new("example_interfaces/srv/AddTwoInts", TypeHash::zero())),
+            type_info: Some(TypeInfo::new(
+                "example_interfaces/srv/AddTwoInts",
+                TypeHash::zero(),
+            )),
             qos: QosProfile::default(),
         };
 
@@ -397,21 +464,35 @@ mod tests {
         let ke_str = liveliness_ke.as_str();
 
         // Should contain SS for Service
-        assert!(ke_str.contains("/SS/"), "Should contain '/SS/' for Service, got: {}", ke_str);
+        assert!(
+            ke_str.contains("/SS/"),
+            "Should contain '/SS/' for Service, got: {}",
+            ke_str
+        );
     }
 
     /// Test client liveliness key expression
     #[test]
     fn test_client_liveliness_key_expr() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test_node".to_string(), "/".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test_node".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
 
         let entity = EndpointEntity {
             id: 1,
             node,
             kind: EntityKind::Client,
             topic: "add_two_ints".to_string(),
-            type_info: Some(TypeInfo::new("example_interfaces/srv/AddTwoInts", TypeHash::zero())),
+            type_info: Some(TypeInfo::new(
+                "example_interfaces/srv/AddTwoInts",
+                TypeHash::zero(),
+            )),
             qos: QosProfile::default(),
         };
 
@@ -419,25 +500,48 @@ mod tests {
         let ke_str = liveliness_ke.as_str();
 
         // Should contain SC for Client
-        assert!(ke_str.contains("/SC/"), "Should contain '/SC/' for Client, got: {}", ke_str);
+        assert!(
+            ke_str.contains("/SC/"),
+            "Should contain '/SC/' for Client, got: {}",
+            ke_str
+        );
     }
 
     /// Test node liveliness key expression
     #[test]
     fn test_node_liveliness_key_expr() {
         let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
-        let node = NodeEntity::new(0, zid, 0, "test_node".to_string(), "/my_namespace".to_string(), String::new());
+        let node = NodeEntity::new(
+            0,
+            zid,
+            0,
+            "test_node".to_string(),
+            "/my_namespace".to_string(),
+            String::new(),
+        );
 
         let liveliness_ke = RmwZenohBackend::node_liveliness_key_expr(&node).unwrap();
         let ke_str = liveliness_ke.as_str();
 
         // Should start with @ros2_lv
-        assert!(ke_str.starts_with("@ros2_lv/"), "Should start with '@ros2_lv/', got: {}", ke_str);
+        assert!(
+            ke_str.starts_with("@ros2_lv/"),
+            "Should start with '@ros2_lv/', got: {}",
+            ke_str
+        );
 
         // Should contain NN for Node
-        assert!(ke_str.contains("/NN/"), "Should contain '/NN/' for Node, got: {}", ke_str);
+        assert!(
+            ke_str.contains("/NN/"),
+            "Should contain '/NN/' for Node, got: {}",
+            ke_str
+        );
 
         // Should contain node name
-        assert!(ke_str.contains("/test_node"), "Should contain '/test_node', got: {}", ke_str);
+        assert!(
+            ke_str.contains("/test_node"),
+            "Should contain '/test_node', got: {}",
+            ke_str
+        );
     }
 }

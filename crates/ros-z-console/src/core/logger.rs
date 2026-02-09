@@ -11,11 +11,7 @@ pub fn init_logger(json_mode: bool, debug: bool) {
     };
 
     // Open log file for appending
-    let log_file = match OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(LOG_FILE)
-    {
+    let log_file = match OpenOptions::new().create(true).append(true).open(LOG_FILE) {
         Ok(file) => file,
         Err(_) => return, // Silently fail if we can't open log file
     };

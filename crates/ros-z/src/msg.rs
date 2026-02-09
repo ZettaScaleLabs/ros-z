@@ -1,7 +1,7 @@
 use byteorder::LittleEndian;
-use ros_z_cdr::{CdrBuffer, CdrSerializer, ZBufWriter};
 #[cfg(feature = "protobuf")]
 use prost::Message as ProstMessage;
+use ros_z_cdr::{CdrBuffer, CdrSerializer, ZBufWriter};
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 use zenoh_buffers::ZBuf;
@@ -149,7 +149,9 @@ pub trait ZMessage: Send + Sync + Sized + 'static {
         Self::Serdes::serialize_to_zbuf_with_hint(self, self.estimated_serialized_size())
     }
 
-    fn deserialize(input: <Self::Serdes as ZDeserializer>::Input<'_>) -> Result<Self, <Self::Serdes as ZDeserializer>::Error>
+    fn deserialize(
+        input: <Self::Serdes as ZDeserializer>::Input<'_>,
+    ) -> Result<Self, <Self::Serdes as ZDeserializer>::Error>
     where
         Self::Serdes: ZDeserializer<Output = Self>,
     {
@@ -253,7 +255,8 @@ where
 
         // Serialize payload directly to SHM buffer
         let mut serializer = CdrSerializer::<LittleEndian, crate::shm::ShmWriter>::new(&mut writer);
-        input.serialize(&mut serializer)
+        input
+            .serialize(&mut serializer)
             .map_err(|e| zenoh::Error::from(format!("CDR serialization failed: {}", e)))?;
 
         // Get actual serialized size
@@ -298,16 +301,16 @@ where
 
     fn deserialize(input: Self::Input<'_>) -> Result<Self::Output, Self::Error> {
         if input.len() < 4 {
-            return Err(CdrError(
-                "CDR data too short for header".into(),
-            ));
+            return Err(CdrError("CDR data too short for header".into()));
         }
         let header = &input[0..4];
         let representation_identifier = &header[0..2];
         if representation_identifier != [0x00, 0x01] {
-            return Err(CdrError(
-                format!("Expected CDR_LE encapsulation ({:?}), found {:?}", [0x00, 0x01], representation_identifier),
-            ));
+            return Err(CdrError(format!(
+                "Expected CDR_LE encapsulation ({:?}), found {:?}",
+                [0x00, 0x01],
+                representation_identifier
+            )));
         }
         let payload = &input[4..];
         let x = ros_z_cdr::from_bytes::<T, byteorder::LittleEndian>(payload)
@@ -351,8 +354,8 @@ where
         let data = input.encode_to_vec();
         let actual_size = data.len();
 
-        use zenoh::shm::{BlockOn, GarbageCollect};
         use zenoh::Wait;
+        use zenoh::shm::{BlockOn, GarbageCollect};
 
         let mut shm_buf = provider
             .alloc(estimated_size.max(actual_size))
@@ -654,8 +657,8 @@ mod tests {
         assert_eq!(&serialized[0..4], &CDR_HEADER_LE);
 
         // ZMessage trait provides deserialize method
-        let deserialized =
-            <SimpleMessage as ZMessage>::deserialize(&serialized[..]).expect("Failed to deserialize");
+        let deserialized = <SimpleMessage as ZMessage>::deserialize(&serialized[..])
+            .expect("Failed to deserialize");
         assert_eq!(deserialized, msg);
     }
 

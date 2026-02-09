@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use ros_z::qos::{QosProfile, QosReliability, QosDurability, QosHistory, QosLiveliness, Duration};
+use ros_z::qos::{Duration, QosDurability, QosHistory, QosLiveliness, QosProfile, QosReliability};
 use std::num::NonZeroUsize;
 
 // ROS 2 QoS presets
@@ -93,7 +93,8 @@ pub fn qos_to_pydict(py: Python, qos: &QosProfile) -> PyResult<Py<PyDict>> {
     }
 
     if qos.liveliness_lease_duration != Duration::INFINITE {
-        let secs = qos.liveliness_lease_duration.sec as f64 + (qos.liveliness_lease_duration.nsec as f64 / 1_000_000_000.0);
+        let secs = qos.liveliness_lease_duration.sec as f64
+            + (qos.liveliness_lease_duration.nsec as f64 / 1_000_000_000.0);
         dict.set_item("liveliness_lease_duration", secs)?;
     }
 
@@ -110,9 +111,12 @@ pub fn qos_from_pydict(dict: &Bound<'_, PyDict>) -> PyResult<QosProfile> {
         qos.reliability = match rel_str.as_str() {
             "reliable" => QosReliability::Reliable,
             "best_effort" => QosReliability::BestEffort,
-            _ => return Err(pyo3::exceptions::PyValueError::new_err(
-                format!("Invalid reliability: {}", rel_str)
-            )),
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Invalid reliability: {}",
+                    rel_str
+                )));
+            }
         };
     }
 
@@ -122,9 +126,12 @@ pub fn qos_from_pydict(dict: &Bound<'_, PyDict>) -> PyResult<QosProfile> {
         qos.durability = match dur_str.as_str() {
             "volatile" => QosDurability::Volatile,
             "transient_local" => QosDurability::TransientLocal,
-            _ => return Err(pyo3::exceptions::PyValueError::new_err(
-                format!("Invalid durability: {}", dur_str)
-            )),
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Invalid durability: {}",
+                    dur_str
+                )));
+            }
         };
     }
 
@@ -133,21 +140,26 @@ pub fn qos_from_pydict(dict: &Bound<'_, PyDict>) -> PyResult<QosProfile> {
         let hist_str: String = hist.extract()?;
         qos.history = match hist_str.as_str() {
             "keep_last" => {
-                let depth: usize = dict.get_item("depth")?
-                    .ok_or_else(|| pyo3::exceptions::PyValueError::new_err(
-                        "depth required for keep_last history"
-                    ))?
+                let depth: usize = dict
+                    .get_item("depth")?
+                    .ok_or_else(|| {
+                        pyo3::exceptions::PyValueError::new_err(
+                            "depth required for keep_last history",
+                        )
+                    })?
                     .extract()?;
-                let non_zero_depth = NonZeroUsize::new(depth)
-                    .ok_or_else(|| pyo3::exceptions::PyValueError::new_err(
-                        "depth must be greater than 0"
-                    ))?;
+                let non_zero_depth = NonZeroUsize::new(depth).ok_or_else(|| {
+                    pyo3::exceptions::PyValueError::new_err("depth must be greater than 0")
+                })?;
                 QosHistory::KeepLast(non_zero_depth)
             }
             "keep_all" => QosHistory::KeepAll,
-            _ => return Err(pyo3::exceptions::PyValueError::new_err(
-                format!("Invalid history: {}", hist_str)
-            )),
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Invalid history: {}",
+                    hist_str
+                )));
+            }
         };
     }
 
@@ -158,9 +170,12 @@ pub fn qos_from_pydict(dict: &Bound<'_, PyDict>) -> PyResult<QosProfile> {
             "automatic" => QosLiveliness::Automatic,
             "manual_by_node" => QosLiveliness::ManualByNode,
             "manual_by_topic" => QosLiveliness::ManualByTopic,
-            _ => return Err(pyo3::exceptions::PyValueError::new_err(
-                format!("Invalid liveliness: {}", live_str)
-            )),
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Invalid liveliness: {}",
+                    live_str
+                )));
+            }
         };
     }
 

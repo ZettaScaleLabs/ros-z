@@ -120,9 +120,7 @@ fn test_dynamic_string_to_static() {
     // Create a dynamic String message
     let schema = create_string_schema();
     let mut dynamic_msg = DynamicMessage::new(&schema);
-    dynamic_msg
-        .set("data", "Hello from dynamic!")
-        .unwrap();
+    dynamic_msg.set("data", "Hello from dynamic!").unwrap();
 
     // Serialize to CDR bytes
     let cdr_bytes = dynamic_msg.to_cdr().unwrap();

@@ -233,10 +233,9 @@ mod tests {
         let _cancel_response = goal_handle.cancel().await?;
 
         // Wait for server to process cancel
-        let cancel_request = tokio::time::timeout(
-            tokio::time::Duration::from_secs(2),
-            server_task
-        ).await.expect("timeout waiting for server task")??;
+        let cancel_request = tokio::time::timeout(tokio::time::Duration::from_secs(2), server_task)
+            .await
+            .expect("timeout waiting for server task")??;
         assert_eq!(cancel_request.goal_info.goal_id, goal_handle.id());
 
         // Basic verification that cancel was received

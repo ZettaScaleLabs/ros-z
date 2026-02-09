@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::dynamic::registry::{get_schema, has_schema, register_schema, SchemaRegistry};
+use crate::dynamic::registry::{SchemaRegistry, get_schema, has_schema, register_schema};
 use crate::dynamic::schema::{FieldType, MessageSchema};
 
 fn create_test_schema(name: &str) -> Arc<MessageSchema> {

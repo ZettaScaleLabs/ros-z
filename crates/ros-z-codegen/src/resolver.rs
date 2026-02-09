@@ -549,11 +549,7 @@ impl Resolver {
                     type_id: 1, // NESTED_TYPE
                     capacity: 0,
                     string_capacity: 0,
-                    nested_type_name: format!(
-                        "{}/action/{}_Result",
-                        action.package,
-                        action.name
-                    ),
+                    nested_type_name: format!("{}/action/{}_Result", action.package, action.name),
                 },
                 default_value: String::new(),
             },
@@ -756,7 +752,10 @@ impl Resolver {
     /// Calculate type hash for GoalStatusArray message (action_msgs/msg/GoalStatusArray)
     /// This is a standard ROS2 action protocol type shared by all actions
     fn calculate_status_hash(&self) -> Result<crate::types::TypeHash> {
-        use crate::hashing::{FieldDescription, FieldTypeDescription, TypeDescription, TypeDescriptionMsg, to_hash_version, to_ros2_json};
+        use crate::hashing::{
+            FieldDescription, FieldTypeDescription, TypeDescription, TypeDescriptionMsg,
+            to_hash_version, to_ros2_json,
+        };
         use sha2::Digest;
 
         // GoalStatusArray: status_list (GoalStatus[])
@@ -933,13 +932,16 @@ impl ResolvedMessageExt for ResolvedMessage {
                 // Action types need underscore: Fibonacci_Goal, Fibonacci_Result, Fibonacci_Feedback
                 let nested_type_name = if let Some(ref pkg) = field.field_type.package {
                     if field.field_type.base_type.ends_with("Goal") {
-                        let base = &field.field_type.base_type[..field.field_type.base_type.len() - 4];
+                        let base =
+                            &field.field_type.base_type[..field.field_type.base_type.len() - 4];
                         format!("{}/action/{}_Goal", pkg, base)
                     } else if field.field_type.base_type.ends_with("Result") {
-                        let base = &field.field_type.base_type[..field.field_type.base_type.len() - 6];
+                        let base =
+                            &field.field_type.base_type[..field.field_type.base_type.len() - 6];
                         format!("{}/action/{}_Result", pkg, base)
                     } else if field.field_type.base_type.ends_with("Feedback") {
-                        let base = &field.field_type.base_type[..field.field_type.base_type.len() - 8];
+                        let base =
+                            &field.field_type.base_type[..field.field_type.base_type.len() - 8];
                         format!("{}/action/{}_Feedback", pkg, base)
                     } else {
                         format!("{}/msg/{}", pkg, field.field_type.base_type)

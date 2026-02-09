@@ -4,8 +4,8 @@
 //! access to goal state, preventing accidental lock-across-await bugs.
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use super::{GoalId, GoalStatus, ZAction};

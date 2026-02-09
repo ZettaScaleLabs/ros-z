@@ -247,9 +247,9 @@ impl ZContextBuilder {
     /// # }
     /// ```
     pub fn with_shm_enabled(self) -> Result<Self> {
-        let provider = Arc::new(crate::shm::ShmProviderBuilder::new(
-            crate::shm::DEFAULT_SHM_POOL_SIZE,
-        ).build()?);
+        let provider = Arc::new(
+            crate::shm::ShmProviderBuilder::new(crate::shm::DEFAULT_SHM_POOL_SIZE).build()?,
+        );
         Ok(self.with_shm_config(crate::shm::ShmConfig::new(provider)))
     }
 

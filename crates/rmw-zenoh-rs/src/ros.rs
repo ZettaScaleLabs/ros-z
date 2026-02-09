@@ -130,21 +130,17 @@ pub struct rmw_guard_condition_impl_t {
 }
 
 // Callback types
-pub type rmw_subscription_new_message_callback_t = Option<
-    unsafe extern "C" fn(user_data: *const c_void, number_of_messages: usize),
->;
+pub type rmw_subscription_new_message_callback_t =
+    Option<unsafe extern "C" fn(user_data: *const c_void, number_of_messages: usize)>;
 
-pub type rmw_service_new_request_callback_t = Option<
-    unsafe extern "C" fn(user_data: *const c_void, number_of_requests: usize),
->;
+pub type rmw_service_new_request_callback_t =
+    Option<unsafe extern "C" fn(user_data: *const c_void, number_of_requests: usize)>;
 
-pub type rmw_client_new_response_callback_t = Option<
-    unsafe extern "C" fn(user_data: *const c_void, number_of_responses: usize),
->;
+pub type rmw_client_new_response_callback_t =
+    Option<unsafe extern "C" fn(user_data: *const c_void, number_of_responses: usize)>;
 
-pub type rmw_event_callback_t = Option<
-    unsafe extern "C" fn(user_data: *const c_void, number_of_events: usize),
->;
+pub type rmw_event_callback_t =
+    Option<unsafe extern "C" fn(user_data: *const c_void, number_of_events: usize)>;
 
 // Sequence types for batch operations
 #[repr(C)]

@@ -1,20 +1,18 @@
 use crate::entity::EntityKind;
 use crate::graph::Graph;
 use std::sync::Arc;
+use tracing::debug;
 use zenoh::liveliness::LivelinessToken;
 use zenoh::{Result, Session, Wait};
-use tracing::debug;
 
 use crate::{
+    Builder, ServiceTypeInfo, WithTypeInfo,
     action::{client::ZActionClientBuilder, server::ZActionServerBuilder},
-    Builder,
     context::{GlobalCounter, RemapRules},
     entity::*,
     msg::{ZMessage, ZService},
     pubsub::{ZPubBuilder, ZSubBuilder},
     service::{ZClientBuilder, ZServerBuilder},
-    ServiceTypeInfo,
-    WithTypeInfo,
 };
 
 pub struct ZNode {
@@ -92,7 +90,10 @@ impl Builder for ZNodeBuilder {
         let id = self.counter.increment();
         tracing::Span::current().record("id", id);
 
-        debug!("[NOD] Creating node: {}/{}, id={}", self.namespace, self.name, id);
+        debug!(
+            "[NOD] Creating node: {}/{}, id={}",
+            self.namespace, self.name, id
+        );
 
         let node = NodeEntity::new(
             self.domain_id,

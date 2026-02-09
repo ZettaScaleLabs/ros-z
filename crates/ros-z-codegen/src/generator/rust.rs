@@ -70,7 +70,8 @@ pub fn generate_message_impl_with_context(
     // No longer need custom serde - ros_z::ZBuf implements Serialize/Deserialize
 
     // Generate size estimation implementation
-    let size_estimation_impl = generate_size_estimation_impl(&name, &msg.parsed.fields, &msg.parsed.package, ctx)?;
+    let size_estimation_impl =
+        generate_size_estimation_impl(&name, &msg.parsed.fields, &msg.parsed.package, ctx)?;
 
     Ok(quote! {
         #struct_def
@@ -605,10 +606,20 @@ fn generate_field_size_expr(
 fn is_primitive_type(base_type: &str) -> bool {
     matches!(
         base_type,
-        "bool" | "byte" | "uint8" | "int8" | "char" |
-        "uint16" | "int16" | "wchar" |
-        "uint32" | "int32" | "float32" |
-        "uint64" | "int64" | "float64"
+        "bool"
+            | "byte"
+            | "uint8"
+            | "int8"
+            | "char"
+            | "uint16"
+            | "int16"
+            | "wchar"
+            | "uint32"
+            | "int32"
+            | "float32"
+            | "uint64"
+            | "int64"
+            | "float64"
     )
 }
 
