@@ -8,6 +8,7 @@
 //! - Dynamic subscription using retrieved type descriptions
 
 #![cfg(feature = "ros-interop")]
+#![cfg(not(ros_humble))]
 
 mod common;
 
