@@ -221,7 +221,7 @@ python -m venv .venv
 source .venv/bin/activate
 
 # Install message types
-pip install -e ../ros-z-msgs/python/
+pip install -e ../crates/ros-z-msgs/python/
 
 # Build and install ros-z-py
 maturin develop
@@ -430,7 +430,7 @@ cargo test --features python-interop -p ros-z-tests --test python_interop -- --t
 <p>Rebuild and install the package:</p>
 <pre><code class="language-bash">cd ros-z-py
 source .venv/bin/activate
-pip install -e ../ros-z-msgs/python/
+pip install -e ../crates/ros-z-msgs/python/
 maturin develop
 </code></pre>
 </div>
