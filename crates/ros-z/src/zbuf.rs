@@ -110,8 +110,12 @@ impl Serialize for ZBuf {
     where
         S: Serializer,
     {
-        // Use contiguous() for zero-copy access and serialize as bytes
-        // This is much more efficient than serialize_seq for large arrays
+        // Store the ZBuf in thread-local for zero-copy serialization bypass.
+        // When CdrWriter::write_bytes detects this, it uses append_zbuf
+        // (ref-counted ZSlice clone) instead of extend_from_slice (memcpy).
+        ros_z_cdr::ZBUF_SERIALIZE_BYPASS.with(|cell| {
+            *cell.borrow_mut() = Some(self.0.clone());
+        });
         let bytes = self.0.contiguous();
         serializer.serialize_bytes(bytes.as_ref())
     }
@@ -125,25 +129,44 @@ impl<'de> Deserialize<'de> for ZBuf {
         struct BytesVisitor;
 
         impl<'de> serde::de::Visitor<'de> for BytesVisitor {
-            type Value = Vec<u8>;
+            type Value = ZenohZBuf;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                 formatter.write_str("byte array")
             }
 
             fn visit_bytes<E: serde::de::Error>(self, v: &[u8]) -> Result<Self::Value, E> {
-                Ok(v.to_vec())
+                Ok(ZenohZBuf::from(v.to_vec()))
             }
 
             fn visit_borrowed_bytes<E: serde::de::Error>(
                 self,
                 v: &'de [u8],
             ) -> Result<Self::Value, E> {
-                Ok(v.to_vec())
+                // Try zero-copy: check if v is within a source ZBuf's ZSlice
+                let zbuf = ros_z_cdr::ZBUF_DESER_SOURCE.with(|cell| {
+                    let borrow = cell.borrow();
+                    let source = borrow.as_ref()?;
+                    let v_start = v.as_ptr() as usize;
+                    let v_end = v_start + v.len();
+                    for zslice in source.zslices() {
+                        let s_start = zslice.as_slice().as_ptr() as usize;
+                        let s_end = s_start + zslice.len();
+                        if v_start >= s_start && v_end <= s_end {
+                            let offset = v_start - s_start;
+                            let sub = zslice.subslice(offset..offset + v.len())?;
+                            let mut zbuf = ZenohZBuf::default();
+                            zbuf.push_zslice(sub);
+                            return Some(zbuf);
+                        }
+                    }
+                    None
+                });
+                Ok(zbuf.unwrap_or_else(|| ZenohZBuf::from(v.to_vec())))
             }
 
             fn visit_byte_buf<E: serde::de::Error>(self, v: Vec<u8>) -> Result<Self::Value, E> {
-                Ok(v)
+                Ok(ZenohZBuf::from(v))
             }
 
             // Fallback for formats that don't support bytes natively
@@ -156,11 +179,13 @@ impl<'de> Deserialize<'de> for ZBuf {
                 while let Some(b) = seq.next_element()? {
                     bytes.push(b);
                 }
-                Ok(bytes)
+                Ok(ZenohZBuf::from(bytes))
             }
         }
 
-        deserializer.deserialize_bytes(BytesVisitor).map(ZBuf::from)
+        deserializer
+            .deserialize_bytes(BytesVisitor)
+            .map(ZBuf::from_zenoh)
     }
 }
 
