@@ -84,9 +84,6 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           nix print-dev-env '.#pureRust-ci' --accept-flake-config > /tmp/nix-dev-env.sh
-          echo "export SCCACHE_GHA_ENABLED=true" >> /tmp/nix-dev-env.sh
-          echo "export SCCACHE_CACHE_SIZE=2G" >> /tmp/nix-dev-env.sh
-          echo "export RUSTC_WRAPPER=sccache" >> /tmp/nix-dev-env.sh
           echo "export CI=true" >> /tmp/nix-dev-env.sh
 
       # macOS-specific setup
@@ -105,14 +102,14 @@ jobs:
           chmod +x scripts/test-pure-rust.nu
 
       # Common setup
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ${{ runner.os }}-pureRust
 
       - name: Set environment variables (macOS)
         if: runner.os == 'macOS'
         run: |
-          echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
-          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
           echo "CI=true" >> $GITHUB_ENV
 
       # Test steps
@@ -172,9 +169,6 @@ jobs:
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
           skipPush: true
 
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
-
       - name: Install Nushell
         run: |
           nix profile install nixpkgs#nushell
@@ -183,10 +177,12 @@ jobs:
       - name: Setup nix environment
         run: |
           nix print-dev-env '.#ros-${{ matrix.distro }}-ci' --accept-flake-config > /tmp/nix-dev-env.sh
-          echo "export SCCACHE_GHA_ENABLED=true" >> /tmp/nix-dev-env.sh
-          echo "export SCCACHE_CACHE_SIZE=1G" >> /tmp/nix-dev-env.sh
-          echo "export RUSTC_WRAPPER=sccache" >> /tmp/nix-dev-env.sh
           echo "export CI=true" >> /tmp/nix-dev-env.sh
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ${{ matrix.distro }}-python
 
       - name: Setup venv
         run: |
@@ -267,9 +263,6 @@ jobs:
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
           skipPush: true
 
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
-
       - name: Install Nushell
         run: |
           nix profile install nixpkgs#nushell
@@ -279,10 +272,12 @@ jobs:
         run: |
           nix print-dev-env '.#ros-jazzy-ci' \
             --accept-flake-config > /tmp/nix-dev-env.sh
-          echo "export SCCACHE_GHA_ENABLED=true" >> /tmp/nix-dev-env.sh
-          echo "export SCCACHE_CACHE_SIZE=1G" >> /tmp/nix-dev-env.sh
-          echo "export RUSTC_WRAPPER=sccache" >> /tmp/nix-dev-env.sh
           echo "export CI=true" >> /tmp/nix-dev-env.sh
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: jazzy-ros
 
       - name: Run ROS tests
         run: |
