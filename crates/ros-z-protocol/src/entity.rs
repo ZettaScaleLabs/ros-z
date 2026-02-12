@@ -142,6 +142,11 @@ impl TypeHash {
     }
 
     pub fn from_rihs_string(rihs_str: &str) -> Option<Self> {
+        // Handle ROS 2 Humble's "not supported" placeholder
+        if rihs_str == "TypeHashNotSupported" {
+            return Some(TypeHash::zero());
+        }
+
         if let Some(hex_part) = rihs_str.strip_prefix("RIHS01_") {
             if hex_part.len() == 64 {
                 let mut hash_bytes = [0u8; 32];
@@ -166,20 +171,29 @@ impl TypeHash {
     }
 
     pub fn to_rihs_string(&self) -> String {
-        use alloc::format;
-        match self.version {
-            1 => {
-                let hex_str: String = self.value.iter().map(|b| format!("{:02x}", b)).collect();
-                format!("RIHS01_{}", hex_str)
+        #[cfg(feature = "no-type-hash")]
+        {
+            // ROS 2 Humble doesn't support type hashing
+            return "TypeHashNotSupported".to_string();
+        }
+
+        #[cfg(not(feature = "no-type-hash"))]
+        {
+            use alloc::format;
+            match self.version {
+                1 => {
+                    let hex_str: String = self.value.iter().map(|b| format!("{:02x}", b)).collect();
+                    format!("RIHS01_{}", hex_str)
+                }
+                _ => format!(
+                    "RIHS{:02x}_{}",
+                    self.version,
+                    self.value
+                        .iter()
+                        .map(|b| format!("{:02x}", b))
+                        .collect::<String>()
+                ),
             }
-            _ => format!(
-                "RIHS{:02x}_{}",
-                self.version,
-                self.value
-                    .iter()
-                    .map(|b| format!("{:02x}", b))
-                    .collect::<String>()
-            ),
         }
     }
 }

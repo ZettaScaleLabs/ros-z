@@ -15,6 +15,7 @@ default = ["std", "rmw-zenoh"]
 std = ["zenoh/default"]
 rmw-zenoh = []
 ros2dds = []
+no-type-hash = []              # ROS 2 Humble doesn't support type hashing
 
 [dependencies]
 zenoh = { version = "1.1.1", default-features = false }

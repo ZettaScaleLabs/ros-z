@@ -82,7 +82,7 @@ iron = ["type-hash", "no-humble", "no-jazzy", "no-rolling"]
 # Internal features for distro compatibility
 humble-compat = []
 type-hash = []
-no-type-hash = []
+no-type-hash = ["ros-z-protocol/no-type-hash"]
 
 # Feature conflict markers (empty features to mark mutual exclusion)
 no-humble = []
