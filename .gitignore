@@ -37,7 +37,6 @@ ros-z-msgs/python/ros_z_msgs_py/types/__init__.py
 
 *.db
 *.log
-.claude
 
-# MCP configuration (generated per-worktree, workspace root is canonical)
+.claude
 .mcp.json
