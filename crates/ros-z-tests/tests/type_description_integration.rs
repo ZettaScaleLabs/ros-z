@@ -205,10 +205,13 @@ fn test_dynamic_pub_dynamic_sub_with_type_discovery() {
                 println!("Schema registration verified");
             }
 
-            // Start publishing in background
+            // Start publishing in background - publish continuously to ensure
+            // publisher stays alive during schema discovery and message reception
             let pub_schema = schema.clone();
             let pub_handle = tokio::spawn(async move {
-                for i in 0..10 {
+                // Publish enough messages to cover schema discovery + message reception time
+                // At 100ms per message, 100 messages = 10 seconds, well beyond test duration
+                for i in 0..100 {
                     let mut msg = DynamicMessage::new(&pub_schema);
                     msg.set("x", (i as f64) * 1.0).unwrap();
                     msg.set("y", (i as f64) * 2.0).unwrap();
@@ -221,7 +224,7 @@ fn test_dynamic_pub_dynamic_sub_with_type_discovery() {
                 }
             });
 
-            // Give publisher time to start
+            // Give publisher time to start and advertise
             tokio::time::sleep(Duration::from_millis(500)).await;
 
             // Create subscriber context and node
@@ -262,8 +265,8 @@ fn test_dynamic_pub_dynamic_sub_with_type_discovery() {
                 }
             }
 
-            // Wait for publisher to finish
-            let _ = pub_handle.await;
+            // Abort publisher task now that we've received messages
+            pub_handle.abort();
 
             received
         })
