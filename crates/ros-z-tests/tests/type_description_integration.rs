@@ -5,6 +5,7 @@
 //! 2. Dynamic publisher/subscriber communication using discovered schemas
 
 #![cfg(feature = "ros-msgs")]
+#![cfg(not(ros_humble))]
 
 mod common;
 
