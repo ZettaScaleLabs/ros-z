@@ -5,6 +5,7 @@ use std::{marker::PhantomData, sync::Arc};
 use tracing::{debug, trace, warn};
 use zenoh::liveliness::LivelinessToken;
 use zenoh::{Result, Session, Wait, sample::Sample};
+use zenoh_buffers::buffer::SplitBuffer;
 
 use crate::Builder;
 use crate::attachment::{Attachment, GidArray};
@@ -710,12 +711,24 @@ where
             zenoh::Error::from("Subscriber was built with callback, no queue available")
         })?;
         let sample = queue.recv();
-        let payload = sample.payload().to_bytes();
 
-        tracing::Span::current().record("payload_len", payload.len());
+        // Enable zero-copy deserialization for ZBuf fields via thread-local bypass
+        let payload_zbuf: zenoh_buffers::ZBuf = sample.payload().clone().into();
+        ros_z_cdr::ZBUF_DESER_SOURCE.with(|cell| {
+            *cell.borrow_mut() = Some(payload_zbuf.clone());
+        });
+
+        let cow = payload_zbuf.contiguous();
+        tracing::Span::current().record("payload_len", cow.len());
         debug!("[SUB] Received message");
 
-        S::deserialize(&payload).map_err(|e| zenoh::Error::from(e.to_string()))
+        let result = S::deserialize(&cow).map_err(|e| zenoh::Error::from(e.to_string()));
+
+        ros_z_cdr::ZBUF_DESER_SOURCE.with(|cell| {
+            *cell.borrow_mut() = None;
+        });
+
+        result
     }
 
     pub fn recv_timeout(&self, timeout: Duration) -> Result<S::Output> {
@@ -725,8 +738,20 @@ where
         let sample = queue
             .recv_timeout(timeout)
             .ok_or_else(|| zenoh::Error::from("Receive timed out"))?;
-        let payload = sample.payload().to_bytes();
-        S::deserialize(&payload).map_err(|e| zenoh::Error::from(e.to_string()))
+
+        let payload_zbuf: zenoh_buffers::ZBuf = sample.payload().clone().into();
+        ros_z_cdr::ZBUF_DESER_SOURCE.with(|cell| {
+            *cell.borrow_mut() = Some(payload_zbuf.clone());
+        });
+
+        let cow = payload_zbuf.contiguous();
+        let result = S::deserialize(&cow).map_err(|e| zenoh::Error::from(e.to_string()));
+
+        ros_z_cdr::ZBUF_DESER_SOURCE.with(|cell| {
+            *cell.borrow_mut() = None;
+        });
+
+        result
     }
 
     /// Async receive and deserialize the next message
@@ -735,8 +760,20 @@ where
             zenoh::Error::from("Subscriber was built with callback, no queue available")
         })?;
         let sample = queue.recv_async().await;
-        let payload = sample.payload().to_bytes();
-        S::deserialize(&payload).map_err(|e| zenoh::Error::from(e.to_string()))
+
+        let payload_zbuf: zenoh_buffers::ZBuf = sample.payload().clone().into();
+        ros_z_cdr::ZBUF_DESER_SOURCE.with(|cell| {
+            *cell.borrow_mut() = Some(payload_zbuf.clone());
+        });
+
+        let cow = payload_zbuf.contiguous();
+        let result = S::deserialize(&cow).map_err(|e| zenoh::Error::from(e.to_string()));
+
+        ros_z_cdr::ZBUF_DESER_SOURCE.with(|cell| {
+            *cell.borrow_mut() = None;
+        });
+
+        result
     }
 }
 
@@ -769,13 +806,24 @@ impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicCdrSerd
 
         trace!("[SUB] Waiting for dynamic message");
         let sample = queue.recv();
-        let payload = sample.payload().to_bytes();
 
-        tracing::Span::current().record("payload_len", payload.len());
+        let payload_zbuf: zenoh_buffers::ZBuf = sample.payload().clone().into();
+        ros_z_cdr::ZBUF_DESER_SOURCE.with(|cell| {
+            *cell.borrow_mut() = Some(payload_zbuf.clone());
+        });
+
+        let cow = payload_zbuf.contiguous();
+        tracing::Span::current().record("payload_len", cow.len());
         debug!("[SUB] Received dynamic message");
 
-        crate::dynamic::DynamicCdrSerdes::deserialize((&payload, schema))
-            .map_err(|e| zenoh::Error::from(e.to_string()))
+        let result = crate::dynamic::DynamicCdrSerdes::deserialize((&cow, schema))
+            .map_err(|e| zenoh::Error::from(e.to_string()));
+
+        ros_z_cdr::ZBUF_DESER_SOURCE.with(|cell| {
+            *cell.borrow_mut() = None;
+        });
+
+        result
     }
 
     /// Receive a dynamic message with timeout.
@@ -792,10 +840,21 @@ impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicCdrSerd
         let sample = queue
             .recv_timeout(timeout)
             .ok_or_else(|| zenoh::Error::from("Receive timed out"))?;
-        let payload = sample.payload().to_bytes();
 
-        crate::dynamic::DynamicCdrSerdes::deserialize((&payload, schema))
-            .map_err(|e| zenoh::Error::from(e.to_string()))
+        let payload_zbuf: zenoh_buffers::ZBuf = sample.payload().clone().into();
+        ros_z_cdr::ZBUF_DESER_SOURCE.with(|cell| {
+            *cell.borrow_mut() = Some(payload_zbuf.clone());
+        });
+
+        let cow = payload_zbuf.contiguous();
+        let result = crate::dynamic::DynamicCdrSerdes::deserialize((&cow, schema))
+            .map_err(|e| zenoh::Error::from(e.to_string()));
+
+        ros_z_cdr::ZBUF_DESER_SOURCE.with(|cell| {
+            *cell.borrow_mut() = None;
+        });
+
+        result
     }
 
     /// Async receive a dynamic message.
@@ -810,10 +869,21 @@ impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicCdrSerd
         })?;
 
         let sample = queue.recv_async().await;
-        let payload = sample.payload().to_bytes();
 
-        crate::dynamic::DynamicCdrSerdes::deserialize((&payload, schema))
-            .map_err(|e| zenoh::Error::from(e.to_string()))
+        let payload_zbuf: zenoh_buffers::ZBuf = sample.payload().clone().into();
+        ros_z_cdr::ZBUF_DESER_SOURCE.with(|cell| {
+            *cell.borrow_mut() = Some(payload_zbuf.clone());
+        });
+
+        let cow = payload_zbuf.contiguous();
+        let result = crate::dynamic::DynamicCdrSerdes::deserialize((&cow, schema))
+            .map_err(|e| zenoh::Error::from(e.to_string()));
+
+        ros_z_cdr::ZBUF_DESER_SOURCE.with(|cell| {
+            *cell.borrow_mut() = None;
+        });
+
+        result
     }
 
     /// Try to receive a dynamic message without blocking.
@@ -823,11 +893,20 @@ impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicCdrSerd
 
         match queue.try_recv() {
             Some(sample) => {
-                let payload = sample.payload().to_bytes();
-                Some(
-                    crate::dynamic::DynamicCdrSerdes::deserialize((&payload, schema))
-                        .map_err(|e| zenoh::Error::from(e.to_string())),
-                )
+                let payload_zbuf: zenoh_buffers::ZBuf = sample.payload().clone().into();
+                ros_z_cdr::ZBUF_DESER_SOURCE.with(|cell| {
+                    *cell.borrow_mut() = Some(payload_zbuf.clone());
+                });
+
+                let cow = payload_zbuf.contiguous();
+                let result = crate::dynamic::DynamicCdrSerdes::deserialize((&cow, schema))
+                    .map_err(|e| zenoh::Error::from(e.to_string()));
+
+                ros_z_cdr::ZBUF_DESER_SOURCE.with(|cell| {
+                    *cell.borrow_mut() = None;
+                });
+
+                Some(result)
             }
             None => None,
         }
