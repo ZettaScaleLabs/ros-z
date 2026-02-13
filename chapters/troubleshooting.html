@@ -366,6 +366,36 @@ let ctx = ZContextBuilder::default()
 <p><strong>Warning:</strong> Peer mode won't interoperate with ROS 2 nodes using <code>rmw_zenoh_cpp</code> in router mode.</p>
 </div>
 </details>
+<details id="admonition-multi-segment-topics-like-robotsensorscamera-dont-receive-messages" class="admonition admonish-question" role="note" aria-labelledby="admonition-multi-segment-topics-like-robotsensorscamera-dont-receive-messages-title">
+<summary class="admonition-title">
+<div id="admonition-multi-segment-topics-like-robotsensorscamera-dont-receive-messages-title">
+<p>Multi-segment topics like /robot/sensors/camera don't receive messages</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-multi-segment-topics-like-robotsensorscamera-dont-receive-messages"></a>
+</summary>
+<div>
+<p><strong>Symptom:</strong> Publisher publishes to <code>/robot/sensors/camera</code> but subscriber never receives messages.</p>
+<p><strong>Root Cause:</strong> Old versions of ros-z (before 0.1.0) incorrectly mangled slashes in topic key expressions, breaking multi-segment topic routing.</p>
+<p><strong>Solution:</strong> Update to ros-z 0.1.0+ which correctly preserves internal slashes in topic key expressions.</p>
+<p><strong>Verify the fix:</strong></p>
+<pre><code class="language-bash"># Enable debug logging to see key expressions
+RUST_LOG=ros_z=debug cargo run --example z_pubsub
+</code></pre>
+<p>Look for key expressions in the output:</p>
+<div class="table-wrapper"><table><thead><tr><th>Key Expression</th><th>Status</th></tr></thead><tbody>
+<tr><td><code>0/robot/sensors/camera/...</code></td><td>✅ Correct (slashes preserved)</td></tr>
+<tr><td><code>0/robot%sensors%camera/...</code></td><td>❌ Wrong (slashes mangled)</td></tr>
+</tbody></table>
+</div>
+<p><strong>Technical Details:</strong></p>
+<ul>
+<li><strong>Topic key expressions</strong> should use <code>strip_slashes()</code>: removes leading/trailing slashes, preserves internal slashes</li>
+<li><strong>Liveliness tokens</strong> should use <code>mangle_name()</code>: replaces all <code>/</code> with <code>%</code></li>
+<li>This matches the behavior of <code>rmw_zenoh_cpp</code></li>
+</ul>
+<p>See <a href="./keyexpr_formats.html#key-expression-behavior-important">Key Expression Formats</a> for details.</p>
+</div>
+</details>
 <h2 id="resources"><a class="header" href="#resources">Resources</a></h2>
 <ul>
 <li><strong><a href="./building.html">Building Guide</a></strong> - Correct build procedures</li>

@@ -238,28 +238,21 @@ cd ros-z
 <pre><code class="language-rust ignore">use std::time::Duration;
 
 use clap::{Parser, ValueEnum};
-#[cfg(feature = "ros2dds")]
-use ros_z::backend::Ros2DdsBackend;
 use ros_z::{
     Builder, Result,
-    backend::{KeyExprBackend, RmwZenohBackend},
     context::{ZContext, ZContextBuilder},
 };
 use ros_z_msgs::std_msgs::String as RosString;
 
 /// Subscriber function that continuously receives messages from a topic
-async fn run_subscriber&lt;B: KeyExprBackend&gt;(ctx: ZContext, topic: String) -&gt; Result&lt;()&gt; {
+async fn run_subscriber(ctx: ZContext, topic: String) -&gt; Result&lt;()&gt; {
     // Create a ROS 2 node - the fundamental unit of computation
     // Nodes are logical groupings of publishers, subscribers, services, etc.
     let node = ctx.create_node("Sub").build()?;
 
-    // Create a subscriber for the specified topic with backend selection
+    // Create a subscriber for the specified topic
     // The type parameter RosString determines what message type we'll receive
-    // The backend parameter determines the key expression format
-    let zsub = node
-        .create_sub::&lt;RosString&gt;(&amp;topic)
-        .with_backend::&lt;B&gt;()
-        .build()?;
+    let zsub = node.create_sub::&lt;RosString&gt;(&amp;topic).build()?;
 
     // Continuously receive messages asynchronously
     // This loop will block waiting for messages on the topic
@@ -270,7 +263,7 @@ async fn run_subscriber&lt;B: KeyExprBackend&gt;(ctx: ZContext, topic: String) -
 }
 
 /// Publisher function that continuously publishes messages to a topic
-async fn run_publisher&lt;B: KeyExprBackend&gt;(
+async fn run_publisher(
     ctx: ZContext,
     topic: String,
     period: Duration,
@@ -279,13 +272,9 @@ async fn run_publisher&lt;B: KeyExprBackend&gt;(
     // Create a ROS 2 node for publishing
     let node = ctx.create_node("Pub").build()?;
 
-    // Create a publisher for the specified topic with backend selection
+    // Create a publisher for the specified topic
     // The type parameter RosString determines what message type we'll send
-    // The backend parameter determines the key expression format
-    let zpub = node
-        .create_pub::&lt;RosString&gt;(&amp;topic)
-        .with_backend::&lt;B&gt;()
-        .build()?;
+    let zpub = node.create_pub::&lt;RosString&gt;(&amp;topic).build()?;
 
     let mut count = 0;
     loop {
@@ -310,6 +299,13 @@ async fn run_publisher&lt;B: KeyExprBackend&gt;(
 async fn main() -&gt; Result&lt;()&gt; {
     let args = Args::parse();
 
+    // Convert backend enum to KeyExprFormat
+    let format = match args.backend {
+        Backend::RmwZenoh =&gt; ros_z_protocol::KeyExprFormat::RmwZenoh,
+        #[cfg(feature = "ros2dds")]
+        Backend::Ros2Dds =&gt; ros_z_protocol::KeyExprFormat::Ros2Dds,
+    };
+
     // Create a ZContext - the entry point for ros-z applications
     // ZContext manages the connection to the Zenoh network and coordinates
     // communication between nodes. It can be configured with different modes:
@@ -319,9 +315,13 @@ async fn main() -&gt; Result&lt;()&gt; {
         ZContextBuilder::default()
             .with_mode(args.mode)
             .with_connect_endpoints([e])
+            .keyexpr_format(format)
             .build()?
     } else {
-        ZContextBuilder::default().with_mode(args.mode).build()?
+        ZContextBuilder::default()
+            .with_mode(args.mode)
+            .keyexpr_format(format)
+            .build()?
     };
 
     let period = std::time::Duration::from_secs_f64(args.period);
@@ -329,21 +329,10 @@ async fn main() -&gt; Result&lt;()&gt; {
 
     // Run as either a publisher (talker) or subscriber (listener)
     // Both share the same ZContext but perform different roles
-    // Backend selection determines key expression format (domain prefix or not)
-    match (args.role.as_str(), args.backend) {
-        ("listener", Backend::RmwZenoh) =&gt; {
-            run_subscriber::&lt;RmwZenohBackend&gt;(ctx, args.topic).await?
-        }
-        #[cfg(feature = "ros2dds")]
-        ("listener", Backend::Ros2Dds) =&gt; run_subscriber::&lt;Ros2DdsBackend&gt;(ctx, args.topic).await?,
-        ("talker", Backend::RmwZenoh) =&gt; {
-            run_publisher::&lt;RmwZenohBackend&gt;(ctx, args.topic, period, args.data).await?
-        }
-        #[cfg(feature = "ros2dds")]
-        ("talker", Backend::Ros2Dds) =&gt; {
-            run_publisher::&lt;Ros2DdsBackend&gt;(ctx, args.topic, period, args.data).await?
-        }
-        (role, _) =&gt; println!(
+    match args.role.as_str() {
+        "listener" =&gt; run_subscriber(ctx, args.topic).await?,
+        "talker" =&gt; run_publisher(ctx, args.topic, period, args.data).await?,
+        role =&gt; println!(
             "Please use \"talker\" or \"listener\" as role, {} is not supported.",
             role
         ),
