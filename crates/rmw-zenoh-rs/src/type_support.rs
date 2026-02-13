@@ -8,6 +8,8 @@ unsafe impl ExternType for crate::ros::rosidl_service_type_support_t {
     type Id = type_id!("rosidl_service_type_support_t");
     type Kind = cxx::kind::Opaque;
 }
+// Type hash support is only available in Iron+ (not Humble)
+#[cfg(not(ros_distro_humble))]
 unsafe impl ExternType for crate::ros::rosidl_type_hash_t {
     type Id = type_id!("rosidl_type_hash_t");
     type Kind = cxx::kind::Trivial;
@@ -22,6 +24,7 @@ mod ffi {
         type c_void = crate::c_void;
         type rosidl_message_type_support_t = crate::ros::rosidl_message_type_support_t;
         type rosidl_service_type_support_t = crate::ros::rosidl_service_type_support_t;
+        #[cfg(not(ros_distro_humble))]
         type rosidl_type_hash_t = crate::ros::rosidl_type_hash_t;
 
         #[namespace = "serde_bridge"]
@@ -70,6 +73,8 @@ mod ffi {
             ts: *const rosidl_service_type_support_t,
         ) -> *const rosidl_message_type_support_t;
 
+        // Type hash support is only available in Iron+ (not Humble)
+        #[cfg(not(ros_distro_humble))]
         #[namespace = "serde_bridge"]
         unsafe fn get_service_type_hash(
             ts: *const rosidl_service_type_support_t,
@@ -80,8 +85,11 @@ mod ffi {
 use ffi::*;
 use ros_z::entity::{TypeHash, TypeInfo};
 
+// Type hash support is only available in Iron+ (not Humble)
+#[cfg(not(ros_distro_humble))]
 use crate::ros::rosidl_type_hash_t;
 
+#[cfg(not(ros_distro_humble))]
 impl std::fmt::Display for rosidl_type_hash_t {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         const HASH_PREFIX: &str = "RIHS01_";
@@ -244,15 +252,24 @@ impl ServiceTypeSupport {
     }
 
     pub fn get_type_hash(&self) -> TypeHash {
-        let hash = unsafe {
-            let type_hash = get_service_type_hash(self.ptr);
-            if type_hash.is_null() {
-                // Fallback to response type's hash if service hash is not available
-                return self.response.get_type_hash();
-            }
-            *type_hash
-        };
-        TypeHash::new(hash.version, hash.value)
+        // Type hash support is only available in Iron+ (not Humble)
+        #[cfg(not(ros_distro_humble))]
+        {
+            let hash = unsafe {
+                let type_hash = get_service_type_hash(self.ptr);
+                if type_hash.is_null() {
+                    // Fallback to response type's hash if service hash is not available
+                    return self.response.get_type_hash();
+                }
+                *type_hash
+            };
+            TypeHash::new(hash.version, hash.value)
+        }
+        #[cfg(ros_distro_humble)]
+        {
+            // For Humble, use response type's hash (service-level hash not supported)
+            self.response.get_type_hash()
+        }
     }
 
     pub fn get_type_info(&self) -> TypeInfo {

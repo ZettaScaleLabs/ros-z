@@ -29,6 +29,9 @@ const rosidl_message_type_support_t *get_request_type_support(const rosidl_servi
 
 const rosidl_message_type_support_t *get_response_type_support(const rosidl_service_type_support_t *ts);
 
+// Type hash support is only available in Iron+ (not Humble)
+#if !defined(ROS_DISTRO_HUMBLE)
 const rosidl_type_hash_t *get_service_type_hash(const rosidl_service_type_support_t *ts);
+#endif
 
 };  // namespace serde_bridge

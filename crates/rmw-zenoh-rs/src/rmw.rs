@@ -1650,10 +1650,19 @@ pub extern "C" fn rmw_get_publishers_info_by_topic(
                     }
                 };
                 (*endpoint_info).topic_type = rcutils_strdup(type_cstr.as_ptr(), *allocator);
-                (*endpoint_info).topic_type_hash = rosidl_type_hash_t {
-                    version: type_info.hash.version,
-                    value: type_info.hash.value,
-                };
+                // Type hash support is only available in Iron+ (not Humble)
+                #[cfg(not(ros_distro_humble))]
+                {
+                    (*endpoint_info).topic_type_hash = rosidl_type_hash_t {
+                        version: type_info.hash.version,
+                        value: type_info.hash.value,
+                    };
+                }
+                #[cfg(ros_distro_humble)]
+                {
+                    // On Humble, use default/zero hash
+                    (*endpoint_info).topic_type_hash = std::mem::zeroed();
+                }
             } else {
                 (*endpoint_info).topic_type = std::ptr::null();
             }
@@ -3003,10 +3012,19 @@ pub extern "C" fn rmw_get_subscriptions_info_by_topic(
                     }
                 };
                 (*endpoint_info).topic_type = rcutils_strdup(type_cstr.as_ptr(), *allocator);
-                (*endpoint_info).topic_type_hash = rosidl_type_hash_t {
-                    version: type_info.hash.version,
-                    value: type_info.hash.value,
-                };
+                // Type hash support is only available in Iron+ (not Humble)
+                #[cfg(not(ros_distro_humble))]
+                {
+                    (*endpoint_info).topic_type_hash = rosidl_type_hash_t {
+                        version: type_info.hash.version,
+                        value: type_info.hash.value,
+                    };
+                }
+                #[cfg(ros_distro_humble)]
+                {
+                    // On Humble, use default/zero hash
+                    (*endpoint_info).topic_type_hash = std::mem::zeroed();
+                }
             } else {
                 (*endpoint_info).topic_type = std::ptr::null();
             }

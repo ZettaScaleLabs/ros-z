@@ -57,6 +57,8 @@ fn main() {
     let mut clang_args = include_args;
     if is_humble {
         clang_args.push("-DROS_DISTRO_HUMBLE".to_string());
+        // Emit Rust cfg for conditional compilation in Rust code
+        println!("cargo:rustc-cfg=ros_distro_humble");
     }
 
     // Generate bindings
