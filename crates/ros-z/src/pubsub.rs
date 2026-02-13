@@ -33,6 +33,9 @@ pub struct ZPub<T: ZMessage, S: ZSerializer> {
     shm_config: Option<Arc<crate::shm::ShmConfig>>,
     /// Schema for dynamic message publishing.
     pub dyn_schema: Option<Arc<crate::dynamic::schema::MessageSchema>>,
+    /// Cached Zenoh encoding for this publisher (performance optimization).
+    /// If set, this encoding will be used for all published messages.
+    encoding: Option<Arc<zenoh::bytes::Encoding>>,
     _phantom_data: PhantomData<(T, S)>,
 }
 
@@ -46,6 +49,9 @@ pub struct ZPubBuilder<T, S = CdrSerdes<T>> {
     /// Schema for dynamic message publishing.
     /// When set, the schema will be registered with the type description service.
     pub dyn_schema: Option<Arc<crate::dynamic::schema::MessageSchema>>,
+    /// Encoding format for this publisher.
+    /// If set, all published messages will use this encoding.
+    pub encoding: Option<crate::encoding::Encoding>,
     pub _phantom_data: PhantomData<(T, S)>,
 }
 
@@ -122,8 +128,40 @@ impl<T, S> ZPubBuilder<T, S> {
             shm_config: self.shm_config,
             keyexpr_format: self.keyexpr_format,
             dyn_schema: self.dyn_schema,
+            encoding: self.encoding,
             _phantom_data: PhantomData,
         }
+    }
+
+    /// Set the encoding format for published messages.
+    ///
+    /// This encoding will be transmitted with each message, allowing subscribers
+    /// to determine the serialization format at runtime.
+    ///
+    /// # Performance
+    ///
+    /// The Zenoh encoding is cached during `build()` to avoid repeated conversion
+    /// overhead on every `publish()` call.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ros_z::encoding::Encoding;
+    /// use ros_z::Builder;
+    ///
+    /// # fn main() -> zenoh::Result<()> {
+    /// # let ctx = ros_z::context::ZContextBuilder::default().build()?;
+    /// # let node = ctx.create_node("test").build()?;
+    /// // Publish with Protobuf encoding
+    /// let pub = node.create_pub::<ros_z_msgs::geometry_msgs::Point>("/topic")
+    ///     .with_encoding(Encoding::protobuf().with_schema("geometry_msgs/msg/Point"))
+    ///     .build()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_encoding(mut self, encoding: crate::encoding::Encoding) -> Self {
+        self.encoding = Some(encoding);
+        self
     }
 
     /// Set the dynamic message schema for runtime-typed publishers.
@@ -246,6 +284,13 @@ where
             .wait()?;
         let gid = crate::entity::endpoint_gid(&self.entity);
 
+        // Cache the Zenoh encoding if specified (performance optimization)
+        let encoding = self.encoding.map(|enc| Arc::new(enc.to_zenoh_encoding()));
+
+        if let Some(ref enc) = encoding {
+            debug!("[PUB] Using encoding: {}", enc);
+        }
+
         Ok(ZPub {
             entity: self.entity,
             sn: AtomicUsize::new(0),
@@ -256,6 +301,7 @@ where
             with_attachment: self.with_attachment,
             shm_config: self.shm_config,
             dyn_schema: self.dyn_schema,
+            encoding,
             _phantom_data: Default::default(),
         })
     }
@@ -334,6 +380,12 @@ where
         let zbytes = zenoh::bytes::ZBytes::from(zbuf);
 
         let mut put_builder = self.inner.put(zbytes);
+
+        // Set encoding if configured (performance: uses cached Arc to avoid clone overhead)
+        if let Some(ref enc) = self.encoding {
+            put_builder = put_builder.encoding((**enc).clone());
+        }
+
         if self.with_attachment {
             let att = self.new_attachment();
             let sn = att.sequence_number;
@@ -363,6 +415,12 @@ where
 
         let zbytes = zenoh::bytes::ZBytes::from(zbuf);
         let mut put_builder = self.inner.put(zbytes);
+
+        // Set encoding if configured
+        if let Some(ref enc) = self.encoding {
+            put_builder = put_builder.encoding((**enc).clone());
+        }
+
         if self.with_attachment {
             put_builder = put_builder.attachment(self.new_attachment());
         }
@@ -378,6 +436,12 @@ where
     /// - `ZBytes` - zenoh bytes
     pub fn publish_serialized(&self, data: impl Into<zenoh::bytes::ZBytes>) -> Result<()> {
         let mut put_builder = self.inner.put(data);
+
+        // Set encoding if configured
+        if let Some(ref enc) = self.encoding {
+            put_builder = put_builder.encoding((**enc).clone());
+        }
+
         if self.with_attachment {
             put_builder = put_builder.attachment(self.new_attachment());
         }
@@ -388,6 +452,12 @@ where
         let payload = msg.payload().to_bytes();
         // NOTE: pass by reference to avoid copy
         let mut put_builder = self.inner.put(&payload);
+
+        // Set encoding if configured
+        if let Some(ref enc) = self.encoding {
+            put_builder = put_builder.encoding((**enc).clone());
+        }
+
         if self.with_attachment {
             put_builder = put_builder.attachment(self.new_attachment());
         }

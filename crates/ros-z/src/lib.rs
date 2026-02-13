@@ -4,6 +4,7 @@ mod common;
 pub mod config;
 pub mod context;
 pub mod dynamic;
+pub mod encoding;
 pub mod entity;
 pub mod event;
 pub mod graph;
