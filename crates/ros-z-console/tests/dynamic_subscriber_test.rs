@@ -46,13 +46,16 @@ fn test_dynamic_subscriber_std_msgs_string() {
     let router = TestRouter::new();
     println!("Router endpoint: {}", router.endpoint());
 
-    // Start ros-z-console with --echo /chatter
-    let mut console = spawn_console_headless(router.endpoint(), &["/chatter"]);
+    // Use unique topic name to avoid interference with other tests
+    let topic = "/chatter_string_test";
+
+    // Start ros-z-console with --echo
+    let mut console = spawn_console_headless(router.endpoint(), &[topic]);
     println!("Console started");
 
     // Start ros2 topic pub
     let _publisher = spawn_ros2_topic_pub(
-        "/chatter",
+        topic,
         "std_msgs/msg/String",
         "{data: \"hello from ros2\"}",
         router.port,
@@ -81,7 +84,7 @@ fn test_dynamic_subscriber_std_msgs_string() {
 
             if let Ok(json) = serde_json::from_str::<Value>(&line) {
                 if json["event"] == "topic_subscribed" {
-                    assert_eq!(json["topic"], "/chatter");
+                    assert_eq!(json["topic"], topic);
                     assert_eq!(json["type_name"], "std_msgs/msg/String");
 
                     // Type hash should start with RIHS01_
@@ -109,7 +112,7 @@ fn test_dynamic_subscriber_std_msgs_string() {
                 }
 
                 if json["event"] == "message_received" {
-                    assert_eq!(json["topic"], "/chatter");
+                    assert_eq!(json["topic"], topic);
                     assert_eq!(json["type"], "std_msgs/msg/String");
 
                     // Check that data field contains "hello from ros2"
@@ -140,7 +143,10 @@ fn test_dynamic_subscriber_sensor_msgs_laser_scan() {
     let router = TestRouter::new();
     println!("Router endpoint: {}", router.endpoint());
 
-    let mut console = spawn_console_headless(router.endpoint(), &["/scan"]);
+    // Use unique topic name to avoid interference with other tests
+    let topic = "/scan_laserscan_test";
+
+    let mut console = spawn_console_headless(router.endpoint(), &[topic]);
     println!("Console started");
 
     let laser_scan_data = r#"{
@@ -160,7 +166,7 @@ fn test_dynamic_subscriber_sensor_msgs_laser_scan() {
     }"#;
 
     let _publisher = spawn_ros2_topic_pub(
-        "/scan",
+        topic,
         "sensor_msgs/msg/LaserScan",
         laser_scan_data,
         router.port,
@@ -185,7 +191,7 @@ fn test_dynamic_subscriber_sensor_msgs_laser_scan() {
 
             if let Ok(json) = serde_json::from_str::<Value>(&line) {
                 if json["event"] == "topic_subscribed" {
-                    assert_eq!(json["topic"], "/scan");
+                    assert_eq!(json["topic"], topic);
                     assert_eq!(json["type_name"], "sensor_msgs/msg/LaserScan");
 
                     if let Some(hash) = json["type_hash"].as_str() {
@@ -207,7 +213,7 @@ fn test_dynamic_subscriber_sensor_msgs_laser_scan() {
                 }
 
                 if json["event"] == "message_received" {
-                    assert_eq!(json["topic"], "/scan");
+                    assert_eq!(json["topic"], topic);
                     assert_eq!(json["type"], "sensor_msgs/msg/LaserScan");
 
                     // Verify some fields from the data
@@ -253,20 +259,24 @@ fn test_dynamic_subscriber_multiple_topics() {
     let router = TestRouter::new();
     println!("Router endpoint: {}", router.endpoint());
 
-    // Echo both /chatter and /scan
-    let mut console = spawn_console_headless(router.endpoint(), &["/chatter", "/scan"]);
+    // Use unique topic names to avoid interference with other tests
+    let topic1 = "/chatter_multi_test";
+    let topic2 = "/scan_multi_test";
+
+    // Echo both topics
+    let mut console = spawn_console_headless(router.endpoint(), &[topic1, topic2]);
     println!("Console started");
 
     // Publish to both topics
     let _pub1 = spawn_ros2_topic_pub(
-        "/chatter",
+        topic1,
         "std_msgs/msg/String",
         "{data: \"multi-topic test\"}",
         router.port,
     );
 
     let _pub2 = spawn_ros2_topic_pub(
-        "/scan",
+        topic2,
         "sensor_msgs/msg/LaserScan",
         r#"{
             "header": {"stamp": {"sec": 0, "nanosec": 0}, "frame_id": "test"},
@@ -325,19 +335,23 @@ fn test_dynamic_subscriber_multiple_topics() {
     }
 
     assert!(
-        subscribed_topics.contains("/chatter"),
-        "Should subscribe to /chatter"
+        subscribed_topics.contains(topic1),
+        "Should subscribe to {}",
+        topic1
     );
     assert!(
-        subscribed_topics.contains("/scan"),
-        "Should subscribe to /scan"
+        subscribed_topics.contains(topic2),
+        "Should subscribe to {}",
+        topic2
     );
     assert!(
-        received_messages.contains("/chatter"),
-        "Should receive messages from /chatter"
+        received_messages.contains(topic1),
+        "Should receive messages from {}",
+        topic1
     );
     assert!(
-        received_messages.contains("/scan"),
-        "Should receive messages from /scan"
+        received_messages.contains(topic2),
+        "Should receive messages from {}",
+        topic2
     );
 }
