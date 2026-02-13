@@ -1,4 +1,5 @@
 #![cfg(feature = "ros-interop")]
+#![cfg(not(ros_humble))]
 
 mod common;
 

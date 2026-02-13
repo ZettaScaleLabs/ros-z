@@ -33,3 +33,5 @@ serial_test = "3.0"
 default = []
 # ROS interop tests require ros2 CLI with rmw_zenoh_cpp
 ros-interop = []
+# ROS 2 distro features (for conditional test compilation)
+humble = []
