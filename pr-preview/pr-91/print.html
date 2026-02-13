@@ -1846,6 +1846,170 @@ cargo run --example z_srvcli          # Service example with example_interfaces
 <p>For a detailed walkthrough of creating your own project with ros-z (not using the repository examples), see the <a href="chapters/./quick_start.html#option-2-create-your-own-project">Quick Start</a> guide.</p>
 </div>
 </div>
+<hr />
+<h2 id="demo-nodes"><a class="header" href="#demo-nodes">Demo Nodes</a></h2>
+<p>The <code>demo_nodes</code> examples are basic ROS 2 patterns referenced from <a href="https://github.com/ros2/demos/tree/rolling/demo_nodes_cpp">ROS 2 demo_nodes_cpp</a>. These demonstrate fundamental pub/sub and service patterns.</p>
+<h3 id="talker-publisher"><a class="header" href="#talker-publisher">Talker (Publisher)</a></h3>
+<p>A simple publisher node that publishes "Hello World" messages to the <code>/chatter</code> topic.</p>
+<p><strong>Features:</strong></p>
+<ul>
+<li>Publishes <code>std_msgs/String</code> messages</li>
+<li>Uses async API for non-blocking publishing</li>
+<li>Publishes at 1 Hz (configurable)</li>
+<li>Uses QoS history depth of 7 (KeepLast)</li>
+</ul>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-bash"># Default settings (topic: chatter, period: 1.0s)
+cargo run --example demo_nodes_talker
+
+# Custom topic and faster publishing
+cargo run --example demo_nodes_talker -- --topic /my_topic --period 0.5
+
+# Connect to specific Zenoh router
+cargo run --example demo_nodes_talker -- --endpoint tcp/localhost:7447
+</code></pre>
+<p><strong>Command-line Options:</strong></p>
+<div class="table-wrapper"><table><thead><tr><th>Option</th><th>Description</th><th>Default</th></tr></thead><tbody>
+<tr><td><code>-t, --topic &lt;TOPIC&gt;</code></td><td>Topic name to publish to</td><td><code>chatter</code></td></tr>
+<tr><td><code>-p, --period &lt;PERIOD&gt;</code></td><td>Publishing period in seconds</td><td><code>1.0</code></td></tr>
+<tr><td><code>-m, --mode &lt;MODE&gt;</code></td><td>Zenoh session mode (peer/client/router)</td><td><code>peer</code></td></tr>
+<tr><td><code>-e, --endpoint &lt;ENDPOINT&gt;</code></td><td>Zenoh router endpoint to connect to</td><td>-</td></tr>
+</tbody></table>
+</div>
+<h3 id="listener-subscriber"><a class="header" href="#listener-subscriber">Listener (Subscriber)</a></h3>
+<p>A simple subscriber node that listens to messages on a topic.</p>
+<p><strong>Features:</strong></p>
+<ul>
+<li>Subscribes to <code>std_msgs/String</code> messages</li>
+<li>Uses async API for receiving messages</li>
+<li>Uses QoS history depth of 10 (KeepLast)</li>
+<li>Prints received messages to console</li>
+</ul>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-bash"># Default settings (topic: chatter)
+cargo run --example demo_nodes_listener
+
+# Custom topic
+cargo run --example demo_nodes_listener -- --topic /my_topic
+
+# Connect to specific Zenoh router
+cargo run --example demo_nodes_listener -- --endpoint tcp/localhost:7447
+</code></pre>
+<p><strong>Command-line Options:</strong></p>
+<div class="table-wrapper"><table><thead><tr><th>Option</th><th>Description</th><th>Default</th></tr></thead><tbody>
+<tr><td><code>-t, --topic &lt;TOPIC&gt;</code></td><td>Topic name to subscribe to</td><td><code>chatter</code></td></tr>
+<tr><td><code>-m, --mode &lt;MODE&gt;</code></td><td>Zenoh session mode (peer/client/router)</td><td><code>peer</code></td></tr>
+<tr><td><code>-e, --endpoint &lt;ENDPOINT&gt;</code></td><td>Zenoh router endpoint to connect to</td><td>-</td></tr>
+</tbody></table>
+</div>
+<p><strong>Test the pub/sub pattern:</strong></p>
+<p>Terminal 1:</p>
+<pre><code class="language-bash">cargo run --example demo_nodes_talker
+</code></pre>
+<p>Terminal 2:</p>
+<pre><code class="language-bash">cargo run --example demo_nodes_listener
+</code></pre>
+<p>Expected output in Terminal 2:</p>
+<pre><code class="language-text">I heard: [Hello World: 1]
+I heard: [Hello World: 2]
+I heard: [Hello World: 3]
+...
+</code></pre>
+<h3 id="add-two-ints-server"><a class="header" href="#add-two-ints-server">Add Two Ints Server</a></h3>
+<p>A simple service server that adds two integers and returns the result.</p>
+<p><strong>Features:</strong></p>
+<ul>
+<li>Provides <code>example_interfaces/AddTwoInts</code> service</li>
+<li>Handles addition requests synchronously</li>
+<li>Uses async API for service handling</li>
+<li>Prints received requests and sent responses</li>
+</ul>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-bash"># Default settings (handles unlimited requests)
+cargo run --example demo_nodes_add_two_ints_server
+
+# Handle only one request and exit
+cargo run --example demo_nodes_add_two_ints_server -- --count 1
+
+# Connect to specific Zenoh router
+cargo run --example demo_nodes_add_two_ints_server -- --endpoint tcp/localhost:7447
+</code></pre>
+<p><strong>Command-line Options:</strong></p>
+<div class="table-wrapper"><table><thead><tr><th>Option</th><th>Description</th><th>Default</th></tr></thead><tbody>
+<tr><td><code>-c, --count &lt;COUNT&gt;</code></td><td>Number of requests to handle before exiting (0 for unlimited)</td><td><code>0</code></td></tr>
+<tr><td><code>-m, --mode &lt;MODE&gt;</code></td><td>Zenoh session mode (peer/client/router)</td><td><code>peer</code></td></tr>
+<tr><td><code>-e, --endpoint &lt;ENDPOINT&gt;</code></td><td>Zenoh router endpoint to connect to</td><td>-</td></tr>
+</tbody></table>
+</div>
+<h3 id="add-two-ints-client"><a class="header" href="#add-two-ints-client">Add Two Ints Client</a></h3>
+<p>A simple service client that sends addition requests to the server.</p>
+<p><strong>Features:</strong></p>
+<ul>
+<li>Calls <code>example_interfaces/AddTwoInts</code> service</li>
+<li>Supports both synchronous and asynchronous response waiting</li>
+<li>Uses async API for client operations</li>
+<li>Configurable numbers to add</li>
+</ul>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-bash"># Default settings (sync mode, adds 2 + 3)
+cargo run --example demo_nodes_add_two_ints_client
+
+# Async mode
+cargo run --example demo_nodes_add_two_ints_client -- --async-mode
+
+# Custom numbers
+cargo run --example demo_nodes_add_two_ints_client -- --a 10 --b 20
+
+# Async mode with custom numbers
+cargo run --example demo_nodes_add_two_ints_client -- --a 10 --b 20 --async-mode
+
+# Connect to specific Zenoh router
+cargo run --example demo_nodes_add_two_ints_client -- --endpoint tcp/localhost:7447
+</code></pre>
+<p><strong>Command-line Options:</strong></p>
+<div class="table-wrapper"><table><thead><tr><th>Option</th><th>Description</th><th>Default</th></tr></thead><tbody>
+<tr><td><code>-a, --a &lt;A&gt;</code></td><td>First number to add</td><td><code>2</code></td></tr>
+<tr><td><code>-b, --b &lt;B&gt;</code></td><td>Second number to add</td><td><code>3</code></td></tr>
+<tr><td><code>--async-mode</code></td><td>Use asynchronous response waiting</td><td><code>false</code></td></tr>
+<tr><td><code>-m, --mode &lt;MODE&gt;</code></td><td>Zenoh session mode (peer/client/router)</td><td><code>peer</code></td></tr>
+<tr><td><code>-e, --endpoint &lt;ENDPOINT&gt;</code></td><td>Zenoh router endpoint to connect to</td><td>-</td></tr>
+</tbody></table>
+</div>
+<p><strong>Test the service pattern:</strong></p>
+<p>Terminal 1 (Server):</p>
+<pre><code class="language-bash">cargo run --example demo_nodes_add_two_ints_server -- --count 1
+</code></pre>
+<p>Terminal 2 (Client - sync mode):</p>
+<pre><code class="language-bash">cargo run --example demo_nodes_add_two_ints_client
+</code></pre>
+<p>Or Terminal 2 (Client - async mode):</p>
+<pre><code class="language-bash">cargo run --example demo_nodes_add_two_ints_client -- --async-mode
+</code></pre>
+<p><strong>Expected output (Client):</strong></p>
+<pre><code class="language-text">AddTwoInts service client started (mode: sync/async)
+Sending request: 2 + 3
+Received response: 5
+Result: 5
+</code></pre>
+<p><strong>Expected output (Server):</strong></p>
+<pre><code class="language-text">AddTwoInts service server started
+Received request: 2 + 3
+Sending response: 5
+</code></pre>
+<hr />
+<h2 id="custom-messages-demo"><a class="header" href="#custom-messages-demo">Custom Messages Demo</a></h2>
+<p>This example demonstrates how to generate Rust types from user-defined ROS 2 message definitions. See the <a href="chapters/./custom_messages.html">Custom Messages</a> chapter for comprehensive documentation.</p>
+<p><strong>Quick start:</strong></p>
+<pre><code class="language-bash">cd crates/ros-z/examples/custom_msgs_demo
+ROS_Z_MSG_PATH="./my_robot_msgs" cargo build
+</code></pre>
+<hr />
+<h2 id="protobuf-demo"><a class="header" href="#protobuf-demo">Protobuf Demo</a></h2>
+<p>This example demonstrates using protobuf serialization with ros-z, both for ROS messages and custom protobuf messages. See the <a href="chapters/./protobuf.html">Protobuf Serialization</a> chapter for comprehensive documentation.</p>
+<p><strong>Quick start:</strong></p>
+<pre><code class="language-bash">cd crates/ros-z/examples/protobuf_demo
+cargo run
+</code></pre>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="networking"><a class="header" href="#networking">Networking</a></h1>
 <p><strong>Configure ros-z's Zenoh transport layer for optimal performance in your deployment environment.</strong> ros-z uses router-based architecture by default, matching ROS 2's official <code>rmw_zenoh_cpp</code> middleware for production-ready scalability.</p>
 <div align="center">
