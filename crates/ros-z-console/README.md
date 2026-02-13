@@ -4,8 +4,8 @@ Documentation source: book/ - Published: https://zettascalelabs.github.io/ros-z/
 Keep this file minimal. Point readers to the book.
 -->
 
-# ros-z Documentation
+# ros-z-console
 
-mdBook documentation source.
+ROS 2 monitoring and introspection tool (TUI/Web).
 
-**📚 [View Online](https://zettascalelabs.github.io/ros-z/)**
+**📚 [Full Documentation](https://zettascalelabs.github.io/ros-z/chapters/console.html)**

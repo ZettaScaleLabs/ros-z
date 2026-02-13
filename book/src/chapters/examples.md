@@ -67,3 +67,232 @@ cargo run --example z_srvcli          # Service example with example_interfaces
 ```admonish tip
 For a detailed walkthrough of creating your own project with ros-z (not using the repository examples), see the [Quick Start](./quick_start.md#option-2-create-your-own-project) guide.
 ```
+
+---
+
+## Demo Nodes
+
+The `demo_nodes` examples are basic ROS 2 patterns referenced from [ROS 2 demo_nodes_cpp](https://github.com/ros2/demos/tree/rolling/demo_nodes_cpp). These demonstrate fundamental pub/sub and service patterns.
+
+### Talker (Publisher)
+
+A simple publisher node that publishes "Hello World" messages to the `/chatter` topic.
+
+**Features:**
+
+- Publishes `std_msgs/String` messages
+- Uses async API for non-blocking publishing
+- Publishes at 1 Hz (configurable)
+- Uses QoS history depth of 7 (KeepLast)
+
+**Usage:**
+
+```bash
+# Default settings (topic: chatter, period: 1.0s)
+cargo run --example demo_nodes_talker
+
+# Custom topic and faster publishing
+cargo run --example demo_nodes_talker -- --topic /my_topic --period 0.5
+
+# Connect to specific Zenoh router
+cargo run --example demo_nodes_talker -- --endpoint tcp/localhost:7447
+```
+
+**Command-line Options:**
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-t, --topic <TOPIC>` | Topic name to publish to | `chatter` |
+| `-p, --period <PERIOD>` | Publishing period in seconds | `1.0` |
+| `-m, --mode <MODE>` | Zenoh session mode (peer/client/router) | `peer` |
+| `-e, --endpoint <ENDPOINT>` | Zenoh router endpoint to connect to | - |
+
+### Listener (Subscriber)
+
+A simple subscriber node that listens to messages on a topic.
+
+**Features:**
+
+- Subscribes to `std_msgs/String` messages
+- Uses async API for receiving messages
+- Uses QoS history depth of 10 (KeepLast)
+- Prints received messages to console
+
+**Usage:**
+
+```bash
+# Default settings (topic: chatter)
+cargo run --example demo_nodes_listener
+
+# Custom topic
+cargo run --example demo_nodes_listener -- --topic /my_topic
+
+# Connect to specific Zenoh router
+cargo run --example demo_nodes_listener -- --endpoint tcp/localhost:7447
+```
+
+**Command-line Options:**
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-t, --topic <TOPIC>` | Topic name to subscribe to | `chatter` |
+| `-m, --mode <MODE>` | Zenoh session mode (peer/client/router) | `peer` |
+| `-e, --endpoint <ENDPOINT>` | Zenoh router endpoint to connect to | - |
+
+**Test the pub/sub pattern:**
+
+Terminal 1:
+
+```bash
+cargo run --example demo_nodes_talker
+```
+
+Terminal 2:
+
+```bash
+cargo run --example demo_nodes_listener
+```
+
+Expected output in Terminal 2:
+
+```text
+I heard: [Hello World: 1]
+I heard: [Hello World: 2]
+I heard: [Hello World: 3]
+...
+```
+
+### Add Two Ints Server
+
+A simple service server that adds two integers and returns the result.
+
+**Features:**
+
+- Provides `example_interfaces/AddTwoInts` service
+- Handles addition requests synchronously
+- Uses async API for service handling
+- Prints received requests and sent responses
+
+**Usage:**
+
+```bash
+# Default settings (handles unlimited requests)
+cargo run --example demo_nodes_add_two_ints_server
+
+# Handle only one request and exit
+cargo run --example demo_nodes_add_two_ints_server -- --count 1
+
+# Connect to specific Zenoh router
+cargo run --example demo_nodes_add_two_ints_server -- --endpoint tcp/localhost:7447
+```
+
+**Command-line Options:**
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-c, --count <COUNT>` | Number of requests to handle before exiting (0 for unlimited) | `0` |
+| `-m, --mode <MODE>` | Zenoh session mode (peer/client/router) | `peer` |
+| `-e, --endpoint <ENDPOINT>` | Zenoh router endpoint to connect to | - |
+
+### Add Two Ints Client
+
+A simple service client that sends addition requests to the server.
+
+**Features:**
+
+- Calls `example_interfaces/AddTwoInts` service
+- Supports both synchronous and asynchronous response waiting
+- Uses async API for client operations
+- Configurable numbers to add
+
+**Usage:**
+
+```bash
+# Default settings (sync mode, adds 2 + 3)
+cargo run --example demo_nodes_add_two_ints_client
+
+# Async mode
+cargo run --example demo_nodes_add_two_ints_client -- --async-mode
+
+# Custom numbers
+cargo run --example demo_nodes_add_two_ints_client -- --a 10 --b 20
+
+# Async mode with custom numbers
+cargo run --example demo_nodes_add_two_ints_client -- --a 10 --b 20 --async-mode
+
+# Connect to specific Zenoh router
+cargo run --example demo_nodes_add_two_ints_client -- --endpoint tcp/localhost:7447
+```
+
+**Command-line Options:**
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-a, --a <A>` | First number to add | `2` |
+| `-b, --b <B>` | Second number to add | `3` |
+| `--async-mode` | Use asynchronous response waiting | `false` |
+| `-m, --mode <MODE>` | Zenoh session mode (peer/client/router) | `peer` |
+| `-e, --endpoint <ENDPOINT>` | Zenoh router endpoint to connect to | - |
+
+**Test the service pattern:**
+
+Terminal 1 (Server):
+
+```bash
+cargo run --example demo_nodes_add_two_ints_server -- --count 1
+```
+
+Terminal 2 (Client - sync mode):
+
+```bash
+cargo run --example demo_nodes_add_two_ints_client
+```
+
+Or Terminal 2 (Client - async mode):
+
+```bash
+cargo run --example demo_nodes_add_two_ints_client -- --async-mode
+```
+
+**Expected output (Client):**
+
+```text
+AddTwoInts service client started (mode: sync/async)
+Sending request: 2 + 3
+Received response: 5
+Result: 5
+```
+
+**Expected output (Server):**
+
+```text
+AddTwoInts service server started
+Received request: 2 + 3
+Sending response: 5
+```
+
+---
+
+## Custom Messages Demo
+
+This example demonstrates how to generate Rust types from user-defined ROS 2 message definitions. See the [Custom Messages](./custom_messages.md) chapter for comprehensive documentation.
+
+**Quick start:**
+
+```bash
+cd crates/ros-z/examples/custom_msgs_demo
+ROS_Z_MSG_PATH="./my_robot_msgs" cargo build
+```
+
+---
+
+## Protobuf Demo
+
+This example demonstrates using protobuf serialization with ros-z, both for ROS messages and custom protobuf messages. See the [Protobuf Serialization](./protobuf.md) chapter for comprehensive documentation.
+
+**Quick start:**
+
+```bash
+cd crates/ros-z/examples/protobuf_demo
+cargo run
+```
