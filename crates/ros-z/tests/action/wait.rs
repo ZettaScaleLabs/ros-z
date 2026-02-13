@@ -192,17 +192,33 @@ mod tests {
         Ok(())
     }
 
+    /// Tests that status watch correctly receives status changes asynchronously.
+    ///
+    /// **Race Condition Prevention:**
+    /// - Uses explicit synchronization (oneshot channel) to ensure client is ready before server processes
+    /// - Client uses `borrow_and_update()` to mark initial status as "seen"
+    /// - Without these, status could transition Unknown->Accepted->Executing->Succeeded
+    ///   before `changed()` is called, causing it to wait forever for a change that already happened
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_action_status_async_wait() -> Result<()> {
+        use tokio::sync::oneshot;
+
         let (_client_node, _server_node, client, server) = setup_test_with_client_server().await?;
+
+        // Synchronization: client signals when ready to observe status changes
+        let (ready_tx, ready_rx) = oneshot::channel();
 
         // Start server that will update status
         let server_clone = server.clone();
         tokio::spawn(async move {
             if let Ok(requested) = server_clone.recv_goal().await {
                 let accepted = requested.accept();
+
+                // Wait for client to be ready to observe status changes
+                let _ = ready_rx.await;
+
+                // Now proceed with status transitions
                 let executing = accepted.execute();
-                // Server will process and complete
                 let _ = executing.succeed(TestResult { value: 100 });
             }
         });
@@ -213,13 +229,27 @@ mod tests {
         // Test waiting for status changes
         let mut status_watch = goal_handle.status_watch().unwrap();
 
-        // Initial status should be unknown or accepted
-        let _ = status_watch.changed().await;
-        let _initial_status = *status_watch.borrow();
+        // Check initial status first (marks it as "seen")
+        // This prevents race where status changes before we start waiting
+        let initial_status = *status_watch.borrow_and_update();
+        tracing::debug!("Initial status: {:?}", initial_status);
 
-        // Wait for completion status
-        let _ = status_watch.changed().await;
-        let _final_status = *status_watch.borrow();
+        // Signal server that we're ready to observe status changes
+        let _ = ready_tx.send(());
+
+        // Wait for first status change (Accepted -> Executing)
+        time::timeout(Duration::from_secs(5), status_watch.changed())
+            .await
+            .expect("timeout waiting for first status change")?;
+        let mid_status = *status_watch.borrow();
+        tracing::debug!("Mid status: {:?}", mid_status);
+
+        // Wait for final status change (Executing -> Succeeded)
+        time::timeout(Duration::from_secs(5), status_watch.changed())
+            .await
+            .expect("timeout waiting for final status change")?;
+        let final_status = *status_watch.borrow();
+        tracing::debug!("Final status: {:?}", final_status);
 
         Ok(())
     }
