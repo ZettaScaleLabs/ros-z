@@ -40,13 +40,7 @@ bool serialize_message(const rosidl_message_type_support_t *ts, const void *ros_
     auto callbacks = static_cast<const message_type_support_callbacks_t *>(ts->data);
 
     eprosima::fastcdr::FastBuffer buffer(reinterpret_cast<char *>(out.data()), out.size());
-#if defined(ROS_DISTRO_HUMBLE)
-    // Humble uses older fastcdr API without CdrVersion parameter
-    eprosima::fastcdr::Cdr ser(buffer, eprosima::fastcdr::Cdr::DEFAULT_ENDIAN, eprosima::fastcdr::Cdr::DDS_CDR);
-#else
-    // Iron+ uses newer fastcdr API with CdrVersion enum
     eprosima::fastcdr::Cdr ser(buffer, eprosima::fastcdr::Cdr::DEFAULT_ENDIAN, eprosima::fastcdr::CdrVersion::DDS_CDR);
-#endif
 
     ser.serialize_encapsulation();
     return callbacks->cdr_serialize(ros_message, ser);
@@ -104,18 +98,10 @@ const rosidl_message_type_support_t *get_response_type_support(const rosidl_serv
 }
 
 const rosidl_type_hash_t *get_service_type_hash(const rosidl_service_type_support_t *ts) {
-#if !defined(ROS_DISTRO_HUMBLE)
-    // Type hash support is only available in Iron+ (not Humble)
     if (!ts || !ts->get_type_hash_func) {
         return nullptr;
     }
     return ts->get_type_hash_func(ts);
-#else
-    // Humble doesn't support type hashes - return null stub
-    // This function should never be called on Humble due to Rust-side guards
-    (void)ts;  // Suppress unused parameter warning
-    return nullptr;
-#endif
 }
 
 }  // namespace serde_bridge

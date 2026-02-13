@@ -9,16 +9,6 @@
 
 using c_void = void;
 
-// Forward declare rosidl_type_hash_t for Humble compatibility
-// (type doesn't exist in Humble, but we need it for CXX bridge)
-#if defined(ROS_DISTRO_HUMBLE)
-struct rosidl_type_hash_s {
-    uint8_t version;
-    uint8_t value[32];
-};
-typedef struct rosidl_type_hash_s rosidl_type_hash_t;
-#endif
-
 namespace serde_bridge {
 
 const rosidl_message_type_support_t *get_message_typesupport(const rosidl_message_type_support_t *ts);
