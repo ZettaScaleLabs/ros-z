@@ -485,6 +485,9 @@ pub struct ZSubBuilder<T, S = CdrSerdes<T>> {
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
     pub dyn_schema: Option<Arc<crate::dynamic::schema::MessageSchema>>,
     pub locality: Option<zenoh::sample::Locality>,
+    /// Expected encoding for received messages.
+    /// If set, the subscriber will validate that received samples match this encoding.
+    pub expected_encoding: Option<crate::encoding::Encoding>,
     pub _phantom_data: PhantomData<(T, S)>,
 }
 
@@ -504,6 +507,7 @@ where
             keyexpr_format: self.keyexpr_format,
             dyn_schema: self.dyn_schema,
             locality: self.locality,
+            expected_encoding: self.expected_encoding,
             _phantom_data: PhantomData,
         }
     }
@@ -525,6 +529,32 @@ where
     /// ```
     pub fn with_locality(mut self, locality: zenoh::sample::Locality) -> Self {
         self.locality = Some(locality);
+        self
+    }
+
+    /// Set the expected encoding for received messages.
+    ///
+    /// When set, the subscriber will validate that incoming samples have matching
+    /// encoding metadata. If the encoding doesn't match, a warning is logged.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ros_z::encoding::Encoding;
+    /// use ros_z::Builder;
+    ///
+    /// # fn main() -> zenoh::Result<()> {
+    /// # let ctx = ros_z::context::ZContextBuilder::default().build()?;
+    /// # let node = ctx.create_node("test").build()?;
+    /// // Expect Protobuf encoding
+    /// let sub = node.create_sub::<ros_z_msgs::geometry_msgs::Point>("/topic")
+    ///     .with_encoding(Encoding::protobuf().with_schema("geometry_msgs/msg/Point"))
+    ///     .build()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_encoding(mut self, encoding: crate::encoding::Encoding) -> Self {
+        self.expected_encoding = Some(encoding);
         self
     }
 
@@ -604,10 +634,33 @@ where
             key_expr, self.entity.qos
         );
 
+        // Wrap handler with encoding validation if expected encoding is set
+        let expected_encoding = self.expected_encoding.clone();
+        let validated_handler = move |sample: Sample| {
+            // Validate encoding if expected encoding is set
+            if let Some(ref expected) = expected_encoding {
+                let encoding_str = sample.encoding().to_string();
+                if let Some(received) =
+                    crate::encoding::Encoding::from_zenoh_encoding(&encoding_str)
+                {
+                    if &received != expected {
+                        tracing::warn!(
+                            "Encoding mismatch: expected {:?}, received {:?}",
+                            expected,
+                            received
+                        );
+                    }
+                } else {
+                    tracing::debug!("Unknown encoding format: {}", encoding_str);
+                }
+            }
+            handler.handle(sample)
+        };
+
         let mut sub_builder = self
             .session
             .declare_subscriber(key_expr)
-            .callback(move |sample| handler.handle(sample));
+            .callback(validated_handler);
 
         // Apply locality restriction if specified
         if let Some(locality) = self.locality {
@@ -636,6 +689,7 @@ where
             queue,
             events_mgr: Arc::new(Mutex::new(EventsManager::new(gid))),
             dyn_schema: self.dyn_schema,
+            expected_encoding: self.expected_encoding,
             _phantom_data: Default::default(),
         })
     }
@@ -659,7 +713,26 @@ where
         F: Fn(S::Output) + Send + Sync + 'static,
         S: for<'a> ZDeserializer<Input<'a> = &'a [u8]> + 'static,
     {
+        let expected_encoding = self.expected_encoding.clone();
         let callback = Arc::new(move |sample: Sample| {
+            // Validate encoding if expected encoding is set
+            if let Some(ref expected) = expected_encoding {
+                let encoding_str = sample.encoding().to_string();
+                if let Some(received) =
+                    crate::encoding::Encoding::from_zenoh_encoding(&encoding_str)
+                {
+                    if &received != expected {
+                        tracing::warn!(
+                            "Encoding mismatch: expected {:?}, received {:?}",
+                            expected,
+                            received
+                        );
+                    }
+                } else {
+                    tracing::debug!("Unknown encoding format: {}", encoding_str);
+                }
+            }
+
             let payload = sample.payload().to_bytes();
             match S::deserialize(&payload) {
                 Ok(msg) => callback(msg),
@@ -719,6 +792,8 @@ pub struct ZSub<T: ZMessage, Q, S: ZDeserializer> {
     /// Schema for dynamic message deserialization.
     /// Required when using `DynamicMessage` with `DynamicCdrSerdes`.
     pub dyn_schema: Option<Arc<crate::dynamic::schema::MessageSchema>>,
+    /// Expected encoding for validation.
+    pub expected_encoding: Option<crate::encoding::Encoding>,
     _phantom_data: PhantomData<(T, Q, S)>,
 }
 
