@@ -1,3 +1,5 @@
+#![cfg(feature = "ros-interop")]
+
 mod common;
 
 use common::{ProcessGuard, TestRouter, check_ros2_available, spawn_ros2_topic_pub};
@@ -32,7 +34,6 @@ fn spawn_console_headless(router_endpoint: &str, echo_topics: &[&str]) -> Proces
 }
 
 #[test]
-#[ignore = "requires ros2 CLI with rmw_zenoh_cpp"]
 fn test_dynamic_subscriber_std_msgs_string() {
     if !check_ros2_available() {
         println!("Skipping test: ros2 CLI not available");
@@ -81,7 +82,7 @@ fn test_dynamic_subscriber_std_msgs_string() {
             if let Ok(json) = serde_json::from_str::<Value>(&line) {
                 if json["event"] == "topic_subscribed" {
                     assert_eq!(json["topic"], "/chatter");
-                    assert_eq!(json["type_name"], "std_msgs::msg::String");
+                    assert_eq!(json["type_name"], "std_msgs/msg/String");
 
                     // Type hash should start with RIHS01_
                     if let Some(hash) = json["type_hash"].as_str() {
@@ -109,7 +110,7 @@ fn test_dynamic_subscriber_std_msgs_string() {
 
                 if json["event"] == "message_received" {
                     assert_eq!(json["topic"], "/chatter");
-                    assert_eq!(json["type"], "std_msgs::msg::String");
+                    assert_eq!(json["type"], "std_msgs/msg/String");
 
                     // Check that data field contains "hello from ros2"
                     if let Some(data) = json["data"]["data"].as_str() {
@@ -128,7 +129,6 @@ fn test_dynamic_subscriber_std_msgs_string() {
 }
 
 #[test]
-#[ignore = "requires ros2 CLI with rmw_zenoh_cpp"]
 fn test_dynamic_subscriber_sensor_msgs_laser_scan() {
     if !check_ros2_available() {
         println!("Skipping test: ros2 CLI not available");
@@ -186,7 +186,7 @@ fn test_dynamic_subscriber_sensor_msgs_laser_scan() {
             if let Ok(json) = serde_json::from_str::<Value>(&line) {
                 if json["event"] == "topic_subscribed" {
                     assert_eq!(json["topic"], "/scan");
-                    assert_eq!(json["type_name"], "sensor_msgs::msg::LaserScan");
+                    assert_eq!(json["type_name"], "sensor_msgs/msg/LaserScan");
 
                     if let Some(hash) = json["type_hash"].as_str() {
                         assert!(hash.starts_with("RIHS01_"));
@@ -208,7 +208,7 @@ fn test_dynamic_subscriber_sensor_msgs_laser_scan() {
 
                 if json["event"] == "message_received" {
                     assert_eq!(json["topic"], "/scan");
-                    assert_eq!(json["type"], "sensor_msgs::msg::LaserScan");
+                    assert_eq!(json["type"], "sensor_msgs/msg/LaserScan");
 
                     // Verify some fields from the data
                     let data = &json["data"];
@@ -242,7 +242,6 @@ fn test_dynamic_subscriber_sensor_msgs_laser_scan() {
 }
 
 #[test]
-#[ignore = "requires ros2 CLI with rmw_zenoh_cpp"]
 fn test_dynamic_subscriber_multiple_topics() {
     if !check_ros2_available() {
         println!("Skipping test: ros2 CLI not available");
