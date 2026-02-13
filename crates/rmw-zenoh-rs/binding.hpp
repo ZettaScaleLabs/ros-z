@@ -12,7 +12,10 @@
 #include <rmw/time.h>
 #include <rmw/validate_node_name.h>
 #include <rmw/validate_namespace.h>
+// discovery_options.h is only available in Jazzy+ (not Humble)
+#if !defined(ROS_DISTRO_HUMBLE)
 #include <rmw/discovery_options.h>
+#endif
 #include <rosidl_runtime_c/message_type_support_struct.h>
 
 // Include rmw.h types manually to avoid dynamic_message_type_support.h

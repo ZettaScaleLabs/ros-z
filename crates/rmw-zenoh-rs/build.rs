@@ -22,6 +22,13 @@ fn main() {
     let ament_prefix =
         env::var("AMENT_PREFIX_PATH").unwrap_or_else(|_| "/opt/ros/jazzy".to_string());
 
+    // Detect Humble by checking for type_description_interfaces (not present in Humble)
+    let is_humble = !ament_prefix.split(':').any(|prefix| {
+        PathBuf::from(prefix)
+            .join("include/type_description_interfaces")
+            .exists()
+    });
+
     // Helper to find package include dirs from ament prefixes
     let find_include_dirs = |packages: &[&str]| -> Vec<PathBuf> {
         let mut dirs = Vec::new();
@@ -46,10 +53,16 @@ fn main() {
 
     let bindgen_out_path = PathBuf::from("src");
 
+    // Add ROS_DISTRO_HUMBLE macro for conditional compilation
+    let mut clang_args = include_args;
+    if is_humble {
+        clang_args.push("-DROS_DISTRO_HUMBLE".to_string());
+    }
+
     // Generate bindings
     let bindings = bindgen::Builder::default()
         .header("binding.hpp")
-        .clang_args(&include_args)
+        .clang_args(&clang_args)
         // Allow utility functions
         .allowlist_function("rcutils_.*")
         .allowlist_function("rmw_get_zero_initialized_.*")
