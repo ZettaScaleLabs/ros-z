@@ -42,8 +42,8 @@ ROS 2 Humble (2022 LTS) is **not supported**.
 **Supported ROS 2 Distributions:**
 
 - ✅ **Iron** (2023)
-- ✅ **Jazzy** (2024) - Recommended
-- ✅ **Kilted** (2024)
+- ✅ **Jazzy** (2024 LTS) - Recommended
+- ✅ **Kilted** (2025)
 - ✅ **Rolling**
 - ❌ **Humble** (2022 LTS) - See [Why No Humble Support?](#why-no-humble-support)
 

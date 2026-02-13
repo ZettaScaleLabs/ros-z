@@ -87,7 +87,7 @@ cargo nextest run --no-default-features --features humble
 
 ### Using Other Distributions
 
-For Rolling or Iron, simply specify the distro feature:
+For Rolling, Iron, or Kilted, simply specify the distro feature:
 
 ```bash
 # Build for Rolling
@@ -95,4 +95,7 @@ cargo build --features rolling
 
 # Build for Iron
 cargo build --features iron
+
+# Build for Kilted
+cargo build --features kilted
 ```
