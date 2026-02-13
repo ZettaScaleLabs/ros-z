@@ -9,6 +9,16 @@
 
 using c_void = void;
 
+// Forward declare rosidl_type_hash_t for Humble compatibility
+// (type doesn't exist in Humble, but we need it for CXX bridge)
+#if defined(ROS_DISTRO_HUMBLE)
+struct rosidl_type_hash_s {
+    uint8_t version;
+    uint8_t value[32];
+};
+typedef struct rosidl_type_hash_s rosidl_type_hash_t;
+#endif
+
 namespace serde_bridge {
 
 const rosidl_message_type_support_t *get_message_typesupport(const rosidl_message_type_support_t *ts);
@@ -29,9 +39,7 @@ const rosidl_message_type_support_t *get_request_type_support(const rosidl_servi
 
 const rosidl_message_type_support_t *get_response_type_support(const rosidl_service_type_support_t *ts);
 
-// Type hash support is only available in Iron+ (not Humble)
-#if !defined(ROS_DISTRO_HUMBLE)
+// Type hash support (returns null stub on Humble)
 const rosidl_type_hash_t *get_service_type_hash(const rosidl_service_type_support_t *ts);
-#endif
 
 };  // namespace serde_bridge

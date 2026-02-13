@@ -99,12 +99,19 @@ fn main() {
     let mut cxx_include_dirs = bindgen_include_dirs;
     cxx_include_dirs.extend(find_include_dirs(CXX_EXTRA_PACKAGES));
 
-    cxx_build::bridge("src/type_support.rs")
+    let mut cxx_bridge = cxx_build::bridge("src/type_support.rs");
+    cxx_bridge
         .file("src/serde_bridge.cc")
         .include("include")
         .includes(&cxx_include_dirs)
-        .std("c++17")
-        .compile("serde_bridge");
+        .std("c++17");
+
+    // Pass ROS_DISTRO_HUMBLE macro to CXX bridge compilation
+    if is_humble {
+        cxx_bridge.define("ROS_DISTRO_HUMBLE", None);
+    }
+
+    cxx_bridge.compile("serde_bridge");
 
     // Link libraries from ament prefix
     for prefix in ament_prefix.split(':') {
