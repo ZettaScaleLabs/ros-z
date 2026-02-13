@@ -4,8 +4,8 @@ Documentation source: book/ - Published: https://zettascalelabs.github.io/ros-z/
 Keep this file minimal. Point readers to the book.
 -->
 
-# ros-z Documentation
+# ros-z-cdr
 
-mdBook documentation source.
+CDR serialization for ROS 2 message wire format.
 
-**📚 [View Online](https://zettascalelabs.github.io/ros-z/)**
+**📚 [Full Documentation](https://zettascalelabs.github.io/ros-z/chapters/message_generation.html)**

@@ -4,8 +4,8 @@ Documentation source: book/ - Published: https://zettascalelabs.github.io/ros-z/
 Keep this file minimal. Point readers to the book.
 -->
 
-# ros-z Documentation
+# ros-z-msgs
 
-mdBook documentation source.
+Pre-generated Rust types for standard ROS 2 messages.
 
-**📚 [View Online](https://zettascalelabs.github.io/ros-z/)**
+**📚 [Full Documentation](https://zettascalelabs.github.io/ros-z/chapters/message_generation.html)**
