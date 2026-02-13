@@ -49,13 +49,29 @@ def parse_cargo_command [cmd: string] {
     {example: $example_name, args: $args}
 }
 
+# Check if we're in nix shell
+def in_nix_shell [] {
+    ($env | get -i IN_NIX_SHELL | default "" | is-not-empty)
+}
+
+# Run cargo command (with nix develop if needed)
+def run_cargo [cmd: string] {
+    if (in_nix_shell) {
+        # Already in nix shell, run directly
+        nu -c $"cargo ($cmd)" | complete
+    } else {
+        # Need to enter nix shell
+        nu -c $"nix develop --command bash -c 'cargo ($cmd)'" | complete
+    }
+}
+
 # Validate a single command
 def validate_command [cmd_info: record] {
     let parsed = (parse_cargo_command $cmd_info.command)
 
     # Try to get help for the example
     try {
-        let help_result = (cargo run --example $parsed.example -- --help | complete)
+        let help_result = (run_cargo $"run --example ($parsed.example) -- --help")
 
         if $help_result.exit_code != 0 {
             {

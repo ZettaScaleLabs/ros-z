@@ -1,7 +1,12 @@
 use chrono::Utc;
 use serde::Serialize;
+use std::{collections::HashMap, time::Duration};
 
-use crate::core::engine::CoreEngine;
+use crate::core::{
+    dynamic_subscriber::DynamicTopicSubscriber,
+    engine::CoreEngine,
+    message_formatter::{dynamic_message_to_json, format_message_pretty},
+};
 use ros_z::graph::GraphSnapshot;
 
 /// Wrapper for initial state that adds the event field
@@ -15,6 +20,7 @@ struct InitialStateEvent {
 pub async fn run_headless_mode(
     core: &CoreEngine,
     json: bool,
+    echo_topics: Vec<String>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     tracing::info!("Starting headless mode - streaming events to stdout");
 
@@ -33,16 +39,104 @@ pub async fn run_headless_mode(
         print_initial_state(core);
     }
 
-    // Stream events
-    while let Ok(event) = event_rx.recv().await {
-        if json {
-            println!("{}", event.to_json());
-        } else {
-            println!(
-                "[{}] {}",
-                Utc::now().format("%Y-%m-%d %H:%M:%S"),
-                event.to_human_readable()
-            );
+    // Create dynamic subscribers for echo topics
+    let mut subscribers: HashMap<String, DynamicTopicSubscriber> = HashMap::new();
+
+    if !echo_topics.is_empty() {
+        tracing::info!(
+            "Creating dynamic subscribers for {} topics",
+            echo_topics.len()
+        );
+
+        for topic in echo_topics {
+            match core
+                .create_dynamic_subscriber(&topic, Duration::from_secs(5))
+                .await
+            {
+                Ok(sub) => {
+                    if json {
+                        // Output schema info
+                        let schema_info = serde_json::json!({
+                            "event": "topic_subscribed",
+                            "topic": topic,
+                            "type_name": sub.schema().type_name,
+                            "type_hash": sub.type_hash(),
+                            "fields": sub.schema().field_names().collect::<Vec<_>>(),
+                        });
+                        println!("{}", serde_json::to_string(&schema_info)?);
+                    } else {
+                        println!("\n=== Subscribed to {} ===", topic);
+                        println!("Type: {}", sub.schema().type_name);
+                        println!("Hash: {}", sub.type_hash());
+                        println!(
+                            "Fields: {:?}",
+                            sub.schema().field_names().collect::<Vec<_>>()
+                        );
+                        println!();
+                    }
+                    subscribers.insert(topic.clone(), sub);
+                }
+                Err(e) => {
+                    eprintln!("Failed to subscribe to {}: {}", topic, e);
+                }
+            }
+        }
+    }
+
+    // Event loop
+    if subscribers.is_empty() {
+        // No echo topics - original behavior
+        while let Ok(event) = event_rx.recv().await {
+            if json {
+                println!("{}", event.to_json());
+            } else {
+                println!(
+                    "[{}] {}",
+                    Utc::now().format("%Y-%m-%d %H:%M:%S"),
+                    event.to_human_readable()
+                );
+            }
+        }
+    } else {
+        // With echo topics - interleave events and messages
+        loop {
+            tokio::select! {
+                // Handle system events
+                Ok(event) = event_rx.recv() => {
+                    if json {
+                        println!("{}", event.to_json());
+                    } else {
+                        println!(
+                            "[{}] {}",
+                            Utc::now().format("%Y-%m-%d %H:%M:%S"),
+                            event.to_human_readable()
+                        );
+                    }
+                }
+
+                // Handle echo messages
+                _ = async {
+                    for (topic, subscriber) in &subscribers {
+                        if let Ok(Some(msg)) = subscriber.try_recv() {
+                            if json {
+                                let msg_json = serde_json::json!({
+                                    "event": "message_received",
+                                    "topic": topic,
+                                    "type": msg.schema().type_name,
+                                    "data": dynamic_message_to_json(&msg),
+                                });
+                                if let Ok(json_str) = serde_json::to_string(&msg_json) {
+                                    println!("{}", json_str);
+                                }
+                            } else {
+                                println!("\n=== {} ===", topic);
+                                print!("{}", format_message_pretty(&msg));
+                            }
+                        }
+                    }
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                } => {}
+            }
         }
     }
 

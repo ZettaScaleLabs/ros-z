@@ -30,6 +30,10 @@ prost = { workspace = true, optional = true }
 pyo3 = { workspace = true, optional = true }
 ros-z-cdr = { workspace = true }
 ros-z-codegen = { workspace = true, optional = true }
+ros-z-protocol = { path = "../ros-z-protocol", default-features = false, features = [
+  "std",
+] }
+ros-z-schema = { workspace = true }
 byteorder = { workspace = true }
 json5 = { workspace = true }
 uuid = { version = "1.0", features = ["v4"] }
@@ -60,11 +64,11 @@ rmw = []
 # Dynamic message schema loading from .msg files (optional)
 dynamic-schema-loader = ["ros-z-codegen"]
 
-# Backend selection for Zenoh key expression format
-# rmw-zenoh: Compatible with rmw_zenoh (domain/topic/type/hash format)
-# ros2dds: Compatible with zenoh-plugin-ros2dds (simple topic format)
-rmw-zenoh = []
-ros2dds = []
+# Key expression format selection
+# rmw-zenoh: Compatible with rmw_zenoh_cpp (domain/topic/type/hash format)
+# ros2dds: Compatible with zenoh-bridge-ros2dds (simple topic format)
+rmw-zenoh = ["ros-z-protocol/rmw-zenoh"]
+ros2dds = ["ros-z-protocol/ros2dds"]
 
 # ROS 2 distro compatibility features
 # Default is jazzy (recommended for new projects)
@@ -78,7 +82,7 @@ iron = ["type-hash", "no-humble", "no-jazzy", "no-rolling"]
 # Internal features for distro compatibility
 humble-compat = []
 type-hash = []
-no-type-hash = []
+no-type-hash = ["ros-z-protocol/no-type-hash"]
 
 # Feature conflict markers (empty features to mark mutual exclusion)
 no-humble = []

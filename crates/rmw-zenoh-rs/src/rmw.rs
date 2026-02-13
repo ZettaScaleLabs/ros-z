@@ -143,7 +143,7 @@ pub extern "C" fn rmw_create_publisher(
 
     let qualified_topic = zpub.entity.topic.clone();
     let entity = zpub.entity.clone();
-    let entity_gid = zpub.entity.gid();
+    let entity_gid = ros_z::entity::endpoint_gid(&zpub.entity);
 
     // Get context to access the shared notifier
     let context = unsafe { (*node).context };
@@ -228,9 +228,9 @@ pub extern "C" fn rmw_create_publisher(
     let mut incompatible_count = 0;
     let mut last_policy_kind = 0u32;
     for sub_entity in &sub_entities {
-        if let Some(endpoint) = sub_entity.get_endpoint() {
+        if let Some(endpoint) = ros_z::entity::entity_get_endpoint(sub_entity) {
             // Skip if we've already checked this GID (avoids double-counting if same subscription appears multiple times)
-            let gid = endpoint.gid();
+            let gid = ros_z::entity::endpoint_gid(endpoint);
             if !checked_gids.insert(gid) {
                 continue;
             }
@@ -241,7 +241,9 @@ pub extern "C" fn rmw_create_publisher(
                 continue;
             }
 
-            let sub_qos = crate::qos::ros_z_qos_to_rmw_qos(&endpoint.qos);
+            let sub_qos = crate::qos::ros_z_qos_to_rmw_qos(
+                &crate::pubsub::protocol_qos_to_ros_z_qos(&endpoint.qos),
+            );
             let (compatible, policy_kind) =
                 crate::qos::check_qos_compatibility_with_policy(&pub_qos, &sub_qos);
             if !compatible {
@@ -249,7 +251,7 @@ pub extern "C" fn rmw_create_publisher(
                 last_policy_kind = policy_kind;
                 // Also trigger the event on the subscription side (it's local, so it has an events_mgr)
                 graph.event_manager.trigger_event_with_policy(
-                    &endpoint.gid(),
+                    &ros_z::entity::endpoint_gid(endpoint),
                     ros_z::event::ZenohEventType::RequestedQosIncompatible,
                     1,
                     policy_kind,
@@ -482,7 +484,7 @@ pub extern "C" fn rmw_create_subscription(
     };
 
     let entity = zsub.entity.clone();
-    let entity_gid = zsub.entity.gid();
+    let entity_gid = ros_z::entity::endpoint_gid(&zsub.entity);
 
     // Register matched event callback with graph
     let events_mgr = zsub.events_mgr().clone();
@@ -557,9 +559,9 @@ pub extern "C" fn rmw_create_subscription(
     let mut incompatible_count = 0;
     let mut last_policy_kind = 0u32;
     for pub_entity in &pub_entities {
-        if let Some(endpoint) = pub_entity.get_endpoint() {
+        if let Some(endpoint) = ros_z::entity::entity_get_endpoint(pub_entity) {
             // Skip if we've already checked this GID (avoids double-counting if same publisher appears multiple times)
-            let gid = endpoint.gid();
+            let gid = ros_z::entity::endpoint_gid(endpoint);
             if !checked_gids.insert(gid) {
                 continue;
             }
@@ -570,7 +572,9 @@ pub extern "C" fn rmw_create_subscription(
                 continue;
             }
 
-            let pub_qos = crate::qos::ros_z_qos_to_rmw_qos(&endpoint.qos);
+            let pub_qos = crate::qos::ros_z_qos_to_rmw_qos(
+                &crate::pubsub::protocol_qos_to_ros_z_qos(&endpoint.qos),
+            );
             let (compatible, policy_kind) =
                 crate::qos::check_qos_compatibility_with_policy(&pub_qos, &sub_qos);
             if !compatible {
@@ -578,7 +582,7 @@ pub extern "C" fn rmw_create_subscription(
                 last_policy_kind = policy_kind;
                 // Also trigger the event on the publisher side (it's local, so it has an events_mgr)
                 graph.event_manager.trigger_event_with_policy(
-                    &endpoint.gid(),
+                    &ros_z::entity::endpoint_gid(endpoint),
                     ros_z::event::ZenohEventType::OfferedQosIncompatible,
                     1,
                     policy_kind,
@@ -887,7 +891,7 @@ pub extern "C" fn rmw_create_client(
         .inner
         .create_client::<crate::msg::RosService>(&qualified_service)
         .with_type_info(service_type_support.get_type_info());
-    zclient_builder.entity.qos = qos;
+    zclient_builder.entity.qos = qos.to_protocol_qos();
     let entity = zclient_builder.entity.clone();
 
     // Create shared callback and user_data holders
@@ -1049,7 +1053,7 @@ pub extern "C" fn rmw_create_service(
         .inner
         .create_service::<crate::msg::RosService>(&qualified_service)
         .with_type_info(service_type_support.get_type_info());
-    zserver_builder.entity.qos = qos;
+    zserver_builder.entity.qos = qos.to_protocol_qos();
     let entity = zserver_builder.entity.clone();
 
     // Create shared callback and user_data holders that will be populated after ServiceImpl is created
@@ -1664,8 +1668,33 @@ pub extern "C" fn rmw_get_publishers_info_by_topic(
             gid_data[..copy_len].copy_from_slice(&gid_bytes[..copy_len]);
             (*endpoint_info).endpoint_gid = gid_data;
 
-            // Set QoS profile - convert from ros_z QoS to rmw QoS
-            (*endpoint_info).qos_profile = crate::qos::ros_z_qos_to_rmw_qos(&endpoint.qos);
+            // Set QoS profile - convert from protocol QoS to ros_z QoS to rmw QoS
+            let ros_z_qos = ros_z::qos::QosProfile {
+                reliability: match endpoint.qos.reliability {
+                    ros_z_protocol::qos::QosReliability::Reliable => {
+                        ros_z::qos::QosReliability::Reliable
+                    }
+                    ros_z_protocol::qos::QosReliability::BestEffort => {
+                        ros_z::qos::QosReliability::BestEffort
+                    }
+                },
+                durability: match endpoint.qos.durability {
+                    ros_z_protocol::qos::QosDurability::TransientLocal => {
+                        ros_z::qos::QosDurability::TransientLocal
+                    }
+                    ros_z_protocol::qos::QosDurability::Volatile => {
+                        ros_z::qos::QosDurability::Volatile
+                    }
+                },
+                history: match endpoint.qos.history {
+                    ros_z_protocol::qos::QosHistory::KeepLast(depth) => {
+                        ros_z::qos::QosHistory::from_depth(depth)
+                    }
+                    ros_z_protocol::qos::QosHistory::KeepAll => ros_z::qos::QosHistory::KeepAll,
+                },
+                ..Default::default()
+            };
+            (*endpoint_info).qos_profile = crate::qos::ros_z_qos_to_rmw_qos(&ros_z_qos);
         }
     }
 
@@ -2246,7 +2275,7 @@ pub extern "C" fn rmw_get_gid_for_publisher(
         Err(_) => return RMW_RET_INVALID_ARGUMENT as _,
     };
 
-    let gid_array = publisher_impl.entity.gid();
+    let gid_array = ros_z::entity::endpoint_gid(&publisher_impl.entity);
     unsafe {
         (*gid).implementation_identifier = crate::RMW_ZENOH_IDENTIFIER.as_ptr() as *const _;
         (*gid).data.copy_from_slice(&gid_array);
@@ -2277,7 +2306,7 @@ pub extern "C" fn rmw_get_gid_for_client(
         Err(_) => return RMW_RET_INVALID_ARGUMENT as _,
     };
 
-    let gid_array = client_impl.entity.gid();
+    let gid_array = ros_z::entity::endpoint_gid(&client_impl.entity);
     unsafe {
         (*gid).implementation_identifier = crate::RMW_ZENOH_IDENTIFIER.as_ptr() as *const _;
         (*gid).data.copy_from_slice(&gid_array);
@@ -2992,8 +3021,33 @@ pub extern "C" fn rmw_get_subscriptions_info_by_topic(
             gid_data[..copy_len].copy_from_slice(&gid_bytes[..copy_len]);
             (*endpoint_info).endpoint_gid = gid_data;
 
-            // Set QoS profile - convert from ros_z QoS to rmw QoS
-            (*endpoint_info).qos_profile = crate::qos::ros_z_qos_to_rmw_qos(&endpoint.qos);
+            // Set QoS profile - convert from protocol QoS to ros_z QoS to rmw QoS
+            let ros_z_qos = ros_z::qos::QosProfile {
+                reliability: match endpoint.qos.reliability {
+                    ros_z_protocol::qos::QosReliability::Reliable => {
+                        ros_z::qos::QosReliability::Reliable
+                    }
+                    ros_z_protocol::qos::QosReliability::BestEffort => {
+                        ros_z::qos::QosReliability::BestEffort
+                    }
+                },
+                durability: match endpoint.qos.durability {
+                    ros_z_protocol::qos::QosDurability::TransientLocal => {
+                        ros_z::qos::QosDurability::TransientLocal
+                    }
+                    ros_z_protocol::qos::QosDurability::Volatile => {
+                        ros_z::qos::QosDurability::Volatile
+                    }
+                },
+                history: match endpoint.qos.history {
+                    ros_z_protocol::qos::QosHistory::KeepLast(depth) => {
+                        ros_z::qos::QosHistory::from_depth(depth)
+                    }
+                    ros_z_protocol::qos::QosHistory::KeepAll => ros_z::qos::QosHistory::KeepAll,
+                },
+                ..Default::default()
+            };
+            (*endpoint_info).qos_profile = crate::qos::ros_z_qos_to_rmw_qos(&ros_z_qos);
         }
     }
 

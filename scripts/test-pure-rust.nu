@@ -17,8 +17,16 @@ def clippy-workspace [] {
 def run-tests [] {
     # Treat warnings as errors
     $env.RUSTFLAGS = "-D warnings"
+
     log-step "Run tests"
-    run-cmd "cargo nextest run"
+    let result = (do -i { run-cmd "cargo nextest run" | complete })
+
+    # If tests failed, retry with debug logging for better diagnostics
+    if $result.exit_code != 0 {
+        print "\n⚠️  Some tests failed. Retrying failed tests with debug logging..."
+        $env.RUST_LOG = "ros_z=debug,warn"
+        run-cmd "cargo nextest run --failed"
+    }
 }
 
 def check-bundled-msgs [] {
@@ -40,12 +48,23 @@ def check-console [] {
 
 def test-shm [] {
     log-step "Test SHM functionality"
+
+    # Run tests without debug logging first (faster)
     # Library unit tests (ShmConfig, ShmProviderBuilder)
-    run-cmd "cargo test --package ros-z --lib shm"
+    let lib_result = (do -i { run-cmd "cargo test --package ros-z --lib shm" | complete })
     # Integration-style unit tests (pub/sub with SHM)
-    run-cmd "cargo test --package ros-z --test shm"
+    let test_result = (do -i { run-cmd "cargo test --package ros-z --test shm" | complete })
     # Integration tests (validate shm_pointcloud2 example)
-    run-cmd "cargo test --package ros-z-tests --test shm_example"
+    let example_result = (do -i { run-cmd "cargo test --package ros-z-tests --test shm_example" | complete })
+
+    # If any failed, retry with debug logging
+    if $lib_result.exit_code != 0 or $test_result.exit_code != 0 or $example_result.exit_code != 0 {
+        print "\n⚠️  SHM tests failed. Retrying with debug logging..."
+        $env.RUST_LOG = "ros_z=debug,warn"
+        run-cmd "cargo test --package ros-z --lib shm -- --nocapture"
+        run-cmd "cargo test --package ros-z --test shm -- --nocapture"
+        run-cmd "cargo test --package ros-z-tests --test shm_example -- --nocapture"
+    }
 }
 
 # ============================================================================

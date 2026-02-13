@@ -1,5 +1,8 @@
 use std::path::PathBuf;
 
+// Re-export TypeHash from ros-z-schema
+pub use ros_z_schema::TypeHash;
+
 /// Parsed message before dependency resolution
 #[derive(Debug, Clone)]
 pub struct ParsedMessage {
@@ -56,6 +59,8 @@ pub struct FieldType {
     pub base_type: String,
     pub package: Option<String>,
     pub array: ArrayType,
+    /// For bounded strings (string<=N), the maximum length
+    pub string_bound: Option<usize>,
 }
 
 /// Array type specification
@@ -114,109 +119,9 @@ pub struct ResolvedAction {
     pub status_hash: TypeHash,
 }
 
-/// ROS2 type hash (RIHS01 format)
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TypeHash(pub [u8; 32]);
-
-impl TypeHash {
-    /// Convert type hash to RIHS01 string format
-    pub fn to_rihs_string(&self) -> String {
-        format!("RIHS01_{}", hex::encode(self.0))
-    }
-
-    /// Parse RIHS01 string format to type hash
-    pub fn from_rihs_string(s: &str) -> Result<Self, String> {
-        if !s.starts_with("RIHS01_") {
-            return Err("Invalid RIHS01 format: must start with 'RIHS01_'".to_string());
-        }
-
-        let hex_part = &s[7..];
-        let bytes = hex::decode(hex_part).map_err(|e| format!("Invalid hex encoding: {}", e))?;
-
-        if bytes.len() != 32 {
-            return Err(format!("Hash must be 32 bytes, got {}", bytes.len()));
-        }
-
-        let mut hash = [0u8; 32];
-        hash.copy_from_slice(&bytes);
-        Ok(TypeHash(hash))
-    }
-
-    /// Create a zero (placeholder) type hash for Humble compatibility
-    pub fn zero() -> Self {
-        TypeHash([0u8; 32])
-    }
-}
-
-impl std::fmt::Display for TypeHash {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_rihs_string())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_type_hash_to_rihs_string() {
-        let hash = TypeHash([
-            0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66,
-            0x77, 0x88, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55,
-            0x66, 0x77, 0x88, 0x99,
-        ]);
-
-        let s = hash.to_rihs_string();
-        assert!(s.starts_with("RIHS01_"));
-        assert_eq!(s.len(), 7 + 64); // "RIHS01_" + 64 hex chars
-    }
-
-    #[test]
-    fn test_type_hash_roundtrip() {
-        let hash = TypeHash([
-            0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66,
-            0x77, 0x88, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55,
-            0x66, 0x77, 0x88, 0x99,
-        ]);
-
-        let s = hash.to_rihs_string();
-        let decoded = TypeHash::from_rihs_string(&s).unwrap();
-
-        assert_eq!(hash, decoded);
-        assert_eq!(hash.0, decoded.0);
-    }
-
-    #[test]
-    fn test_type_hash_from_rihs_string_valid() {
-        // Valid RIHS01 string with exactly 64 hex characters (32 bytes)
-        let s = "RIHS01_123456789abcdef0112233445566778899aabbccddeeff001122334455667788";
-        let result = TypeHash::from_rihs_string(s);
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_type_hash_from_rihs_string_invalid_prefix() {
-        let s = "INVALID_123456789abcdef0112233445566778899aabbccddeeff00112233445566778899";
-        let result = TypeHash::from_rihs_string(s);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("RIHS01_"));
-    }
-
-    #[test]
-    fn test_type_hash_from_rihs_string_invalid_length() {
-        let s = "RIHS01_1234";
-        let result = TypeHash::from_rihs_string(s);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("32 bytes"));
-    }
-
-    #[test]
-    fn test_type_hash_from_rihs_string_invalid_hex() {
-        let s = "RIHS01_gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg";
-        let result = TypeHash::from_rihs_string(s);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("hex"));
-    }
 
     #[test]
     fn test_array_type_equality() {
@@ -240,6 +145,7 @@ mod tests {
                     base_type: "int32".to_string(),
                     package: None,
                     array: ArrayType::Single,
+                    string_bound: None,
                 },
                 default: None,
             }],
@@ -259,6 +165,7 @@ mod tests {
             base_type: "Point".to_string(),
             package: Some("geometry_msgs".to_string()),
             array: ArrayType::Unbounded,
+            string_bound: None,
         };
 
         assert_eq!(field_type.base_type, "Point");

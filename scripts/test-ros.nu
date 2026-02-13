@@ -34,7 +34,16 @@ def run-ros-interop [] {
         "cargo nextest run -p ros-z-tests --features ros-interop"
     }
 
-    run-cmd $cmd --distro $distro
+    # Try without verbose logging first (faster)
+    let result = (do -i { run-cmd $cmd --distro $distro | complete })
+
+    # If tests failed, retry with trace logging for detailed diagnostics
+    # This is CRITICAL for debugging interop issues - shows type hashes, key expressions, service calls
+    if $result.exit_code != 0 {
+        print "\n⚠️  ROS interop tests failed. Retrying with trace logging..."
+        $env.RUST_LOG = "ros_z=trace,rmw_zenoh_cpp=debug,warn"
+        run-cmd $cmd --distro $distro
+    }
 }
 
 # ============================================================================

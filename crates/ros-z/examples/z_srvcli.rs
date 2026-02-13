@@ -1,9 +1,6 @@
 use clap::{Parser, ValueEnum};
-#[cfg(feature = "ros2dds")]
-use ros_z::backend::Ros2DdsBackend;
 use ros_z::{
     Builder, Result,
-    backend::{KeyExprBackend, RmwZenohBackend},
     context::{ZContext, ZContextBuilder},
 };
 use ros_z_msgs::example_interfaces::{AddTwoIntsRequest, AddTwoIntsResponse, srv::AddTwoInts};
@@ -39,28 +36,28 @@ struct Args {
 async fn main() -> Result<()> {
     let args = Args::parse();
 
-    let ctx = ZContextBuilder::default().build()?;
+    // Convert backend enum to KeyExprFormat
+    let format = match args.backend {
+        Backend::RmwZenoh => ros_z_protocol::KeyExprFormat::RmwZenoh,
+        #[cfg(feature = "ros2dds")]
+        Backend::Ros2Dds => ros_z_protocol::KeyExprFormat::Ros2Dds,
+    };
 
-    match (args.mode.as_str(), args.backend) {
-        ("server", Backend::RmwZenoh) => run_server::<RmwZenohBackend>(ctx),
-        #[cfg(feature = "ros2dds")]
-        ("server", Backend::Ros2Dds) => run_server::<Ros2DdsBackend>(ctx),
-        ("client", Backend::RmwZenoh) => run_client::<RmwZenohBackend>(ctx, args.a, args.b).await,
-        #[cfg(feature = "ros2dds")]
-        ("client", Backend::Ros2Dds) => run_client::<Ros2DdsBackend>(ctx, args.a, args.b).await,
-        (mode, _) => {
+    let ctx = ZContextBuilder::default().keyexpr_format(format).build()?;
+
+    match args.mode.as_str() {
+        "server" => run_server(ctx),
+        "client" => run_client(ctx, args.a, args.b).await,
+        mode => {
             eprintln!("Invalid mode: {}. Use 'server' or 'client'", mode);
             std::process::exit(1);
         }
     }
 }
 
-fn run_server<B: KeyExprBackend>(ctx: ZContext) -> Result<()> {
+fn run_server(ctx: ZContext) -> Result<()> {
     let node = ctx.create_node("add_two_ints_server").build()?;
-    let mut zsrv = node
-        .create_service::<AddTwoInts>("add_two_ints")
-        .with_backend::<B>()
-        .build()?;
+    let mut zsrv = node.create_service::<AddTwoInts>("add_two_ints").build()?;
 
     println!("AddTwoInts service server started, waiting for requests...");
 
@@ -75,12 +72,9 @@ fn run_server<B: KeyExprBackend>(ctx: ZContext) -> Result<()> {
     }
 }
 
-async fn run_client<B: KeyExprBackend>(ctx: ZContext, a: i64, b: i64) -> Result<()> {
+async fn run_client(ctx: ZContext, a: i64, b: i64) -> Result<()> {
     let node = ctx.create_node("add_two_ints_client").build()?;
-    let zcli = node
-        .create_client::<AddTwoInts>("add_two_ints")
-        .with_backend::<B>()
-        .build()?;
+    let zcli = node.create_client::<AddTwoInts>("add_two_ints").build()?;
 
     println!("AddTwoInts service client started");
 

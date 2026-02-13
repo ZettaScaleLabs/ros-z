@@ -333,9 +333,21 @@ impl<'a, BO: ByteOrder> CdrReader<'a, BO> {
     }
 
     /// Read a sequence length prefix.
+    ///
+    /// # Safety
+    /// Includes a sanity check to prevent absurd allocations from malformed data.
+    /// Maximum sequence length is 100 million elements (~400MB for float32 arrays).
     #[inline]
     pub fn read_sequence_length(&mut self) -> Result<usize> {
-        Ok(self.read_u32()? as usize)
+        const MAX_SEQUENCE_LENGTH: u32 = 100_000_000;
+        let len = self.read_u32()?;
+        if len > MAX_SEQUENCE_LENGTH {
+            return Err(Error::Custom(format!(
+                "Sequence length {} exceeds maximum allowed ({}). Possible schema mismatch or corrupted data.",
+                len, MAX_SEQUENCE_LENGTH
+            )));
+        }
+        Ok(len as usize)
     }
 
     /// Read raw bytes with length prefix.

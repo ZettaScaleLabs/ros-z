@@ -5,12 +5,35 @@ use ratatui::{
     text::Span,
     widgets::BorderType,
 };
-use ros_z::qos::{Duration as QosDuration, QosProfile};
+use ros_z::qos::{Duration as QosDuration, QosDurability, QosHistory, QosProfile, QosReliability};
 
 use crate::app::state::*;
 
+/// Convert protocol QosProfile to ros_z QosProfile for display
+fn protocol_qos_to_ros_z(qos: &ros_z_protocol::qos::QosProfile) -> QosProfile {
+    QosProfile {
+        reliability: match qos.reliability {
+            ros_z_protocol::qos::QosReliability::Reliable => QosReliability::Reliable,
+            ros_z_protocol::qos::QosReliability::BestEffort => QosReliability::BestEffort,
+        },
+        durability: match qos.durability {
+            ros_z_protocol::qos::QosDurability::TransientLocal => QosDurability::TransientLocal,
+            ros_z_protocol::qos::QosDurability::Volatile => QosDurability::Volatile,
+        },
+        history: match qos.history {
+            ros_z_protocol::qos::QosHistory::KeepLast(depth) => QosHistory::from_depth(depth),
+            ros_z_protocol::qos::QosHistory::KeepAll => QosHistory::KeepAll,
+        },
+        deadline: QosDuration::INFINITE,
+        lifespan: QosDuration::INFINITE,
+        liveliness: ros_z::qos::QosLiveliness::Automatic,
+        liveliness_lease_duration: QosDuration::INFINITE,
+    }
+}
+
 /// Format QoS profile for TUI display
-pub fn format_qos_detail(qos: &QosProfile) -> String {
+pub fn format_qos_detail(qos: &ros_z_protocol::qos::QosProfile) -> String {
+    let qos = protocol_qos_to_ros_z(qos);
     let mut lines = Vec::new();
     lines.push(format!("    Reliability: {}", qos.reliability));
     lines.push(format!("    Durability: {}", qos.durability));

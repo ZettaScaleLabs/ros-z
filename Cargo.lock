@@ -2687,6 +2687,7 @@ dependencies = [
  "parking_lot",
  "ros-z",
  "ros-z-cdr",
+ "ros-z-protocol",
  "serde",
  "strum 0.27.2",
  "tracing",
@@ -2727,6 +2728,8 @@ dependencies = [
  "ros-z-cdr",
  "ros-z-codegen",
  "ros-z-msgs",
+ "ros-z-protocol",
+ "ros-z-schema",
  "serde",
  "serde_json",
  "sha2",
@@ -2761,6 +2764,7 @@ dependencies = [
  "proc-macro2",
  "prost-build",
  "quote",
+ "ros-z-schema",
  "serde",
  "serde_json",
  "serial_test",
@@ -2776,12 +2780,18 @@ dependencies = [
  "chrono",
  "clap",
  "crossterm 0.29.0",
+ "flume",
+ "nix 0.29.0",
+ "once_cell",
  "parking_lot",
  "ratatui",
  "ros-z",
+ "ros-z-msgs",
+ "ros-z-protocol",
  "rusqlite",
  "serde",
  "serde_json",
+ "serial_test",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -2820,6 +2830,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "ros-z-protocol"
+version = "0.1.0"
+dependencies = [
+ "zenoh",
+]
+
+[[package]]
 name = "ros-z-py"
 version = "0.1.0"
 dependencies = [
@@ -2836,6 +2853,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ros-z-schema"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "hex",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "ros-z-tests"
 version = "0.1.0"
 dependencies = [
@@ -2846,6 +2874,7 @@ dependencies = [
  "ros-z",
  "ros-z-cdr",
  "ros-z-msgs",
+ "ros-z-schema",
  "serde",
  "serial_test",
  "tokio",

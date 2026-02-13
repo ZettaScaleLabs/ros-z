@@ -2,102 +2,21 @@
 //!
 //! This module implements the ROS2 RIHS01 (ROS IDL Hash Standard 01) type hashing algorithm.
 //!
+//! Type descriptions and hash computation are provided by `ros-z-schema`.
+//! This module provides codegen-specific functions for building TypeDescription
+//! from parsed message definitions.
+
 use std::collections::BTreeMap;
 
-use anyhow::{Context, Result, bail};
-use serde::Serialize;
-use sha2::Digest;
+use anyhow::{Result, bail};
 
-use crate::types::{ArrayType, FieldType, ParsedMessage, TypeHash};
+use crate::types::{ArrayType, FieldType, ParsedMessage};
 
-/// ROS2 TypeDescription message structure for hashing
-#[derive(Serialize, serde::Deserialize)]
-pub struct TypeDescriptionMsg {
-    pub type_description: TypeDescription,
-    pub referenced_type_descriptions: Vec<TypeDescription>,
-}
-
-/// Type description for a single message type
-#[derive(Serialize, serde::Deserialize, Clone)]
-pub struct TypeDescription {
-    pub type_name: String,
-    pub fields: Vec<FieldDescription>,
-}
-
-/// Field description in a type
-#[derive(Serialize, serde::Deserialize, Clone)]
-pub struct FieldDescription {
-    pub name: String,
-    #[serde(rename = "type")]
-    pub field_type: FieldTypeDescription,
-    /// default_value from .msg files (for RIHS01 hash, always use empty string)
-    #[serde(default)]
-    pub default_value: String,
-}
-
-/// Field description for hash computation (excludes default_value)
-#[derive(Serialize)]
-pub struct FieldDescriptionForHash<'a> {
-    name: &'a str,
-    #[serde(rename = "type")]
-    field_type: &'a FieldTypeDescription,
-}
-
-/// Type description for hash computation
-#[derive(Serialize)]
-pub struct TypeDescriptionForHash<'a> {
-    type_name: &'a str,
-    fields: Vec<FieldDescriptionForHash<'a>>,
-}
-
-/// TypeDescriptionMsg for hash computation
-#[derive(Serialize)]
-pub struct TypeDescriptionMsgForHash<'a> {
-    type_description: TypeDescriptionForHash<'a>,
-    referenced_type_descriptions: Vec<TypeDescriptionForHash<'a>>,
-}
-
-/// Field type description with type ID
-#[derive(Serialize, serde::Deserialize, Clone)]
-pub struct FieldTypeDescription {
-    pub type_id: u8,
-    pub capacity: u64,
-    pub string_capacity: u64,
-    pub nested_type_name: String,
-}
-
-/// Convert TypeDescriptionMsg to hash-computation version (excludes default_value)
-pub fn to_hash_version(msg: &TypeDescriptionMsg) -> TypeDescriptionMsgForHash<'_> {
-    TypeDescriptionMsgForHash {
-        type_description: TypeDescriptionForHash {
-            type_name: &msg.type_description.type_name,
-            fields: msg
-                .type_description
-                .fields
-                .iter()
-                .map(|f| FieldDescriptionForHash {
-                    name: &f.name,
-                    field_type: &f.field_type,
-                })
-                .collect(),
-        },
-        referenced_type_descriptions: msg
-            .referenced_type_descriptions
-            .iter()
-            .map(|td| TypeDescriptionForHash {
-                type_name: &td.type_name,
-                fields: td
-                    .fields
-                    .iter()
-                    .map(|f| FieldDescriptionForHash {
-                        name: &f.name,
-                        field_type: &f.field_type,
-                    })
-                    .collect(),
-            })
-            .collect(),
-    }
-}
+// Re-export types from ros-z-schema for backwards compatibility
+pub use ros_z_schema::{
+    FieldDescription, FieldTypeDescription, TypeDescription, TypeDescriptionMsg, TypeHash, TypeId,
+    calculate_hash, to_hash_version, to_ros2_json,
+};
 
 /// Calculate RIHS01 hash for a message
 pub fn calculate_type_hash(
@@ -105,17 +24,7 @@ pub fn calculate_type_hash(
     resolved_deps: &BTreeMap<String, TypeDescription>,
 ) -> Result<TypeHash> {
     let type_desc_msg = build_type_description_msg(msg, resolved_deps)?;
-
-    // NOTE: ROS2 uses JSON format (libyaml flow style with quoted scalars = JSON)
-    // Exclude default_value from hash computation (ROS2's emit_field() doesn't include it)
-    let hash_version = to_hash_version(&type_desc_msg);
-    let json = to_ros2_json(&hash_version)?;
-
-    let mut hasher = sha2::Sha256::new();
-    hasher.update(json.as_bytes());
-    let hash_bytes: [u8; 32] = hasher.finalize().into();
-
-    Ok(TypeHash(hash_bytes))
+    Ok(calculate_hash(&type_desc_msg))
 }
 
 /// Calculate RIHS01 hash for a service (Request + Response + Event)
@@ -147,32 +56,28 @@ pub fn calculate_service_type_hash(
         fields: vec![
             FieldDescription {
                 name: "info".to_string(),
-                field_type: FieldTypeDescription {
-                    type_id: 1, // FIELD_TYPE_NESTED_TYPE
-                    capacity: 0,
-                    string_capacity: 0,
-                    nested_type_name: service_event_info_desc.type_name.clone(),
-                },
+                field_type: FieldTypeDescription::nested(
+                    TypeId::NESTED_TYPE,
+                    service_event_info_desc.type_name.clone(),
+                ),
                 default_value: String::new(),
             },
             FieldDescription {
                 name: "request".to_string(),
-                field_type: FieldTypeDescription {
-                    type_id: 97, // FIELD_TYPE_NESTED_TYPE_BOUNDED_SEQUENCE
-                    capacity: 1,
-                    string_capacity: 0,
-                    nested_type_name: request_type_name.clone(),
-                },
+                field_type: FieldTypeDescription::nested_array(
+                    TypeId::NESTED_TYPE_BOUNDED_SEQUENCE,
+                    1,
+                    request_type_name.clone(),
+                ),
                 default_value: String::new(),
             },
             FieldDescription {
                 name: "response".to_string(),
-                field_type: FieldTypeDescription {
-                    type_id: 97, // FIELD_TYPE_NESTED_TYPE_BOUNDED_SEQUENCE
-                    capacity: 1,
-                    string_capacity: 0,
-                    nested_type_name: response_type_name.clone(),
-                },
+                field_type: FieldTypeDescription::nested_array(
+                    TypeId::NESTED_TYPE_BOUNDED_SEQUENCE,
+                    1,
+                    response_type_name.clone(),
+                ),
                 default_value: String::new(),
             },
         ],
@@ -184,32 +89,23 @@ pub fn calculate_service_type_hash(
         fields: vec![
             FieldDescription {
                 name: "request_message".to_string(),
-                field_type: FieldTypeDescription {
-                    type_id: 1, // FIELD_TYPE_NESTED_TYPE
-                    capacity: 0,
-                    string_capacity: 0,
-                    nested_type_name: request_type_name.clone(),
-                },
+                field_type: FieldTypeDescription::nested(
+                    TypeId::NESTED_TYPE,
+                    request_type_name.clone(),
+                ),
                 default_value: String::new(),
             },
             FieldDescription {
                 name: "response_message".to_string(),
-                field_type: FieldTypeDescription {
-                    type_id: 1, // FIELD_TYPE_NESTED_TYPE
-                    capacity: 0,
-                    string_capacity: 0,
-                    nested_type_name: response_type_name.clone(),
-                },
+                field_type: FieldTypeDescription::nested(
+                    TypeId::NESTED_TYPE,
+                    response_type_name.clone(),
+                ),
                 default_value: String::new(),
             },
             FieldDescription {
                 name: "event_message".to_string(),
-                field_type: FieldTypeDescription {
-                    type_id: 1, // FIELD_TYPE_NESTED_TYPE
-                    capacity: 0,
-                    string_capacity: 0,
-                    nested_type_name: event_type_name.clone(),
-                },
+                field_type: FieldTypeDescription::nested(TypeId::NESTED_TYPE, event_type_name),
                 default_value: String::new(),
             },
         ],
@@ -250,20 +146,11 @@ pub fn calculate_service_type_hash(
         referenced_type_descriptions: referenced_vec,
     };
 
-    // NOTE: ROS2 uses JSON format (libyaml flow style with quoted scalars = JSON)
-    // Exclude default_value from hash computation (ROS2's emit_field() doesn't include it)
-    let hash_version = to_hash_version(&type_desc_msg);
-    let json = to_ros2_json(&hash_version)?;
-
-    let mut hasher = sha2::Sha256::new();
-    hasher.update(json.as_bytes());
-    let hash_bytes: [u8; 32] = hasher.finalize().into();
-
-    Ok(TypeHash(hash_bytes))
+    Ok(calculate_hash(&type_desc_msg))
 }
 
 /// Build TypeDescription message from parsed message
-fn build_type_description_msg(
+pub fn build_type_description_msg(
     msg: &ParsedMessage,
     resolved_deps: &BTreeMap<String, TypeDescription>,
 ) -> Result<TypeDescriptionMsg> {
@@ -276,18 +163,14 @@ fn build_type_description_msg(
     if msg.fields.is_empty() {
         fields.push(FieldDescription {
             name: "structure_needs_at_least_one_member".to_string(),
-            field_type: FieldTypeDescription {
-                type_id: 3, // FIELD_TYPE_UINT8
-                capacity: 0,
-                string_capacity: 0,
-                nested_type_name: String::new(),
-            },
+            field_type: FieldTypeDescription::primitive(TypeId::UINT8),
             default_value: String::new(),
         });
     } else {
         for field in &msg.fields {
             let type_id = get_type_id(&field.field_type)?;
             let capacity = get_array_capacity(&field.field_type);
+            let string_capacity = field.field_type.string_bound.unwrap_or(0) as u64;
 
             // For nested types, get the fully qualified name with package context
             let nested_type_name = if is_primitive_type(&field.field_type.base_type) {
@@ -296,14 +179,29 @@ fn build_type_description_msg(
                 get_nested_type_name_with_context(&field.field_type, &msg.package)
             };
 
+            let field_type_desc = if nested_type_name.is_empty() {
+                if capacity > 0 {
+                    FieldTypeDescription::array(type_id, capacity)
+                } else if string_capacity > 0 {
+                    // Bounded string
+                    FieldTypeDescription {
+                        type_id,
+                        capacity: 0,
+                        string_capacity,
+                        nested_type_name: String::new(),
+                    }
+                } else {
+                    FieldTypeDescription::primitive(type_id)
+                }
+            } else if capacity > 0 {
+                FieldTypeDescription::nested_array(type_id, capacity, nested_type_name)
+            } else {
+                FieldTypeDescription::nested(type_id, nested_type_name)
+            };
+
             fields.push(FieldDescription {
                 name: field.name.clone(),
-                field_type: FieldTypeDescription {
-                    type_id,
-                    capacity,
-                    string_capacity: 0, // TODO: bounded strings
-                    nested_type_name,
-                },
+                field_type: field_type_desc,
                 default_value: String::new(),
             });
 
@@ -352,76 +250,82 @@ pub fn get_type_id(field_type: &FieldType) -> Result<u8> {
     let base_type = field_type.base_type.as_str();
     let array = &field_type.array;
     let has_package = field_type.package.is_some();
+    let is_bounded_string = field_type.string_bound.is_some();
 
     // Nested types (either explicitly packaged OR not a primitive)
     // package=None means same-package reference for custom types
     if has_package || !is_primitive_type(base_type) {
         return Ok(match array {
-            ArrayType::Single => 1,      // NESTED_TYPE
-            ArrayType::Fixed(_) => 49,   // NESTED_TYPE_ARRAY
-            ArrayType::Bounded(_) => 97, // NESTED_TYPE_BOUNDED_SEQUENCE
-            ArrayType::Unbounded => 145, // NESTED_TYPE_UNBOUNDED_SEQUENCE
+            ArrayType::Single => TypeId::NESTED_TYPE,
+            ArrayType::Fixed(_) => TypeId::NESTED_TYPE_ARRAY,
+            ArrayType::Bounded(_) => TypeId::NESTED_TYPE_BOUNDED_SEQUENCE,
+            ArrayType::Unbounded => TypeId::NESTED_TYPE_UNBOUNDED_SEQUENCE,
         });
+    }
+
+    // Handle bounded strings specially
+    if is_bounded_string && base_type == "string" {
+        return Ok(TypeId::BOUNDED_STRING);
     }
 
     // Primitive types
     // Note: In ROS2, 'char' is uint8 (unsigned), not int8 (signed)
     match (base_type, array) {
         // Single primitives
-        ("int8", ArrayType::Single) => Ok(2),
-        ("uint8" | "byte" | "char", ArrayType::Single) => Ok(3),
-        ("int16", ArrayType::Single) => Ok(4),
-        ("uint16", ArrayType::Single) => Ok(5),
-        ("int32", ArrayType::Single) => Ok(6),
-        ("uint32", ArrayType::Single) => Ok(7),
-        ("int64", ArrayType::Single) => Ok(8),
-        ("uint64", ArrayType::Single) => Ok(9),
-        ("float32", ArrayType::Single) => Ok(10),
-        ("float64", ArrayType::Single) => Ok(11),
-        ("bool", ArrayType::Single) => Ok(15),
-        ("string", ArrayType::Single) => Ok(17),
+        ("int8", ArrayType::Single) => Ok(TypeId::INT8),
+        ("uint8" | "byte" | "char", ArrayType::Single) => Ok(TypeId::UINT8),
+        ("int16", ArrayType::Single) => Ok(TypeId::INT16),
+        ("uint16", ArrayType::Single) => Ok(TypeId::UINT16),
+        ("int32", ArrayType::Single) => Ok(TypeId::INT32),
+        ("uint32", ArrayType::Single) => Ok(TypeId::UINT32),
+        ("int64", ArrayType::Single) => Ok(TypeId::INT64),
+        ("uint64", ArrayType::Single) => Ok(TypeId::UINT64),
+        ("float32", ArrayType::Single) => Ok(TypeId::FLOAT32),
+        ("float64", ArrayType::Single) => Ok(TypeId::FLOAT64),
+        ("bool", ArrayType::Single) => Ok(TypeId::BOOL),
+        ("string", ArrayType::Single) => Ok(TypeId::STRING),
 
         // Fixed arrays
-        ("int8", ArrayType::Fixed(_)) => Ok(50),
-        ("uint8" | "byte" | "char", ArrayType::Fixed(_)) => Ok(51),
-        ("int16", ArrayType::Fixed(_)) => Ok(52),
-        ("uint16", ArrayType::Fixed(_)) => Ok(53),
-        ("int32", ArrayType::Fixed(_)) => Ok(54),
-        ("uint32", ArrayType::Fixed(_)) => Ok(55),
-        ("int64", ArrayType::Fixed(_)) => Ok(56),
-        ("uint64", ArrayType::Fixed(_)) => Ok(57),
-        ("float32", ArrayType::Fixed(_)) => Ok(58),
-        ("float64", ArrayType::Fixed(_)) => Ok(59),
-        ("bool", ArrayType::Fixed(_)) => Ok(63),
-        ("string", ArrayType::Fixed(_)) => Ok(65),
+        ("int8", ArrayType::Fixed(_)) => Ok(TypeId::INT8_ARRAY),
+        ("uint8" | "byte" | "char", ArrayType::Fixed(_)) => Ok(TypeId::UINT8_ARRAY),
+        ("int16", ArrayType::Fixed(_)) => Ok(TypeId::INT16_ARRAY),
+        ("uint16", ArrayType::Fixed(_)) => Ok(TypeId::UINT16_ARRAY),
+        ("int32", ArrayType::Fixed(_)) => Ok(TypeId::INT32_ARRAY),
+        ("uint32", ArrayType::Fixed(_)) => Ok(TypeId::UINT32_ARRAY),
+        ("int64", ArrayType::Fixed(_)) => Ok(TypeId::INT64_ARRAY),
+        ("uint64", ArrayType::Fixed(_)) => Ok(TypeId::UINT64_ARRAY),
+        ("float32", ArrayType::Fixed(_)) => Ok(TypeId::FLOAT32_ARRAY),
+        ("float64", ArrayType::Fixed(_)) => Ok(TypeId::FLOAT64_ARRAY),
+        ("bool", ArrayType::Fixed(_)) => Ok(TypeId::BOOL_ARRAY),
+        ("string", ArrayType::Fixed(_)) => Ok(TypeId::STRING_ARRAY),
 
         // Bounded sequences
-        ("int8", ArrayType::Bounded(_)) => Ok(98),
-        ("uint8" | "byte" | "char", ArrayType::Bounded(_)) => Ok(99),
-        ("int16", ArrayType::Bounded(_)) => Ok(100),
-        ("uint16", ArrayType::Bounded(_)) => Ok(101),
-        ("int32", ArrayType::Bounded(_)) => Ok(102),
-        ("uint32", ArrayType::Bounded(_)) => Ok(103),
-        ("int64", ArrayType::Bounded(_)) => Ok(104),
-        ("uint64", ArrayType::Bounded(_)) => Ok(105),
-        ("float32", ArrayType::Bounded(_)) => Ok(106),
-        ("float64", ArrayType::Bounded(_)) => Ok(107),
-        ("bool", ArrayType::Bounded(_)) => Ok(111),
-        ("string", ArrayType::Bounded(_)) => Ok(113),
+        ("int8", ArrayType::Bounded(_)) => Ok(TypeId::INT8_BOUNDED_SEQUENCE),
+        ("uint8" | "byte" | "char", ArrayType::Bounded(_)) => Ok(TypeId::UINT8_BOUNDED_SEQUENCE),
+        ("int16", ArrayType::Bounded(_)) => Ok(TypeId::INT16_BOUNDED_SEQUENCE),
+        ("uint16", ArrayType::Bounded(_)) => Ok(TypeId::UINT16_BOUNDED_SEQUENCE),
+        ("int32", ArrayType::Bounded(_)) => Ok(TypeId::INT32_BOUNDED_SEQUENCE),
+        ("uint32", ArrayType::Bounded(_)) => Ok(TypeId::UINT32_BOUNDED_SEQUENCE),
+        ("int64", ArrayType::Bounded(_)) => Ok(TypeId::INT64_BOUNDED_SEQUENCE),
+        ("uint64", ArrayType::Bounded(_)) => Ok(TypeId::UINT64_BOUNDED_SEQUENCE),
+        ("float32", ArrayType::Bounded(_)) => Ok(TypeId::FLOAT32_BOUNDED_SEQUENCE),
+        ("float64", ArrayType::Bounded(_)) => Ok(TypeId::FLOAT64_BOUNDED_SEQUENCE),
+        ("bool", ArrayType::Bounded(_)) => Ok(TypeId::BOOL_BOUNDED_SEQUENCE),
+        ("string", ArrayType::Bounded(_)) => Ok(TypeId::STRING_BOUNDED_SEQUENCE),
 
         // Unbounded sequences
-        ("int8", ArrayType::Unbounded) => Ok(146),
-        ("uint8" | "byte" | "char", ArrayType::Unbounded) => Ok(147),
-        ("int16", ArrayType::Unbounded) => Ok(148),
-        ("uint16", ArrayType::Unbounded) => Ok(149),
-        ("int32", ArrayType::Unbounded) => Ok(150),
-        ("uint32", ArrayType::Unbounded) => Ok(151),
-        ("int64", ArrayType::Unbounded) => Ok(152),
-        ("uint64", ArrayType::Unbounded) => Ok(153),
-        ("float32", ArrayType::Unbounded) => Ok(154),
-        ("float64", ArrayType::Unbounded) => Ok(155),
-        ("bool", ArrayType::Unbounded) => Ok(159),
-        ("string", ArrayType::Unbounded) => Ok(161),
+        ("int8", ArrayType::Unbounded) => Ok(TypeId::INT8_UNBOUNDED_SEQUENCE),
+        ("uint8" | "byte" | "char", ArrayType::Unbounded) => Ok(TypeId::UINT8_UNBOUNDED_SEQUENCE),
+        ("int16", ArrayType::Unbounded) => Ok(TypeId::INT16_UNBOUNDED_SEQUENCE),
+        ("uint16", ArrayType::Unbounded) => Ok(TypeId::UINT16_UNBOUNDED_SEQUENCE),
+        ("int32", ArrayType::Unbounded) => Ok(TypeId::INT32_UNBOUNDED_SEQUENCE),
+        ("uint32", ArrayType::Unbounded) => Ok(TypeId::UINT32_UNBOUNDED_SEQUENCE),
+        ("int64", ArrayType::Unbounded) => Ok(TypeId::INT64_UNBOUNDED_SEQUENCE),
+        ("uint64", ArrayType::Unbounded) => Ok(TypeId::UINT64_UNBOUNDED_SEQUENCE),
+        ("float32", ArrayType::Unbounded) => Ok(TypeId::FLOAT32_UNBOUNDED_SEQUENCE),
+        ("float64", ArrayType::Unbounded) => Ok(TypeId::FLOAT64_UNBOUNDED_SEQUENCE),
+        ("bool", ArrayType::Unbounded) => Ok(TypeId::BOOL_UNBOUNDED_SEQUENCE),
+        ("string", ArrayType::Unbounded) => Ok(TypeId::STRING_UNBOUNDED_SEQUENCE),
 
         _ => bail!(
             "Unsupported field type: {} with array {:?}",
@@ -436,18 +340,6 @@ fn get_array_capacity(field_type: &FieldType) -> u64 {
     match &field_type.array {
         ArrayType::Fixed(n) | ArrayType::Bounded(n) => *n as u64,
         _ => 0,
-    }
-}
-
-/// Get nested type name in ROS2 format
-/// Note: For same-package references (package=None), this will return empty string.
-/// The caller must provide the source package context.
-#[allow(dead_code)]
-fn get_nested_type_name(field_type: &FieldType) -> String {
-    if let Some(ref pkg) = field_type.package {
-        format!("{}::msg::dds_::{}_", pkg, field_type.base_type)
-    } else {
-        String::new()
     }
 }
 
@@ -476,26 +368,4 @@ pub fn is_primitive_type(base_type: &str) -> bool {
             | "float64"
             | "string"
     )
-}
-
-/// Serialize to ROS2-compatible JSON format
-/// ROS2 uses JSON with spaces after colons and commas: `{"key": "value", "key2": 2}`
-pub fn to_ros2_json<T: Serialize>(value: &T) -> Result<String> {
-    // Serialize to compact JSON
-    let compact = serde_json::to_string(value).context("Failed to serialize to JSON")?;
-
-    // Add spaces after : and , (matching Python's default json.dumps())
-    let mut result = String::with_capacity(compact.len() + 100);
-    let chars: Vec<char> = compact.chars().collect();
-
-    for i in 0..chars.len() {
-        result.push(chars[i]);
-
-        // Add space after : or , if not already followed by a space
-        if (chars[i] == ':' || chars[i] == ',') && i + 1 < chars.len() && chars[i + 1] != ' ' {
-            result.push(' ');
-        }
-    }
-
-    Ok(result)
 }

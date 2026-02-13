@@ -16,7 +16,8 @@ use crate::queue::BoundedQueue;
 use crate::topic_name;
 
 use crate::msg::{CdrSerdes, ZDeserializer, ZMessage, ZSerializer};
-use crate::qos::{QosDurability, QosHistory, QosProfile, QosReliability};
+use crate::qos::QosProfile;
+use ros_z_protocol::qos::{QosDurability, QosHistory, QosReliability};
 use std::sync::Mutex;
 
 pub struct ZPub<T: ZMessage, S: ZSerializer> {
@@ -30,24 +31,30 @@ pub struct ZPub<T: ZMessage, S: ZSerializer> {
     with_attachment: bool,
     events_mgr: Arc<Mutex<EventsManager>>,
     shm_config: Option<Arc<crate::shm::ShmConfig>>,
+    /// Schema for dynamic message publishing.
+    pub dyn_schema: Option<Arc<crate::dynamic::schema::MessageSchema>>,
     _phantom_data: PhantomData<(T, S)>,
 }
 
 #[derive(Debug)]
-pub struct ZPubBuilder<T, S = CdrSerdes<T>, B = crate::backend::DefaultBackend> {
+pub struct ZPubBuilder<T, S = CdrSerdes<T>> {
     pub entity: EndpointEntity,
     pub session: Arc<Session>,
     pub with_attachment: bool,
     pub(crate) shm_config: Option<Arc<crate::shm::ShmConfig>>,
-    pub _phantom_data: PhantomData<(T, S, B)>,
+    pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
+    /// Schema for dynamic message publishing.
+    /// When set, the schema will be registered with the type description service.
+    pub dyn_schema: Option<Arc<crate::dynamic::schema::MessageSchema>>,
+    pub _phantom_data: PhantomData<(T, S)>,
 }
 
-impl_with_type_info!(ZPubBuilder<T, S, B>);
-impl_with_type_info!(ZSubBuilder<T, S, B>);
+impl_with_type_info!(ZPubBuilder<T, S>);
+impl_with_type_info!(ZSubBuilder<T, S>);
 
-impl<T, S, B> ZPubBuilder<T, S, B> {
+impl<T, S> ZPubBuilder<T, S> {
     pub fn with_qos(mut self, qos: QosProfile) -> Self {
-        self.entity.qos = qos;
+        self.entity.qos = qos.to_protocol_qos();
         self
     }
 
@@ -107,43 +114,74 @@ impl<T, S, B> ZPubBuilder<T, S, B> {
         self
     }
 
-    pub fn with_serdes<S2>(self) -> ZPubBuilder<T, S2, B> {
+    pub fn with_serdes<S2>(self) -> ZPubBuilder<T, S2> {
         ZPubBuilder {
             entity: self.entity,
             session: self.session,
             with_attachment: self.with_attachment,
             shm_config: self.shm_config,
+            keyexpr_format: self.keyexpr_format,
+            dyn_schema: self.dyn_schema,
             _phantom_data: PhantomData,
         }
     }
 
-    /// Switch to a different backend for key expression generation.
+    /// Set the dynamic message schema for runtime-typed publishers.
+    ///
+    /// When a schema is set and the node has a type description service enabled,
+    /// the schema will be automatically registered with the service during build.
+    /// This allows other nodes to query for this type's description.
     ///
     /// # Example
-    /// ```ignore
-    /// use ros_z::backend::Ros2DdsBackend;
     ///
+    /// ```ignore
     /// let publisher = node
-    ///     .create_pub::<String>("chatter")
-    ///     .with_backend::<Ros2DdsBackend>()
+    ///     .create_pub_impl::<DynamicMessage>("topic", None)
+    ///     .with_serdes::<DynamicCdrSerdes>()
+    ///     .with_dyn_schema(schema)
     ///     .build()?;
     /// ```
-    pub fn with_backend<B2: crate::backend::KeyExprBackend>(self) -> ZPubBuilder<T, S, B2> {
-        ZPubBuilder {
-            entity: self.entity,
-            session: self.session,
-            with_attachment: self.with_attachment,
-            shm_config: self.shm_config,
-            _phantom_data: PhantomData,
+    pub fn with_dyn_schema(mut self, schema: Arc<crate::dynamic::schema::MessageSchema>) -> Self {
+        use crate::dynamic::MessageSchemaTypeDescription;
+
+        // Only compute and set type_info if it hasn't been set already
+        // (e.g., from create_dyn_sub_auto which provides the publisher's hash)
+        if self.entity.type_info.is_none() {
+            // Compute TypeInfo from schema for proper key expression matching with ROS 2
+            // Convert ROS 2 canonical name to DDS name
+            // "std_msgs/msg/String" → "std_msgs::msg::dds_::String_"
+            let dds_name = schema
+                .type_name
+                .replace("/msg/", "::msg::dds_::")
+                .replace("/srv/", "::srv::dds_::")
+                .replace("/action/", "::action::dds_::")
+                + "_";
+
+            // Convert schema TypeHash to entity TypeHash via RIHS string
+            let type_hash = match schema.compute_type_hash() {
+                Ok(hash) => {
+                    let rihs_string = hash.to_rihs_string();
+                    crate::entity::TypeHash::from_rihs_string(&rihs_string)
+                        .unwrap_or_else(crate::entity::TypeHash::zero)
+                }
+                Err(_) => crate::entity::TypeHash::zero(),
+            };
+
+            self.entity.type_info = Some(crate::entity::TypeInfo {
+                name: dds_name,
+                hash: type_hash,
+            });
         }
+
+        self.dyn_schema = Some(schema);
+        self
     }
 }
 
-impl<T, S, B> Builder for ZPubBuilder<T, S, B>
+impl<T, S> Builder for ZPubBuilder<T, S>
 where
     T: ZMessage + 'static,
     S: for<'a> ZSerializer<Input<'a> = &'a T> + 'static,
-    B: crate::backend::KeyExprBackend,
 {
     type Output = ZPub<T, S>;
 
@@ -164,7 +202,7 @@ where
         self.entity.topic = qualified_topic.clone();
         debug!("[PUB] Qualified topic: {}", qualified_topic);
 
-        let topic_ke = B::topic_key_expr(&self.entity)?;
+        let topic_ke = self.keyexpr_format.topic_key_expr(&self.entity)?;
         let key_expr = (*topic_ke).clone(); // Deref and clone the KeyExpr
         debug!("[PUB] Key expression: {}", key_expr);
 
@@ -198,13 +236,15 @@ where
         let inner = pub_builder.wait()?;
         debug!("[PUB] Publisher ready: topic={}", self.entity.topic);
 
-        let lv_ke = B::liveliness_key_expr(&self.entity, &self.session.zid())?;
+        let lv_ke = self
+            .keyexpr_format
+            .liveliness_key_expr(&self.entity, &self.session.zid())?;
         let lv_token = self
             .session
             .liveliness()
             .declare_token((*lv_ke).clone())
             .wait()?;
-        let gid = self.entity.gid();
+        let gid = crate::entity::endpoint_gid(&self.entity);
 
         Ok(ZPub {
             entity: self.entity,
@@ -215,6 +255,7 @@ where
             events_mgr: Arc::new(Mutex::new(EventsManager::new(gid))),
             with_attachment: self.with_attachment,
             shm_config: self.shm_config,
+            dyn_schema: self.dyn_schema,
             _phantom_data: Default::default(),
         })
     }
@@ -358,48 +399,39 @@ where
     }
 }
 
-pub struct ZSubBuilder<T, S = CdrSerdes<T>, B = crate::backend::DefaultBackend> {
-    pub entity: EndpointEntity,
-    pub session: Arc<Session>,
-    pub dyn_schema: Option<Arc<crate::dynamic::schema::MessageSchema>>,
-    pub locality: Option<zenoh::sample::Locality>,
-    pub _phantom_data: PhantomData<(T, S, B)>,
+// Specialized implementation for DynamicMessage publisher
+impl ZPub<crate::dynamic::DynamicMessage, crate::dynamic::DynamicCdrSerdes> {
+    /// Get the dynamic schema used by this publisher.
+    ///
+    /// Returns `None` if the publisher was not created with `.with_dyn_schema()`.
+    pub fn schema(&self) -> Option<&crate::dynamic::schema::MessageSchema> {
+        self.dyn_schema.as_ref().map(|s| s.as_ref())
+    }
 }
 
-impl<T, S, B> ZSubBuilder<T, S, B>
+pub struct ZSubBuilder<T, S = CdrSerdes<T>> {
+    pub entity: EndpointEntity,
+    pub session: Arc<Session>,
+    pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
+    pub dyn_schema: Option<Arc<crate::dynamic::schema::MessageSchema>>,
+    pub locality: Option<zenoh::sample::Locality>,
+    pub _phantom_data: PhantomData<(T, S)>,
+}
+
+impl<T, S> ZSubBuilder<T, S>
 where
     T: ZMessage,
 {
     pub fn with_qos(mut self, qos: QosProfile) -> Self {
-        self.entity.qos = qos;
+        self.entity.qos = qos.to_protocol_qos();
         self
     }
 
-    pub fn with_serdes<S2>(self) -> ZSubBuilder<T, S2, B> {
+    pub fn with_serdes<S2>(self) -> ZSubBuilder<T, S2> {
         ZSubBuilder {
             entity: self.entity,
             session: self.session,
-            dyn_schema: self.dyn_schema,
-            locality: self.locality,
-            _phantom_data: PhantomData,
-        }
-    }
-
-    /// Switch to a different backend for key expression generation.
-    ///
-    /// # Example
-    /// ```ignore
-    /// use ros_z::backend::Ros2DdsBackend;
-    ///
-    /// let subscriber = node
-    ///     .create_sub::<String>("chatter")
-    ///     .with_backend::<Ros2DdsBackend>()
-    ///     .build()?;
-    /// ```
-    pub fn with_backend<B2: crate::backend::KeyExprBackend>(self) -> ZSubBuilder<T, S, B2> {
-        ZSubBuilder {
-            entity: self.entity,
-            session: self.session,
+            keyexpr_format: self.keyexpr_format,
             dyn_schema: self.dyn_schema,
             locality: self.locality,
             _phantom_data: PhantomData,
@@ -441,6 +473,37 @@ where
     ///     .build()?;
     /// ```
     pub fn with_dyn_schema(mut self, schema: Arc<crate::dynamic::schema::MessageSchema>) -> Self {
+        use crate::dynamic::MessageSchemaTypeDescription;
+
+        // Only compute and set type_info if it hasn't been set already
+        // (e.g., from create_dyn_sub_auto which provides the publisher's hash)
+        if self.entity.type_info.is_none() {
+            // Compute TypeInfo from schema for proper key expression matching with ROS 2
+            // Convert ROS 2 canonical name to DDS name
+            // "std_msgs/msg/String" → "std_msgs::msg::dds_::String_"
+            let dds_name = schema
+                .type_name
+                .replace("/msg/", "::msg::dds_::")
+                .replace("/srv/", "::srv::dds_::")
+                .replace("/action/", "::action::dds_::")
+                + "_";
+
+            // Convert schema TypeHash to entity TypeHash via RIHS string
+            let type_hash = match schema.compute_type_hash() {
+                Ok(hash) => {
+                    let rihs_string = hash.to_rihs_string();
+                    crate::entity::TypeHash::from_rihs_string(&rihs_string)
+                        .unwrap_or_else(crate::entity::TypeHash::zero)
+                }
+                Err(_) => crate::entity::TypeHash::zero(),
+            };
+
+            self.entity.type_info = Some(crate::entity::TypeInfo {
+                name: dds_name,
+                hash: type_hash,
+            });
+        }
+
         self.dyn_schema = Some(schema);
         self
     }
@@ -453,7 +516,6 @@ where
     ) -> Result<ZSub<T, Q, S>>
     where
         S: ZDeserializer,
-        B: crate::backend::KeyExprBackend,
     {
         let qualified_topic = topic_name::qualify_topic_name(
             &self.entity.topic,
@@ -465,7 +527,7 @@ where
         self.entity.topic = qualified_topic.clone();
         debug!("[SUB] Qualified topic: {}", qualified_topic);
 
-        let topic_ke = B::topic_key_expr(&self.entity)?;
+        let topic_ke = self.keyexpr_format.topic_key_expr(&self.entity)?;
         let key_expr = (*topic_ke).clone(); // Deref and clone the KeyExpr
         debug!(
             "[SUB] Key expression: {}, qos={:?}",
@@ -485,8 +547,10 @@ where
 
         let inner = sub_builder.wait()?;
 
-        let gid = self.entity.gid();
-        let lv_ke = B::liveliness_key_expr(&self.entity, &self.session.zid())?;
+        let gid = crate::entity::endpoint_gid(&self.entity);
+        let lv_ke = self
+            .keyexpr_format
+            .liveliness_key_expr(&self.entity, &self.session.zid())?;
         let lv_token = self
             .session
             .liveliness()
@@ -524,7 +588,6 @@ where
     where
         F: Fn(S::Output) + Send + Sync + 'static,
         S: for<'a> ZDeserializer<Input<'a> = &'a [u8]> + 'static,
-        B: crate::backend::KeyExprBackend,
     {
         let callback = Arc::new(move |sample: Sample| {
             let payload = sample.payload().to_bytes();
@@ -542,10 +605,9 @@ where
     where
         F: Fn() + Send + Sync + 'static,
         S: ZDeserializer,
-        B: crate::backend::KeyExprBackend,
     {
         let queue_size = match self.entity.qos.history {
-            QosHistory::KeepLast(depth) => depth.get(),
+            QosHistory::KeepLast(depth) => depth,
             QosHistory::KeepAll => usize::MAX,
         };
         let queue = Arc::new(BoundedQueue::new(queue_size));
@@ -560,17 +622,16 @@ where
     }
 }
 
-impl<T, S, B> Builder for ZSubBuilder<T, S, B>
+impl<T, S> Builder for ZSubBuilder<T, S>
 where
     T: ZMessage + 'static + Sync + Send,
     S: ZDeserializer,
-    B: crate::backend::KeyExprBackend,
 {
     type Output = ZSub<T, Sample, S>;
 
     fn build(self) -> Result<Self::Output> {
         let queue_size = match self.entity.qos.history {
-            QosHistory::KeepLast(depth) => depth.get(),
+            QosHistory::KeepLast(depth) => depth,
             QosHistory::KeepAll => usize::MAX,
         };
         let queue = Arc::new(BoundedQueue::new(queue_size));

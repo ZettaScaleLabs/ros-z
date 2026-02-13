@@ -60,6 +60,9 @@ pub mod registry;
 pub mod schema;
 pub mod serdes;
 pub mod serialization;
+pub mod type_description;
+pub mod type_description_client;
+pub mod type_description_service;
 pub mod value;
 
 #[cfg(test)]
@@ -72,6 +75,14 @@ pub use registry::{SchemaRegistry, get_schema, has_schema, register_schema};
 pub use schema::{FieldSchema, FieldType, MessageSchema, MessageSchemaBuilder};
 pub use serdes::DynamicCdrSerdes;
 pub use serialization::SerializationFormat;
+pub use type_description::{MessageSchemaTypeDescription, type_description_msg_to_schema};
+pub use type_description_client::TypeDescriptionClient;
+pub use type_description_service::{
+    GetTypeDescription, GetTypeDescriptionRequest, GetTypeDescriptionResponse, RegisteredSchema,
+    TypeDescriptionService, TypeSource, WireField, WireFieldType, WireIndividualTypeDescription,
+    WireKeyValue, WireTypeDescription, WireTypeSource, schema_to_wire_type_description,
+    wire_to_schema_type_description,
+};
 pub use value::{DynamicValue, FromDynamic, IntoDynamic};
 
 use zenoh::sample::Sample;

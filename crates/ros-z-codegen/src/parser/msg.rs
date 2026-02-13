@@ -28,15 +28,21 @@ pub fn parse_msg_string(source: &str, package: &str, path: &Path) -> Result<Pars
             continue;
         }
 
-        // Check if this is a constant (contains '=' but not inside brackets like [<=10])
+        // Check if this is a constant (contains '=' but not bounded string/array like string<=255 or uint8[<=10])
         let is_constant = if let Some(eq_pos) = line.find('=') {
-            // Check if there are brackets before the '='
-            let before_eq = &line[..eq_pos];
-            // If there's an opening bracket without a closing one, the '=' is inside brackets
-            let open_brackets = before_eq.matches('[').count();
-            let close_brackets = before_eq.matches(']').count();
-            // It's a constant if brackets are balanced (not inside an array spec)
-            open_brackets == close_brackets
+            // Check if the '=' is part of '<=' which is used for bounded types
+            if eq_pos > 0 && line.as_bytes().get(eq_pos - 1) == Some(&b'<') {
+                // This is a bounded type, not a constant
+                false
+            } else {
+                // Check if there are brackets before the '='
+                let before_eq = &line[..eq_pos];
+                // If there's an opening bracket without a closing one, the '=' is inside brackets
+                let open_brackets = before_eq.matches('[').count();
+                let close_brackets = before_eq.matches(']').count();
+                // It's a constant if brackets are balanced (not inside an array spec)
+                open_brackets == close_brackets
+            }
         } else {
             false
         };
@@ -202,5 +208,42 @@ geometry_msgs/Point[] waypoints
         assert_eq!(msg.fields.len(), 1);
         assert_eq!(msg.fields[0].name, "data");
         assert_eq!(msg.fields[0].field_type.base_type, "string");
+    }
+
+    #[test]
+    fn test_parse_bounded_string() {
+        let msg_content = r#"
+string<=255 type_name
+Field[] fields
+"#;
+        let path = PathBuf::from("IndividualTypeDescription.msg");
+
+        let msg = parse_msg_string(msg_content, "type_description_interfaces", &path).unwrap();
+
+        assert_eq!(msg.fields.len(), 2);
+        assert_eq!(msg.fields[0].name, "type_name");
+        assert_eq!(msg.fields[0].field_type.base_type, "string");
+        assert_eq!(msg.fields[1].name, "fields");
+    }
+
+    #[test]
+    fn test_parse_bounded_string_with_constants() {
+        // This tests that bounded strings don't get confused with constants
+        let msg_content = r#"
+uint8 FIELD_TYPE_STRING = 17
+uint8 type_id 0
+string<=255 nested_type_name
+"#;
+        let path = PathBuf::from("FieldType.msg");
+
+        let msg = parse_msg_string(msg_content, "type_description_interfaces", &path).unwrap();
+
+        assert_eq!(msg.constants.len(), 1);
+        assert_eq!(msg.constants[0].name, "FIELD_TYPE_STRING");
+        assert_eq!(msg.constants[0].value, "17");
+        assert_eq!(msg.fields.len(), 2);
+        assert_eq!(msg.fields[0].name, "type_id");
+        assert_eq!(msg.fields[1].name, "nested_type_name");
+        assert_eq!(msg.fields[1].field_type.base_type, "string");
     }
 }

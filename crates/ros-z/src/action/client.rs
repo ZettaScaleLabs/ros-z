@@ -37,7 +37,7 @@ pub mod goal_state {
 ///     .build()?;
 /// # Ok::<(), zenoh::Error>(())
 /// ```
-pub struct ZActionClientBuilder<'a, A: ZAction, B = crate::backend::DefaultBackend> {
+pub struct ZActionClientBuilder<'a, A: ZAction> {
     /// The name of the action.
     pub action_name: String,
     /// Reference to the node that will own this client.
@@ -53,25 +53,10 @@ pub struct ZActionClientBuilder<'a, A: ZAction, B = crate::backend::DefaultBacke
     /// QoS profile for the status topic.
     pub status_topic_qos: Option<QosProfile>,
     /// Phantom data for the action type and backend.
-    pub _phantom: std::marker::PhantomData<(A, B)>,
+    pub _phantom: std::marker::PhantomData<A>,
 }
 
-impl<'a, A: ZAction, B> ZActionClientBuilder<'a, A, B> {
-    pub fn with_backend<B2: crate::backend::KeyExprBackend>(
-        self,
-    ) -> ZActionClientBuilder<'a, A, B2> {
-        ZActionClientBuilder {
-            action_name: self.action_name,
-            node: self.node,
-            goal_service_qos: self.goal_service_qos,
-            result_service_qos: self.result_service_qos,
-            cancel_service_qos: self.cancel_service_qos,
-            feedback_topic_qos: self.feedback_topic_qos,
-            status_topic_qos: self.status_topic_qos,
-            _phantom: std::marker::PhantomData,
-        }
-    }
-
+impl<'a, A: ZAction> ZActionClientBuilder<'a, A> {
     pub fn with_goal_service_qos(mut self, qos: QosProfile) -> Self {
         self.goal_service_qos = Some(qos);
         self
@@ -98,7 +83,7 @@ impl<'a, A: ZAction, B> ZActionClientBuilder<'a, A, B> {
     }
 }
 
-impl<'a, A: ZAction> ZActionClientBuilder<'a, A, crate::backend::DefaultBackend> {
+impl<'a, A: ZAction> ZActionClientBuilder<'a, A> {
     pub fn new(action_name: &str, node: &'a crate::node::ZNode) -> Self {
         Self {
             action_name: action_name.to_string(),
@@ -113,10 +98,7 @@ impl<'a, A: ZAction> ZActionClientBuilder<'a, A, crate::backend::DefaultBackend>
     }
 }
 
-impl<'a, A: ZAction, B> Builder for ZActionClientBuilder<'a, A, B>
-where
-    B: crate::backend::KeyExprBackend,
-{
+impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
     type Output = ZActionClient<A>;
 
     fn build(self) -> Result<Self::Output> {
@@ -156,9 +138,9 @@ where
             .node
             .create_client_impl::<GoalService<A>>(&goal_service_name, goal_type_info);
         if let Some(qos) = self.goal_service_qos {
-            goal_client_builder.entity.qos = qos;
+            goal_client_builder.entity.qos = qos.to_protocol_qos();
         }
-        let goal_client = goal_client_builder.with_backend::<B>().build()?;
+        let goal_client = goal_client_builder.build()?;
 
         // Create result client using node API for proper graph registration
         // Use the action's get_result_type_info for proper ROS 2 interop
@@ -167,9 +149,9 @@ where
             .node
             .create_client_impl::<ResultService<A>>(&result_service_name, result_type_info);
         if let Some(qos) = self.result_service_qos {
-            result_client_builder.entity.qos = qos;
+            result_client_builder.entity.qos = qos.to_protocol_qos();
         }
-        let result_client = result_client_builder.with_backend::<B>().build()?;
+        let result_client = result_client_builder.build()?;
         tracing::debug!("Created result client for: {}", result_service_name);
 
         // Create cancel client using node API for proper graph registration
@@ -179,9 +161,9 @@ where
             .node
             .create_client_impl::<CancelService<A>>(&cancel_service_name, cancel_type_info);
         if let Some(qos) = self.cancel_service_qos {
-            cancel_client_builder.entity.qos = qos;
+            cancel_client_builder.entity.qos = qos.to_protocol_qos();
         }
-        let cancel_client = cancel_client_builder.with_backend::<B>().build()?;
+        let cancel_client = cancel_client_builder.build()?;
 
         let goal_board = Arc::new(GoalBoard {
             active_goals: DashMap::new(),
@@ -194,16 +176,15 @@ where
             .node
             .create_sub_impl::<FeedbackMessage<A>>(&feedback_topic_name, feedback_type_info);
         if let Some(qos) = self.feedback_topic_qos {
-            feedback_sub_builder.entity.qos = qos;
+            feedback_sub_builder.entity.qos = qos.to_protocol_qos();
         }
         tracing::debug!(
             "Creating feedback subscriber with callback for {}",
             feedback_topic_name
         );
         let goal_board_feedback = goal_board.clone();
-        let feedback_sub = feedback_sub_builder
-            .with_backend::<B>()
-            .build_with_callback(move |msg: FeedbackMessage<A>| {
+        let feedback_sub =
+            feedback_sub_builder.build_with_callback(move |msg: FeedbackMessage<A>| {
                 tracing::trace!("Feedback callback received for goal {:?}", msg.goal_id);
                 if let Some(channels) = goal_board_feedback.active_goals.get(&msg.goal_id) {
                     tracing::trace!("Routing feedback to goal {:?}", msg.goal_id);
@@ -221,35 +202,33 @@ where
             .node
             .create_sub_impl::<StatusMessage>(&status_topic_name, status_type_info);
         if let Some(qos) = self.status_topic_qos {
-            status_sub_builder.entity.qos = qos;
+            status_sub_builder.entity.qos = qos.to_protocol_qos();
         }
         let goal_board_status = goal_board.clone();
-        let status_sub = status_sub_builder.with_backend::<B>().build_with_callback(
-            move |msg: StatusMessage| {
-                tracing::trace!(
-                    "Status callback received with {} statuses",
-                    msg.status_list.len()
-                );
-                for status_info in msg.status_list {
-                    if let Some(channels) = goal_board_status
-                        .active_goals
-                        .get(&status_info.goal_info.goal_id)
-                    {
-                        tracing::trace!(
-                            "Routing status {:?} to goal {:?}",
-                            status_info.status,
-                            status_info.goal_info.goal_id
-                        );
-                        let _ = channels.status_tx.send(status_info.status);
-                    } else {
-                        tracing::trace!(
-                            "No active goal found for status {:?}",
-                            status_info.goal_info.goal_id
-                        );
-                    }
+        let status_sub = status_sub_builder.build_with_callback(move |msg: StatusMessage| {
+            tracing::trace!(
+                "Status callback received with {} statuses",
+                msg.status_list.len()
+            );
+            for status_info in msg.status_list {
+                if let Some(channels) = goal_board_status
+                    .active_goals
+                    .get(&status_info.goal_info.goal_id)
+                {
+                    tracing::trace!(
+                        "Routing status {:?} to goal {:?}",
+                        status_info.status,
+                        status_info.goal_info.goal_id
+                    );
+                    let _ = channels.status_tx.send(status_info.status);
+                } else {
+                    tracing::trace!(
+                        "No active goal found for status {:?}",
+                        status_info.goal_info.goal_id
+                    );
                 }
-            },
-        )?;
+            }
+        })?;
 
         Ok(ZActionClient {
             goal_client: Arc::new(goal_client),

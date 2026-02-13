@@ -39,7 +39,7 @@
 use std::time::Duration;
 
 use clap::Parser;
-use ros_z::{Builder, backend::Ros2DdsBackend, context::ZContextBuilder};
+use ros_z::{Builder, context::ZContextBuilder};
 use ros_z_msgs::example_interfaces::{AddTwoIntsRequest, AddTwoIntsResponse, srv::AddTwoInts};
 
 #[derive(Debug, Parser)]
@@ -87,6 +87,7 @@ async fn main() -> ros_z::Result<()> {
     // Create context pointing to zenoh-bridge-ros2dds
     let ctx = ZContextBuilder::default()
         .with_connect_endpoints([args.endpoint.as_str()])
+        .keyexpr_format(ros_z_protocol::KeyExprFormat::Ros2Dds)
         .build()?;
 
     match args.role.as_str() {
@@ -106,10 +107,7 @@ async fn run_server(ctx: ros_z::context::ZContext, args: &Args) -> ros_z::Result
     let node = ctx.create_node("add_two_ints_server").build()?;
 
     // Create service server with ros2dds backend
-    let mut service = node
-        .create_service::<AddTwoInts>(&args.service)
-        .with_backend::<Ros2DdsBackend>() // Use ros2dds backend
-        .build()?;
+    let mut service = node.create_service::<AddTwoInts>(&args.service).build()?;
 
     println!("Service server ready, waiting for requests...\n");
 
@@ -159,10 +157,7 @@ async fn run_client(ctx: ros_z::context::ZContext, args: &Args) -> ros_z::Result
     let node = ctx.create_node("add_two_ints_client").build()?;
 
     // Create service client with ros2dds backend
-    let client = node
-        .create_client::<AddTwoInts>(&args.service)
-        .with_backend::<Ros2DdsBackend>() // Use ros2dds backend
-        .build()?;
+    let client = node.create_client::<AddTwoInts>(&args.service).build()?;
 
     println!("Service client ready\n");
 

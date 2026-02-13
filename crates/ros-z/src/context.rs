@@ -73,6 +73,7 @@ pub struct ZContextBuilder {
     remap_rules: RemapRules,
     enable_logging: bool,
     shm_config: Option<Arc<crate::shm::ShmConfig>>,
+    keyexpr_format: ros_z_protocol::KeyExprFormat,
 }
 
 impl ZContextBuilder {
@@ -85,6 +86,28 @@ impl ZContextBuilder {
     /// Set the enclave name
     pub fn with_enclave<S: Into<String>>(mut self, enclave: S) -> Self {
         self.enclave = enclave.into();
+        self
+    }
+
+    /// Set the key expression format for ROS 2 entity mapping.
+    ///
+    /// # Example
+    /// ```
+    /// use ros_z::context::ZContextBuilder;
+    /// use ros_z::Builder;
+    /// use ros_z_protocol::KeyExprFormat;
+    ///
+    /// // Default (RmwZenoh)
+    /// let ctx = ZContextBuilder::default().build()?;
+    ///
+    /// // Explicit format selection
+    /// let ctx = ZContextBuilder::default()
+    ///     .keyexpr_format(KeyExprFormat::RmwZenoh)
+    ///     .build()?;
+    /// # Ok::<(), zenoh::Error>(())
+    /// ```
+    pub fn keyexpr_format(mut self, format: ros_z_protocol::KeyExprFormat) -> Self {
+        self.keyexpr_format = format;
         self
     }
 
@@ -474,6 +497,7 @@ impl Builder for ZContextBuilder {
             graph,
             remap_rules: builder.remap_rules,
             shm_config: builder.shm_config,
+            keyexpr_format: builder.keyexpr_format,
         })
     }
 }
@@ -488,6 +512,7 @@ pub struct ZContext {
     graph: Arc<Graph>,
     remap_rules: RemapRules,
     pub(crate) shm_config: Option<Arc<crate::shm::ShmConfig>>,
+    pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
 }
 
 impl ZContext {
@@ -502,6 +527,8 @@ impl ZContext {
             graph: self.graph.clone(),
             remap_rules: self.remap_rules.clone(),
             shm_config: self.shm_config.clone(),
+            keyexpr_format: self.keyexpr_format,
+            enable_type_desc_service: false,
         }
     }
 

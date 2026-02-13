@@ -34,14 +34,15 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct ZClientBuilder<T, B = crate::backend::DefaultBackend> {
+pub struct ZClientBuilder<T> {
     pub entity: EndpointEntity,
     pub session: Arc<Session>,
-    pub _phantom_data: PhantomData<(T, B)>,
+    pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
+    pub _phantom_data: PhantomData<T>,
 }
 
-impl_with_type_info!(ZClientBuilder<T, B>);
-impl_with_type_info!(ZServerBuilder<T, B>);
+impl_with_type_info!(ZClientBuilder<T>);
+impl_with_type_info!(ZServerBuilder<T>);
 
 pub struct ZClient<T: ZService> {
     // TODO: replace this with the sample sn
@@ -56,31 +57,9 @@ pub struct ZClient<T: ZService> {
     _phantom_data: PhantomData<T>,
 }
 
-impl<T, B> ZClientBuilder<T, B> {
-    /// Switch to a different backend for key expression generation.
-    ///
-    /// # Example
-    /// ```ignore
-    /// use ros_z::backend::Ros2DdsBackend;
-    ///
-    /// let client = node
-    ///     .create_client::<AddTwoInts>("add_two_ints")
-    ///     .with_backend::<Ros2DdsBackend>()
-    ///     .build()?;
-    /// ```
-    pub fn with_backend<B2: crate::backend::KeyExprBackend>(self) -> ZClientBuilder<T, B2> {
-        ZClientBuilder {
-            entity: self.entity,
-            session: self.session,
-            _phantom_data: PhantomData,
-        }
-    }
-}
-
-impl<T, B> Builder for ZClientBuilder<T, B>
+impl<T> Builder for ZClientBuilder<T>
 where
     T: ZService,
-    B: crate::backend::KeyExprBackend,
 {
     type Output = ZClient<T>;
 
@@ -99,7 +78,7 @@ where
         self.entity.topic = qualified_service.clone();
         debug!("[CLN] Qualified service: {}", qualified_service);
 
-        let topic_ke = B::topic_key_expr(&self.entity)?;
+        let topic_ke = self.keyexpr_format.topic_key_expr(&self.entity)?;
         let key_expr = (*topic_ke).clone(); // Deref and clone the KeyExpr
         debug!("[CLN] Key expression: {}", key_expr);
 
@@ -110,7 +89,9 @@ where
             .consolidation(zenoh::query::ConsolidationMode::None)
             .timeout(Duration::from_secs(10))
             .wait()?;
-        let lv_ke = B::liveliness_key_expr(&self.entity, &self.session.zid())?;
+        let lv_ke = self
+            .keyexpr_format
+            .liveliness_key_expr(&self.entity, &self.session.zid())?;
         let lv_token = self
             .session
             .liveliness()
@@ -118,8 +99,8 @@ where
             .wait()?;
         // Use bounded channel based on QoS depth
         let depth = match self.entity.qos.history {
-            crate::qos::QosHistory::KeepLast(n) => n.get(),
-            crate::qos::QosHistory::KeepAll => 1000, // Default reasonable limit for KeepAll
+            ros_z_protocol::qos::QosHistory::KeepLast(n) => n,
+            ros_z_protocol::qos::QosHistory::KeepAll => 1000, // Default reasonable limit for KeepAll
         };
         let (tx, rx) = flume::bounded(depth);
         debug!("[CLN] Client ready: service={}", self.entity.topic);
@@ -128,7 +109,7 @@ where
             sn: AtomicUsize::new(1), // Start at 1 for ROS compatibility
             inner,
             lv_token,
-            gid: self.entity.gid(),
+            gid: crate::entity::endpoint_gid(&self.entity),
             tx,
             rx,
             topic: self.entity.topic.clone(),
@@ -207,6 +188,9 @@ where
         let payload = msg.serialize();
         tracing::Span::current().record("payload_len", payload.len());
 
+        // Log the key expression being queried
+        let query_ke = self.inner.key_expr();
+        info!("[CLN] Sending request to key expression: {}", query_ke);
         debug!("[CLN] Sending request");
 
         let tx = self.tx.clone();
@@ -217,6 +201,11 @@ where
             .callback(move |reply| {
                 match reply.into_result() {
                     Ok(sample) => {
+                        info!(
+                            "[CLN] Reply received: len={}, kind={:?}",
+                            sample.payload().len(),
+                            sample.kind()
+                        );
                         debug!("[CLN] Reply received: len={}", sample.payload().len());
                         // Use try_send for bounded channel - if full, drop the response (QoS depth enforcement)
                         if tx.try_send(sample).is_err() {
@@ -271,10 +260,11 @@ where
 }
 
 #[derive(Debug)]
-pub struct ZServerBuilder<T, B = crate::backend::DefaultBackend> {
+pub struct ZServerBuilder<T> {
     pub entity: EndpointEntity,
     pub session: Arc<Session>,
-    pub _phantom_data: PhantomData<(T, B)>,
+    pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
+    pub _phantom_data: PhantomData<T>,
 }
 
 pub struct ZServer<T: ZService, Q = Query> {
@@ -308,31 +298,9 @@ where
     }
 }
 
-impl<T, B> ZServerBuilder<T, B> {
-    /// Switch to a different backend for key expression generation.
-    ///
-    /// # Example
-    /// ```ignore
-    /// use ros_z::backend::Ros2DdsBackend;
-    ///
-    /// let server = node
-    ///     .create_server::<AddTwoInts>("add_two_ints")
-    ///     .with_backend::<Ros2DdsBackend>()
-    ///     .build()?;
-    /// ```
-    pub fn with_backend<B2: crate::backend::KeyExprBackend>(self) -> ZServerBuilder<T, B2> {
-        ZServerBuilder {
-            entity: self.entity,
-            session: self.session,
-            _phantom_data: PhantomData,
-        }
-    }
-}
-
-impl<T, B> ZServerBuilder<T, B>
+impl<T> ZServerBuilder<T>
 where
     T: ZService,
-    B: crate::backend::KeyExprBackend,
 {
     /// Internal method that all build variants use.
     fn build_internal<Q>(
@@ -349,30 +317,43 @@ where
 
         self.entity.topic = qualified_service;
 
-        let topic_ke = B::topic_key_expr(&self.entity)?;
+        let topic_ke = self.keyexpr_format.topic_key_expr(&self.entity)?;
         let key_expr = (*topic_ke).clone(); // Deref and clone the KeyExpr
         tracing::debug!("[SRV] KE: {key_expr}");
+
+        info!("[SRV] Declaring queryable on key expression: {}", key_expr);
 
         let inner = self
             .session
             .declare_queryable(&key_expr)
             .complete(true)
             .callback(move |query| {
-                debug!(
-                    "[SRV] Query received: ke={}, selector={}",
+                info!(
+                    "[SRV] Query received: ke={}, selector={}, parameters={}",
                     query.key_expr(),
-                    query.selector()
+                    query.selector(),
+                    query.parameters()
                 );
 
                 if let Some(att) = query.attachment() {
-                    trace!("[SRV] Query has attachment");
+                    info!("[SRV] Query has attachment: {} bytes", att.len());
+                } else {
+                    info!("[SRV] Query has NO attachment");
+                }
+
+                if let Some(payload) = query.payload() {
+                    info!("[SRV] Query has payload: {} bytes", payload.len());
+                } else {
+                    info!("[SRV] Query has NO payload");
                 }
 
                 handler.handle(query);
             })
             .wait()?;
 
-        let lv_ke = B::liveliness_key_expr(&self.entity, &self.session.zid())?;
+        let lv_ke = self
+            .keyexpr_format
+            .liveliness_key_expr(&self.entity, &self.session.zid())?;
         let lv_token = self
             .session
             .liveliness()
@@ -384,7 +365,7 @@ where
             sn: AtomicUsize::new(1), // Start at 1 for ROS compatibility
             inner,
             lv_token,
-            gid: self.entity.gid(),
+            gid: crate::entity::endpoint_gid(&self.entity),
             queue,
             map: HashMap::new(),
             _phantom_data: Default::default(),
@@ -404,8 +385,8 @@ where
         F: Fn() + Send + Sync + 'static,
     {
         let queue_size = match self.entity.qos.history {
-            QosHistory::KeepLast(depth) => depth.get(),
-            QosHistory::KeepAll => usize::MAX,
+            ros_z_protocol::qos::QosHistory::KeepLast(depth) => depth,
+            ros_z_protocol::qos::QosHistory::KeepAll => usize::MAX,
         };
         let queue = Arc::new(BoundedQueue::new(queue_size));
         self.build_internal(
@@ -418,17 +399,16 @@ where
     }
 }
 
-impl<T, B> Builder for ZServerBuilder<T, B>
+impl<T> Builder for ZServerBuilder<T>
 where
     T: ZService,
-    B: crate::backend::KeyExprBackend,
 {
     type Output = ZServer<T>;
 
     fn build(self) -> Result<Self::Output> {
         let queue_size = match self.entity.qos.history {
-            QosHistory::KeepLast(depth) => depth.get(),
-            QosHistory::KeepAll => usize::MAX,
+            ros_z_protocol::qos::QosHistory::KeepLast(depth) => depth,
+            ros_z_protocol::qos::QosHistory::KeepAll => usize::MAX,
         };
         let queue = Arc::new(BoundedQueue::new(queue_size));
         self.build_internal(DataHandler::Queue(queue.clone()), Some(queue))

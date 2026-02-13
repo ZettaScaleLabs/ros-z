@@ -6,7 +6,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::ListItem,
 };
-use ros_z::entity::EntityKind;
+use ros_z::entity::{EntityKind, entity_get_endpoint};
 
 use crate::app::App;
 use crate::app::state::*;
@@ -143,7 +143,7 @@ impl App {
             if self.detail_state.publishers_expanded {
                 detail.push_str("\n\n");
                 for (idx, entity) in pub_entities.iter().enumerate() {
-                    if let Some(endpoint) = entity.get_endpoint() {
+                    if let Some(endpoint) = entity_get_endpoint(entity) {
                         detail.push_str(&format!("   Publisher {}:\n", idx + 1));
                         detail.push_str(&format!(
                             "    Node: {}/{}\n",
@@ -185,7 +185,7 @@ impl App {
             if self.detail_state.subscribers_expanded {
                 detail.push_str("\n\n");
                 for (idx, entity) in sub_entities.iter().enumerate() {
-                    if let Some(endpoint) = entity.get_endpoint() {
+                    if let Some(endpoint) = entity_get_endpoint(entity) {
                         detail.push_str(&format!("   Subscriber {}:\n", idx + 1));
                         detail.push_str(&format!(
                             "    Node: {}/{}\n",

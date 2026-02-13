@@ -8,7 +8,7 @@
 //!
 //! Reference: zenoh-plugin-ros2dds/src/liveliness_mgt.rs
 
-use zenoh::{Result, key_expr::KeyExpr, session::ZenohId};
+use zenoh::{key_expr::KeyExpr, session::ZenohId, Result};
 
 use crate::{
     entity::{
@@ -18,15 +18,15 @@ use crate::{
     qos::{QosDurability, QosHistory, QosProfile, QosReliability},
 };
 
-use super::KeyExprBackend;
+use super::KeyExprFormatter;
 
 /// Escape character for slashes in ros2dds format (U+00A7 Section Sign).
 pub const SLASH_REPLACEMENT_CHAR: char = '§';
 
-/// zenoh-plugin-ros2dds compatible backend.
-pub struct Ros2DdsBackend;
+/// zenoh-plugin-ros2dds compatible formatter.
+pub struct Ros2DdsFormatter;
 
-impl KeyExprBackend for Ros2DdsBackend {
+impl KeyExprFormatter for Ros2DdsFormatter {
     /// ros2dds uses '§' (U+00A7) to escape slashes
     const ESCAPE_CHAR: char = SLASH_REPLACEMENT_CHAR;
 
@@ -266,7 +266,6 @@ impl KeyExprBackend for Ros2DdsBackend {
                 reliability,
                 durability,
                 history,
-                ..Default::default()
             },
         ))
     }
@@ -278,13 +277,13 @@ mod tests {
 
     #[test]
     fn test_mangle_demangle() {
-        assert_eq!(Ros2DdsBackend::mangle_name("/chatter"), "§chatter");
+        assert_eq!(Ros2DdsFormatter::mangle_name("/chatter"), "§chatter");
         assert_eq!(
-            Ros2DdsBackend::mangle_name("std_msgs/msg/String"),
+            Ros2DdsFormatter::mangle_name("std_msgs/msg/String"),
             "std_msgs§msg§String"
         );
         assert_eq!(
-            Ros2DdsBackend::demangle_name("std_msgs§msg§String"),
+            Ros2DdsFormatter::demangle_name("std_msgs§msg§String"),
             "std_msgs/msg/String"
         );
     }
@@ -292,10 +291,10 @@ mod tests {
     #[test]
     fn test_qos_encode_decode() {
         let qos = QosProfile::default();
-        let encoded = Ros2DdsBackend::encode_qos(&qos, false);
+        let encoded = Ros2DdsFormatter::encode_qos(&qos, false);
         assert!(encoded.starts_with("K:"));
 
-        let (keyless, decoded) = Ros2DdsBackend::decode_qos(&encoded).unwrap();
+        let (keyless, decoded) = Ros2DdsFormatter::decode_qos(&encoded).unwrap();
         assert!(!keyless);
         assert_eq!(decoded.reliability, qos.reliability);
         assert_eq!(decoded.durability, qos.durability);
@@ -307,12 +306,11 @@ mod tests {
             reliability: QosReliability::Reliable,
             durability: QosDurability::TransientLocal,
             history: QosHistory::from_depth(10),
-            ..Default::default()
         };
-        let encoded = Ros2DdsBackend::encode_qos(&qos, false);
+        let encoded = Ros2DdsFormatter::encode_qos(&qos, false);
         assert_eq!(encoded, "K:1:1:0,10");
 
-        let (keyless, decoded) = Ros2DdsBackend::decode_qos(&encoded).unwrap();
+        let (keyless, decoded) = Ros2DdsFormatter::decode_qos(&encoded).unwrap();
         assert!(!keyless);
         assert_eq!(decoded.reliability, QosReliability::Reliable);
         assert_eq!(decoded.durability, QosDurability::TransientLocal);
@@ -330,7 +328,7 @@ mod tests {
     fn test_qos_format_compatibility_with_zenoh_plugin() {
         // Test default QoS (keyless=true) -> ":::"
         let qos = QosProfile::default();
-        let encoded = Ros2DdsBackend::encode_qos(&qos, true);
+        let encoded = Ros2DdsFormatter::encode_qos(&qos, true);
         // Keyless=true means empty first field
         assert!(
             encoded.starts_with(":"),
@@ -339,7 +337,7 @@ mod tests {
         );
 
         // Test default QoS (keyless=false) -> "K:::"
-        let encoded = Ros2DdsBackend::encode_qos(&qos, false);
+        let encoded = Ros2DdsFormatter::encode_qos(&qos, false);
         assert!(
             encoded.starts_with("K:"),
             "Expected 'K:' prefix for non-keyless, got: {}",
@@ -351,7 +349,7 @@ mod tests {
             reliability: QosReliability::Reliable,
             ..Default::default()
         };
-        let encoded = Ros2DdsBackend::encode_qos(&qos, false);
+        let encoded = Ros2DdsFormatter::encode_qos(&qos, false);
         let parts: Vec<&str> = encoded.split(':').collect();
         assert_eq!(parts[1], "1", "RELIABLE should be encoded as '1'");
 
@@ -360,7 +358,7 @@ mod tests {
             reliability: QosReliability::BestEffort,
             ..Default::default()
         };
-        let encoded = Ros2DdsBackend::encode_qos(&qos, false);
+        let encoded = Ros2DdsFormatter::encode_qos(&qos, false);
         let parts: Vec<&str> = encoded.split(':').collect();
         assert_eq!(parts[1], "0", "BEST_EFFORT should be encoded as '0'");
 
@@ -369,7 +367,7 @@ mod tests {
             durability: QosDurability::TransientLocal,
             ..Default::default()
         };
-        let encoded = Ros2DdsBackend::encode_qos(&qos, false);
+        let encoded = Ros2DdsFormatter::encode_qos(&qos, false);
         let parts: Vec<&str> = encoded.split(':').collect();
         assert_eq!(parts[2], "1", "TRANSIENT_LOCAL should be encoded as '1'");
 
@@ -378,7 +376,7 @@ mod tests {
             durability: QosDurability::Volatile,
             ..Default::default()
         };
-        let encoded = Ros2DdsBackend::encode_qos(&qos, false);
+        let encoded = Ros2DdsFormatter::encode_qos(&qos, false);
         let parts: Vec<&str> = encoded.split(':').collect();
         assert_eq!(parts[2], "0", "VOLATILE should be encoded as '0'");
 
@@ -387,7 +385,7 @@ mod tests {
             history: QosHistory::from_depth(5),
             ..Default::default()
         };
-        let encoded = Ros2DdsBackend::encode_qos(&qos, false);
+        let encoded = Ros2DdsFormatter::encode_qos(&qos, false);
         let parts: Vec<&str> = encoded.split(':').collect();
         assert_eq!(parts[3], "0,5", "KEEP_LAST(5) should be encoded as '0,5'");
 
@@ -396,7 +394,7 @@ mod tests {
             history: QosHistory::KeepAll,
             ..Default::default()
         };
-        let encoded = Ros2DdsBackend::encode_qos(&qos, false);
+        let encoded = Ros2DdsFormatter::encode_qos(&qos, false);
         let parts: Vec<&str> = encoded.split(':').collect();
         assert_eq!(parts[3], "1,0", "KEEP_ALL should be encoded as '1,0'");
     }
@@ -426,7 +424,7 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let topic_ke = Ros2DdsBackend::topic_key_expr(&entity).unwrap();
+        let topic_ke = Ros2DdsFormatter::topic_key_expr(&entity).unwrap();
         // ros2dds uses simple topic name
         assert_eq!(topic_ke.as_str(), "chatter");
     }
@@ -455,7 +453,7 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let liveliness_ke = Ros2DdsBackend::liveliness_key_expr(&entity, &zid).unwrap();
+        let liveliness_ke = Ros2DdsFormatter::liveliness_key_expr(&entity, &zid).unwrap();
         let ke_str = liveliness_ke.as_str();
 
         // Should start with @/<zenoh_id>/@ros2_lv
@@ -514,7 +512,7 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let liveliness_ke = Ros2DdsBackend::liveliness_key_expr(&entity, &zid).unwrap();
+        let liveliness_ke = Ros2DdsFormatter::liveliness_key_expr(&entity, &zid).unwrap();
         let ke_str = liveliness_ke.as_str();
 
         // Should contain MS for Subscription
@@ -550,7 +548,7 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let liveliness_ke = Ros2DdsBackend::liveliness_key_expr(&entity, &zid).unwrap();
+        let liveliness_ke = Ros2DdsFormatter::liveliness_key_expr(&entity, &zid).unwrap();
         let ke_str = liveliness_ke.as_str();
 
         // Should contain SS for Service
@@ -597,7 +595,7 @@ mod tests {
             qos: QosProfile::default(),
         };
 
-        let liveliness_ke = Ros2DdsBackend::liveliness_key_expr(&entity, &zid).unwrap();
+        let liveliness_ke = Ros2DdsFormatter::liveliness_key_expr(&entity, &zid).unwrap();
         let ke_str = liveliness_ke.as_str();
 
         // Should contain SC for Client

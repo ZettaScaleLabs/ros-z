@@ -151,3 +151,65 @@ fn test_type_aliases_exist() {
         let _: Option<DynSubBuilder> = None;
     }
 }
+
+// Tests for ZPubBuilder dyn_schema support
+
+#[test]
+fn test_zpub_builder_with_dyn_schema() {
+    use crate::dynamic::DynamicMessage;
+    use crate::pubsub::ZPubBuilder;
+    use std::marker::PhantomData;
+
+    let schema = create_point_schema();
+
+    // Create a mock builder to test with_dyn_schema
+    let builder: ZPubBuilder<DynamicMessage> = ZPubBuilder {
+        entity: Default::default(),
+        session: std::sync::Arc::new(
+            zenoh::Wait::wait(zenoh::open(zenoh::Config::default())).unwrap(),
+        ),
+        keyexpr_format: ros_z_protocol::KeyExprFormat::default(),
+        with_attachment: true,
+        shm_config: None,
+        dyn_schema: None,
+        _phantom_data: PhantomData,
+    };
+
+    // Add schema
+    let builder = builder.with_dyn_schema(schema.clone());
+    assert!(builder.dyn_schema.is_some());
+    assert_eq!(
+        builder.dyn_schema.as_ref().unwrap().type_name,
+        "geometry_msgs/msg/Point"
+    );
+}
+
+#[test]
+fn test_zpub_builder_with_serdes_preserves_schema() {
+    use crate::dynamic::{DynamicCdrSerdes, DynamicMessage};
+    use crate::pubsub::ZPubBuilder;
+    use std::marker::PhantomData;
+
+    let schema = create_test_schema();
+
+    // Create builder with schema
+    let builder: ZPubBuilder<DynamicMessage> = ZPubBuilder {
+        entity: Default::default(),
+        session: std::sync::Arc::new(
+            zenoh::Wait::wait(zenoh::open(zenoh::Config::default())).unwrap(),
+        ),
+        keyexpr_format: ros_z_protocol::KeyExprFormat::default(),
+        with_attachment: true,
+        shm_config: None,
+        dyn_schema: Some(schema.clone()),
+        _phantom_data: PhantomData,
+    };
+
+    // Convert serdes type - schema should be preserved
+    let builder: ZPubBuilder<DynamicMessage, DynamicCdrSerdes> = builder.with_serdes();
+    assert!(builder.dyn_schema.is_some());
+    assert_eq!(
+        builder.dyn_schema.as_ref().unwrap().type_name,
+        "std_msgs/msg/String"
+    );
+}

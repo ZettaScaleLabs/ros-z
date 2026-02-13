@@ -143,20 +143,24 @@ fn discover_ros_packages(is_humble: bool) -> Result<Vec<PathBuf>> {
 
     let all_packages = get_all_packages(is_humble);
 
-    // Priority 1: System ROS installation (highest priority - most up-to-date)
-    let system_packages = discover_system_packages(&all_packages)?;
-    let system_count = system_packages.len();
-    for pkg_path in system_packages {
+    // Priority 1: Local bundled assets (highest priority - canonical source)
+    // This ensures our bundled message definitions are always used consistently,
+    // avoiding issues with system packages that may have different versions or
+    // hardcoded paths from Nix wrapProgram.
+    println!("cargo:info=Checking local bundled assets from ros-z-codegen/assets/jazzy");
+    let local_asset_packages = discover_local_assets(&all_packages)?;
+    let local_count = local_asset_packages.len();
+    for pkg_path in local_asset_packages {
         if let Ok(name) = discover_package_name_from_path(&pkg_path) {
-            println!("cargo:info=System: Adding package {}", name);
+            println!("cargo:info=Local: Adding package {}", name);
             package_map.insert(name, pkg_path);
         }
     }
 
-    if system_count > 0 {
+    if local_count > 0 {
         println!(
-            "cargo:info=Found {} packages from ROS 2 installation",
-            system_count
+            "cargo:info=Found {} packages from local bundled assets",
+            local_count
         );
 
         // Emit cfg flags for each found package
@@ -167,26 +171,25 @@ fn discover_ros_packages(is_humble: bool) -> Result<Vec<PathBuf>> {
         return Ok(package_map.into_values().collect());
     }
 
-    // Priority 2: Local bundled assets (fallback for packages not found in system)
-    // Check which packages are still missing
-    let missing_packages: Vec<&str> = all_packages
-        .iter()
-        .filter(|&&pkg| !package_map.contains_key(pkg))
-        .copied()
-        .collect();
-
-    if !missing_packages.is_empty() {
-        println!(
-            "cargo:info=Looking for {} missing packages in bundled assets",
-            missing_packages.len()
-        );
-        let local_asset_packages = discover_local_assets(&missing_packages)?;
-        for pkg_path in local_asset_packages {
-            if let Ok(name) = discover_package_name_from_path(&pkg_path) {
-                println!("cargo:info=Bundled: Adding package {}", name);
-                package_map.insert(name, pkg_path);
+    // Priority 2: System ROS installation (fallback for packages not bundled locally)
+    let system_packages = discover_system_packages(&all_packages)?;
+    let mut system_added = 0;
+    for pkg_path in system_packages {
+        if let Ok(name) = discover_package_name_from_path(&pkg_path) {
+            // Only add if not already found in local assets
+            if let std::collections::hash_map::Entry::Vacant(e) = package_map.entry(name) {
+                println!("cargo:info=System: Adding package {}", e.key());
+                e.insert(pkg_path);
+                system_added += 1;
             }
         }
+    }
+
+    if system_added > 0 {
+        println!(
+            "cargo:info=Added {} packages from ROS 2 installation (not in local assets)",
+            system_added
+        );
     }
 
     println!(
@@ -227,6 +230,9 @@ fn get_all_packages(is_humble: bool) -> Vec<&'static str> {
     // service calls. This package doesn't exist in Humble (May 2022).
     if !is_humble {
         names.push("service_msgs");
+        // type_description_interfaces was also introduced in Jazzy/Iron
+        // for runtime type introspection support
+        names.push("type_description_interfaces");
     }
 
     // Check features via environment variables (cfg! doesn't work in build scripts)

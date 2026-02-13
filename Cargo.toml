@@ -11,8 +11,10 @@ members = [
   "crates/ros-z-cdr",
   "crates/ros-z-codegen",
   "crates/ros-z-derive",
+  "crates/ros-z-protocol",
   "crates/ros-z-py",
   "crates/rmw-zenoh-rs",
+  "crates/ros-z-schema",
   "crates/ros-z-msgs",
   "crates/ros-z-tests",
   "crates/ros-z-console",
@@ -25,7 +27,9 @@ default-members = ["crates/ros-z", "crates/ros-z-codegen"]
 # Workspace members
 ros-z = { version = "*", path = "crates/ros-z" }
 ros-z-codegen = { version = "*", path = "crates/ros-z-codegen" }
+ros-z-protocol = { version = "*", path = "crates/ros-z-protocol" }
 rmw-zenoh-rs = { version = "*", path = "crates/rmw-zenoh-rs" }
+ros-z-schema = { version = "*", path = "crates/ros-z-schema" }
 
 # Serialization
 ros-z-cdr = { path = "crates/ros-z-cdr" }
@@ -60,6 +64,7 @@ byteorder = "1.3"
 csv = "1.3.1"
 json5 = "0.4.1"
 once_cell = "1.19"
+hex = "0.4"
 
 # FFI
 cxx = "1.0.168"
