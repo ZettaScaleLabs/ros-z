@@ -122,23 +122,15 @@ impl MessageTypeSupport {
     }
 
     pub fn get_type_hash(&self) -> TypeHash {
-        #[cfg(not(ros_distro_humble))]
-        {
-            let hash = unsafe {
-                let type_hash =
-                    self.as_ref()
-                        .get_type_hash_func
-                        .expect("Failed to get_type_hash_func")(self.as_ref());
-                assert!(!type_hash.is_null());
-                *type_hash
-            };
-            TypeHash::new(hash.version, hash.value)
-        }
-        #[cfg(ros_distro_humble)]
-        {
-            // Humble doesn't support type hashes - return zero hash
-            TypeHash::new(0, [0; 32])
-        }
+        let hash = unsafe {
+            let type_hash = self
+                .as_ref()
+                .get_type_hash_func
+                .expect("Failed to get_type_hash_func")(self.as_ref());
+            assert!(!type_hash.is_null());
+            *type_hash
+        };
+        TypeHash::new(hash.version, hash.value)
     }
 
     pub unsafe fn serialize_message(&self, ros_message: *const c_void) -> Vec<u8> {
@@ -253,24 +245,15 @@ impl ServiceTypeSupport {
     }
 
     pub fn get_type_hash(&self) -> TypeHash {
-        // Type hash support is only available in Iron+ (not Humble)
-        #[cfg(not(ros_distro_humble))]
-        {
-            let hash = unsafe {
-                let type_hash = get_service_type_hash(self.ptr);
-                if type_hash.is_null() {
-                    // Fallback to response type's hash if service hash is not available
-                    return self.response.get_type_hash();
-                }
-                *type_hash
-            };
-            TypeHash::new(hash.version, hash.value)
-        }
-        #[cfg(ros_distro_humble)]
-        {
-            // For Humble, use response type's hash (service-level hash not supported)
-            self.response.get_type_hash()
-        }
+        let hash = unsafe {
+            let type_hash = get_service_type_hash(self.ptr);
+            if type_hash.is_null() {
+                // Fallback to response type's hash if service hash is not available
+                return self.response.get_type_hash();
+            }
+            *type_hash
+        };
+        TypeHash::new(hash.version, hash.value)
     }
 
     pub fn get_type_info(&self) -> TypeInfo {
