@@ -1,6 +1,13 @@
 use std::time::Duration;
 
 use ros_z::{Builder, Result, action::server::ExecutingGoal, context::ZContext};
+
+// Humble uses action_tutorials_interfaces, Kilted+ uses example_interfaces
+#[cfg(feature = "humble")]
+use ros_z_msgs::action_tutorials_interfaces::{
+    FibonacciFeedback, FibonacciResult, action::Fibonacci,
+};
+#[cfg(not(feature = "humble"))]
 use ros_z_msgs::example_interfaces::{FibonacciFeedback, FibonacciResult, action::Fibonacci};
 
 // ANCHOR: full_example
@@ -45,10 +52,16 @@ pub async fn run_fibonacci_action_server(ctx: ZContext, timeout: Option<Duration
                 sequence.push(next);
 
                 // Publish feedback
+                #[cfg(feature = "humble")]
+                let feedback = FibonacciFeedback {
+                    partial_sequence: sequence.clone(),
+                };
+                #[cfg(not(feature = "humble"))]
+                let feedback = FibonacciFeedback {
+                    sequence: sequence.clone(),
+                };
                 executing
-                    .publish_feedback(FibonacciFeedback {
-                        sequence: sequence.clone(),
-                    })
+                    .publish_feedback(feedback)
                     .expect("Failed to publish feedback");
 
                 tokio::time::sleep(Duration::from_millis(500)).await;
