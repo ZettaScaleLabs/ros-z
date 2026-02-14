@@ -1,5 +1,12 @@
 use ros_z::{Builder, Result, context::ZContext};
+
+// Distro-specific action interfaces:
+// - Humble/Jazzy: action_tutorials_cpp uses action_tutorials_interfaces
+// - Kilted: action_tutorials_cpp uses example_interfaces
+#[cfg(not(feature = "kilted"))]
 use ros_z_msgs::action_tutorials_interfaces::{FibonacciGoal, action::Fibonacci};
+#[cfg(feature = "kilted")]
+use ros_z_msgs::example_interfaces::{FibonacciGoal, action::Fibonacci};
 
 // ANCHOR: full_example
 /// Fibonacci action client node that sends goals to compute Fibonacci sequences
@@ -39,6 +46,10 @@ pub async fn run_fibonacci_action_client(ctx: ZContext, order: i32) -> Result<Ve
     if let Some(mut feedback_stream) = goal_handle.feedback() {
         tokio::spawn(async move {
             while let Some(fb) = feedback_stream.recv().await {
+                // Distro-specific feedback field names
+                #[cfg(feature = "kilted")]
+                println!("Feedback: {:?}", fb.sequence);
+                #[cfg(not(feature = "kilted"))]
                 println!("Feedback: {:?}", fb.partial_sequence);
             }
         });

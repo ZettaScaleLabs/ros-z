@@ -156,7 +156,7 @@ The build system automatically locates ROS message definitions:
 **Search order:**
 
 1. System ROS installation (`AMENT_PREFIX_PATH`, `CMAKE_PREFIX_PATH`)
-2. Common ROS paths (`/opt/ros/{rolling,jazzy,iron,humble}`)
+2. Common ROS paths (`/opt/ros/{rolling,jazzy,kilted,humble}`)
 3. Bundled assets (built-in message definitions in ros-z-codegen)
 
 This fallback mechanism enables builds without ROS 2 installed.

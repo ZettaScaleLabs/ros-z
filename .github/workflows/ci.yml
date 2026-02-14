@@ -145,7 +145,7 @@ jobs:
       contents: read
     strategy:
       matrix:
-        distro: [humble, jazzy]
+        distro: [humble, jazzy, kilted]
     # Skip for draft PRs to save CI time during development
     if: |
       github.event_name == 'push' ||
@@ -235,11 +235,14 @@ jobs:
           nu scripts/test-python.nu --distro ${{ matrix.distro }} cleanup-python
 
   ros-tests:
-    name: ROS Tests (clippy-rmw, interop) (jazzy)
+    name: ROS Tests (clippy-rmw, interop) (${{ matrix.distro }})
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
+    strategy:
+      matrix:
+        distro: [humble, jazzy, kilted]
     # Skip for draft PRs to save CI time during development
     if: |
       github.event_name == 'push' ||
@@ -270,7 +273,7 @@ jobs:
 
       - name: Setup nix environment
         run: |
-          nix print-dev-env '.#ros-jazzy-ci' \
+          nix print-dev-env '.#ros-${{ matrix.distro }}-ci' \
             --accept-flake-config > /tmp/nix-dev-env.sh
           echo "export CI=true" >> /tmp/nix-dev-env.sh
 
@@ -282,4 +285,4 @@ jobs:
       - name: Run ROS tests
         run: |
           source /tmp/nix-dev-env.sh
-          nu scripts/test-ros.nu --distro jazzy
+          nu scripts/test-ros.nu --distro ${{ matrix.distro }}

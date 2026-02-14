@@ -2,14 +2,20 @@
 
 ros-z supports multiple ROS 2 distributions through compile-time feature flags. This chapter explains the differences between distributions and how to target specific ROS 2 versions.
 
+> **Important**: Different ros-z components have different ROS 2 version requirements:
+>
+> - **ros-z core library**: Supports Humble, Iron, Jazzy, Kilted, Rolling
+> - **rmw-zenoh-rs**: Requires Iron or later (see [rmw-zenoh-rs chapter](./rmw_zenoh_rs.md#ros-2-version-requirements))
+
 ## Supported Distributions
 
-| Distribution | Status | Type Hash Support | Default |
-|--------------|--------|-------------------|---------|
-| **Jazzy Jalisco** | ✅ Fully Supported | ✅ Yes | **Yes** |
-| **Humble Hawksbill** | ✅ Supported | ❌ No (placeholder) | No |
-| Rolling Ridley | ✅ Supported | ✅ Yes | No |
-| Iron Irwini | ✅ Supported | ✅ Yes | No |
+| Distribution | Core Library | rmw-zenoh-rs | Type Hash Support | Default |
+|--------------|--------------|--------------|-------------------|---------|
+| **Kilted Kaiju** | ✅ Supported | ✅ Supported | ✅ Yes | No |
+| **Jazzy Jalisco** | ✅ Supported | ✅ Supported | ✅ Yes | **Yes** |
+| **Iron Irwini** | ✅ Supported | ✅ Supported | ✅ Yes | No |
+| **Humble Hawksbill** | ✅ Supported | ❌ **Not Supported** | ❌ Placeholder | No |
+| Rolling Ridley | ✅ Supported | ✅ Supported | ✅ Yes | No |
 
 **Default**: ros-z defaults to **Jazzy** compatibility, which is the recommended distribution for new projects.
 
@@ -81,12 +87,12 @@ cargo nextest run --no-default-features --features humble
 
 ### Using Other Distributions
 
-For Rolling or Iron, simply specify the distro feature:
+For Rolling or Kilted, simply specify the distro feature:
 
 ```bash
 # Build for Rolling
 cargo build --features rolling
 
-# Build for Iron
-cargo build --features iron
+# Build for Kilted
+cargo build --features kilted
 ```

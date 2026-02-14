@@ -52,7 +52,7 @@ def main [
 
     # Resolve rmw-zenoh-rs path (absolute path passed to colcon --paths)
     let rmw_zenoh_rs = if $rmw_path == "" {
-        $ros_z_root | path join "rmw-zenoh-rs" | path expand
+        $ros_z_root | path join "crates" "rmw-zenoh-rs" | path expand
     } else {
         $rmw_path | path expand
     }

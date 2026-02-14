@@ -174,7 +174,7 @@ impl TypeHash {
         #[cfg(feature = "no-type-hash")]
         {
             // ROS 2 Humble doesn't support type hashing
-            return "TypeHashNotSupported".to_string();
+            "TypeHashNotSupported".to_string()
         }
 
         #[cfg(not(feature = "no-type-hash"))]
