@@ -10,6 +10,7 @@ crate-type = ["cdylib"]
 [dependencies]
 pyo3 = { workspace = true }
 ros-z = { path = "../ros-z" }
+ros-z-cdr = { workspace = true }
 ros-z-msgs = { path = "../ros-z-msgs", features = [
   "python_registry",
   "std_msgs",

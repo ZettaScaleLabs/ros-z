@@ -21,6 +21,15 @@ pub mod primitives;
 pub mod serializer;
 pub mod zbuf_writer;
 
+use std::cell::RefCell;
+
+// Thread-local for zero-copy ZBuf deserialization bypass.
+// When set with the source payload ZBuf, ZBuf::Deserialize creates sub-ZSlices
+// instead of copying bytes, enabling zero-copy deserialization.
+thread_local! {
+    pub static ZBUF_DESER_SOURCE: RefCell<Option<zenoh_buffers::ZBuf>> = const { RefCell::new(None) };
+}
+
 // Re-export main types for convenience
 pub use buffer::CdrBuffer;
 // Re-export byteorder types for convenience

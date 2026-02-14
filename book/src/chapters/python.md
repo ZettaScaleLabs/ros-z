@@ -142,6 +142,63 @@ ctx = (
 node = ctx.create_node("my_node").with_namespace("/robot1").build()
 ```
 
+## Performance: Zero-Copy Large Payloads
+
+When working with large byte arrays (sensor data, images, point clouds), ros-z-py minimizes memory copies using a zero-copy optimization for `uint8[]` and `byte[]` fields.
+
+### ZBufView
+
+When a subscriber receives a message, byte array fields are exposed as a `ZBufView` — a zero-copy view into the received network buffer. `ZBufView` implements Python's buffer protocol:
+
+```python
+msg = sub.recv(timeout=1.0)
+# msg.data is a ZBufView — no copy has occurred
+
+# Zero-copy access via buffer protocol
+mv = memoryview(msg.data)
+header = mv[:8]  # Slice without copying the entire payload
+
+# Only copies when explicitly converted
+data = bytes(msg.data)
+```
+
+### Echo Without Copying
+
+For relay and echo patterns, pass `ZBufView` fields directly to a new message. The derive macro detects `ZBufView` and extracts the inner buffer via reference counting — no data copy occurs:
+
+```python
+# Receive and re-publish — zero-copy for byte array fields
+msg = sub.recv(timeout=1.0)
+echo = std_msgs.ByteMultiArray(data=msg.data)  # No copy!
+pub.publish(echo)
+```
+
+### ZBufView API
+
+| Method | Description |
+|--------|-------------|
+| `len(view)` | Number of bytes |
+| `bool(view)` | True if not empty |
+| `view[i]` | Single byte access |
+| `view[start:stop]` | Slice (returns `bytes`) |
+| `memoryview(view)` | Zero-copy buffer protocol access |
+| `bytes(view)` | Convert to `bytes` (copies) |
+| `view.is_zero_copy` | Whether the view avoids internal copying |
+
+```admonish tip
+For best performance with large payloads, avoid calling `bytes()` on `ZBufView` fields. Use `memoryview()` for read access, or pass the `ZBufView` directly when re-publishing.
+```
+
+### How It Works
+
+The optimization operates at three layers:
+
+1. **Deserialization bypass**: When the Python subscriber receives a message, the raw network buffer (ZBuf) is stored in a thread-local. During CDR deserialization, byte array fields create sub-views into this buffer instead of copying (`ZSlice::subslice()`).
+
+2. **Buffer protocol**: `ZBufView` wraps the ZBuf and exposes its bytes to Python via `__getbuffer__`/`__releasebuffer__`. For contiguous buffers (the common case), this is a direct pointer — no copy at all.
+
+3. **Pass-through re-publish**: The `FromPyMessage` derive macro recognizes `ZBufView` inputs and extracts the inner ZBuf via `clone()`, which only increments a reference count on the underlying memory.
+
 ## ROS 2 Interoperability
 
 Python nodes work seamlessly with Rust and ROS 2 nodes:

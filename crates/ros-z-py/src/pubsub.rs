@@ -4,6 +4,7 @@ use crate::traits::{RawPublisher, RawSubscriber};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use std::time::Duration;
+use zenoh_buffers::buffer::SplitBuffer;
 
 #[pyclass(name = "ZPublisher")]
 pub struct PyZPublisher {
@@ -76,11 +77,18 @@ impl PyZSubscriber {
 
         match result {
             Ok(sample) => {
-                // Borrow payload without copy (Cow::Borrowed when contiguous)
-                let payload = sample.payload().to_bytes();
-                // Deserialize from borrowed slice (zero-copy path)
-                let obj = ros_z_msgs::deserialize_from_cdr(&self.type_name, py, &payload)?;
-                Ok(Some(obj))
+                // Convert payload to ZBuf for zero-copy deserialization (cheap Arc clones)
+                let payload_zbuf: zenoh_buffers::ZBuf = sample.payload().clone().into();
+                // Set source for zero-copy sub-ZSlice creation during deserialization
+                ros_z_cdr::ZBUF_DESER_SOURCE.with(|cell| {
+                    *cell.borrow_mut() = Some(payload_zbuf.clone());
+                });
+                let cow = payload_zbuf.contiguous();
+                let result = ros_z_msgs::deserialize_from_cdr(&self.type_name, py, &cow);
+                ros_z_cdr::ZBUF_DESER_SOURCE.with(|cell| {
+                    *cell.borrow_mut() = None;
+                });
+                Ok(Some(result?))
             }
             Err(e) => {
                 // Check if it's a timeout error
@@ -104,11 +112,16 @@ impl PyZSubscriber {
     unsafe fn try_recv(&self, py: Python) -> PyResult<Option<PyObject>> {
         match self.inner.try_recv_sample().map_err(|e| e.into_pyerr())? {
             Some(sample) => {
-                // Borrow payload without copy (Cow::Borrowed when contiguous)
-                let payload = sample.payload().to_bytes();
-                // Deserialize from borrowed slice (zero-copy path)
-                let obj = ros_z_msgs::deserialize_from_cdr(&self.type_name, py, &payload)?;
-                Ok(Some(obj))
+                let payload_zbuf: zenoh_buffers::ZBuf = sample.payload().clone().into();
+                ros_z_cdr::ZBUF_DESER_SOURCE.with(|cell| {
+                    *cell.borrow_mut() = Some(payload_zbuf.clone());
+                });
+                let cow = payload_zbuf.contiguous();
+                let result = ros_z_msgs::deserialize_from_cdr(&self.type_name, py, &cow);
+                ros_z_cdr::ZBUF_DESER_SOURCE.with(|cell| {
+                    *cell.borrow_mut() = None;
+                });
+                Ok(Some(result?))
             }
             None => Ok(None),
         }

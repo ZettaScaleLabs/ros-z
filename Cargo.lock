@@ -2846,6 +2846,7 @@ dependencies = [
  "parking_lot",
  "pyo3",
  "ros-z",
+ "ros-z-cdr",
  "ros-z-msgs",
  "tokio",
  "zenoh",

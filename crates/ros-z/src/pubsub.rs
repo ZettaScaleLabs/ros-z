@@ -824,10 +824,9 @@ impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicCdrSerd
         match queue.try_recv() {
             Some(sample) => {
                 let payload = sample.payload().to_bytes();
-                Some(
-                    crate::dynamic::DynamicCdrSerdes::deserialize((&payload, schema))
-                        .map_err(|e| zenoh::Error::from(e.to_string())),
-                )
+                let result = crate::dynamic::DynamicCdrSerdes::deserialize((&payload, schema))
+                    .map_err(|e| zenoh::Error::from(e.to_string()));
+                Some(result)
             }
             None => None,
         }
