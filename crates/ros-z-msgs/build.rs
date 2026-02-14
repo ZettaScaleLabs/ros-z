@@ -154,18 +154,34 @@ fn discover_ros_packages(is_humble: bool) -> Result<Vec<PathBuf>> {
 
     if use_system_first {
         // Priority 1: System ROS installation (for distro-specific builds)
-        println!("cargo:info=Using system ROS packages (distro-specific build)");
+        println!("cargo:warning=Using system ROS packages (distro-specific build)");
+
+        // Debug: Check if AMENT_PREFIX_PATH is set
+        if let Ok(path) = env::var("AMENT_PREFIX_PATH") {
+            println!("cargo:warning=AMENT_PREFIX_PATH={}", path);
+        } else {
+            println!("cargo:warning=AMENT_PREFIX_PATH not set");
+        }
+
         let system_packages = discover_system_packages(&all_packages)?;
+        println!(
+            "cargo:warning=Found {} system packages",
+            system_packages.len()
+        );
+
         for pkg_path in system_packages {
             if let Ok(name) = discover_package_name_from_path(&pkg_path) {
-                println!("cargo:info=System: Adding package {}", name);
+                println!(
+                    "cargo:warning=System: Adding package {} from {:?}",
+                    name, pkg_path
+                );
                 package_map.insert(name, pkg_path);
             }
         }
 
         if !package_map.is_empty() {
             println!(
-                "cargo:info=Found {} packages from ROS 2 installation",
+                "cargo:warning=Found {} packages from ROS 2 installation",
                 package_map.len()
             );
 
@@ -175,6 +191,8 @@ fn discover_ros_packages(is_humble: bool) -> Result<Vec<PathBuf>> {
             }
 
             return Ok(package_map.into_values().collect());
+        } else {
+            println!("cargo:warning=No system packages found, falling back to bundled assets");
         }
     }
 
