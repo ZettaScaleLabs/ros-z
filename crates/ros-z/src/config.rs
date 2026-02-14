@@ -61,6 +61,16 @@ impl DistroDefaults {
         }
     }
 
+    /// ROS 2 Kilted defaults
+    ///
+    /// - Kilted uses rmw_zenoh v0.6.x
+    /// - Real type hashes (RIHS01 format)
+    pub const fn kilted() -> Self {
+        Self {
+            supports_type_hash: true,
+        }
+    }
+
     /// ROS 2 Rolling defaults
     ///
     /// - Rolling uses rmw_zenoh v0.2.x
