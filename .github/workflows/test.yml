@@ -37,9 +37,9 @@ jobs:
         distro: [humble, jazzy, kilted]
         include:
           - distro: humble
-            image: rostooling/setup-ros-docker:ubuntu-jammy-ros-humble-ros-base-latest
+            image: ros:humble-ros-base
           - distro: jazzy
-            image: rostooling/setup-ros-docker:ubuntu-noble-ros-jazzy-ros-base-latest
+            image: ros:jazzy-ros-base
           - distro: kilted
             image: ros:kilted-ros-base
     container:
