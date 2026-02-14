@@ -330,6 +330,7 @@ fn discover_system_packages(packages: &[&str]) -> Result<Vec<PathBuf>> {
     if found_packages.is_empty() {
         let common_install_paths = vec![
             "/opt/ros/rolling",
+            "/opt/ros/kilted",
             "/opt/ros/jazzy",
             "/opt/ros/iron",
             "/opt/ros/humble",
