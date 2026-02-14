@@ -401,15 +401,11 @@ fn discover_local_assets(package_names: &[&str]) -> Result<Vec<PathBuf>> {
 /// Returns true if Humble is detected
 fn detect_ros_version() -> bool {
     // Check feature flags first (explicitly requested distro)
-    if cfg!(feature = "humble") {
-        println!("cargo:rustc-cfg=ros_humble");
-        println!("cargo:warning=ROS Humble detected - using Humble-compatible codegen");
-        return true;
-    }
+    // Order matters: check non-default distros first (kilted, iron, rolling)
+    // then jazzy (which might be enabled by default), then humble
 
-    // Modern distros (Jazzy, Iron, Rolling, Kilted) use modern codegen (is_humble = false)
-    if cfg!(feature = "jazzy") {
-        println!("cargo:warning=ROS Jazzy detected - using modern codegen");
+    if cfg!(feature = "kilted") {
+        println!("cargo:warning=ROS Kilted detected - using modern codegen");
         return false;
     }
 
@@ -423,9 +419,15 @@ fn detect_ros_version() -> bool {
         return false;
     }
 
-    if cfg!(feature = "kilted") {
-        println!("cargo:warning=ROS Kilted detected - using modern codegen");
+    if cfg!(feature = "jazzy") {
+        println!("cargo:warning=ROS Jazzy detected - using modern codegen");
         return false;
+    }
+
+    if cfg!(feature = "humble") {
+        println!("cargo:rustc-cfg=ros_humble");
+        println!("cargo:warning=ROS Humble detected - using Humble-compatible codegen");
+        return true;
     }
 
     // Check if ROS is installed by looking for AMENT_PREFIX_PATH

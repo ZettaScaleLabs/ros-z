@@ -31,7 +31,7 @@ anyhow = { workspace = true }
 glob = { workspace = true }
 
 [features]
-default = ["core_msgs", "jazzy"]
+default = ["core_msgs"]
 
 # Core messages - commonly used ROS 2 interfaces
 core_msgs = [
