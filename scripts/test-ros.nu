@@ -41,7 +41,7 @@ def run-ros-interop [] {
     let cmd = if $distro == "humble" {
         "cargo nextest run -p ros-z-tests --no-default-features --features ros-interop,humble"
     } else {
-        "cargo nextest run -p ros-z-tests --features ros-interop"
+        $"cargo nextest run -p ros-z-tests --features ros-interop,($distro)"
     }
 
     # Try without verbose logging first (faster)
