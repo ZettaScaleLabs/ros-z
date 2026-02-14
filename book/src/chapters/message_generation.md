@@ -189,7 +189,7 @@ flowchart LR
 ```
 
 1. **System ROS:** `$AMENT_PREFIX_PATH`, `$CMAKE_PREFIX_PATH`
-2. **Standard paths:** `/opt/ros/{rolling,jazzy,iron,humble}`
+2. **Standard paths:** `/opt/ros/{rolling,jazzy,kilted,humble}`
 3. **Bundled assets:** Built-in message definitions in ros-z-codegen
 
 This fallback enables development without ROS 2 installation.
