@@ -144,13 +144,10 @@ fn discover_ros_packages(is_humble: bool) -> Result<Vec<PathBuf>> {
     let all_packages = get_all_packages(is_humble);
 
     // Determine package source priority based on distro features
-    // For specific distros (humble, kilted, iron, rolling), prefer system packages to ensure
-    // type hash compatibility with RMW implementations using the same system packages.
-    // For jazzy or no feature, use bundled assets for consistency.
-    let use_system_first = cfg!(feature = "humble")
-        || cfg!(feature = "kilted")
-        || cfg!(feature = "iron")
-        || cfg!(feature = "rolling");
+    // For Humble, prefer system packages since it has different message definitions than Jazzy.
+    // For modern distros (kilted, jazzy, iron, rolling), use bundled Jazzy assets for consistency
+    // since message definitions are compatible across these distros.
+    let use_system_first = cfg!(feature = "humble");
 
     if use_system_first {
         // Priority 1: System ROS installation (for distro-specific builds)
