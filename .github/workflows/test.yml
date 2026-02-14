@@ -41,7 +41,7 @@ jobs:
           - distro: jazzy
             image: rostooling/setup-ros-docker:ubuntu-noble-ros-jazzy-ros-base-latest
           - distro: kilted
-            image: rostooling/setup-ros-docker:ubuntu-noble-ros-kilted-ros-base-latest
+            image: ros:kilted-ros-base
     container:
       image: ${{ matrix.image }}
     steps:
