@@ -143,72 +143,23 @@ fn discover_ros_packages(is_humble: bool) -> Result<Vec<PathBuf>> {
 
     let all_packages = get_all_packages(is_humble);
 
-    // Determine package source priority based on distro features
-    // Use bundled Jazzy assets for modern distros (kilted, jazzy, iron, rolling)
-    // since message schemas are identical. Debug to find type hash mismatch.
-    let use_system_first = cfg!(feature = "humble");
-
-    if use_system_first {
-        // Priority 1: System ROS installation (for distro-specific builds)
-        println!("cargo:warning=Using system ROS packages (distro-specific build)");
-
-        // Debug: Check if AMENT_PREFIX_PATH is set
-        if let Ok(path) = env::var("AMENT_PREFIX_PATH") {
-            println!("cargo:warning=AMENT_PREFIX_PATH={}", path);
-        } else {
-            println!("cargo:warning=AMENT_PREFIX_PATH not set");
-        }
-
-        let system_packages = discover_system_packages(&all_packages)?;
-        println!(
-            "cargo:warning=Found {} system packages",
-            system_packages.len()
-        );
-
-        for pkg_path in system_packages {
-            if let Ok(name) = discover_package_name_from_path(&pkg_path) {
-                println!(
-                    "cargo:warning=System: Adding package {} from {:?}",
-                    name, pkg_path
-                );
-                package_map.insert(name, pkg_path);
-            }
-        }
-
-        if !package_map.is_empty() {
-            println!(
-                "cargo:warning=Found {} packages from ROS 2 installation",
-                package_map.len()
-            );
-
-            // Emit cfg flags for each found package
-            for package_name in package_map.keys() {
-                println!("cargo:rustc-cfg=has_{}", package_name);
-            }
-
-            return Ok(package_map.into_values().collect());
-        } else {
-            println!("cargo:warning=No system packages found, falling back to bundled assets");
-        }
-    }
-
-    // Priority 2: Local bundled assets (for jazzy or fallback)
-    // This ensures our bundled message definitions are used for jazzy builds,
+    // Priority 1: Local bundled assets (highest priority - canonical source)
+    // This ensures our bundled message definitions are always used consistently,
     // avoiding issues with system packages that may have different versions or
     // hardcoded paths from Nix wrapProgram.
-    println!("cargo:warning=Checking local bundled assets from ros-z-codegen/assets/jazzy");
+    println!("cargo:info=Checking local bundled assets from ros-z-codegen/assets/jazzy");
     let local_asset_packages = discover_local_assets(&all_packages)?;
     let local_count = local_asset_packages.len();
     for pkg_path in local_asset_packages {
         if let Ok(name) = discover_package_name_from_path(&pkg_path) {
-            println!("cargo:warning=Local: Adding package {}", name);
+            println!("cargo:info=Local: Adding package {}", name);
             package_map.insert(name, pkg_path);
         }
     }
 
     if local_count > 0 {
         println!(
-            "cargo:warning=Found {} packages from local bundled assets",
+            "cargo:info=Found {} packages from local bundled assets",
             local_count
         );
 
@@ -220,10 +171,30 @@ fn discover_ros_packages(is_humble: bool) -> Result<Vec<PathBuf>> {
         return Ok(package_map.into_values().collect());
     }
 
-    // If we reach here, no packages were found
+    // Priority 2: System ROS installation (fallback for packages not bundled locally)
+    let system_packages = discover_system_packages(&all_packages)?;
+    let mut system_added = 0;
+    for pkg_path in system_packages {
+        if let Ok(name) = discover_package_name_from_path(&pkg_path) {
+            // Only add if not already found in local assets
+            if let std::collections::hash_map::Entry::Vacant(e) = package_map.entry(name) {
+                println!("cargo:info=System: Adding package {}", e.key());
+                e.insert(pkg_path);
+                system_added += 1;
+            }
+        }
+    }
+
+    if system_added > 0 {
+        println!(
+            "cargo:info=Added {} packages from ROS 2 installation (not in local assets)",
+            system_added
+        );
+    }
+
     println!(
-        "cargo:warning=No ROS packages found (checked {} package names)",
-        all_packages.len()
+        "cargo:info=Total unique packages discovered: {}",
+        package_map.len()
     );
 
     // Warn if packages are still not found
@@ -344,7 +315,6 @@ fn discover_system_packages(packages: &[&str]) -> Result<Vec<PathBuf>> {
     if found_packages.is_empty() {
         let common_install_paths = vec![
             "/opt/ros/rolling",
-            "/opt/ros/kilted",
             "/opt/ros/jazzy",
             "/opt/ros/iron",
             "/opt/ros/humble",
@@ -402,7 +372,7 @@ fn discover_local_assets(package_names: &[&str]) -> Result<Vec<PathBuf>> {
                 || package_path.join("action").exists())
         {
             println!(
-                "cargo:warning=Found {} in local assets: {:?}",
+                "cargo:info=Found {} in local assets: {:?}",
                 package_name, package_path
             );
             found_packages.push(package_path);
@@ -415,30 +385,7 @@ fn discover_local_assets(package_names: &[&str]) -> Result<Vec<PathBuf>> {
 /// Detect ROS version and emit cfg(ros_humble) if Humble is detected
 /// Returns true if Humble is detected
 fn detect_ros_version() -> bool {
-    // Check feature flags first (explicitly requested distro)
-    // Order matters: check non-default distros first (kilted, iron, rolling)
-    // then jazzy (which might be enabled by default), then humble
-
-    if cfg!(feature = "kilted") {
-        println!("cargo:warning=ROS Kilted detected - using modern codegen");
-        return false;
-    }
-
-    if cfg!(feature = "iron") {
-        println!("cargo:warning=ROS Iron detected - using modern codegen");
-        return false;
-    }
-
-    if cfg!(feature = "rolling") {
-        println!("cargo:warning=ROS Rolling detected - using modern codegen");
-        return false;
-    }
-
-    if cfg!(feature = "jazzy") {
-        println!("cargo:warning=ROS Jazzy detected - using modern codegen");
-        return false;
-    }
-
+    // Check feature flag first (explicitly requested Humble)
     if cfg!(feature = "humble") {
         println!("cargo:rustc-cfg=ros_humble");
         println!("cargo:warning=ROS Humble detected - using Humble-compatible codegen");
