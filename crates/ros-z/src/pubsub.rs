@@ -736,9 +736,7 @@ where
         })?;
         let sample = queue.recv_async().await;
         let payload = sample.payload().to_bytes();
-        let result = S::deserialize(&payload).map_err(|e| zenoh::Error::from(e.to_string()));
-
-        result
+        S::deserialize(&payload).map_err(|e| zenoh::Error::from(e.to_string()))
     }
 }
 
