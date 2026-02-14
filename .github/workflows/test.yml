@@ -37,16 +37,16 @@ jobs:
         distro: [humble, jazzy, kilted]
         include:
           - distro: humble
-            image: rostooling/setup-ros-docker:ubuntu-jammy-ros-humble-ros-base-latest
+            image: ros:humble-ros-base
           - distro: jazzy
-            image: rostooling/setup-ros-docker:ubuntu-noble-ros-jazzy-ros-base-latest
+            image: ros:jazzy-ros-base
           - distro: kilted
-            image: rostooling/setup-ros-docker:ubuntu-noble-ros-kilted-ros-base-latest
+            image: ros:kilted-ros-base
     container:
       image: ${{ matrix.image }}
     steps:
       - name: Install system dependencies
-        run: apt-get update && apt-get install -y nodejs
+        run: apt-get update && apt-get install -y bash nodejs sudo
 
       - name: Install ROS dependencies
         run: |
