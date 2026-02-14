@@ -3,6 +3,10 @@
 //! This provides a way to expose ZBuf data to Python without copying,
 //! by implementing Python's buffer protocol.
 
+// PyO3 0.22 generates code that calls unsafe functions in edition 2024.
+// This is safe because PyO3's generated code handles the safety invariants.
+#![allow(unsafe_op_in_unsafe_fn)]
+
 use pyo3::exceptions::{PyBufferError, PyIndexError, PyTypeError};
 use pyo3::ffi;
 use pyo3::prelude::*;
