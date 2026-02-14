@@ -23,13 +23,6 @@ pub mod zbuf_writer;
 
 use std::cell::RefCell;
 
-// Thread-local for zero-copy ZBuf serialization bypass.
-// When ZBuf::Serialize sets this, CdrWriter::write_bytes uses append_zbuf
-// instead of extend_from_slice, avoiding a copy of the entire buffer.
-thread_local! {
-    pub static ZBUF_SERIALIZE_BYPASS: RefCell<Option<zenoh_buffers::ZBuf>> = const { RefCell::new(None) };
-}
-
 // Thread-local for zero-copy ZBuf deserialization bypass.
 // When set with the source payload ZBuf, ZBuf::Deserialize creates sub-ZSlices
 // instead of copying bytes, enabling zero-copy deserialization.

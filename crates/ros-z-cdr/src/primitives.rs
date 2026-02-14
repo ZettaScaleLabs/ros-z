@@ -148,18 +148,10 @@ impl<'a, BO: ByteOrder, B: CdrBuffer> CdrWriter<'a, BO, B> {
     }
 
     /// Write raw bytes with length prefix (for sequences of u8).
-    ///
-    /// If a ZBuf was stored in the thread-local bypass (by ZBuf::Serialize),
-    /// uses append_zbuf for zero-copy serialization with ZBufWriter.
     #[inline]
     pub fn write_bytes(&mut self, bytes: &[u8]) {
         self.write_u32(bytes.len() as u32);
-        let zbuf = crate::ZBUF_SERIALIZE_BYPASS.with(|cell| cell.borrow_mut().take());
-        if let Some(zbuf) = zbuf {
-            self.buffer.append_zbuf(&zbuf);
-        } else {
-            self.buffer.extend_from_slice(bytes);
-        }
+        self.buffer.extend_from_slice(bytes);
     }
 
     /// Write a sequence length prefix.

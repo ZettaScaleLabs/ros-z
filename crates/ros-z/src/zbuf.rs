@@ -111,8 +111,6 @@ impl Serialize for ZBuf {
         S: Serializer,
     {
         // Use contiguous() for zero-copy access and serialize as bytes.
-        // The ZBUF_SERIALIZE_BYPASS thread-local is set externally by
-        // Python bindings and SHM paths when zero-copy append is needed.
         let bytes = self.0.contiguous();
         serializer.serialize_bytes(bytes.as_ref())
     }
