@@ -1685,7 +1685,7 @@ cargo build --all
 <p><strong>Search order:</strong></p>
 <ol>
 <li>System ROS installation (<code>AMENT_PREFIX_PATH</code>, <code>CMAKE_PREFIX_PATH</code>)</li>
-<li>Common ROS paths (<code>/opt/ros/{rolling,jazzy,iron,humble}</code>)</li>
+<li>Common ROS paths (<code>/opt/ros/{rolling,jazzy,kilted,humble}</code>)</li>
 <li>Bundled assets (built-in message definitions in ros-z-codegen)</li>
 </ol>
 <p>This fallback mechanism enables builds without ROS 2 installed.</p>
@@ -1788,12 +1788,9 @@ cargo run --no-default-features --features humble --example demo_nodes_talker
 cargo nextest run --no-default-features --features humble
 </code></pre>
 <h3 id="using-other-distributions"><a class="header" href="#using-other-distributions">Using Other Distributions</a></h3>
-<p>For Rolling, Iron, or Kilted, simply specify the distro feature:</p>
+<p>For Rolling or Kilted, simply specify the distro feature:</p>
 <pre><code class="language-bash"># Build for Rolling
 cargo build --features rolling
-
-# Build for Iron
-cargo build --features iron
 
 # Build for Kilted
 cargo build --features kilted
@@ -2633,7 +2630,7 @@ impl WithTypeInfo for std_msgs::String {
 </pre>
 <ol>
 <li><strong>System ROS:</strong> <code>$AMENT_PREFIX_PATH</code>, <code>$CMAKE_PREFIX_PATH</code></li>
-<li><strong>Standard paths:</strong> <code>/opt/ros/{rolling,jazzy,iron,humble}</code></li>
+<li><strong>Standard paths:</strong> <code>/opt/ros/{rolling,jazzy,kilted,humble}</code></li>
 <li><strong>Bundled assets:</strong> Built-in message definitions in ros-z-codegen</li>
 </ol>
 <p>This fallback enables development without ROS 2 installation.</p>
@@ -6078,13 +6075,9 @@ cargo build --no-default-features --features humble
 <li>✅ Compatible with rmw_zenoh_cpp v0.1.8</li>
 </ul>
 <p><strong>Important:</strong> Humble requires <code>--no-default-features</code> to avoid conflicts with the jazzy default.</p>
-<h3 id="rolling-and-iron"><a class="header" href="#rolling-and-iron"><code>rolling</code> and <code>iron</code></a></h3>
-<p>Target newer distributions:</p>
-<pre><code class="language-bash"># Rolling
-cargo build --features rolling
-
-# Iron
-cargo build --features iron
+<h3 id="rolling"><a class="header" href="#rolling"><code>rolling</code></a></h3>
+<p>Target Rolling distribution:</p>
+<pre><code class="language-bash">cargo build --features rolling
 </code></pre>
 <p><strong>See also:</strong> <a href="chapters/./distro_compatibility.html">ROS 2 Distribution Compatibility</a> for detailed documentation.</p>
 <h3 id="rcl-z"><a class="header" href="#rcl-z"><code>rcl-z</code></a></h3>
