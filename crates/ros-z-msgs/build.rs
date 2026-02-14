@@ -196,19 +196,19 @@ fn discover_ros_packages(is_humble: bool) -> Result<Vec<PathBuf>> {
     // This ensures our bundled message definitions are used for jazzy builds,
     // avoiding issues with system packages that may have different versions or
     // hardcoded paths from Nix wrapProgram.
-    println!("cargo:info=Checking local bundled assets from ros-z-codegen/assets/jazzy");
+    println!("cargo:warning=Checking local bundled assets from ros-z-codegen/assets/jazzy");
     let local_asset_packages = discover_local_assets(&all_packages)?;
     let local_count = local_asset_packages.len();
     for pkg_path in local_asset_packages {
         if let Ok(name) = discover_package_name_from_path(&pkg_path) {
-            println!("cargo:info=Local: Adding package {}", name);
+            println!("cargo:warning=Local: Adding package {}", name);
             package_map.insert(name, pkg_path);
         }
     }
 
     if local_count > 0 {
         println!(
-            "cargo:info=Found {} packages from local bundled assets",
+            "cargo:warning=Found {} packages from local bundled assets",
             local_count
         );
 
@@ -402,7 +402,7 @@ fn discover_local_assets(package_names: &[&str]) -> Result<Vec<PathBuf>> {
                 || package_path.join("action").exists())
         {
             println!(
-                "cargo:info=Found {} in local assets: {:?}",
+                "cargo:warning=Found {} in local assets: {:?}",
                 package_name, package_path
             );
             found_packages.push(package_path);
