@@ -144,12 +144,9 @@ fn discover_ros_packages(is_humble: bool) -> Result<Vec<PathBuf>> {
     let all_packages = get_all_packages(is_humble);
 
     // Determine package source priority based on distro features
-    // Use system packages for distro-specific builds to ensure type hash compatibility
-    // between build-time codegen and runtime rmw_zenoh_cpp libraries.
-    let use_system_first = cfg!(feature = "humble")
-        || cfg!(feature = "kilted")
-        || cfg!(feature = "iron")
-        || cfg!(feature = "rolling");
+    // Use bundled Jazzy assets for modern distros (kilted, jazzy, iron, rolling)
+    // since message schemas are identical. Debug to find type hash mismatch.
+    let use_system_first = cfg!(feature = "humble");
 
     if use_system_first {
         // Priority 1: System ROS installation (for distro-specific builds)
