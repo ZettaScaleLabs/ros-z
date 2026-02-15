@@ -104,7 +104,7 @@ cargo build
 # For Humble - use --no-default-features
 cargo build --no-default-features --features humble
 
-# For Rolling/Iron - just add the feature
+# For Rolling/Kilted - just add the feature
 cargo build --features rolling
 ```
 

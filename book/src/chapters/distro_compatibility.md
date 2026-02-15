@@ -4,8 +4,8 @@ ros-z supports multiple ROS 2 distributions through compile-time feature flags. 
 
 > **Important**: Different ros-z components have different ROS 2 version requirements:
 >
-> - **ros-z core library**: Supports Humble, Iron, Jazzy, Kilted, Rolling
-> - **rmw-zenoh-rs**: Requires Iron or later (see [rmw-zenoh-rs chapter](./rmw_zenoh_rs.md#ros-2-version-requirements))
+> - **ros-z core library**: Supports Humble, Jazzy, Kilted, Rolling
+> - **rmw-zenoh-rs**: Requires Jazzy or later (see [rmw-zenoh-rs chapter](./rmw_zenoh_rs.md#ros-2-version-requirements))
 
 ## Supported Distributions
 
@@ -24,7 +24,7 @@ ros-z supports multiple ROS 2 distributions through compile-time feature flags. 
 
 The most significant difference between distributions is **type hash support**:
 
-**Jazzy/Rolling/Iron** (Modern):
+**Jazzy/Kilted/Rolling** (Modern):
 
 - Supports real type hashes computed from message definitions
 - Format: `RIHS01_<64-hex-chars>` (ROS IDL Hash Standard version 1)
