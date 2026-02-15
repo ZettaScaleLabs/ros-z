@@ -13,7 +13,6 @@ ros-z supports multiple ROS 2 distributions through compile-time feature flags. 
 |--------------|--------------|--------------|-------------------|---------|
 | **Kilted Kaiju** | ✅ Supported | ✅ Supported | ✅ Yes | No |
 | **Jazzy Jalisco** | ✅ Supported | ✅ Supported | ✅ Yes | **Yes** |
-| **Iron Irwini** | ✅ Supported | ✅ Supported | ✅ Yes | No |
 | **Humble Hawksbill** | ✅ Supported | ❌ **Not Supported** | ❌ Placeholder | No |
 | Rolling Ridley | ✅ Supported | ✅ Supported | ✅ Yes | No |
 
