@@ -57,6 +57,17 @@ jobs:
             ros-${{ matrix.distro }}-action-tutorials-cpp \
             protobuf-compiler
 
+      - name: Fix broken rmw_zenoh_cpp config for Kilted
+        if: matrix.distro == 'kilted'
+        run: |
+          # WORKAROUND: ros-kilted-rmw-zenoh-cpp 0.6.6 has invalid transport_optimization field
+          # The rostooling image has 0.6.2, but apt-get install upgrades to 0.6.6
+          CONFIG_FILE="/opt/ros/kilted/share/rmw_zenoh_cpp/config/DEFAULT_RMW_ZENOH_SESSION_CONFIG.json5"
+          if grep -q "transport_optimization" "$CONFIG_FILE" 2>/dev/null; then
+            sed -i '/transport_optimization:/,/},$/d' "$CONFIG_FILE"
+            echo "Fixed rmw_zenoh_cpp config by removing invalid transport_optimization section"
+          fi
+
       - uses: actions/checkout@v4
 
       - uses: actions-rust-lang/setup-rust-toolchain@v1
