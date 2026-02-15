@@ -61,11 +61,11 @@ impl DistroDefaults {
         }
     }
 
-    /// ROS 2 Iron defaults
+    /// ROS 2 Kilted defaults
     ///
-    /// - Iron uses rmw_zenoh v0.2.x
+    /// - Kilted uses rmw_zenoh v0.6.x
     /// - Real type hashes (RIHS01 format)
-    pub const fn iron() -> Self {
+    pub const fn kilted() -> Self {
         Self {
             supports_type_hash: true,
         }
@@ -93,16 +93,16 @@ impl DistroDefaults {
 
     /// Get the default for the currently compiled distro based on feature flags
     /// When multiple distro features are enabled (e.g., with --all-features),
-    /// priority order is: humble > iron > rolling > jazzy (default)
+    /// priority order is: humble > kilted > rolling > jazzy (default)
     pub const fn current() -> Self {
         // Priority 1: Humble
         if cfg!(feature = "humble") {
             return Self::humble();
         }
 
-        // Priority 2: Iron
-        if cfg!(feature = "iron") {
-            return Self::iron();
+        // Priority 2: Kilted
+        if cfg!(feature = "kilted") {
+            return Self::kilted();
         }
 
         // Priority 3: Rolling

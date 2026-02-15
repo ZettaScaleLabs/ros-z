@@ -74,11 +74,10 @@ ros2dds = ["ros-z-protocol/ros2dds"]
 # Default is jazzy (recommended for new projects)
 # For humble, use: --no-default-features --features humble,...
 # Note: Distro features are mutually exclusive - enabling multiple may cause conflicts
-humble = ["no-type-hash", "no-jazzy", "no-rolling", "no-iron", "no-kilted"]
-jazzy = ["type-hash", "no-humble", "no-rolling", "no-iron", "no-kilted"]
-rolling = ["type-hash", "no-humble", "no-jazzy", "no-iron", "no-kilted"]
-iron = ["type-hash", "no-humble", "no-jazzy", "no-rolling", "no-kilted"]
-kilted = ["type-hash", "no-humble", "no-jazzy", "no-rolling", "no-iron"]
+humble = ["no-type-hash", "no-jazzy", "no-rolling", "no-kilted"]
+jazzy = ["type-hash", "no-humble", "no-rolling", "no-kilted"]
+rolling = ["type-hash", "no-humble", "no-jazzy", "no-kilted"]
+kilted = ["type-hash", "no-humble", "no-jazzy", "no-rolling"]
 
 # Internal features for distro compatibility
 humble-compat = []
@@ -89,7 +88,6 @@ no-type-hash = ["ros-z-protocol/no-type-hash"]
 no-humble = []
 no-jazzy = []
 no-rolling = []
-no-iron = []
 no-kilted = []
 
 

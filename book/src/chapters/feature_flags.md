@@ -78,16 +78,12 @@ cargo build --no-default-features --features humble
 
 **Important:** Humble requires `--no-default-features` to avoid conflicts with the jazzy default.
 
-### `rolling` and `iron`
+### `rolling`
 
-Target newer distributions:
+Target Rolling distribution:
 
 ```bash
-# Rolling
 cargo build --features rolling
-
-# Iron
-cargo build --features iron
 ```
 
 **See also:** [ROS 2 Distribution Compatibility](./distro_compatibility.md) for detailed documentation.
