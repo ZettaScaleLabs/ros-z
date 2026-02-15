@@ -32,4 +32,3 @@ prost-build = { workspace = true }
 humble = ["ros-z/humble", "ros-z-msgs/humble"]
 jazzy = ["ros-z/jazzy", "ros-z-msgs/jazzy"]
 rolling = ["ros-z/rolling", "ros-z-msgs/rolling"]
-iron = ["ros-z/iron", "ros-z-msgs/iron"]

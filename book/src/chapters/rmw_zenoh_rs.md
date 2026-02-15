@@ -32,9 +32,24 @@ ROS 2 uses a middleware abstraction layer called RMW (ROS Middleware) that allow
 
 ## Requirements
 
+### ROS 2 Version Requirements
+
+```admonish warning title="Humble Not Supported"
+rmw-zenoh-rs requires **ROS 2 Jazzy (2023) or later**.
+ROS 2 Humble (2022 LTS) is **not supported**.
+```
+
+**Supported ROS 2 Distributions:**
+
+- ✅ **Jazzy** (2023)
+- ✅ **Jazzy** (2024 LTS) - Recommended
+- ✅ **Kilted** (2025)
+- ✅ **Rolling**
+- ❌ **Humble** (2022 LTS) - See [Why No Humble Support?](#why-no-humble-support)
+
 ### System Requirements
 
-- **ROS 2 Jazzy**
+- **ROS 2 Jazzy or later** (Jazzy recommended)
 - **Rust toolchain** (1.91 or later)
 - **Cargo** (comes with Rust)
 - **CMake** (3.16 or later)
@@ -137,6 +152,104 @@ ros-z, rmw_zenoh_rs, and rmw_zenoh_cpp all use router-based discovery by default
 The router runs as a separate process and manages discovery and routing between all Zenoh-based nodes. You only need one router per network, regardless of how many nodes you run.
 ```
 
+## Why No Humble Support?
+
+ROS 2 Jazzy (May 2023) introduced **breaking changes to the RMW API** that are fundamental to how rmw-zenoh-rs works. These are not minor API additions - they are architectural changes defined in ROS Enhancement Proposals (REPs).
+
+### Missing APIs in Humble
+
+#### 1. Type Introspection & Hashing (REP 2011)
+
+**What's Missing:**
+
+- `rosidl_type_hash_t` type structure
+- Type hash computation functions
+- Type description support
+
+**Why It Matters:**
+
+rmw-zenoh-rs uses type hashes as part of Zenoh key expressions for topic matching and type safety validation. This is a core architectural feature, not an optional add-on.
+
+**Example:**
+
+```text
+Jazzy+ Key: /topic/String/RIHS01_<64-char-hash>/...
+Humble:    Cannot generate proper type hash
+```
+
+#### 2. Discovery Options (REP 2019)
+
+**What's Missing:**
+
+- `rmw_discovery_options_t` configuration
+- Discovery control functions
+- Participant filtering APIs
+
+**Why It Matters:**
+
+Used for network optimization and selective discovery in distributed systems.
+
+#### 3. FastCDR API Changes
+
+**What's Missing:**
+
+- Humble uses FastCDR v1.x
+- Jazzy+ uses FastCDR v2.x
+- Constructor signatures incompatible
+
+#### 4. Additional Missing Features
+
+- Type hash fields in endpoint info structs
+- QoS event types (`rmw_incompatible_type_status_t`, etc.)
+- Various discovery and introspection functions
+
+### Impact
+
+Supporting Humble would require:
+
+- 100+ conditional compilation guards throughout the codebase
+- Maintaining two different RMW API implementations
+- Stub implementations for core features
+- Ongoing maintenance burden
+- Compromised architecture
+
+### Alternatives for Humble Users
+
+If you need ROS 2 Humble support, you have two options:
+
+#### Option 1: Use ros-z Core Library (Recommended)
+
+The **ros-z core library** has full Humble support:
+
+```rust,ignore
+use ros_z::{Builder, ZContext};
+
+let ctx = ZContext::default();
+let node = ctx.create_node("my_node").build()?;
+
+// Full pub/sub, services, actions support on Humble ✅
+let publisher = node.create_publisher::<String>("topic").build()?;
+```
+
+This gives you pure Rust ROS 2 functionality on Humble without needing the RMW layer.
+
+#### Option 2: Use rmw_zenoh_cpp
+
+Use the C++ RMW implementation, which supports Humble:
+
+```bash
+# Install C++ RMW for Humble
+apt install ros-humble-rmw-zenoh-cpp
+
+# Set RMW implementation
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+
+# Your C++/Python nodes will use Zenoh
+ros2 run demo_nodes_cpp talker
+```
+
+**Interoperability**: ros-z nodes can communicate seamlessly with rmw_zenoh_cpp nodes, so you can mix Rust and C++/Python nodes.
+
 ## rmw_zenoh_rs vs rmw_zenoh_cpp
 
 Both `rmw_zenoh_rs` and `rmw_zenoh_cpp` are RMW implementations using Zenoh, but with different design goals:
@@ -145,7 +258,8 @@ Both `rmw_zenoh_rs` and `rmw_zenoh_cpp` are RMW implementations using Zenoh, but
 |---------|--------------|---------------|
 | **Implementation Language** | Rust (using ros-z) | C++ |
 | **Primary Use Case** | Integration with ros-z ecosystem | Standalone Zenoh RMW |
-| **ROS 2 Compatibility** | Jazzy | Humble, Iron, ..., Rolling |
+| **ROS 2 Compatibility** | Jazzy, Jazzy, Kilted, Rolling | Humble, Jazzy, Jazzy, Kilted, Rolling |
+| **Humble Support** | ❌ No | ✅ Yes |
 | **Status** | Experimental | Production-ready |
 | **Dependencies** | ros-z, Zenoh Rust | Zenoh C++ binding |
 | **Performance** | Optimized for Rust stack | Optimized for C++ stack |

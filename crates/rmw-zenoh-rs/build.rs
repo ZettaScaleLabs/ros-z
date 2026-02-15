@@ -47,9 +47,10 @@ fn main() {
     let bindgen_out_path = PathBuf::from("src");
 
     // Generate bindings
+    let clang_args = include_args;
     let bindings = bindgen::Builder::default()
         .header("binding.hpp")
-        .clang_args(&include_args)
+        .clang_args(&clang_args)
         // Allow utility functions
         .allowlist_function("rcutils_.*")
         .allowlist_function("rmw_get_zero_initialized_.*")
@@ -84,12 +85,14 @@ fn main() {
     let mut cxx_include_dirs = bindgen_include_dirs;
     cxx_include_dirs.extend(find_include_dirs(CXX_EXTRA_PACKAGES));
 
-    cxx_build::bridge("src/type_support.rs")
+    let mut cxx_bridge = cxx_build::bridge("src/type_support.rs");
+    cxx_bridge
         .file("src/serde_bridge.cc")
         .include("include")
         .includes(&cxx_include_dirs)
-        .std("c++17")
-        .compile("serde_bridge");
+        .std("c++17");
+
+    cxx_bridge.compile("serde_bridge");
 
     // Link libraries from ament prefix
     for prefix in ament_prefix.split(':') {

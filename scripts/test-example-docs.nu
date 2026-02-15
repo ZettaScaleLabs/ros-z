@@ -55,10 +55,12 @@ def parse_cargo_command [cmd: string] {
 def is_testable [cmd: record] {
     let args = $cmd.args
     # Testable if has --max-count, --count, --order, or is router
-    ($args | str contains "--max-count") or
-    ($args | str contains "--count") or
-    ($args | str contains "--order") or
-    ($cmd.example == "zenoh_router")
+    (
+        ($args | str contains "--max-count") or
+        ($args | str contains "--count") or
+        ($args | str contains "--order") or
+        ($cmd.example == "zenoh_router")
+    )
 }
 
 # Test a single command
@@ -69,8 +71,10 @@ def test_command [cmd_info: record, timeout_sec: int = 5] {
 
     try {
         # Run command with timeout
+        let args_list = ($parsed.args | split row ' ')
         let result = (
-            ^timeout $"($timeout_sec)s" cargo run --example $parsed.example -- ...$parsed.args.split(' ') | complete
+            ^timeout $"($timeout_sec)s" cargo run --example $parsed.example -- ...$args_list
+            | complete
         )
 
         let success = $result.exit_code == 0 or $result.exit_code == 124  # 124 is timeout exit code

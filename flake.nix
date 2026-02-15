@@ -21,11 +21,14 @@
     nix-ros-overlay.inputs.flake-utils.lib.eachDefaultSystem (
       system:
       let
-        # List of supported ROS distros
+        # List of supported ROS distros (via nix-ros-overlay)
+        # Note: Iron (May 2023 - Nov 2024, EOL) is not available in nix-ros-overlay
+        # but can be used if installed manually
         distros = [
-          "jazzy" # default
-          "rolling"
-          "humble" # LTS
+          "jazzy" # (May 2024 - May 2029, LTS) <-- Default
+          "humble" # (May 2022 - May 2027, LTS)
+          "kilted" # (May 2025 - Nov 2026)
+          "rolling" # continuous release, no EOL
         ];
 
         pkgs = import nixpkgs {

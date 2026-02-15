@@ -141,9 +141,13 @@ impl TestRouter {
     }
 
     /// Get environment variable override for RMW Zenoh
+    /// Uses key=value format expected by rmw_zenoh_cpp (NOT JSON5)
     #[allow(dead_code)]
     pub fn rmw_zenoh_env(&self) -> String {
-        format!("connect/endpoints=[\"tcp/127.0.0.1:{}\"]", self.port)
+        format!(
+            "connect/endpoints=[\"tcp/127.0.0.1:{}\"];scouting/multicast/enabled=false",
+            self.port
+        )
     }
 }
 

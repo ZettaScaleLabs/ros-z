@@ -11,6 +11,16 @@ use lib/common.nu *
 # ============================================================================
 
 def clippy-rmw [] {
+    let distro = get-distro
+
+    # rmw-zenoh-rs requires Iron+ (not supported on Humble)
+    if $distro == "humble" {
+        log-step "Clippy (rmw feature) - SKIPPED for Humble"
+        print "  ℹ️  rmw-zenoh-rs requires ROS 2 Iron or later"
+        print "  ℹ️  Humble users: use ros-z core library or rmw_zenoh_cpp"
+        return
+    }
+
     log-step "Clippy (rmw feature)"
     run-cmd "cargo clippy --all-targets --workspace -F rmw -- -D warnings"
 }
@@ -31,7 +41,7 @@ def run-ros-interop [] {
     let cmd = if $distro == "humble" {
         "cargo nextest run -p ros-z-tests --no-default-features --features ros-interop,humble"
     } else {
-        "cargo nextest run -p ros-z-tests --features ros-interop"
+        $"cargo nextest run -p ros-z-tests --features ros-interop,($distro)"
     }
 
     # Try without verbose logging first (faster)

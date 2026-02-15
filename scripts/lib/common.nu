@@ -2,7 +2,7 @@
 
 # Shared utilities for ros-z test scripts
 
-export const DISTROS = ["humble", "jazzy"]
+export const DISTROS = ["humble", "jazzy", "kilted"]
 
 # Check if running in CI environment
 export def is-ci [] {
