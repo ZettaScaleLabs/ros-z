@@ -234,14 +234,26 @@ fn collect_referenced_types(
 ) {
     for field in &type_desc.fields {
         if !field.field_type.nested_type_name.is_empty() {
-            // Parse the nested type name to get package/type
-            if let Some(dep) = all_deps.get(&field.field_type.nested_type_name)
+            // nested_type_name is "package/msg/TypeName" but all_deps keys are "package/TypeName"
+            // Strip the intermediate path segment (/msg/, /srv/, /action/) for lookup
+            let lookup_key = nested_type_name_to_key(&field.field_type.nested_type_name);
+            if let Some(dep) = all_deps.get(&lookup_key)
                 && !collected.contains_key(&dep.type_name)
             {
                 collect_referenced_types(dep, all_deps, collected);
                 collected.insert(dep.type_name.clone(), dep.clone());
             }
         }
+    }
+}
+
+/// Convert a fully qualified type name ("package/msg/TypeName") to a resolver key ("package/TypeName")
+fn nested_type_name_to_key(nested_type_name: &str) -> String {
+    let parts: Vec<&str> = nested_type_name.split('/').collect();
+    if parts.len() == 3 {
+        format!("{}/{}", parts[0], parts[2])
+    } else {
+        nested_type_name.to_string()
     }
 }
 
