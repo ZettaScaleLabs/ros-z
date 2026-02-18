@@ -266,7 +266,7 @@ where
     T: ZMessage + 'static,
     S: for<'a> ZSerializer<Input<'a> = &'a T> + 'static,
 {
-    fn new_attchment(&self) -> Attachment {
+    fn new_attachment(&self) -> Attachment {
         let sn = self.sn.fetch_add(1, Ordering::Relaxed);
         trace!(
             "[PUB] Creating attachment: sn={}, gid={:02x?}",
@@ -335,7 +335,7 @@ where
 
         let mut put_builder = self.inner.put(zbytes);
         if self.with_attachment {
-            let att = self.new_attchment();
+            let att = self.new_attachment();
             let sn = att.sequence_number;
             put_builder = put_builder.attachment(att);
             trace!("[PUB] Attached sn={}", sn);
@@ -364,7 +364,7 @@ where
         let zbytes = zenoh::bytes::ZBytes::from(zbuf);
         let mut put_builder = self.inner.put(zbytes);
         if self.with_attachment {
-            put_builder = put_builder.attachment(self.new_attchment());
+            put_builder = put_builder.attachment(self.new_attachment());
         }
         put_builder.await
     }
@@ -379,7 +379,7 @@ where
     pub fn publish_serialized(&self, data: impl Into<zenoh::bytes::ZBytes>) -> Result<()> {
         let mut put_builder = self.inner.put(data);
         if self.with_attachment {
-            put_builder = put_builder.attachment(self.new_attchment());
+            put_builder = put_builder.attachment(self.new_attachment());
         }
         put_builder.wait()
     }
@@ -389,7 +389,7 @@ where
         // NOTE: pass by reference to avoid copy
         let mut put_builder = self.inner.put(&payload);
         if self.with_attachment {
-            put_builder = put_builder.attachment(self.new_attchment());
+            put_builder = put_builder.attachment(self.new_attachment());
         }
         put_builder.wait()
     }
