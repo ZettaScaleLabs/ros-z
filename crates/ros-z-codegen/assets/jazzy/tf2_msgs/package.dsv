@@ -1,0 +1,4 @@
+source;share/tf2_msgs/local_setup.bash
+source;share/tf2_msgs/local_setup.dsv
+source;share/tf2_msgs/local_setup.sh
+source;share/tf2_msgs/local_setup.zsh

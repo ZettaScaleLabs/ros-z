@@ -1,0 +1,36 @@
+{
+  "type_description_msg": {
+    "type_description": {
+      "type_name": "tf2_msgs/msg/TF2Error",
+      "fields": [
+        {
+          "name": "error",
+          "type": {
+            "type_id": 3,
+            "capacity": 0,
+            "string_capacity": 0,
+            "nested_type_name": ""
+          },
+          "default_value": ""
+        },
+        {
+          "name": "error_string",
+          "type": {
+            "type_id": 17,
+            "capacity": 0,
+            "string_capacity": 0,
+            "nested_type_name": ""
+          },
+          "default_value": ""
+        }
+      ]
+    },
+    "referenced_type_descriptions": []
+  },
+  "type_hashes": [
+    {
+      "type_name": "tf2_msgs/msg/TF2Error",
+      "hash_string": "RIHS01_db2485e7d6a0ec75bf087e058ee45df682acc3a621ca7780503d10aac141809a"
+    }
+  ]
+}

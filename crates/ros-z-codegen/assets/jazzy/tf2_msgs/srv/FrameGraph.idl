@@ -1,0 +1,15 @@
+// generated from rosidl_adapter/resource/srv.idl.em
+// with input from tf2_msgs/srv/FrameGraph.srv
+// generated code does not contain a copyright notice
+
+
+module tf2_msgs {
+  module srv {
+    struct FrameGraph_Request {
+      uint8 structure_needs_at_least_one_member;
+    };
+    struct FrameGraph_Response {
+      string frame_yaml;
+    };
+  };
+};
