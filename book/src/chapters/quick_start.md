@@ -28,7 +28,7 @@ cd ros-z
 
 ### Start the Zenoh Router
 
-ros-z uses a router-based architecture (matching ROS 2's `rmw_zenoh` — the ROS 2 middleware plugin for Zenoh), so you'll need to start a Zenoh router first. The router acts as a rendezvous point for all nodes: publishers and subscribers discover each other through it rather than via multicast.
+ros-z supports two discovery modes: **peer mode** (multicast, works on a single machine) and **client mode** (router-based, required for multi-machine and ROS 2 interop). The examples default to peer mode, so the router is optional for this local demo — but starting one gets you familiar with the production setup that matches ROS 2's `rmw_zenoh`.
 
 **Terminal 1 - Start the Router:**
 
