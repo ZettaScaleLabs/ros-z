@@ -21,6 +21,17 @@ use crate::{
     service::{ZClientBuilder, ZServerBuilder},
 };
 
+/// A ROS 2-style node: a named participant that owns publishers, subscribers,
+/// service clients, service servers, and action clients/servers.
+///
+/// Create a node via [`ZContext::create_node`](crate::context::ZContext::create_node):
+///
+/// ```rust,ignore
+/// use ros_z::prelude::*;
+///
+/// let ctx = ZContextBuilder::default().build()?;
+/// let node = ctx.create_node("my_node").build()?;
+/// ```
 pub struct ZNode {
     pub entity: NodeEntity,
     pub session: Arc<Session>,

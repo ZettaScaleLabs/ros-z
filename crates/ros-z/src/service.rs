@@ -44,6 +44,24 @@ pub struct ZClientBuilder<T> {
 impl_with_type_info!(ZClientBuilder<T>);
 impl_with_type_info!(ZServerBuilder<T>);
 
+/// A ROS 2-style service client that sends typed requests and receives typed responses.
+///
+/// Create a client via [`ZNode::create_client`](crate::node::ZNode::create_client).
+/// Send a request with [`send_request`](ZClient::send_request) (async), then retrieve
+/// the response with [`take_response`](ZClient::take_response) (non-blocking),
+/// [`take_response_timeout`](ZClient::take_response_timeout) (waits up to a deadline),
+/// or [`take_response_async`](ZClient::take_response_async) (async wait).
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use ros_z::prelude::*;
+/// use std::time::Duration;
+///
+/// // client: ZClient<MyService>
+/// client.send_request(&request).await?;
+/// let response = client.take_response_timeout(Duration::from_secs(5))?;
+/// ```
 pub struct ZClient<T: ZService> {
     // TODO: replace this with the sample sn
     sn: AtomicUsize,
@@ -138,6 +156,12 @@ where
         Ok(self.rx.recv_timeout(timeout)?)
     }
 
+    /// Retrieve the next response without blocking.
+    ///
+    /// Returns `Err` immediately if no response has arrived yet. Use
+    /// [`take_response_timeout`](ZClient::take_response_timeout) to wait up to a
+    /// deadline, or [`take_response_async`](ZClient::take_response_async) to await
+    /// indefinitely in an async context.
     // For ROS-Z
     pub fn take_response(&self) -> Result<T::Response>
     where
@@ -149,6 +173,8 @@ where
         Ok(msg)
     }
 
+    /// Wait for the next response, up to `timeout`. Returns `Err` if no response
+    /// arrives within the deadline.
     pub fn take_response_timeout(&self, timeout: Duration) -> Result<T::Response>
     where
         T::Response: ZMessage,
@@ -161,6 +187,8 @@ where
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok(msg)
     }
+    /// Asynchronously wait for the next response. Awaits indefinitely until a
+    /// response arrives or the channel is disconnected.
     pub async fn take_response_async(&self) -> Result<T::Response>
     where
         T::Response: ZMessage,
@@ -179,6 +207,15 @@ impl<T> ZClient<T>
 where
     T: ZService,
 {
+    /// Send a typed request to the service server.
+    ///
+    /// This is an `async fn` — it must be `.await`ed. The call resolves once the
+    /// Zenoh query is dispatched; it does **not** wait for a response. Retrieve the
+    /// response separately with [`take_response`](ZClient::take_response),
+    /// [`take_response_timeout`](ZClient::take_response_timeout), or
+    /// [`take_response_async`](ZClient::take_response_async).
+    ///
+    /// Succeeds even when no server is running (fire-and-forget dispatch).
     #[tracing::instrument(name = "send_request", skip(self, msg), fields(
         service = %self.topic,
         sn = self.sn.load(Ordering::Acquire),

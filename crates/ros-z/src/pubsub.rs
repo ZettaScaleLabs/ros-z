@@ -20,6 +20,10 @@ use crate::qos::QosProfile;
 use ros_z_protocol::qos::{QosDurability, QosHistory, QosReliability};
 use std::sync::Mutex;
 
+/// A typed ROS 2-style publisher. Send messages with [`publish`](ZPub::publish)
+/// (synchronous) or [`async_publish`](ZPub::async_publish) (async).
+///
+/// Create a publisher via [`ZNode::create_pub`](crate::node::ZNode::create_pub).
 pub struct ZPub<T: ZMessage, S: ZSerializer> {
     pub entity: EndpointEntity,
     // TODO: replace this with the sample sn
@@ -322,6 +326,10 @@ where
         Attachment::new(sn as _, self.gid)
     }
 
+    /// Serialize and publish `msg` on the topic. Blocks until the put completes.
+    ///
+    /// Use [`async_publish`](ZPub::async_publish) when calling from async code to
+    /// avoid blocking the executor.
     #[tracing::instrument(name = "publish", skip(self, msg), fields(
         topic = %self.entity.topic,
         sn = self.sn.load(Ordering::Acquire),
@@ -396,6 +404,9 @@ where
         put_builder.wait()
     }
 
+    /// Serialize and publish `msg` on the topic. Yields to the async executor
+    /// while the put is in progress, making this safe to call from within
+    /// a Tokio task without blocking the thread.
     pub async fn async_publish(&self, msg: &T) -> Result<()> {
         // Try direct SHM serialization if configured
         let zbuf = if let Some(ref shm_cfg) = self.shm_config {

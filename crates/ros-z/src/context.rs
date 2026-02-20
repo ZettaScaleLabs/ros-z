@@ -502,6 +502,19 @@ impl Builder for ZContextBuilder {
     }
 }
 
+/// A live ros-z context backed by an open Zenoh session.
+///
+/// `ZContext` is the root object for all ros-z communication. Create one with
+/// [`ZContextBuilder`] and use it to create [`ZNode`](crate::node::ZNode)s.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use ros_z::prelude::*;
+///
+/// let ctx = ZContextBuilder::default().build()?;
+/// let node = ctx.create_node("my_node").build()?;
+/// ```
 #[derive(Clone)]
 pub struct ZContext {
     pub(crate) session: Arc<Session>,
@@ -516,6 +529,10 @@ pub struct ZContext {
 }
 
 impl ZContext {
+    /// Create a builder for a new ROS 2 node within this context.
+    ///
+    /// Call `.build()` on the returned [`ZNodeBuilder`](crate::node::ZNodeBuilder) to
+    /// produce the node. Requires `use ros_z::Builder;` in scope.
     pub fn create_node<S: AsRef<str>>(&self, name: S) -> ZNodeBuilder {
         ZNodeBuilder {
             domain_id: self.domain_id,
@@ -532,6 +549,10 @@ impl ZContext {
         }
     }
 
+    /// Close the underlying Zenoh session, releasing all network resources.
+    ///
+    /// After calling `shutdown`, all nodes, publishers, subscribers, and
+    /// service clients/servers created from this context become invalid.
     pub fn shutdown(&self) -> Result<()> {
         self.session.close().wait()
     }

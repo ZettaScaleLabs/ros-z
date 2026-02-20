@@ -33,7 +33,24 @@ pub use ros_msg::{ActionTypeInfo, MessageTypeInfo, ServiceTypeInfo, WithTypeInfo
 pub use zbuf::ZBuf;
 pub use zenoh::Result;
 
+/// Builds a configured object, consuming the builder.
+///
+/// All ros-z builders implement this trait. Bring it into scope to call `.build()`:
+///
+/// ```rust,ignore
+/// use ros_z::Builder;
+/// let ctx = ZContextBuilder::default().build()?;
+/// ```
+///
+/// Alternatively, use `use ros_z::prelude::*;` which includes `Builder`.
 pub trait Builder {
+    /// The type produced by this builder.
     type Output;
+    /// Consume the builder and construct the configured object.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration is invalid or if network/resource
+    /// initialization fails (e.g. Zenoh session could not be opened).
     fn build(self) -> Result<Self::Output>;
 }
