@@ -44,14 +44,14 @@ Open two more terminals and navigate to the same `ros-z` directory:
 
 ```bash
 cd ros-z
-cargo run --example z_pubsub -- -r listener
+cargo run --example z_pubsub -- --role listener
 ```
 
 **Terminal 3 - Start the Talker:**
 
 ```bash
 cd ros-z
-cargo run --example z_pubsub -- -r talker
+cargo run --example z_pubsub -- --role talker
 ```
 
 ```admonish success
@@ -140,6 +140,10 @@ An async runtime is required for ros-z. This example uses Tokio, the most popula
 ### 4. Write Your First Application
 
 Replace the contents of `src/main.rs` with this simple publisher example:
+
+```admonish tip title="Simpler imports with prelude"
+Instead of importing `Builder`, `Result`, and `ZContextBuilder` separately, use `use ros_z::prelude::*;` to bring all common ros-z types into scope at once.
+```
 
 ```rust,ignore
 use std::time::Duration;
