@@ -146,7 +146,7 @@ loop {
 }
 ```
 
-Note: `take_request()` blocks until a request arrives. The server variable must be `mut` because `take_request` takes `&mut self`.
+Note: `take_request()` blocks until a request arrives. The server variable must be `mut` because `take_request` takes `&mut self`. The `key` returned is a `ros_z::service::QueryKey` — an opaque token that ties the response to the original request.
 
 ### Pattern 2: Async Request Handling
 

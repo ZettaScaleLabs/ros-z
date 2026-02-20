@@ -76,7 +76,7 @@ impl WithTypeInfo for RobotStatus {}
 ### Service Example
 
 ```rust,ignore
-use ros_z::{ServiceTypeInfo, msg::ZService};
+use ros_z::{ServiceTypeInfo, TypeInfo, TypeHash, msg::ZService};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct NavigateToRequest {
