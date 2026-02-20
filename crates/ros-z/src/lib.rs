@@ -10,6 +10,7 @@ pub mod event;
 pub mod graph;
 pub mod msg;
 pub mod node;
+pub mod prelude;
 pub mod pubsub;
 pub mod python_bridge;
 pub mod qos;
