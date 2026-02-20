@@ -175,11 +175,11 @@ Use callbacks for low-latency event-driven processing. Use blocking/async receiv
 QoS profiles control message delivery behavior:
 
 ```rust,ignore
-use ros_z::qos::{QosProfile, QosHistory, Reliability};
+use ros_z::qos::{QosProfile, QosHistory, QosReliability};
 
 let qos = QosProfile {
     history: QosHistory::KeepLast(10),
-    reliability: Reliability::Reliable,
+    reliability: QosReliability::Reliable,
     ..Default::default()
 };
 
@@ -190,7 +190,7 @@ let publisher = node
 ```
 
 ```admonish tip
-Use `QosHistory::KeepLast(1)` for sensor data and `Reliability::Reliable` for critical commands. Match QoS profiles between publishers and subscribers for optimal message delivery.
+Use `QosHistory::KeepLast(1)` for sensor data and `QosReliability::Reliable` for critical commands. Match QoS profiles between publishers and subscribers for optimal message delivery.
 ```
 
 ## ROS 2 Interoperability

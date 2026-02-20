@@ -48,7 +48,7 @@ graph LR
 ### Message Example
 
 ```rust,ignore
-use ros_z::{MessageTypeInfo, entity::{TypeHash, TypeInfo}};
+use ros_z::{MessageTypeInfo, entity::TypeHash};
 use ros_z::ros_msg::WithTypeInfo;
 use serde::{Serialize, Deserialize};
 
@@ -70,11 +70,7 @@ impl MessageTypeInfo for RobotStatus {
     }
 }
 
-impl WithTypeInfo for RobotStatus {
-    fn type_info() -> TypeInfo {
-        TypeInfo::new(Self::type_name(), Self::type_hash())
-    }
-}
+impl WithTypeInfo for RobotStatus {}
 ```
 
 ### Service Example
@@ -195,14 +191,14 @@ edition = "2021"
 [workspace]
 
 [dependencies]
-ros-z-msgs = { version = "0.1" }
-ros-z = { version = "0.1", default-features = false }
+ros-z-msgs = { git = "https://github.com/ZettaScaleLabs/ros-z.git" }
+ros-z = { git = "https://github.com/ZettaScaleLabs/ros-z.git", default-features = false }
 serde = { version = "1", features = ["derive"] }
 smart-default = "0.7"
 zenoh-buffers = "1"
 
 [build-dependencies]
-ros-z-codegen = { version = "0.1" }
+ros-z-codegen = { git = "https://github.com/ZettaScaleLabs/ros-z.git" }
 anyhow = "1"
 ```
 
