@@ -133,6 +133,8 @@ This pull-based approach is consistent with subscriber's `recv()` pattern, allow
 Best for: Simple synchronous service implementations
 
 ```rust,ignore
+use ros_z::Builder;
+
 let mut service = node
     .create_service::<ServiceType>("service_name")
     .build()?;
@@ -144,11 +146,15 @@ loop {
 }
 ```
 
+Note: `take_request()` blocks until a request arrives. The server variable must be `mut` because `take_request` takes `&mut self`.
+
 ### Pattern 2: Async Request Handling
 
 Best for: Services that need to await other operations
 
 ```rust,ignore
+use ros_z::Builder;
+
 let mut service = node
     .create_service::<ServiceType>("service_name")
     .build()?;
@@ -171,27 +177,38 @@ loop {
 
 ## Service Client Patterns
 
-Service clients send requests to servers and receive responses. Both blocking and async patterns are supported.
+Service clients send requests to servers and receive responses. `send_request` is always async and must be `.await`ed. There are two patterns for receiving the response.
 
-### Pattern 1: Blocking Client
+```admonish note
+`send_request` is an `async fn` — it must be called with `.await` in an async context. Calling it without `.await` will not compile.
 
-Best for: Simple synchronous request-response operations
+`take_response()` returns **immediately** with `Err` if no response has arrived yet. Use `take_response_timeout(duration)` to wait up to a deadline or `take_response_async().await` in fully async code.
+```
+
+### Pattern 1: Async Client with Timeout
+
+Best for: Simple request-response where you want to wait up to a fixed deadline
 
 ```rust,ignore
+use ros_z::Builder;
+use std::time::Duration;
+
 let client = node
     .create_client::<ServiceType>("service_name")
     .build()?;
 
 let request = create_request();
-client.send_request(&request)?;
-let response = client.take_response()?;
+client.send_request(&request).await?;
+let response = client.take_response_timeout(Duration::from_secs(5))?;
 ```
 
-### Pattern 2: Async Client
+### Pattern 2: Fully Async Client
 
-Best for: Integration with async codebases
+Best for: Integration with async codebases or when using `tokio::select!`
 
 ```rust,ignore
+use ros_z::Builder;
+
 let client = node
     .create_client::<ServiceType>("service_name")
     .build()?;
@@ -202,7 +219,7 @@ let response = client.take_response_async().await?;
 ```
 
 ```admonish tip
-Match your client and server patterns for consistency. Use blocking patterns for simple scripts and async patterns when integrating with async runtimes like tokio.
+`use ros_z::Builder;` must be in scope to call `.build()`. Both patterns require an async runtime such as `tokio`. For logging, call `zenoh::init_log_from_env_or("error")` before building the context.
 ```
 
 ## ROS 2 Interoperability
@@ -226,6 +243,30 @@ ros2 service info /add_two_ints
 ```admonish success
 ros-z service servers and clients are fully compatible with ROS 2 via Zenoh bridge or rmw_zenoh, enabling cross-language service calls.
 ```
+
+## Error Handling
+
+### When the server is not running
+
+`send_request` dispatches the Zenoh query and resolves immediately — it does not wait for a reply. If no server is registered, the query has no subscribers. `take_response()` will then return `Err("No sample available")`.
+
+Use `take_response_timeout(duration)` to wait for a bounded time:
+
+```rust,ignore
+client.send_request(&request).await?;
+match client.take_response_timeout(Duration::from_secs(5)) {
+    Ok(response) => println!("Got response: {:?}", response),
+    Err(e) => eprintln!("Service not available or timed out: {}", e),
+}
+```
+
+### Response methods compared
+
+| Method | Behavior |
+|--------|----------|
+| `take_response()` | Returns immediately; `Err` if no response yet |
+| `take_response_timeout(duration)` | Waits up to `duration`; `Err` on timeout |
+| `take_response_async().await` | Waits indefinitely in async context |
 
 ## Resources
 

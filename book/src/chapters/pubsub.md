@@ -118,6 +118,8 @@ ros-z provides three patterns for receiving messages, each suited for different 
 Best for: Simple sequential processing, scripting
 
 ```rust,ignore
+use ros_z::Builder;
+
 let subscriber = node
     .create_sub::<RosString>("topic_name")
     .build()?;
