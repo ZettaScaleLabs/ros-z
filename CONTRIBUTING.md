@@ -77,7 +77,7 @@ This helps us manage CI workflow approvals.
 
 ## Documentation
 
-- Examples live in `ros-z/examples/` as runnable programs
+- Examples live in `crates/ros-z/examples/` as runnable programs
 - Book chapters reference examples via `{{#include}}`
 - Test documentation: `mdbook serve book`
 

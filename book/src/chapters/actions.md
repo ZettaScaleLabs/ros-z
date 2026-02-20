@@ -170,7 +170,7 @@ Always implement timeout mechanisms for action clients. Long-running actions can
 ## Resources
 
 - **[ROS 2 Actions Documentation](https://docs.ros.org/en/rolling/Tutorials/Intermediate/Writing-an-Action-Server-Client/Py.html)** - Official ROS 2 action guide
-- **[ros-z Examples](https://github.com/ZettaScaleLabs/ros-z/tree/main/ros-z/examples)** - Working action implementations
+- **[ros-z Examples](https://github.com/ZettaScaleLabs/ros-z/tree/main/crates/ros-z/examples)** - Working action implementations
 - **[Services](./services.md)** - Simpler request-response pattern
 
 **Action implementation is evolving. Check the ros-z repository for the latest examples and API updates.**

@@ -265,10 +265,10 @@ let reading = SensorReading {
 };
 ```
 
-See `ros-z/examples/custom_msgs_demo/` for a working example:
+See `crates/ros-z/examples/custom_msgs_demo/` for a working example:
 
 ```bash
-cd ros-z/examples/custom_msgs_demo
+cd crates/ros-z/examples/custom_msgs_demo
 ROS_Z_MSG_PATH="./my_robot_msgs" cargo build
 ```
 

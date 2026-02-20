@@ -28,7 +28,7 @@ cd ros-z
 
 ### Start the Zenoh Router
 
-ros-z uses a router-based architecture (matching ROS 2's `rmw_zenoh`), so you'll need to start a Zenoh router first.
+ros-z uses a router-based architecture (matching ROS 2's `rmw_zenoh` — the ROS 2 middleware plugin for Zenoh), so you'll need to start a Zenoh router first. The router acts as a rendezvous point for all nodes: publishers and subscribers discover each other through it rather than via multicast.
 
 **Terminal 1 - Start the Router:**
 
@@ -38,17 +38,19 @@ cargo run --example zenoh_router
 
 ### Run the Pub/Sub Example
 
-Open two more terminals in the same `ros-z` directory:
+Open two more terminals and navigate to the same `ros-z` directory:
 
 **Terminal 2 - Start the Listener:**
 
 ```bash
+cd ros-z
 cargo run --example z_pubsub -- -r listener
 ```
 
 **Terminal 3 - Start the Talker:**
 
 ```bash
+cd ros-z
 cargo run --example z_pubsub -- -r talker
 ```
 
@@ -126,8 +128,8 @@ Add ros-z to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-ros-z = "*"
-ros-z-msgs = "*"  # Standard ROS 2 message types
+ros-z = { git = "https://github.com/ZettaScaleLabs/ros-z.git" }
+ros-z-msgs = { git = "https://github.com/ZettaScaleLabs/ros-z.git" }  # Standard ROS 2 message types
 tokio = { version = "1", features = ["full"] }  # Async runtime
 ```
 
@@ -238,6 +240,16 @@ ros-z uses router-based discovery by default, aligning with ROS 2's official Zen
 - **Production-ready** architecture used in real ROS 2 systems
 
 See the [Networking](./networking.md) chapter for customization options, including how to revert to multicast scouting mode if needed.
+```
+
+```admonish info title="Key Terms"
+**key expression** — Zenoh's topic addressing scheme. A string like `0/chatter/std_msgs::msg::dds_::String_/RIHS01_<hash>` that identifies where messages flow. ros-z maps ROS 2 topic names to key expressions automatically.
+
+**CDR** — Common Data Representation, the binary serialization format used by all ROS 2 middleware. ros-z serializes message structs to CDR bytes before publishing.
+
+**RIHS01** — ROS Interface Hash Scheme 01, a hash of the message definition that ensures publisher and subscriber agree on the exact message fields. If the hash differs, messages are silently dropped.
+
+**RMW** — ROS MiddleWare interface, the plugin layer that connects ROS 2 nodes to an underlying transport (DDS, Zenoh, etc.). `rmw_zenoh_cpp` is the RMW that lets standard ROS 2 C++/Python nodes speak Zenoh.
 ```
 
 ## What's Happening?
