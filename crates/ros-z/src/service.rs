@@ -75,6 +75,14 @@ pub struct ZClient<T: ZService> {
     _phantom_data: PhantomData<T>,
 }
 
+impl<T: ZService> std::fmt::Debug for ZClient<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ZClient")
+            .field("topic", &self.topic)
+            .finish_non_exhaustive()
+    }
+}
+
 impl<T> Builder for ZClientBuilder<T>
 where
     T: ZService,
@@ -316,6 +324,14 @@ pub struct ZServer<T: ZService, Q = Query> {
     pub queue: Option<Arc<BoundedQueue<Q>>>,
     pub map: HashMap<QueryKey, Query>,
     _phantom_data: PhantomData<T>,
+}
+
+impl<T: ZService, Q> std::fmt::Debug for ZServer<T, Q> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ZServer")
+            .field("key_expr", &self.key_expr.as_str())
+            .finish_non_exhaustive()
+    }
 }
 
 impl<T, Q> ZServer<T, Q>

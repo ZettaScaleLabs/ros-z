@@ -528,6 +528,15 @@ pub struct ZContext {
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
 }
 
+impl std::fmt::Debug for ZContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ZContext")
+            .field("domain_id", &self.domain_id)
+            .field("enclave", &self.enclave)
+            .finish_non_exhaustive()
+    }
+}
+
 impl ZContext {
     /// Create a builder for a new ROS 2 node within this context.
     ///

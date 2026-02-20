@@ -43,6 +43,14 @@ pub struct ZPub<T: ZMessage, S: ZSerializer> {
     _phantom_data: PhantomData<(T, S)>,
 }
 
+impl<T: ZMessage, S: ZSerializer> std::fmt::Debug for ZPub<T, S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ZPub")
+            .field("entity", &self.entity)
+            .finish_non_exhaustive()
+    }
+}
+
 #[derive(Debug)]
 pub struct ZPubBuilder<T, S = CdrSerdes<T>> {
     pub entity: EndpointEntity,
@@ -806,6 +814,14 @@ pub struct ZSub<T: ZMessage, Q, S: ZDeserializer> {
     /// Expected encoding for validation.
     pub expected_encoding: Option<crate::encoding::Encoding>,
     _phantom_data: PhantomData<(T, Q, S)>,
+}
+
+impl<T: ZMessage, Q, S: ZDeserializer> std::fmt::Debug for ZSub<T, Q, S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ZSub")
+            .field("entity", &self.entity)
+            .finish_non_exhaustive()
+    }
 }
 
 impl<T, S> ZSub<T, Sample, S>

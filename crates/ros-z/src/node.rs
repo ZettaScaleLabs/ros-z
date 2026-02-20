@@ -47,6 +47,14 @@ pub struct ZNode {
     type_desc_service: Option<TypeDescriptionService>,
 }
 
+impl std::fmt::Debug for ZNode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ZNode")
+            .field("entity", &self.entity)
+            .finish_non_exhaustive()
+    }
+}
+
 pub struct ZNodeBuilder {
     pub domain_id: usize,
     pub name: String,
