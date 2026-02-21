@@ -90,6 +90,24 @@ while let Ok(msg) = sub.recv() {
 ```
 
 
+## Current Scope
+
+ros-z covers the core ROS 2 communication primitives. The following are **not yet supported**:
+
+| Feature | Status | Alternative |
+|---------|--------|-------------|
+| **Parameter server** | Not implemented | Use environment variables or custom config |
+| **Lifecycle nodes** | Not implemented | Manage node state in application code |
+| **tf2** | Not implemented | Publish transforms directly on topics |
+| **Simulation time** | Not implemented | Use wall clock |
+| **rosbag2 recording** | Not implemented | Record via native Zenoh tools or `ros2 bag` on the ROS 2 side |
+| **wait_for_service / wait_for_action** | Not implemented | Poll manually with a retry loop |
+| **Component nodes** | Not implemented | Run as separate executables |
+
+```admonish tip
+ros-z is experimental and actively developed. Contributions and feature requests are welcome on [GitHub](https://github.com/ZettaScaleLabs/ros-z).
+```
+
 ## Next Step
 
 **Ready to build safer, faster robotics applications? Start with the [Quick Start Guide](./chapters/quick_start.md).**
