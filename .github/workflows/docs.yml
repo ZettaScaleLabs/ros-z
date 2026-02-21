@@ -30,6 +30,12 @@ jobs:
       - name: FlakeHub / Magic cache
         uses: DeterminateSystems/flakehub-cache-action@main
 
+      - name: Build ros-z library (required for mdbook test link path)
+        run: |
+          nix develop '.#pureRust-ci' -c cargo build --lib -p ros-z
+        env:
+          NIX_ACCEPT_FLAKE_CONFIG: 1
+
       - name: Test mdbook in flake shell
         run: |
           nix develop '.#pureRust-ci' -c mdbook test book -L ./target/debug/deps

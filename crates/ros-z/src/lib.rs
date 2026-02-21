@@ -39,6 +39,8 @@
 //!
 //! Or import types individually from their modules.
 
+#![warn(missing_docs)]
+
 pub mod action;
 pub mod attachment;
 mod common;
