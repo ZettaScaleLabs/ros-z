@@ -43,10 +43,13 @@ jobs:
         include:
           - distro: humble
             image: rostooling/setup-ros-docker:ubuntu-jammy-ros-humble-ros-base-latest
+            ros_z_feature: humble
           - distro: jazzy
             image: rostooling/setup-ros-docker:ubuntu-noble-ros-jazzy-ros-base-latest
+            ros_z_feature: jazzy
           - distro: kilted
             image: rostooling/setup-ros-docker:ubuntu-noble-ros-kilted-ros-base-latest
+            ros_z_feature: jazzy  # kilted uses jazzy-compatible type hashes
     container:
       image: ${{ matrix.image }}
     steps:
@@ -99,10 +102,10 @@ jobs:
         run: |
           source /opt/ros/${{ matrix.distro }}/setup.bash
           export RMW_IMPLEMENTATION=rmw_zenoh_cpp
-          if [ "${{ matrix.distro }}" = "humble" ]; then
+          if [ "${{ matrix.ros_z_feature }}" = "humble" ]; then
             cargo nextest run -p ros-z-tests --no-default-features --features ros-interop,humble --release
             cargo nextest run -p ros-z-console --no-default-features --features ros-interop,humble --release
           else
-            cargo nextest run -p ros-z-tests --features ros-interop,${{ matrix.distro }} --release
+            cargo nextest run -p ros-z-tests --features ros-interop,${{ matrix.ros_z_feature }} --release
             cargo nextest run -p ros-z-console --features ros-interop --release
           fi

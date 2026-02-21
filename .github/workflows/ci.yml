@@ -153,6 +153,37 @@ jobs:
           nu scripts/test-pure-rust.nu check-bundled-msgs
         shell: bash
 
+      - name: Check ros-z-console
+        run: |
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            source /tmp/nix-dev-env.sh
+          fi
+          nu scripts/test-pure-rust.nu check-console
+        shell: bash
+
+      - name: Build all examples
+        run: |
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            source /tmp/nix-dev-env.sh
+          fi
+          nu scripts/test-pure-rust.nu check-examples
+        shell: bash
+
+      - name: Check distro feature flags
+        run: |
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            source /tmp/nix-dev-env.sh
+          fi
+          nu scripts/test-pure-rust.nu check-distro-features
+        shell: bash
+
+      - name: SHM tests
+        if: runner.os == 'Linux'
+        run: |
+          source /tmp/nix-dev-env.sh
+          nu scripts/test-pure-rust.nu test-shm
+        shell: bash
+
   python-tests:
     name: Python Tests (ros-z-py) (${{ matrix.distro }})
     runs-on: ubuntu-latest
