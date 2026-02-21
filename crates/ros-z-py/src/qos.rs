@@ -1,6 +1,8 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use ros_z::qos::{Duration, QosDurability, QosHistory, QosLiveliness, QosProfile, QosReliability};
+use ros_z::qos::{
+    QosDurability, QosDuration as Duration, QosHistory, QosLiveliness, QosProfile, QosReliability,
+};
 use std::num::NonZeroUsize;
 
 // ROS 2 QoS presets

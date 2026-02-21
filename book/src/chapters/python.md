@@ -32,12 +32,12 @@ graph TD
 
 ```bash
 # Create and activate virtual environment
-cd ros-z-py
+cd crates/ros-z-py
 python -m venv .venv
 source .venv/bin/activate
 
 # Install message types
-pip install -e ../crates/ros-z-msgs/python/
+pip install -e ../ros-z-msgs/python/
 
 # Build and install ros-z-py
 maturin develop
@@ -49,7 +49,7 @@ Use `maturin develop --release` for optimized builds when benchmarking or runnin
 
 ## Quick Start
 
-Here's a complete publisher and subscriber example from [`ros-z-py/examples/topic_demo.py`](https://github.com/ZettaScaleLabs/ros-z/blob/main/ros-z-py/examples/topic_demo.py):
+Here's a complete publisher and subscriber example from [`crates/ros-z-py/examples/topic_demo.py`](https://github.com/ZettaScaleLabs/ros-z/blob/main/crates/ros-z-py/examples/topic_demo.py):
 
 ### Publisher (Talker)
 
@@ -78,7 +78,7 @@ Here's a complete publisher and subscriber example from [`ros-z-py/examples/topi
 
 ## Service Patterns
 
-Examples from [`ros-z-py/examples/service_demo.py`](https://github.com/ZettaScaleLabs/ros-z/blob/main/ros-z-py/examples/service_demo.py):
+Examples from [`crates/ros-z-py/examples/service_demo.py`](https://github.com/ZettaScaleLabs/ros-z/blob/main/crates/ros-z-py/examples/service_demo.py):
 
 ### Service Server
 
@@ -109,7 +109,7 @@ twist = geometry_msgs.Twist(
     angular=geometry_msgs.Vector3(x=0.0, y=0.0, z=0.5)
 )
 
-pub = node.create_publisher("/cmd_vel", "geometry_msgs/msg/Twist")
+pub = node.create_publisher("/cmd_vel", geometry_msgs.Twist)
 pub.publish(twist)
 ```
 
@@ -208,7 +208,7 @@ Python nodes work seamlessly with Rust and ROS 2 nodes:
 cargo run --example zenoh_router
 
 # Terminal 2: Run Python publisher (using topic_demo.py)
-cd ros-z-py
+cd crates/ros-z-py
 source .venv/bin/activate
 python examples/topic_demo.py -r talker
 
@@ -224,7 +224,7 @@ Messages published from Python are received by ROS 2 CLI, Rust nodes, and any ot
 
 ```bash
 # Python unit tests
-cd ros-z-py
+cd crates/ros-z-py
 source .venv/bin/activate
 python -m pytest tests/ -v
 
@@ -242,26 +242,23 @@ This error occurs when the package hasn't been built or installed correctly.
 Rebuild and install the package:
 
 ```bash
-cd ros-z-py
+cd crates/ros-z-py
 source .venv/bin/activate
-pip install -e ../crates/ros-z-msgs/python/
+pip install -e ../ros-z-msgs/python/
 maturin develop
 ```
 ````
 
 ````admonish question collapsible=true title="Message type not found"
-This error occurs when trying to use a message type that isn't registered.
+This error occurs when trying to use a message type that isn't supported by the Python bindings.
 
 **Solution:**
 
-Check which message types are available:
+Check the supported message types by looking at the match arms in `crates/ros-z-py/src/node.rs`.
+Currently supported: `std_msgs/String`, `std_msgs/ByteMultiArray`, `geometry_msgs/Vector3`,
+`geometry_msgs/Twist`, `sensor_msgs/LaserScan`, and `example_interfaces/AddTwoInts`.
 
-```python
-from ros_z_py import ros_z_msgs
-print(ros_z_msgs.list_registered_types())
-```
-
-Ensure the message package is enabled in `ros-z-msgs/Cargo.toml` features.
+Ensure you are passing a message class object (e.g., `std_msgs.String`), not a string.
 ````
 
 ````admonish question collapsible=true title="recv() always returns None"
