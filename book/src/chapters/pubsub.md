@@ -220,7 +220,13 @@ The rule format follows the ROS 2 convention: `from:=to`.
 
 ## ROS 2 Interoperability
 
-ros-z publishers and subscribers work seamlessly with ROS 2 C++ and Python nodes:
+ros-z publishers and subscribers interoperate with ROS 2 C++ and Python nodes when both sides share the same Zenoh transport:
+
+**Requirements:**
+
+- ROS 2 nodes must use `rmw_zenoh_cpp` (`export RMW_IMPLEMENTATION=rmw_zenoh_cpp`) **or** be bridged via `zenoh-bridge-ros2dds`
+- Both sides must use matching message types with identical RIHS01 type hashes
+- All nodes must connect to the same Zenoh router
 
 ```bash
 # List active topics
@@ -236,8 +242,10 @@ ros2 topic pub /chatter std_msgs/msg/String "data: 'Hello from ROS 2'"
 ros2 topic info /chatter
 ```
 
-```admonish success
-ros-z provides full ROS 2 compatibility via Zenoh bridge or rmw_zenoh, enabling cross-language communication.
+```admonish warning
+If type hashes differ (e.g. mismatched message definitions), nodes won't exchange messages.
+Enable `RUST_LOG=ros_z=debug` to see the hash in the key expression and compare it with the ROS 2 side.
+See [Troubleshooting](./troubleshooting.md) for diagnosis steps.
 ```
 
 ## Resources

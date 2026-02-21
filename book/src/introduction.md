@@ -1,6 +1,6 @@
 # Introduction
 
-**ros-z is a native Rust ROS 2 implementation powered by Zenoh, delivering high-performance robotics communication with type safety and zero-cost abstractions.** Build reliable robot applications using modern Rust idioms while maintaining full ROS 2 compatibility.
+**ros-z is a native Rust ROS 2 implementation powered by Zenoh, delivering high-performance robotics communication with type safety and zero-cost abstractions.** Build reliable robot applications using modern Rust idioms while maintaining ROS 2 wire compatibility for pub/sub, services, and actions.
 
 ## Architecture
 
@@ -26,7 +26,7 @@ ros-z provides three integration paths to suit different use cases:
 | **High Productivity** | Cargo ecosystem with excellent tooling | Fast development without sacrificing reliability |
 
 ```admonish note
-ros-z is designed for both new projects and gradual migration. Deploy ros-z nodes alongside existing ROS 2 C++/Python nodes with full interoperability.
+ros-z is designed for both new projects and gradual migration. Deploy ros-z nodes alongside existing ROS 2 C++/Python nodes using `rmw_zenoh_cpp` or `zenoh-bridge-ros2dds` for interoperability.
 ```
 
 ## Communication Patterns

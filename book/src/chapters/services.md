@@ -224,7 +224,13 @@ let response = client.take_response_async().await?;
 
 ## ROS 2 Interoperability
 
-ros-z services work seamlessly with ROS 2 C++ and Python nodes:
+ros-z services interoperate with ROS 2 C++ and Python nodes when both sides share the same Zenoh transport:
+
+**Requirements:**
+
+- ROS 2 nodes must use `rmw_zenoh_cpp` (`export RMW_IMPLEMENTATION=rmw_zenoh_cpp`)
+- Both sides must use matching service types with identical RIHS01 type hashes
+- All nodes must connect to the same Zenoh router
 
 ```bash
 # List available services
@@ -240,8 +246,9 @@ ros2 service type /add_two_ints
 ros2 service info /add_two_ints
 ```
 
-```admonish success
-ros-z service servers and clients are fully compatible with ROS 2 via Zenoh bridge or rmw_zenoh, enabling cross-language service calls.
+```admonish warning
+Service interop requires `rmw_zenoh_cpp` on the ROS 2 side. The `zenoh-bridge-ros2dds` approach
+works for pub/sub but does not fully support services.
 ```
 
 ## Error Handling
