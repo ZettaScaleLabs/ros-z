@@ -210,7 +210,7 @@ use std::env;
 
 fn main() -> anyhow::Result<()> {
     let out_dir = PathBuf::from(env::var("OUT_DIR")?);
-    ros_z_codegen::generate_user_messages(&out_dir, false)?;
+    ros_z_codegen::generate_user_messages(&out_dir, false)?; // false = Jazzy-compatible (use true for Humble)
     println!("cargo:rerun-if-env-changed=ROS_Z_MSG_PATH");
     Ok(())
 }

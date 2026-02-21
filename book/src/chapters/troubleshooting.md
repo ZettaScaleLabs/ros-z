@@ -136,7 +136,7 @@ cargo build -p rcl-z
 
 ```rust,ignore
 let ctx = ZContextBuilder::default()
-    .with_zenoh_config(zenoh::Config::default())
+    .with_mode("peer")
     .build()?;
 ```
 
