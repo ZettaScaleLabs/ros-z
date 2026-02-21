@@ -40,8 +40,8 @@ Override any Zenoh configuration setting using the `ROSZ_CONFIG_OVERRIDE` enviro
 # Override mode and endpoint
 export ROSZ_CONFIG_OVERRIDE='mode="client";connect/endpoints=["tcp/192.168.1.100:7447"]'
 
-# Run your application
-cargo run --example my_app
+# Run any ros-z application — overrides apply automatically
+cargo run --example z_pubsub
 ```
 
 ```rust,ignore
