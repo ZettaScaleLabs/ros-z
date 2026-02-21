@@ -195,6 +195,29 @@ let publisher = node
 Use `QosHistory::KeepLast(1)` for sensor data and `QosReliability::Reliable` for critical commands. Match QoS profiles between publishers and subscribers for optimal message delivery.
 ```
 
+## Name Remapping
+
+ros-z supports ROS 2-style topic remapping via `ZContextBuilder::with_remap_rule()`. Remapping rules apply to all nodes created from the same context and redirect topic/service names at the context level.
+
+```rust,ignore
+use ros_z::context::ZContextBuilder;
+
+let ctx = ZContextBuilder::default()
+    .with_remap_rule("/chatter:=/my_chatter")?  // redirect /chatter to /my_chatter
+    .with_remap_rule("__node:=renamed_node")?   // rename the node
+    .build()?;
+```
+
+Multiple rules can be added with `.with_remap_rules()`:
+
+```rust,ignore
+let ctx = ZContextBuilder::default()
+    .with_remap_rules(["/input:=/sensor/data", "/output:=/processed/data"])?
+    .build()?;
+```
+
+The rule format follows the ROS 2 convention: `from:=to`.
+
 ## ROS 2 Interoperability
 
 ros-z publishers and subscribers work seamlessly with ROS 2 C++ and Python nodes:
