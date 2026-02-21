@@ -159,6 +159,32 @@ You'll see:
 Always implement timeout mechanisms for action clients. Long-running actions can fail or hang, and clients need graceful degradation strategies.
 ```
 
+## Canceling an Action from the Client
+
+The `GoalHandle` returned by `send_goal()` has a `cancel()` method for requesting cancellation:
+
+```rust,ignore
+let goal_handle = client.send_goal(goal).await?;
+
+// ... later, if you need to stop the action:
+let cancel_response = goal_handle.cancel().await?;
+println!("Cancel accepted: {}", cancel_response.goals_canceling.len() > 0);
+```
+
+To cancel a specific goal by ID without a handle:
+
+```rust,ignore
+client.cancel_goal(goal_id).await?;
+```
+
+To cancel every in-progress goal at once:
+
+```rust,ignore
+client.cancel_all_goals().await?;
+```
+
+The server checks cancellation with `is_cancel_requested()` and calls `.canceled()` to complete the handshake (see Server section above). There is no guarantee the server will honor the cancellation — it may complete the goal before processing the cancel request.
+
 ## Comparison with Other Patterns
 
 | Pattern | Duration | Feedback | Cancellation | Use Case |
