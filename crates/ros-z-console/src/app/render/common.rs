@@ -5,7 +5,7 @@ use ratatui::{
     text::Span,
     widgets::BorderType,
 };
-use ros_z::qos::{Duration as QosDuration, QosDurability, QosHistory, QosProfile, QosReliability};
+use ros_z::qos::{QosDurability, QosDuration, QosHistory, QosProfile, QosReliability};
 
 use crate::app::state::*;
 

@@ -96,7 +96,7 @@ impl fmt::Display for QosLiveliness {
 ///
 /// This is distinct from [`std::time::Duration`] and is used exclusively for
 /// configuring QoS deadline, lifespan, and liveliness lease duration.
-/// Use [`QosQosDuration::INFINITE`] (the default) to disable a QoS time constraint.
+/// Use [`QosDuration::INFINITE`] (the default) to disable a QoS time constraint.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct QosDuration {
     pub sec: u64,

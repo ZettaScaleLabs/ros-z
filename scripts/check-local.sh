@@ -60,7 +60,45 @@ else
     echo ""
 fi
 
-# 6. Example coverage check (if nushell is available)
+# 6. Build all examples
+run_check "Examples build (cargo build --examples)" "cargo build --examples"
+
+# 7. ros-z-console clippy (if nushell available)
+if command -v nu &> /dev/null; then
+    run_check "Console clippy (check-console)" "nu scripts/test-pure-rust.nu check-console"
+else
+    echo -e "${YELLOW}⚠${NC} Skipping console clippy (nushell not installed)"
+    echo ""
+fi
+
+# 8. SHM tests (if nushell available)
+if command -v nu &> /dev/null; then
+    run_check "SHM tests (test-shm)" "nu scripts/test-pure-rust.nu test-shm"
+else
+    echo -e "${YELLOW}⚠${NC} Skipping SHM tests (nushell not installed)"
+    echo ""
+fi
+
+# 9. Distro feature flags (if nushell available)
+if command -v nu &> /dev/null; then
+    run_check "Distro feature flags (check-distro-features)" "nu scripts/test-pure-rust.nu check-distro-features"
+else
+    echo -e "${YELLOW}⚠${NC} Skipping distro feature flag checks (nushell not installed)"
+    echo ""
+fi
+
+# 10. Rustdoc link check
+check_rustdoc_links() {
+    local warnings
+    warnings=$(cargo doc --no-deps -p ros-z --quiet 2>&1 | grep -E "unresolved link|broken_intra_doc_links" || true)
+    if [ -n "$warnings" ]; then
+        echo "$warnings"
+        return 1
+    fi
+}
+run_check "Rustdoc links (cargo doc)" "check_rustdoc_links"
+
+# 11. Example coverage check (if nushell is available)
 if command -v nu &> /dev/null; then
     run_check "Example coverage (check-example-coverage.nu)" "nu scripts/check-example-coverage.nu"
 else
