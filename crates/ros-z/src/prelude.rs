@@ -24,7 +24,9 @@ pub use crate::Builder;
 pub use crate::context::ZContextBuilder;
 
 /// QoS configuration types.
-pub use crate::qos::{QosDurability, QosHistory, QosLiveliness, QosProfile, QosReliability};
+pub use crate::qos::{
+    QosDurability, QosDuration, QosHistory, QosLiveliness, QosProfile, QosReliability,
+};
 
 /// Action type marker trait.
 pub use crate::action::ZAction;
