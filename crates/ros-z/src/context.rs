@@ -224,10 +224,11 @@ impl ZContextBuilder {
     /// use ros_z::Builder;
     ///
     /// let ctx = ZContextBuilder::default()
-    ///     .with_remap_rule("/foo:=/bar")
-    ///     .with_remap_rule("__node:=my_node")
+    ///     .with_remap_rule("/foo:=/bar")?
+    ///     .with_remap_rule("__node:=my_node")?
     ///     .build()
     ///     .expect("Failed to build context");
+    /// # Ok::<(), zenoh::Error>(())
     /// ```
     pub fn with_remap_rule<S: Into<String>>(mut self, rule: S) -> Result<Self> {
         self.remap_rules.add_rule(&rule.into())?;
