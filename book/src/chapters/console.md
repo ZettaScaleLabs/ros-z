@@ -61,7 +61,7 @@ ros2 run demo_nodes_cpp listener
 **Terminal 4 - Monitor with ros-z-console:**
 
 ```bash
-ros-z-console tcp/127.0.0.1:7447 0
+./target/release/ros-z-console tcp/127.0.0.1:7447 0
 ```
 
 ```admonish success
@@ -73,23 +73,29 @@ message rates, and inspect QoS settings.
 ## Building and Running
 
 ```bash
-# Build the console
+# Build the console (release build)
 cargo build -p ros-z-console --release
 
-# Run with default settings (TUI mode)
-ros-z-console tcp/127.0.0.1:7447 0
+# Run directly from build output
+./target/release/ros-z-console tcp/127.0.0.1:7447 0
+
+# Or install to ~/.cargo/bin so `ros-z-console` works from anywhere
+cargo install --path crates/ros-z-console
+
+# Or use cargo run during development (debug build)
+cargo run -p ros-z-console -- tcp/127.0.0.1:7447 0
 
 # Headless JSON streaming
-ros-z-console --headless --json tcp/127.0.0.1:7447 0
+./target/release/ros-z-console --headless --json tcp/127.0.0.1:7447 0
 
 # Echo messages from a topic
-ros-z-console --headless --echo /chatter tcp/127.0.0.1:7447 0
+./target/release/ros-z-console --headless --echo /chatter tcp/127.0.0.1:7447 0
 
 # Echo multiple topics with JSON output
-ros-z-console --headless --json --echo /chatter --echo /cmd_vel tcp/127.0.0.1:7447 0
+./target/release/ros-z-console --headless --json --echo /chatter --echo /cmd_vel tcp/127.0.0.1:7447 0
 
 # Export graph snapshot and exit
-ros-z-console --export graph.json tcp/127.0.0.1:7447 0
+./target/release/ros-z-console --export graph.json tcp/127.0.0.1:7447 0
 ```
 
 ## Command Line Interface
@@ -110,11 +116,29 @@ ros-z-console [OPTIONS] [ROUTER] [DOMAIN]
 | Flag | Description |
 |------|-------------|
 | `--tui` | Enable TUI interface (default if no other mode specified) |
-| `--headless` | Headless mode: stream events to stdout |
-| `--json` | Output structured JSON logs |
+| `--headless` | Headless mode: stream events to stdout (human-readable unless `--json` is also set) |
+| `--json` | Output structured JSON logs (use with `--headless`) |
 | `--debug` | Enable debug logging |
 | `--echo <TOPIC>` | Subscribe to and display messages from topic (can be used multiple times) |
 | `--export <PATH>` | Export current state and exit (supports .json, .dot, .csv) |
+| `--backend <BACKEND>` | Backend protocol: `rmw-zenoh` (default) or `ros2dds` |
+
+### Backend Selection
+
+ros-z-console supports two discovery backends:
+
+| Backend | Use when... |
+|---------|-------------|
+| `rmw-zenoh` (default) | Nodes use `rmw_zenoh_cpp` directly |
+| `ros2dds` | Nodes are bridged via `zenoh-bridge-ros2dds` |
+
+```bash
+# Monitor nodes using rmw_zenoh_cpp (default)
+ros-z-console tcp/127.0.0.1:7447 0
+
+# Monitor nodes bridged via zenoh-bridge-ros2dds
+ros-z-console --backend ros2dds tcp/127.0.0.1:7447 0
+```
 
 ## Modes
 
@@ -125,12 +149,12 @@ The interactive terminal interface provides:
 - **Panel Navigation** - Browse Topics, Services, Nodes, and Measurements
 - **Filter Mode** - Press `/` to activate type-ahead search with highlighting
 - **Rate Monitoring** - Quick rate check with `r` key (cached for 30s)
-- **Measurement Panel** - Press `m` for detailed measurements with:
-  - Real-time metrics (msg/s, KB/s, average payload)
-  - 60-second time-series chart
-  - SQLite storage (`ros-z-metrics.db`)
+- **Measurement Tracking** - Press `m` on a topic in the Topics tab to toggle it into the Measure panel tracking list
+- **Measurement Panel** - Navigate to the Measure tab to see real-time metrics (msg/s, KB/s, average payload) and a 60-second time-series chart
+- **SQLite Recording** - Press `w` to start/stop recording metrics to `ros-z-metrics.db`
 - **Detail Drilling** - Press `Enter` to expand sections with QoS profiles
-- **Export** - Press `e` to export metrics to CSV
+- **Export** - Press `e` to export the current rate cache to a timestamped CSV file
+- **Screenshot** - Press `S` to capture the current TUI state
 - **Help Overlay** - Press `?` to toggle help
 
 ```admonish note
@@ -154,11 +178,13 @@ ros-z-console --headless tcp/127.0.0.1:7447 0
 
 ```console
 Discovered Topics:
-  /chatter (std_msgs/msg/String)
-  /cmd_vel (geometry_msgs/msg/Twist)
+  📡 /chatter (std_msgs/msg/String)
+  📡 /cmd_vel (geometry_msgs/msg/Twist)
+Discovered Services:
+  🔌 /talker/describe_parameters (rcl_interfaces/srv/DescribeParameters)
 Discovered Nodes:
-  /talker
-  /listener
+  🤖 //talker
+  🤖 //listener
 [2026-01-21 10:30:00] Topic discovered: /rosout (rcl_interfaces/msg/Log)
 ```
 
@@ -169,9 +195,9 @@ ros-z-console --headless --json tcp/127.0.0.1:7447 0
 ```
 
 ```json
-{"timestamp":"...","event":"initial_state","domain_id":0,"topics":[...],"nodes":[...],"services":[...]}
-{"TopicDiscovered":{"topic":"/chatter","type_name":"std_msgs/msg/String","timestamp":"..."}}
-{"NodeDiscovered":{"namespace":"/","name":"talker","timestamp":"..."}}
+{"event":"initial_state","domain_id":0,"topics":[...],"nodes":[...],"services":[...]}
+{"TopicDiscovered":{"topic":"/chatter","type_name":"std_msgs/msg/String","timestamp":{"secs_since_epoch":1737449400,"nanos_since_epoch":0}}}
+{"NodeDiscovered":{"namespace":"/","name":"talker","timestamp":{"secs_since_epoch":1737449400,"nanos_since_epoch":0}}}
 ```
 
 ## Dynamic Topic Echo
@@ -477,11 +503,15 @@ Generates a visual graph representation with:
 ros-z-console --export metrics.csv tcp/127.0.0.1:7447 0
 ```
 
-Exports collected metrics history:
+Exports metrics recorded during the current TUI session. Use `w` in the TUI to start recording before exporting:
 
 ```csv
 timestamp,topic,rate_hz,bandwidth_kbps,avg_payload_bytes
 2026-01-21T10:30:00Z,/chatter,10.5,2.3,220
+```
+
+```admonish note
+The CSV file will be empty if you have not started recording with `w` in the TUI before exporting.
 ```
 
 ## Event Types
