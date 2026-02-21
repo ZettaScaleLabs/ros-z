@@ -685,8 +685,8 @@ mod tests {
             history: QosHistory::KeepLast(NonZeroUsize::new(10).unwrap()),
             // These are the critical settings from RCL:
             liveliness: ros_z::qos::QosLiveliness::ManualByTopic,
-            liveliness_lease_duration: ros_z::qos::Duration { sec: 1, nsec: 0 }, // 1 second
-            deadline: ros_z::qos::Duration { sec: 2, nsec: 0 },                  // 2 seconds
+            liveliness_lease_duration: ros_z::qos::QosDuration { sec: 1, nsec: 0 }, // 1 second
+            deadline: ros_z::qos::QosDuration { sec: 2, nsec: 0 },                  // 2 seconds
             ..Default::default()
         };
 
