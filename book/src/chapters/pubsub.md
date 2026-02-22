@@ -51,9 +51,6 @@ cargo run --example demo_nodes_talker
 
 # Custom topic and rate
 cargo run --example demo_nodes_talker -- --topic /my_topic --period 0.5
-
-# Publish 10 messages then exit
-cargo run --example demo_nodes_talker -- --max-count 10
 ```
 
 ## Subscriber Example
@@ -79,9 +76,6 @@ cargo run --example demo_nodes_listener
 
 # Custom topic
 cargo run --example demo_nodes_listener -- --topic /my_topic
-
-# Receive 5 messages then exit
-cargo run --example demo_nodes_listener -- --max-count 5
 ```
 
 ## Complete Pub-Sub Workflow
