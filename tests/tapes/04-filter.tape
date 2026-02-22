@@ -12,6 +12,7 @@ Set Width 1200
 Set Height 800
 Set Shell nu
 Set Theme "Catppuccin Mocha"
+Env DIRENV_DISABLE "1"
 
 Type "./target/debug/ros-z-console tcp/127.0.0.1:7447 0"
 Enter
@@ -37,7 +38,7 @@ Screenshot tests/results/04-filter-cleared.png
 
 # Exit filter mode with Escape
 Escape
-Sleep 200ms
+Sleep 600ms
 Screenshot tests/results/04-filter-exited.png
 
 Type "q"

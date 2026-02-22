@@ -6,6 +6,7 @@ Set FontSize 14
 Set Width 400
 Set Height 200
 Set Shell nu
+Env DIRENV_DISABLE "1"
 
 Type "echo ready"
 Enter
