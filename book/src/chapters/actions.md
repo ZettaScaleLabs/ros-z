@@ -77,6 +77,48 @@ sequenceDiagram
 Actions excel when operations take more than a few seconds and users need visibility into progress. For sub-second operations, prefer services for simplicity.
 ```
 
+## Minimal Pattern
+
+Before reading the full examples, here is the skeleton every action client and server follows:
+
+**Client:**
+
+```rust,ignore
+// 1. Send a goal — returns a GoalHandle
+let mut goal_handle = client.send_goal(MyAction::Goal { target: 10 }).await?;
+
+// 2. Stream feedback while the action runs
+if let Some(mut feedback_rx) = goal_handle.feedback() {
+    tokio::spawn(async move {
+        while let Some(fb) = feedback_rx.recv().await {
+            println!("Progress: {:?}", fb);
+        }
+    });
+}
+
+// 3. Wait for the final result (blocks until terminal state)
+let result = goal_handle.result().await?;
+println!("Done: {:?}", result);
+```
+
+**Server:**
+
+```rust,ignore
+server.with_handler(|goal, mut ctx| async move {
+    // Report progress
+    ctx.publish_feedback(MyAction::Feedback { progress: 50 }).await?;
+
+    // Check for cancellation
+    if ctx.is_cancel_requested() {
+        return ctx.canceled(MyAction::Result { value: 0 }).await;
+    }
+
+    ctx.succeed(MyAction::Result { value: 42 }).await
+});
+```
+
+The key constraint: **one `GoalHandle` per goal**. `feedback()` and `status_watch()` each return `Some` only the first time they are called — after that, the receiver has been moved out.
+
 ## Action Server Example
 
 This example demonstrates an action server that computes Fibonacci sequences. The server accepts goals, publishes periodic feedback with partial results, and supports cancellation.
@@ -184,6 +226,52 @@ client.cancel_all_goals().await?;
 ```
 
 The server checks cancellation with `is_cancel_requested()` and calls `.canceled()` to complete the handshake (see Server section above). There is no guarantee the server will honor the cancellation — it may complete the goal before processing the cancel request.
+
+## GoalHandle API Reference
+
+`send_goal()` returns a `GoalHandle<A>`. All interaction with an in-flight goal goes through this handle:
+
+| Method | Returns | Notes |
+|--------|---------|-------|
+| `goal_handle.id()` | `GoalId` | Unique identifier for this goal |
+| `goal_handle.feedback()` | `Option<UnboundedReceiver<A::Feedback>>` | First call only — receiver is moved out |
+| `goal_handle.status_watch()` | `Option<watch::Receiver<GoalStatus>>` | First call only — watcher is moved out |
+| `goal_handle.cancel()` | `Result<CancelGoalServiceResponse>` | Requests server cancellation |
+| `goal_handle.result()` | `Result<A::Result>` | Waits for terminal state, then fetches result |
+
+**Receiving feedback:**
+
+```rust,ignore
+// Take the feedback receiver — this works exactly once per GoalHandle
+if let Some(mut rx) = goal_handle.feedback() {
+    while let Some(fb) = rx.recv().await {
+        println!("Feedback: {:?}", fb);
+    }
+    // Loop ends when the server drops its feedback sender (goal completes)
+}
+```
+
+**Watching status transitions:**
+
+```rust,ignore
+if let Some(mut status_rx) = goal_handle.status_watch() {
+    while status_rx.changed().await.is_ok() {
+        println!("Status: {:?}", *status_rx.borrow());
+    }
+}
+```
+
+**Waiting for the result:**
+
+```rust,ignore
+// Blocks until the goal reaches a terminal state (Succeeded, Canceled, or Aborted)
+// then fetches and returns the final result
+let result = goal_handle.result().await?;
+```
+
+```admonish tip
+Spawn `feedback()` in a separate task while awaiting `result()` in the main task. Both can run concurrently — `result()` does not consume feedback messages.
+```
 
 ## Comparison with Other Patterns
 

@@ -119,7 +119,7 @@ ros-z-console [OPTIONS] [ROUTER] [DOMAIN]
 | `--headless` | Headless mode: stream events to stdout (human-readable unless `--json` is also set) |
 | `--json` | Output structured JSON logs (use with `--headless`) |
 | `--debug` | Enable debug logging |
-| `--echo <TOPIC>` | Subscribe to and display messages from topic (can be used multiple times) |
+| `--echo <TOPIC>` | Subscribe to and display messages from topic (requires `--headless`; can be used multiple times) |
 | `--export <PATH>` | Export current state and exit (supports .json, .dot, .csv) |
 | `--backend <BACKEND>` | Backend protocol: `rmw-zenoh` (default) or `ros2dds` |
 

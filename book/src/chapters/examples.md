@@ -51,18 +51,16 @@ See the comprehensive [Zenoh Router Installation Guide](./networking.md#running-
 
 ## Available Examples
 
-Leave the router running in a separate terminal, then run any example in another terminal from the ros-z repository root:
+Leave the router running in a separate terminal, then run any example from the ros-z repository root:
 
-```bash
-# Pure Rust example with custom messages (no ros-z-msgs needed)
-cargo run --example z_custom_message -- --mode status-pub
-
-# Examples using bundled messages (requires ros-z-msgs)
-cargo run --example z_pubsub          # Publisher/Subscriber with std_msgs
-cargo run --example twist_pub         # Publishing geometry_msgs
-cargo run --example battery_state_sub # Receiving sensor_msgs
-cargo run --example z_srvcli          # Service example with example_interfaces
-```
+| Example | What it demonstrates | Command |
+|---------|---------------------|---------|
+| `z_pubsub` | Basic publisher + subscriber exchanging `std_msgs/String` | `cargo run --example z_pubsub` |
+| `z_srvcli` | Service server + client using `example_interfaces/AddTwoInts` | `cargo run --example z_srvcli` |
+| `z_custom_message` | Custom `.msg` types without `ros-z-msgs`; shows the codegen workflow | `cargo run --example z_custom_message -- --mode status-pub` |
+| `twist_pub` | Publishing `geometry_msgs/Twist` (common for robot velocity commands) | `cargo run --example twist_pub` |
+| `battery_state_sub` | Subscribing to `sensor_msgs/BatteryState` | `cargo run --example battery_state_sub` |
+| `zenoh_router` | Embedded Zenoh router for development without installing `zenohd` | `cargo run --example zenoh_router` |
 
 ```admonish tip
 For a detailed walkthrough of creating your own project with ros-z (not using the repository examples), see the [Quick Start](./quick_start.md#option-2-create-your-own-project) guide.
