@@ -196,21 +196,31 @@ Use `QosHistory::KeepLast(NonZeroUsize::new(1).unwrap())` for sensor data and `Q
 
 ros-z supports ROS 2-style topic remapping via `ZContextBuilder::with_remap_rule()`. Remapping rules apply to all nodes created from the same context and redirect topic/service names at the context level.
 
-```rust,ignore
+```rust,no_run
+# fn main() -> zenoh::Result<()> {
 use ros_z::context::ZContextBuilder;
+use ros_z::Builder;
 
 let ctx = ZContextBuilder::default()
     .with_remap_rule("/chatter:=/my_chatter")?  // redirect /chatter to /my_chatter
     .with_remap_rule("__node:=renamed_node")?   // rename the node
     .build()?;
+# Ok(())
+# }
 ```
 
 Multiple rules can be added with `.with_remap_rules()`:
 
-```rust,ignore
+```rust,no_run
+# fn main() -> zenoh::Result<()> {
+use ros_z::context::ZContextBuilder;
+use ros_z::Builder;
+
 let ctx = ZContextBuilder::default()
     .with_remap_rules(["/input:=/sensor/data", "/output:=/processed/data"])?
     .build()?;
+# Ok(())
+# }
 ```
 
 The rule format follows the ROS 2 convention: `from:=to`.

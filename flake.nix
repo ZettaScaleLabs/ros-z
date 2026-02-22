@@ -212,6 +212,7 @@
           mdbook
           mdbook-admonish
           mdbook-mermaid
+          mdbook-linkcheck # internal + external link checker for the book
         ];
 
         # Test tools
