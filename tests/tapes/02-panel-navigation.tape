@@ -11,6 +11,7 @@ Set Width 1200
 Set Height 800
 Set Shell nu
 Set Theme "Catppuccin Mocha"
+Env DIRENV_DISABLE "1"
 
 Type "./target/debug/ros-z-console tcp/127.0.0.1:7447 0"
 Enter
