@@ -84,6 +84,17 @@ Before reading the full examples, here is the skeleton every action client and s
 **Client:**
 
 ```rust,ignore
+use ros_z::Builder;
+use ros_z::context::ZContextBuilder;
+
+let ctx = ZContextBuilder::default().build()?;
+let node = ctx.create_node("my_client").build()?;
+
+// Create the action client
+let client = node
+    .create_action_client::<MyAction>("my_action_name")
+    .build()?;
+
 // 1. Send a goal — returns a GoalHandle
 let mut goal_handle = client.send_goal(MyAction::Goal { target: 10 }).await?;
 
@@ -104,20 +115,29 @@ println!("Done: {:?}", result);
 **Server:**
 
 ```rust,ignore
+use ros_z::Builder;
 use ros_z::action::server::ExecutingGoal;
+use ros_z::context::ZContextBuilder;
 
-server.with_handler(|executing: ExecutingGoal<MyAction>| async move {
-    // Report progress (synchronous — no .await)
-    executing.publish_feedback(MyAction::Feedback { progress: 50 }).expect("feedback failed");
+let ctx = ZContextBuilder::default().build()?;
+let node = ctx.create_node("my_server").build()?;
 
-    // Check for cancellation
-    if executing.is_cancel_requested() {
-        executing.canceled(MyAction::Result { value: 0 }).unwrap();
-        return;
-    }
+// Create the action server (keep _server alive for the duration)
+let _server = node
+    .create_action_server::<MyAction>("my_action_name")
+    .build()?
+    .with_handler(|executing: ExecutingGoal<MyAction>| async move {
+        // Report progress (synchronous — no .await)
+        executing.publish_feedback(MyAction::Feedback { progress: 50 }).expect("feedback failed");
 
-    executing.succeed(MyAction::Result { value: 42 }).unwrap();
-});
+        // Check for cancellation
+        if executing.is_cancel_requested() {
+            executing.canceled(MyAction::Result { value: 0 }).unwrap();
+            return;
+        }
+
+        executing.succeed(MyAction::Result { value: 42 }).unwrap();
+    });
 ```
 
 The key constraint: **one `GoalHandle` per goal**. `feedback()` and `status_watch()` each return `Some` only the first time they are called — after that, the receiver has been moved out.
@@ -337,5 +357,6 @@ For ros-z-to-ros-z-only actions, the defaults work without any additional config
 - **[ROS 2 Actions Documentation](https://docs.ros.org/en/rolling/Tutorials/Intermediate/Writing-an-Action-Server-Client/Py.html)** - Official ROS 2 action guide
 - **[ros-z Examples](https://github.com/ZettaScaleLabs/ros-z/tree/main/crates/ros-z/examples)** - Working action implementations
 - **[Services](./services.md)** - Simpler request-response pattern
+- **[Custom Messages](./custom_messages.md)** - Defining custom action types with `.action` files
 
 **Action implementation is evolving. Check the ros-z repository for the latest examples and API updates.**

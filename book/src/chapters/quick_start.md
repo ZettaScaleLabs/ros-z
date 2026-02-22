@@ -6,6 +6,12 @@
 This guide assumes basic Rust knowledge. If you're new to Rust, complete the [Rust Book](https://doc.rust-lang.org/book/) first for the best experience.
 ```
 
+**Prerequisites:**
+
+- **Rust 1.85+** (edition 2024 is required) — install via [rustup](https://rustup.rs/)
+- **Tokio 1.x** — ros-z requires an async runtime (added to `Cargo.toml` in Option 2 below)
+- No ROS 2 installation needed for the examples in this guide
+
 ## Choose Your Path
 
 There are two ways to get started with ros-z:

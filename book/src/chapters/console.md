@@ -44,6 +44,10 @@ This example shows ros-z-console monitoring the classic talker/listener demo fro
 ros2 run rmw_zenoh_cpp rmw_zenohd
 ```
 
+```admonish note
+`rmw_zenohd` is the Zenoh router that ships with the `rmw_zenoh_cpp` package — it is functionally equivalent to running the standalone `zenohd` binary. Both listen on `tcp/127.0.0.1:7447` by default.
+```
+
 **Terminal 2 - Start the talker:**
 
 ```bash
@@ -237,6 +241,10 @@ sequenceDiagram
 ```
 
 ### Basic Usage
+
+```admonish note
+The examples below omit the `[ROUTER] [DOMAIN]` positional arguments. When omitted, they default to `tcp/127.0.0.1:7447` and `0` respectively. To use a different router or domain, add them at the end: `ros-z-console --headless --echo /chatter tcp/192.168.1.100:7447 1`.
+```
 
 **Echo a single topic:**
 

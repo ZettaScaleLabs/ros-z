@@ -39,7 +39,7 @@ This example demonstrates publishing "Hello World" messages to a topic. The publ
 **Key points:**
 
 - **QoS Configuration**: Uses `KeepLast(7)` to buffer the last 7 messages
-- **Async Publishing**: Non-blocking `async_publish()` for efficient I/O
+- **Async Publishing**: Non-blocking `async_publish()` for efficient I/O. For blocking (non-async) contexts, use `publisher.publish(&msg)?` instead.
 - **Rate Control**: Uses `tokio::time::sleep()` to control publishing frequency
 - **Bounded Operation**: Optional `max_count` for testing scenarios
 
@@ -107,12 +107,16 @@ cargo run --example demo_nodes_talker
 
 ros-z provides three patterns for receiving messages, each suited for different use cases:
 
+```admonish tip
+`use ros_z::Builder;` must be in scope to call `.build()` on any ros-z builder type. Add it alongside your other ros-z imports.
+```
+
 ### Pattern 1: Blocking Receive (Pull Model)
 
 Best for: Simple sequential processing, scripting
 
 ```rust,ignore
-use ros_z::Builder;
+use ros_z::Builder; // required to call .build()
 
 let subscriber = node
     .create_sub::<RosString>("topic_name")
@@ -128,7 +132,7 @@ while let Ok(msg) = subscriber.recv() {
 Best for: Integration with async codebases, handling multiple streams
 
 ```rust,ignore
-use ros_z::Builder;
+use ros_z::Builder; // required to call .build()
 
 let subscriber = node
     .create_sub::<RosString>("topic_name")
@@ -144,6 +148,8 @@ while let Ok(msg) = subscriber.async_recv().await {
 Best for: Event-driven architectures, low-latency response
 
 ```rust,ignore
+use ros_z::Builder; // required to call .build_with_callback()
+
 let subscriber = node
     .create_sub::<RosString>("topic_name")
     .build_with_callback(|msg| {
@@ -170,10 +176,13 @@ Use callbacks for low-latency event-driven processing. Use blocking/async receiv
 
 ## Quality of Service (QoS)
 
-QoS profiles control message delivery behavior:
+QoS profiles control message delivery behavior. Both publishers and subscribers accept a QoS profile:
+
+**Publisher QoS:**
 
 ```rust,ignore
 use std::num::NonZeroUsize;
+use ros_z::Builder;
 use ros_z::qos::{QosProfile, QosHistory, QosReliability};
 
 let qos = QosProfile {
@@ -184,6 +193,25 @@ let qos = QosProfile {
 
 let publisher = node
     .create_pub::<RosString>("topic")
+    .with_qos(qos)
+    .build()?;
+```
+
+**Subscriber QoS:**
+
+```rust,ignore
+use std::num::NonZeroUsize;
+use ros_z::Builder;
+use ros_z::qos::{QosProfile, QosHistory, QosReliability};
+
+let qos = QosProfile {
+    history: QosHistory::KeepLast(NonZeroUsize::new(10).unwrap()),
+    reliability: QosReliability::Reliable,
+    ..Default::default()
+};
+
+let subscriber = node
+    .create_sub::<RosString>("topic")
     .with_qos(qos)
     .build()?;
 ```
