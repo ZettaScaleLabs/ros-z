@@ -128,6 +128,8 @@ while let Ok(msg) = subscriber.recv() {
 Best for: Integration with async codebases, handling multiple streams
 
 ```rust,ignore
+use ros_z::Builder;
+
 let subscriber = node
     .create_sub::<RosString>("topic_name")
     .build()?;

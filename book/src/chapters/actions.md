@@ -104,6 +104,8 @@ println!("Done: {:?}", result);
 **Server:**
 
 ```rust,ignore
+use ros_z::action::server::ExecutingGoal;
+
 server.with_handler(|executing: ExecutingGoal<MyAction>| async move {
     // Report progress (synchronous — no .await)
     executing.publish_feedback(MyAction::Feedback { progress: 50 }).expect("feedback failed");
@@ -272,6 +274,54 @@ let result = goal_handle.result().await?;
 
 ```admonish tip
 Spawn `feedback()` in a separate task while awaiting `result()` in the main task. Both can run concurrently — `result()` does not consume feedback messages.
+```
+
+## Defining a Custom Action Type
+
+The examples above use the pre-built `Fibonacci` action from `ros-z-msgs`. To define your own action type, implement the `ZAction` trait:
+
+```rust,ignore
+use serde::{Deserialize, Serialize};
+use ros_z::action::ZAction;
+
+// Define the three message structs
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CountGoal {
+    pub target: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CountFeedback {
+    pub current: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CountResult {
+    pub message: String,
+}
+
+// Tie them together with ZAction
+pub struct CountAction;
+
+impl ZAction for CountAction {
+    type Goal = CountGoal;
+    type Feedback = CountFeedback;
+    type Result = CountResult;
+
+    fn name() -> &'static str {
+        "my_robot/count_to_n"
+    }
+}
+```
+
+**Key points:**
+
+- `Goal`, `Feedback`, and `Result` can be any struct that implements `Serialize + Deserialize + Clone + Send + Sync + 'static` (blanket implementation via `ZMessage`)
+- `name()` sets the Zenoh key prefix for the action's internal services and topics
+- The default `send_goal_type_info()`, `get_result_type_info()`, etc. all return `TypeHash::zero()`, which is correct for ros-z-to-ros-z communication. For ROS 2 interop, override these with the correct RIHS01 hashes.
+
+```admonish tip
+For ros-z-to-ros-z-only actions, the defaults work without any additional configuration. For ROS 2 interop, use schema-generated types from a `.action` file via `ros-z-codegen` — see [Custom Messages](./custom_messages.md).
 ```
 
 ## Comparison with Other Patterns
