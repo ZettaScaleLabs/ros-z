@@ -104,16 +104,17 @@ println!("Done: {:?}", result);
 **Server:**
 
 ```rust,ignore
-server.with_handler(|goal, mut ctx| async move {
-    // Report progress
-    ctx.publish_feedback(MyAction::Feedback { progress: 50 }).await?;
+server.with_handler(|executing: ExecutingGoal<MyAction>| async move {
+    // Report progress (synchronous — no .await)
+    executing.publish_feedback(MyAction::Feedback { progress: 50 }).expect("feedback failed");
 
     // Check for cancellation
-    if ctx.is_cancel_requested() {
-        return ctx.canceled(MyAction::Result { value: 0 }).await;
+    if executing.is_cancel_requested() {
+        executing.canceled(MyAction::Result { value: 0 }).unwrap();
+        return;
     }
 
-    ctx.succeed(MyAction::Result { value: 42 }).await
+    executing.succeed(MyAction::Result { value: 42 }).unwrap();
 });
 ```
 
