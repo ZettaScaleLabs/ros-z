@@ -56,7 +56,7 @@ def check-distro-features [] {
     run-cmd "cargo check -p ros-z --no-default-features --features humble"
     run-cmd "cargo check -p ros-z --no-default-features --features jazzy"
     run-cmd "cargo check -p ros-z --no-default-features --features rolling"
-    run-cmd "cargo check -p ros-z --no-default-features --features iron"
+    run-cmd "cargo check -p ros-z --no-default-features --features kilted"
 }
 
 def test-shm [] {
