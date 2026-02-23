@@ -34,6 +34,9 @@ def main [] {
     print "Building z_pubsub example..."
     cargo build --example z_pubsub
 
+    print "Building z_srvcli example..."
+    cargo build --example z_srvcli
+
     mkdir scripts/demos/results
     mkdir _tmp
 
@@ -46,15 +49,31 @@ def main [] {
     )
     sleep 1sec
 
-    print "Starting z_pubsub example..."
+    print "Starting z_pubsub talker..."
     let pubsub_pid = (
-        ^bash -c $"./target/debug/examples/z_pubsub > _tmp/pubsub-demo.log 2>&1 & echo $!"
+        ^bash -c $"./target/debug/examples/z_pubsub --role talker > _tmp/pubsub-demo.log 2>&1 & echo $!"
         | str trim
         | into int
     )
-    sleep 2sec
+    sleep 1sec
 
-    print $"zenohd PID: ($zenohd_pid)  z_pubsub PID: ($pubsub_pid)"
+    print "Starting z_pubsub listener..."
+    let listener_pid = (
+        ^bash -c $"./target/debug/examples/z_pubsub --role listener > _tmp/listener-demo.log 2>&1 & echo $!"
+        | str trim
+        | into int
+    )
+    sleep 1sec
+
+    print "Starting z_srvcli server..."
+    let srvcli_pid = (
+        ^bash -c $"./target/debug/examples/z_srvcli > _tmp/srvcli-demo.log 2>&1 & echo $!"
+        | str trim
+        | into int
+    )
+    sleep 1sec
+
+    print $"zenohd PID: ($zenohd_pid)  z_pubsub PID: ($pubsub_pid)  listener PID: ($listener_pid)  z_srvcli PID: ($srvcli_pid)"
 
     # --- Run tapes ---
     let all_tapes = (ls scripts/demos/tapes/*.tape | get name | sort)
@@ -109,6 +128,8 @@ def main [] {
     # --- Cleanup ---
     print "\nCleaning up..."
     do -i { ^kill $pubsub_pid }
+    do -i { ^kill $listener_pid }
+    do -i { ^kill $srvcli_pid }
     do -i { ^kill $zenohd_pid }
     do -i { ^pkill ttyd }
     do -i { ^pkill -f chromium }
