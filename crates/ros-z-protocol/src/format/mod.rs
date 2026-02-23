@@ -37,6 +37,7 @@ pub enum KeyExprFormat {
     Ros2Dds,
 }
 
+#[allow(unused_variables)]
 impl KeyExprFormat {
     /// Generate topic key expression for data publication/subscription.
     pub fn topic_key_expr(&self, entity: &EndpointEntity) -> Result<TopicKE> {
