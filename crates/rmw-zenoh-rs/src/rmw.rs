@@ -41,20 +41,32 @@ fn normalize_namespace(ns: &str) -> String {
 // Helper function to convert rmw_event_type_t to ZenohEventType
 // Only supports events that rmw_zenoh_cpp supports - deadline and liveliness events are NOT supported
 fn rmw_event_type_to_zenoh_event(rmw_event: rmw_event_type_t) -> Option<ZenohEventType> {
+    // rmw_event_type_t enum (from rmw/event.h):
+    //   0 = RMW_EVENT_LIVELINESS_CHANGED
+    //   1 = RMW_EVENT_REQUESTED_DEADLINE_MISSED
+    //   2 = RMW_EVENT_REQUESTED_QOS_INCOMPATIBLE
+    //   3 = RMW_EVENT_MESSAGE_LOST
+    //   4 = RMW_EVENT_SUBSCRIPTION_INCOMPATIBLE_TYPE
+    //   5 = RMW_EVENT_SUBSCRIPTION_MATCHED
+    //   6 = RMW_EVENT_LIVELINESS_LOST
+    //   7 = RMW_EVENT_OFFERED_DEADLINE_MISSED
+    //   8 = RMW_EVENT_OFFERED_QOS_INCOMPATIBLE
+    //   9 = RMW_EVENT_PUBLISHER_INCOMPATIBLE_TYPE
+    //  10 = RMW_EVENT_PUBLICATION_MATCHED
+    //  11 = RMW_EVENT_INVALID (sentinel)
     match rmw_event {
-        0 => None,                                               // RMW_EVENT_INVALID
-        1 => None, // RMW_EVENT_LIVELINESS_CHANGED - not supported (matches rmw_zenoh_cpp)
-        2 => None, // RMW_EVENT_REQUESTED_DEADLINE_MISSED - not supported (matches rmw_zenoh_cpp)
-        3 => Some(ZenohEventType::RequestedQosIncompatible), // RMW_EVENT_REQUESTED_QOS_INCOMPATIBLE
-        4 => Some(ZenohEventType::MessageLost), // RMW_EVENT_MESSAGE_LOST
-        5 => Some(ZenohEventType::SubscriptionIncompatibleType), // RMW_EVENT_SUBSCRIPTION_INCOMPATIBLE_TYPE
-        6 => Some(ZenohEventType::SubscriptionMatched),          // RMW_EVENT_SUBSCRIPTION_MATCHED
-        7 => None, // RMW_EVENT_LIVELINESS_LOST - not supported (matches rmw_zenoh_cpp)
-        8 => None, // RMW_EVENT_OFFERED_DEADLINE_MISSED - not supported (matches rmw_zenoh_cpp)
-        9 => Some(ZenohEventType::OfferedQosIncompatible), // RMW_EVENT_OFFERED_QOS_INCOMPATIBLE
-        10 => Some(ZenohEventType::PublisherIncompatibleType), // RMW_EVENT_PUBLISHER_INCOMPATIBLE_TYPE
-        11 => Some(ZenohEventType::PublicationMatched),        // RMW_EVENT_PUBLICATION_MATCHED
-        _ => None,
+        0 => None, // RMW_EVENT_LIVELINESS_CHANGED - not supported (matches rmw_zenoh_cpp)
+        1 => None, // RMW_EVENT_REQUESTED_DEADLINE_MISSED - not supported (matches rmw_zenoh_cpp)
+        2 => Some(ZenohEventType::RequestedQosIncompatible), // RMW_EVENT_REQUESTED_QOS_INCOMPATIBLE
+        3 => Some(ZenohEventType::MessageLost), // RMW_EVENT_MESSAGE_LOST
+        4 => Some(ZenohEventType::SubscriptionIncompatibleType), // RMW_EVENT_SUBSCRIPTION_INCOMPATIBLE_TYPE
+        5 => Some(ZenohEventType::SubscriptionMatched),          // RMW_EVENT_SUBSCRIPTION_MATCHED
+        6 => None, // RMW_EVENT_LIVELINESS_LOST - not supported (matches rmw_zenoh_cpp)
+        7 => None, // RMW_EVENT_OFFERED_DEADLINE_MISSED - not supported (matches rmw_zenoh_cpp)
+        8 => Some(ZenohEventType::OfferedQosIncompatible), // RMW_EVENT_OFFERED_QOS_INCOMPATIBLE
+        9 => Some(ZenohEventType::PublisherIncompatibleType), // RMW_EVENT_PUBLISHER_INCOMPATIBLE_TYPE
+        10 => Some(ZenohEventType::PublicationMatched),       // RMW_EVENT_PUBLICATION_MATCHED
+        _ => None,                                            // RMW_EVENT_INVALID or unknown
     }
 }
 
