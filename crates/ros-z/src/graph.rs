@@ -645,9 +645,10 @@ impl Graph {
         // Release lock before triggering events
         drop(data);
 
-        // Trigger graph change event
-        self.event_manager
-            .trigger_graph_change(entity, false, self.zid);
+        // Note: We do NOT call trigger_graph_change here because the liveliness
+        // DELETE callback will fire when the entity's liveliness token is dropped,
+        // which already triggers the graph change event. Calling it here too would
+        // double-count the change. (Same pattern as add_local_entity's !already_exists guard.)
 
         Ok(())
     }
