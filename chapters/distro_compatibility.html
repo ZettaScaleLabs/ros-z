@@ -185,19 +185,26 @@
                     <main>
                         <h1 id="ros-2-distribution-compatibility"><a class="header" href="#ros-2-distribution-compatibility">ROS 2 Distribution Compatibility</a></h1>
 <p>ros-z supports multiple ROS 2 distributions through compile-time feature flags. This chapter explains the differences between distributions and how to target specific ROS 2 versions.</p>
+<blockquote>
+<p><strong>Important</strong>: Different ros-z components have different ROS 2 version requirements:</p>
+<ul>
+<li><strong>ros-z core library</strong>: Supports Humble, Jazzy, Kilted, Rolling</li>
+<li><strong>rmw-zenoh-rs</strong>: Requires Jazzy or later (see <a href="./rmw_zenoh_rs.html#ros-2-version-requirements">rmw-zenoh-rs chapter</a>)</li>
+</ul>
+</blockquote>
 <h2 id="supported-distributions"><a class="header" href="#supported-distributions">Supported Distributions</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Distribution</th><th>Status</th><th>Type Hash Support</th><th>Default</th></tr></thead><tbody>
-<tr><td><strong>Jazzy Jalisco</strong></td><td>✅ Fully Supported</td><td>✅ Yes</td><td><strong>Yes</strong></td></tr>
-<tr><td><strong>Humble Hawksbill</strong></td><td>✅ Supported</td><td>❌ No (placeholder)</td><td>No</td></tr>
-<tr><td>Rolling Ridley</td><td>✅ Supported</td><td>✅ Yes</td><td>No</td></tr>
-<tr><td>Iron Irwini</td><td>✅ Supported</td><td>✅ Yes</td><td>No</td></tr>
+<div class="table-wrapper"><table><thead><tr><th>Distribution</th><th>Core Library</th><th>rmw-zenoh-rs</th><th>Type Hash Support</th><th>Default</th></tr></thead><tbody>
+<tr><td><strong>Kilted Kaiju</strong></td><td>✅ Supported</td><td>✅ Supported</td><td>✅ Yes</td><td>No</td></tr>
+<tr><td><strong>Jazzy Jalisco</strong></td><td>✅ Supported</td><td>✅ Supported</td><td>✅ Yes</td><td><strong>Yes</strong></td></tr>
+<tr><td><strong>Humble Hawksbill</strong></td><td>✅ Supported</td><td>❌ <strong>Not Supported</strong></td><td>❌ Placeholder</td><td>No</td></tr>
+<tr><td>Rolling Ridley</td><td>✅ Supported</td><td>✅ Supported</td><td>✅ Yes</td><td>No</td></tr>
 </tbody></table>
 </div>
 <p><strong>Default</strong>: ros-z defaults to <strong>Jazzy</strong> compatibility, which is the recommended distribution for new projects.</p>
 <h2 id="distribution-differences"><a class="header" href="#distribution-differences">Distribution Differences</a></h2>
 <h3 id="type-hash-support"><a class="header" href="#type-hash-support">Type Hash Support</a></h3>
 <p>The most significant difference between distributions is <strong>type hash support</strong>:</p>
-<p><strong>Jazzy/Rolling/Iron</strong> (Modern):</p>
+<p><strong>Jazzy/Kilted/Rolling</strong> (Modern):</p>
 <ul>
 <li>Supports real type hashes computed from message definitions</li>
 <li>Format: <code>RIHS01_&lt;64-hex-chars&gt;</code> (ROS IDL Hash Standard version 1)</li>
@@ -242,12 +249,12 @@ cargo run --no-default-features --features humble --example demo_nodes_talker
 cargo nextest run --no-default-features --features humble
 </code></pre>
 <h3 id="using-other-distributions"><a class="header" href="#using-other-distributions">Using Other Distributions</a></h3>
-<p>For Rolling or Iron, simply specify the distro feature:</p>
+<p>For Rolling or Kilted, simply specify the distro feature:</p>
 <pre><code class="language-bash"># Build for Rolling
 cargo build --features rolling
 
-# Build for Iron
-cargo build --features iron
+# Build for Kilted
+cargo build --features kilted
 </code></pre>
 
                     </main>

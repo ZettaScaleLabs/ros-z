@@ -305,10 +305,17 @@ pub async fn run_fibonacci_action_server(ctx: ZContext, timeout: Option&lt;Durat
                 sequence.push(next);
 
                 // Publish feedback
+                // Distro-specific feedback field names
+                #[cfg(feature = "kilted")]
+                let feedback = FibonacciFeedback {
+                    sequence: sequence.clone(),
+                };
+                #[cfg(not(feature = "kilted"))]
+                let feedback = FibonacciFeedback {
+                    partial_sequence: sequence.clone(),
+                };
                 executing
-                    .publish_feedback(FibonacciFeedback {
-                        partial_sequence: sequence.clone(),
-                    })
+                    .publish_feedback(feedback)
                     .expect("Failed to publish feedback");
 
                 tokio::time::sleep(Duration::from_millis(500)).await;
@@ -383,6 +390,10 @@ pub async fn run_fibonacci_action_client(ctx: ZContext, order: i32) -&gt; Result
     if let Some(mut feedback_stream) = goal_handle.feedback() {
         tokio::spawn(async move {
             while let Some(fb) = feedback_stream.recv().await {
+                // Distro-specific feedback field names
+                #[cfg(feature = "kilted")]
+                println!("Feedback: {:?}", fb.sequence);
+                #[cfg(not(feature = "kilted"))]
                 println!("Feedback: {:?}", fb.partial_sequence);
             }
         });

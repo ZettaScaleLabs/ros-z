@@ -268,7 +268,7 @@ cargo build
 # For Humble - use --no-default-features
 cargo build --no-default-features --features humble
 
-# For Rolling/Iron - just add the feature
+# For Rolling/Kilted - just add the feature
 cargo build --features rolling
 </code></pre>
 <p>The distribution choice affects type hash support and interoperability with ROS 2 nodes. See the <a href="./distro_compatibility.html">Distribution Compatibility chapter</a> for full details.</p>
@@ -314,7 +314,7 @@ cargo build --all
 <p><strong>Search order:</strong></p>
 <ol>
 <li>System ROS installation (<code>AMENT_PREFIX_PATH</code>, <code>CMAKE_PREFIX_PATH</code>)</li>
-<li>Common ROS paths (<code>/opt/ros/{rolling,jazzy,iron,humble}</code>)</li>
+<li>Common ROS paths (<code>/opt/ros/{rolling,jazzy,kilted,humble}</code>)</li>
 <li>Bundled assets (built-in message definitions in ros-z-codegen)</li>
 </ol>
 <p>This fallback mechanism enables builds without ROS 2 installed.</p>

@@ -1379,10 +1379,17 @@ pub async fn run_fibonacci_action_server(ctx: ZContext, timeout: Option&lt;Durat
                 sequence.push(next);
 
                 // Publish feedback
+                // Distro-specific feedback field names
+                #[cfg(feature = "kilted")]
+                let feedback = FibonacciFeedback {
+                    sequence: sequence.clone(),
+                };
+                #[cfg(not(feature = "kilted"))]
+                let feedback = FibonacciFeedback {
+                    partial_sequence: sequence.clone(),
+                };
                 executing
-                    .publish_feedback(FibonacciFeedback {
-                        partial_sequence: sequence.clone(),
-                    })
+                    .publish_feedback(feedback)
                     .expect("Failed to publish feedback");
 
                 tokio::time::sleep(Duration::from_millis(500)).await;
@@ -1457,6 +1464,10 @@ pub async fn run_fibonacci_action_client(ctx: ZContext, order: i32) -&gt; Result
     if let Some(mut feedback_stream) = goal_handle.feedback() {
         tokio::spawn(async move {
             while let Some(fb) = feedback_stream.recv().await {
+                // Distro-specific feedback field names
+                #[cfg(feature = "kilted")]
+                println!("Feedback: {:?}", fb.sequence);
+                #[cfg(not(feature = "kilted"))]
                 println!("Feedback: {:?}", fb.partial_sequence);
             }
         });
@@ -1628,7 +1639,7 @@ cargo build
 # For Humble - use --no-default-features
 cargo build --no-default-features --features humble
 
-# For Rolling/Iron - just add the feature
+# For Rolling/Kilted - just add the feature
 cargo build --features rolling
 </code></pre>
 <p>The distribution choice affects type hash support and interoperability with ROS 2 nodes. See the <a href="chapters/./distro_compatibility.html">Distribution Compatibility chapter</a> for full details.</p>
@@ -1674,7 +1685,7 @@ cargo build --all
 <p><strong>Search order:</strong></p>
 <ol>
 <li>System ROS installation (<code>AMENT_PREFIX_PATH</code>, <code>CMAKE_PREFIX_PATH</code>)</li>
-<li>Common ROS paths (<code>/opt/ros/{rolling,jazzy,iron,humble}</code>)</li>
+<li>Common ROS paths (<code>/opt/ros/{rolling,jazzy,kilted,humble}</code>)</li>
 <li>Bundled assets (built-in message definitions in ros-z-codegen)</li>
 </ol>
 <p>This fallback mechanism enables builds without ROS 2 installed.</p>
@@ -1712,19 +1723,26 @@ cargo clean -p ros-z-msgs  # Clean specific package
 <p><strong>Start with the simplest build and add dependencies incrementally as your project grows.</strong></p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="ros-2-distribution-compatibility-1"><a class="header" href="#ros-2-distribution-compatibility-1">ROS 2 Distribution Compatibility</a></h1>
 <p>ros-z supports multiple ROS 2 distributions through compile-time feature flags. This chapter explains the differences between distributions and how to target specific ROS 2 versions.</p>
+<blockquote>
+<p><strong>Important</strong>: Different ros-z components have different ROS 2 version requirements:</p>
+<ul>
+<li><strong>ros-z core library</strong>: Supports Humble, Jazzy, Kilted, Rolling</li>
+<li><strong>rmw-zenoh-rs</strong>: Requires Jazzy or later (see <a href="chapters/./rmw_zenoh_rs.html#ros-2-version-requirements">rmw-zenoh-rs chapter</a>)</li>
+</ul>
+</blockquote>
 <h2 id="supported-distributions"><a class="header" href="#supported-distributions">Supported Distributions</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Distribution</th><th>Status</th><th>Type Hash Support</th><th>Default</th></tr></thead><tbody>
-<tr><td><strong>Jazzy Jalisco</strong></td><td>✅ Fully Supported</td><td>✅ Yes</td><td><strong>Yes</strong></td></tr>
-<tr><td><strong>Humble Hawksbill</strong></td><td>✅ Supported</td><td>❌ No (placeholder)</td><td>No</td></tr>
-<tr><td>Rolling Ridley</td><td>✅ Supported</td><td>✅ Yes</td><td>No</td></tr>
-<tr><td>Iron Irwini</td><td>✅ Supported</td><td>✅ Yes</td><td>No</td></tr>
+<div class="table-wrapper"><table><thead><tr><th>Distribution</th><th>Core Library</th><th>rmw-zenoh-rs</th><th>Type Hash Support</th><th>Default</th></tr></thead><tbody>
+<tr><td><strong>Kilted Kaiju</strong></td><td>✅ Supported</td><td>✅ Supported</td><td>✅ Yes</td><td>No</td></tr>
+<tr><td><strong>Jazzy Jalisco</strong></td><td>✅ Supported</td><td>✅ Supported</td><td>✅ Yes</td><td><strong>Yes</strong></td></tr>
+<tr><td><strong>Humble Hawksbill</strong></td><td>✅ Supported</td><td>❌ <strong>Not Supported</strong></td><td>❌ Placeholder</td><td>No</td></tr>
+<tr><td>Rolling Ridley</td><td>✅ Supported</td><td>✅ Supported</td><td>✅ Yes</td><td>No</td></tr>
 </tbody></table>
 </div>
 <p><strong>Default</strong>: ros-z defaults to <strong>Jazzy</strong> compatibility, which is the recommended distribution for new projects.</p>
 <h2 id="distribution-differences"><a class="header" href="#distribution-differences">Distribution Differences</a></h2>
 <h3 id="type-hash-support"><a class="header" href="#type-hash-support">Type Hash Support</a></h3>
 <p>The most significant difference between distributions is <strong>type hash support</strong>:</p>
-<p><strong>Jazzy/Rolling/Iron</strong> (Modern):</p>
+<p><strong>Jazzy/Kilted/Rolling</strong> (Modern):</p>
 <ul>
 <li>Supports real type hashes computed from message definitions</li>
 <li>Format: <code>RIHS01_&lt;64-hex-chars&gt;</code> (ROS IDL Hash Standard version 1)</li>
@@ -1769,12 +1787,12 @@ cargo run --no-default-features --features humble --example demo_nodes_talker
 cargo nextest run --no-default-features --features humble
 </code></pre>
 <h3 id="using-other-distributions"><a class="header" href="#using-other-distributions">Using Other Distributions</a></h3>
-<p>For Rolling or Iron, simply specify the distro feature:</p>
+<p>For Rolling or Kilted, simply specify the distro feature:</p>
 <pre><code class="language-bash"># Build for Rolling
 cargo build --features rolling
 
-# Build for Iron
-cargo build --features iron
+# Build for Kilted
+cargo build --features kilted
 </code></pre>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="running-examples"><a class="header" href="#running-examples">Running Examples</a></h1>
 <div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
@@ -2611,7 +2629,7 @@ impl WithTypeInfo for std_msgs::String {
 </pre>
 <ol>
 <li><strong>System ROS:</strong> <code>$AMENT_PREFIX_PATH</code>, <code>$CMAKE_PREFIX_PATH</code></li>
-<li><strong>Standard paths:</strong> <code>/opt/ros/{rolling,jazzy,iron,humble}</code></li>
+<li><strong>Standard paths:</strong> <code>/opt/ros/{rolling,jazzy,kilted,humble}</code></li>
 <li><strong>Bundled assets:</strong> Built-in message definitions in ros-z-codegen</li>
 </ol>
 <p>This fallback enables development without ROS 2 installation.</p>
@@ -5200,9 +5218,30 @@ let parsed_entity = format.parse_liveliness(&amp;lv_ke)?;</code></pre>
 └─────────────────────────────────────────────────┘
 </code></pre>
 <h2 id="requirements"><a class="header" href="#requirements">Requirements</a></h2>
+<h3 id="ros-2-version-requirements"><a class="header" href="#ros-2-version-requirements">ROS 2 Version Requirements</a></h3>
+<div id="admonition-humble-not-supported" class="admonition admonish-warning" role="note" aria-labelledby="admonition-humble-not-supported-title">
+<div class="admonition-title">
+<div id="admonition-humble-not-supported-title">
+<p>Humble Not Supported</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/rmw_zenoh_rs.html#admonition-humble-not-supported"></a>
+</div>
+<div>
+<p>rmw-zenoh-rs requires <strong>ROS 2 Jazzy (2023) or later</strong>.
+ROS 2 Humble (2022 LTS) is <strong>not supported</strong>.</p>
+</div>
+</div>
+<p><strong>Supported ROS 2 Distributions:</strong></p>
+<ul>
+<li>✅ <strong>Jazzy</strong> (2023)</li>
+<li>✅ <strong>Jazzy</strong> (2024 LTS) - Recommended</li>
+<li>✅ <strong>Kilted</strong> (2025)</li>
+<li>✅ <strong>Rolling</strong></li>
+<li>❌ <strong>Humble</strong> (2022 LTS) - See <a href="chapters/rmw_zenoh_rs.html#why-no-humble-support">Why No Humble Support?</a></li>
+</ul>
 <h3 id="system-requirements"><a class="header" href="#system-requirements">System Requirements</a></h3>
 <ul>
-<li><strong>ROS 2 Jazzy</strong></li>
+<li><strong>ROS 2 Jazzy or later</strong> (Jazzy recommended)</li>
 <li><strong>Rust toolchain</strong> (1.91 or later)</li>
 <li><strong>Cargo</strong> (comes with Rust)</li>
 <li><strong>CMake</strong> (3.16 or later)</li>
@@ -5298,12 +5337,84 @@ ros2 run demo_nodes_cpp listener
 <p>The router runs as a separate process and manages discovery and routing between all Zenoh-based nodes. You only need one router per network, regardless of how many nodes you run.</p>
 </div>
 </div>
+<h2 id="why-no-humble-support"><a class="header" href="#why-no-humble-support">Why No Humble Support?</a></h2>
+<p>ROS 2 Jazzy (May 2023) introduced <strong>breaking changes to the RMW API</strong> that are fundamental to how rmw-zenoh-rs works. These are not minor API additions - they are architectural changes defined in ROS Enhancement Proposals (REPs).</p>
+<h3 id="missing-apis-in-humble"><a class="header" href="#missing-apis-in-humble">Missing APIs in Humble</a></h3>
+<h4 id="1-type-introspection--hashing-rep-2011"><a class="header" href="#1-type-introspection--hashing-rep-2011">1. Type Introspection &amp; Hashing (REP 2011)</a></h4>
+<p><strong>What's Missing:</strong></p>
+<ul>
+<li><code>rosidl_type_hash_t</code> type structure</li>
+<li>Type hash computation functions</li>
+<li>Type description support</li>
+</ul>
+<p><strong>Why It Matters:</strong></p>
+<p>rmw-zenoh-rs uses type hashes as part of Zenoh key expressions for topic matching and type safety validation. This is a core architectural feature, not an optional add-on.</p>
+<p><strong>Example:</strong></p>
+<pre><code class="language-text">Jazzy+ Key: /topic/String/RIHS01_&lt;64-char-hash&gt;/...
+Humble:    Cannot generate proper type hash
+</code></pre>
+<h4 id="2-discovery-options-rep-2019"><a class="header" href="#2-discovery-options-rep-2019">2. Discovery Options (REP 2019)</a></h4>
+<p><strong>What's Missing:</strong></p>
+<ul>
+<li><code>rmw_discovery_options_t</code> configuration</li>
+<li>Discovery control functions</li>
+<li>Participant filtering APIs</li>
+</ul>
+<p><strong>Why It Matters:</strong></p>
+<p>Used for network optimization and selective discovery in distributed systems.</p>
+<h4 id="3-fastcdr-api-changes"><a class="header" href="#3-fastcdr-api-changes">3. FastCDR API Changes</a></h4>
+<p><strong>What's Missing:</strong></p>
+<ul>
+<li>Humble uses FastCDR v1.x</li>
+<li>Jazzy+ uses FastCDR v2.x</li>
+<li>Constructor signatures incompatible</li>
+</ul>
+<h4 id="4-additional-missing-features"><a class="header" href="#4-additional-missing-features">4. Additional Missing Features</a></h4>
+<ul>
+<li>Type hash fields in endpoint info structs</li>
+<li>QoS event types (<code>rmw_incompatible_type_status_t</code>, etc.)</li>
+<li>Various discovery and introspection functions</li>
+</ul>
+<h3 id="impact"><a class="header" href="#impact">Impact</a></h3>
+<p>Supporting Humble would require:</p>
+<ul>
+<li>100+ conditional compilation guards throughout the codebase</li>
+<li>Maintaining two different RMW API implementations</li>
+<li>Stub implementations for core features</li>
+<li>Ongoing maintenance burden</li>
+<li>Compromised architecture</li>
+</ul>
+<h3 id="alternatives-for-humble-users"><a class="header" href="#alternatives-for-humble-users">Alternatives for Humble Users</a></h3>
+<p>If you need ROS 2 Humble support, you have two options:</p>
+<h4 id="option-1-use-ros-z-core-library-recommended"><a class="header" href="#option-1-use-ros-z-core-library-recommended">Option 1: Use ros-z Core Library (Recommended)</a></h4>
+<p>The <strong>ros-z core library</strong> has full Humble support:</p>
+<pre><code class="language-rust ignore">use ros_z::{Builder, ZContext};
+
+let ctx = ZContext::default();
+let node = ctx.create_node("my_node").build()?;
+
+// Full pub/sub, services, actions support on Humble ✅
+let publisher = node.create_publisher::&lt;String&gt;("topic").build()?;</code></pre>
+<p>This gives you pure Rust ROS 2 functionality on Humble without needing the RMW layer.</p>
+<h4 id="option-2-use-rmw_zenoh_cpp"><a class="header" href="#option-2-use-rmw_zenoh_cpp">Option 2: Use rmw_zenoh_cpp</a></h4>
+<p>Use the C++ RMW implementation, which supports Humble:</p>
+<pre><code class="language-bash"># Install C++ RMW for Humble
+apt install ros-humble-rmw-zenoh-cpp
+
+# Set RMW implementation
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+
+# Your C++/Python nodes will use Zenoh
+ros2 run demo_nodes_cpp talker
+</code></pre>
+<p><strong>Interoperability</strong>: ros-z nodes can communicate seamlessly with rmw_zenoh_cpp nodes, so you can mix Rust and C++/Python nodes.</p>
 <h2 id="rmw_zenoh_rs-vs-rmw_zenoh_cpp"><a class="header" href="#rmw_zenoh_rs-vs-rmw_zenoh_cpp">rmw_zenoh_rs vs rmw_zenoh_cpp</a></h2>
 <p>Both <code>rmw_zenoh_rs</code> and <code>rmw_zenoh_cpp</code> are RMW implementations using Zenoh, but with different design goals:</p>
 <div class="table-wrapper"><table><thead><tr><th>Feature</th><th>rmw_zenoh_rs</th><th>rmw_zenoh_cpp</th></tr></thead><tbody>
 <tr><td><strong>Implementation Language</strong></td><td>Rust (using ros-z)</td><td>C++</td></tr>
 <tr><td><strong>Primary Use Case</strong></td><td>Integration with ros-z ecosystem</td><td>Standalone Zenoh RMW</td></tr>
-<tr><td><strong>ROS 2 Compatibility</strong></td><td>Jazzy</td><td>Humble, Iron, ..., Rolling</td></tr>
+<tr><td><strong>ROS 2 Compatibility</strong></td><td>Jazzy, Jazzy, Kilted, Rolling</td><td>Humble, Jazzy, Jazzy, Kilted, Rolling</td></tr>
+<tr><td><strong>Humble Support</strong></td><td>❌ No</td><td>✅ Yes</td></tr>
 <tr><td><strong>Status</strong></td><td>Experimental</td><td>Production-ready</td></tr>
 <tr><td><strong>Dependencies</strong></td><td>ros-z, Zenoh Rust</td><td>Zenoh C++ binding</td></tr>
 <tr><td><strong>Performance</strong></td><td>Optimized for Rust stack</td><td>Optimized for C++ stack</td></tr>
@@ -6047,13 +6158,9 @@ cargo build --no-default-features --features humble
 <li>✅ Compatible with rmw_zenoh_cpp v0.1.8</li>
 </ul>
 <p><strong>Important:</strong> Humble requires <code>--no-default-features</code> to avoid conflicts with the jazzy default.</p>
-<h3 id="rolling-and-iron"><a class="header" href="#rolling-and-iron"><code>rolling</code> and <code>iron</code></a></h3>
-<p>Target newer distributions:</p>
-<pre><code class="language-bash"># Rolling
-cargo build --features rolling
-
-# Iron
-cargo build --features iron
+<h3 id="rolling"><a class="header" href="#rolling"><code>rolling</code></a></h3>
+<p>Target Rolling distribution:</p>
+<pre><code class="language-bash">cargo build --features rolling
 </code></pre>
 <p><strong>See also:</strong> <a href="chapters/./distro_compatibility.html">ROS 2 Distribution Compatibility</a> for detailed documentation.</p>
 <h3 id="rcl-z"><a class="header" href="#rcl-z"><code>rcl-z</code></a></h3>
