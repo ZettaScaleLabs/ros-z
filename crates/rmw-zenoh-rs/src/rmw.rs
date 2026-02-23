@@ -177,6 +177,7 @@ pub extern "C" fn rmw_create_publisher(
 
     if let Err(e) = graph.event_manager.register_event_callback(
         entity_gid,
+        qualified_topic.clone(),
         ros_z::event::ZenohEventType::PublicationMatched,
         move |change| {
             if let Ok(mut mgr) = events_mgr.lock() {
@@ -195,6 +196,7 @@ pub extern "C" fn rmw_create_publisher(
     // Register QoS incompatibility event callback
     if let Err(e) = graph.event_manager.register_event_callback(
         entity_gid,
+        qualified_topic.clone(),
         ros_z::event::ZenohEventType::OfferedQosIncompatible,
         move |encoded_change| {
             // Decode policy_kind from upper 16 bits and change from lower 16 bits
@@ -497,6 +499,7 @@ pub extern "C" fn rmw_create_subscription(
 
     let entity = zsub.entity.clone();
     let entity_gid = ros_z::entity::endpoint_gid(&zsub.entity);
+    let sub_topic = zsub.entity.topic.clone();
 
     // Register matched event callback with graph
     let events_mgr = zsub.events_mgr().clone();
@@ -508,6 +511,7 @@ pub extern "C" fn rmw_create_subscription(
 
     if let Err(e) = graph.event_manager.register_event_callback(
         entity_gid,
+        sub_topic.clone(),
         ros_z::event::ZenohEventType::SubscriptionMatched,
         move |change| {
             if let Ok(mut mgr) = events_mgr.lock() {
@@ -526,6 +530,7 @@ pub extern "C" fn rmw_create_subscription(
     // Register QoS incompatibility event callback
     if let Err(e) = graph.event_manager.register_event_callback(
         entity_gid,
+        sub_topic.clone(),
         ros_z::event::ZenohEventType::RequestedQosIncompatible,
         move |encoded_change| {
             // Decode policy_kind from upper 16 bits and change from lower 16 bits
@@ -789,9 +794,9 @@ pub extern "C" fn rmw_take_event(
         ZenohEventType::SubscriptionMatched | ZenohEventType::PublicationMatched => {
             let status_ptr = event_info as *mut rmw_matched_status_t;
             unsafe {
-                (*status_ptr).total_count = status.total_count as usize;
-                (*status_ptr).total_count_change = status.total_count_change as usize;
-                (*status_ptr).current_count = status.current_count as usize;
+                (*status_ptr).total_count = status.total_count.max(0) as usize;
+                (*status_ptr).total_count_change = status.total_count_change.max(0) as usize;
+                (*status_ptr).current_count = status.current_count.max(0) as usize;
                 (*status_ptr).current_count_change = status.current_count_change;
             }
         }

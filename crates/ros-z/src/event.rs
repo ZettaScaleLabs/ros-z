@@ -95,7 +95,7 @@ impl EventsManager {
 
             status.total_count += change.max(0);
             status.total_count_change += change.max(0);
-            status.current_count += change;
+            status.current_count = (status.current_count + change).max(0);
             status.current_count_change += change;
             status.changed = true;
             // Update policy kind if provided (non-zero for QoS incompatibility events)
@@ -134,7 +134,8 @@ pub type GraphGuardConditionTrigger = Box<dyn Fn(*mut std::ffi::c_void) + Send +
 // GraphCache event integration
 pub struct GraphEventManager {
     event_callbacks: Mutex<HashMap<GidArray, HashMap<ZenohEventType, EventCallback>>>,
-    graph_guard_conditions: Mutex<Vec<usize>>, // Pointers as usize for Send
+    entity_topics: Mutex<HashMap<GidArray, String>>, // Topic name per registered entity
+    graph_guard_conditions: Mutex<Vec<usize>>,       // Pointers as usize for Send
     trigger_guard_condition: Mutex<Option<GraphGuardConditionTrigger>>,
 }
 
@@ -148,6 +149,7 @@ impl GraphEventManager {
     pub fn new() -> Self {
         Self {
             event_callbacks: Mutex::new(HashMap::new()),
+            entity_topics: Mutex::new(HashMap::new()),
             graph_guard_conditions: Mutex::new(Vec::new()),
             trigger_guard_condition: Mutex::new(None),
         }
@@ -160,6 +162,7 @@ impl GraphEventManager {
     pub fn register_event_callback<F>(
         &self,
         entity_gid: GidArray,
+        topic: String,
         event_type: ZenohEventType,
         callback: F,
     ) -> Result<()>
@@ -167,12 +170,11 @@ impl GraphEventManager {
         F: Fn(i32) + Send + Sync + 'static,
     {
         let mut callbacks = self.event_callbacks.lock().unwrap();
-
         let entity_callbacks = callbacks.entry(entity_gid).or_default();
         entity_callbacks.insert(event_type, Box::new(callback));
 
-        // TODO: Register with actual graph monitoring
-        // For now, this is a placeholder
+        let mut topics = self.entity_topics.lock().unwrap();
+        topics.insert(entity_gid, topic);
 
         Ok(())
     }
@@ -180,6 +182,8 @@ impl GraphEventManager {
     pub fn unregister_entity(&self, entity_gid: &GidArray) {
         let mut callbacks = self.event_callbacks.lock().unwrap();
         callbacks.remove(entity_gid);
+        let mut topics = self.entity_topics.lock().unwrap();
+        topics.remove(entity_gid);
     }
 
     pub fn register_graph_guard_condition(&self, guard_condition: *mut std::ffi::c_void) {
@@ -260,17 +264,21 @@ impl GraphEventManager {
             crate::entity::Entity::Node(_) => return, // Node changes don't trigger matched events
         };
 
-        // Find all entities that should be notified about this change
-        // For now, we'll notify all registered entities that care about this topic
-        // This includes both local and remote matches
-        // This is a simplified implementation - in practice, we'd need topic-based indexing
+        // Find all entities on the same topic that should be notified
+        let changed_topic = match entity {
+            crate::entity::Entity::Endpoint(endpoint) => &endpoint.topic,
+            _ => return,
+        };
+
+        let entity_topics = self.entity_topics.lock().unwrap();
         let callbacks = self.event_callbacks.lock().unwrap();
-        for (_entity_gid, entity_callbacks) in callbacks.iter() {
-            if entity_callbacks.contains_key(&event_type) {
-                // TODO: Check if this entity is on the same topic as the changed entity
-                // For now, trigger for all entities registered for this event type
-                if let Some(callback) = entity_callbacks.get(&event_type) {
-                    callback(change);
+        for (entity_gid, entity_callbacks) in callbacks.iter() {
+            // Only notify entities on the same topic
+            if let Some(registered_topic) = entity_topics.get(entity_gid) {
+                if registered_topic == changed_topic {
+                    if let Some(callback) = entity_callbacks.get(&event_type) {
+                        callback(change);
+                    }
                 }
             }
         }
