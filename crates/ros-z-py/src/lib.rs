@@ -55,6 +55,7 @@ fn ros_z_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyZClient>()?;
     m.add_class::<PyZServer>()?;
     m.add_class::<ZPayloadView>()?;
+    m.add_class::<ros_z::zbuf_view::ZBufView>()?;
 
     // QoS presets
     m.add(

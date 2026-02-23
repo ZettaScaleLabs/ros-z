@@ -154,23 +154,25 @@ fn generate_field_extraction(
     field_type: &Type,
     use_zbuf: bool,
 ) -> syn::Result<proc_macro2::TokenStream> {
-    // Handle ZBuf fields specially - use buffer protocol for zero-copy
+    // Handle ZBuf fields specially - try zero-copy paths first
     if use_zbuf {
         return Ok(quote! {
             #field_name: {
                 use ::pyo3::types::{PyBytesMethods, PyByteArrayMethods};
                 let py_attr = obj.getattr(#field_name_str)?;
-                // Try bytes/bytearray first (fast path - buffer protocol)
-                let bytes: Vec<u8> = if let Ok(bytes) = py_attr.downcast::<::pyo3::types::PyBytes>() {
-                    bytes.as_bytes().to_vec()
+                // Try ZBufView first - clone is cheap (ref-counted ZSlices)
+                if let Ok(view) = py_attr.downcast::<::ros_z::zbuf_view::ZBufView>() {
+                    view.borrow().zbuf().clone()
+                } else if let Ok(bytes) = py_attr.downcast::<::pyo3::types::PyBytes>() {
+                    ::ros_z::ZBuf::from(bytes.as_bytes().to_vec())
                 } else if let Ok(bytearray) = py_attr.downcast::<::pyo3::types::PyByteArray>() {
                     // SAFETY: We immediately copy the data
-                    unsafe { bytearray.as_bytes() }.to_vec()
+                    ::ros_z::ZBuf::from(unsafe { bytearray.as_bytes() }.to_vec())
                 } else {
                     // Fallback for lists (slow path)
-                    py_attr.extract()?
-                };
-                ::ros_z::ZBuf::from(bytes)
+                    let bytes: Vec<u8> = py_attr.extract()?;
+                    ::ros_z::ZBuf::from(bytes)
+                }
             }
         });
     }
@@ -301,14 +303,15 @@ fn generate_field_construction(
     field_type: &Type,
     use_zbuf: bool,
 ) -> syn::Result<proc_macro2::TokenStream> {
-    // Handle ZBuf fields specially - output as bytes for performance
+    // Handle ZBuf fields specially - create zero-copy view using buffer protocol
     if use_zbuf {
         return Ok(quote! {
             {
-                use ::zenoh_buffers::buffer::SplitBuffer;
-                let bytes = self.#field_name.contiguous();
-                let py_bytes = ::pyo3::types::PyBytes::new_bound(py, bytes.as_ref());
-                kwargs.set_item(#field_name_str, py_bytes)?;
+                // Create a ZBufView which implements buffer protocol for zero-copy access
+                // Python can use memoryview(zbuf_view) to get zero-copy access to the data
+                let zbuf_view = ::ros_z::zbuf_view::ZBufView::new(self.#field_name.clone());
+                let py_view = ::pyo3::Py::new(py, zbuf_view)?;
+                kwargs.set_item(#field_name_str, py_view)?;
             }
         });
     }
