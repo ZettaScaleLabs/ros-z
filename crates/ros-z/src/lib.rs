@@ -19,6 +19,9 @@ pub mod shm;
 pub mod topic_name;
 pub mod zbuf;
 
+#[cfg(feature = "python")]
+pub mod zbuf_view;
+
 #[macro_use]
 pub mod utils;
 
