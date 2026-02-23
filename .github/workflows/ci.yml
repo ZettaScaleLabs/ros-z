@@ -43,9 +43,6 @@ jobs:
       - name: Install Determinate Nix
         uses: DeterminateSystems/determinate-nix-action@v3
 
-      - name: Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@v9
-
       - name: Check formatting
         run: nix build .#checks.x86_64-linux.pre-commit-check -L
 
@@ -80,10 +77,6 @@ jobs:
       - name: Install Determinate Nix (Linux)
         if: runner.os == 'Linux'
         uses: DeterminateSystems/determinate-nix-action@v3
-
-      - name: Magic Nix Cache (Linux)
-        if: runner.os == 'Linux'
-        uses: DeterminateSystems/magic-nix-cache-action@v9
 
       - name: Install Nushell (Linux via Nix)
         if: runner.os == 'Linux'
@@ -178,15 +171,16 @@ jobs:
             extra-substituters = https://ros.cachix.org
             extra-trusted-public-keys = ros.cachix.org-1:dSyZxI8geDCJrwgvCOHDoAfOm5sV1wCPjBkKL+38Rvo=
 
-      - name: Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@v9
-
       - name: Setup Cachix
         uses: cachix/cachix-action@v15
         with:
           name: ros
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-          skipPush: true
+          # Push newly built Nix packages on main-branch runs so subsequent
+          # runs (including PRs) can download them from Cachix instead of
+          # rebuilding. This is the primary mechanism for caching kilted
+          # packages that are not yet in ros.cachix.org.
+          skipPush: ${{ github.event_name == 'pull_request' }}
 
       - name: Install Nushell
         run: |
@@ -278,15 +272,12 @@ jobs:
             extra-substituters = https://ros.cachix.org
             extra-trusted-public-keys = ros.cachix.org-1:dSyZxI8geDCJrwgvCOHDoAfOm5sV1wCPjBkKL+38Rvo=
 
-      - name: Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@v9
-
       - name: Setup Cachix
         uses: cachix/cachix-action@v15
         with:
           name: ros
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-          skipPush: true
+          skipPush: ${{ github.event_name == 'pull_request' }}
 
       - name: Install Nushell
         run: |
