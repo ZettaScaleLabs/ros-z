@@ -8,12 +8,12 @@ use std::{
 };
 
 use parking_lot::Mutex;
-use ros_z::{Builder, context::ZContext, graph::Graph, node::ZNode};
+use ros_z::{
+    Builder, context::ZContext, dynamic::DynamicTopicSubscriber, graph::Graph, node::ZNode,
+};
 use tokio::sync::broadcast;
 
-use super::{
-    dynamic_subscriber::DynamicTopicSubscriber, events::SystemEvent, metrics::MetricsCollector,
-};
+use super::{events::SystemEvent, metrics::MetricsCollector};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Backend {

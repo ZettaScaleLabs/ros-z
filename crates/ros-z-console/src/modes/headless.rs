@@ -2,11 +2,9 @@ use chrono::Utc;
 use serde::Serialize;
 use std::{collections::HashMap, time::Duration};
 
-use crate::core::{
-    dynamic_subscriber::DynamicTopicSubscriber,
-    engine::CoreEngine,
-    message_formatter::{dynamic_message_to_json, format_message_pretty},
-};
+use ros_z::dynamic::{DynamicTopicSubscriber, dynamic_message_to_json, format_message_pretty};
+
+use crate::core::engine::CoreEngine;
 use ros_z::graph::GraphSnapshot;
 
 /// Wrapper for initial state that adds the event field

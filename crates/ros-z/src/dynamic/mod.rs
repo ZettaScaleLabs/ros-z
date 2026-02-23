@@ -55,11 +55,13 @@
 //! ```
 
 pub mod error;
+pub mod formatter;
 pub mod message;
 pub mod registry;
 pub mod schema;
 pub mod serdes;
 pub mod serialization;
+pub mod subscriber;
 pub mod type_description;
 pub mod type_description_client;
 pub mod type_description_service;
@@ -70,11 +72,13 @@ mod tests;
 
 // Re-export main types
 pub use error::DynamicError;
+pub use formatter::{dynamic_message_to_json, dynamic_value_to_json, format_message_pretty};
 pub use message::{DynamicMessage, DynamicMessageBuilder};
 pub use registry::{SchemaRegistry, get_schema, has_schema, register_schema};
 pub use schema::{FieldSchema, FieldType, MessageSchema, MessageSchemaBuilder};
 pub use serdes::DynamicCdrSerdes;
 pub use serialization::SerializationFormat;
+pub use subscriber::DynamicTopicSubscriber;
 pub use type_description::{MessageSchemaTypeDescription, type_description_msg_to_schema};
 pub use type_description_client::TypeDescriptionClient;
 pub use type_description_service::{

@@ -1,19 +1,23 @@
-//! Dynamic topic subscriber for any ROS message type
+//! Async dynamic topic subscriber
 //!
-//! Provides automatic schema discovery and message reception for topics
-//! without compile-time knowledge of message types.
+//! Wraps a blocking [`ZSub`] with a flume channel so callers can poll
+//! messages from async contexts without blocking the executor.
 
 use std::{sync::Arc, time::Duration};
 
 use flume::Receiver;
-use ros_z::{
-    dynamic::{DynamicCdrSerdes, DynamicMessage, MessageSchema},
+use zenoh::sample::Sample;
+
+use crate::{
+    dynamic::{DynamicCdrSerdes, DynamicMessage, MessageSchema, MessageSchemaTypeDescription},
     node::ZNode,
     pubsub::ZSub,
 };
-use zenoh::sample::Sample;
 
-/// Manages subscription to a single topic with dynamic message types
+/// Manages subscription to a single topic with dynamic message types.
+///
+/// Automatically discovers the message schema via the type description service,
+/// then bridges the blocking [`ZSub`] to a [`flume`] channel for use in async code.
 pub struct DynamicTopicSubscriber {
     /// Topic name being subscribed to
     #[allow(dead_code)]
@@ -29,39 +33,32 @@ pub struct DynamicTopicSubscriber {
 }
 
 impl DynamicTopicSubscriber {
-    /// Create a new dynamic subscriber with automatic schema discovery
+    /// Create a new dynamic subscriber with automatic schema discovery.
     ///
     /// # Arguments
     ///
     /// * `node` - ROS node with type description service enabled
-    /// * `topic` - Topic name to subscribe to (e.g., "/chatter")
+    /// * `topic` - Topic name to subscribe to (e.g., `/chatter`)
     /// * `discovery_timeout` - Maximum time to wait for schema discovery
     ///
     /// # Errors
     ///
-    /// Returns error if:
-    /// - No publishers found on topic within timeout
-    /// - Schema discovery fails
-    /// - Subscriber creation fails
+    /// Returns an error if no publishers are found within the timeout or if
+    /// schema discovery fails.
     pub async fn new(
         node: &ZNode,
         topic: &str,
         discovery_timeout: Duration,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        // Use the node's auto-discovery method to get subscriber and schema
         let (subscriber, schema) = node.create_dyn_sub_auto(topic, discovery_timeout).await?;
 
-        // Compute type hash for informational purposes
-        use ros_z::dynamic::MessageSchemaTypeDescription;
         let type_hash = schema
             .compute_type_hash()
             .map(|h| h.to_rihs_string())
             .unwrap_or_else(|_| "unknown".to_string());
 
-        // Create channel for async message handling
         let (tx, rx) = flume::unbounded();
 
-        // Spawn background task to forward messages to channel
         let subscriber = Arc::new(subscriber);
         let sub_clone = subscriber.clone();
         tokio::task::spawn_blocking(move || {
@@ -69,7 +66,6 @@ impl DynamicTopicSubscriber {
                 match sub_clone.recv() {
                     Ok(msg) => {
                         if tx.send(msg).is_err() {
-                            // Receiver dropped, exit task
                             break;
                         }
                     }
@@ -90,29 +86,17 @@ impl DynamicTopicSubscriber {
         })
     }
 
-    /// Get the discovered message schema
+    /// Get the discovered message schema.
     pub fn schema(&self) -> &MessageSchema {
         &self.schema
     }
 
-    /// Get the RIHS01 type hash
+    /// Get the RIHS01 type hash.
     pub fn type_hash(&self) -> &str {
         &self.type_hash
     }
 
-    /// Receive the next message (blocking)
-    ///
-    /// Blocks until a message is available or the channel is closed.
-    #[allow(dead_code)]
-    pub fn recv(&self) -> Result<DynamicMessage, flume::RecvError> {
-        self.message_rx.recv()
-    }
-
-    /// Try to receive a message without blocking
-    ///
-    /// Returns `Ok(Some(msg))` if a message is available,
-    /// `Ok(None)` if no message is ready,
-    /// or `Err` if the channel is closed.
+    /// Try to receive a message without blocking.
     pub fn try_recv(&self) -> Result<Option<DynamicMessage>, flume::TryRecvError> {
         match self.message_rx.try_recv() {
             Ok(msg) => Ok(Some(msg)),
@@ -120,22 +104,4 @@ impl DynamicTopicSubscriber {
             Err(e) => Err(e),
         }
     }
-
-    /// Check if there are any messages waiting
-    #[allow(dead_code)]
-    pub fn has_messages(&self) -> bool {
-        !self.message_rx.is_empty()
-    }
-
-    /// Get the number of messages currently buffered
-    #[allow(dead_code)]
-    pub fn message_count(&self) -> usize {
-        self.message_rx.len()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    // Note: Integration tests would require a running ROS system
-    // Unit tests are limited for this component
 }
