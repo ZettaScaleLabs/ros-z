@@ -18,7 +18,13 @@ Type "3"
 Sleep 500ms
 Screenshot scripts/demos/results/07-nodes-list.png
 
-# Open detail pane for the first node
+# Navigate past ros_z_console to a node with topics (/Sub or /Pub)
+Type "j"
+Sleep 200ms
+Type "j"
+Sleep 200ms
+
+# Open detail pane
 Type "l"
 Sleep 500ms
 Screenshot scripts/demos/results/07-nodes-detail.png
