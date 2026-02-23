@@ -1,5 +1,4 @@
 use crate::ros::*;
-use ros_z::qos::QosDuration;
 
 /// Normalize RMW QoS profile by replacing SYSTEM_DEFAULT (depth=0) with default depth
 /// Uses ros_z::qos::DEFAULT_HISTORY_DEPTH to ensure consistency
