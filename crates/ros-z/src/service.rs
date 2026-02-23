@@ -122,7 +122,7 @@ impl<T> ZClient<T>
 where
     T: ZService,
 {
-    fn new_attchment(&self) -> Attachment {
+    fn new_attachment(&self) -> Attachment {
         Attachment::new(self.sn.fetch_add(1, Ordering::AcqRel) as _, self.gid)
     }
 
@@ -197,7 +197,7 @@ where
         self.inner
             .get()
             .payload(payload)
-            .attachment(self.new_attchment())
+            .attachment(self.new_attachment())
             .callback(move |reply| {
                 match reply.into_result() {
                     Ok(sample) => {
@@ -230,7 +230,7 @@ where
         F: Fn() + Send + Sync + 'static,
     {
         let tx = self.tx.clone();
-        let attachment = self.new_attchment();
+        let attachment = self.new_attachment();
         let sn = attachment.sequence_number;
         self.inner
             .get()
@@ -434,7 +434,7 @@ impl<T> ZServer<T, Query>
 where
     T: ZService,
 {
-    fn new_attchment(&self) -> Attachment {
+    fn new_attachment(&self) -> Attachment {
         Attachment::new(self.sn.fetch_add(1, Ordering::AcqRel) as _, self.gid)
     }
 
