@@ -49,7 +49,7 @@ jobs:
             ros_z_feature: jazzy
           - distro: kilted
             image: rostooling/setup-ros-docker:ubuntu-noble-ros-kilted-ros-base-latest
-            ros_z_feature: jazzy  # kilted uses jazzy-compatible type hashes
+            ros_z_feature: kilted
     container:
       image: ${{ matrix.image }}
     steps:
