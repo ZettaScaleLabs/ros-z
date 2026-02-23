@@ -184,10 +184,10 @@ jobs:
         with:
           name: ros
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-          # Push newly built Nix packages on main-branch runs so subsequent
-          # runs (including PRs) can download them from Cachix instead of
-          # rebuilding. This is the primary mechanism for caching kilted
-          # packages that are not yet in ros.cachix.org.
+          # Push ros-z's own built Nix derivations on main-branch runs so
+          # subsequent runs (including PRs) can download them from Cachix
+          # instead of rebuilding. ROS packages are already in ros.cachix.org
+          # (maintained by nix-ros-overlay for all distros including kilted).
           skipPush: ${{ github.event_name == 'pull_request' }}
 
       - name: FlakeHub cache
