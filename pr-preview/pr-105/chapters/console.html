@@ -1,0 +1,725 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>ros-z-console - ros-z Documentation</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Native Rust ROS 2 implementation using Zenoh">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../mdbook-admonish.css">
+        <link rel="stylesheet" href="../book/mdbook-admonish.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ros-z Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/ZettaScaleLabs/ros-z" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/ZettaScaleLabs/ros-z/edit/main/src/chapters/console.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="ros-z-console"><a class="header" href="#ros-z-console">ros-z-console</a></h1>
+<p><strong>ros-z-console</strong> is a monitoring tool for ROS 2 systems built on Zenoh.
+It provides real-time graph inspection, dataflow monitoring, and metrics
+collection through two interfaces: an interactive TUI (Terminal User Interface)
+and a headless JSON streaming mode.</p>
+<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
+<div class="admonition-title">
+<div id="admonition-tip-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-tip"></a>
+</div>
+<div>
+<p>ros-z-console uses zero-interference monitoring via pure Zenoh subscribers -
+it never pollutes the ROS graph with its own presence.</p>
+</div>
+</div>
+<h2 id="network-topology"><a class="header" href="#network-topology">Network Topology</a></h2>
+<p>ros-z-console connects to the ROS 2 graph via a Zenoh router. All ROS 2 nodes
+using <code>rmw_zenoh_cpp</code> communicate through the same router, enabling
+ros-z-console to observe the entire system.</p>
+<pre class="mermaid">graph LR
+    subgraph &quot;ROS 2 System&quot;
+        T[talker&lt;br/&gt;rmw_zenoh_cpp]
+        L[listener&lt;br/&gt;rmw_zenoh_cpp]
+    end
+
+    R[Zenoh Router&lt;br/&gt;rmw_zenohd]
+    C[ros-z-console]
+
+    T &lt;--&gt; R
+    L &lt;--&gt; R
+    C --&gt; R
+
+    style C fill:#2ecc71,color:#fff
+    style R fill:#3498db,color:#fff
+</pre>
+<h2 id="quick-start-monitoring-demo_nodes_cpp"><a class="header" href="#quick-start-monitoring-demo_nodes_cpp">Quick Start: Monitoring demo_nodes_cpp</a></h2>
+<p>This example shows ros-z-console monitoring the classic talker/listener demo from <code>demo_nodes_cpp</code>.</p>
+<p><strong>Terminal 1 - Start the Zenoh router:</strong></p>
+<pre><code class="language-bash">ros2 run rmw_zenoh_cpp rmw_zenohd
+</code></pre>
+<p><strong>Terminal 2 - Start the talker:</strong></p>
+<pre><code class="language-bash">export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+ros2 run demo_nodes_cpp talker
+</code></pre>
+<p><strong>Terminal 3 - Start the listener:</strong></p>
+<pre><code class="language-bash">export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+ros2 run demo_nodes_cpp listener
+</code></pre>
+<p><strong>Terminal 4 - Monitor with ros-z-console:</strong></p>
+<pre><code class="language-bash">ros-z-console tcp/127.0.0.1:7447 0
+</code></pre>
+<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
+<div class="admonition-title">
+<div id="admonition-success-title">
+<p>Success</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-success"></a>
+</div>
+<div>
+<p>You should see the <code>/chatter</code> topic, the <code>talker</code> and <code>listener</code> nodes, and
+their services appear in ros-z-console. Use the TUI to browse topics, check
+message rates, and inspect QoS settings.</p>
+</div>
+</div>
+<h2 id="building-and-running"><a class="header" href="#building-and-running">Building and Running</a></h2>
+<pre><code class="language-bash"># Build the console
+cargo build -p ros-z-console --release
+
+# Run with default settings (TUI mode)
+ros-z-console tcp/127.0.0.1:7447 0
+
+# Headless JSON streaming
+ros-z-console --headless --json tcp/127.0.0.1:7447 0
+
+# Echo messages from a topic
+ros-z-console --headless --echo /chatter tcp/127.0.0.1:7447 0
+
+# Echo multiple topics with JSON output
+ros-z-console --headless --json --echo /chatter --echo /cmd_vel tcp/127.0.0.1:7447 0
+
+# Export graph snapshot and exit
+ros-z-console --export graph.json tcp/127.0.0.1:7447 0
+</code></pre>
+<h2 id="command-line-interface"><a class="header" href="#command-line-interface">Command Line Interface</a></h2>
+<pre><code class="language-bash">ros-z-console [OPTIONS] [ROUTER] [DOMAIN]
+</code></pre>
+<h3 id="arguments"><a class="header" href="#arguments">Arguments</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Argument</th><th>Default</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>ROUTER</code></td><td><code>tcp/127.0.0.1:7447</code></td><td>Zenoh router address</td></tr>
+<tr><td><code>DOMAIN</code></td><td><code>0</code></td><td>ROS domain ID</td></tr>
+</tbody></table>
+</div>
+<h3 id="options"><a class="header" href="#options">Options</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Flag</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>--tui</code></td><td>Enable TUI interface (default if no other mode specified)</td></tr>
+<tr><td><code>--headless</code></td><td>Headless mode: stream events to stdout</td></tr>
+<tr><td><code>--json</code></td><td>Output structured JSON logs</td></tr>
+<tr><td><code>--debug</code></td><td>Enable debug logging</td></tr>
+<tr><td><code>--echo &lt;TOPIC&gt;</code></td><td>Subscribe to and display messages from topic (can be used multiple times)</td></tr>
+<tr><td><code>--export &lt;PATH&gt;</code></td><td>Export current state and exit (supports .json, .dot, .csv)</td></tr>
+</tbody></table>
+</div>
+<h2 id="modes"><a class="header" href="#modes">Modes</a></h2>
+<h3 id="tui-mode-default"><a class="header" href="#tui-mode-default">TUI Mode (Default)</a></h3>
+<p>The interactive terminal interface provides:</p>
+<ul>
+<li><strong>Panel Navigation</strong> - Browse Topics, Services, Nodes, and Measurements</li>
+<li><strong>Filter Mode</strong> - Press <code>/</code> to activate type-ahead search with highlighting</li>
+<li><strong>Rate Monitoring</strong> - Quick rate check with <code>r</code> key (cached for 30s)</li>
+<li><strong>Measurement Panel</strong> - Press <code>m</code> for detailed measurements with:
+<ul>
+<li>Real-time metrics (msg/s, KB/s, average payload)</li>
+<li>60-second time-series chart</li>
+<li>SQLite storage (<code>ros-z-metrics.db</code>)</li>
+</ul>
+</li>
+<li><strong>Detail Drilling</strong> - Press <code>Enter</code> to expand sections with QoS profiles</li>
+<li><strong>Export</strong> - Press <code>e</code> to export metrics to CSV</li>
+<li><strong>Help Overlay</strong> - Press <code>?</code> to toggle help</li>
+</ul>
+<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+<div class="admonition-title">
+<div id="admonition-note-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-note"></a>
+</div>
+<div>
+<p>TUI mode requires a terminal that supports ANSI escape codes. Most modern terminals work out of the box.</p>
+</div>
+</div>
+<h4 id="startup"><a class="header" href="#startup">Startup</a></h4>
+<p><img src="../img/01-startup.gif" alt="ros-z-console connecting to a ROS 2 system and discovering topics and nodes" /></p>
+<h4 id="panel-navigation"><a class="header" href="#panel-navigation">Panel Navigation</a></h4>
+<p>Use <code>Tab</code> / <code>Shift+Tab</code> to switch between Topics, Services, Nodes, and Measure panels.
+Press <code>l</code> / <code>h</code> (or <code>Enter</code> / <code>Esc</code>) to move between the list and detail panes.
+Navigate items with <code>j</code> / <code>k</code> (or arrow keys).</p>
+<p><img src="../img/02-navigation.gif" alt="Navigating panels and detail panes in ros-z-console" /></p>
+<h4 id="filter-mode"><a class="header" href="#filter-mode">Filter Mode</a></h4>
+<p>Press <code>/</code> to enter filter mode and type to search. Press <code>Ctrl+U</code> to clear, <code>Escape</code> to exit.</p>
+<p><img src="../img/03-filter.gif" alt="Filter mode with type-ahead search in ros-z-console" /></p>
+<h4 id="help-overlay"><a class="header" href="#help-overlay">Help Overlay</a></h4>
+<p>Press <code>?</code> to toggle the help overlay showing all keybindings.</p>
+<p><img src="../img/04-help.gif" alt="Help overlay showing all keybindings in ros-z-console" /></p>
+<h3 id="headless-mode"><a class="header" href="#headless-mode">Headless Mode</a></h3>
+<p>Headless mode streams events to stdout, making it ideal for:</p>
+<ul>
+<li>CI/CD pipelines</li>
+<li>Log aggregation systems</li>
+<li>AI-powered analysis</li>
+<li>Scripted monitoring</li>
+</ul>
+<p><strong>Human-readable output:</strong></p>
+<pre><code class="language-bash">ros-z-console --headless tcp/127.0.0.1:7447 0
+</code></pre>
+<pre><code class="language-console">Discovered Topics:
+  /chatter (std_msgs/msg/String)
+  /cmd_vel (geometry_msgs/msg/Twist)
+Discovered Nodes:
+  /talker
+  /listener
+[2026-01-21 10:30:00] Topic discovered: /rosout (rcl_interfaces/msg/Log)
+</code></pre>
+<p><strong>JSON streaming output:</strong></p>
+<pre><code class="language-bash">ros-z-console --headless --json tcp/127.0.0.1:7447 0
+</code></pre>
+<pre><code class="language-json">{"timestamp":"...","event":"initial_state","domain_id":0,"topics":[...],"nodes":[...],"services":[...]}
+{"TopicDiscovered":{"topic":"/chatter","type_name":"std_msgs/msg/String","timestamp":"..."}}
+{"NodeDiscovered":{"namespace":"/","name":"talker","timestamp":"..."}}
+</code></pre>
+<h2 id="dynamic-topic-echo"><a class="header" href="#dynamic-topic-echo">Dynamic Topic Echo</a></h2>
+<p>ros-z-console can subscribe to and display messages from <strong>any ROS 2 topic</strong>
+without compile-time knowledge of message types. This is powered by dynamic
+schema discovery using the ROS 2 Type Description service (REP-2016).</p>
+<div id="admonition-universal-message-support" class="admonition admonish-success" role="note" aria-labelledby="admonition-universal-message-support-title">
+<div class="admonition-title">
+<div id="admonition-universal-message-support-title">
+<p>Universal Message Support</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-universal-message-support"></a>
+</div>
+<div>
+<p>Echo works with all ROS 2 message types: primitives, nested messages, arrays, and custom types. No recompilation needed!</p>
+</div>
+</div>
+<h3 id="how-it-works"><a class="header" href="#how-it-works">How It Works</a></h3>
+<p>When you echo a topic, ros-z-console:</p>
+<ol>
+<li><strong>Discovers publishers</strong> on the topic using graph monitoring</li>
+<li><strong>Queries the Type Description service</strong> from the publisher's node</li>
+<li><strong>Retrieves the message schema</strong> (field names, types, and layout)</li>
+<li><strong>Creates a dynamic subscriber</strong> using the discovered schema</li>
+<li><strong>Deserializes and displays messages</strong> in real-time</li>
+</ol>
+<pre class="mermaid">sequenceDiagram
+    participant C as ros-z-console
+    participant G as Graph
+    participant P as Publisher Node
+    participant Z as Zenoh
+
+    C-&gt;&gt;G: Find publishers for /chatter
+    G--&gt;&gt;C: Publisher: talker node
+    C-&gt;&gt;P: GetTypeDescription(std_msgs/msg/String)
+    P--&gt;&gt;C: Schema + Type Hash
+    C-&gt;&gt;Z: Subscribe with dynamic schema
+    Z--&gt;&gt;C: Message data (CDR)
+    C-&gt;&gt;C: Deserialize &amp; display
+</pre>
+<h3 id="basic-usage"><a class="header" href="#basic-usage">Basic Usage</a></h3>
+<p><strong>Echo a single topic:</strong></p>
+<pre><code class="language-bash">ros-z-console --headless --echo /chatter
+</code></pre>
+<p><strong>Output:</strong></p>
+<pre><code class="language-text">=== Subscribed to /chatter ===
+Type: std_msgs/msg/String
+Hash: RIHS01_df668c740482bbd48fb39d76a70dfd4bd59db1288021743503259e948f6b1a18
+Fields: ["data"]
+
+=== /chatter ===
+data: "Hello World: 0"
+
+=== /chatter ===
+data: "Hello World: 1"
+</code></pre>
+<p><strong>JSON output mode:</strong></p>
+<pre><code class="language-bash">ros-z-console --headless --json --echo /chatter
+</code></pre>
+<pre><code class="language-json">{"event":"topic_subscribed","topic":"/chatter","type_name":"std_msgs/msg/String","type_hash":"RIHS01_df668...","fields":["data"]}
+{"event":"message_received","topic":"/chatter","type":"std_msgs/msg/String","data":{"data":"Hello World: 0"}}
+{"event":"message_received","topic":"/chatter","type":"std_msgs/msg/String","data":{"data":"Hello World: 1"}}
+</code></pre>
+<h3 id="multiple-topics"><a class="header" href="#multiple-topics">Multiple Topics</a></h3>
+<p>Echo multiple topics simultaneously:</p>
+<pre><code class="language-bash">ros-z-console --headless --echo /chatter --echo /cmd_vel --echo /odom
+</code></pre>
+<p>Each topic is independently discovered and subscribed with its own dynamic schema.</p>
+<h3 id="supported-message-types"><a class="header" href="#supported-message-types">Supported Message Types</a></h3>
+<h4 id="primitives"><a class="header" href="#primitives">Primitives</a></h4>
+<pre><code class="language-bash"># String messages
+ros-z-console --headless --echo /chatter
+
+# Numeric types
+ros-z-console --headless --echo /count      # Int32
+ros-z-console --headless --echo /sensor     # Float64
+</code></pre>
+<h4 id="nested-messages"><a class="header" href="#nested-messages">Nested Messages</a></h4>
+<pre><code class="language-bash"># Twist (linear + angular vectors)
+ros-z-console --headless --echo /cmd_vel
+</code></pre>
+<p><strong>Output:</strong></p>
+<pre><code class="language-text">=== /cmd_vel ===
+linear:
+  x: 1.0
+  y: 0.0
+  z: 0.0
+angular:
+  x: 0.0
+  y: 0.0
+  z: 0.5
+</code></pre>
+<h4 id="arrays-and-sequences"><a class="header" href="#arrays-and-sequences">Arrays and Sequences</a></h4>
+<pre><code class="language-bash"># Point cloud or array messages
+ros-z-console --headless --echo /scan
+</code></pre>
+<h3 id="use-cases"><a class="header" href="#use-cases">Use Cases</a></h3>
+<h4 id="debugging-message-content"><a class="header" href="#debugging-message-content">Debugging Message Content</a></h4>
+<p>Quickly inspect what's actually being published:</p>
+<pre><code class="language-bash">ros-z-console --headless --echo /diagnostics
+</code></pre>
+<h4 id="data-analysis"><a class="header" href="#data-analysis">Data Analysis</a></h4>
+<p>Pipe JSON output to analysis tools:</p>
+<pre><code class="language-bash">ros-z-console --headless --json --echo /pose | \
+  jq -r 'select(.event=="message_received") | .data.position.x'
+</code></pre>
+<h4 id="recording-specific-fields"><a class="header" href="#recording-specific-fields">Recording Specific Fields</a></h4>
+<p>Extract and log specific data:</p>
+<pre><code class="language-bash">ros-z-console --headless --json --echo /sensor_data | \
+  jq '.data.temperature' &gt;&gt; temps.log
+</code></pre>
+<h4 id="message-validation"><a class="header" href="#message-validation">Message Validation</a></h4>
+<p>Verify message structure and content during development:</p>
+<pre><code class="language-bash"># Check if messages match expected schema
+ros-z-console --headless --json --echo /my_custom_topic | \
+  jq '.data | keys'
+</code></pre>
+<h3 id="example-monitoring-robot-telemetry"><a class="header" href="#example-monitoring-robot-telemetry">Example: Monitoring Robot Telemetry</a></h3>
+<p>Monitor multiple robot topics simultaneously:</p>
+<pre><code class="language-bash">#!/bin/bash
+# Monitor robot state
+ros-z-console --headless \
+  --echo /cmd_vel \
+  --echo /odom \
+  --echo /battery_state \
+  --echo /diagnostics \
+  &gt; robot_state.log
+</code></pre>
+<h3 id="integration-with-standard-ros-2"><a class="header" href="#integration-with-standard-ros-2">Integration with Standard ROS 2</a></h3>
+<p>ros-z-console echo works seamlessly with standard ROS 2 nodes:</p>
+<pre><code class="language-bash"># Terminal 1: Standard ROS 2 publisher
+ros2 run demo_nodes_cpp talker
+
+# Terminal 2: ros-z-console subscriber
+ros-z-console --headless --echo /chatter
+</code></pre>
+<div id="admonition-type-hash-matching" class="admonition admonish-info" role="note" aria-labelledby="admonition-type-hash-matching-title">
+<div class="admonition-title">
+<div id="admonition-type-hash-matching-title">
+<p>Type Hash Matching</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-type-hash-matching"></a>
+</div>
+<div>
+<p>ros-z-console uses RIHS01 type hashes to ensure message compatibility. If type hashes don't match, the subscription will fail with a clear error message.</p>
+</div>
+</div>
+<h3 id="advanced-options"><a class="header" href="#advanced-options">Advanced Options</a></h3>
+<h4 id="with-debug-logging"><a class="header" href="#with-debug-logging">With Debug Logging</a></h4>
+<p>Enable detailed logging to troubleshoot discovery issues:</p>
+<pre><code class="language-bash">RUST_LOG=ros_z=debug ros-z-console --headless --echo /chatter
+</code></pre>
+<p><strong>Debug output shows:</strong></p>
+<ul>
+<li>Publisher discovery attempts</li>
+<li>Type description service queries</li>
+<li>Schema parsing details</li>
+<li>Type hash validation</li>
+</ul>
+<h4 id="custom-timeout"><a class="header" href="#custom-timeout">Custom Timeout</a></h4>
+<p>If schema discovery is slow, you can adjust timeouts in the code (default: 5 seconds).</p>
+<h3 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h3>
+<p><strong>No publishers found:</strong></p>
+<pre><code class="language-text">Failed to subscribe to /my_topic: Schema discovery failed: No publishers found for topic: /my_topic
+</code></pre>
+<p><strong>Solutions:</strong></p>
+<ul>
+<li>Verify the topic exists: <code>ros2 topic list</code></li>
+<li>Check the topic is being published: <code>ros2 topic hz /my_topic</code></li>
+<li>Ensure rmw_zenohd is running</li>
+<li>Wait for publisher to fully start (may take a few seconds)</li>
+</ul>
+<p><strong>Type hash mismatch:</strong></p>
+<pre><code class="language-text">Failed to subscribe to /chatter: Type hash mismatch
+</code></pre>
+<p>This occurs when the publisher and subscriber have different message definitions. Ensure both are using the same ROS 2 distribution and package versions.</p>
+<h3 id="comparison-with-ros2-topic-echo"><a class="header" href="#comparison-with-ros2-topic-echo">Comparison with ros2 topic echo</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Feature</th><th>ros-z-console</th><th>ros2 topic echo</th></tr></thead><tbody>
+<tr><td><strong>Compilation</strong></td><td>No recompilation needed</td><td>Requires message packages installed</td></tr>
+<tr><td><strong>Custom types</strong></td><td>Automatic discovery</td><td>Must have .msg files available</td></tr>
+<tr><td><strong>Multiple topics</strong></td><td>Single command</td><td>Need multiple processes</td></tr>
+<tr><td><strong>JSON output</strong></td><td>Built-in structured format</td><td>Requires additional parsing</td></tr>
+<tr><td><strong>Performance</strong></td><td>Zenoh pub/sub (very fast)</td><td>DDS overhead</td></tr>
+<tr><td><strong>Filtering</strong></td><td>Easy with jq on JSON</td><td>Manual parsing needed</td></tr>
+</tbody></table>
+</div>
+<h3 id="performance-notes"><a class="header" href="#performance-notes">Performance Notes</a></h3>
+<ul>
+<li><strong>Latency:</strong> Sub-millisecond after initial discovery (~5 seconds)</li>
+<li><strong>Throughput:</strong> Handles 1000+ messages/second per topic</li>
+<li><strong>Memory:</strong> ~1KB per unique message schema (cached globally)</li>
+<li><strong>CPU:</strong> Minimal - only active when messages arrive</li>
+</ul>
+<div id="admonition-schema-caching" class="admonition admonish-tip" role="note" aria-labelledby="admonition-schema-caching-title">
+<div class="admonition-title">
+<div id="admonition-schema-caching-title">
+<p>Schema Caching</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-schema-caching"></a>
+</div>
+<div>
+<p>Message schemas are cached in a global registry. Once a type is discovered, subsequent subscriptions to topics with the same type are instant.</p>
+</div>
+</div>
+<h2 id="export-formats"><a class="header" href="#export-formats">Export Formats</a></h2>
+<p>Export the current graph state with the <code>--export</code> flag:</p>
+<h3 id="json-export"><a class="header" href="#json-export">JSON Export</a></h3>
+<pre><code class="language-bash">ros-z-console --export graph.json tcp/127.0.0.1:7447 0
+</code></pre>
+<p>Produces a structured JSON file with topics, nodes, services, and their relationships:</p>
+<pre><code class="language-json">{
+  "timestamp": "2026-01-21T10:30:00Z",
+  "domain_id": 0,
+  "topics": [
+    {"name": "/chatter", "type": "std_msgs/msg/String", "publishers": 1, "subscribers": 1}
+  ],
+  "nodes": [
+    {"name": "talker", "namespace": "/"}
+  ],
+  "services": []
+}
+</code></pre>
+<h3 id="graphviz-dot-export"><a class="header" href="#graphviz-dot-export">GraphViz DOT Export</a></h3>
+<pre><code class="language-bash">ros-z-console --export graph.dot tcp/127.0.0.1:7447 0
+dot -Tpng graph.dot -o graph.png
+</code></pre>
+<p>Generates a visual graph representation with:</p>
+<ul>
+<li>Nodes as blue boxes</li>
+<li>Topics as green ellipses</li>
+<li>Publisher edges in blue</li>
+<li>Subscriber edges in green</li>
+</ul>
+<h3 id="csv-export"><a class="header" href="#csv-export">CSV Export</a></h3>
+<pre><code class="language-bash">ros-z-console --export metrics.csv tcp/127.0.0.1:7447 0
+</code></pre>
+<p>Exports collected metrics history:</p>
+<pre><code class="language-csv">timestamp,topic,rate_hz,bandwidth_kbps,avg_payload_bytes
+2026-01-21T10:30:00Z,/chatter,10.5,2.3,220
+</code></pre>
+<h2 id="event-types"><a class="header" href="#event-types">Event Types</a></h2>
+<p>ros-z-console tracks these system events:</p>
+<div class="table-wrapper"><table><thead><tr><th>Event</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>TopicDiscovered</code></td><td>New topic detected in the graph</td></tr>
+<tr><td><code>TopicRemoved</code></td><td>Topic no longer present</td></tr>
+<tr><td><code>NodeDiscovered</code></td><td>New node joined the graph</td></tr>
+<tr><td><code>NodeRemoved</code></td><td>Node left the graph</td></tr>
+<tr><td><code>ServiceDiscovered</code></td><td>New service available</td></tr>
+<tr><td><code>RateMeasured</code></td><td>Rate measurement completed</td></tr>
+<tr><td><code>MetricsSnapshot</code></td><td>Periodic summary of graph state</td></tr>
+</tbody></table>
+</div>
+<h2 id="configuration"><a class="header" href="#configuration">Configuration</a></h2>
+<p>Create a <code>ros-z-console.json</code> or <code>.ros-z-console.json</code> file:</p>
+<pre><code class="language-json">{
+  "cache_ttl_seconds": 30,
+  "rate_cache_ttl_seconds": 30,
+  "graph_cache_update_ms": 100
+}
+</code></pre>
+<div class="table-wrapper"><table><thead><tr><th>Option</th><th>Default</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>cache_ttl_seconds</code></td><td>30</td><td>General cache time-to-live</td></tr>
+<tr><td><code>rate_cache_ttl_seconds</code></td><td>30</td><td>How long rate measurements are cached</td></tr>
+<tr><td><code>graph_cache_update_ms</code></td><td>100</td><td>Graph refresh interval in milliseconds</td></tr>
+</tbody></table>
+</div>
+<h2 id="integration-examples"><a class="header" href="#integration-examples">Integration Examples</a></h2>
+<h3 id="pipe-to-jq-for-filtering"><a class="header" href="#pipe-to-jq-for-filtering">Pipe to jq for filtering</a></h3>
+<pre><code class="language-bash"># Filter for topic discovery events
+ros-z-console --headless --json | jq 'select(.TopicDiscovered != null)'
+
+# Extract specific message fields
+ros-z-console --headless --json --echo /pose | \
+  jq -r 'select(.event=="message_received") | .data.position'
+</code></pre>
+<h3 id="monitor-specific-topics"><a class="header" href="#monitor-specific-topics">Monitor specific topics</a></h3>
+<pre><code class="language-bash"># Watch for messages on specific topic
+ros-z-console --headless --json | grep -E '"topic":"/cmd_vel"'
+
+# Echo and filter by field value
+ros-z-console --headless --json --echo /sensor | \
+  jq 'select(.data.temperature &gt; 50)'
+</code></pre>
+<h3 id="continuous-logging"><a class="header" href="#continuous-logging">Continuous logging</a></h3>
+<pre><code class="language-bash"># Log all graph events
+ros-z-console --headless --json &gt;&gt; ros-events.jsonl &amp;
+
+# Log all messages from a topic
+ros-z-console --headless --json --echo /diagnostics &gt;&gt; diagnostics.jsonl &amp;
+</code></pre>
+<h3 id="real-time-data-extraction"><a class="header" href="#real-time-data-extraction">Real-time data extraction</a></h3>
+<pre><code class="language-bash"># Extract velocity commands
+ros-z-console --headless --json --echo /cmd_vel | \
+  jq -r '.data.linear.x' | \
+  tee -a velocity.log
+
+# Monitor temperature sensor
+ros-z-console --headless --json --echo /temperature | \
+  jq -r '[.timestamp, .data.value] | @csv' &gt;&gt; temp.csv
+</code></pre>
+<h3 id="database-analysis"><a class="header" href="#database-analysis">Database analysis</a></h3>
+<pre><code class="language-bash"># After running TUI mode with measurements
+sqlite3 ros-z-metrics.db "SELECT topic, AVG(msgs_sec) FROM metrics GROUP BY topic"
+</code></pre>
+<div id="admonition-interoperability" class="admonition admonish-tip" role="note" aria-labelledby="admonition-interoperability-title">
+<div class="admonition-title">
+<div id="admonition-interoperability-title">
+<p>Interoperability</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-interoperability"></a>
+</div>
+<div>
+<p>Both ros-z and rmw_zenoh_cpp use the same Zenoh-based discovery protocol. ros-z-console subscribes to the graph liveliness tokens that rmw_zenoh_cpp nodes publish, enabling seamless interoperability without any configuration changes.</p>
+</div>
+</div>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../chapters/protobuf.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../chapters/shm.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../chapters/protobuf.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../chapters/shm.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../mermaid.min.js"></script>
+        <script src="../mermaid-init.js"></script>
+
+
+
+    </div>
+    </body>
+</html>
