@@ -25,7 +25,7 @@ def main [] {
                     if not ($trimmed | str starts-with "#") {
                         # Extract example name: text after "--example " up to " " or end
                         let after = ($trimmed | str replace --regex ".*--example\\s+" "")
-                        let name = ($after | str replace --regex "\\s.*" "" | str trim)
+                        let name = ($after | str replace --regex "[`\\s].*" "" | str trim)
                         if ($name | is-not-empty) {
                             {file: ($file | path basename), example: $name}
                         }
