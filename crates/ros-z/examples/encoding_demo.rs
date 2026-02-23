@@ -29,13 +29,14 @@ fn main() -> zenoh::Result<()> {
 
     // Publisher with Protobuf encoding (if feature enabled)
     #[cfg(feature = "protobuf")]
-    {
-        let proto_pub = node
+    let proto_pub = {
+        let pub_ = node
             .create_pub::<RosString>("/topic/protobuf")
             .with_encoding(Encoding::protobuf().with_schema("std_msgs/msg/String"))
             .build()?;
         println!("   ✓ Protobuf publisher ready: /topic/protobuf (schema: std_msgs/msg/String)");
-    }
+        pub_
+    };
     #[cfg(not(feature = "protobuf"))]
     println!("   ℹ Protobuf support not enabled (use --features protobuf)");
 

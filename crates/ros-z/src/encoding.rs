@@ -34,9 +34,10 @@ use std::fmt;
 /// let fb = Encoding::flatbuffers()
 ///     .with_schema("sensor_msgs/msg/Image");
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub enum Encoding {
     /// CDR serialization (ROS 2 standard)
+    #[default]
     Cdr,
 
     /// Protocol Buffers with optional schema name
@@ -205,13 +206,6 @@ impl fmt::Display for Encoding {
             #[cfg(feature = "flatbuffers")]
             Encoding::FlatBuffers { schema: None } => write!(f, "FlatBuffers"),
         }
-    }
-}
-
-impl Default for Encoding {
-    fn default() -> Self {
-        // CDR is the ROS 2 standard
-        Encoding::Cdr
     }
 }
 
