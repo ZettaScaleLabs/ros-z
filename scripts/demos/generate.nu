@@ -7,11 +7,12 @@
 # Builds binaries, starts Zenoh router + publisher for realistic data,
 # runs VHS on each tape, then cleans up background processes.
 
-const WORKTREE = "/home/circle/Workings/ZettaScale/zenoh-ws/project/nix-ros/src/worktree-ros-z/console"
 const ROUTER = "tcp/127.0.0.1:7447"
 
 def main [] {
-    cd $WORKTREE
+    # Resolve worktree root from this script's location (scripts/demos/generate.nu → ../../)
+    let worktree = ($env.CURRENT_FILE | path dirname | path dirname | path dirname)
+    cd $worktree
 
     # --- Preflight checks ---
     for tool in ["vhs", "zenohd", "ttyd"] {
