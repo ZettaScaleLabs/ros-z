@@ -192,3 +192,8 @@ required-features = []
 name = "encoding_demo"
 path = "examples/encoding_demo.rs"
 required-features = []
+
+[[example]]
+name = "protobuf_interop"
+path = "examples/protobuf_interop.rs"
+required-features = []
