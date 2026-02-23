@@ -2,8 +2,6 @@
 
 # VHS-based TUI correctness tests for ros-z-console
 #
-# Follows the pattern from ~/nixos (zjbar) and ~/Repos/rust-related/ptt-hot.
-#
 # Usage:
 #   nu tests/run-vhs-tests.nu
 #
@@ -16,12 +14,11 @@
 #   z_pubsub listener - Subscribes to /chatter (makes the topic bidirectional)
 #   z_srvcli server - Exposes example_interfaces/AddTwoInts service
 #
-# Assertions (following zjbar/ptt-hot approach):
+# Assertions:
 #   - Screenshot existence  = app ran that code path without crashing
 #   - Size differences      = state actually changed (filtered vs unfiltered, etc.)
 #   - All screenshots exist = test passed
 
-const WORKTREE = "/home/circle/Workings/ZettaScale/zenoh-ws/project/nix-ros/src/worktree-ros-z/console"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -190,7 +187,9 @@ def analyze_rate_check [] {
 # ---------------------------------------------------------------------------
 
 def main [] {
-    cd $WORKTREE
+    # Resolve worktree root from this script's location (tests/run-vhs-tests.nu → ../)
+    let worktree = ($env.CURRENT_FILE | path dirname | path dirname)
+    cd $worktree
 
     # --- Preflight ---
     for tool in ["vhs", "zenohd", "ttyd"] {
