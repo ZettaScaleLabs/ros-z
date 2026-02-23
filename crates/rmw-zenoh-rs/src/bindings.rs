@@ -1395,16 +1395,6 @@ unsafe extern "C" {
     pub fn rmw_discovery_options_fini(discovery_options: *mut rmw_discovery_options_t)
     -> rmw_ret_t;
 }
-#[doc = " Uses ROS_LOCALHOST_ONLY environment variable."]
-pub const rmw_localhost_only_e_RMW_LOCALHOST_ONLY_DEFAULT: rmw_localhost_only_e = 0;
-#[doc = " Forces using only localhost."]
-pub const rmw_localhost_only_e_RMW_LOCALHOST_ONLY_ENABLED: rmw_localhost_only_e = 1;
-#[doc = " Forces disabling localhost only."]
-pub const rmw_localhost_only_e_RMW_LOCALHOST_ONLY_DISABLED: rmw_localhost_only_e = 2;
-#[doc = " Used to specify if the context can only communicate through localhost."]
-pub type rmw_localhost_only_e = ::std::os::raw::c_uint;
-#[doc = " Used to specify if the context can only communicate through localhost."]
-pub use self::rmw_localhost_only_e as rmw_localhost_only_t;
 pub const rmw_security_enforcement_policy_e_RMW_SECURITY_ENFORCEMENT_PERMISSIVE:
     rmw_security_enforcement_policy_e = 0;
 pub const rmw_security_enforcement_policy_e_RMW_SECURITY_ENFORCEMENT_ENFORCE:
@@ -1483,8 +1473,6 @@ pub struct rmw_init_options_s {
     pub domain_id: usize,
     #[doc = " Security options"]
     pub security_options: rmw_security_options_t,
-    #[doc = " Enable localhost only"]
-    pub localhost_only: rmw_localhost_only_t,
     #[doc = " Configure discovery"]
     pub discovery_options: rmw_discovery_options_t,
     #[doc = " Enclave, name used to find security artifacts in a sros2 keystore."]
@@ -1496,7 +1484,7 @@ pub struct rmw_init_options_s {
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of rmw_init_options_s"][::std::mem::size_of::<rmw_init_options_s>() - 168usize];
+    ["Size of rmw_init_options_s"][::std::mem::size_of::<rmw_init_options_s>() - 160usize];
     ["Alignment of rmw_init_options_s"][::std::mem::align_of::<rmw_init_options_s>() - 8usize];
     ["Offset of field: rmw_init_options_s::instance_id"]
         [::std::mem::offset_of!(rmw_init_options_s, instance_id) - 0usize];
@@ -1506,16 +1494,14 @@ const _: () = {
         [::std::mem::offset_of!(rmw_init_options_s, domain_id) - 16usize];
     ["Offset of field: rmw_init_options_s::security_options"]
         [::std::mem::offset_of!(rmw_init_options_s, security_options) - 24usize];
-    ["Offset of field: rmw_init_options_s::localhost_only"]
-        [::std::mem::offset_of!(rmw_init_options_s, localhost_only) - 40usize];
     ["Offset of field: rmw_init_options_s::discovery_options"]
-        [::std::mem::offset_of!(rmw_init_options_s, discovery_options) - 48usize];
+        [::std::mem::offset_of!(rmw_init_options_s, discovery_options) - 40usize];
     ["Offset of field: rmw_init_options_s::enclave"]
-        [::std::mem::offset_of!(rmw_init_options_s, enclave) - 112usize];
+        [::std::mem::offset_of!(rmw_init_options_s, enclave) - 104usize];
     ["Offset of field: rmw_init_options_s::allocator"]
-        [::std::mem::offset_of!(rmw_init_options_s, allocator) - 120usize];
+        [::std::mem::offset_of!(rmw_init_options_s, allocator) - 112usize];
     ["Offset of field: rmw_init_options_s::impl_"]
-        [::std::mem::offset_of!(rmw_init_options_s, impl_) - 160usize];
+        [::std::mem::offset_of!(rmw_init_options_s, impl_) - 152usize];
 };
 impl Default for rmw_init_options_s {
     fn default() -> Self {
@@ -1556,7 +1542,7 @@ pub struct rmw_context_s {
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of rmw_context_s"][::std::mem::size_of::<rmw_context_s>() - 200usize];
+    ["Size of rmw_context_s"][::std::mem::size_of::<rmw_context_s>() - 192usize];
     ["Alignment of rmw_context_s"][::std::mem::align_of::<rmw_context_s>() - 8usize];
     ["Offset of field: rmw_context_s::instance_id"]
         [::std::mem::offset_of!(rmw_context_s, instance_id) - 0usize];
@@ -1565,9 +1551,9 @@ const _: () = {
     ["Offset of field: rmw_context_s::options"]
         [::std::mem::offset_of!(rmw_context_s, options) - 16usize];
     ["Offset of field: rmw_context_s::actual_domain_id"]
-        [::std::mem::offset_of!(rmw_context_s, actual_domain_id) - 184usize];
+        [::std::mem::offset_of!(rmw_context_s, actual_domain_id) - 176usize];
     ["Offset of field: rmw_context_s::impl_"]
-        [::std::mem::offset_of!(rmw_context_s, impl_) - 192usize];
+        [::std::mem::offset_of!(rmw_context_s, impl_) - 184usize];
 };
 impl Default for rmw_context_s {
     fn default() -> Self {
@@ -2327,11 +2313,11 @@ pub struct rmw_qos_profile_s {
     pub durability: rmw_qos_durability_policy_e,
     #[doc = " The period at which messages are expected to be sent/received\n**\n* RMW_DURATION_UNSPECIFIED will use the RMW implementation's default value,\n*   which may or may not be infinite.\n* RMW_DURATION_INFINITE explicitly states that messages never miss a deadline expectation.\n*/"]
     pub deadline: rmw_time_s,
-    #[doc = " The age at which messages are considered expired and no longer valid\n**\n* RMW_DURATION_UNSPEFICIED will use the RMW implementation's default value,\n*   which may or may not be infinite.\n* RMW_DURATION_INFINITE explicitly states that messages do not expire.\n*/"]
+    #[doc = " The age at which messages are considered expired and no longer valid\n**\n* RMW_DURATION_UNSPECIFIED will use the RMW implementation's default value,\n*   which may or may not be infinite.\n* RMW_DURATION_INFINITE explicitly states that messages do not expire.\n*/"]
     pub lifespan: rmw_time_s,
     #[doc = " Liveliness QoS policy setting"]
     pub liveliness: rmw_qos_liveliness_policy_e,
-    #[doc = " The time within which the RMW node or publisher must show that it is alive\n**\n* RMW_DURATION_UNSPEFICIED will use the RMW implementation's default value,\n*   which may or may not be infinite.\n* RMW_DURATION_INFINITE explicitly states that liveliness is not enforced.\n*/"]
+    #[doc = " The time within which the RMW node or publisher must show that it is alive\n**\n* RMW_DURATION_UNSPECIFIED will use the RMW implementation's default value,\n*   which may or may not be infinite.\n* RMW_DURATION_INFINITE explicitly states that liveliness is not enforced.\n*/"]
     pub liveliness_lease_duration: rmw_time_s,
     #[doc = " If true, any ROS specific namespacing conventions will be circumvented.\n**\n* In the case of DDS and topics, for example, this means the typical\n* ROS specific prefix of `rt` would not be applied as described here:\n*\n*   http://design.ros2.org/articles/topic_and_service_names.html#ros-specific-namespace-prefix\n*\n* This might be useful when trying to directly connect a native DDS topic\n* with a ROS 2 topic.\n*/"]
     pub avoid_ros_namespace_conventions: bool,
@@ -2462,18 +2448,19 @@ pub const rmw_log_severity_t_RMW_LOG_SEVERITY_ERROR: rmw_log_severity_t = 40;
 pub const rmw_log_severity_t_RMW_LOG_SEVERITY_FATAL: rmw_log_severity_t = 50;
 #[doc = " Type mapping of rcutils log severity types to rmw specific types."]
 pub type rmw_log_severity_t = ::std::os::raw::c_uint;
-pub const rmw_event_type_e_RMW_EVENT_LIVELINESS_CHANGED: rmw_event_type_e = 0;
-pub const rmw_event_type_e_RMW_EVENT_REQUESTED_DEADLINE_MISSED: rmw_event_type_e = 1;
-pub const rmw_event_type_e_RMW_EVENT_REQUESTED_QOS_INCOMPATIBLE: rmw_event_type_e = 2;
-pub const rmw_event_type_e_RMW_EVENT_MESSAGE_LOST: rmw_event_type_e = 3;
-pub const rmw_event_type_e_RMW_EVENT_SUBSCRIPTION_INCOMPATIBLE_TYPE: rmw_event_type_e = 4;
-pub const rmw_event_type_e_RMW_EVENT_SUBSCRIPTION_MATCHED: rmw_event_type_e = 5;
-pub const rmw_event_type_e_RMW_EVENT_LIVELINESS_LOST: rmw_event_type_e = 6;
-pub const rmw_event_type_e_RMW_EVENT_OFFERED_DEADLINE_MISSED: rmw_event_type_e = 7;
-pub const rmw_event_type_e_RMW_EVENT_OFFERED_QOS_INCOMPATIBLE: rmw_event_type_e = 8;
-pub const rmw_event_type_e_RMW_EVENT_PUBLISHER_INCOMPATIBLE_TYPE: rmw_event_type_e = 9;
-pub const rmw_event_type_e_RMW_EVENT_PUBLICATION_MATCHED: rmw_event_type_e = 10;
-pub const rmw_event_type_e_RMW_EVENT_INVALID: rmw_event_type_e = 11;
+pub const rmw_event_type_e_RMW_EVENT_INVALID: rmw_event_type_e = 0;
+pub const rmw_event_type_e_RMW_EVENT_LIVELINESS_CHANGED: rmw_event_type_e = 1;
+pub const rmw_event_type_e_RMW_EVENT_REQUESTED_DEADLINE_MISSED: rmw_event_type_e = 2;
+pub const rmw_event_type_e_RMW_EVENT_REQUESTED_QOS_INCOMPATIBLE: rmw_event_type_e = 3;
+pub const rmw_event_type_e_RMW_EVENT_MESSAGE_LOST: rmw_event_type_e = 4;
+pub const rmw_event_type_e_RMW_EVENT_SUBSCRIPTION_INCOMPATIBLE_TYPE: rmw_event_type_e = 5;
+pub const rmw_event_type_e_RMW_EVENT_SUBSCRIPTION_MATCHED: rmw_event_type_e = 6;
+pub const rmw_event_type_e_RMW_EVENT_LIVELINESS_LOST: rmw_event_type_e = 7;
+pub const rmw_event_type_e_RMW_EVENT_OFFERED_DEADLINE_MISSED: rmw_event_type_e = 8;
+pub const rmw_event_type_e_RMW_EVENT_OFFERED_QOS_INCOMPATIBLE: rmw_event_type_e = 9;
+pub const rmw_event_type_e_RMW_EVENT_PUBLISHER_INCOMPATIBLE_TYPE: rmw_event_type_e = 10;
+pub const rmw_event_type_e_RMW_EVENT_PUBLICATION_MATCHED: rmw_event_type_e = 11;
+pub const rmw_event_type_e_RMW_EVENT_TYPE_MAX: rmw_event_type_e = 12;
 #[doc = " Define publisher/subscription events"]
 pub type rmw_event_type_e = ::std::os::raw::c_uint;
 #[doc = " Define publisher/subscription events"]
@@ -2926,7 +2913,7 @@ unsafe extern "C" {
     ) -> rmw_ret_t;
 }
 unsafe extern "C" {
-    #[doc = " Deterimine if a given node name is valid.\n**\n* This is an overload with an extra parameter for the length of node_name.\n*\n* \\sa rmw_validate_node_name(const char *, int *, size_t *)\n*\n* \\param[in] node_name node name to be validated\n* \\param[in] node_name_length The number of characters in node_name.\n* \\param[out] validation_result int in which the result of the check is stored\n* \\param[out] invalid_index size_t index of the input string where an error occurred\n* \\returns `RMW_RET_OK` on successfully running the check, or\n* \\returns `RMW_RET_INVALID_ARGUMENT` on invalid parameters, or\n* \\returns `RMW_RET_ERROR` when an unspecified error occurs.\n*/"]
+    #[doc = " Determine if a given node name is valid.\n**\n* This is an overload with an extra parameter for the length of node_name.\n*\n* \\sa rmw_validate_node_name(const char *, int *, size_t *)\n*\n* \\param[in] node_name node name to be validated\n* \\param[in] node_name_length The number of characters in node_name.\n* \\param[out] validation_result int in which the result of the check is stored\n* \\param[out] invalid_index size_t index of the input string where an error occurred\n* \\returns `RMW_RET_OK` on successfully running the check, or\n* \\returns `RMW_RET_INVALID_ARGUMENT` on invalid parameters, or\n* \\returns `RMW_RET_ERROR` when an unspecified error occurs.\n*/"]
     pub fn rmw_validate_node_name_with_size(
         node_name: *const ::std::os::raw::c_char,
         node_name_length: usize,
@@ -2943,7 +2930,7 @@ unsafe extern "C" {
     ) -> rmw_ret_t;
 }
 unsafe extern "C" {
-    #[doc = " Deterimine if a given topic name is valid.\n**\n* This is an overload with an extra parameter for the length of topic_name.\n*\n* \\sa rmw_validate_full_topic_name(const char *, int *, size_t *)\n*\n* \\param[in] topic_name topic name to be validated\n* \\param[in] topic_name_length The number of characters in topic_name.\n* \\param[out] validation_result int in which the result of the check is stored\n* \\param[out] invalid_index size_t index of the input string where an error occurred\n* \\returns `RMW_RET_OK` on successfully running the check, or\n* \\returns `RMW_RET_INVALID_ARGUMENT` on invalid parameters, or\n* \\returns `RMW_RET_ERROR` when an unspecified error occurs.\n*/"]
+    #[doc = " Determine if a given topic name is valid.\n**\n* This is an overload with an extra parameter for the length of topic_name.\n*\n* \\sa rmw_validate_full_topic_name(const char *, int *, size_t *)\n*\n* \\param[in] topic_name topic name to be validated\n* \\param[in] topic_name_length The number of characters in topic_name.\n* \\param[out] validation_result int in which the result of the check is stored\n* \\param[out] invalid_index size_t index of the input string where an error occurred\n* \\returns `RMW_RET_OK` on successfully running the check, or\n* \\returns `RMW_RET_INVALID_ARGUMENT` on invalid parameters, or\n* \\returns `RMW_RET_ERROR` when an unspecified error occurs.\n*/"]
     pub fn rmw_validate_full_topic_name_with_size(
         topic_name: *const ::std::os::raw::c_char,
         topic_name_length: usize,
@@ -2960,7 +2947,7 @@ unsafe extern "C" {
     ) -> rmw_ret_t;
 }
 unsafe extern "C" {
-    #[doc = " Deterimine if a given namespace is valid.\n**\n* This is an overload with an extra parameter for the length of namespace_.\n* If a non RMW_RET_OK return value is returned, the RMW error message will be set.\n*\n* \\sa rmw_validate_namespace(const char *, int *, size_t *)\n*\n* \\param[in] namespace_ namespace to be validated\n* \\param[in] namespace_length The number of characters in namespace_.\n* \\param[out] validation_result int in which the result of the check is stored\n* \\param[out] invalid_index index of the input string where an error occurred\n* \\returns `RMW_RET_OK` on successfully running the check, or\n* \\returns `RMW_RET_INVALID_ARGUMENT` on invalid parameters, or\n* \\returns `RMW_RET_ERROR` when an unspecified error occurs.\n*/"]
+    #[doc = " Determine if a given namespace is valid.\n**\n* This is an overload with an extra parameter for the length of namespace_.\n* If a non RMW_RET_OK return value is returned, the RMW error message will be set.\n*\n* \\sa rmw_validate_namespace(const char *, int *, size_t *)\n*\n* \\param[in] namespace_ namespace to be validated\n* \\param[in] namespace_length The number of characters in namespace_.\n* \\param[out] validation_result int in which the result of the check is stored\n* \\param[out] invalid_index index of the input string where an error occurred\n* \\returns `RMW_RET_OK` on successfully running the check, or\n* \\returns `RMW_RET_INVALID_ARGUMENT` on invalid parameters, or\n* \\returns `RMW_RET_ERROR` when an unspecified error occurs.\n*/"]
     pub fn rmw_validate_namespace_with_size(
         namespace_: *const ::std::os::raw::c_char,
         namespace_length: usize,

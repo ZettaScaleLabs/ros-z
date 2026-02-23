@@ -70,6 +70,7 @@ mod ffi {
             ts: *const rosidl_service_type_support_t,
         ) -> *const rosidl_message_type_support_t;
 
+        // Type hash support (returns null stub on Humble)
         #[namespace = "serde_bridge"]
         unsafe fn get_service_type_hash(
             ts: *const rosidl_service_type_support_t,

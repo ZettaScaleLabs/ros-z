@@ -130,6 +130,9 @@ pub struct TypeHash {
 }
 
 impl TypeHash {
+    /// Placeholder value for type hash when not supported (ROS 2 Humble)
+    const TYPE_HASH_NOT_SUPPORTED: &'static str = "TypeHashNotSupported";
+
     pub const fn new(version: u8, value: [u8; 32]) -> Self {
         Self { version, value }
     }
@@ -143,7 +146,7 @@ impl TypeHash {
 
     pub fn from_rihs_string(rihs_str: &str) -> Option<Self> {
         // Handle ROS 2 Humble's "not supported" placeholder
-        if rihs_str == "TypeHashNotSupported" {
+        if rihs_str == Self::TYPE_HASH_NOT_SUPPORTED {
             return Some(TypeHash::zero());
         }
 
@@ -174,7 +177,7 @@ impl TypeHash {
         #[cfg(feature = "no-type-hash")]
         {
             // ROS 2 Humble doesn't support type hashing
-            return "TypeHashNotSupported".to_string();
+            Self::TYPE_HASH_NOT_SUPPORTED.to_string()
         }
 
         #[cfg(not(feature = "no-type-hash"))]

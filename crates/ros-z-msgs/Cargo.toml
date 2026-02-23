@@ -31,7 +31,7 @@ anyhow = { workspace = true }
 glob = { workspace = true }
 
 [features]
-default = ["core_msgs", "jazzy"]
+default = ["core_msgs"]
 
 # Core messages - commonly used ROS 2 interfaces
 core_msgs = [
@@ -73,7 +73,7 @@ protobuf = ["prost", "ros-z/protobuf", "ros-z-codegen/protobuf"]
 humble = ["ros-z/humble"]
 jazzy = ["ros-z/jazzy"]
 rolling = ["ros-z/rolling"]
-iron = ["ros-z/iron"]
+kilted = ["ros-z/kilted"]
 python_registry = [
   "pyo3",
   "ros-z-cdr",
