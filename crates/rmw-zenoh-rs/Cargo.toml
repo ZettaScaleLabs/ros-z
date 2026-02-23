@@ -2,10 +2,23 @@
 name = "rmw-zenoh-rs"
 version = "0.1.0"
 edition = "2024"
+description = "ROS 2 RMW (ROS Middleware) implementation using Zenoh - Requires ROS 2 Iron or later"
 
-# NOTE: This crate requires RMW (ROS Middleware) dependencies at build time.
-# To build without ROS, exclude this crate from the workspace build:
-#   cargo build --workspace --exclude rmw-zenoh-rs --exclude ros-z-msgs --exclude ros-z-tests
+# IMPORTANT: This crate requires ROS 2 Iron (2023) or later
+#
+# ROS 2 Humble (2022) is NOT supported due to missing RMW APIs:
+#   - Type introspection/hashing (REP 2011)
+#   - Discovery options (REP 2019)
+#   - FastCDR v2 API
+#
+# Humble users: Use ros-z core library or rmw_zenoh_cpp instead
+# See: https://zettascalelabs.github.io/ros-z/advanced/rmw-zenoh-rs.html
+#
+# Build Requirements:
+#   - ROS 2 Iron, Jazzy, Kilted, or Rolling
+#   - RMW development headers
+#   - To build without ROS:
+#     cargo build --workspace --exclude rmw-zenoh-rs --exclude ros-z-msgs --exclude ros-z-tests
 
 [dependencies]
 tracing = { workspace = true }
