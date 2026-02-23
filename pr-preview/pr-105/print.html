@@ -3862,19 +3862,7 @@ ros-z-console --export graph.json tcp/127.0.0.1:7447 0
 <p>TUI mode requires a terminal that supports ANSI escape codes. Most modern terminals work out of the box.</p>
 </div>
 </div>
-<h4 id="startup"><a class="header" href="#startup">Startup</a></h4>
-<p><img src="chapters/../img/01-startup.gif" alt="ros-z-console connecting to a ROS 2 system and discovering topics and nodes" /></p>
-<h4 id="panel-navigation"><a class="header" href="#panel-navigation">Panel Navigation</a></h4>
-<p>Use <code>Tab</code> / <code>Shift+Tab</code> to switch between Topics, Services, Nodes, and Measure panels.
-Press <code>l</code> / <code>h</code> (or <code>Enter</code> / <code>Esc</code>) to move between the list and detail panes.
-Navigate items with <code>j</code> / <code>k</code> (or arrow keys).</p>
-<p><img src="chapters/../img/02-navigation.gif" alt="Navigating panels and detail panes in ros-z-console" /></p>
-<h4 id="filter-mode"><a class="header" href="#filter-mode">Filter Mode</a></h4>
-<p>Press <code>/</code> to enter filter mode and type to search. Press <code>Ctrl+U</code> to clear, <code>Escape</code> to exit.</p>
-<p><img src="chapters/../img/03-filter.gif" alt="Filter mode with type-ahead search in ros-z-console" /></p>
-<h4 id="help-overlay"><a class="header" href="#help-overlay">Help Overlay</a></h4>
-<p>Press <code>?</code> to toggle the help overlay showing all keybindings.</p>
-<p><img src="chapters/../img/04-help.gif" alt="Help overlay showing all keybindings in ros-z-console" /></p>
+<p>See <a href="chapters/./console-demos.html">TUI Demos</a> for annotated walkthroughs of each workflow.</p>
 <h3 id="headless-mode"><a class="header" href="#headless-mode">Headless Mode</a></h3>
 <p>Headless mode streams events to stdout, making it ideal for:</p>
 <ul>
@@ -4214,6 +4202,52 @@ sqlite3 ros-z-metrics.db "SELECT topic, AVG(msgs_sec) FROM metrics GROUP BY topi
 <p>Both ros-z and rmw_zenoh_cpp use the same Zenoh-based discovery protocol. ros-z-console subscribes to the graph liveliness tokens that rmw_zenoh_cpp nodes publish, enabling seamless interoperability without any configuration changes.</p>
 </div>
 </div>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="ros-z-console-tui-demos"><a class="header" href="#ros-z-console-tui-demos">ros-z-console TUI Demos</a></h1>
+<p>These demos use the classic <code>z_pubsub</code> (talker/listener) and <code>z_srvcli</code> (AddTwoInts server)
+examples as a live ROS 2 system.</p>
+<p><strong>Setup:</strong></p>
+<pre><code class="language-bash"># Terminal 1
+zenohd
+
+# Terminal 2
+ros-z-console tcp/127.0.0.1:7447 0
+</code></pre>
+<hr />
+<h2 id="startup"><a class="header" href="#startup">Startup</a></h2>
+<p>ros-z-console connects to the Zenoh router and discovers all live entities in the graph.</p>
+<p><img src="chapters/../img/01-startup.gif" alt="ros-z-console connecting to a ROS 2 system and discovering topics and nodes" /></p>
+<hr />
+<h2 id="topics-panel"><a class="header" href="#topics-panel">Topics Panel</a></h2>
+<p>The Topics panel (default) lists all active ROS 2 topics with their type and publisher/subscriber counts.
+Navigate with <code>j</code> / <code>k</code> (or arrow keys). Press <code>l</code> or <code>Enter</code> to open the detail pane.</p>
+<p><img src="chapters/../img/02-navigation.gif" alt="Browsing the topics list in ros-z-console" /></p>
+<hr />
+<h2 id="topic-detail"><a class="header" href="#topic-detail">Topic Detail</a></h2>
+<p>Select a topic and press <code>l</code> or <code>Enter</code> to view publishers, subscribers, type hash, and QoS profiles.</p>
+<p><img src="chapters/../img/05-topic-detail.gif" alt="Topic detail view showing publishers, subscribers and QoS" /></p>
+<hr />
+<h2 id="services-panel"><a class="header" href="#services-panel">Services Panel</a></h2>
+<p>Press <code>2</code> (or <code>Tab</code>) to switch to the Services panel. Lists all active ROS 2 services with their type.</p>
+<p><img src="chapters/../img/06-services.gif" alt="Services panel listing active ROS 2 services" /></p>
+<hr />
+<h2 id="nodes-panel"><a class="header" href="#nodes-panel">Nodes Panel</a></h2>
+<p>Press <code>3</code> to switch to the Nodes panel. Lists all active nodes. Select a node and press <code>l</code> or <code>Enter</code>
+to see its publishers, subscribers, and services.</p>
+<p><img src="chapters/../img/07-nodes.gif" alt="Nodes panel with per-node topic and service associations" /></p>
+<hr />
+<h2 id="rate-measurement"><a class="header" href="#rate-measurement">Rate Measurement</a></h2>
+<p>Press <code>r</code> on a selected topic for a quick rate check (cached 30s). Switch to the Measure panel
+(<code>4</code> or <code>m</code>) for a continuous measurement with a 60-second time-series chart.</p>
+<p><img src="chapters/../img/08-measurement.gif" alt="Rate measurement and time-series chart in ros-z-console" /></p>
+<hr />
+<h2 id="filter-mode"><a class="header" href="#filter-mode">Filter Mode</a></h2>
+<p>Press <code>/</code> to enter filter mode and start typing. The list narrows to matching items in real time.
+Press <code>Ctrl+U</code> to clear, <code>Escape</code> to exit filter mode.</p>
+<p><img src="chapters/../img/03-filter.gif" alt="Filter mode with type-ahead search in ros-z-console" /></p>
+<hr />
+<h2 id="help-overlay"><a class="header" href="#help-overlay">Help Overlay</a></h2>
+<p>Press <code>?</code> to toggle the help overlay showing all keybindings.</p>
+<p><img src="chapters/../img/04-help.gif" alt="Help overlay showing all keybindings in ros-z-console" /></p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="shared-memory-shm"><a class="header" href="#shared-memory-shm">Shared Memory (SHM)</a></h1>
 <p>Shared Memory (SHM) enables zero-copy publishing of large messages by serializing directly into shared memory buffers, eliminating the need to copy data between processes.</p>
 <h2 id="overview"><a class="header" href="#overview">Overview</a></h2>

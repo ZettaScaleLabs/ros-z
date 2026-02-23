@@ -316,19 +316,7 @@ ros-z-console --export graph.json tcp/127.0.0.1:7447 0
 <p>TUI mode requires a terminal that supports ANSI escape codes. Most modern terminals work out of the box.</p>
 </div>
 </div>
-<h4 id="startup"><a class="header" href="#startup">Startup</a></h4>
-<p><img src="../img/01-startup.gif" alt="ros-z-console connecting to a ROS 2 system and discovering topics and nodes" /></p>
-<h4 id="panel-navigation"><a class="header" href="#panel-navigation">Panel Navigation</a></h4>
-<p>Use <code>Tab</code> / <code>Shift+Tab</code> to switch between Topics, Services, Nodes, and Measure panels.
-Press <code>l</code> / <code>h</code> (or <code>Enter</code> / <code>Esc</code>) to move between the list and detail panes.
-Navigate items with <code>j</code> / <code>k</code> (or arrow keys).</p>
-<p><img src="../img/02-navigation.gif" alt="Navigating panels and detail panes in ros-z-console" /></p>
-<h4 id="filter-mode"><a class="header" href="#filter-mode">Filter Mode</a></h4>
-<p>Press <code>/</code> to enter filter mode and type to search. Press <code>Ctrl+U</code> to clear, <code>Escape</code> to exit.</p>
-<p><img src="../img/03-filter.gif" alt="Filter mode with type-ahead search in ros-z-console" /></p>
-<h4 id="help-overlay"><a class="header" href="#help-overlay">Help Overlay</a></h4>
-<p>Press <code>?</code> to toggle the help overlay showing all keybindings.</p>
-<p><img src="../img/04-help.gif" alt="Help overlay showing all keybindings in ros-z-console" /></p>
+<p>See <a href="./console-demos.html">TUI Demos</a> for annotated walkthroughs of each workflow.</p>
 <h3 id="headless-mode"><a class="header" href="#headless-mode">Headless Mode</a></h3>
 <p>Headless mode streams events to stdout, making it ideal for:</p>
 <ul>
@@ -677,7 +665,7 @@ sqlite3 ros-z-metrics.db "SELECT topic, AVG(msgs_sec) FROM metrics GROUP BY topi
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next prefetch" href="../chapters/shm.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../chapters/console-demos.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -691,7 +679,7 @@ sqlite3 ros-z-metrics.db "SELECT topic, AVG(msgs_sec) FROM metrics GROUP BY topi
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next prefetch" href="../chapters/shm.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../chapters/console-demos.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>
