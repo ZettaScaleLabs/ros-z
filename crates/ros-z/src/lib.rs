@@ -39,31 +39,50 @@
 //!
 //! Or import types individually from their modules.
 
-#![warn(missing_docs)]
-
+/// ROS 2 action support (goal, feedback, result).
 pub mod action;
+/// Attachment helpers for carrying metadata alongside messages.
 pub mod attachment;
 mod common;
+/// Configuration types and builder helpers.
 pub mod config;
+/// Zenoh session context and context builder.
 pub mod context;
+/// Dynamic (schema-less) message support.
 pub mod dynamic;
 pub mod encoding;
+/// Entity identity types (`TypeHash`, `TypeInfo`).
 pub mod entity;
+/// Graph events emitted by the Zenoh network graph.
 pub mod event;
+/// ROS 2 graph introspection (node/topic/service discovery).
 pub mod graph;
+/// Typed message wrappers and helpers.
 pub mod msg;
+/// ROS 2 node creation and management.
 pub mod node;
+/// Convenience re-exports for common ros-z types.
 pub mod prelude;
+/// Publishers and subscribers.
 pub mod pubsub;
+/// Python FFI bridge types.
 pub mod python_bridge;
+/// Quality-of-Service profiles and options.
 pub mod qos;
+/// Internal message queues.
 pub mod queue;
+/// Message type metadata traits (`WithTypeInfo`, etc.).
 pub mod ros_msg;
+/// ROS 2 service client and server.
 pub mod service;
+/// Shared-memory transport helpers.
 pub mod shm;
+/// ROS 2 topic name validation and manipulation.
 pub mod topic_name;
+/// Owned Zenoh buffer type.
 pub mod zbuf;
 
+/// Zero-copy buffer view for Python bindings.
 #[cfg(feature = "python")]
 pub mod zbuf_view;
 

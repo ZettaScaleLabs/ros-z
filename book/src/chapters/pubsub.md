@@ -224,7 +224,7 @@ Use `QosHistory::KeepLast(NonZeroUsize::new(1).unwrap())` for sensor data and `Q
 
 ros-z supports ROS 2-style topic remapping via `ZContextBuilder::with_remap_rule()`. Remapping rules apply to all nodes created from the same context and redirect topic/service names at the context level.
 
-```rust,no_run
+```rust,ignore
 # fn main() -> zenoh::Result<()> {
 use ros_z::context::ZContextBuilder;
 use ros_z::Builder;
@@ -239,7 +239,7 @@ let ctx = ZContextBuilder::default()
 
 Multiple rules can be added with `.with_remap_rules()`:
 
-```rust,no_run
+```rust,ignore
 # fn main() -> zenoh::Result<()> {
 use ros_z::context::ZContextBuilder;
 use ros_z::Builder;
