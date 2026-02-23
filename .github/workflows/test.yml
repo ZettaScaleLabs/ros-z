@@ -49,6 +49,13 @@ jobs:
     container:
       image: ${{ matrix.image }}
     steps:
+      - name: Cache apt packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-${{ matrix.distro }}-${{ hashFiles('.github/workflows/test.yml') }}
+          restore-keys: apt-${{ matrix.distro }}-
+
       - name: Install system dependencies
         run: apt-get update && apt-get install -y nodejs
 
