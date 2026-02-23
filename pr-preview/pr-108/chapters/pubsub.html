@@ -494,7 +494,7 @@ let subscriber = node
 </div>
 <h2 id="name-remapping"><a class="header" href="#name-remapping">Name Remapping</a></h2>
 <p>ros-z supports ROS 2-style topic remapping via <code>ZContextBuilder::with_remap_rule()</code>. Remapping rules apply to all nodes created from the same context and redirect topic/service names at the context level.</p>
-<pre><pre class="playground"><code class="language-rust no_run edition2021"><span class="boring">fn main() -&gt; zenoh::Result&lt;()&gt; {
+<pre><code class="language-rust ignore"><span class="boring">fn main() -&gt; zenoh::Result&lt;()&gt; {
 </span>use ros_z::context::ZContextBuilder;
 use ros_z::Builder;
 
@@ -503,9 +503,9 @@ let ctx = ZContextBuilder::default()
     .with_remap_rule("__node:=renamed_node")?   // rename the node
     .build()?;
 <span class="boring">Ok(())
-</span><span class="boring">}</span></code></pre></pre>
+</span><span class="boring">}</span></code></pre>
 <p>Multiple rules can be added with <code>.with_remap_rules()</code>:</p>
-<pre><pre class="playground"><code class="language-rust no_run edition2021"><span class="boring">fn main() -&gt; zenoh::Result&lt;()&gt; {
+<pre><code class="language-rust ignore"><span class="boring">fn main() -&gt; zenoh::Result&lt;()&gt; {
 </span>use ros_z::context::ZContextBuilder;
 use ros_z::Builder;
 
@@ -513,7 +513,7 @@ let ctx = ZContextBuilder::default()
     .with_remap_rules(["/input:=/sensor/data", "/output:=/processed/data"])?
     .build()?;
 <span class="boring">Ok(())
-</span><span class="boring">}</span></code></pre></pre>
+</span><span class="boring">}</span></code></pre>
 <p>The rule format follows the ROS 2 convention: <code>from:=to</code>.</p>
 <h2 id="ros-2-interoperability"><a class="header" href="#ros-2-interoperability">ROS 2 Interoperability</a></h2>
 <p>ros-z publishers and subscribers interoperate with ROS 2 C++ and Python nodes when both sides share the same Zenoh transport:</p>
