@@ -160,6 +160,7 @@ jobs:
       id-token: write
       contents: read
     strategy:
+      fail-fast: false
       matrix:
         distro: [humble, jazzy, kilted]
     # Skip for draft PRs to save CI time during development
@@ -264,6 +265,7 @@ jobs:
       id-token: write
       contents: read
     strategy:
+      fail-fast: false
       matrix:
         distro: [humble, jazzy, kilted]
     # Skip for draft PRs to save CI time during development
