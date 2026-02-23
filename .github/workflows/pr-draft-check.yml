@@ -50,7 +50,7 @@ jobs:
             const reviews = await github.rest.pulls.listReviews({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_request_number: prNumber
+              pull_number: prNumber
             });
 
             const maintainerReviews = reviews.data.filter(review => {
