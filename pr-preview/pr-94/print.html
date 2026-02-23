@@ -5629,6 +5629,61 @@ pub.publish(twist)
 <h3 id="custom-namespace"><a class="header" href="#custom-namespace">Custom Namespace</a></h3>
 <pre><code class="language-python">node = ctx.create_node("my_node").with_namespace("/robot1").build()
 </code></pre>
+<h2 id="performance-zero-copy-large-payloads"><a class="header" href="#performance-zero-copy-large-payloads">Performance: Zero-Copy Large Payloads</a></h2>
+<p>When working with large byte arrays (sensor data, images, point clouds), ros-z-py minimizes memory copies using a zero-copy optimization for <code>uint8[]</code> and <code>byte[]</code> fields.</p>
+<h3 id="zbufview"><a class="header" href="#zbufview">ZBufView</a></h3>
+<p>When a subscriber receives a message, byte array fields are exposed as a <code>ZBufView</code> — a zero-copy view into the received network buffer. <code>ZBufView</code> implements Python's buffer protocol:</p>
+<pre><code class="language-python">msg = sub.recv(timeout=1.0)
+# msg.data is a ZBufView — no copy has occurred
+
+# Zero-copy access via buffer protocol
+mv = memoryview(msg.data)
+header = mv[:8]  # Slice without copying the entire payload
+
+# Only copies when explicitly converted
+data = bytes(msg.data)
+</code></pre>
+<h3 id="echo-without-copying"><a class="header" href="#echo-without-copying">Echo Without Copying</a></h3>
+<p>For relay and echo patterns, pass <code>ZBufView</code> fields directly to a new message. The derive macro detects <code>ZBufView</code> and extracts the inner buffer via reference counting — no data copy occurs:</p>
+<pre><code class="language-python"># Receive and re-publish — zero-copy for byte array fields
+msg = sub.recv(timeout=1.0)
+echo = std_msgs.ByteMultiArray(data=msg.data)  # No copy!
+pub.publish(echo)
+</code></pre>
+<h3 id="zbufview-api"><a class="header" href="#zbufview-api">ZBufView API</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>len(view)</code></td><td>Number of bytes</td></tr>
+<tr><td><code>bool(view)</code></td><td>True if not empty</td></tr>
+<tr><td><code>view[i]</code></td><td>Single byte access</td></tr>
+<tr><td><code>view[start:stop]</code></td><td>Slice (returns <code>bytes</code>)</td></tr>
+<tr><td><code>memoryview(view)</code></td><td>Zero-copy buffer protocol access</td></tr>
+<tr><td><code>bytes(view)</code></td><td>Convert to <code>bytes</code> (copies)</td></tr>
+<tr><td><code>view.is_zero_copy</code></td><td>Whether the view avoids internal copying</td></tr>
+</tbody></table>
+</div><div id="admonition-tip-2" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-2-title">
+<div class="admonition-title">
+<div id="admonition-tip-2-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/python.html#admonition-tip-2"></a>
+</div>
+<div>
+<p>For best performance with large payloads, avoid calling <code>bytes()</code> on <code>ZBufView</code> fields. Use <code>memoryview()</code> for read access, or pass the <code>ZBufView</code> directly when re-publishing.</p>
+</div>
+</div>
+<h3 id="how-it-works-2"><a class="header" href="#how-it-works-2">How It Works</a></h3>
+<p>The optimization operates at three layers:</p>
+<ol>
+<li>
+<p><strong>Deserialization bypass</strong>: When the Python subscriber receives a message, the raw network buffer (ZBuf) is stored in a thread-local. During CDR deserialization, byte array fields create sub-views into this buffer instead of copying (<code>ZSlice::subslice()</code>).</p>
+</li>
+<li>
+<p><strong>Buffer protocol</strong>: <code>ZBufView</code> wraps the ZBuf and exposes its bytes to Python via <code>__getbuffer__</code>/<code>__releasebuffer__</code>. For contiguous buffers (the common case), this is a direct pointer — no copy at all.</p>
+</li>
+<li>
+<p><strong>Pass-through re-publish</strong>: The <code>FromPyMessage</code> derive macro recognizes <code>ZBufView</code> inputs and extracts the inner ZBuf via <code>clone()</code>, which only increments a reference count on the underlying memory.</p>
+</li>
+</ol>
 <h2 id="ros-2-interoperability-2"><a class="header" href="#ros-2-interoperability-2">ROS 2 Interoperability</a></h2>
 <p>Python nodes work seamlessly with Rust and ROS 2 nodes:</p>
 <pre><code class="language-bash"># Terminal 1: Start Zenoh router
@@ -5818,6 +5873,32 @@ pub struct Twist {
     pub linear: Vector3,
     pub angular: Vector3,
 }</code></pre>
+<h3 id="derive-macros-zero-copy-byte-array-handling"><a class="header" href="#derive-macros-zero-copy-byte-array-handling">Derive Macros: Zero-Copy Byte Array Handling</a></h3>
+<p>Fields annotated with <code>#[ros_msg(zbuf)]</code> (applied automatically by the code generator for <code>uint8[]</code>/<code>byte[]</code> fields) get special treatment in the derive macros:</p>
+<p><strong><code>FromPyMessage</code></strong> (Python → Rust) tries three paths in order:</p>
+<ol>
+<li><strong>ZBufView</strong> — extracts the inner <code>ZBuf</code> via <code>clone()</code> (reference-counted, zero-copy)</li>
+<li><strong><code>bytes</code>/<code>bytearray</code></strong> — copies into a new <code>ZBuf</code></li>
+<li><strong><code>list[int]</code></strong> — fallback extraction</li>
+</ol>
+<pre><code class="language-rust ignore">// Generated by FromPyMessage derive macro for #[ros_msg(zbuf)] fields
+let py_attr = obj.getattr("data")?;
+if let Ok(view) = py_attr.downcast::&lt;ZBufView&gt;() {
+    view.borrow().zbuf().clone()     // Arc clone — no data copy
+} else if let Ok(bytes) = py_attr.downcast::&lt;PyBytes&gt;() {
+    ZBuf::from(bytes.as_bytes().to_vec())
+} else if let Ok(bytearray) = py_attr.downcast::&lt;PyByteArray&gt;() {
+    ZBuf::from(unsafe { bytearray.as_bytes() }.to_vec())
+} else {
+    let bytes: Vec&lt;u8&gt; = py_attr.extract()?;
+    ZBuf::from(bytes)
+}</code></pre>
+<p><strong><code>IntoPyMessage</code></strong> (Rust → Python) creates a <code>ZBufView</code> instead of copying into <code>PyBytes</code>:</p>
+<pre><code class="language-rust ignore">// Generated by IntoPyMessage derive macro for #[ros_msg(zbuf)] fields
+let zbuf_view = ZBufView::new(self.data.clone());
+let py_view = Py::new(py, zbuf_view)?;
+kwargs.set_item("data", py_view)?;</code></pre>
+<p>This means a received message's byte array fields can be passed directly to a new message for re-publishing without any data copy.</p>
 <h3 id="rust-pyo3-serializedeserialize-functions"><a class="header" href="#rust-pyo3-serializedeserialize-functions">Rust: PyO3 Serialize/Deserialize Functions</a></h3>
 <p>The serialize/deserialize functions use the derive macro traits:</p>
 <pre><code class="language-rust ignore">// Generated serialize function - uses FromPyMessage trait
@@ -5877,8 +5958,11 @@ pub fn deserialize_string(py: Python, bytes: &amp;[u8]) -&gt; PyResult&lt;PyObje
     participant App as Python App
 
     Net-&gt;&gt;CDR: Receive bytes
+    Note over CDR: Store ZBuf in thread-local&lt;br/&gt;for zero-copy deser
     CDR-&gt;&gt;Rust: cdr::deserialize()
+    Note over CDR,Rust: byte[] fields → ZSlice sub-view&lt;br/&gt;(zero-copy)
     Rust-&gt;&gt;PyO3: Build PyDict kwargs
+    Note over PyO3: byte[] → ZBufView&lt;br/&gt;(buffer protocol)
     PyO3-&gt;&gt;Msg: Call class(**kwargs)
     Msg-&gt;&gt;App: Return message
 </pre>
@@ -5891,7 +5975,7 @@ pub fn deserialize_string(py: Python, bytes: &amp;[u8]) -&gt; PyResult&lt;PyObje
 <tr><td><code>string</code></td><td><code>str</code></td><td></td></tr>
 <tr><td><code>T[]</code> (unbounded array)</td><td><code>list[T]</code></td><td></td></tr>
 <tr><td><code>T[N]</code> (fixed array)</td><td><code>list[T]</code></td><td>Size not enforced in Python</td></tr>
-<tr><td><code>uint8[]</code> / <code>byte[]</code></td><td><code>list[int]</code></td><td>Could optimize to <code>bytes</code></td></tr>
+<tr><td><code>uint8[]</code> / <code>byte[]</code></td><td><code>ZBufView</code></td><td>Zero-copy buffer protocol (on receive); accepts <code>bytes</code>, <code>bytearray</code>, or <code>ZBufView</code> on publish</td></tr>
 <tr><td>Nested message</td><td><code>"pkg.MsgName | None"</code></td><td>Forward reference string</td></tr>
 </tbody></table>
 </div>
@@ -5914,7 +5998,7 @@ pub fn deserialize_string(py: Python, bytes: &amp;[u8]) -&gt; PyResult&lt;PyObje
 <li>Type-safe Python classes with IDE support</li>
 <li>Immutable messages (<code>frozen=True</code>)</li>
 <li>Automatic type hash validation</li>
-<li>Zero-copy where possible (ZBuf for byte arrays)</li>
+<li>Zero-copy byte array handling: <code>ZBufView</code> exposes received data via buffer protocol without copying; <code>FromPyMessage</code> detects <code>ZBufView</code> inputs and extracts the inner buffer via reference counting</li>
 <li><strong>Derive macros handle arbitrary nesting depth automatically</strong></li>
 <li><strong>None handling for optional nested fields</strong></li>
 <li><strong>Minimal generated code (traits do the work)</strong></li>
