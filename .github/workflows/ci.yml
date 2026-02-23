@@ -85,14 +85,6 @@ jobs:
         if: runner.os == 'Linux'
         uses: DeterminateSystems/flakehub-cache-action@main
 
-      - name: Cache nix environment (Linux)
-        if: runner.os == 'Linux'
-        id: nix-env-cache
-        uses: actions/cache@v4
-        with:
-          path: /tmp/nix-dev-env.sh
-          key: nix-pureRust-${{ hashFiles('flake.nix', 'flake.lock') }}
-
       - name: Install Nushell (Linux via Nix)
         if: runner.os == 'Linux'
         run: |
@@ -100,7 +92,7 @@ jobs:
           chmod +x scripts/test-pure-rust.nu
 
       - name: Setup nix environment (Linux)
-        if: runner.os == 'Linux' && steps.nix-env-cache.outputs.cache-hit != 'true'
+        if: runner.os == 'Linux'
         run: |
           nix print-dev-env '.#pureRust-ci' --accept-flake-config > /tmp/nix-dev-env.sh
           echo "export CI=true" >> /tmp/nix-dev-env.sh
@@ -200,20 +192,12 @@ jobs:
       - name: FlakeHub cache
         uses: DeterminateSystems/flakehub-cache-action@main
 
-      - name: Cache nix environment
-        id: nix-env-cache
-        uses: actions/cache@v4
-        with:
-          path: /tmp/nix-dev-env.sh
-          key: nix-${{ matrix.distro }}-python-${{ hashFiles('flake.nix', 'flake.lock') }}
-
       - name: Install Nushell
         run: |
           nix profile install nixpkgs#nushell
           chmod +x scripts/test-python.nu
 
       - name: Setup nix environment
-        if: steps.nix-env-cache.outputs.cache-hit != 'true'
         run: |
           nix print-dev-env '.#ros-${{ matrix.distro }}-ci' --accept-flake-config > /tmp/nix-dev-env.sh
           echo "export CI=true" >> /tmp/nix-dev-env.sh
@@ -308,20 +292,12 @@ jobs:
       - name: FlakeHub cache
         uses: DeterminateSystems/flakehub-cache-action@main
 
-      - name: Cache nix environment
-        id: nix-env-cache
-        uses: actions/cache@v4
-        with:
-          path: /tmp/nix-dev-env.sh
-          key: nix-${{ matrix.distro }}-ros-${{ hashFiles('flake.nix', 'flake.lock') }}
-
       - name: Install Nushell
         run: |
           nix profile install nixpkgs#nushell
           chmod +x scripts/test-ros.nu
 
       - name: Setup nix environment
-        if: steps.nix-env-cache.outputs.cache-hit != 'true'
         run: |
           nix print-dev-env '.#ros-${{ matrix.distro }}-ci' \
             --accept-flake-config > /tmp/nix-dev-env.sh
