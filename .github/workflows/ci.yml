@@ -24,6 +24,10 @@ on:
       - '.github/workflows/semantic-pr.yml'
       - '.github/workflows/pr-draft-check.yml'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   formatting:
     name: Check Formatting
@@ -38,6 +42,9 @@ jobs:
 
       - name: Install Determinate Nix
         uses: DeterminateSystems/determinate-nix-action@v3
+
+      - name: Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v9
 
       - name: Check formatting
         run: nix build .#checks.x86_64-linux.pre-commit-check -L
@@ -74,6 +81,10 @@ jobs:
         if: runner.os == 'Linux'
         uses: DeterminateSystems/determinate-nix-action@v3
 
+      - name: Magic Nix Cache (Linux)
+        if: runner.os == 'Linux'
+        uses: DeterminateSystems/magic-nix-cache-action@v9
+
       - name: Install Nushell (Linux via Nix)
         if: runner.os == 'Linux'
         run: |
@@ -98,8 +109,13 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install nushell protobuf
-          cargo install cargo-nextest --locked
           chmod +x scripts/test-pure-rust.nu
+
+      - name: Install cargo-nextest (macOS)
+        if: runner.os == 'macOS'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
 
       # Common setup
       - name: Setup Rust cache
@@ -145,7 +161,7 @@ jobs:
       contents: read
     strategy:
       matrix:
-        distro: [humble, jazzy]
+        distro: [humble, jazzy, kilted]
     # Skip for draft PRs to save CI time during development
     if: |
       github.event_name == 'push' ||
@@ -161,6 +177,9 @@ jobs:
           extra-conf: |
             extra-substituters = https://ros.cachix.org
             extra-trusted-public-keys = ros.cachix.org-1:dSyZxI8geDCJrwgvCOHDoAfOm5sV1wCPjBkKL+38Rvo=
+
+      - name: Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v9
 
       - name: Setup Cachix
         uses: cachix/cachix-action@v15
@@ -235,11 +254,14 @@ jobs:
           nu scripts/test-python.nu --distro ${{ matrix.distro }} cleanup-python
 
   ros-tests:
-    name: ROS Tests (clippy-rmw, interop) (jazzy)
+    name: ROS Tests (clippy-rmw, interop) (${{ matrix.distro }})
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
+    strategy:
+      matrix:
+        distro: [humble, jazzy, kilted]
     # Skip for draft PRs to save CI time during development
     if: |
       github.event_name == 'push' ||
@@ -256,6 +278,9 @@ jobs:
             extra-substituters = https://ros.cachix.org
             extra-trusted-public-keys = ros.cachix.org-1:dSyZxI8geDCJrwgvCOHDoAfOm5sV1wCPjBkKL+38Rvo=
 
+      - name: Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v9
+
       - name: Setup Cachix
         uses: cachix/cachix-action@v15
         with:
@@ -270,16 +295,16 @@ jobs:
 
       - name: Setup nix environment
         run: |
-          nix print-dev-env '.#ros-jazzy-ci' \
+          nix print-dev-env '.#ros-${{ matrix.distro }}-ci' \
             --accept-flake-config > /tmp/nix-dev-env.sh
           echo "export CI=true" >> /tmp/nix-dev-env.sh
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: jazzy-ros
+          shared-key: ${{ matrix.distro }}-ros
 
       - name: Run ROS tests
         run: |
           source /tmp/nix-dev-env.sh
-          nu scripts/test-ros.nu --distro jazzy
+          nu scripts/test-ros.nu --distro ${{ matrix.distro }}

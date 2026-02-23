@@ -24,6 +24,10 @@ on:
       - '.github/workflows/semantic-pr.yml'
       - '.github/workflows/pr-draft-check.yml'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   interop_test:
     name: Interop tests with ROS 2 ${{ matrix.distro }}
@@ -34,12 +38,14 @@ jobs:
       github.event.pull_request.draft == false
     strategy:
       matrix:
-        distro: [humble, jazzy]
+        distro: [humble, jazzy, kilted]
         include:
           - distro: humble
             image: rostooling/setup-ros-docker:ubuntu-jammy-ros-humble-ros-base-latest
           - distro: jazzy
             image: rostooling/setup-ros-docker:ubuntu-noble-ros-jazzy-ros-base-latest
+          - distro: kilted
+            image: rostooling/setup-ros-docker:ubuntu-noble-ros-kilted-ros-base-latest
     container:
       image: ${{ matrix.image }}
     steps:
@@ -55,9 +61,25 @@ jobs:
             ros-${{ matrix.distro }}-action-tutorials-cpp \
             protobuf-compiler
 
+      - name: Fix broken rmw_zenoh_cpp config for Kilted
+        if: matrix.distro == 'kilted'
+        run: |
+          # WORKAROUND: ros-kilted-rmw-zenoh-cpp 0.6.6 has invalid transport_optimization field
+          # The rostooling image has 0.6.2, but apt-get install upgrades to 0.6.6
+          CONFIG_FILE="/opt/ros/kilted/share/rmw_zenoh_cpp/config/DEFAULT_RMW_ZENOH_SESSION_CONFIG.json5"
+          if grep -q "transport_optimization" "$CONFIG_FILE" 2>/dev/null; then
+            sed -i '/transport_optimization:/,/},$/d' "$CONFIG_FILE"
+            echo "Fixed rmw_zenoh_cpp config by removing invalid transport_optimization section"
+          fi
+
       - uses: actions/checkout@v4
 
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ${{ matrix.distro }}-interop
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@v2
