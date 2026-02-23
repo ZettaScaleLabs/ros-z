@@ -2,7 +2,7 @@
 
 # Demo video generator for ros-z-console TUI
 #
-# Usage: nu demos/generate.nu
+# Usage: nu scripts/demos/generate.nu
 #
 # Builds binaries, starts Zenoh router + publisher for realistic data,
 # runs VHS on each tape, then cleans up background processes.
@@ -33,7 +33,7 @@ def main [] {
     print "Building z_pubsub example..."
     cargo build --example z_pubsub
 
-    mkdir demos/results
+    mkdir scripts/demos/results
     mkdir _tmp
 
     # --- Start background processes ---
@@ -56,7 +56,7 @@ def main [] {
     print $"zenohd PID: ($zenohd_pid)  z_pubsub PID: ($pubsub_pid)"
 
     # --- Run tapes ---
-    let all_tapes = (ls demos/tapes/*.tape | get name | sort)
+    let all_tapes = (ls scripts/demos/tapes/*.tape | get name | sort)
 
     # 00-warmup.tape runs first to prime chromium/ttyd (cold-start latency absorber)
     # Retry until chromium is ready (can take several attempts on cold start)
@@ -116,6 +116,6 @@ def main [] {
     # --- Summary ---
     print $"\n=== Demo generation complete ==="
     print $"Passed: ($passed) / ($passed + $failed)"
-    print $"Output: demos/results/"
-    ls demos/results/ | select name size | print
+    print $"Output: scripts/demos/results/"
+    ls scripts/demos/results/ | select name size | print
 }

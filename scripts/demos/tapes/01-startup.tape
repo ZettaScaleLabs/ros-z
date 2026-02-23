@@ -1,7 +1,7 @@
 # VHS Tape: Startup
 # Shows ros-z-console connecting to a Zenoh router and discovering topics/nodes
 
-Output demos/results/01-startup.gif
+Output scripts/demos/results/01-startup.gif
 Set FontSize 14
 Set Width 1200
 Set Height 800
@@ -14,11 +14,11 @@ Enter
 
 # Wait for initial discovery
 Sleep 3s
-Screenshot demos/results/01-startup-connected.png
+Screenshot scripts/demos/results/01-startup-connected.png
 
 # Wait another cycle to show live updates
 Sleep 3s
-Screenshot demos/results/01-startup-populated.png
+Screenshot scripts/demos/results/01-startup-populated.png
 
 # Quit
 Type "q"

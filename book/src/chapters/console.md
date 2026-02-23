@@ -139,7 +139,7 @@ TUI mode requires a terminal that supports ANSI escape codes. Most modern termin
 
 #### Startup
 
-![ros-z-console connecting to a ROS 2 system and discovering topics and nodes](../demos/01-startup.gif)
+![ros-z-console connecting to a ROS 2 system and discovering topics and nodes](../img/01-startup.gif)
 
 #### Panel Navigation
 
@@ -147,19 +147,19 @@ Use `Tab` / `Shift+Tab` to switch between Topics, Services, Nodes, and Measure p
 Press `l` / `h` (or `Enter` / `Esc`) to move between the list and detail panes.
 Navigate items with `j` / `k` (or arrow keys).
 
-![Navigating panels and detail panes in ros-z-console](../demos/02-navigation.gif)
+![Navigating panels and detail panes in ros-z-console](../img/02-navigation.gif)
 
 #### Filter Mode
 
 Press `/` to enter filter mode and type to search. Press `Ctrl+U` to clear, `Escape` to exit.
 
-![Filter mode with type-ahead search in ros-z-console](../demos/03-filter.gif)
+![Filter mode with type-ahead search in ros-z-console](../img/03-filter.gif)
 
 #### Help Overlay
 
 Press `?` to toggle the help overlay showing all keybindings.
 
-![Help overlay showing all keybindings in ros-z-console](../demos/04-help.gif)
+![Help overlay showing all keybindings in ros-z-console](../img/04-help.gif)
 
 ### Headless Mode
 

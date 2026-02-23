@@ -192,6 +192,8 @@
           rust-analyzer
           nixfmt-rfc-style
           gdb
+          vhs # Terminal recording (demo videos)
+          ttyd # Required by vhs for Set Shell tapes
         ];
 
         # Python tools (ros-z-py bindings)
