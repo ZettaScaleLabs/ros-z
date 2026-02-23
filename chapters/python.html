@@ -383,6 +383,61 @@ pub.publish(twist)
 <h3 id="custom-namespace"><a class="header" href="#custom-namespace">Custom Namespace</a></h3>
 <pre><code class="language-python">node = ctx.create_node("my_node").with_namespace("/robot1").build()
 </code></pre>
+<h2 id="performance-zero-copy-large-payloads"><a class="header" href="#performance-zero-copy-large-payloads">Performance: Zero-Copy Large Payloads</a></h2>
+<p>When working with large byte arrays (sensor data, images, point clouds), ros-z-py minimizes memory copies using a zero-copy optimization for <code>uint8[]</code> and <code>byte[]</code> fields.</p>
+<h3 id="zbufview"><a class="header" href="#zbufview">ZBufView</a></h3>
+<p>When a subscriber receives a message, byte array fields are exposed as a <code>ZBufView</code> — a zero-copy view into the received network buffer. <code>ZBufView</code> implements Python's buffer protocol:</p>
+<pre><code class="language-python">msg = sub.recv(timeout=1.0)
+# msg.data is a ZBufView — no copy has occurred
+
+# Zero-copy access via buffer protocol
+mv = memoryview(msg.data)
+header = mv[:8]  # Slice without copying the entire payload
+
+# Only copies when explicitly converted
+data = bytes(msg.data)
+</code></pre>
+<h3 id="echo-without-copying"><a class="header" href="#echo-without-copying">Echo Without Copying</a></h3>
+<p>For relay and echo patterns, pass <code>ZBufView</code> fields directly to a new message. The derive macro detects <code>ZBufView</code> and extracts the inner buffer via reference counting — no data copy occurs:</p>
+<pre><code class="language-python"># Receive and re-publish — zero-copy for byte array fields
+msg = sub.recv(timeout=1.0)
+echo = std_msgs.ByteMultiArray(data=msg.data)  # No copy!
+pub.publish(echo)
+</code></pre>
+<h3 id="zbufview-api"><a class="header" href="#zbufview-api">ZBufView API</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>len(view)</code></td><td>Number of bytes</td></tr>
+<tr><td><code>bool(view)</code></td><td>True if not empty</td></tr>
+<tr><td><code>view[i]</code></td><td>Single byte access</td></tr>
+<tr><td><code>view[start:stop]</code></td><td>Slice (returns <code>bytes</code>)</td></tr>
+<tr><td><code>memoryview(view)</code></td><td>Zero-copy buffer protocol access</td></tr>
+<tr><td><code>bytes(view)</code></td><td>Convert to <code>bytes</code> (copies)</td></tr>
+<tr><td><code>view.is_zero_copy</code></td><td>Whether the view avoids internal copying</td></tr>
+</tbody></table>
+</div><div id="admonition-tip-2" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-2-title">
+<div class="admonition-title">
+<div id="admonition-tip-2-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-tip-2"></a>
+</div>
+<div>
+<p>For best performance with large payloads, avoid calling <code>bytes()</code> on <code>ZBufView</code> fields. Use <code>memoryview()</code> for read access, or pass the <code>ZBufView</code> directly when re-publishing.</p>
+</div>
+</div>
+<h3 id="how-it-works"><a class="header" href="#how-it-works">How It Works</a></h3>
+<p>The optimization operates at three layers:</p>
+<ol>
+<li>
+<p><strong>Deserialization bypass</strong>: When the Python subscriber receives a message, the raw network buffer (ZBuf) is stored in a thread-local. During CDR deserialization, byte array fields create sub-views into this buffer instead of copying (<code>ZSlice::subslice()</code>).</p>
+</li>
+<li>
+<p><strong>Buffer protocol</strong>: <code>ZBufView</code> wraps the ZBuf and exposes its bytes to Python via <code>__getbuffer__</code>/<code>__releasebuffer__</code>. For contiguous buffers (the common case), this is a direct pointer — no copy at all.</p>
+</li>
+<li>
+<p><strong>Pass-through re-publish</strong>: The <code>FromPyMessage</code> derive macro recognizes <code>ZBufView</code> inputs and extracts the inner ZBuf via <code>clone()</code>, which only increments a reference count on the underlying memory.</p>
+</li>
+</ol>
 <h2 id="ros-2-interoperability"><a class="header" href="#ros-2-interoperability">ROS 2 Interoperability</a></h2>
 <p>Python nodes work seamlessly with Rust and ROS 2 nodes:</p>
 <pre><code class="language-bash"># Terminal 1: Start Zenoh router
