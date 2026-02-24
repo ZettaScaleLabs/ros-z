@@ -173,6 +173,13 @@ pub extern "C" fn rmw_create_wait_set(
         return std::ptr::null_mut();
     }
 
+    // Check context implementation_identifier
+    unsafe {
+        if !crate::context::check_impl_id((*context).implementation_identifier) {
+            return std::ptr::null_mut();
+        }
+    }
+
     // Get the shared notifier from the context
     let context_impl = match context.borrow_impl() {
         Ok(impl_) => impl_,
@@ -201,6 +208,14 @@ pub extern "C" fn rmw_destroy_wait_set(wait_set: *mut rmw_wait_set_t) -> rmw_ret
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
+    // Check implementation_identifier
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*wait_set).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
     drop(unsafe { Box::from_raw(wait_set) });
     RMW_RET_OK as _
 }
@@ -217,6 +232,13 @@ pub extern "C" fn rmw_wait(
 ) -> rmw_ret_t {
     if wait_set.is_null() {
         return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*wait_set).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
     }
 
     let wait_set_impl = match wait_set.borrow_mut_data() {

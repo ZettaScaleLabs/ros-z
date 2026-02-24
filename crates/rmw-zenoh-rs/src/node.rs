@@ -57,14 +57,51 @@ pub extern "C" fn rmw_create_node(
     name: *const std::os::raw::c_char,
     namespace_: *const std::os::raw::c_char,
 ) -> *mut rmw_node_t {
-    if context.is_null() || name.is_null() {
+    if context.is_null() || name.is_null() || namespace_.is_null() {
         return std::ptr::null_mut();
+    }
+
+    // Check context implementation_identifier
+    unsafe {
+        if !crate::context::check_impl_id((*context).implementation_identifier) {
+            return std::ptr::null_mut();
+        }
+    }
+
+    // Validate node name using rmw_validate_node_name
+    unsafe {
+        let mut validation_result: std::os::raw::c_int = 0;
+        let mut invalid_index: usize = 0;
+        let ret =
+            crate::ros::rmw_validate_node_name(name, &mut validation_result, &mut invalid_index);
+        if ret != RMW_RET_OK as rmw_ret_t || validation_result != 0 {
+            return std::ptr::null_mut();
+        }
+    }
+
+    // Validate namespace using rmw_validate_namespace
+    unsafe {
+        let mut validation_result: std::os::raw::c_int = 0;
+        let mut invalid_index: usize = 0;
+        let ret = crate::ros::rmw_validate_namespace(
+            namespace_,
+            &mut validation_result,
+            &mut invalid_index,
+        );
+        if ret != RMW_RET_OK as rmw_ret_t || validation_result != 0 {
+            return std::ptr::null_mut();
+        }
     }
 
     let context_impl = match context.borrow_impl() {
         Ok(impl_) => impl_,
         Err(_) => return std::ptr::null_mut(),
     };
+
+    // Check if context has been shut down
+    if *context_impl.is_shutdown.lock().unwrap() {
+        return std::ptr::null_mut();
+    }
 
     let _name_str = unsafe { std::ffi::CStr::from_ptr(name) }
         .to_str()
@@ -127,6 +164,14 @@ pub extern "C" fn rmw_destroy_node(node: *mut rmw_node_t) -> rmw_ret_t {
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
+    // Check implementation_identifier (NULL → INVALID_ARGUMENT, wrong → INCORRECT_RMW_IMPLEMENTATION)
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*node).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
     // Remove node from local graph and destroy the graph guard condition
     if let Ok(node_impl) = node.borrow_data() {
         // Remove node from local graph
@@ -166,6 +211,23 @@ pub extern "C" fn rmw_get_node_names(
 ) -> rmw_ret_t {
     if node.is_null() || node_names.is_null() || node_namespaces.is_null() {
         return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*node).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
+    // Reject pre-initialized string arrays (must be zero-initialized)
+    unsafe {
+        if (*node_names).size != 0 || !(*node_names).data.is_null() {
+            return RMW_RET_INVALID_ARGUMENT as _;
+        }
+        if (*node_namespaces).size != 0 || !(*node_namespaces).data.is_null() {
+            return RMW_RET_INVALID_ARGUMENT as _;
+        }
     }
 
     let node_impl = match node.borrow_data() {
@@ -253,6 +315,26 @@ pub extern "C" fn rmw_get_node_names_with_enclaves(
 ) -> rmw_ret_t {
     if node.is_null() || node_names.is_null() || node_namespaces.is_null() || enclaves.is_null() {
         return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*node).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
+    // Reject pre-initialized string arrays (must be zero-initialized)
+    unsafe {
+        if (*node_names).size != 0 || !(*node_names).data.is_null() {
+            return RMW_RET_INVALID_ARGUMENT as _;
+        }
+        if (*node_namespaces).size != 0 || !(*node_namespaces).data.is_null() {
+            return RMW_RET_INVALID_ARGUMENT as _;
+        }
+        if (*enclaves).size != 0 || !(*enclaves).data.is_null() {
+            return RMW_RET_INVALID_ARGUMENT as _;
+        }
     }
 
     let node_impl = match node.borrow_data() {
