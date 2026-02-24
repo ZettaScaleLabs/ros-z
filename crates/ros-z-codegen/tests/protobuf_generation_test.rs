@@ -3,9 +3,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use ros_z_codegen::discovery;
-use ros_z_codegen::protobuf_generator::ProtobufMessageGenerator;
-use ros_z_codegen::resolver::Resolver;
+use ros_z_codegen::{discovery, protobuf_generator::ProtobufMessageGenerator, resolver::Resolver};
 
 /// Test that .proto files are generated correctly from ROS messages
 #[test]

@@ -1,3 +1,5 @@
+use std::{env, time::Duration};
+
 use ros_z::Builder;
 /// Demonstrates Protobuf encoding interoperability between ros-z and external Zenoh applications.
 ///
@@ -11,8 +13,6 @@ use ros_z::Builder;
 /// Run both: cargo run --example protobuf_interop --features protobuf
 use ros_z::encoding::Encoding;
 use ros_z_msgs::std_msgs::String as RosString;
-use std::env;
-use std::time::Duration;
 
 fn main() -> zenoh::Result<()> {
     let args: Vec<String> = env::args().collect();

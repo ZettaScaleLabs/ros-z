@@ -22,17 +22,6 @@
 
 **ROS-Z** is experimental software. It is tested with ROS 2 Jazzy, Humble, and Kilted. We make no guarantees with respect to other official distributions.
 
-## Current Limitations
-
-ros-z does not yet implement the full ROS 2 feature set. Notable gaps for users migrating from rclcpp/rclpy:
-
-- **No parameter server** — `ros2 param` and `rclcpp::Parameter` have no equivalent
-- **No lifecycle nodes** — `rclcpp_lifecycle` is not supported
-- **No simulation time** — `/clock` topic and `use_sim_time` are not supported
-- **No `wait_for_service()`** — clients must use retry logic or a fixed delay before calling
-- **Service interop is partial** — pub/sub interop with `rmw_zenoh_cpp` nodes works well; service call interop has known limitations
-- **ROS 2 interop requires `rmw_zenoh_cpp`** — the Zenoh router alone is not sufficient; the ROS 2 side must use `RMW_IMPLEMENTATION=rmw_zenoh_cpp`
-
 ## Documentation
 
 📚 **[Read the Book](https://zettascalelabs.github.io/ros-z/)** for comprehensive documentation including:
