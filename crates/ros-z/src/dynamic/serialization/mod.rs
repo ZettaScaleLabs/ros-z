@@ -33,9 +33,9 @@ impl DynamicMessage {
         match format {
             SerializationFormat::Cdr => serialize_cdr(self),
             #[cfg(feature = "protobuf")]
-            SerializationFormat::Protobuf => {
-                unimplemented!("Protobuf serialization not yet implemented for dynamic messages")
-            }
+            SerializationFormat::Protobuf => Err(DynamicError::SerializationError(
+                "Protobuf serialization is not yet implemented for dynamic messages".to_string(),
+            )),
         }
     }
 
@@ -56,9 +56,9 @@ impl DynamicMessage {
         match format {
             SerializationFormat::Cdr => serialize_cdr_to_zbuf(self),
             #[cfg(feature = "protobuf")]
-            SerializationFormat::Protobuf => {
-                unimplemented!("Protobuf serialization not yet implemented for dynamic messages")
-            }
+            SerializationFormat::Protobuf => Err(DynamicError::SerializationError(
+                "Protobuf serialization is not yet implemented for dynamic messages".to_string(),
+            )),
         }
     }
 
@@ -71,9 +71,9 @@ impl DynamicMessage {
         match format {
             SerializationFormat::Cdr => deserialize_cdr(data, schema),
             #[cfg(feature = "protobuf")]
-            SerializationFormat::Protobuf => {
-                unimplemented!("Protobuf deserialization not yet implemented for dynamic messages")
-            }
+            SerializationFormat::Protobuf => Err(DynamicError::DeserializationError(
+                "Protobuf deserialization is not yet implemented for dynamic messages".to_string(),
+            )),
         }
     }
 

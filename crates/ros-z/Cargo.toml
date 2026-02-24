@@ -59,6 +59,7 @@ default = ["config-builders", "jazzy", "rmw-zenoh"]
 config-builders = []
 generate-configs = []
 protobuf = ["prost", "prost-build"]
+flatbuffers = []
 python = ["pyo3"]
 rmw = []
 # Dynamic message schema loading from .msg files (optional)
@@ -185,4 +186,14 @@ required-features = []
 [[example]]
 name = "shm_pointcloud2"
 path = "examples/shm_pointcloud2.rs"
+required-features = []
+
+[[example]]
+name = "encoding_demo"
+path = "examples/encoding_demo.rs"
+required-features = []
+
+[[example]]
+name = "protobuf_interop"
+path = "examples/protobuf_interop.rs"
 required-features = []

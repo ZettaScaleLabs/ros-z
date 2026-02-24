@@ -222,6 +222,7 @@ impl ZNode {
             shm_config: self.shm_config.clone(),
             keyexpr_format: self.keyexpr_format,
             dyn_schema: None,
+            encoding: None,
             _phantom_data: Default::default(),
         }
     }
@@ -262,6 +263,7 @@ impl ZNode {
             keyexpr_format: self.keyexpr_format,
             dyn_schema: None,
             locality: None,
+            expected_encoding: None,
             _phantom_data: Default::default(),
         }
     }
