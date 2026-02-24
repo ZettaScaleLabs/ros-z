@@ -24,6 +24,10 @@ on:
       - '.github/workflows/semantic-pr.yml'
       - '.github/workflows/pr-draft-check.yml'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   formatting:
     name: Check Formatting
@@ -38,6 +42,9 @@ jobs:
 
       - name: Install Determinate Nix
         uses: DeterminateSystems/determinate-nix-action@v3
+
+      - name: FlakeHub cache
+        uses: DeterminateSystems/flakehub-cache-action@main
 
       - name: Check formatting
         run: nix build .#checks.x86_64-linux.pre-commit-check -L
@@ -74,6 +81,10 @@ jobs:
         if: runner.os == 'Linux'
         uses: DeterminateSystems/determinate-nix-action@v3
 
+      - name: FlakeHub cache (Linux)
+        if: runner.os == 'Linux'
+        uses: DeterminateSystems/flakehub-cache-action@main
+
       - name: Install Nushell (Linux via Nix)
         if: runner.os == 'Linux'
         run: |
@@ -98,8 +109,13 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install nushell protobuf
-          cargo install cargo-nextest --locked
           chmod +x scripts/test-pure-rust.nu
+
+      - name: Install cargo-nextest (macOS)
+        if: runner.os == 'macOS'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
 
       # Common setup
       - name: Setup Rust cache
@@ -144,6 +160,7 @@ jobs:
       id-token: write
       contents: read
     strategy:
+      fail-fast: false
       matrix:
         distro: [humble, jazzy, kilted]
     # Skip for draft PRs to save CI time during development
@@ -167,7 +184,14 @@ jobs:
         with:
           name: ros
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-          skipPush: true
+          # Push ros-z's own built Nix derivations on main-branch runs so
+          # subsequent runs (including PRs) can download them from Cachix
+          # instead of rebuilding. ROS packages are already in ros.cachix.org
+          # (maintained by nix-ros-overlay for all distros including kilted).
+          skipPush: ${{ github.event_name == 'pull_request' }}
+
+      - name: FlakeHub cache
+        uses: DeterminateSystems/flakehub-cache-action@main
 
       - name: Install Nushell
         run: |
@@ -241,6 +265,7 @@ jobs:
       id-token: write
       contents: read
     strategy:
+      fail-fast: false
       matrix:
         distro: [humble, jazzy, kilted]
     # Skip for draft PRs to save CI time during development
@@ -264,7 +289,10 @@ jobs:
         with:
           name: ros
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-          skipPush: true
+          skipPush: ${{ github.event_name == 'pull_request' }}
+
+      - name: FlakeHub cache
+        uses: DeterminateSystems/flakehub-cache-action@main
 
       - name: Install Nushell
         run: |
@@ -280,7 +308,7 @@ jobs:
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: jazzy-ros
+          shared-key: ${{ matrix.distro }}-ros
 
       - name: Run ROS tests
         run: |

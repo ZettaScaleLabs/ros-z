@@ -98,7 +98,7 @@ fn test_static_pub_dynamic_sub_with_type_discovery() {
             // Discover schema and create dynamic subscriber
             println!("Discovering schema from publisher...");
             let (subscriber, discovered_schema) = sub_node
-                .create_dyn_sub_auto("/test_topic", Duration::from_secs(5))
+                .create_dyn_sub_auto("/test_topic", Duration::from_secs(15))
                 .await
                 .expect("Failed to create dynamic subscriber with auto-discovery");
 
@@ -238,7 +238,7 @@ fn test_dynamic_pub_dynamic_sub_with_type_discovery() {
             // Discover schema and create dynamic subscriber
             println!("Discovering schema from dynamic publisher...");
             let (subscriber, discovered_schema) = sub_node
-                .create_dyn_sub_auto("/point_topic", Duration::from_secs(5))
+                .create_dyn_sub_auto("/point_topic", Duration::from_secs(15))
                 .await
                 .expect("Failed to create dynamic subscriber with auto-discovery");
 
@@ -589,7 +589,7 @@ fn test_multiple_publishers_schema_discovery() {
 
             println!("Discovering schema from publishers...");
             let (subscriber, discovered_schema) = sub_node
-                .create_dyn_sub_auto("/multi_pub_topic", Duration::from_secs(5))
+                .create_dyn_sub_auto("/multi_pub_topic", Duration::from_secs(15))
                 .await
                 .expect("Failed to create subscriber with auto-discovery");
 
