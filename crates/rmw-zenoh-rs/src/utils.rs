@@ -43,8 +43,14 @@ pub struct Notifier {
 
 impl Notifier {
     pub fn notify_all(&self) {
-        // No need to lock mutex for notify_all with parking_lot
-        // Calling notify_all() without holding the lock avoids thundering herd issues
+        // Lock the mutex before notifying to prevent the lost-wakeup race:
+        // without this, notify_all() can fire in the window between "check_ready()"
+        // and "wait_for()" in rmw_wait, causing the notification to be lost.
+        // Holding the mutex forces the notification to happen either:
+        //   (a) before the waiter locks the mutex (waiter will see data via check_ready), or
+        //   (b) after the waiter is inside wait_for (which atomically released the mutex),
+        //       so the waiter is in the parking queue and will be woken up.
+        let _guard = self.mutex.lock();
         self.cv.notify_all();
     }
 }

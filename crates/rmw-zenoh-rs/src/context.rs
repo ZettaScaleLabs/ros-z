@@ -8,6 +8,25 @@ use crate::traits::*;
 use crate::utils::Notifier;
 use ros_z::Builder;
 
+/// Check implementation_identifier and return the appropriate error code.
+/// Returns RMW_RET_OK if it matches, RMW_RET_INVALID_ARGUMENT if NULL,
+/// or RMW_RET_INCORRECT_RMW_IMPLEMENTATION if wrong.
+pub fn check_impl_id_ret(id: *const std::os::raw::c_char) -> rmw_ret_t {
+    if id.is_null() {
+        RMW_RET_INVALID_ARGUMENT as _
+    } else if id == crate::RMW_ZENOH_IDENTIFIER.as_ptr() as *const std::os::raw::c_char {
+        RMW_RET_OK as _
+    } else {
+        RMW_RET_INCORRECT_RMW_IMPLEMENTATION as _
+    }
+}
+
+/// Check if an implementation_identifier pointer matches rmw_zenoh_rs.
+/// Returns true if it matches, false otherwise.
+pub fn check_impl_id(id: *const std::os::raw::c_char) -> bool {
+    check_impl_id_ret(id) == RMW_RET_OK as rmw_ret_t
+}
+
 #[repr(C)]
 pub struct rmw_error_string_t {
     pub str: [std::os::raw::c_char; 1024],
@@ -137,6 +156,21 @@ pub extern "C" fn rmw_init_options_init(
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
+    // Check if already initialized
+    if unsafe { !(*init_options).implementation_identifier.is_null() } {
+        rmw_set_error_string(c"init_options already initialized".as_ptr());
+        return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    // Check if allocator is valid
+    if allocator.allocate.is_none()
+        || allocator.deallocate.is_none()
+        || allocator.reallocate.is_none()
+    {
+        rmw_set_error_string(c"Invalid allocator".as_ptr());
+        return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
     unsafe {
         // Set the fields
         (*init_options).domain_id = usize::MAX; // RCL_DEFAULT_DOMAIN_ID
@@ -171,8 +205,15 @@ pub extern "C" fn rmw_init_options_copy(
     }
 
     unsafe {
-        // Check if dst is already initialized
-        if !(*dst).impl_.is_null() {
+        // Check implementation identifier on src
+        let ret = check_impl_id_ret((*src).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            rmw_set_error_string(c"Invalid or incorrect RMW implementation on src".as_ptr());
+            return ret;
+        }
+
+        // Check if dst is already initialized (has a non-null implementation_identifier)
+        if !(*dst).implementation_identifier.is_null() {
             rmw_set_error_string(c"dst already initialized".as_ptr());
             return RMW_RET_INVALID_ARGUMENT as _;
         }
@@ -257,6 +298,13 @@ pub extern "C" fn rmw_init_options_fini(init_options: *mut rmw_init_options_t) -
     }
 
     unsafe {
+        // Check implementation identifier
+        let ret = check_impl_id_ret((*init_options).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            rmw_set_error_string(c"Invalid or incorrect RMW implementation".as_ptr());
+            return ret;
+        }
+
         // Free enclave string if it was allocated
         if !(*init_options).enclave.is_null() {
             let allocator = &(*init_options).allocator;
@@ -287,6 +335,9 @@ pub extern "C" fn rmw_init_options_fini(init_options: *mut rmw_init_options_t) -
             // For now, rmw_z doesn't allocate impl_, so nothing to do
             (*init_options).impl_ = std::ptr::null_mut();
         }
+
+        // Reset implementation_identifier so this struct looks uninitialized
+        (*init_options).implementation_identifier = std::ptr::null();
     }
 
     RMW_RET_OK as _
@@ -298,7 +349,26 @@ pub extern "C" fn rmw_init(
     context: *mut rmw_context_t,
 ) -> rmw_ret_t {
     if options.is_null() || context.is_null() {
+        rmw_set_error_string(c"Invalid argument: null pointer".as_ptr());
         return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    unsafe {
+        // Check implementation_identifier on options
+        if (*options).implementation_identifier.is_null() {
+            rmw_set_error_string(c"Options not initialized".as_ptr());
+            return RMW_RET_INVALID_ARGUMENT as _;
+        }
+        if !check_impl_id((*options).implementation_identifier) {
+            rmw_set_error_string(c"Incorrect RMW implementation on options".as_ptr());
+            return RMW_RET_INCORRECT_RMW_IMPLEMENTATION as _;
+        }
+
+        // Check enclave is not null
+        if (*options).enclave.is_null() {
+            rmw_set_error_string(c"Enclave is null".as_ptr());
+            return RMW_RET_INVALID_ARGUMENT as _;
+        }
     }
 
     // Initialize Zenoh logging
@@ -309,25 +379,23 @@ pub extern "C" fn rmw_init(
 
     // Check if already initialized
     if !unsafe { (*context).impl_.is_null() } {
-        return RMW_RET_ALREADY_INIT as _;
+        rmw_set_error_string(c"Context already initialized".as_ptr());
+        return RMW_RET_INVALID_ARGUMENT as _;
     }
 
     // Create context implementation
     let domain_id = unsafe { (*options).domain_id };
     let enclave = unsafe {
-        if (*options).enclave.is_null() {
-            "/".to_string()
-        } else {
-            std::ffi::CStr::from_ptr((*options).enclave)
-                .to_str()
-                .unwrap_or("/")
-                .to_string()
-        }
+        std::ffi::CStr::from_ptr((*options).enclave)
+            .to_str()
+            .unwrap_or("/")
+            .to_string()
     };
     let context_impl = match ContextImpl::new(domain_id, enclave) {
         Ok(impl_) => impl_,
         Err(e) => {
             tracing::error!("Failed to create context: {}", e);
+            rmw_set_error_string(c"Failed to create context".as_ptr());
             return RMW_RET_ERROR as _;
         }
     };
@@ -336,26 +404,42 @@ pub extern "C" fn rmw_init(
     match context.assign_impl(context_impl) {
         Ok(_) => {
             unsafe {
+                (*context).implementation_identifier =
+                    crate::RMW_ZENOH_IDENTIFIER.as_ptr() as *const _;
                 (*context).instance_id = 1; // TODO: proper instance ID
                 (*context).actual_domain_id = domain_id; // Set the actual domain ID
             }
             RMW_RET_OK as _
         }
-        Err(_) => RMW_RET_ERROR as _,
+        Err(_) => {
+            rmw_set_error_string(c"Failed to assign context impl".as_ptr());
+            RMW_RET_ERROR as _
+        }
     }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rmw_shutdown(context: *mut rmw_context_t) -> rmw_ret_t {
     if context.is_null() {
+        rmw_set_error_string(c"Context is null".as_ptr());
         return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    unsafe {
+        // Check implementation_identifier
+        let ret = check_impl_id_ret((*context).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            rmw_set_error_string(c"Invalid or incorrect context".as_ptr());
+            return ret;
+        }
     }
 
     if unsafe { (*context).impl_.is_null() } {
+        rmw_set_error_string(c"Context impl is null".as_ptr());
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
-    // Mark context as shutdown
+    // Mark context as shutdown (idempotent — double shutdown returns OK)
     match context.borrow_impl() {
         Ok(context_impl) => {
             *context_impl.is_shutdown.lock().unwrap() = true;
@@ -368,34 +452,52 @@ pub extern "C" fn rmw_shutdown(context: *mut rmw_context_t) -> rmw_ret_t {
 #[unsafe(no_mangle)]
 pub extern "C" fn rmw_context_fini(context: *mut rmw_context_t) -> rmw_ret_t {
     if context.is_null() {
+        rmw_set_error_string(c"Context is null".as_ptr());
         return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    unsafe {
+        // Check implementation_identifier
+        let ret = check_impl_id_ret((*context).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            rmw_set_error_string(c"Invalid or incorrect context".as_ptr());
+            return ret;
+        }
     }
 
     // First try to borrow the implementation to validate it
     let context_impl = match context.borrow_impl() {
         Ok(impl_) => impl_,
-        Err(_) => return RMW_RET_INVALID_ARGUMENT as _,
+        Err(_) => {
+            rmw_set_error_string(c"Context impl is null".as_ptr());
+            return RMW_RET_INVALID_ARGUMENT as _;
+        }
     };
 
     // Check if context has been shut down
     if !*context_impl.is_shutdown.lock().unwrap() {
+        rmw_set_error_string(c"Context not shut down".as_ptr());
         return RMW_RET_INVALID_ARGUMENT as _; // Must call rmw_shutdown before rmw_context_fini
     }
 
     // Check if there are still nodes attached to this context
     if !context_impl.nodes.lock().unwrap().is_empty() {
+        rmw_set_error_string(c"Context still has active nodes".as_ptr());
         return RMW_RET_INVALID_ARGUMENT as _; // Cannot finalize context with active nodes
-    }
-
-    // Additional validation: check if context has been properly initialized
-    // by verifying the implementation_identifier
-    if unsafe { (*context).implementation_identifier }.is_null() {
-        return RMW_RET_INVALID_ARGUMENT as _;
     }
 
     // Own and drop the implementation
     match context.own_impl() {
-        Ok(_) => RMW_RET_OK as _,
-        Err(_) => RMW_RET_ERROR as _,
+        Ok(_) => {
+            // Clear implementation_identifier so re-init is possible
+            unsafe {
+                (*context).implementation_identifier = std::ptr::null();
+            }
+            RMW_RET_OK as _
+        }
+        Err(_) => {
+            rmw_set_error_string(c"Failed to finalize context".as_ptr());
+            RMW_RET_ERROR as _
+        }
     }
 }

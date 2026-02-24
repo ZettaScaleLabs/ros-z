@@ -25,33 +25,50 @@ impl WaitSetImpl {
     }
 
     pub fn wait(&self, timeout: &rmw_time_t) -> bool {
-        use std::time::Duration;
+        use std::time::{Duration, Instant};
 
         // If timeout is zero, check ready immediately and return
         if timeout.sec == 0 && timeout.nsec == 0 {
             return self.check_ready();
         }
 
-        // Calculate timeout duration
-        let timeout_duration = if timeout.sec == u64::MAX {
+        // Compute an absolute deadline once so spurious wakeups don't extend
+        // the total wait beyond the requested timeout.  This is critical for
+        // timer support: rcl passes timeout = time-until-next-timer-fires, and
+        // relies on rmw_wait returning RMW_RET_TIMEOUT after exactly that
+        // duration so it can mark the timer as expired.
+        let deadline = if timeout.sec == u64::MAX {
             None // Infinite wait
         } else {
-            Some(Duration::from_secs(timeout.sec) + Duration::from_nanos(timeout.nsec))
+            let dur = Duration::from_secs(timeout.sec) + Duration::from_nanos(timeout.nsec);
+            Some(Instant::now() + dur)
         };
 
-        // Use the notifier's condition variable for efficient waiting
+        // Use the notifier's condition variable for efficient waiting.
+        // Notifier::notify_all() holds this mutex, so the check-then-wait here is
+        // race-free: either we see the data in check_ready() before waiting, or
+        // notify_all() fires after wait_for atomically releases the mutex and the
+        // thread is in the waiting queue — no lost wakeups.
         let mut mutex_guard = self.notifier.mutex.lock();
 
-        // Always wait (at least try to) - this prevents busy loops when data is already present
-        // We'll check ready status after waiting or timing out
         loop {
-            if let Some(dur) = timeout_duration {
-                let wait_result = self.notifier.cv.wait_for(&mut mutex_guard, dur);
+            // Check readiness while holding the lock before waiting.
+            // This handles data that arrived before rmw_wait was called.
+            if self.check_ready() {
+                return true;
+            }
+
+            if let Some(dl) = deadline {
+                let now = Instant::now();
+                if now >= dl {
+                    // Deadline already passed — report timeout
+                    return false;
+                }
+                let remaining = dl - now;
+                let wait_result = self.notifier.cv.wait_for(&mut mutex_guard, remaining);
 
                 // After wait (notification or timeout), check if anything is ready
-                let is_ready = self.check_ready();
-
-                if is_ready {
+                if self.check_ready() {
                     return true;
                 }
 
@@ -60,16 +77,11 @@ impl WaitSetImpl {
                     return false;
                 }
 
-                // Spurious wakeup - nothing ready yet, loop and wait again
+                // Spurious wakeup - loop back and recompute remaining time
             } else {
                 // Infinite wait
                 self.notifier.cv.wait(&mut mutex_guard);
-
-                // Check if anything is ready after waking
-                if self.check_ready() {
-                    return true;
-                }
-                // If notified but nothing ready yet, loop and wait again
+                // Loop back to check_ready at the top
             }
         }
     }
@@ -161,6 +173,13 @@ pub extern "C" fn rmw_create_wait_set(
         return std::ptr::null_mut();
     }
 
+    // Check context implementation_identifier
+    unsafe {
+        if !crate::context::check_impl_id((*context).implementation_identifier) {
+            return std::ptr::null_mut();
+        }
+    }
+
     // Get the shared notifier from the context
     let context_impl = match context.borrow_impl() {
         Ok(impl_) => impl_,
@@ -189,6 +208,14 @@ pub extern "C" fn rmw_destroy_wait_set(wait_set: *mut rmw_wait_set_t) -> rmw_ret
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
+    // Check implementation_identifier
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*wait_set).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
     drop(unsafe { Box::from_raw(wait_set) });
     RMW_RET_OK as _
 }
@@ -205,6 +232,13 @@ pub extern "C" fn rmw_wait(
 ) -> rmw_ret_t {
     if wait_set.is_null() {
         return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*wait_set).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
     }
 
     let wait_set_impl = match wait_set.borrow_mut_data() {
@@ -349,10 +383,6 @@ pub extern "C" fn rmw_wait(
         // RCL relies on array indices matching between calls to rcl_wait_set_add_* and rmw_wait results
         if !guard_conditions.is_null() {
             let gc_array = unsafe { &mut *guard_conditions };
-            tracing::debug!(
-                "[rmw_wait] Checking {} guard conditions",
-                gc_array.guard_condition_count
-            );
             for i in 0..gc_array.guard_condition_count {
                 let gc_impl_ptr =
                     unsafe { *gc_array.guard_conditions.add(i) as *mut rmw_guard_condition_impl_t };
@@ -360,7 +390,6 @@ pub extern "C" fn rmw_wait(
                     unsafe {
                         let gc_impl =
                             &mut *(gc_impl_ptr as *mut crate::guard_condition::GuardConditionImpl);
-                        tracing::debug!("[rmw_wait] GC {}: is_ready={}", i, gc_impl.is_ready());
                         if !gc_impl.is_ready() {
                             // Not ready - set to NULL in place
                             *gc_array.guard_conditions.add(i) = std::ptr::null_mut();
@@ -400,6 +429,52 @@ pub extern "C" fn rmw_wait(
 
         RMW_RET_OK as _
     } else {
+        // On timeout, NULL out all entities per RMW contract: nothing is ready.
+        // Without this, rcl reads the stale non-NULL pointers back as "triggered"
+        // (rcl/wait.c: `is_ready = guard_conditions[i] != NULL` runs unconditionally).
+        // This corrupts ThreadSafeSynchronization::sync_wait's guard-condition check:
+        // it sees was_interrupted_by_this_class=true and loops forever instead of
+        // returning WaitResultKind::Ready when a timer fires.
+        if !subscriptions.is_null() {
+            let sub_array = unsafe { &mut *subscriptions };
+            for i in 0..sub_array.subscriber_count {
+                unsafe {
+                    *sub_array.subscribers.add(i) = std::ptr::null_mut();
+                }
+            }
+        }
+        if !guard_conditions.is_null() {
+            let gc_array = unsafe { &mut *guard_conditions };
+            for i in 0..gc_array.guard_condition_count {
+                unsafe {
+                    *gc_array.guard_conditions.add(i) = std::ptr::null_mut();
+                }
+            }
+        }
+        if !services.is_null() {
+            let srv_array = unsafe { &mut *services };
+            for i in 0..srv_array.service_count {
+                unsafe {
+                    *srv_array.services.add(i) = std::ptr::null_mut();
+                }
+            }
+        }
+        if !clients.is_null() {
+            let cli_array = unsafe { &mut *clients };
+            for i in 0..cli_array.client_count {
+                unsafe {
+                    *cli_array.clients.add(i) = std::ptr::null_mut();
+                }
+            }
+        }
+        if !events.is_null() {
+            let event_array = unsafe { &mut *events };
+            for i in 0..event_array.event_count {
+                unsafe {
+                    *event_array.events.add(i) = std::ptr::null_mut();
+                }
+            }
+        }
         RMW_RET_TIMEOUT as _
     }
 }

@@ -1,15 +1,39 @@
 use crate::ros::*;
 
-/// Normalize RMW QoS profile by replacing SYSTEM_DEFAULT (depth=0) with default depth
-/// Uses ros_z::qos::DEFAULT_HISTORY_DEPTH to ensure consistency
+/// Normalize RMW QoS profile by resolving SYSTEM_DEFAULT (0) to concrete values.
+/// This ensures get_actual_qos returns concrete policies, not SYSTEM_DEFAULT placeholders.
 pub fn normalize_rmw_qos(qos: &rmw_qos_profile_t) -> rmw_qos_profile_t {
     let mut normalized = *qos;
+
+    // Resolve SYSTEM_DEFAULT history to KEEP_LAST
+    if normalized.history == rmw_qos_history_policy_e_RMW_QOS_POLICY_HISTORY_SYSTEM_DEFAULT {
+        normalized.history = rmw_qos_history_policy_e_RMW_QOS_POLICY_HISTORY_KEEP_LAST;
+    }
 
     // Normalize KEEP_LAST with depth=0 to default depth (matches rmw_zenoh_cpp)
     if normalized.history == rmw_qos_history_policy_e_RMW_QOS_POLICY_HISTORY_KEEP_LAST
         && normalized.depth == 0
     {
         normalized.depth = ros_z::qos::DEFAULT_HISTORY_DEPTH;
+    }
+
+    // Resolve SYSTEM_DEFAULT reliability to RELIABLE
+    if normalized.reliability
+        == rmw_qos_reliability_policy_e_RMW_QOS_POLICY_RELIABILITY_SYSTEM_DEFAULT
+    {
+        normalized.reliability = rmw_qos_reliability_policy_e_RMW_QOS_POLICY_RELIABILITY_RELIABLE;
+    }
+
+    // Resolve SYSTEM_DEFAULT durability to VOLATILE
+    if normalized.durability == rmw_qos_durability_policy_e_RMW_QOS_POLICY_DURABILITY_SYSTEM_DEFAULT
+    {
+        normalized.durability = rmw_qos_durability_policy_e_RMW_QOS_POLICY_DURABILITY_VOLATILE;
+    }
+
+    // Resolve SYSTEM_DEFAULT liveliness to AUTOMATIC
+    if normalized.liveliness == rmw_qos_liveliness_policy_e_RMW_QOS_POLICY_LIVELINESS_SYSTEM_DEFAULT
+    {
+        normalized.liveliness = rmw_qos_liveliness_policy_e_RMW_QOS_POLICY_LIVELINESS_AUTOMATIC;
     }
 
     normalized
@@ -108,6 +132,37 @@ pub fn check_qos_compatibility_with_policy(
     (true, 0)
 }
 
+/// Convert ros-z Duration to rmw_time_t.
+/// ros-z uses {0, 0} for "infinite/no limit", but RMW uses RMW_DURATION_INFINITE.
+/// {0, 0} in RMW means RMW_DURATION_UNSPECIFIED which displays as "0 nanoseconds".
+fn duration_to_rmw_time(dur: &ros_z::qos::Duration) -> rmw_time_t {
+    if dur.sec == 0 && dur.nsec == 0 {
+        // RMW_DURATION_INFINITE = {9223372036, 854775807}
+        rmw_time_t {
+            sec: 9223372036,
+            nsec: 854775807,
+        }
+    } else {
+        rmw_time_t {
+            sec: dur.sec,
+            nsec: dur.nsec,
+        }
+    }
+}
+
+/// Convert rmw_time_t to ros-z Duration.
+/// RMW_DURATION_INFINITE maps back to ros-z {0, 0} (infinite).
+fn rmw_time_to_duration(time: &rmw_time_t) -> ros_z::qos::Duration {
+    if time.sec == 9223372036 && time.nsec == 854775807 {
+        ros_z::qos::Duration { sec: 0, nsec: 0 }
+    } else {
+        ros_z::qos::Duration {
+            sec: time.sec,
+            nsec: time.nsec,
+        }
+    }
+}
+
 /// Convert ros-z QoS profile to RMW QoS profile
 pub fn ros_z_qos_to_rmw_qos(qos: &ros_z::qos::QosProfile) -> rmw_qos_profile_t {
     use ros_z::qos::*;
@@ -152,24 +207,22 @@ pub fn ros_z_qos_to_rmw_qos(qos: &ros_z::qos::QosProfile) -> rmw_qos_profile_t {
         }
     };
 
+    // Convert duration: ros-z uses {0, 0} for "infinite/no limit",
+    // but RMW uses {9223372036, 854775807} (RMW_DURATION_INFINITE).
+    // {0, 0} in RMW means RMW_DURATION_UNSPECIFIED which displays as "0 nanoseconds".
+    let deadline = duration_to_rmw_time(&qos.deadline);
+    let lifespan = duration_to_rmw_time(&qos.lifespan);
+    let liveliness_lease_duration = duration_to_rmw_time(&qos.liveliness_lease_duration);
+
     rmw_qos_profile_t {
         history,
         depth,
         reliability,
         durability,
-        deadline: rmw_time_t {
-            sec: qos.deadline.sec,
-            nsec: qos.deadline.nsec,
-        },
-        lifespan: rmw_time_t {
-            sec: qos.lifespan.sec,
-            nsec: qos.lifespan.nsec,
-        },
+        deadline,
+        lifespan,
         liveliness,
-        liveliness_lease_duration: rmw_time_t {
-            sec: qos.liveliness_lease_duration.sec,
-            nsec: qos.liveliness_lease_duration.nsec,
-        },
+        liveliness_lease_duration,
         avoid_ros_namespace_conventions: false,
     }
 }
@@ -221,19 +274,10 @@ pub fn rmw_qos_to_ros_z_qos(qos: &rmw_qos_profile_t) -> ros_z::qos::QosProfile {
         history,
         reliability,
         durability,
-        deadline: QosDuration {
-            sec: qos.deadline.sec,
-            nsec: qos.deadline.nsec,
-        },
-        lifespan: QosDuration {
-            sec: qos.lifespan.sec,
-            nsec: qos.lifespan.nsec,
-        },
+        deadline: rmw_time_to_duration(&qos.deadline),
+        lifespan: rmw_time_to_duration(&qos.lifespan),
         liveliness,
-        liveliness_lease_duration: QosDuration {
-            sec: qos.liveliness_lease_duration.sec,
-            nsec: qos.liveliness_lease_duration.nsec,
-        },
+        liveliness_lease_duration: rmw_time_to_duration(&qos.liveliness_lease_duration),
     }
 }
 
@@ -249,6 +293,9 @@ pub extern "C" fn rmw_qos_profile_check_compatible(
     reason_size: usize,
 ) -> rmw_ret_t {
     if compatibility.is_null() {
+        return RMW_RET_INVALID_ARGUMENT as _;
+    }
+    if reason.is_null() && reason_size > 0 {
         return RMW_RET_INVALID_ARGUMENT as _;
     }
     if !reason.is_null() && reason_size == 0 {

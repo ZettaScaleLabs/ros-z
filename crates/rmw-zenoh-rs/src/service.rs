@@ -364,6 +364,13 @@ pub extern "C" fn rmw_take_request(
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*service).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
     let service_impl = match (service as *mut rmw_service_t).borrow_mut_data() {
         Ok(impl_) => impl_,
         Err(_) => return RMW_RET_INVALID_ARGUMENT as _,
@@ -386,6 +393,13 @@ pub extern "C" fn rmw_send_response(
 ) -> rmw_ret_t {
     if service.is_null() || response_header.is_null() || ros_response.is_null() {
         return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*service).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
     }
 
     let service_impl = match (service as *mut rmw_service_t).borrow_mut_data() {
@@ -413,6 +427,13 @@ pub extern "C" fn rmw_send_request(
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*client).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
     let client_impl = match client.borrow_data() {
         Ok(impl_) => impl_,
         Err(_) => return RMW_RET_INVALID_ARGUMENT as _,
@@ -436,6 +457,13 @@ pub extern "C" fn rmw_take_response(
 ) -> rmw_ret_t {
     if client.is_null() || request_header.is_null() || ros_response.is_null() || taken.is_null() {
         return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*client).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
     }
 
     let client_impl = match client.borrow_data() {
