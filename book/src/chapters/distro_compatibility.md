@@ -15,6 +15,7 @@ ros-z supports multiple ROS 2 distributions through compile-time feature flags. 
 | **Jazzy Jalisco** | ✅ Supported | ✅ Supported | ✅ Yes | **Yes** |
 | **Humble Hawksbill** | ✅ Supported | ❌ **Not Supported** | ❌ Placeholder | No |
 | Rolling Ridley | ✅ Supported | ✅ Supported | ✅ Yes | No |
+| Iron Irwini | ⚠️ EOL (Dec 2024) | ❌ Not Supported | ✅ Yes | No |
 
 **Default**: ros-z defaults to **Jazzy** compatibility, which is the recommended distribution for new projects.
 

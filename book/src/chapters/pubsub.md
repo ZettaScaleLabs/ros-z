@@ -39,7 +39,7 @@ This example demonstrates publishing "Hello World" messages to a topic. The publ
 **Key points:**
 
 - **QoS Configuration**: Uses `KeepLast(7)` to buffer the last 7 messages
-- **Async Publishing**: Non-blocking `async_publish()` for efficient I/O
+- **Async Publishing**: Non-blocking `async_publish()` for efficient I/O. For blocking (non-async) contexts, use `publisher.publish(&msg)?` instead.
 - **Rate Control**: Uses `tokio::time::sleep()` to control publishing frequency
 - **Bounded Operation**: Optional `max_count` for testing scenarios
 
@@ -51,9 +51,6 @@ cargo run --example demo_nodes_talker
 
 # Custom topic and rate
 cargo run --example demo_nodes_talker -- --topic /my_topic --period 0.5
-
-# Publish 10 messages then exit
-cargo run --example demo_nodes_talker -- --max-count 10
 ```
 
 ## Subscriber Example
@@ -79,9 +76,6 @@ cargo run --example demo_nodes_listener
 
 # Custom topic
 cargo run --example demo_nodes_listener -- --topic /my_topic
-
-# Receive 5 messages then exit
-cargo run --example demo_nodes_listener -- --max-count 5
 ```
 
 ## Complete Pub-Sub Workflow
@@ -113,11 +107,17 @@ cargo run --example demo_nodes_talker
 
 ros-z provides three patterns for receiving messages, each suited for different use cases:
 
+```admonish tip
+`use ros_z::Builder;` must be in scope to call `.build()` on any ros-z builder type. Add it alongside your other ros-z imports.
+```
+
 ### Pattern 1: Blocking Receive (Pull Model)
 
 Best for: Simple sequential processing, scripting
 
 ```rust,ignore
+use ros_z::Builder; // required to call .build()
+
 let subscriber = node
     .create_sub::<RosString>("topic_name")
     .build()?;
@@ -132,6 +132,8 @@ while let Ok(msg) = subscriber.recv() {
 Best for: Integration with async codebases, handling multiple streams
 
 ```rust,ignore
+use ros_z::Builder; // required to call .build()
+
 let subscriber = node
     .create_sub::<RosString>("topic_name")
     .build()?;
@@ -146,6 +148,8 @@ while let Ok(msg) = subscriber.async_recv().await {
 Best for: Event-driven architectures, low-latency response
 
 ```rust,ignore
+use ros_z::Builder; // required to call .build_with_callback()
+
 let subscriber = node
     .create_sub::<RosString>("topic_name")
     .build_with_callback(|msg| {
@@ -172,14 +176,18 @@ Use callbacks for low-latency event-driven processing. Use blocking/async receiv
 
 ## Quality of Service (QoS)
 
-QoS profiles control message delivery behavior:
+QoS profiles control message delivery behavior. Both publishers and subscribers accept a QoS profile:
+
+**Publisher QoS:**
 
 ```rust,ignore
-use ros_z::qos::{QosProfile, QosHistory, Reliability};
+use std::num::NonZeroUsize;
+use ros_z::Builder;
+use ros_z::qos::{QosProfile, QosHistory, QosReliability};
 
 let qos = QosProfile {
-    history: QosHistory::KeepLast(10),
-    reliability: Reliability::Reliable,
+    history: QosHistory::KeepLast(NonZeroUsize::new(10).unwrap()),
+    reliability: QosReliability::Reliable,
     ..Default::default()
 };
 
@@ -189,13 +197,71 @@ let publisher = node
     .build()?;
 ```
 
-```admonish tip
-Use `QosHistory::KeepLast(1)` for sensor data and `Reliability::Reliable` for critical commands. Match QoS profiles between publishers and subscribers for optimal message delivery.
+**Subscriber QoS:**
+
+```rust,ignore
+use std::num::NonZeroUsize;
+use ros_z::Builder;
+use ros_z::qos::{QosProfile, QosHistory, QosReliability};
+
+let qos = QosProfile {
+    history: QosHistory::KeepLast(NonZeroUsize::new(10).unwrap()),
+    reliability: QosReliability::Reliable,
+    ..Default::default()
+};
+
+let subscriber = node
+    .create_sub::<RosString>("topic")
+    .with_qos(qos)
+    .build()?;
 ```
+
+```admonish tip
+Use `QosHistory::KeepLast(NonZeroUsize::new(1).unwrap())` for sensor data and `QosReliability::Reliable` for critical commands. Match QoS profiles between publishers and subscribers for optimal message delivery.
+```
+
+## Name Remapping
+
+ros-z supports ROS 2-style topic remapping via `ZContextBuilder::with_remap_rule()`. Remapping rules apply to all nodes created from the same context and redirect topic/service names at the context level.
+
+```rust,ignore
+# fn main() -> zenoh::Result<()> {
+use ros_z::context::ZContextBuilder;
+use ros_z::Builder;
+
+let ctx = ZContextBuilder::default()
+    .with_remap_rule("/chatter:=/my_chatter")?  // redirect /chatter to /my_chatter
+    .with_remap_rule("__node:=renamed_node")?   // rename the node
+    .build()?;
+# Ok(())
+# }
+```
+
+Multiple rules can be added with `.with_remap_rules()`:
+
+```rust,ignore
+# fn main() -> zenoh::Result<()> {
+use ros_z::context::ZContextBuilder;
+use ros_z::Builder;
+
+let ctx = ZContextBuilder::default()
+    .with_remap_rules(["/input:=/sensor/data", "/output:=/processed/data"])?
+    .build()?;
+# Ok(())
+# }
+```
+
+The rule format follows the ROS 2 convention: `from:=to`.
 
 ## ROS 2 Interoperability
 
-ros-z publishers and subscribers work seamlessly with ROS 2 C++ and Python nodes:
+ros-z publishers and subscribers interoperate with ROS 2 C++ and Python nodes when both sides share the same Zenoh transport:
+
+**Requirements:**
+
+- ROS 2 nodes must use `rmw_zenoh_cpp` (`export RMW_IMPLEMENTATION=rmw_zenoh_cpp`) **or** be bridged via `zenoh-bridge-ros2dds`
+- Both sides must use matching message types with identical RIHS01 type hashes
+- All nodes must connect to the same Zenoh router
 
 ```bash
 # List active topics
@@ -211,8 +277,10 @@ ros2 topic pub /chatter std_msgs/msg/String "data: 'Hello from ROS 2'"
 ros2 topic info /chatter
 ```
 
-```admonish success
-ros-z provides full ROS 2 compatibility via Zenoh bridge or rmw_zenoh, enabling cross-language communication.
+```admonish warning
+If type hashes differ (e.g. mismatched message definitions), nodes won't exchange messages.
+Enable `RUST_LOG=ros_z=debug` to see the hash in the key expression and compare it with the ROS 2 side.
+See [Troubleshooting](./troubleshooting.md) for diagnosis steps.
 ```
 
 ## Resources

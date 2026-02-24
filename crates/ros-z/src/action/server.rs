@@ -344,6 +344,14 @@ pub struct ZActionServer<A: ZAction> {
     _shutdown: Arc<ShutdownGuard>,
 }
 
+impl<A: ZAction> std::fmt::Debug for ZActionServer<A> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ZActionServer")
+            .field("goal_server", &self.inner.goal_server)
+            .finish_non_exhaustive()
+    }
+}
+
 impl<A: ZAction> Clone for ZActionServer<A> {
     fn clone(&self) -> Self {
         Self {

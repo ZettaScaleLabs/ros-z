@@ -104,7 +104,7 @@ cargo build -p rcl-z
 2. **Verify endpoint matches in your code:**
    ```rust,ignore
    let ctx = ZContextBuilder::default()
-       .with_router_endpoint("tcp/localhost:7447")  // Must match router
+       .with_router_endpoint("tcp/localhost:7447")?  // Must match router
        .build()?;
    ```
 ````
@@ -117,15 +117,16 @@ cargo build -p rcl-z
 1. **Stop the conflicting process**
 
 2. **Use a custom port:**
-   ```rust,ignore
-   // Custom router port
-   let router_config = RouterConfigBuilder::new()
-       .with_listen_port(7448)
-       .build()?;
 
-   // Connect sessions to custom port
+   Start the router on a different port:
+   ```bash
+   cargo run --example zenoh_router -- --listen "tcp/[::]:7448"
+   ```
+
+   Then connect your sessions to that port:
+   ```rust,ignore
    let ctx = ZContextBuilder::default()
-       .with_router_endpoint("tcp/localhost:7448")
+       .with_router_endpoint("tcp/localhost:7448")?
        .build()?;
    ```
 ````
@@ -135,7 +136,7 @@ cargo build -p rcl-z
 
 ```rust,ignore
 let ctx = ZContextBuilder::default()
-    .with_zenoh_config(zenoh::Config::default())
+    .with_mode("peer")
     .build()?;
 ```
 
@@ -170,6 +171,42 @@ Look for key expressions in the output:
 - This matches the behavior of `rmw_zenoh_cpp`
 
 See [Key Expression Formats](./keyexpr_formats.md#key-expression-behavior-important) for details.
+````
+
+````admonish question collapsible=true title="ROS 2 nodes don't receive messages from ros-z (or vice versa)"
+**Root Cause:** Type hash mismatch — ros-z and the ROS 2 node disagree on the message definition's RIHS01 hash.
+
+**Diagnosis:**
+
+Enable debug logging to see the key expressions being advertised:
+
+```bash
+RUST_LOG=ros_z=debug cargo run --example z_pubsub
+```
+
+Look for the hash in the key expression output:
+
+```
+[PUB] Key expression: 0/chatter/std_msgs::msg::dds_::String_/RIHS01_<hash>
+```
+
+Compare the `RIHS01_<hash>` with what the ROS 2 node advertises (visible with `ZENOH_LOGS=debug` on the ROS 2 side). If the hashes differ, the nodes will not exchange messages.
+
+**Common causes:**
+
+| Cause | Fix |
+|-------|-----|
+| Wrong package used (e.g. `action_tutorials_interfaces` vs `example_interfaces`) | Use the exact package the ROS 2 node uses — check with `ros2 interface show` |
+| Message definition mismatch (extra/missing field) | Verify field names match: `ros2 interface show <pkg>/msg/<Msg>` |
+| ros-z-msgs generated from stale `.msg` files | `cargo clean -p ros-z-msgs && cargo build -p ros-z-msgs` |
+
+**Verify the correct type:**
+
+```bash
+ros2 interface show std_msgs/msg/String
+```
+
+Then check that `ros-z-codegen/assets/jazzy/std_msgs/msg/String.msg` matches exactly.
 ````
 
 ## Resources

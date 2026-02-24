@@ -308,7 +308,7 @@ flowchart TD
 The Python codegen is gated behind the `python_registry` feature:
 
 
-```rust
+```rust,ignore
 // lib.rs
 #[cfg(feature = "python_registry")]
 include!(concat!(env!("OUT_DIR"), "/python_bindings.rs"));

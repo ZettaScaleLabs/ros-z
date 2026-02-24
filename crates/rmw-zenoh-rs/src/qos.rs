@@ -221,16 +221,16 @@ pub fn rmw_qos_to_ros_z_qos(qos: &rmw_qos_profile_t) -> ros_z::qos::QosProfile {
         history,
         reliability,
         durability,
-        deadline: Duration {
+        deadline: QosDuration {
             sec: qos.deadline.sec,
             nsec: qos.deadline.nsec,
         },
-        lifespan: Duration {
+        lifespan: QosDuration {
             sec: qos.lifespan.sec,
             nsec: qos.lifespan.nsec,
         },
         liveliness,
-        liveliness_lease_duration: Duration {
+        liveliness_lease_duration: QosDuration {
             sec: qos.liveliness_lease_duration.sec,
             nsec: qos.liveliness_lease_duration.nsec,
         },

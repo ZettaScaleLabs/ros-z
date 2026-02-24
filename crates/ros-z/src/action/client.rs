@@ -315,6 +315,14 @@ pub struct ZActionClient<A: ZAction> {
     goal_board: Arc<GoalBoard<A>>,
 }
 
+impl<A: ZAction> std::fmt::Debug for ZActionClient<A> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ZActionClient")
+            .field("goal_client", &self.goal_client)
+            .finish_non_exhaustive()
+    }
+}
+
 // This saves the condition A: Clone if using #[derive(Clone)]
 impl<A: ZAction> Clone for ZActionClient<A> {
     fn clone(&self) -> Self {

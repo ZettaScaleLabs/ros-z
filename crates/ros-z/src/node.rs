@@ -21,6 +21,17 @@ use crate::{
     service::{ZClientBuilder, ZServerBuilder},
 };
 
+/// A ROS 2-style node: a named participant that owns publishers, subscribers,
+/// service clients, service servers, and action clients/servers.
+///
+/// Create a node via [`ZContext::create_node`](crate::context::ZContext::create_node):
+///
+/// ```rust,ignore
+/// use ros_z::prelude::*;
+///
+/// let ctx = ZContextBuilder::default().build()?;
+/// let node = ctx.create_node("my_node").build()?;
+/// ```
 pub struct ZNode {
     pub entity: NodeEntity,
     pub session: Arc<Session>,
@@ -34,6 +45,14 @@ pub struct ZNode {
     /// Enabled via `ZNodeBuilder::with_type_description_service()`.
     /// The service uses callback mode and requires no background task.
     type_desc_service: Option<TypeDescriptionService>,
+}
+
+impl std::fmt::Debug for ZNode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ZNode")
+            .field("entity", &self.entity)
+            .finish_non_exhaustive()
+    }
 }
 
 pub struct ZNodeBuilder {
@@ -197,6 +216,7 @@ impl ZNode {
         self.create_pub_impl(topic, Some(T::type_info()))
     }
 
+    #[doc(hidden)]
     pub fn create_pub_impl<T>(
         &self,
         topic: &str,
@@ -242,6 +262,7 @@ impl ZNode {
         self.create_sub_impl(topic, Some(T::type_info()))
     }
 
+    #[doc(hidden)]
     pub fn create_sub_impl<T>(
         &self,
         topic: &str,
@@ -275,17 +296,18 @@ impl ZNode {
     /// - Absolute service names (starting with '/') are used as-is
     /// - Private service names (starting with '~') are expanded to /<namespace>/<node_name>/<service>
     /// - Relative service names are expanded to /<namespace>/<service>
-    pub fn create_service<T>(&self, topic: &str) -> ZServerBuilder<T>
+    pub fn create_service<T>(&self, name: &str) -> ZServerBuilder<T>
     where
         T: ZService + ServiceTypeInfo,
     {
-        debug!("[NOD] Creating service: topic={}", topic);
-        self.create_service_impl(topic, Some(T::service_type_info()))
+        debug!("[NOD] Creating service: name={}", name);
+        self.create_service_impl(name, Some(T::service_type_info()))
     }
 
+    #[doc(hidden)]
     pub fn create_service_impl<T>(
         &self,
-        topic: &str,
+        name: &str,
         type_info: Option<crate::entity::TypeInfo>,
     ) -> ZServerBuilder<T> {
         // Note: Service name qualification happens in ZServerBuilder::build()
@@ -293,7 +315,7 @@ impl ZNode {
         let entity = EndpointEntity {
             id: self.counter.increment(),
             node: self.entity.clone(),
-            topic: topic.to_string(),
+            topic: name.to_string(),
             kind: EntityKind::Service,
             type_info,
             ..Default::default()
@@ -313,17 +335,18 @@ impl ZNode {
     /// - Absolute service names (starting with '/') are used as-is
     /// - Private service names (starting with '~') are expanded to /<namespace>/<node_name>/<service>
     /// - Relative service names are expanded to /<namespace>/<service>
-    pub fn create_client<T>(&self, topic: &str) -> ZClientBuilder<T>
+    pub fn create_client<T>(&self, name: &str) -> ZClientBuilder<T>
     where
         T: ZService + ServiceTypeInfo,
     {
-        debug!("[NOD] Creating client: topic={}", topic);
-        self.create_client_impl(topic, Some(T::service_type_info()))
+        debug!("[NOD] Creating client: name={}", name);
+        self.create_client_impl(name, Some(T::service_type_info()))
     }
 
+    #[doc(hidden)]
     pub fn create_client_impl<T>(
         &self,
-        topic: &str,
+        name: &str,
         type_info: Option<crate::entity::TypeInfo>,
     ) -> ZClientBuilder<T> {
         // Note: Service name qualification happens in ZClientBuilder::build()
@@ -331,7 +354,7 @@ impl ZNode {
         let entity = EndpointEntity {
             id: self.counter.increment(),
             node: self.entity.clone(),
-            topic: topic.to_string(),
+            topic: name.to_string(),
             kind: EntityKind::Client,
             type_info,
             ..Default::default()

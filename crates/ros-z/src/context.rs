@@ -224,10 +224,11 @@ impl ZContextBuilder {
     /// use ros_z::Builder;
     ///
     /// let ctx = ZContextBuilder::default()
-    ///     .with_remap_rule("/foo:=/bar")
-    ///     .with_remap_rule("__node:=my_node")
+    ///     .with_remap_rule("/foo:=/bar")?
+    ///     .with_remap_rule("__node:=my_node")?
     ///     .build()
     ///     .expect("Failed to build context");
+    /// # Ok::<(), zenoh::Error>(())
     /// ```
     pub fn with_remap_rule<S: Into<String>>(mut self, rule: S) -> Result<Self> {
         self.remap_rules.add_rule(&rule.into())?;
@@ -502,6 +503,19 @@ impl Builder for ZContextBuilder {
     }
 }
 
+/// A live ros-z context backed by an open Zenoh session.
+///
+/// `ZContext` is the root object for all ros-z communication. Create one with
+/// [`ZContextBuilder`] and use it to create [`ZNode`](crate::node::ZNode)s.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use ros_z::prelude::*;
+///
+/// let ctx = ZContextBuilder::default().build()?;
+/// let node = ctx.create_node("my_node").build()?;
+/// ```
 #[derive(Clone)]
 pub struct ZContext {
     pub(crate) session: Arc<Session>,
@@ -515,7 +529,20 @@ pub struct ZContext {
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
 }
 
+impl std::fmt::Debug for ZContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ZContext")
+            .field("domain_id", &self.domain_id)
+            .field("enclave", &self.enclave)
+            .finish_non_exhaustive()
+    }
+}
+
 impl ZContext {
+    /// Create a builder for a new ROS 2 node within this context.
+    ///
+    /// Call `.build()` on the returned [`ZNodeBuilder`](crate::node::ZNodeBuilder) to
+    /// produce the node. Requires `use ros_z::Builder;` in scope.
     pub fn create_node<S: AsRef<str>>(&self, name: S) -> ZNodeBuilder {
         ZNodeBuilder {
             domain_id: self.domain_id,
@@ -532,6 +559,10 @@ impl ZContext {
         }
     }
 
+    /// Close the underlying Zenoh session, releasing all network resources.
+    ///
+    /// After calling `shutdown`, all nodes, publishers, subscribers, and
+    /// service clients/servers created from this context become invalid.
     pub fn shutdown(&self) -> Result<()> {
         self.session.close().wait()
     }

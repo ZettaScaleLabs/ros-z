@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use ros_z::Builder;
 /// Demonstrates runtime encoding selection for ros-z publishers.
 ///
@@ -9,7 +11,6 @@ use ros_z::Builder;
 /// Run with: cargo run --example encoding_demo
 use ros_z::encoding::Encoding;
 use ros_z_msgs::std_msgs::String as RosString;
-use std::time::Duration;
 
 fn main() -> zenoh::Result<()> {
     println!("=== ros-z Dynamic Encoding Demo ===\n");

@@ -3,12 +3,15 @@
 
 mod common;
 
+use std::{
+    io::{BufRead, BufReader},
+    process::{Command, Stdio},
+    thread,
+    time::Duration,
+};
+
 use common::{ProcessGuard, TestRouter, check_ros2_available, spawn_ros2_topic_pub};
 use serde_json::Value;
-use std::io::{BufRead, BufReader};
-use std::process::{Command, Stdio};
-use std::thread;
-use std::time::Duration;
 
 /// Spawn ros-z-console in headless mode with echo topics
 fn spawn_console_headless(router_endpoint: &str, echo_topics: &[&str]) -> ProcessGuard {

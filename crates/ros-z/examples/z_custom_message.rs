@@ -188,21 +188,19 @@ async fn run_status_subscriber() -> Result<()> {
     let zsub = node.create_sub::<RobotStatus>("/robot_status").build()?;
 
     loop {
-        if let Ok(status) = zsub.recv() {
-            println!(
-                "Received status from {}: pos=({:.1}, {:.1}), battery={:.1}%, moving={}",
-                status.robot_id,
-                status.position_x,
-                status.position_y,
-                status.battery_percentage,
-                status.is_moving
-            );
+        let status = zsub.async_recv().await?;
+        println!(
+            "Received status from {}: pos=({:.1}, {:.1}), battery={:.1}%, moving={}",
+            status.robot_id,
+            status.position_x,
+            status.position_y,
+            status.battery_percentage,
+            status.is_moving
+        );
 
-            if status.battery_percentage < 20.0 {
-                println!("WARNING: {} has low battery!", status.robot_id);
-            }
+        if status.battery_percentage < 20.0 {
+            println!("WARNING: {} has low battery!", status.robot_id);
         }
-        tokio::time::sleep(Duration::from_millis(100)).await;
     }
 }
 

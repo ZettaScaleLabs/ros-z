@@ -92,27 +92,31 @@ impl fmt::Display for QosLiveliness {
     }
 }
 
-/// Represents a duration in seconds and nanoseconds
+/// Represents a QoS duration in seconds and nanoseconds.
+///
+/// This is distinct from [`std::time::Duration`] and is used exclusively for
+/// configuring QoS deadline, lifespan, and liveliness lease duration.
+/// Use [`QosDuration::INFINITE`] (the default) to disable a QoS time constraint.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
-pub struct Duration {
+pub struct QosDuration {
     pub sec: u64,
     pub nsec: u64,
 }
 
-impl Duration {
-    pub const INFINITE: Duration = Duration {
+impl QosDuration {
+    pub const INFINITE: QosDuration = QosDuration {
         sec: 9223372036,
         nsec: 854775807,
     };
 }
 
-impl Default for Duration {
+impl Default for QosDuration {
     fn default() -> Self {
         Self::INFINITE
     }
 }
 
-impl fmt::Display for Duration {
+impl fmt::Display for QosDuration {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if *self == Self::INFINITE {
             write!(f, "Infinite")
@@ -129,10 +133,10 @@ pub struct QosProfile {
     pub reliability: QosReliability,
     pub durability: QosDurability,
     pub history: QosHistory,
-    pub deadline: Duration,
-    pub lifespan: Duration,
+    pub deadline: QosDuration,
+    pub lifespan: QosDuration,
     pub liveliness: QosLiveliness,
-    pub liveliness_lease_duration: Duration,
+    pub liveliness_lease_duration: QosDuration,
 }
 
 impl QosProfile {
@@ -164,16 +168,16 @@ impl fmt::Display for QosProfile {
             "QoS({}, {}, {}",
             self.reliability, self.durability, self.history
         )?;
-        if self.deadline != Duration::INFINITE {
+        if self.deadline != QosDuration::INFINITE {
             write!(f, ", deadline={}", self.deadline)?;
         }
-        if self.lifespan != Duration::INFINITE {
+        if self.lifespan != QosDuration::INFINITE {
             write!(f, ", lifespan={}", self.lifespan)?;
         }
         if self.liveliness != QosLiveliness::Automatic {
             write!(f, ", liveliness={}", self.liveliness)?;
         }
-        if self.liveliness_lease_duration != Duration::INFINITE {
+        if self.liveliness_lease_duration != QosDuration::INFINITE {
             write!(f, ", lease={}", self.liveliness_lease_duration)?;
         }
         write!(f, ")")
@@ -333,47 +337,49 @@ impl QosProfile {
 
         // Deadline - format: <sec>,<nsec>
         let deadline = match fields.next() {
-            Some(x) if x.is_empty() || x == "," => Duration::default(),
+            Some(x) if x.is_empty() || x == "," => QosDuration::default(),
             Some(x) => {
                 let mut iter = x.split(",");
                 let sec = iter
                     .next()
                     .unwrap_or("")
                     .parse()
-                    .unwrap_or(Duration::INFINITE.sec);
+                    .unwrap_or(QosDuration::INFINITE.sec);
                 let nsec = iter
                     .next()
                     .unwrap_or("")
                     .parse()
-                    .unwrap_or(Duration::INFINITE.nsec);
-                Duration { sec, nsec }
+                    .unwrap_or(QosDuration::INFINITE.nsec);
+                QosDuration { sec, nsec }
             }
-            None => Duration::default(),
+            None => QosDuration::default(),
         };
 
         // Lifespan - format: <sec>,<nsec>
         let lifespan = match fields.next() {
-            Some(x) if x.is_empty() || x == "," => Duration::default(),
+            Some(x) if x.is_empty() || x == "," => QosDuration::default(),
             Some(x) => {
                 let mut iter = x.split(",");
                 let sec = iter
                     .next()
                     .unwrap_or("")
                     .parse()
-                    .unwrap_or(Duration::INFINITE.sec);
+                    .unwrap_or(QosDuration::INFINITE.sec);
                 let nsec = iter
                     .next()
                     .unwrap_or("")
                     .parse()
-                    .unwrap_or(Duration::INFINITE.nsec);
-                Duration { sec, nsec }
+                    .unwrap_or(QosDuration::INFINITE.nsec);
+                QosDuration { sec, nsec }
             }
-            None => Duration::default(),
+            None => QosDuration::default(),
         };
 
         // Liveliness - format: <kind>,<lease_sec>,<lease_nsec>
         let (liveliness, liveliness_lease_duration) = match fields.next() {
-            Some(x) if x.is_empty() || x == ",," => (QosLiveliness::default(), Duration::default()),
+            Some(x) if x.is_empty() || x == ",," => {
+                (QosLiveliness::default(), QosDuration::default())
+            }
             Some(x) => {
                 let mut iter = x.split(",");
                 let kind = match iter.next().unwrap_or("") {
@@ -386,15 +392,15 @@ impl QosProfile {
                     .next()
                     .unwrap_or("")
                     .parse()
-                    .unwrap_or(Duration::INFINITE.sec);
+                    .unwrap_or(QosDuration::INFINITE.sec);
                 let nsec = iter
                     .next()
                     .unwrap_or("")
                     .parse()
-                    .unwrap_or(Duration::INFINITE.nsec);
-                (kind, Duration { sec, nsec })
+                    .unwrap_or(QosDuration::INFINITE.nsec);
+                (kind, QosDuration { sec, nsec })
             }
-            None => (QosLiveliness::default(), Duration::default()),
+            None => (QosLiveliness::default(), QosDuration::default()),
         };
 
         Ok(Self {

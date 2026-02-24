@@ -23,7 +23,7 @@ Get started by adding ros-z to your `Cargo.toml`. Choose the dependency setup th
 
 ```toml
 [dependencies]
-ros-z = "0.x"
+ros-z = { git = "https://github.com/ZettaScaleLabs/ros-z.git" }
 tokio = { version = "1", features = ["full"] }  # Async runtime required
 ```
 
@@ -42,8 +42,8 @@ tokio = { version = "1", features = ["full"] }  # Async runtime required
 
 ```toml
 [dependencies]
-ros-z = "0.x"
-ros-z-msgs = "0.x"  # Includes core_msgs by default
+ros-z = { git = "https://github.com/ZettaScaleLabs/ros-z.git" }
+ros-z-msgs = { git = "https://github.com/ZettaScaleLabs/ros-z.git" }  # Includes core_msgs by default
 tokio = { version = "1", features = ["full"] }
 ```
 
@@ -66,8 +66,8 @@ tokio = { version = "1", features = ["full"] }
 
 ```toml
 [dependencies]
-ros-z = "0.x"
-ros-z-msgs = { version = "0.x", features = ["all_msgs"] }
+ros-z = { git = "https://github.com/ZettaScaleLabs/ros-z.git" }
+ros-z-msgs = { git = "https://github.com/ZettaScaleLabs/ros-z.git", features = ["all_msgs"] }
 tokio = { version = "1", features = ["full"] }
 ```
 

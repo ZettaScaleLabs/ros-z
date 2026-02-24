@@ -20,7 +20,7 @@
 
 ## Status
 
-**ROS-Z** is experimental software. It is tested with ROS 2 Jazzy and should be interoperable with ROS 2 Rolling, but we make no guarantees with respect to official distributions.
+**ROS-Z** is experimental software. It is tested with ROS 2 Jazzy, Humble, and Kilted. We make no guarantees with respect to other official distributions.
 
 ## Documentation
 

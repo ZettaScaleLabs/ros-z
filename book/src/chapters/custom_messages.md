@@ -48,7 +48,7 @@ graph LR
 ### Message Example
 
 ```rust,ignore
-use ros_z::{MessageTypeInfo, entity::{TypeHash, TypeInfo}};
+use ros_z::{MessageTypeInfo, entity::TypeHash};
 use ros_z::ros_msg::WithTypeInfo;
 use serde::{Serialize, Deserialize};
 
@@ -70,17 +70,13 @@ impl MessageTypeInfo for RobotStatus {
     }
 }
 
-impl WithTypeInfo for RobotStatus {
-    fn type_info() -> TypeInfo {
-        TypeInfo::new(Self::type_name(), Self::type_hash())
-    }
-}
+impl WithTypeInfo for RobotStatus {}
 ```
 
 ### Service Example
 
 ```rust,ignore
-use ros_z::{ServiceTypeInfo, msg::ZService};
+use ros_z::{ServiceTypeInfo, TypeInfo, TypeHash, msg::ZService};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct NavigateToRequest {
@@ -195,14 +191,14 @@ edition = "2021"
 [workspace]
 
 [dependencies]
-ros-z-msgs = { version = "0.1" }
-ros-z = { version = "0.1", default-features = false }
+ros-z-msgs = { git = "https://github.com/ZettaScaleLabs/ros-z.git" }
+ros-z = { git = "https://github.com/ZettaScaleLabs/ros-z.git", default-features = false }
 serde = { version = "1", features = ["derive"] }
 smart-default = "0.7"
 zenoh-buffers = "1"
 
 [build-dependencies]
-ros-z-codegen = { version = "0.1" }
+ros-z-codegen = { git = "https://github.com/ZettaScaleLabs/ros-z.git" }
 anyhow = "1"
 ```
 
@@ -214,7 +210,7 @@ use std::env;
 
 fn main() -> anyhow::Result<()> {
     let out_dir = PathBuf::from(env::var("OUT_DIR")?);
-    ros_z_codegen::generate_user_messages(&out_dir, false)?;
+    ros_z_codegen::generate_user_messages(&out_dir, false)?; // false = Jazzy-compatible (use true for Humble)
     println!("cargo:rerun-if-env-changed=ROS_Z_MSG_PATH");
     Ok(())
 }
@@ -265,10 +261,10 @@ let reading = SensorReading {
 };
 ```
 
-See `ros-z/examples/custom_msgs_demo/` for a working example:
+See `crates/ros-z/examples/custom_msgs_demo/` for a working example:
 
 ```bash
-cd ros-z/examples/custom_msgs_demo
+cd crates/ros-z/examples/custom_msgs_demo
 ROS_Z_MSG_PATH="./my_robot_msgs" cargo build
 ```
 

@@ -12,6 +12,19 @@ pub mod state;
 // Re-export type-state markers for documentation and advanced usage
 pub use server::{Accepted, Executing, Requested};
 
+/// Type alias for the client-side goal handle.
+///
+/// Use this when you need to name the client `GoalHandle` type alongside
+/// server types (e.g. in a node that is both an action client and server)
+/// to avoid the name collision with [`server::GoalHandle`].
+///
+/// # Example
+///
+/// ```no_run
+/// use ros_z::action::ClientGoalHandle;
+/// ```
+pub type ClientGoalHandle<A, S = client::goal_state::Active> = client::GoalHandle<A, S>;
+
 /// Core trait for ROS 2 actions
 pub trait ZAction: Send + Sync + 'static {
     type Goal: ZMessage + Clone + Send + Sync + serde::Serialize + for<'de> serde::Deserialize<'de>;

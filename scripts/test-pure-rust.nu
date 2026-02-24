@@ -46,6 +46,19 @@ def check-console [] {
     run-cmd "cargo clippy -p ros-z-console -- -D warnings"
 }
 
+def check-examples [] {
+    log-step "Build all examples (cargo build --examples)"
+    run-cmd "cargo build --examples"
+}
+
+def check-distro-features [] {
+    log-step "Check distro feature flags"
+    run-cmd "cargo check -p ros-z --no-default-features --features humble"
+    run-cmd "cargo check -p ros-z --no-default-features --features jazzy"
+    run-cmd "cargo check -p ros-z --no-default-features --features rolling"
+    run-cmd "cargo check -p ros-z --no-default-features --features kilted"
+}
+
 def test-shm [] {
     log-step "Test SHM functionality"
 
@@ -77,6 +90,8 @@ def get-test-map [] {
         run-tests: { run-tests }
         check-bundled-msgs: { check-bundled-msgs }
         check-console: { check-console }
+        check-examples: { check-examples }
+        check-distro-features: { check-distro-features }
         test-shm: { test-shm }
     }
 }
@@ -87,6 +102,8 @@ def get-test-pipeline [] {
         "run-tests"
         "check-bundled-msgs"
         "check-console"
+        "check-examples"
+        "check-distro-features"
         "test-shm"
     ]
 }

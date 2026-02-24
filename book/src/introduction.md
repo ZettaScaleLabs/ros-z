@@ -1,6 +1,6 @@
 # Introduction
 
-**ros-z is a native Rust ROS 2 implementation powered by Zenoh, delivering high-performance robotics communication with type safety and zero-cost abstractions.** Build reliable robot applications using modern Rust idioms while maintaining full ROS 2 compatibility.
+**ros-z is a native Rust ROS 2 implementation powered by Zenoh, delivering high-performance robotics communication with type safety and zero-cost abstractions.** Build reliable robot applications using modern Rust idioms while maintaining ROS 2 wire compatibility for pub/sub, services, and actions.
 
 ## Architecture
 
@@ -26,7 +26,7 @@ ros-z provides three integration paths to suit different use cases:
 | **High Productivity** | Cargo ecosystem with excellent tooling | Fast development without sacrificing reliability |
 
 ```admonish note
-ros-z is designed for both new projects and gradual migration. Deploy ros-z nodes alongside existing ROS 2 C++/Python nodes with full interoperability.
+ros-z is designed for both new projects and gradual migration. Deploy ros-z nodes alongside existing ROS 2 C++/Python nodes using `rmw_zenoh_cpp` or `zenoh-bridge-ros2dds` for interoperability.
 ```
 
 ## Communication Patterns
@@ -89,6 +89,24 @@ while let Ok(msg) = sub.recv() {
 }
 ```
 
+
+## Current Scope
+
+ros-z covers the core ROS 2 communication primitives. The following are **not yet supported**:
+
+| Feature | Status | Alternative |
+|---------|--------|-------------|
+| **Parameter server** | Not implemented | Use environment variables or custom config |
+| **Lifecycle nodes** | Not implemented | Manage node state in application code |
+| **tf2** | Not implemented | Publish transforms directly on topics |
+| **Simulation time** | Not implemented | Use wall clock |
+| **rosbag2 recording** | Not implemented | Record via native Zenoh tools or `ros2 bag` on the ROS 2 side |
+| **wait_for_service / wait_for_action** | Not implemented | Poll manually with a retry loop |
+| **Component nodes** | Not implemented | Run as separate executables |
+
+```admonish tip
+ros-z is experimental and actively developed. Contributions and feature requests are welcome on [GitHub](https://github.com/ZettaScaleLabs/ros-z).
+```
 
 ## Next Step
 

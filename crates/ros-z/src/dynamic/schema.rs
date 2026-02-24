@@ -34,7 +34,7 @@ pub enum FieldType {
     Message(Arc<MessageSchema>),
 
     // Collections
-    /// Fixed-size array: T[N]
+    /// Fixed-size array: `T[N]`
     Array(Box<FieldType>, usize),
     /// Unbounded sequence: sequence<T>
     Sequence(Box<FieldType>),
