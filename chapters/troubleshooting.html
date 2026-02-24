@@ -316,7 +316,7 @@ cargo build -p rcl-z
 <li>
 <p><strong>Verify endpoint matches in your code:</strong></p>
 <pre><code class="language-rust ignore">let ctx = ZContextBuilder::default()
-    .with_router_endpoint("tcp/localhost:7447")  // Must match router
+    .with_router_endpoint("tcp/localhost:7447")?  // Must match router
     .build()?;</code></pre>
 </li>
 </ol>
@@ -338,14 +338,12 @@ cargo build -p rcl-z
 </li>
 <li>
 <p><strong>Use a custom port:</strong></p>
-<pre><code class="language-rust ignore">// Custom router port
-let router_config = RouterConfigBuilder::new()
-    .with_listen_port(7448)
-    .build()?;
-
-// Connect sessions to custom port
-let ctx = ZContextBuilder::default()
-    .with_router_endpoint("tcp/localhost:7448")
+<p>Start the router on a different port:</p>
+<pre><code class="language-bash">cargo run --example zenoh_router -- --listen "tcp/[::]:7448"
+</code></pre>
+<p>Then connect your sessions to that port:</p>
+<pre><code class="language-rust ignore">let ctx = ZContextBuilder::default()
+    .with_router_endpoint("tcp/localhost:7448")?
     .build()?;</code></pre>
 </li>
 </ol>
@@ -361,7 +359,7 @@ let ctx = ZContextBuilder::default()
 <div>
 <p><strong>Solution:</strong> Use peer mode with multicast discovery:</p>
 <pre><code class="language-rust ignore">let ctx = ZContextBuilder::default()
-    .with_zenoh_config(zenoh::Config::default())
+    .with_mode("peer")
     .build()?;</code></pre>
 <p><strong>Warning:</strong> Peer mode won't interoperate with ROS 2 nodes using <code>rmw_zenoh_cpp</code> in router mode.</p>
 </div>
@@ -394,6 +392,36 @@ RUST_LOG=ros_z=debug cargo run --example z_pubsub
 <li>This matches the behavior of <code>rmw_zenoh_cpp</code></li>
 </ul>
 <p>See <a href="./keyexpr_formats.html#key-expression-behavior-important">Key Expression Formats</a> for details.</p>
+</div>
+</details>
+<details id="admonition-ros-2-nodes-dont-receive-messages-from-ros-z-or-vice-versa" class="admonition admonish-question" role="note" aria-labelledby="admonition-ros-2-nodes-dont-receive-messages-from-ros-z-or-vice-versa-title">
+<summary class="admonition-title">
+<div id="admonition-ros-2-nodes-dont-receive-messages-from-ros-z-or-vice-versa-title">
+<p>ROS 2 nodes don't receive messages from ros-z (or vice versa)</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-ros-2-nodes-dont-receive-messages-from-ros-z-or-vice-versa"></a>
+</summary>
+<div>
+<p><strong>Root Cause:</strong> Type hash mismatch — ros-z and the ROS 2 node disagree on the message definition's RIHS01 hash.</p>
+<p><strong>Diagnosis:</strong></p>
+<p>Enable debug logging to see the key expressions being advertised:</p>
+<pre><code class="language-bash">RUST_LOG=ros_z=debug cargo run --example z_pubsub
+</code></pre>
+<p>Look for the hash in the key expression output:</p>
+<pre><code>[PUB] Key expression: 0/chatter/std_msgs::msg::dds_::String_/RIHS01_&lt;hash&gt;
+</code></pre>
+<p>Compare the <code>RIHS01_&lt;hash&gt;</code> with what the ROS 2 node advertises (visible with <code>ZENOH_LOGS=debug</code> on the ROS 2 side). If the hashes differ, the nodes will not exchange messages.</p>
+<p><strong>Common causes:</strong></p>
+<div class="table-wrapper"><table><thead><tr><th>Cause</th><th>Fix</th></tr></thead><tbody>
+<tr><td>Wrong package used (e.g. <code>action_tutorials_interfaces</code> vs <code>example_interfaces</code>)</td><td>Use the exact package the ROS 2 node uses — check with <code>ros2 interface show</code></td></tr>
+<tr><td>Message definition mismatch (extra/missing field)</td><td>Verify field names match: <code>ros2 interface show &lt;pkg&gt;/msg/&lt;Msg&gt;</code></td></tr>
+<tr><td>ros-z-msgs generated from stale <code>.msg</code> files</td><td><code>cargo clean -p ros-z-msgs &amp;&amp; cargo build -p ros-z-msgs</code></td></tr>
+</tbody></table>
+</div>
+<p><strong>Verify the correct type:</strong></p>
+<pre><code class="language-bash">ros2 interface show std_msgs/msg/String
+</code></pre>
+<p>Then check that <code>ros-z-codegen/assets/jazzy/std_msgs/msg/String.msg</code> matches exactly.</p>
 </div>
 </details>
 <h2 id="resources"><a class="header" href="#resources">Resources</a></h2>

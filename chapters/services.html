@@ -382,7 +382,9 @@ cargo run --example demo_nodes_add_two_ints_client -- --a 100 --b 200
 </div>
 <h3 id="pattern-1-blocking-request-handling"><a class="header" href="#pattern-1-blocking-request-handling">Pattern 1: Blocking Request Handling</a></h3>
 <p>Best for: Simple synchronous service implementations</p>
-<pre><code class="language-rust ignore">let mut service = node
+<pre><code class="language-rust ignore">use ros_z::Builder;
+
+let mut service = node
     .create_service::&lt;ServiceType&gt;("service_name")
     .build()?;
 
@@ -391,9 +393,12 @@ loop {
     let response = process_request(&amp;request);
     service.send_response(&amp;response, &amp;key)?;
 }</code></pre>
+<p>Note: <code>take_request()</code> blocks until a request arrives. The server variable must be <code>mut</code> because <code>take_request</code> takes <code>&amp;mut self</code>. The <code>key</code> returned is a <code>ros_z::service::QueryKey</code> — an opaque token that ties the response to the original request.</p>
 <h3 id="pattern-2-async-request-handling"><a class="header" href="#pattern-2-async-request-handling">Pattern 2: Async Request Handling</a></h3>
 <p>Best for: Services that need to await other operations</p>
-<pre><code class="language-rust ignore">let mut service = node
+<pre><code class="language-rust ignore">use ros_z::Builder;
+
+let mut service = node
     .create_service::&lt;ServiceType&gt;("service_name")
     .build()?;
 
@@ -411,19 +416,36 @@ loop {
 </tbody></table>
 </div>
 <h2 id="service-client-patterns"><a class="header" href="#service-client-patterns">Service Client Patterns</a></h2>
-<p>Service clients send requests to servers and receive responses. Both blocking and async patterns are supported.</p>
-<h3 id="pattern-1-blocking-client"><a class="header" href="#pattern-1-blocking-client">Pattern 1: Blocking Client</a></h3>
-<p>Best for: Simple synchronous request-response operations</p>
-<pre><code class="language-rust ignore">let client = node
+<p>Service clients send requests to servers and receive responses. <code>send_request</code> is always async and must be <code>.await</code>ed. There are two patterns for receiving the response.</p>
+<div id="admonition-note-1" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-1-title">
+<div class="admonition-title">
+<div id="admonition-note-1-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-note-1"></a>
+</div>
+<div>
+<p><code>send_request</code> is an <code>async fn</code> — it must be called with <code>.await</code> in an async context. Calling it without <code>.await</code> will not compile.</p>
+<p><code>take_response()</code> returns <strong>immediately</strong> with <code>Err</code> if no response has arrived yet. Use <code>take_response_timeout(duration)</code> to wait up to a deadline or <code>take_response_async().await</code> in fully async code.</p>
+</div>
+</div>
+<h3 id="pattern-1-async-client-with-timeout"><a class="header" href="#pattern-1-async-client-with-timeout">Pattern 1: Async Client with Timeout</a></h3>
+<p>Best for: Simple request-response where you want to wait up to a fixed deadline</p>
+<pre><code class="language-rust ignore">use ros_z::Builder;
+use std::time::Duration;
+
+let client = node
     .create_client::&lt;ServiceType&gt;("service_name")
     .build()?;
 
 let request = create_request();
-client.send_request(&amp;request)?;
-let response = client.take_response()?;</code></pre>
-<h3 id="pattern-2-async-client"><a class="header" href="#pattern-2-async-client">Pattern 2: Async Client</a></h3>
-<p>Best for: Integration with async codebases</p>
-<pre><code class="language-rust ignore">let client = node
+client.send_request(&amp;request).await?;
+let response = client.take_response_timeout(Duration::from_secs(5))?;</code></pre>
+<h3 id="pattern-2-fully-async-client"><a class="header" href="#pattern-2-fully-async-client">Pattern 2: Fully Async Client</a></h3>
+<p>Best for: Integration with async codebases or when using <code>tokio::select!</code></p>
+<pre><code class="language-rust ignore">use ros_z::Builder;
+
+let client = node
     .create_client::&lt;ServiceType&gt;("service_name")
     .build()?;
 
@@ -438,11 +460,17 @@ let response = client.take_response_async().await?;</code></pre>
 <a class="admonition-anchor-link" href="#admonition-tip"></a>
 </div>
 <div>
-<p>Match your client and server patterns for consistency. Use blocking patterns for simple scripts and async patterns when integrating with async runtimes like tokio.</p>
+<p><code>use ros_z::Builder;</code> must be in scope to call <code>.build()</code>. Both patterns require an async runtime such as <code>tokio</code>. For logging, call <code>zenoh::init_log_from_env_or("error")</code> before building the context.</p>
 </div>
 </div>
 <h2 id="ros-2-interoperability"><a class="header" href="#ros-2-interoperability">ROS 2 Interoperability</a></h2>
-<p>ros-z services work seamlessly with ROS 2 C++ and Python nodes:</p>
+<p>ros-z services interoperate with ROS 2 C++ and Python nodes when both sides share the same Zenoh transport:</p>
+<p><strong>Requirements:</strong></p>
+<ul>
+<li>ROS 2 nodes must use <code>rmw_zenoh_cpp</code> (<code>export RMW_IMPLEMENTATION=rmw_zenoh_cpp</code>)</li>
+<li>Both sides must use matching service types with identical RIHS01 type hashes</li>
+<li>All nodes must connect to the same Zenoh router</li>
+</ul>
 <pre><code class="language-bash"># List available services
 ros2 service list
 
@@ -455,16 +483,33 @@ ros2 service type /add_two_ints
 # Get service info
 ros2 service info /add_two_ints
 </code></pre>
-<div id="admonition-success-1" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-1-title">
+<div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
 <div class="admonition-title">
-<div id="admonition-success-1-title">
-<p>Success</p>
+<div id="admonition-warning-title">
+<p>Warning</p>
 </div>
-<a class="admonition-anchor-link" href="#admonition-success-1"></a>
+<a class="admonition-anchor-link" href="#admonition-warning"></a>
 </div>
 <div>
-<p>ros-z service servers and clients are fully compatible with ROS 2 via Zenoh bridge or rmw_zenoh, enabling cross-language service calls.</p>
+<p>Service interop requires <code>rmw_zenoh_cpp</code> on the ROS 2 side. The <code>zenoh-bridge-ros2dds</code> approach
+works for pub/sub but does not fully support services.</p>
 </div>
+</div>
+<h2 id="error-handling"><a class="header" href="#error-handling">Error Handling</a></h2>
+<h3 id="when-the-server-is-not-running"><a class="header" href="#when-the-server-is-not-running">When the server is not running</a></h3>
+<p><code>send_request</code> dispatches the Zenoh query and resolves immediately — it does not wait for a reply. If no server is registered, the query has no subscribers. <code>take_response()</code> will then return <code>Err("No sample available")</code>.</p>
+<p>Use <code>take_response_timeout(duration)</code> to wait for a bounded time:</p>
+<pre><code class="language-rust ignore">client.send_request(&amp;request).await?;
+match client.take_response_timeout(Duration::from_secs(5)) {
+    Ok(response) =&gt; println!("Got response: {:?}", response),
+    Err(e) =&gt; eprintln!("Service not available or timed out: {}", e),
+}</code></pre>
+<h3 id="response-methods-compared"><a class="header" href="#response-methods-compared">Response methods compared</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>Behavior</th></tr></thead><tbody>
+<tr><td><code>take_response()</code></td><td>Returns immediately; <code>Err</code> if no response yet</td></tr>
+<tr><td><code>take_response_timeout(duration)</code></td><td>Waits up to <code>duration</code>; <code>Err</code> on timeout</td></tr>
+<tr><td><code>take_response_async().await</code></td><td>Waits indefinitely in async context</td></tr>
+</tbody></table>
 </div>
 <h2 id="resources"><a class="header" href="#resources">Resources</a></h2>
 <ul>

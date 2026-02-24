@@ -216,12 +216,12 @@
 </ul>
 <h3 id="setup"><a class="header" href="#setup">Setup</a></h3>
 <pre><code class="language-bash"># Create and activate virtual environment
-cd ros-z-py
+cd crates/ros-z-py
 python -m venv .venv
 source .venv/bin/activate
 
 # Install message types
-pip install -e ../crates/ros-z-msgs/python/
+pip install -e ../ros-z-msgs/python/
 
 # Build and install ros-z-py
 maturin develop
@@ -238,7 +238,7 @@ maturin develop
 </div>
 </div>
 <h2 id="quick-start"><a class="header" href="#quick-start">Quick Start</a></h2>
-<p>Here's a complete publisher and subscriber example from <a href="https://github.com/ZettaScaleLabs/ros-z/blob/main/ros-z-py/examples/topic_demo.py"><code>ros-z-py/examples/topic_demo.py</code></a>:</p>
+<p>Here's a complete publisher and subscriber example from <a href="https://github.com/ZettaScaleLabs/ros-z/blob/main/crates/ros-z-py/examples/topic_demo.py"><code>crates/ros-z-py/examples/topic_demo.py</code></a>:</p>
 <h3 id="publisher-talker"><a class="header" href="#publisher-talker">Publisher (Talker)</a></h3>
 <pre><code class="language-python">def run_talker(ctx, topic: str, count: int, interval: float):
     """Run the talker (publisher)."""
@@ -293,7 +293,7 @@ maturin develop
 </tbody></table>
 </div>
 <h2 id="service-patterns"><a class="header" href="#service-patterns">Service Patterns</a></h2>
-<p>Examples from <a href="https://github.com/ZettaScaleLabs/ros-z/blob/main/ros-z-py/examples/service_demo.py"><code>ros-z-py/examples/service_demo.py</code></a>:</p>
+<p>Examples from <a href="https://github.com/ZettaScaleLabs/ros-z/blob/main/crates/ros-z-py/examples/service_demo.py"><code>crates/ros-z-py/examples/service_demo.py</code></a>:</p>
 <h3 id="service-server"><a class="header" href="#service-server">Service Server</a></h3>
 <pre><code class="language-python">def run_server(ctx, service: str, max_requests: int):
     """Run the AddTwoInts service server."""
@@ -361,7 +361,7 @@ twist = geometry_msgs.Twist(
     angular=geometry_msgs.Vector3(x=0.0, y=0.0, z=0.5)
 )
 
-pub = node.create_publisher("/cmd_vel", "geometry_msgs/msg/Twist")
+pub = node.create_publisher("/cmd_vel", geometry_msgs.Twist)
 pub.publish(twist)
 </code></pre>
 <h2 id="context-configuration"><a class="header" href="#context-configuration">Context Configuration</a></h2>
@@ -444,7 +444,7 @@ pub.publish(echo)
 cargo run --example zenoh_router
 
 # Terminal 2: Run Python publisher (using topic_demo.py)
-cd ros-z-py
+cd crates/ros-z-py
 source .venv/bin/activate
 python examples/topic_demo.py -r talker
 
@@ -464,7 +464,7 @@ ros2 topic echo /chatter std_msgs/msg/String
 </div>
 <h2 id="running-tests"><a class="header" href="#running-tests">Running Tests</a></h2>
 <pre><code class="language-bash"># Python unit tests
-cd ros-z-py
+cd crates/ros-z-py
 source .venv/bin/activate
 python -m pytest tests/ -v
 
@@ -483,9 +483,9 @@ cargo test --features python-interop -p ros-z-tests --test python_interop -- --t
 <p>This error occurs when the package hasn't been built or installed correctly.</p>
 <p><strong>Solution:</strong></p>
 <p>Rebuild and install the package:</p>
-<pre><code class="language-bash">cd ros-z-py
+<pre><code class="language-bash">cd crates/ros-z-py
 source .venv/bin/activate
-pip install -e ../crates/ros-z-msgs/python/
+pip install -e ../ros-z-msgs/python/
 maturin develop
 </code></pre>
 </div>
@@ -498,13 +498,12 @@ maturin develop
 <a class="admonition-anchor-link" href="#admonition-message-type-not-found"></a>
 </summary>
 <div>
-<p>This error occurs when trying to use a message type that isn't registered.</p>
+<p>This error occurs when trying to use a message type that isn't supported by the Python bindings.</p>
 <p><strong>Solution:</strong></p>
-<p>Check which message types are available:</p>
-<pre><code class="language-python">from ros_z_py import ros_z_msgs
-print(ros_z_msgs.list_registered_types())
-</code></pre>
-<p>Ensure the message package is enabled in <code>ros-z-msgs/Cargo.toml</code> features.</p>
+<p>Check the supported message types by looking at the match arms in <code>crates/ros-z-py/src/node.rs</code>.
+Currently supported: <code>std_msgs/String</code>, <code>std_msgs/ByteMultiArray</code>, <code>geometry_msgs/Vector3</code>,
+<code>geometry_msgs/Twist</code>, <code>sensor_msgs/LaserScan</code>, and <code>example_interfaces/AddTwoInts</code>.</p>
+<p>Ensure you are passing a message class object (e.g., <code>std_msgs.String</code>), not a string.</p>
 </div>
 </details>
 <details id="admonition-recv-always-returns-none" class="admonition admonish-question" role="note" aria-labelledby="admonition-recv-always-returns-none-title">

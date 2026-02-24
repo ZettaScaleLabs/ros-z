@@ -271,7 +271,7 @@ pub async fn run_talker(
 <p><strong>Key points:</strong></p>
 <ul>
 <li><strong>QoS Configuration</strong>: Uses <code>KeepLast(7)</code> to buffer the last 7 messages</li>
-<li><strong>Async Publishing</strong>: Non-blocking <code>async_publish()</code> for efficient I/O</li>
+<li><strong>Async Publishing</strong>: Non-blocking <code>async_publish()</code> for efficient I/O. For blocking (non-async) contexts, use <code>publisher.publish(&amp;msg)?</code> instead.</li>
 <li><strong>Rate Control</strong>: Uses <code>tokio::time::sleep()</code> to control publishing frequency</li>
 <li><strong>Bounded Operation</strong>: Optional <code>max_count</code> for testing scenarios</li>
 </ul>
@@ -281,9 +281,6 @@ cargo run --example demo_nodes_talker
 
 # Custom topic and rate
 cargo run --example demo_nodes_talker -- --topic /my_topic --period 0.5
-
-# Publish 10 messages then exit
-cargo run --example demo_nodes_talker -- --max-count 10
 </code></pre>
 <h2 id="subscriber-example"><a class="header" href="#subscriber-example">Subscriber Example</a></h2>
 <p>This example demonstrates subscribing to messages from a topic. The subscriber receives and displays messages, showing both timeout-based and async reception patterns.</p>
@@ -372,9 +369,6 @@ cargo run --example demo_nodes_listener
 
 # Custom topic
 cargo run --example demo_nodes_listener -- --topic /my_topic
-
-# Receive 5 messages then exit
-cargo run --example demo_nodes_listener -- --max-count 5
 </code></pre>
 <h2 id="complete-pub-sub-workflow"><a class="header" href="#complete-pub-sub-workflow">Complete Pub-Sub Workflow</a></h2>
 <p>To see publishers and subscribers in action together, you'll need to start a Zenoh router first:</p>
@@ -390,9 +384,22 @@ cargo run --example demo_nodes_listener -- --max-count 5
 <script src="https://asciinema.org/a/l7L1vuoyZSYwXEGE.js" id="asciicast-l7L1vuoyZSYwXEGE" async="true"></script>
 <h2 id="subscriber-patterns"><a class="header" href="#subscriber-patterns">Subscriber Patterns</a></h2>
 <p>ros-z provides three patterns for receiving messages, each suited for different use cases:</p>
+<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
+<div class="admonition-title">
+<div id="admonition-tip-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-tip"></a>
+</div>
+<div>
+<p><code>use ros_z::Builder;</code> must be in scope to call <code>.build()</code> on any ros-z builder type. Add it alongside your other ros-z imports.</p>
+</div>
+</div>
 <h3 id="pattern-1-blocking-receive-pull-model"><a class="header" href="#pattern-1-blocking-receive-pull-model">Pattern 1: Blocking Receive (Pull Model)</a></h3>
 <p>Best for: Simple sequential processing, scripting</p>
-<pre><code class="language-rust ignore">let subscriber = node
+<pre><code class="language-rust ignore">use ros_z::Builder; // required to call .build()
+
+let subscriber = node
     .create_sub::&lt;RosString&gt;("topic_name")
     .build()?;
 
@@ -401,7 +408,9 @@ while let Ok(msg) = subscriber.recv() {
 }</code></pre>
 <h3 id="pattern-2-async-receive-pull-model"><a class="header" href="#pattern-2-async-receive-pull-model">Pattern 2: Async Receive (Pull Model)</a></h3>
 <p>Best for: Integration with async codebases, handling multiple streams</p>
-<pre><code class="language-rust ignore">let subscriber = node
+<pre><code class="language-rust ignore">use ros_z::Builder; // required to call .build()
+
+let subscriber = node
     .create_sub::&lt;RosString&gt;("topic_name")
     .build()?;
 
@@ -410,7 +419,9 @@ while let Ok(msg) = subscriber.async_recv().await {
 }</code></pre>
 <h3 id="pattern-3-callback-push-model"><a class="header" href="#pattern-3-callback-push-model">Pattern 3: Callback (Push Model)</a></h3>
 <p>Best for: Event-driven architectures, low-latency response</p>
-<pre><code class="language-rust ignore">let subscriber = node
+<pre><code class="language-rust ignore">use ros_z::Builder; // required to call .build_with_callback()
+
+let subscriber = node
     .create_sub::&lt;RosString&gt;("topic_name")
     .build_with_callback(|msg| {
         println!("Received: {}", msg.data);
@@ -418,12 +429,12 @@ while let Ok(msg) = subscriber.async_recv().await {
 
 // No need to call recv() - callback handles messages automatically
 // Your code continues while messages are processed in the background</code></pre>
-<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
+<div id="admonition-tip-1" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-1-title">
 <div class="admonition-title">
-<div id="admonition-tip-title">
+<div id="admonition-tip-1-title">
 <p>Tip</p>
 </div>
-<a class="admonition-anchor-link" href="#admonition-tip"></a>
+<a class="admonition-anchor-link" href="#admonition-tip-1"></a>
 </div>
 <div>
 <p>Use callbacks for low-latency event-driven processing. Use blocking/async receive when you need explicit control over when messages are processed.</p>
@@ -439,12 +450,15 @@ while let Ok(msg) = subscriber.async_recv().await {
 </tbody></table>
 </div>
 <h2 id="quality-of-service-qos"><a class="header" href="#quality-of-service-qos">Quality of Service (QoS)</a></h2>
-<p>QoS profiles control message delivery behavior:</p>
-<pre><code class="language-rust ignore">use ros_z::qos::{QosProfile, QosHistory, Reliability};
+<p>QoS profiles control message delivery behavior. Both publishers and subscribers accept a QoS profile:</p>
+<p><strong>Publisher QoS:</strong></p>
+<pre><code class="language-rust ignore">use std::num::NonZeroUsize;
+use ros_z::Builder;
+use ros_z::qos::{QosProfile, QosHistory, QosReliability};
 
 let qos = QosProfile {
-    history: QosHistory::KeepLast(10),
-    reliability: Reliability::Reliable,
+    history: QosHistory::KeepLast(NonZeroUsize::new(10).unwrap()),
+    reliability: QosReliability::Reliable,
     ..Default::default()
 };
 
@@ -452,19 +466,63 @@ let publisher = node
     .create_pub::&lt;RosString&gt;("topic")
     .with_qos(qos)
     .build()?;</code></pre>
-<div id="admonition-tip-1" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-1-title">
+<p><strong>Subscriber QoS:</strong></p>
+<pre><code class="language-rust ignore">use std::num::NonZeroUsize;
+use ros_z::Builder;
+use ros_z::qos::{QosProfile, QosHistory, QosReliability};
+
+let qos = QosProfile {
+    history: QosHistory::KeepLast(NonZeroUsize::new(10).unwrap()),
+    reliability: QosReliability::Reliable,
+    ..Default::default()
+};
+
+let subscriber = node
+    .create_sub::&lt;RosString&gt;("topic")
+    .with_qos(qos)
+    .build()?;</code></pre>
+<div id="admonition-tip-2" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-2-title">
 <div class="admonition-title">
-<div id="admonition-tip-1-title">
+<div id="admonition-tip-2-title">
 <p>Tip</p>
 </div>
-<a class="admonition-anchor-link" href="#admonition-tip-1"></a>
+<a class="admonition-anchor-link" href="#admonition-tip-2"></a>
 </div>
 <div>
-<p>Use <code>QosHistory::KeepLast(1)</code> for sensor data and <code>Reliability::Reliable</code> for critical commands. Match QoS profiles between publishers and subscribers for optimal message delivery.</p>
+<p>Use <code>QosHistory::KeepLast(NonZeroUsize::new(1).unwrap())</code> for sensor data and <code>QosReliability::Reliable</code> for critical commands. Match QoS profiles between publishers and subscribers for optimal message delivery.</p>
 </div>
 </div>
+<h2 id="name-remapping"><a class="header" href="#name-remapping">Name Remapping</a></h2>
+<p>ros-z supports ROS 2-style topic remapping via <code>ZContextBuilder::with_remap_rule()</code>. Remapping rules apply to all nodes created from the same context and redirect topic/service names at the context level.</p>
+<pre><code class="language-rust ignore"><span class="boring">fn main() -&gt; zenoh::Result&lt;()&gt; {
+</span>use ros_z::context::ZContextBuilder;
+use ros_z::Builder;
+
+let ctx = ZContextBuilder::default()
+    .with_remap_rule("/chatter:=/my_chatter")?  // redirect /chatter to /my_chatter
+    .with_remap_rule("__node:=renamed_node")?   // rename the node
+    .build()?;
+<span class="boring">Ok(())
+</span><span class="boring">}</span></code></pre>
+<p>Multiple rules can be added with <code>.with_remap_rules()</code>:</p>
+<pre><code class="language-rust ignore"><span class="boring">fn main() -&gt; zenoh::Result&lt;()&gt; {
+</span>use ros_z::context::ZContextBuilder;
+use ros_z::Builder;
+
+let ctx = ZContextBuilder::default()
+    .with_remap_rules(["/input:=/sensor/data", "/output:=/processed/data"])?
+    .build()?;
+<span class="boring">Ok(())
+</span><span class="boring">}</span></code></pre>
+<p>The rule format follows the ROS 2 convention: <code>from:=to</code>.</p>
 <h2 id="ros-2-interoperability"><a class="header" href="#ros-2-interoperability">ROS 2 Interoperability</a></h2>
-<p>ros-z publishers and subscribers work seamlessly with ROS 2 C++ and Python nodes:</p>
+<p>ros-z publishers and subscribers interoperate with ROS 2 C++ and Python nodes when both sides share the same Zenoh transport:</p>
+<p><strong>Requirements:</strong></p>
+<ul>
+<li>ROS 2 nodes must use <code>rmw_zenoh_cpp</code> (<code>export RMW_IMPLEMENTATION=rmw_zenoh_cpp</code>) <strong>or</strong> be bridged via <code>zenoh-bridge-ros2dds</code></li>
+<li>Both sides must use matching message types with identical RIHS01 type hashes</li>
+<li>All nodes must connect to the same Zenoh router</li>
+</ul>
 <pre><code class="language-bash"># List active topics
 ros2 topic list
 
@@ -477,15 +535,17 @@ ros2 topic pub /chatter std_msgs/msg/String "data: 'Hello from ROS 2'"
 # Check topic info
 ros2 topic info /chatter
 </code></pre>
-<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
+<div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
 <div class="admonition-title">
-<div id="admonition-success-title">
-<p>Success</p>
+<div id="admonition-warning-title">
+<p>Warning</p>
 </div>
-<a class="admonition-anchor-link" href="#admonition-success"></a>
+<a class="admonition-anchor-link" href="#admonition-warning"></a>
 </div>
 <div>
-<p>ros-z provides full ROS 2 compatibility via Zenoh bridge or rmw_zenoh, enabling cross-language communication.</p>
+<p>If type hashes differ (e.g. mismatched message definitions), nodes won't exchange messages.
+Enable <code>RUST_LOG=ros_z=debug</code> to see the hash in the key expression and compare it with the ROS 2 side.
+See <a href="./troubleshooting.html">Troubleshooting</a> for diagnosis steps.</p>
 </div>
 </div>
 <h2 id="resources"><a class="header" href="#resources">Resources</a></h2>

@@ -232,17 +232,16 @@ sudo apt update &amp;&amp; sudo apt install zenoh
 </div>
 <hr />
 <h2 id="available-examples"><a class="header" href="#available-examples">Available Examples</a></h2>
-<p>Leave the router running in a separate terminal, then run any example in another terminal from the ros-z repository root:</p>
-<pre><code class="language-bash"># Pure Rust example with custom messages (no ros-z-msgs needed)
-cargo run --example z_custom_message -- --mode status-pub
-
-# Examples using bundled messages (requires ros-z-msgs)
-cargo run --example z_pubsub          # Publisher/Subscriber with std_msgs
-cargo run --example twist_pub         # Publishing geometry_msgs
-cargo run --example battery_state_sub # Receiving sensor_msgs
-cargo run --example z_srvcli          # Service example with example_interfaces
-</code></pre>
-<div id="admonition-tip-1" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-1-title">
+<p>Leave the router running in a separate terminal, then run any example from the ros-z repository root:</p>
+<div class="table-wrapper"><table><thead><tr><th>Example</th><th>What it demonstrates</th><th>Command</th></tr></thead><tbody>
+<tr><td><code>z_pubsub</code></td><td>Basic publisher + subscriber exchanging <code>std_msgs/String</code></td><td><code>cargo run --example z_pubsub</code></td></tr>
+<tr><td><code>z_srvcli</code></td><td>Service server + client using <code>example_interfaces/AddTwoInts</code></td><td><code>cargo run --example z_srvcli</code></td></tr>
+<tr><td><code>z_custom_message</code></td><td>Custom <code>.msg</code> types without <code>ros-z-msgs</code>; shows the codegen workflow</td><td><code>cargo run --example z_custom_message -- --mode status-pub</code></td></tr>
+<tr><td><code>twist_pub</code></td><td>Publishing <code>geometry_msgs/Twist</code> (common for robot velocity commands)</td><td><code>cargo run --example twist_pub</code></td></tr>
+<tr><td><code>battery_state_sub</code></td><td>Subscribing to <code>sensor_msgs/BatteryState</code></td><td><code>cargo run --example battery_state_sub</code></td></tr>
+<tr><td><code>zenoh_router</code></td><td>Embedded Zenoh router for development without installing <code>zenohd</code></td><td><code>cargo run --example zenoh_router</code></td></tr>
+</tbody></table>
+</div><div id="admonition-tip-1" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-1-title">
 <div class="admonition-title">
 <div id="admonition-tip-1-title">
 <p>Tip</p>

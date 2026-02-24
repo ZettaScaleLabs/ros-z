@@ -199,7 +199,7 @@
 <p><strong>Use when:</strong> You want to define your own message types without ROS 2 dependencies</p>
 <p><strong>Add to your <code>Cargo.toml</code>:</strong></p>
 <pre><code class="language-toml">[dependencies]
-ros-z = "0.x"
+ros-z = { git = "https://github.com/ZettaScaleLabs/ros-z.git" }
 tokio = { version = "1", features = ["full"] }  # Async runtime required
 </code></pre>
 <p><strong>What you get:</strong></p>
@@ -213,8 +213,8 @@ tokio = { version = "1", features = ["full"] }  # Async runtime required
 <p><strong>Use when:</strong> You need standard ROS 2 message types (no ROS 2 installation required)</p>
 <p><strong>Add to your <code>Cargo.toml</code>:</strong></p>
 <pre><code class="language-toml">[dependencies]
-ros-z = "0.x"
-ros-z-msgs = "0.x"  # Includes core_msgs by default
+ros-z = { git = "https://github.com/ZettaScaleLabs/ros-z.git" }
+ros-z-msgs = { git = "https://github.com/ZettaScaleLabs/ros-z.git" }  # Includes core_msgs by default
 tokio = { version = "1", features = ["full"] }
 </code></pre>
 <p><strong>Default message packages (core_msgs):</strong></p>
@@ -231,8 +231,8 @@ tokio = { version = "1", features = ["full"] }
 <p><strong>Requirements:</strong> None (all messages are vendored)</p>
 <p><strong>Add to your <code>Cargo.toml</code>:</strong></p>
 <pre><code class="language-toml">[dependencies]
-ros-z = "0.x"
-ros-z-msgs = { version = "0.x", features = ["all_msgs"] }
+ros-z = { git = "https://github.com/ZettaScaleLabs/ros-z.git" }
+ros-z-msgs = { git = "https://github.com/ZettaScaleLabs/ros-z.git", features = ["all_msgs"] }
 tokio = { version = "1", features = ["full"] }
 </code></pre>
 <p><strong>Build your project:</strong></p>

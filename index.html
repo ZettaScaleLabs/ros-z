@@ -184,7 +184,7 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="introduction"><a class="header" href="#introduction">Introduction</a></h1>
-<p><strong>ros-z is a native Rust ROS 2 implementation powered by Zenoh, delivering high-performance robotics communication with type safety and zero-cost abstractions.</strong> Build reliable robot applications using modern Rust idioms while maintaining full ROS 2 compatibility.</p>
+<p><strong>ros-z is a native Rust ROS 2 implementation powered by Zenoh, delivering high-performance robotics communication with type safety and zero-cost abstractions.</strong> Build reliable robot applications using modern Rust idioms while maintaining ROS 2 wire compatibility for pub/sub, services, and actions.</p>
 <h2 id="architecture"><a class="header" href="#architecture">Architecture</a></h2>
 <p>ros-z provides three integration paths to suit different use cases:</p>
 <div style="position: relative; width: 100%; height: 700px; margin: 20px 0; overflow: hidden;">
@@ -210,7 +210,7 @@
 <a class="admonition-anchor-link" href="#admonition-note"></a>
 </div>
 <div>
-<p>ros-z is designed for both new projects and gradual migration. Deploy ros-z nodes alongside existing ROS 2 C++/Python nodes with full interoperability.</p>
+<p>ros-z is designed for both new projects and gradual migration. Deploy ros-z nodes alongside existing ROS 2 C++/Python nodes using <code>rmw_zenoh_cpp</code> or <code>zenoh-bridge-ros2dds</code> for interoperability.</p>
 </div>
 </div>
 <h2 id="communication-patterns"><a class="header" href="#communication-patterns">Communication Patterns</a></h2>
@@ -263,6 +263,28 @@ let sub = node.create_sub::&lt;RosString&gt;("topic").build()?;
 while let Ok(msg) = sub.recv() {
     println!("Received: {}", msg);
 }</code></pre>
+<h2 id="current-scope"><a class="header" href="#current-scope">Current Scope</a></h2>
+<p>ros-z covers the core ROS 2 communication primitives. The following are <strong>not yet supported</strong>:</p>
+<div class="table-wrapper"><table><thead><tr><th>Feature</th><th>Status</th><th>Alternative</th></tr></thead><tbody>
+<tr><td><strong>Parameter server</strong></td><td>Not implemented</td><td>Use environment variables or custom config</td></tr>
+<tr><td><strong>Lifecycle nodes</strong></td><td>Not implemented</td><td>Manage node state in application code</td></tr>
+<tr><td><strong>tf2</strong></td><td>Not implemented</td><td>Publish transforms directly on topics</td></tr>
+<tr><td><strong>Simulation time</strong></td><td>Not implemented</td><td>Use wall clock</td></tr>
+<tr><td><strong>rosbag2 recording</strong></td><td>Not implemented</td><td>Record via native Zenoh tools or <code>ros2 bag</code> on the ROS 2 side</td></tr>
+<tr><td><strong>wait_for_service / wait_for_action</strong></td><td>Not implemented</td><td>Poll manually with a retry loop</td></tr>
+<tr><td><strong>Component nodes</strong></td><td>Not implemented</td><td>Run as separate executables</td></tr>
+</tbody></table>
+</div><div id="admonition-tip-1" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-1-title">
+<div class="admonition-title">
+<div id="admonition-tip-1-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-tip-1"></a>
+</div>
+<div>
+<p>ros-z is experimental and actively developed. Contributions and feature requests are welcome on <a href="https://github.com/ZettaScaleLabs/ros-z">GitHub</a>.</p>
+</div>
+</div>
 <h2 id="next-step"><a class="header" href="#next-step">Next Step</a></h2>
 <p><strong>Ready to build safer, faster robotics applications? Start with the <a href="./chapters/quick_start.html">Quick Start Guide</a>.</strong></p>
 

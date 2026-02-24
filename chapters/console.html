@@ -225,6 +225,17 @@ ros-z-console to observe the entire system.</p>
 <p><strong>Terminal 1 - Start the Zenoh router:</strong></p>
 <pre><code class="language-bash">ros2 run rmw_zenoh_cpp rmw_zenohd
 </code></pre>
+<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+<div class="admonition-title">
+<div id="admonition-note-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-note"></a>
+</div>
+<div>
+<p><code>rmw_zenohd</code> is the Zenoh router that ships with the <code>rmw_zenoh_cpp</code> package — it is functionally equivalent to running the standalone <code>zenohd</code> binary. Both listen on <code>tcp/127.0.0.1:7447</code> by default.</p>
+</div>
+</div>
 <p><strong>Terminal 2 - Start the talker:</strong></p>
 <pre><code class="language-bash">export RMW_IMPLEMENTATION=rmw_zenoh_cpp
 ros2 run demo_nodes_cpp talker
@@ -234,7 +245,7 @@ ros2 run demo_nodes_cpp talker
 ros2 run demo_nodes_cpp listener
 </code></pre>
 <p><strong>Terminal 4 - Monitor with ros-z-console:</strong></p>
-<pre><code class="language-bash">ros-z-console tcp/127.0.0.1:7447 0
+<pre><code class="language-bash">./target/release/ros-z-console tcp/127.0.0.1:7447 0
 </code></pre>
 <div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
 <div class="admonition-title">
@@ -250,23 +261,29 @@ message rates, and inspect QoS settings.</p>
 </div>
 </div>
 <h2 id="building-and-running"><a class="header" href="#building-and-running">Building and Running</a></h2>
-<pre><code class="language-bash"># Build the console
+<pre><code class="language-bash"># Build the console (release build)
 cargo build -p ros-z-console --release
 
-# Run with default settings (TUI mode)
-ros-z-console tcp/127.0.0.1:7447 0
+# Run directly from build output
+./target/release/ros-z-console tcp/127.0.0.1:7447 0
+
+# Or install to ~/.cargo/bin so `ros-z-console` works from anywhere
+cargo install --path crates/ros-z-console
+
+# Or use cargo run during development (debug build)
+cargo run -p ros-z-console -- tcp/127.0.0.1:7447 0
 
 # Headless JSON streaming
-ros-z-console --headless --json tcp/127.0.0.1:7447 0
+./target/release/ros-z-console --headless --json tcp/127.0.0.1:7447 0
 
 # Echo messages from a topic
-ros-z-console --headless --echo /chatter tcp/127.0.0.1:7447 0
+./target/release/ros-z-console --headless --echo /chatter tcp/127.0.0.1:7447 0
 
 # Echo multiple topics with JSON output
-ros-z-console --headless --json --echo /chatter --echo /cmd_vel tcp/127.0.0.1:7447 0
+./target/release/ros-z-console --headless --json --echo /chatter --echo /cmd_vel tcp/127.0.0.1:7447 0
 
 # Export graph snapshot and exit
-ros-z-console --export graph.json tcp/127.0.0.1:7447 0
+./target/release/ros-z-console --export graph.json tcp/127.0.0.1:7447 0
 </code></pre>
 <h2 id="command-line-interface"><a class="header" href="#command-line-interface">Command Line Interface</a></h2>
 <pre><code class="language-bash">ros-z-console [OPTIONS] [ROUTER] [DOMAIN]
@@ -280,13 +297,27 @@ ros-z-console --export graph.json tcp/127.0.0.1:7447 0
 <h3 id="options"><a class="header" href="#options">Options</a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Flag</th><th>Description</th></tr></thead><tbody>
 <tr><td><code>--tui</code></td><td>Enable TUI interface (default if no other mode specified)</td></tr>
-<tr><td><code>--headless</code></td><td>Headless mode: stream events to stdout</td></tr>
-<tr><td><code>--json</code></td><td>Output structured JSON logs</td></tr>
+<tr><td><code>--headless</code></td><td>Headless mode: stream events to stdout (human-readable unless <code>--json</code> is also set)</td></tr>
+<tr><td><code>--json</code></td><td>Output structured JSON logs (use with <code>--headless</code>)</td></tr>
 <tr><td><code>--debug</code></td><td>Enable debug logging</td></tr>
-<tr><td><code>--echo &lt;TOPIC&gt;</code></td><td>Subscribe to and display messages from topic (can be used multiple times)</td></tr>
+<tr><td><code>--echo &lt;TOPIC&gt;</code></td><td>Subscribe to and display messages from topic (requires <code>--headless</code>; can be used multiple times)</td></tr>
 <tr><td><code>--export &lt;PATH&gt;</code></td><td>Export current state and exit (supports .json, .dot, .csv)</td></tr>
+<tr><td><code>--backend &lt;BACKEND&gt;</code></td><td>Backend protocol: <code>rmw-zenoh</code> (default) or <code>ros2dds</code></td></tr>
 </tbody></table>
 </div>
+<h3 id="backend-selection"><a class="header" href="#backend-selection">Backend Selection</a></h3>
+<p>ros-z-console supports two discovery backends:</p>
+<div class="table-wrapper"><table><thead><tr><th>Backend</th><th>Use when...</th></tr></thead><tbody>
+<tr><td><code>rmw-zenoh</code> (default)</td><td>Nodes use <code>rmw_zenoh_cpp</code> directly</td></tr>
+<tr><td><code>ros2dds</code></td><td>Nodes are bridged via <code>zenoh-bridge-ros2dds</code></td></tr>
+</tbody></table>
+</div>
+<pre><code class="language-bash"># Monitor nodes using rmw_zenoh_cpp (default)
+ros-z-console tcp/127.0.0.1:7447 0
+
+# Monitor nodes bridged via zenoh-bridge-ros2dds
+ros-z-console --backend ros2dds tcp/127.0.0.1:7447 0
+</code></pre>
 <h2 id="modes"><a class="header" href="#modes">Modes</a></h2>
 <h3 id="tui-mode-default"><a class="header" href="#tui-mode-default">TUI Mode (Default)</a></h3>
 <p>The interactive terminal interface provides:</p>
@@ -294,23 +325,20 @@ ros-z-console --export graph.json tcp/127.0.0.1:7447 0
 <li><strong>Panel Navigation</strong> - Browse Topics, Services, Nodes, and Measurements</li>
 <li><strong>Filter Mode</strong> - Press <code>/</code> to activate type-ahead search with highlighting</li>
 <li><strong>Rate Monitoring</strong> - Quick rate check with <code>r</code> key (cached for 30s)</li>
-<li><strong>Measurement Panel</strong> - Press <code>m</code> for detailed measurements with:
-<ul>
-<li>Real-time metrics (msg/s, KB/s, average payload)</li>
-<li>60-second time-series chart</li>
-<li>SQLite storage (<code>ros-z-metrics.db</code>)</li>
-</ul>
-</li>
+<li><strong>Measurement Tracking</strong> - Press <code>m</code> on a topic in the Topics tab to toggle it into the Measure panel tracking list</li>
+<li><strong>Measurement Panel</strong> - Navigate to the Measure tab to see real-time metrics (msg/s, KB/s, average payload) and a 60-second time-series chart</li>
+<li><strong>SQLite Recording</strong> - Press <code>w</code> to start/stop recording metrics to <code>ros-z-metrics.db</code></li>
 <li><strong>Detail Drilling</strong> - Press <code>Enter</code> to expand sections with QoS profiles</li>
-<li><strong>Export</strong> - Press <code>e</code> to export metrics to CSV</li>
+<li><strong>Export</strong> - Press <code>e</code> to export the current rate cache to a timestamped CSV file</li>
+<li><strong>Screenshot</strong> - Press <code>S</code> to capture the current TUI state</li>
 <li><strong>Help Overlay</strong> - Press <code>?</code> to toggle help</li>
 </ul>
-<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+<div id="admonition-note-1" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-1-title">
 <div class="admonition-title">
-<div id="admonition-note-title">
+<div id="admonition-note-1-title">
 <p>Note</p>
 </div>
-<a class="admonition-anchor-link" href="#admonition-note"></a>
+<a class="admonition-anchor-link" href="#admonition-note-1"></a>
 </div>
 <div>
 <p>TUI mode requires a terminal that supports ANSI escape codes. Most modern terminals work out of the box.</p>
@@ -328,19 +356,21 @@ ros-z-console --export graph.json tcp/127.0.0.1:7447 0
 <pre><code class="language-bash">ros-z-console --headless tcp/127.0.0.1:7447 0
 </code></pre>
 <pre><code class="language-console">Discovered Topics:
-  /chatter (std_msgs/msg/String)
-  /cmd_vel (geometry_msgs/msg/Twist)
+  📡 /chatter (std_msgs/msg/String)
+  📡 /cmd_vel (geometry_msgs/msg/Twist)
+Discovered Services:
+  🔌 /talker/describe_parameters (rcl_interfaces/srv/DescribeParameters)
 Discovered Nodes:
-  /talker
-  /listener
+  🤖 //talker
+  🤖 //listener
 [2026-01-21 10:30:00] Topic discovered: /rosout (rcl_interfaces/msg/Log)
 </code></pre>
 <p><strong>JSON streaming output:</strong></p>
 <pre><code class="language-bash">ros-z-console --headless --json tcp/127.0.0.1:7447 0
 </code></pre>
-<pre><code class="language-json">{"timestamp":"...","event":"initial_state","domain_id":0,"topics":[...],"nodes":[...],"services":[...]}
-{"TopicDiscovered":{"topic":"/chatter","type_name":"std_msgs/msg/String","timestamp":"..."}}
-{"NodeDiscovered":{"namespace":"/","name":"talker","timestamp":"..."}}
+<pre><code class="language-json">{"event":"initial_state","domain_id":0,"topics":[...],"nodes":[...],"services":[...]}
+{"TopicDiscovered":{"topic":"/chatter","type_name":"std_msgs/msg/String","timestamp":{"secs_since_epoch":1737449400,"nanos_since_epoch":0}}}
+{"NodeDiscovered":{"namespace":"/","name":"talker","timestamp":{"secs_since_epoch":1737449400,"nanos_since_epoch":0}}}
 </code></pre>
 <h2 id="dynamic-topic-echo"><a class="header" href="#dynamic-topic-echo">Dynamic Topic Echo</a></h2>
 <p>ros-z-console can subscribe to and display messages from <strong>any ROS 2 topic</strong>
@@ -381,6 +411,17 @@ schema discovery using the ROS 2 Type Description service (REP-2016).</p>
     C-&gt;&gt;C: Deserialize &amp; display
 </pre>
 <h3 id="basic-usage"><a class="header" href="#basic-usage">Basic Usage</a></h3>
+<div id="admonition-note-2" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-2-title">
+<div class="admonition-title">
+<div id="admonition-note-2-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-note-2"></a>
+</div>
+<div>
+<p>The examples below omit the <code>[ROUTER] [DOMAIN]</code> positional arguments. When omitted, they default to <code>tcp/127.0.0.1:7447</code> and <code>0</code> respectively. To use a different router or domain, add them at the end: <code>ros-z-console --headless --echo /chatter tcp/192.168.1.100:7447 1</code>.</p>
+</div>
+</div>
 <p><strong>Echo a single topic:</strong></p>
 <pre><code class="language-bash">ros-z-console --headless --echo /chatter
 </code></pre>
@@ -576,10 +617,21 @@ dot -Tpng graph.dot -o graph.png
 <h3 id="csv-export"><a class="header" href="#csv-export">CSV Export</a></h3>
 <pre><code class="language-bash">ros-z-console --export metrics.csv tcp/127.0.0.1:7447 0
 </code></pre>
-<p>Exports collected metrics history:</p>
+<p>Exports metrics recorded during the current TUI session. Use <code>w</code> in the TUI to start recording before exporting:</p>
 <pre><code class="language-csv">timestamp,topic,rate_hz,bandwidth_kbps,avg_payload_bytes
 2026-01-21T10:30:00Z,/chatter,10.5,2.3,220
 </code></pre>
+<div id="admonition-note-3" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-3-title">
+<div class="admonition-title">
+<div id="admonition-note-3-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-note-3"></a>
+</div>
+<div>
+<p>The CSV file will be empty if you have not started recording with <code>w</code> in the TUI before exporting.</p>
+</div>
+</div>
 <h2 id="event-types"><a class="header" href="#event-types">Event Types</a></h2>
 <p>ros-z-console tracks these system events:</p>
 <div class="table-wrapper"><table><thead><tr><th>Event</th><th>Description</th></tr></thead><tbody>

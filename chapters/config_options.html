@@ -210,8 +210,8 @@
 <pre><code class="language-bash"># Override mode and endpoint
 export ROSZ_CONFIG_OVERRIDE='mode="client";connect/endpoints=["tcp/192.168.1.100:7447"]'
 
-# Run your application
-cargo run --example my_app
+# Run any ros-z application — overrides apply automatically
+cargo run --example z_pubsub
 </code></pre>
 <pre><code class="language-rust ignore">// No code changes needed - overrides are applied automatically
 let ctx = ZContextBuilder::default().build()?;</code></pre>

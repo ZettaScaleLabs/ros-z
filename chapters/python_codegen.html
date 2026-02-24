@@ -428,12 +428,9 @@ pub fn deserialize_string(py: Python, bytes: &amp;[u8]) -&gt; PyResult&lt;PyObje
 </div>
 <h3 id="feature-flags"><a class="header" href="#feature-flags">Feature Flags</a></h3>
 <p>The Python codegen is gated behind the <code>python_registry</code> feature:</p>
-<pre><pre class="playground"><code class="language-rust edition2021"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// lib.rs
+<pre><code class="language-rust ignore">// lib.rs
 #[cfg(feature = "python_registry")]
-include!(concat!(env!("OUT_DIR"), "/python_bindings.rs"));
-<span class="boring">}</span></code></pre></pre>
+include!(concat!(env!("OUT_DIR"), "/python_bindings.rs"));</code></pre>
 <p>The <code>ros-z-derive</code> crate provides the derive macros, and <code>ros-z/python</code> enables the <code>FromPyMessage</code> and <code>IntoPyMessage</code> traits.</p>
 
                     </main>

@@ -196,6 +196,12 @@
 <p>This guide assumes basic Rust knowledge. If you're new to Rust, complete the <a href="https://doc.rust-lang.org/book/">Rust Book</a> first for the best experience.</p>
 </div>
 </div>
+<p><strong>Prerequisites:</strong></p>
+<ul>
+<li><strong>Rust 1.85+</strong> (edition 2024 is required) — install via <a href="https://rustup.rs/">rustup</a></li>
+<li><strong>Tokio 1.x</strong> — ros-z requires an async runtime (added to <code>Cargo.toml</code> in Option 2 below)</li>
+<li>No ROS 2 installation needed for the examples in this guide</li>
+</ul>
 <h2 id="choose-your-path"><a class="header" href="#choose-your-path">Choose Your Path</a></h2>
 <p>There are two ways to get started with ros-z:</p>
 <ol>
@@ -210,17 +216,19 @@
 cd ros-z
 </code></pre>
 <h3 id="start-the-zenoh-router"><a class="header" href="#start-the-zenoh-router">Start the Zenoh Router</a></h3>
-<p>ros-z uses a router-based architecture (matching ROS 2's <code>rmw_zenoh</code>), so you'll need to start a Zenoh router first.</p>
+<p>ros-z uses a router-based architecture (matching ROS 2's <code>rmw_zenoh</code> — the ROS 2 middleware plugin for Zenoh), so you'll need to start a Zenoh router first. The router acts as a rendezvous point for all nodes: publishers and subscribers discover each other through it rather than via multicast.</p>
 <p><strong>Terminal 1 - Start the Router:</strong></p>
 <pre><code class="language-bash">cargo run --example zenoh_router
 </code></pre>
 <h3 id="run-the-pubsub-example"><a class="header" href="#run-the-pubsub-example">Run the Pub/Sub Example</a></h3>
-<p>Open two more terminals in the same <code>ros-z</code> directory:</p>
+<p>Open two more terminals and navigate to the same <code>ros-z</code> directory:</p>
 <p><strong>Terminal 2 - Start the Listener:</strong></p>
-<pre><code class="language-bash">cargo run --example z_pubsub -- -r listener
+<pre><code class="language-bash">cd ros-z
+cargo run --example z_pubsub -- --role listener
 </code></pre>
 <p><strong>Terminal 3 - Start the Talker:</strong></p>
-<pre><code class="language-bash">cargo run --example z_pubsub -- -r talker
+<pre><code class="language-bash">cd ros-z
+cargo run --example z_pubsub -- --role talker
 </code></pre>
 <div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
 <div class="admonition-title">
@@ -420,8 +428,8 @@ cd my_ros_z_project
 <h3 id="3-add-dependencies"><a class="header" href="#3-add-dependencies">3. Add Dependencies</a></h3>
 <p>Add ros-z to your <code>Cargo.toml</code>:</p>
 <pre><code class="language-toml">[dependencies]
-ros-z = "*"
-ros-z-msgs = "*"  # Standard ROS 2 message types
+ros-z = { git = "https://github.com/ZettaScaleLabs/ros-z.git" }
+ros-z-msgs = { git = "https://github.com/ZettaScaleLabs/ros-z.git" }  # Standard ROS 2 message types
 tokio = { version = "1", features = ["full"] }  # Async runtime
 </code></pre>
 <div id="admonition-note-1" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-1-title">
@@ -437,6 +445,17 @@ tokio = { version = "1", features = ["full"] }  # Async runtime
 </div>
 <h3 id="4-write-your-first-application"><a class="header" href="#4-write-your-first-application">4. Write Your First Application</a></h3>
 <p>Replace the contents of <code>src/main.rs</code> with this simple publisher example:</p>
+<div id="admonition-simpler-imports-with-prelude" class="admonition admonish-tip" role="note" aria-labelledby="admonition-simpler-imports-with-prelude-title">
+<div class="admonition-title">
+<div id="admonition-simpler-imports-with-prelude-title">
+<p>Simpler imports with prelude</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-simpler-imports-with-prelude"></a>
+</div>
+<div>
+<p>Instead of importing <code>Builder</code>, <code>Result</code>, and <code>ZContextBuilder</code> separately, use <code>use ros_z::prelude::*;</code> to bring all common ros-z types into scope at once.</p>
+</div>
+</div>
 <pre><code class="language-rust ignore">use std::time::Duration;
 use ros_z::{Builder, Result, context::ZContextBuilder};
 use ros_z_msgs::std_msgs::String as RosString;
@@ -532,6 +551,20 @@ cargo run --bin listener
 <li><strong>Production-ready</strong> architecture used in real ROS 2 systems</li>
 </ul>
 <p>See the <a href="./networking.html">Networking</a> chapter for customization options, including how to revert to multicast scouting mode if needed.</p>
+</div>
+</div>
+<div id="admonition-key-terms" class="admonition admonish-info" role="note" aria-labelledby="admonition-key-terms-title">
+<div class="admonition-title">
+<div id="admonition-key-terms-title">
+<p>Key Terms</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-key-terms"></a>
+</div>
+<div>
+<p><strong>key expression</strong> — Zenoh's topic addressing scheme. A string like <code>0/chatter/std_msgs::msg::dds_::String_/RIHS01_&lt;hash&gt;</code> that identifies where messages flow. ros-z maps ROS 2 topic names to key expressions automatically.</p>
+<p><strong>CDR</strong> — Common Data Representation, the binary serialization format used by all ROS 2 middleware. ros-z serializes message structs to CDR bytes before publishing.</p>
+<p><strong>RIHS01</strong> — ROS Interface Hash Scheme 01, a hash of the message definition that ensures publisher and subscriber agree on the exact message fields. If the hash differs, messages are silently dropped.</p>
+<p><strong>RMW</strong> — ROS MiddleWare interface, the plugin layer that connects ROS 2 nodes to an underlying transport (DDS, Zenoh, etc.). <code>rmw_zenoh_cpp</code> is the RMW that lets standard ROS 2 C++/Python nodes speak Zenoh.</p>
 </div>
 </div>
 <h2 id="whats-happening"><a class="header" href="#whats-happening">What's Happening?</a></h2>
