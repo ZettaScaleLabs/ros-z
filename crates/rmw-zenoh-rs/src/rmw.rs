@@ -99,6 +99,37 @@ pub extern "C" fn rmw_create_publisher(
         return std::ptr::null_mut();
     }
 
+    // Check node implementation_identifier
+    unsafe {
+        if !crate::context::check_impl_id((*node).implementation_identifier) {
+            return std::ptr::null_mut();
+        }
+    }
+
+    // Validate QoS profile (reject unknown/uninitialized)
+    let avoid_ros_ns = unsafe { (*qos_profile).avoid_ros_namespace_conventions };
+    unsafe {
+        let qos = &*qos_profile;
+        if qos.reliability == rmw_qos_reliability_policy_e_RMW_QOS_POLICY_RELIABILITY_UNKNOWN
+            || qos.durability == rmw_qos_durability_policy_e_RMW_QOS_POLICY_DURABILITY_UNKNOWN
+            || qos.history == rmw_qos_history_policy_e_RMW_QOS_POLICY_HISTORY_UNKNOWN
+            || qos.liveliness == rmw_qos_liveliness_policy_e_RMW_QOS_POLICY_LIVELINESS_UNKNOWN
+        {
+            return std::ptr::null_mut();
+        }
+    }
+
+    // Validate topic name (must be non-empty; absolute path required unless native conventions)
+    let topic_str = unsafe { std::ffi::CStr::from_ptr(topic_name) }
+        .to_str()
+        .unwrap_or("");
+    if topic_str.is_empty() {
+        return std::ptr::null_mut();
+    }
+    if !avoid_ros_ns && (!topic_str.starts_with('/') || topic_str.contains(' ')) {
+        return std::ptr::null_mut();
+    }
+
     let node_impl = match node.borrow_data() {
         Ok(impl_) => impl_,
         Err(e) => {
@@ -110,10 +141,6 @@ pub extern "C" fn rmw_create_publisher(
             return std::ptr::null_mut();
         }
     };
-
-    let topic_str = unsafe { std::ffi::CStr::from_ptr(topic_name) }
-        .to_str()
-        .unwrap_or("");
     let ts = match unsafe { crate::type_support::MessageTypeSupport::new(type_support) } {
         Ok(ts) => ts,
         Err(e) => {
@@ -342,6 +369,18 @@ pub extern "C" fn rmw_destroy_publisher(
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
+    // Check implementation_identifiers
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*node).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+        let ret = crate::context::check_impl_id_ret((*publisher).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
     // Remove local entity from graph
     if let Ok(publisher_impl) = publisher.borrow_data() {
         let entity = ros_z::entity::Entity::Endpoint(publisher_impl.entity.clone());
@@ -391,6 +430,13 @@ pub extern "C" fn rmw_publish(
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*publisher).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
     let publisher_impl = match publisher.borrow_data() {
         Ok(impl_) => impl_,
         Err(_) => return RMW_RET_INVALID_ARGUMENT as _,
@@ -423,6 +469,37 @@ pub extern "C" fn rmw_create_subscription(
         return std::ptr::null_mut();
     }
 
+    // Check node implementation_identifier
+    unsafe {
+        if !crate::context::check_impl_id((*node).implementation_identifier) {
+            return std::ptr::null_mut();
+        }
+    }
+
+    // Validate QoS profile (reject unknown/uninitialized)
+    let avoid_ros_ns = unsafe { (*qos_policies).avoid_ros_namespace_conventions };
+    unsafe {
+        let qos = &*qos_policies;
+        if qos.reliability == rmw_qos_reliability_policy_e_RMW_QOS_POLICY_RELIABILITY_UNKNOWN
+            || qos.durability == rmw_qos_durability_policy_e_RMW_QOS_POLICY_DURABILITY_UNKNOWN
+            || qos.history == rmw_qos_history_policy_e_RMW_QOS_POLICY_HISTORY_UNKNOWN
+            || qos.liveliness == rmw_qos_liveliness_policy_e_RMW_QOS_POLICY_LIVELINESS_UNKNOWN
+        {
+            return std::ptr::null_mut();
+        }
+    }
+
+    // Validate topic name (must be non-empty; absolute path required unless native conventions)
+    let topic_str = unsafe { std::ffi::CStr::from_ptr(topic_name) }
+        .to_str()
+        .unwrap_or("");
+    if topic_str.is_empty() {
+        return std::ptr::null_mut();
+    }
+    if !avoid_ros_ns && (!topic_str.starts_with('/') || topic_str.contains(' ')) {
+        return std::ptr::null_mut();
+    }
+
     let node_impl = match node.borrow_data() {
         Ok(impl_) => impl_,
         Err(_) => return std::ptr::null_mut(),
@@ -435,10 +512,6 @@ pub extern "C" fn rmw_create_subscription(
         Err(_) => return std::ptr::null_mut(),
     };
     let notifier = context_impl.share_notifier();
-
-    let topic_str = unsafe { std::ffi::CStr::from_ptr(topic_name) }
-        .to_str()
-        .unwrap_or("");
     let ts = match unsafe { crate::type_support::MessageTypeSupport::new(type_support) } {
         Ok(ts) => ts,
         Err(_) => return std::ptr::null_mut(),
@@ -671,6 +744,18 @@ pub extern "C" fn rmw_destroy_subscription(
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
+    // Check implementation_identifiers
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*node).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+        let ret = crate::context::check_impl_id_ret((*subscription).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
     // Remove local entity from graph
     if let Ok(subscription_impl) = subscription.borrow_data() {
         let entity = ros_z::entity::Entity::Endpoint(subscription_impl.entity.clone());
@@ -711,6 +796,13 @@ pub extern "C" fn rmw_take(
 ) -> rmw_ret_t {
     if subscription.is_null() || ros_message.is_null() || taken.is_null() {
         return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*subscription).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
     }
 
     let subscription_impl = match subscription.borrow_data() {
@@ -864,6 +956,33 @@ pub extern "C" fn rmw_create_client(
         return std::ptr::null_mut();
     }
 
+    // Check node implementation_identifier
+    unsafe {
+        if !crate::context::check_impl_id((*node).implementation_identifier) {
+            return std::ptr::null_mut();
+        }
+    }
+
+    // Validate service name (must be non-empty, absolute, no spaces)
+    let service_str = unsafe { std::ffi::CStr::from_ptr(service_name) }
+        .to_str()
+        .unwrap_or("");
+    if service_str.is_empty() || !service_str.starts_with('/') || service_str.contains(' ') {
+        return std::ptr::null_mut();
+    }
+
+    // Validate QoS profile (reject unknown/uninitialized)
+    unsafe {
+        let qos = &*qos_policies;
+        if qos.reliability == rmw_qos_reliability_policy_e_RMW_QOS_POLICY_RELIABILITY_UNKNOWN
+            || qos.durability == rmw_qos_durability_policy_e_RMW_QOS_POLICY_DURABILITY_UNKNOWN
+            || qos.history == rmw_qos_history_policy_e_RMW_QOS_POLICY_HISTORY_UNKNOWN
+            || qos.liveliness == rmw_qos_liveliness_policy_e_RMW_QOS_POLICY_LIVELINESS_UNKNOWN
+        {
+            return std::ptr::null_mut();
+        }
+    }
+
     let node_impl = match node.borrow_data() {
         Ok(impl_) => impl_,
         Err(_) => return std::ptr::null_mut(),
@@ -876,10 +995,6 @@ pub extern "C" fn rmw_create_client(
         Err(_) => return std::ptr::null_mut(),
     };
     let notifier = context_impl.share_notifier();
-
-    let service_str = unsafe { std::ffi::CStr::from_ptr(service_name) }
-        .to_str()
-        .unwrap_or("");
 
     // Create client using ros-z
     let qos = crate::qos::rmw_qos_to_ros_z_qos(unsafe { &*qos_policies });
@@ -983,6 +1098,18 @@ pub extern "C" fn rmw_destroy_client(
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
+    // Check implementation_identifiers
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*node).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+        let ret = crate::context::check_impl_id_ret((*client).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
     // Extract entity info before dropping the client
     let (entity, graph) = if let Ok(client_impl) = client.borrow_data() {
         (
@@ -1026,6 +1153,33 @@ pub extern "C" fn rmw_create_service(
         return std::ptr::null_mut();
     }
 
+    // Check node implementation_identifier
+    unsafe {
+        if !crate::context::check_impl_id((*node).implementation_identifier) {
+            return std::ptr::null_mut();
+        }
+    }
+
+    // Validate service name (must be non-empty, absolute, no spaces)
+    let service_str = unsafe { std::ffi::CStr::from_ptr(service_name) }
+        .to_str()
+        .unwrap_or("");
+    if service_str.is_empty() || !service_str.starts_with('/') || service_str.contains(' ') {
+        return std::ptr::null_mut();
+    }
+
+    // Validate QoS profile (reject unknown/uninitialized)
+    unsafe {
+        let qos = &*qos_profile;
+        if qos.reliability == rmw_qos_reliability_policy_e_RMW_QOS_POLICY_RELIABILITY_UNKNOWN
+            || qos.durability == rmw_qos_durability_policy_e_RMW_QOS_POLICY_DURABILITY_UNKNOWN
+            || qos.history == rmw_qos_history_policy_e_RMW_QOS_POLICY_HISTORY_UNKNOWN
+            || qos.liveliness == rmw_qos_liveliness_policy_e_RMW_QOS_POLICY_LIVELINESS_UNKNOWN
+        {
+            return std::ptr::null_mut();
+        }
+    }
+
     let node_impl = match node.borrow_data() {
         Ok(impl_) => impl_,
         Err(_) => return std::ptr::null_mut(),
@@ -1038,10 +1192,6 @@ pub extern "C" fn rmw_create_service(
         Err(_) => return std::ptr::null_mut(),
     };
     let notifier = context_impl.share_notifier();
-
-    let service_str = unsafe { std::ffi::CStr::from_ptr(service_name) }
-        .to_str()
-        .unwrap_or("");
 
     // Create service using ros-z
     let qos = crate::qos::rmw_qos_to_ros_z_qos(unsafe { &*qos_profile });
@@ -1170,6 +1320,18 @@ pub extern "C" fn rmw_destroy_service(
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
+    // Check implementation_identifiers
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*node).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+        let ret = crate::context::check_impl_id_ret((*service).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
     // Extract entity info before dropping the service
     let (entity, graph) = if let Ok(service_impl) = service.borrow_data() {
         (
@@ -1242,6 +1404,24 @@ pub extern "C" fn rmw_get_topic_names_and_types(
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
+    // Validate allocator
+    if !unsafe { rcutils_allocator_is_valid(allocator) } {
+        return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    // Reject pre-initialized names_and_types
+    if unsafe { rmw_names_and_types_check_zero(topic_names_and_types) } != RMW_RET_OK as rmw_ret_t {
+        return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    // Check node implementation_identifier
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*node).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
     let node_impl = match node.borrow_data() {
         Ok(impl_) => impl_,
         Err(_) => return RMW_RET_INVALID_ARGUMENT as _,
@@ -1251,8 +1431,8 @@ pub extern "C" fn rmw_get_topic_names_and_types(
     let topics_and_types = node_impl.inner.graph.get_topic_names_and_types();
 
     // Group by topic name
-    let mut topic_map: std::collections::HashMap<String, Vec<String>> =
-        std::collections::HashMap::new();
+    let mut topic_map: std::collections::BTreeMap<String, Vec<String>> =
+        std::collections::BTreeMap::new();
     for (topic, type_name) in topics_and_types {
         topic_map.entry(topic).or_default().push(type_name);
     }
@@ -1344,6 +1524,25 @@ pub extern "C" fn rmw_get_service_names_and_types(
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
+    // Validate allocator
+    if !unsafe { rcutils_allocator_is_valid(allocator) } {
+        return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    // Reject pre-initialized names_and_types
+    if unsafe { rmw_names_and_types_check_zero(service_names_and_types) } != RMW_RET_OK as rmw_ret_t
+    {
+        return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    // Check node implementation_identifier
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*node).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
     let node_impl = match node.borrow_data() {
         Ok(impl_) => impl_,
         Err(_) => return RMW_RET_INVALID_ARGUMENT as _,
@@ -1353,8 +1552,8 @@ pub extern "C" fn rmw_get_service_names_and_types(
     let services_and_types = node_impl.inner.graph.get_service_names_and_types();
 
     // Group by service name
-    let mut service_map: std::collections::HashMap<String, Vec<String>> =
-        std::collections::HashMap::new();
+    let mut service_map: std::collections::BTreeMap<String, Vec<String>> =
+        std::collections::BTreeMap::new();
     for (service, type_name) in services_and_types {
         service_map.entry(service).or_default().push(type_name);
     }
@@ -1447,6 +1646,24 @@ pub extern "C" fn rmw_count_publishers(
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*node).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
+    // Validate topic name
+    unsafe {
+        let mut validation_result: std::os::raw::c_int = 0;
+        let mut invalid_index: usize = 0;
+        let ret =
+            rmw_validate_full_topic_name(topic_name, &mut validation_result, &mut invalid_index);
+        if ret != RMW_RET_OK as rmw_ret_t || validation_result != 0 {
+            return RMW_RET_INVALID_ARGUMENT as _;
+        }
+    }
+
     let node_impl = match node.borrow_data() {
         Ok(impl_) => impl_,
         Err(_) => return RMW_RET_INVALID_ARGUMENT as _,
@@ -1479,6 +1696,24 @@ pub extern "C" fn rmw_count_subscribers(
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*node).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
+    // Validate topic name
+    unsafe {
+        let mut validation_result: std::os::raw::c_int = 0;
+        let mut invalid_index: usize = 0;
+        let ret =
+            rmw_validate_full_topic_name(topic_name, &mut validation_result, &mut invalid_index);
+        if ret != RMW_RET_OK as rmw_ret_t || validation_result != 0 {
+            return RMW_RET_INVALID_ARGUMENT as _;
+        }
+    }
+
     let node_impl = match node.borrow_data() {
         Ok(impl_) => impl_,
         Err(_) => return RMW_RET_INVALID_ARGUMENT as _,
@@ -1509,6 +1744,13 @@ pub extern "C" fn rmw_node_get_graph_guard_condition(
         return std::ptr::null();
     }
 
+    // Check node implementation_identifier
+    unsafe {
+        if !crate::context::check_impl_id((*node).implementation_identifier) {
+            return std::ptr::null();
+        }
+    }
+
     // Get the graph guard condition from the node implementation
     match node.borrow_data() {
         Ok(node_impl) => node_impl.graph_guard_condition,
@@ -1524,6 +1766,24 @@ pub extern "C" fn rmw_count_clients(
 ) -> rmw_ret_t {
     if node.is_null() || service_name.is_null() || count.is_null() {
         return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*node).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
+    // Validate service name
+    unsafe {
+        let mut validation_result: std::os::raw::c_int = 0;
+        let mut invalid_index: usize = 0;
+        let ret =
+            rmw_validate_full_topic_name(service_name, &mut validation_result, &mut invalid_index);
+        if ret != RMW_RET_OK as rmw_ret_t || validation_result != 0 {
+            return RMW_RET_INVALID_ARGUMENT as _;
+        }
     }
 
     let node_impl = match node.borrow_data() {
@@ -1558,6 +1818,24 @@ pub extern "C" fn rmw_count_services(
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*node).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
+    // Validate service name
+    unsafe {
+        let mut validation_result: std::os::raw::c_int = 0;
+        let mut invalid_index: usize = 0;
+        let ret =
+            rmw_validate_full_topic_name(service_name, &mut validation_result, &mut invalid_index);
+        if ret != RMW_RET_OK as rmw_ret_t || validation_result != 0 {
+            return RMW_RET_INVALID_ARGUMENT as _;
+        }
+    }
+
     let node_impl = match node.borrow_data() {
         Ok(impl_) => impl_,
         Err(_) => return RMW_RET_INVALID_ARGUMENT as _,
@@ -1589,6 +1867,23 @@ pub extern "C" fn rmw_get_publishers_info_by_topic(
     publishers_info: *mut rmw_topic_endpoint_info_array_t,
 ) -> rmw_ret_t {
     if node.is_null() || allocator.is_null() || topic_name.is_null() || publishers_info.is_null() {
+        return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*node).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
+    if !unsafe { rcutils_allocator_is_valid(allocator) } {
+        return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    if unsafe { rmw_topic_endpoint_info_array_check_zero(publishers_info) }
+        != RMW_RET_OK as rmw_ret_t
+    {
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
@@ -1736,6 +2031,42 @@ pub extern "C" fn rmw_get_subscriber_names_and_types_by_node(
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
+    if !unsafe { rcutils_allocator_is_valid(allocator) } {
+        return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    if unsafe { rmw_names_and_types_check_zero(topic_names_and_types) } != RMW_RET_OK as rmw_ret_t {
+        return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*node).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
+    // Validate node name syntax
+    unsafe {
+        let mut validation_result: std::os::raw::c_int = 0;
+        let mut invalid_index: usize = 0;
+        let ret = rmw_validate_node_name(node_name, &mut validation_result, &mut invalid_index);
+        if ret != RMW_RET_OK as rmw_ret_t || validation_result != 0 {
+            return RMW_RET_INVALID_ARGUMENT as _;
+        }
+    }
+
+    // Validate namespace syntax
+    unsafe {
+        let mut validation_result: std::os::raw::c_int = 0;
+        let mut invalid_index: usize = 0;
+        let ret =
+            rmw_validate_namespace(node_namespace, &mut validation_result, &mut invalid_index);
+        if ret != RMW_RET_OK as rmw_ret_t || validation_result != 0 {
+            return RMW_RET_INVALID_ARGUMENT as _;
+        }
+    }
+
     let node_impl = match node.borrow_data() {
         Ok(impl_) => impl_,
         Err(_) => return RMW_RET_INVALID_ARGUMENT as _,
@@ -1768,8 +2099,8 @@ pub extern "C" fn rmw_get_subscriber_names_and_types_by_node(
         .get_names_and_types_by_node(node_key, ros_z::entity::EntityKind::Subscription);
 
     // Group by entity name
-    let mut entity_map: std::collections::HashMap<String, Vec<String>> =
-        std::collections::HashMap::new();
+    let mut entity_map: std::collections::BTreeMap<String, Vec<String>> =
+        std::collections::BTreeMap::new();
     for (name, type_name) in entities_and_types {
         entity_map.entry(name).or_default().push(type_name);
     }
@@ -1868,21 +2199,16 @@ pub extern "C" fn rmw_serialize(
 
     let serialized = unsafe { ts.serialize_message(ros_message) };
 
-    // Allocate or resize the buffer in serialized_message
+    // Resize the buffer using rcutils allocator (respects user's allocator)
     unsafe {
         let msg = &mut *serialized_message;
         if msg.buffer_capacity < serialized.len() {
-            // Need to reallocate
-            if !msg.buffer.is_null() {
-                // Drop the old buffer
-                let _ = Vec::from_raw_parts(msg.buffer, msg.buffer_length, msg.buffer_capacity);
+            let ret = rcutils_uint8_array_resize(serialized_message, serialized.len());
+            if ret != 0 {
+                return RMW_RET_ERROR as _;
             }
-            // Allocate new buffer
-            let mut new_buffer = vec![0u8; serialized.len()];
-            msg.buffer = new_buffer.as_mut_ptr();
-            msg.buffer_capacity = new_buffer.len();
-            std::mem::forget(new_buffer);
         }
+        let msg = &mut *serialized_message;
         msg.buffer_length = serialized.len();
         std::ptr::copy_nonoverlapping(serialized.as_ptr(), msg.buffer, serialized.len());
     }
@@ -1999,16 +2325,6 @@ pub extern "C" fn rmw_publisher_event_init(
         None => return RMW_RET_UNSUPPORTED as _,
     };
 
-    // Verify this is a publisher event type
-    match zenoh_event_type {
-        ZenohEventType::LivelinessLost
-        | ZenohEventType::OfferedDeadlineMissed
-        | ZenohEventType::OfferedQosIncompatible
-        | ZenohEventType::PublisherIncompatibleType
-        | ZenohEventType::PublicationMatched => {}
-        _ => return RMW_RET_INVALID_ARGUMENT as _,
-    }
-
     // Get the events manager from the publisher
     let events_mgr = pub_impl.inner.events_mgr().clone();
 
@@ -2048,18 +2364,9 @@ pub extern "C" fn rmw_subscription_event_init(
         None => return RMW_RET_UNSUPPORTED as _,
     };
 
-    // Verify this is a subscription event type
-    match zenoh_event_type {
-        ZenohEventType::LivelinessChanged
-        | ZenohEventType::RequestedDeadlineMissed
-        | ZenohEventType::RequestedQosIncompatible
-        | ZenohEventType::MessageLost
-        | ZenohEventType::SubscriptionIncompatibleType
-        | ZenohEventType::SubscriptionMatched => {}
-        _ => return RMW_RET_INVALID_ARGUMENT as _,
-    }
-
     // Get the events manager from the subscription
+    // Note: We don't restrict event types here - some tests (test_wait_set) initialize
+    // publisher-side events (PUBLICATION_MATCHED) on subscriptions as a fallback.
     let events_mgr = sub_impl.inner.events_mgr().clone();
 
     // Create the event handle
@@ -2407,6 +2714,18 @@ pub extern "C" fn rmw_service_server_is_available(
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
+    // Check implementation_identifiers
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*node).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+        let ret = crate::context::check_impl_id_ret((*client).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
     let node_impl = match node.borrow_data() {
         Ok(impl_) => impl_,
         Err(_) => return RMW_RET_INVALID_ARGUMENT as _,
@@ -2553,6 +2872,43 @@ pub extern "C" fn rmw_get_client_names_and_types_by_node(
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
+    if !unsafe { rcutils_allocator_is_valid(allocator) } {
+        return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    if unsafe { rmw_names_and_types_check_zero(service_names_and_types) } != RMW_RET_OK as rmw_ret_t
+    {
+        return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*node).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
+    // Validate node name syntax
+    unsafe {
+        let mut validation_result: std::os::raw::c_int = 0;
+        let mut invalid_index: usize = 0;
+        let ret = rmw_validate_node_name(node_name, &mut validation_result, &mut invalid_index);
+        if ret != RMW_RET_OK as rmw_ret_t || validation_result != 0 {
+            return RMW_RET_INVALID_ARGUMENT as _;
+        }
+    }
+
+    // Validate namespace syntax
+    unsafe {
+        let mut validation_result: std::os::raw::c_int = 0;
+        let mut invalid_index: usize = 0;
+        let ret =
+            rmw_validate_namespace(node_namespace, &mut validation_result, &mut invalid_index);
+        if ret != RMW_RET_OK as rmw_ret_t || validation_result != 0 {
+            return RMW_RET_INVALID_ARGUMENT as _;
+        }
+    }
+
     let node_impl = match node.borrow_data() {
         Ok(impl_) => impl_,
         Err(_) => return RMW_RET_INVALID_ARGUMENT as _,
@@ -2582,8 +2938,8 @@ pub extern "C" fn rmw_get_client_names_and_types_by_node(
         .graph
         .get_names_and_types_by_node(node_key, ros_z::entity::EntityKind::Client);
 
-    let mut entity_map: std::collections::HashMap<String, Vec<String>> =
-        std::collections::HashMap::new();
+    let mut entity_map: std::collections::BTreeMap<String, Vec<String>> =
+        std::collections::BTreeMap::new();
     for (name, type_name) in entities_and_types {
         entity_map.entry(name).or_default().push(type_name);
     }
@@ -2679,6 +3035,42 @@ pub extern "C" fn rmw_get_publisher_names_and_types_by_node(
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
+    if !unsafe { rcutils_allocator_is_valid(allocator) } {
+        return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    if unsafe { rmw_names_and_types_check_zero(topic_names_and_types) } != RMW_RET_OK as rmw_ret_t {
+        return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*node).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
+    // Validate node name syntax
+    unsafe {
+        let mut validation_result: std::os::raw::c_int = 0;
+        let mut invalid_index: usize = 0;
+        let ret = rmw_validate_node_name(node_name, &mut validation_result, &mut invalid_index);
+        if ret != RMW_RET_OK as rmw_ret_t || validation_result != 0 {
+            return RMW_RET_INVALID_ARGUMENT as _;
+        }
+    }
+
+    // Validate namespace syntax
+    unsafe {
+        let mut validation_result: std::os::raw::c_int = 0;
+        let mut invalid_index: usize = 0;
+        let ret =
+            rmw_validate_namespace(node_namespace, &mut validation_result, &mut invalid_index);
+        if ret != RMW_RET_OK as rmw_ret_t || validation_result != 0 {
+            return RMW_RET_INVALID_ARGUMENT as _;
+        }
+    }
+
     let node_impl = match node.borrow_data() {
         Ok(impl_) => impl_,
         Err(_) => return RMW_RET_INVALID_ARGUMENT as _,
@@ -2708,8 +3100,8 @@ pub extern "C" fn rmw_get_publisher_names_and_types_by_node(
         .graph
         .get_names_and_types_by_node(node_key, ros_z::entity::EntityKind::Publisher);
 
-    let mut entity_map: std::collections::HashMap<String, Vec<String>> =
-        std::collections::HashMap::new();
+    let mut entity_map: std::collections::BTreeMap<String, Vec<String>> =
+        std::collections::BTreeMap::new();
     for (name, type_name) in entities_and_types {
         entity_map.entry(name).or_default().push(type_name);
     }
@@ -2824,6 +3216,43 @@ pub extern "C" fn rmw_get_service_names_and_types_by_node(
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*node).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
+    if !unsafe { rcutils_allocator_is_valid(allocator) } {
+        return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    if unsafe { rmw_names_and_types_check_zero(service_names_and_types) } != RMW_RET_OK as rmw_ret_t
+    {
+        return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    // Validate node name syntax
+    unsafe {
+        let mut validation_result: std::os::raw::c_int = 0;
+        let mut invalid_index: usize = 0;
+        let ret = rmw_validate_node_name(node_name, &mut validation_result, &mut invalid_index);
+        if ret != RMW_RET_OK as rmw_ret_t || validation_result != 0 {
+            return RMW_RET_INVALID_ARGUMENT as _;
+        }
+    }
+
+    // Validate namespace syntax
+    unsafe {
+        let mut validation_result: std::os::raw::c_int = 0;
+        let mut invalid_index: usize = 0;
+        let ret =
+            rmw_validate_namespace(node_namespace, &mut validation_result, &mut invalid_index);
+        if ret != RMW_RET_OK as rmw_ret_t || validation_result != 0 {
+            return RMW_RET_INVALID_ARGUMENT as _;
+        }
+    }
+
     let node_impl = match node.borrow_data() {
         Ok(impl_) => impl_,
         Err(_) => return RMW_RET_INVALID_ARGUMENT as _,
@@ -2853,8 +3282,8 @@ pub extern "C" fn rmw_get_service_names_and_types_by_node(
         .graph
         .get_names_and_types_by_node(node_key, ros_z::entity::EntityKind::Service);
 
-    let mut entity_map: std::collections::HashMap<String, Vec<String>> =
-        std::collections::HashMap::new();
+    let mut entity_map: std::collections::BTreeMap<String, Vec<String>> =
+        std::collections::BTreeMap::new();
     for (name, type_name) in entities_and_types {
         entity_map.entry(name).or_default().push(type_name);
     }
@@ -2941,6 +3370,23 @@ pub extern "C" fn rmw_get_subscriptions_info_by_topic(
     subscriptions_info: *mut rmw_topic_endpoint_info_array_t,
 ) -> rmw_ret_t {
     if node.is_null() || allocator.is_null() || topic_name.is_null() || subscriptions_info.is_null()
+    {
+        return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*node).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
+    if !unsafe { rcutils_allocator_is_valid(allocator) } {
+        return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    if unsafe { rmw_topic_endpoint_info_array_check_zero(subscriptions_info) }
+        != RMW_RET_OK as rmw_ret_t
     {
         return RMW_RET_INVALID_ARGUMENT as _;
     }

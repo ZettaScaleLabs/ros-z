@@ -244,6 +244,13 @@ pub extern "C" fn rmw_publish_serialized_message(
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*publisher).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
     let publisher_impl = match publisher.borrow_data() {
         Ok(impl_) => impl_,
         Err(_) => return RMW_RET_INVALID_ARGUMENT as _,
@@ -281,6 +288,13 @@ pub extern "C" fn rmw_publisher_count_matched_subscriptions(
 ) -> rmw_ret_t {
     if publisher.is_null() || subscription_count.is_null() {
         return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*publisher).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
     }
 
     let publisher_impl = match publisher.borrow_data() {
@@ -322,6 +336,13 @@ pub extern "C" fn rmw_publisher_get_actual_qos(
 ) -> rmw_ret_t {
     if publisher.is_null() || qos.is_null() {
         return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*publisher).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
     }
 
     let publisher_impl = match publisher.borrow_data() {
@@ -409,6 +430,13 @@ pub extern "C" fn rmw_take_with_info(
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*subscription).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
     let subscription_impl = match subscription.borrow_data() {
         Ok(impl_) => impl_,
         Err(_) => return RMW_RET_INVALID_ARGUMENT as _,
@@ -435,6 +463,13 @@ pub extern "C" fn rmw_take_sequence(
         || taken.is_null()
     {
         return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*subscription).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
     }
 
     let subscription_impl = match subscription.borrow_data() {
@@ -487,6 +522,13 @@ pub extern "C" fn rmw_take_serialized_message(
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*subscription).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
     let subscription_impl = match subscription.borrow_data() {
         Ok(impl_) => impl_,
         Err(_) => return RMW_RET_INVALID_ARGUMENT as _,
@@ -512,6 +554,13 @@ pub extern "C" fn rmw_take_serialized_message_with_info(
         || message_info.is_null()
     {
         return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*subscription).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
     }
 
     let subscription_impl = match subscription.borrow_data() {
@@ -559,6 +608,13 @@ pub extern "C" fn rmw_subscription_count_matched_publishers(
         return RMW_RET_INVALID_ARGUMENT as _;
     }
 
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*subscription).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
+    }
+
     let subscription_impl = match subscription.borrow_data() {
         Ok(impl_) => impl_,
         Err(_) => return RMW_RET_INVALID_ARGUMENT as _,
@@ -598,6 +654,13 @@ pub extern "C" fn rmw_subscription_get_actual_qos(
 ) -> rmw_ret_t {
     if subscription.is_null() || qos.is_null() {
         return RMW_RET_INVALID_ARGUMENT as _;
+    }
+
+    unsafe {
+        let ret = crate::context::check_impl_id_ret((*subscription).implementation_identifier);
+        if ret != RMW_RET_OK as rmw_ret_t {
+            return ret;
+        }
     }
 
     let subscription_impl = match subscription.borrow_data() {

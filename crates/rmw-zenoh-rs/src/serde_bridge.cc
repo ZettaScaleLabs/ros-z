@@ -51,13 +51,17 @@ bool deserialize_message(const rosidl_message_type_support_t *ts, const rust::Ve
         return false;
     }
 
-    auto callbacks = static_cast<const message_type_support_callbacks_t *>(ts->data);
+    try {
+        auto callbacks = static_cast<const message_type_support_callbacks_t *>(ts->data);
 
-    eprosima::fastcdr::FastBuffer buffer(reinterpret_cast<char *>(const_cast<uint8_t *>(data.data())), data.size());
-    eprosima::fastcdr::Cdr cdr(buffer);
-    cdr.read_encapsulation();
+        eprosima::fastcdr::FastBuffer buffer(reinterpret_cast<char *>(const_cast<uint8_t *>(data.data())), data.size());
+        eprosima::fastcdr::Cdr cdr(buffer);
+        cdr.read_encapsulation();
 
-    return callbacks->cdr_deserialize(cdr, ros_message);
+        return callbacks->cdr_deserialize(cdr, ros_message);
+    } catch (...) {
+        return false;
+    }
 }
 
 rust::String get_message_name(const rosidl_message_type_support_t *ts) {
