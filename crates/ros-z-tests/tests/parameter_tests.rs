@@ -246,7 +246,8 @@ fn test_yaml_parameter_loading() {
 
 #[cfg(feature = "ros-msgs")]
 mod service_tests {
-    use super::*;
+    use std::{thread, time::Duration};
+
     use ros_z_msgs::rcl_interfaces::{
         self, DescribeParametersRequest, DescribeParametersResponse, GetParameterTypesRequest,
         GetParameterTypesResponse, GetParametersRequest, GetParametersResponse,
@@ -257,8 +258,9 @@ mod service_tests {
             SetParametersAtomically,
         },
     };
-    use std::{thread, time::Duration};
     use zenoh_buffers::buffer::SplitBuffer;
+
+    use super::*;
 
     /// Test parameter services via ros-z client: get/set/list/describe.
     #[test]
