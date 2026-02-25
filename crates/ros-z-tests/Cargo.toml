@@ -35,6 +35,7 @@ ros-msgs = [
   "ros-z-msgs/geometry_msgs",
   "ros-z-msgs/sensor_msgs",
   "ros-z-msgs/nav_msgs",
+  "ros-z-msgs/rcl_interfaces",
 ]
 ros-interop = ["ros-msgs"]
 python-interop = ["ros-msgs"]

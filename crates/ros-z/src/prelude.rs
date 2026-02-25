@@ -40,6 +40,12 @@ pub use crate::entity::{TypeHash, TypeInfo};
 /// Cache subscriber: retains a sliding window of messages indexed by time.
 pub use crate::cache::{ExtractorStamp, ZCache, ZCacheBuilder, ZenohStamp};
 
+/// Parameter types for ROS 2-compatible node parameters.
+pub use crate::parameter::{
+    FloatingPointRange, IntegerRange, Parameter, ParameterDescriptor, ParameterType,
+    ParameterValue, SetParametersResult,
+};
+
 /// The `Result` alias used throughout ros-z (equivalent to `zenoh::Result`).
 pub use zenoh::Result;
 
