@@ -48,13 +48,33 @@ impl PyZPublisher {
 
 #[pyclass(name = "ZSubscriber")]
 pub struct PyZSubscriber {
-    inner: Box<dyn RawSubscriber>,
+    /// None for callback-based subscriptions (no queue)
+    inner: Option<Box<dyn RawSubscriber>>,
     type_name: String,
 }
 
 impl PyZSubscriber {
     pub fn new(inner: Box<dyn RawSubscriber>, type_name: String) -> Self {
-        Self { inner, type_name }
+        Self {
+            inner: Some(inner),
+            type_name,
+        }
+    }
+
+    /// Create a callback-based subscriber (no queue, no recv methods)
+    pub fn new_callback(type_name: String) -> Self {
+        Self {
+            inner: None,
+            type_name,
+        }
+    }
+
+    fn require_queue(&self) -> PyResult<&dyn RawSubscriber> {
+        self.inner.as_deref().ok_or_else(|| {
+            pyo3::exceptions::PyRuntimeError::new_err(
+                "Cannot recv on a callback-based subscriber. Messages are delivered via the callback.",
+            )
+        })
     }
 }
 
@@ -70,10 +90,11 @@ impl PyZSubscriber {
     ///     Message as dict, or None if timeout occurred
     #[pyo3(signature = (timeout=None))]
     unsafe fn recv(&self, py: Python, timeout: Option<f64>) -> PyResult<Option<PyObject>> {
+        let inner = self.require_queue()?;
         let timeout_duration = timeout.map(Duration::from_secs_f64);
 
         // Release GIL while waiting to allow other Python threads to run
-        let result = py.allow_threads(|| self.inner.recv_sample(timeout_duration));
+        let result = py.allow_threads(|| inner.recv_sample(timeout_duration));
 
         match result {
             Ok(sample) => {
@@ -110,7 +131,8 @@ impl PyZSubscriber {
     /// Returns:
     ///     Message as dict, or None if no message available
     unsafe fn try_recv(&self, py: Python) -> PyResult<Option<PyObject>> {
-        match self.inner.try_recv_sample().map_err(|e| e.into_pyerr())? {
+        let inner = self.require_queue()?;
+        match inner.try_recv_sample().map_err(|e| e.into_pyerr())? {
             Some(sample) => {
                 let payload_zbuf: zenoh_buffers::ZBuf = sample.payload().clone().into();
                 ros_z_cdr::ZBUF_DESER_SOURCE.with(|cell| {
@@ -136,10 +158,11 @@ impl PyZSubscriber {
         py: Python,
         timeout: Option<f64>,
     ) -> PyResult<Option<Py<PyBytes>>> {
+        let inner = self.require_queue()?;
         let timeout_duration = timeout.map(Duration::from_secs_f64);
 
         // Release GIL while waiting to allow other Python threads to run
-        let result = py.allow_threads(|| self.inner.recv_serialized(timeout_duration));
+        let result = py.allow_threads(|| inner.recv_serialized(timeout_duration));
 
         match result {
             Ok(data) => Ok(Some(PyBytes::new_bound(py, &data).into())),
@@ -162,11 +185,8 @@ impl PyZSubscriber {
     ///
     /// Returns bytes object containing the CDR-serialized message, or None.
     unsafe fn try_recv_serialized(&self, py: Python) -> PyResult<Option<Py<PyBytes>>> {
-        match self
-            .inner
-            .try_recv_serialized()
-            .map_err(|e| e.into_pyerr())?
-        {
+        let inner = self.require_queue()?;
+        match inner.try_recv_serialized().map_err(|e| e.into_pyerr())? {
             Some(data) => Ok(Some(PyBytes::new_bound(py, &data).into())),
             None => Ok(None),
         }
@@ -191,10 +211,11 @@ impl PyZSubscriber {
     ///     ZPayloadView, or None if timeout occurred
     #[pyo3(signature = (timeout=None))]
     unsafe fn recv_raw_view(&self, py: Python, timeout: Option<f64>) -> PyResult<Option<PyObject>> {
+        let inner = self.require_queue()?;
         let timeout_duration = timeout.map(Duration::from_secs_f64);
 
         // Release GIL while waiting to allow other Python threads to run
-        let result = py.allow_threads(|| self.inner.recv_sample(timeout_duration));
+        let result = py.allow_threads(|| inner.recv_sample(timeout_duration));
 
         match result {
             Ok(sample) => {
@@ -220,13 +241,20 @@ impl PyZSubscriber {
     /// Returns:
     ///     ZPayloadView, or None if no message available
     unsafe fn try_recv_raw_view(&self, py: Python) -> PyResult<Option<PyObject>> {
-        match self.inner.try_recv_sample().map_err(|e| e.into_pyerr())? {
+        let inner = self.require_queue()?;
+        match inner.try_recv_sample().map_err(|e| e.into_pyerr())? {
             Some(sample) => {
                 let view = ZPayloadView::new(sample);
                 Ok(Some(Py::new(py, view)?.into_any()))
             }
             None => Ok(None),
         }
+    }
+
+    /// Whether this is a callback-based subscriber (no recv methods)
+    #[getter]
+    fn is_callback(&self) -> bool {
+        self.inner.is_none()
     }
 
     /// Get the type name (for debugging)

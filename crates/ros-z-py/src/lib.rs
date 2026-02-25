@@ -2,20 +2,28 @@
 
 use pyo3::prelude::*;
 
+mod action;
 mod context;
 mod error;
+mod graph;
 mod node;
 mod payload_view;
 mod pubsub;
 mod qos;
+mod raw_bytes;
 mod service;
 mod traits;
 mod utils;
 
+use action::{
+    PyGoalStatus, PyZActionClient, PyZActionServer, PyZClientGoalHandle, PyZServerExecutingHandle,
+    PyZServerGoalRequest,
+};
 use context::*;
 use node::*;
 use payload_view::ZPayloadView;
 use pubsub::{PyZPublisher, PyZSubscriber};
+use qos::PyQosProfile;
 use service::*;
 
 /// Get list of all registered message types
@@ -56,6 +64,13 @@ fn ros_z_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyZServer>()?;
     m.add_class::<ZPayloadView>()?;
     m.add_class::<ros_z::zbuf_view::ZBufView>()?;
+    m.add_class::<PyQosProfile>()?;
+    m.add_class::<PyGoalStatus>()?;
+    m.add_class::<PyZActionClient>()?;
+    m.add_class::<PyZClientGoalHandle>()?;
+    m.add_class::<PyZActionServer>()?;
+    m.add_class::<PyZServerGoalRequest>()?;
+    m.add_class::<PyZServerExecutingHandle>()?;
 
     // QoS presets
     m.add(
