@@ -13,6 +13,7 @@ fn main() -> Result<()> {
     // Declare custom cfg flags for package availability
     println!("cargo::rustc-check-cfg=cfg(has_example_interfaces)");
     println!("cargo::rustc-check-cfg=cfg(has_test_msgs)");
+    println!("cargo::rustc-check-cfg=cfg(has_rcl_interfaces)");
 
     // Detect ROS version and emit cfg
     let is_humble = detect_ros_version();
@@ -262,6 +263,10 @@ fn get_all_packages(is_humble: bool) -> Vec<&'static str> {
 
     if env::var("CARGO_FEATURE_TEST_MSGS").is_ok() {
         names.push("test_msgs");
+    }
+
+    if env::var("CARGO_FEATURE_RCL_INTERFACES").is_ok() {
+        names.push("rcl_interfaces");
     }
 
     names

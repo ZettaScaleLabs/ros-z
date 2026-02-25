@@ -29,7 +29,7 @@ serde = { workspace = true } # For CDR serialization in dds_interop tests
 
 [features]
 default = []
-ros-msgs = ["dep:ros-z-msgs"]
+ros-msgs = ["dep:ros-z-msgs", "ros-z-msgs/rcl_interfaces"]
 ros-interop = ["ros-msgs"]
 python-interop = ["ros-msgs"]
 
