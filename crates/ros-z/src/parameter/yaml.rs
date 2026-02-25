@@ -207,7 +207,7 @@ mod tests {
     global_int: 42
     global_str: "hello"
     global_bool: true
-    global_float: 3.14
+    global_float: 2.5
 
 /my_node:
   ros__parameters:
@@ -229,7 +229,7 @@ mod tests {
             ParameterValue::String("hello".to_string())
         );
         assert_eq!(params["global_bool"], ParameterValue::Bool(true));
-        assert_eq!(params["global_float"], ParameterValue::Double(3.14));
+        assert_eq!(params["global_float"], ParameterValue::Double(2.5));
         assert_eq!(params["node_specific"], ParameterValue::Integer(99));
     }
 
