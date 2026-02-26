@@ -180,7 +180,7 @@ fn test_parameter_types() {
     let cases: Vec<(&str, ParameterType, ParameterValue)> = vec![
         ("b", ParameterType::Bool, ParameterValue::Bool(true)),
         ("i", ParameterType::Integer, ParameterValue::Integer(-10)),
-        ("f", ParameterType::Double, ParameterValue::Double(3.14)),
+        ("f", ParameterType::Double, ParameterValue::Double(2.5)),
         (
             "s",
             ParameterType::String,
