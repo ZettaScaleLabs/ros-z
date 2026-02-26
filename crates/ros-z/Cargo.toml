@@ -3,6 +3,9 @@ name = "ros-z"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+crate-type = ["lib", "staticlib"]
+
 [dependencies]
 clap = { workspace = true, features = ["derive"] }
 flume = { workspace = true }
@@ -70,6 +73,8 @@ dynamic-schema-loader = ["ros-z-codegen"]
 # ros2dds: Compatible with zenoh-bridge-ros2dds (simple topic format)
 rmw-zenoh = ["ros-z-protocol/rmw-zenoh"]
 ros2dds = ["ros-z-protocol/ros2dds"]
+rcl-z = []
+ffi = []
 
 # ROS 2 distro compatibility features
 # Default is jazzy (recommended for new projects)

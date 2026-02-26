@@ -184,6 +184,40 @@ jobs:
           nu scripts/test-pure-rust.nu test-shm
         shell: bash
 
+  go-tests:
+    name: Go Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ${{ runner.os }}-go-ffi
+
+      - name: Install just
+        uses: extractions/setup-just@v2
+
+      - name: Run Go tests
+        working-directory: crates/ros-z-go
+        run: just test-go
+
   python-tests:
     name: Python Tests (ros-z-py) (${{ matrix.distro }})
     runs-on: ubuntu-latest

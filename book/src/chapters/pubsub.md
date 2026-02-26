@@ -1,5 +1,9 @@
 # Publishers and Subscribers
 
+```admonish note title="Go users"
+The code examples in this chapter are **Rust**. For Go pub/sub patterns, QoS presets, and the typed subscriber API, see the [Go Bindings](./go_bindings.md) chapter.
+```
+
 **ros-z implements ROS 2's publish-subscribe pattern with type-safe, zero-copy messaging over Zenoh.** This enables efficient, decoupled communication between nodes with minimal overhead.
 
 ```admonish note

@@ -22,6 +22,9 @@ members = [
 ]
 default-members = ["crates/ros-z", "crates/ros-z-codegen"]
 # Note: protobuf_demo is an advanced example demonstrating protobuf serialization
+# Note: Go packages are in:
+# - crates/ros-z-codegen-go/ (code generator)
+# - crates/ros-z-go/ (runtime library)
 
 [workspace.dependencies]
 # Workspace members

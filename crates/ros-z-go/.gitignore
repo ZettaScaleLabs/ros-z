@@ -1,0 +1,12 @@
+# Go binaries accidentally built in-place by bare `go build`.
+# Use `just run-example <name>` instead — it builds to _tmp/.
+examples/publisher/publisher
+examples/subscriber/subscriber
+examples/service_server/service_server
+examples/service_client/service_client
+examples/action_server/action_server
+examples/action_client/action_client
+examples/action_client_errors/action_client_errors
+examples/subscriber_channel/subscriber_channel
+examples/production_service/cmd/server/server
+examples/production_service/cmd/client/client
