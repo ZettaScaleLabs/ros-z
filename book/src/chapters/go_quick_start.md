@@ -10,29 +10,18 @@ Get a Go publisher and subscriber running in five minutes.
 - `just` — `cargo install just`
 - A Zenoh router — see [Networking](./networking.md)
 
-## 1. Generate message types
+## 1. Set up
 
-Message types are not checked in. Generate the common types from bundled IDL — no ROS 2 install needed:
-
-```bash
-just -f crates/ros-z-go/justfile codegen-bundled
-```
-
-## 2. Build the Rust FFI library
+Generate bundled message types, build the Rust FFI library, and verify the installation in one command:
 
 ```bash
-just -f crates/ros-z-go/justfile build-rust
+just -f crates/ros-z-go/justfile quickstart
 ```
 
-This compiles `libros_z.a` into `target/release/` and auto-generates the C header via cbindgen.
+This runs `codegen-bundled` (generates `std_msgs`, `geometry_msgs` — no ROS 2 needed), compiles
+`libros_z.a` into `target/release/`, and confirms both are present.
 
-Verify both are present:
-
-```bash
-just -f crates/ros-z-go/justfile verify
-```
-
-## 3. Write a publisher
+## 2. Write a publisher
 
 Create `hello_pub/main.go`:
 
@@ -90,7 +79,7 @@ require github.com/ZettaScaleLabs/ros-z/crates/ros-z-go v0.0.0
 replace github.com/ZettaScaleLabs/ros-z/crates/ros-z-go => /path/to/ros-z/crates/ros-z-go
 ```
 
-## 4. Write a subscriber
+## 3. Write a subscriber
 
 Create `hello_sub/main.go`:
 
@@ -134,7 +123,7 @@ func main() {
 }
 ```
 
-## 5. Run
+## 4. Run
 
 You need a Zenoh router running first — publishers and subscribers only discover each other through a router:
 
@@ -153,22 +142,15 @@ CGO_LDFLAGS="-L/path/to/ros-z/target/release" go run main.go
 
 You should see the subscriber printing messages published by the publisher.
 
-```admonish tip
-The bundled examples already have the right `go.mod` and `CGO_LDFLAGS` wiring.
-Run the demo shortcut to see them in action:
+## 5. Try the built-in examples
 
-    just -f crates/ros-z-go/justfile demo
-```
-
-## 6. Try the built-in examples
-
-The repo ships ready-to-run examples for all patterns:
+The repo ships ready-to-run examples. With a router already running:
 
 ```bash
 # Publisher + subscriber in parallel (Ctrl+C to stop)
 just -f crates/ros-z-go/justfile demo
 
-# Pub/sub
+# Or run each individually
 just -f crates/ros-z-go/justfile run-example publisher
 just -f crates/ros-z-go/justfile run-example subscriber
 just -f crates/ros-z-go/justfile run-example subscriber_channel   # channel-based / range loop
