@@ -8,7 +8,7 @@ Get a Go publisher and subscriber running in five minutes.
 - Rust toolchain (`rustup`)
 - `cbindgen` — `cargo install cbindgen`
 - `just` — `cargo install just`
-- `zenohd` — `cargo install zenohd`
+- A Zenoh router — see [Networking](./networking.md)
 
 ## 1. Generate message types
 
