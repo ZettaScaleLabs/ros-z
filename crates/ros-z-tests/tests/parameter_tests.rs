@@ -36,8 +36,8 @@ fn test_parameter_local_api() {
     );
 
     // Set it
-    let result = node.set_parameter(Parameter::new("my_int", ParameterValue::Integer(100)));
-    assert!(result.successful, "set should succeed: {}", result.reason);
+    node.set_parameter(Parameter::new("my_int", ParameterValue::Integer(100)))
+        .expect("set should succeed");
     assert_eq!(
         node.get_parameter("my_int"),
         Some(ParameterValue::Integer(100))
@@ -45,7 +45,7 @@ fn test_parameter_local_api() {
 
     // Cannot set wrong type
     let bad = node.set_parameter(Parameter::new("my_int", ParameterValue::Bool(true)));
-    assert!(!bad.successful);
+    assert!(bad.is_err());
 
     // Undeclare
     node.undeclare_parameter("my_int").expect("undeclare");
@@ -79,13 +79,14 @@ fn test_parameter_validation_callback() {
     });
 
     // Valid change
-    let ok = node.set_parameter(Parameter::new("speed", ParameterValue::Double(5.0)));
-    assert!(ok.successful);
+    node.set_parameter(Parameter::new("speed", ParameterValue::Double(5.0)))
+        .expect("valid change");
 
     // Rejected by callback
-    let bad = node.set_parameter(Parameter::new("speed", ParameterValue::Double(15.0)));
-    assert!(!bad.successful);
-    assert!(bad.reason.contains("maximum"));
+    let bad = node
+        .set_parameter(Parameter::new("speed", ParameterValue::Double(15.0)))
+        .unwrap_err();
+    assert!(bad.contains("maximum"));
 
     // Value unchanged after rejection
     assert_eq!(
@@ -106,12 +107,13 @@ fn test_read_only_parameter() {
     node.declare_parameter("fixed", ParameterValue::String("immutable".into()), desc)
         .expect("declare");
 
-    let bad = node.set_parameter(Parameter::new(
-        "fixed",
-        ParameterValue::String("changed".into()),
-    ));
-    assert!(!bad.successful);
-    assert!(bad.reason.contains("read-only"));
+    let bad = node
+        .set_parameter(Parameter::new(
+            "fixed",
+            ParameterValue::String("changed".into()),
+        ))
+        .unwrap_err();
+    assert!(bad.contains("read-only"));
 
     // Value unchanged
     assert_eq!(
