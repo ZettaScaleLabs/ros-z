@@ -76,6 +76,7 @@ impl PyQosProfile {
         lifespan=None,
         liveliness_lease_duration=None,
     ))]
+    #[allow(clippy::too_many_arguments)]
     fn new(
         reliability: Option<String>,
         durability: Option<String>,
@@ -352,7 +353,7 @@ pub fn extract_qos(qos: Option<&Bound<'_, PyAny>>) -> PyResult<QosProfile> {
         Some(obj) => {
             // Try PyQosProfile first
             if let Ok(profile) = obj.extract::<PyRef<PyQosProfile>>() {
-                return Ok(profile.inner.clone());
+                return Ok(profile.inner);
             }
             // Fall back to dict
             if let Ok(dict) = obj.downcast::<PyDict>() {
