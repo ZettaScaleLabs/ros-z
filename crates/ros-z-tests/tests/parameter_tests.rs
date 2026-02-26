@@ -66,13 +66,10 @@ fn test_parameter_validation_callback() {
     // Register callback that rejects values > 10.0
     node.on_set_parameters(|params| {
         for p in params {
-            if let ParameterValue::Double(v) = &p.value {
-                if *v > 10.0 {
-                    return SetParametersResult::failure(format!(
-                        "speed {} exceeds maximum 10.0",
-                        v
-                    ));
-                }
+            if let ParameterValue::Double(v) = &p.value
+                && *v > 10.0
+            {
+                return SetParametersResult::failure(format!("speed {} exceeds maximum 10.0", v));
             }
         }
         SetParametersResult::success()
