@@ -3,7 +3,7 @@ package rosz
 /*
 #cgo LDFLAGS: -L${SRCDIR}/../../../target/release -lros_z -lm
 #cgo linux LDFLAGS: -ldl -lpthread
-#cgo darwin LDFLAGS: -framework Security -framework CoreFoundation -framework SystemConfiguration
+#cgo darwin LDFLAGS: -framework Security -framework CoreFoundation -framework SystemConfiguration -framework IOKit
 #include <stdlib.h>
 #include "ros_z_ffi.h"
 */
