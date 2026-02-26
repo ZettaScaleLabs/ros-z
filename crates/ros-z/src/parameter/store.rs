@@ -96,7 +96,7 @@ impl ParameterStore {
     pub fn get_type(&self, name: &str) -> u8 {
         self.parameters
             .get(name)
-            .map(|e| e.value.parameter_type().to_u8())
+            .map(|e| u8::from(e.value.parameter_type()))
             .unwrap_or(super::wire_types::parameter_type::NOT_SET)
     }
 

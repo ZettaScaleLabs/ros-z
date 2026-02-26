@@ -8,6 +8,7 @@ use super::wire_types::{self, WireParameterValue, parameter_type};
 use crate::ZBuf;
 
 /// The type of a parameter value.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ParameterType {
     NotSet,
@@ -22,34 +23,39 @@ pub enum ParameterType {
     StringArray,
 }
 
-impl ParameterType {
-    pub fn to_u8(self) -> u8 {
-        match self {
-            Self::NotSet => parameter_type::NOT_SET,
-            Self::Bool => parameter_type::BOOL,
-            Self::Integer => parameter_type::INTEGER,
-            Self::Double => parameter_type::DOUBLE,
-            Self::String => parameter_type::STRING,
-            Self::ByteArray => parameter_type::BYTE_ARRAY,
-            Self::BoolArray => parameter_type::BOOL_ARRAY,
-            Self::IntegerArray => parameter_type::INTEGER_ARRAY,
-            Self::DoubleArray => parameter_type::DOUBLE_ARRAY,
-            Self::StringArray => parameter_type::STRING_ARRAY,
+impl From<ParameterType> for u8 {
+    fn from(pt: ParameterType) -> u8 {
+        match pt {
+            ParameterType::NotSet => parameter_type::NOT_SET,
+            ParameterType::Bool => parameter_type::BOOL,
+            ParameterType::Integer => parameter_type::INTEGER,
+            ParameterType::Double => parameter_type::DOUBLE,
+            ParameterType::String => parameter_type::STRING,
+            ParameterType::ByteArray => parameter_type::BYTE_ARRAY,
+            ParameterType::BoolArray => parameter_type::BOOL_ARRAY,
+            ParameterType::IntegerArray => parameter_type::INTEGER_ARRAY,
+            ParameterType::DoubleArray => parameter_type::DOUBLE_ARRAY,
+            ParameterType::StringArray => parameter_type::STRING_ARRAY,
         }
     }
+}
 
-    pub fn from_u8(v: u8) -> Self {
+impl TryFrom<u8> for ParameterType {
+    type Error = ();
+
+    fn try_from(v: u8) -> Result<Self, ()> {
         match v {
-            parameter_type::BOOL => Self::Bool,
-            parameter_type::INTEGER => Self::Integer,
-            parameter_type::DOUBLE => Self::Double,
-            parameter_type::STRING => Self::String,
-            parameter_type::BYTE_ARRAY => Self::ByteArray,
-            parameter_type::BOOL_ARRAY => Self::BoolArray,
-            parameter_type::INTEGER_ARRAY => Self::IntegerArray,
-            parameter_type::DOUBLE_ARRAY => Self::DoubleArray,
-            parameter_type::STRING_ARRAY => Self::StringArray,
-            _ => Self::NotSet,
+            parameter_type::NOT_SET => Ok(Self::NotSet),
+            parameter_type::BOOL => Ok(Self::Bool),
+            parameter_type::INTEGER => Ok(Self::Integer),
+            parameter_type::DOUBLE => Ok(Self::Double),
+            parameter_type::STRING => Ok(Self::String),
+            parameter_type::BYTE_ARRAY => Ok(Self::ByteArray),
+            parameter_type::BOOL_ARRAY => Ok(Self::BoolArray),
+            parameter_type::INTEGER_ARRAY => Ok(Self::IntegerArray),
+            parameter_type::DOUBLE_ARRAY => Ok(Self::DoubleArray),
+            parameter_type::STRING_ARRAY => Ok(Self::StringArray),
+            _ => Err(()),
         }
     }
 }
@@ -90,7 +96,7 @@ impl ParameterValue {
     /// Convert to wire format.
     pub(crate) fn to_wire(&self) -> WireParameterValue {
         let mut wire = WireParameterValue {
-            r#type: self.parameter_type().to_u8(),
+            r#type: u8::from(self.parameter_type()),
             ..Default::default()
         };
         match self {
@@ -134,7 +140,7 @@ impl ParameterValue {
 }
 
 /// A parameter with its name and value.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Parameter {
     pub name: std::string::String,
     pub value: ParameterValue,
@@ -164,7 +170,7 @@ impl Parameter {
 }
 
 /// Range constraint for floating point parameters.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FloatingPointRange {
     pub from_value: f64,
     pub to_value: f64,
@@ -190,7 +196,7 @@ impl FloatingPointRange {
 }
 
 /// Range constraint for integer parameters.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct IntegerRange {
     pub from_value: i64,
     pub to_value: i64,
@@ -216,7 +222,7 @@ impl IntegerRange {
 }
 
 /// Descriptor for a parameter, including constraints.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ParameterDescriptor {
     pub name: std::string::String,
     pub type_: ParameterType,
@@ -256,7 +262,7 @@ impl ParameterDescriptor {
     pub(crate) fn to_wire(&self) -> wire_types::WireParameterDescriptor {
         wire_types::WireParameterDescriptor {
             name: self.name.clone(),
-            r#type: self.type_.to_u8(),
+            r#type: u8::from(self.type_),
             description: self.description.clone(),
             additional_constraints: self.additional_constraints.clone(),
             read_only: self.read_only,
@@ -277,7 +283,7 @@ impl ParameterDescriptor {
     pub fn from_wire(wire: &wire_types::WireParameterDescriptor) -> Self {
         Self {
             name: wire.name.clone(),
-            type_: ParameterType::from_u8(wire.r#type),
+            type_: ParameterType::try_from(wire.r#type).unwrap_or(ParameterType::NotSet),
             description: wire.description.clone(),
             additional_constraints: wire.additional_constraints.clone(),
             read_only: wire.read_only,
@@ -292,7 +298,7 @@ impl ParameterDescriptor {
 }
 
 /// Result of a set_parameters operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SetParametersResult {
     pub successful: bool,
     pub reason: std::string::String,
