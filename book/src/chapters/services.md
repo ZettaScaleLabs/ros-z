@@ -1,5 +1,9 @@
 # Services
 
+```admonish note title="Go users"
+The code examples in this chapter are **Rust**. The Go service API is callback-based, not pull-based — there is no `take_request()`. For Go service patterns and the typed service API, see the [Go Bindings](./go_bindings.md) chapter.
+```
+
 **ros-z implements ROS 2's service pattern with type-safe request-response communication over Zenoh.** This enables synchronous, point-to-point interactions between nodes using a pull-based model for full control over request processing.
 
 ```admonish note

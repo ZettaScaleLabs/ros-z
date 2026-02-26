@@ -28,13 +28,18 @@
 
 - [ros-z-console](./chapters/console.md)
 
+# Language Bindings
+
+- [Python Bindings](./chapters/python.md)
+  - [Code Generation Internals](./chapters/python_codegen.md)
+- [Go Bindings](./chapters/go_bindings.md)
+  - [Quick Start](./chapters/go_quick_start.md)
+
 # Experimental
 
 - [Shared Memory (SHM)](./chapters/shm.md)
 - [Key Expression Formats](./chapters/keyexpr_formats.md)
 - [rmw_zenoh_rs](./chapters/rmw_zenoh_rs.md)
-- [Python Bindings](./chapters/python.md)
-  - [Code Generation Internals](./chapters/python_codegen.md)
 
 # Appendix
 
