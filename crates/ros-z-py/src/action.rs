@@ -76,11 +76,11 @@ impl PyGoalStatus {
     }
 
     fn is_active(&self) -> bool {
-        matches!(self.value, 1 | 2 | 3)
+        matches!(self.value, 1..=3)
     }
 
     fn is_terminal(&self) -> bool {
-        matches!(self.value, 4 | 5 | 6)
+        matches!(self.value, 4..=6)
     }
 
     fn __repr__(&self) -> String {
