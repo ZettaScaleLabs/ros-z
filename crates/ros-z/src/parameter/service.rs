@@ -293,12 +293,17 @@ impl ParameterService {
         self.store.read().ok()?.get(name)
     }
 
-    pub fn set_parameter(&self, param: Parameter) -> SetParametersResult {
-        let validation_result = self.validate_and_apply(std::slice::from_ref(&param), false);
-        validation_result
+    pub fn set_parameter(&self, param: Parameter) -> std::result::Result<(), String> {
+        let result = self
+            .validate_and_apply(std::slice::from_ref(&param), false)
             .into_iter()
             .next()
-            .unwrap_or_else(|| SetParametersResult::failure("internal error: empty result"))
+            .unwrap_or_else(|| SetParametersResult::failure("internal error: empty result"));
+        if result.successful {
+            Ok(())
+        } else {
+            Err(result.reason)
+        }
     }
 
     pub fn undeclare_parameter(&self, name: &str) -> Result<(), String> {

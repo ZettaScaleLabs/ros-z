@@ -517,11 +517,11 @@ impl ZNode {
     /// Returns the result indicating success or failure with a reason.
     /// The change will be validated against the parameter's descriptor and
     /// any registered `on_set_parameters` callback.
-    pub fn set_parameter(&self, param: Parameter) -> SetParametersResult {
+    pub fn set_parameter(&self, param: Parameter) -> std::result::Result<(), String> {
         self.parameter_service
             .as_ref()
             .map(|s| s.set_parameter(param))
-            .unwrap_or_else(|| SetParametersResult::failure("parameter services not enabled"))
+            .unwrap_or_else(|| Err("parameter services not enabled".to_string()))
     }
 
     /// Undeclare a previously declared parameter.
