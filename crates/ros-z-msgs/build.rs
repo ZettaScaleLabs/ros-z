@@ -36,6 +36,7 @@ fn main() -> Result<()> {
             output_dir: out_dir.clone(),
             external_crate: None, // All packages are local in ros-z-msgs
             local_packages: std::collections::HashSet::new(), // All packages are local
+            json_out: None,       // Not needed for Rust codegen
         };
 
         let generator = ros_z_codegen::MessageGenerator::new(config);
