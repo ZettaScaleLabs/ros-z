@@ -180,8 +180,10 @@
           protobuf
           markdownlint-cli
           colcon
+          just # Task runner (replaces Makefile)
           # Ensure python is available since we unwrapped the ROS env
           python3
+          go # Go toolchain (latest stable)
         ];
 
         # Development tools
@@ -192,6 +194,9 @@
           rust-analyzer
           nixfmt-rfc-style
           gdb
+          gopls # Go language server
+          gotools # Go tools (goimports, etc.)
+          delve # Go debugger
         ];
 
         # Python tools (ros-z-py bindings)
