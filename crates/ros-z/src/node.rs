@@ -17,6 +17,10 @@ use crate::{
     },
     entity::*,
     msg::{ZMessage, ZService},
+    parameter::{
+        Parameter, ParameterDescriptor, ParameterValue, SetParametersResult,
+        service::ParameterService,
+    },
     pubsub::{ZPub, ZPubBuilder, ZSub, ZSubBuilder},
     service::{ZClientBuilder, ZServerBuilder},
 };
@@ -45,6 +49,9 @@ pub struct ZNode {
     /// Enabled via `ZNodeBuilder::with_type_description_service()`.
     /// The service uses callback mode and requires no background task.
     type_desc_service: Option<TypeDescriptionService>,
+    /// Parameter service providing ROS 2-compatible parameter management.
+    /// Enabled by default; disable via `ZNodeBuilder::without_parameters()`.
+    parameter_service: Option<ParameterService>,
 }
 
 impl std::fmt::Debug for ZNode {
@@ -68,6 +75,10 @@ pub struct ZNodeBuilder {
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
     /// Whether to enable the type description service for this node.
     pub enable_type_desc_service: bool,
+    /// Whether to enable parameter services for this node (default: true).
+    pub enable_parameters: bool,
+    /// Initial parameter overrides applied at declaration time.
+    pub parameter_overrides: std::collections::HashMap<String, ParameterValue>,
 }
 
 impl ZNodeBuilder {
@@ -130,6 +141,54 @@ impl ZNodeBuilder {
         self.enable_type_desc_service = true;
         self
     }
+
+    /// Disable the parameter services for this node.
+    ///
+    /// By default, every node exposes the standard ROS 2 parameter services
+    /// (`~get_parameters`, `~set_parameters`, etc.) and publishes on
+    /// `/parameter_events`. Call this to opt out.
+    pub fn without_parameters(mut self) -> Self {
+        self.enable_parameters = false;
+        self
+    }
+
+    /// Set initial parameter overrides for this node.
+    ///
+    /// When a parameter is declared, if an override exists for its name, the
+    /// override value replaces the default. This is equivalent to passing
+    /// `--ros-args -p name:=value` on the command line in rclcpp.
+    pub fn with_parameter_overrides(
+        mut self,
+        overrides: std::collections::HashMap<String, ParameterValue>,
+    ) -> Self {
+        self.parameter_overrides = overrides;
+        self
+    }
+
+    /// Load initial parameter values from a ROS 2-style YAML file.
+    ///
+    /// The file is parsed for parameters matching this node's fully-qualified
+    /// name (`/{namespace}/{node_name}` or `/{node_name}` for root namespace).
+    /// Wildcard selectors (`/**`) also match all nodes.
+    ///
+    /// Values loaded from file are applied as overrides at declaration time.
+    /// If both a file and `with_parameter_overrides` are used, the last call wins.
+    ///
+    /// Returns an error if the file cannot be read or parsed.
+    pub fn with_parameter_file(
+        mut self,
+        path: &std::path::Path,
+    ) -> std::result::Result<Self, String> {
+        let node_fqn = if self.namespace.is_empty() || self.namespace == "/" {
+            format!("/{}", self.name)
+        } else {
+            format!("{}/{}", self.namespace, self.name)
+        };
+
+        let overrides = crate::parameter::yaml::load_parameter_file(path, &node_fqn)?;
+        self.parameter_overrides.extend(overrides);
+        Ok(self)
+    }
 }
 
 impl Builder for ZNodeBuilder {
@@ -184,6 +243,23 @@ impl Builder for ZNodeBuilder {
             None
         };
 
+        // Create parameter service if enabled (default)
+        let parameter_service = if self.enable_parameters {
+            debug!("[NOD] Creating parameter service");
+            let service = ParameterService::new(
+                self.session.clone(),
+                &self.name,
+                &self.namespace,
+                id,
+                &self.counter,
+                self.parameter_overrides,
+            )?;
+            info!("[NOD] ParameterService created");
+            Some(service)
+        } else {
+            None
+        };
+
         debug!("[NOD] Node ready: {}/{}", self.namespace, self.name);
 
         Ok(ZNode {
@@ -196,6 +272,7 @@ impl Builder for ZNodeBuilder {
             shm_config: self.shm_config,
             keyexpr_format: self.keyexpr_format,
             type_desc_service,
+            parameter_service,
         })
     }
 }
@@ -405,6 +482,79 @@ impl ZNode {
     /// Get access to the global counter for entity ID generation.
     pub fn counter(&self) -> &Arc<GlobalCounter> {
         &self.counter
+    }
+
+    // ========================================================================
+    // Parameter API
+    // ========================================================================
+
+    /// Declare a parameter with a default value and descriptor.
+    ///
+    /// Returns the actual initial value (which may differ from `default` if an
+    /// override was set via `ZNodeBuilder::with_parameter_overrides`).
+    ///
+    /// Returns an error if parameter services are disabled or the parameter
+    /// is already declared.
+    pub fn declare_parameter(
+        &self,
+        name: &str,
+        default: ParameterValue,
+        descriptor: ParameterDescriptor,
+    ) -> std::result::Result<ParameterValue, String> {
+        self.parameter_service
+            .as_ref()
+            .ok_or_else(|| "parameter services not enabled for this node".to_string())?
+            .declare_parameter(name, default, descriptor)
+    }
+
+    /// Get the current value of a declared parameter.
+    pub fn get_parameter(&self, name: &str) -> Option<ParameterValue> {
+        self.parameter_service.as_ref()?.get_parameter(name)
+    }
+
+    /// Set the value of a declared parameter.
+    ///
+    /// Returns the result indicating success or failure with a reason.
+    /// The change will be validated against the parameter's descriptor and
+    /// any registered `on_set_parameters` callback.
+    pub fn set_parameter(&self, param: Parameter) -> std::result::Result<(), String> {
+        self.parameter_service
+            .as_ref()
+            .map(|s| s.set_parameter(param))
+            .unwrap_or_else(|| Err("parameter services not enabled".to_string()))
+    }
+
+    /// Undeclare a previously declared parameter.
+    pub fn undeclare_parameter(&self, name: &str) -> std::result::Result<(), String> {
+        self.parameter_service
+            .as_ref()
+            .ok_or_else(|| "parameter services not enabled for this node".to_string())?
+            .undeclare_parameter(name)
+    }
+
+    /// Get the descriptor for a declared parameter.
+    pub fn describe_parameter(&self, name: &str) -> Option<ParameterDescriptor> {
+        self.parameter_service.as_ref()?.describe_parameter(name)
+    }
+
+    /// Register a callback invoked before each parameter change is committed.
+    ///
+    /// The callback receives the proposed changes and returns a `SetParametersResult`.
+    /// Return `SetParametersResult::failure(reason)` to reject the change.
+    ///
+    /// Only one callback can be registered; calling this again replaces the previous one.
+    pub fn on_set_parameters<F>(&self, callback: F)
+    where
+        F: Fn(&[Parameter]) -> SetParametersResult + Send + Sync + 'static,
+    {
+        if let Some(ref svc) = self.parameter_service {
+            svc.on_set_parameters(callback);
+        }
+    }
+
+    /// Check if parameter services are enabled for this node.
+    pub fn has_parameter_service(&self) -> bool {
+        self.parameter_service.is_some()
     }
 
     // ========================================================================

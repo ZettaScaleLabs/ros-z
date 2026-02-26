@@ -37,5 +37,11 @@ pub use crate::ros_msg::{ActionTypeInfo, MessageTypeInfo, ServiceTypeInfo, WithT
 /// Type identity helpers for custom message definitions.
 pub use crate::entity::{TypeHash, TypeInfo};
 
+/// Parameter types for ROS 2-compatible node parameters.
+pub use crate::parameter::{
+    FloatingPointRange, IntegerRange, Parameter, ParameterDescriptor, ParameterType,
+    ParameterValue, SetParametersResult,
+};
+
 /// The `Result` alias used throughout ros-z (equivalent to `zenoh::Result`).
 pub use zenoh::Result;

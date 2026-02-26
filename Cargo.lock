@@ -2732,6 +2732,7 @@ dependencies = [
  "ros-z-schema",
  "serde",
  "serde_json",
+ "serde_yaml",
  "sha2",
  "slab",
  "strum 0.27.2",

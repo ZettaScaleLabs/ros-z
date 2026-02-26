@@ -41,9 +41,11 @@ core_msgs = [
   "nav_msgs",
   "example_interfaces",
   "action_tutorials_interfaces",
+  "rcl_interfaces",
 ]
 
 # Individual packages (all vendored in assets)
+rcl_interfaces = []
 std_msgs = []
 geometry_msgs = ["std_msgs"]
 sensor_msgs = ["std_msgs", "geometry_msgs"]
@@ -62,6 +64,7 @@ all_msgs = [
   "nav_msgs",
   "example_interfaces",
   "action_tutorials_interfaces",
+  "rcl_interfaces",
   "test_msgs",
 ]
 
