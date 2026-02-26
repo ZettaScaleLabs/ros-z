@@ -4,7 +4,7 @@ Go bindings for [ros-z](https://github.com/ZettaScaleLabs/ros-z), enabling Go ap
 
 ## Features
 
-- **Full ROS 2 API**: Publishers, Subscribers, Services, Actions
+- **Pub/Sub**: Publishers and subscribers with QoS presets
 - **Memory Safe**: Uses `cgo.Handle` and `runtime.Pinner` for safe CGO interop
 - **Idiomatic Go**: Channel-based message delivery with `Handler[T]` interface
 - **Structured Errors**: Type-safe error handling with `RoszError`
@@ -18,8 +18,8 @@ Go bindings for [ros-z](https://github.com/ZettaScaleLabs/ros-z), enabling Go ap
 # Build Rust FFI library
 just build-rust
 
-# Build Go bindings
-cd crates/ros-z-go && go build ./...
+# Generate bundled message types (no ROS 2 needed)
+just codegen-bundled
 ```
 
 ### Publisher Example
@@ -30,8 +30,8 @@ package main
 import (
     "fmt"
     "time"
-    "github.com/ZettaScaleLabs/ros-z-go/rosz"
-    "github.com/ZettaScaleLabs/ros-z-go/testdata"
+    "github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/rosz"
+    "github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/generated/std_msgs"
 )
 
 func main() {
@@ -41,11 +41,11 @@ func main() {
     node, _ := ctx.CreateNode("talker").Build()
     defer node.Close()
 
-    pub, _ := node.CreatePublisher("chatter").Build(&testdata.String{})
+    pub, _ := node.CreatePublisher("chatter").Build(&std_msgs.String{})
     defer pub.Close()
 
     for i := 0; ; i++ {
-        msg := &testdata.String{Data: fmt.Sprintf("Hello #%d", i)}
+        msg := &std_msgs.String{Data: fmt.Sprintf("Hello #%d", i)}
         if err := pub.Publish(msg); err != nil {
             fmt.Printf("Publish failed: %v\n", err)
         }
@@ -58,8 +58,8 @@ func main() {
 
 ```go
 node.CreateSubscriber("chatter").
-    BuildWithCallback(&testdata.String{}, func(data []byte) {
-        var msg testdata.String
+    BuildWithCallback(&std_msgs.String{}, func(data []byte) {
+        var msg std_msgs.String
         msg.DeserializeCDR(data)
         fmt.Printf("Received: %s\n", msg.Data)
     })
@@ -69,12 +69,13 @@ node.CreateSubscriber("chatter").
 
 ```go
 handler := rosz.NewFifoChannel[[]byte](10)
+callback, drop, ch := handler.ToCbDropHandler()
 sub, _ := node.CreateSubscriber("chatter").
-    BuildWithHandler(&testdata.String{}, handler)
+    BuildWithCallback(&std_msgs.String{}, callback)
+defer drop()
 
-_, _, ch := handler.ToCbDropHandler()
 for data := range ch {
-    var msg testdata.String
+    var msg std_msgs.String
     msg.DeserializeCDR(data)
     fmt.Printf("Received: %s\n", msg.Data)
 }
@@ -85,11 +86,9 @@ for data := range ch {
 ### Context & Node
 
 ```go
-// Create context with domain ID
-ctx, err := rosz.NewContext().WithDomainID(42).Build()
+ctx, err := rosz.NewContext().WithDomainID(0).Build()
 defer ctx.Close()
 
-// Create node
 node, err := ctx.CreateNode("my_node").Build()
 defer node.Close()
 ```
@@ -107,83 +106,11 @@ sub, err := node.CreateSubscriber("topic").
         // Process message
     })
 
-// Subscriber (channel)
-handler := rosz.NewRingChannel[[]byte](5)
-sub, err := node.CreateSubscriber("topic").
-    BuildWithHandler(&MyMsg{}, handler)
-```
-
-### Service Client & Server
-
-```go
-// Service client
-client, err := node.CreateServiceClient("add_two_ints").Build(svc)
-response, err := client.Call(request)
-
-// Service server
-server, err := node.CreateServiceServer("add_two_ints").
-    Build(svc, func(reqData []byte) ([]byte, error) {
-        var req MyRequest
-        req.DeserializeCDR(reqData)
-        // Process request
-        resp := &MyResponse{Sum: req.A + req.B}
-        return resp.SerializeCDR()
-    })
-```
-
-### Action Client & Server
-
-```go
-// Action client
-client, err := node.CreateActionClient("fibonacci").Build(action)
-goalHandle, err := client.SendGoal(goal)
-result, err := goalHandle.GetResult()
-
-// Action server
-server, err := node.CreateActionServer("fibonacci").Build(
-    action,
-    func(goalData []byte) bool { /* accept/reject */ return true },
-    func(handle *rosz.ServerGoalHandle, goalData []byte) ([]byte, error) {
-        // Execute goal, publish feedback via handle.PublishFeedback()
-        return resultBytes, nil
-    },
+// Typed subscriber
+sub, err := rosz.BuildWithTypedCallback(
+    node.CreateSubscriber("topic"),
+    func(msg *MyMsg) { fmt.Println(msg.Data) },
 )
-```
-
-## Error Handling
-
-### Structured Errors
-
-```go
-resp, err := client.Call(req)
-if err != nil {
-    if roszErr, ok := err.(rosz.RoszError); ok {
-        switch roszErr.Code() {
-        case rosz.ErrorCodeServiceTimeout:
-            // Retry logic
-        case rosz.ErrorCodeActionGoalRejected:
-            // Handle rejection
-        default:
-            // General error
-        }
-    }
-}
-```
-
-### Error Codes
-
-- `ErrorCodeSuccess` (0)
-- `ErrorCodeServiceTimeout` (-10)
-- `ErrorCodeServiceCallFailed` (-9)
-- `ErrorCodeActionGoalRejected` (-11)
-- `ErrorCodePublishFailed` (-4)
-- See `rosz/error.go` for complete list
-
-### Convenience Methods
-
-```go
-if err.(rosz.RoszError).IsTimeout() { /* ... */ }
-if err.(rosz.RoszError).IsRejected() { /* ... */ }
 ```
 
 ## Handler Interface
@@ -191,13 +118,6 @@ if err.(rosz.RoszError).IsRejected() { /* ... */ }
 ros-z-go supports three message delivery patterns:
 
 ### 1. Closure (Direct Callback)
-
-```go
-handler := rosz.NewClosure(
-    func(data []byte) { processMessage(data) },
-    func() { cleanup() },
-)
-```
 
 - **Pros**: Zero allocation, lowest latency
 - **Cons**: Blocks Zenoh thread, no concurrency
@@ -227,21 +147,16 @@ handler := rosz.NewRingChannel[[]byte](5)
 
 ```bash
 # Pure Go tests (no FFI)
-just test-go-pure  # 30 tests
+just test-go-pure
 
-# FFI unit tests
-just test-go-ffi   # 26 tests
+# FFI unit tests (requires build-rust)
+just test-go-ffi
 
 # All Go tests
-just test-go       # 56 tests
-
-# Integration tests (requires zenohd)
-just test-integration  # 11 tests
+just test-go
 ```
 
 ## Architecture
-
-### Layers
 
 ```text
 Go Application
@@ -259,59 +174,41 @@ Rust ros-z Core
 Zenoh
 ```
 
-### Memory Safety
+Memory safety: `cgo.Handle` (Go 1.17+) for type-safe callback storage, `runtime.Pinner` (Go 1.21+) to prevent GC relocation during CGO calls, automatic cleanup on subscriber destruction.
 
-- **cgo.Handle (Go 1.17+)**: Type-safe callback storage with GC integration
-- **runtime.Pinner (Go 1.21+)**: Prevents GC relocation during CGO calls
-- Automatic cleanup on subscriber/server destruction
-
-### Serialization
-
-All messages use CDR (Common Data Representation) format for ROS 2 compatibility:
-
-```go
-type Message interface {
-    TypeName() string
-    TypeHash() string
-    SerializeCDR() ([]byte, error)
-    DeserializeCDR([]byte) error
-}
-```
+Serialization: all messages use CDR (Common Data Representation) for ROS 2 compatibility.
 
 ## Examples
 
-Full examples available in [`examples/`](./examples/):
+Full examples in [`examples/`](./examples/):
 
-- `publisher/` - Publisher example
-- `subscriber/` - Subscriber with callback
-- `service_client/` - Service client
-- `service_server/` - Service server
-- `action_client/` - Action client
-- `action_server/` - Action server
-
-Run examples:
+- `publisher/` — talker publishing `std_msgs/String` at 10 Hz
+- `subscriber/` — listener with typed callback
+- `subscriber_channel/` — channel-based delivery patterns
 
 ```bash
-just build-rust
-cd crates/ros-z-go/examples/publisher && go run .
+just demo   # publisher + subscriber in parallel
 ```
 
 ## Requirements
 
-- **Go**: 1.23+ (for `runtime.Pinner`, generics)
-- **Rust**: 1.75+ (for FFI layer)
-- **OS**: Linux (tested), macOS (should work), Windows (untested)
-
-## Contributing
-
-See the main [ros-z repository](https://github.com/ZettaScaleLabs/ros-z) for contribution guidelines.
-
-## License
-
-Same as ros-z (check main repository).
+- **Go**: 1.23+
+- **Rust**: stable toolchain (`rustup`)
+- **cbindgen**: `cargo install cbindgen`
+- **just**: `cargo install just`
 
 ## References
 
 - **ros-z Documentation**: <https://zettascalelabs.github.io/ros-z/>
 - **Zenoh**: <https://zenoh.io/>
 - **ROS 2**: <https://docs.ros.org/>
+
+## Acknowledgement
+
+This work is sponsored by
+
+<p align="left">
+  <a href="https://www.dexory.com/">
+    <img height="50" src="https://raw.githubusercontent.com/ZettaScaleLabs/rmw-zenoh-mcap-writer/2a324eb8a2f0cddc01fe52f504f78b4c44b36d90/images/Dexory_logo.png" alt="Dexory"/>
+  </a>
+</p>
