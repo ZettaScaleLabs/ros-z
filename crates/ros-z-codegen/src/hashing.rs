@@ -234,8 +234,17 @@ fn collect_referenced_types(
 ) {
     for field in &type_desc.fields {
         if !field.field_type.nested_type_name.is_empty() {
-            // Parse the nested type name to get package/type
-            if let Some(dep) = all_deps.get(&field.field_type.nested_type_name)
+            // Convert "package/msg/Type" to "package/Type" key format
+            // to match the resolved_deps key format used by the resolver
+            let key = if field.field_type.nested_type_name.contains("/msg/") {
+                field.field_type.nested_type_name.replace("/msg/", "/")
+            } else if field.field_type.nested_type_name.contains("/srv/") {
+                field.field_type.nested_type_name.replace("/srv/", "/")
+            } else {
+                field.field_type.nested_type_name.clone()
+            };
+
+            if let Some(dep) = all_deps.get(&key)
                 && !collected.contains_key(&dep.type_name)
             {
                 collect_referenced_types(dep, all_deps, collected);
