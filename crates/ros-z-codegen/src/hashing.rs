@@ -378,3 +378,285 @@ pub fn is_primitive_type(base_type: &str) -> bool {
             | "string"
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::*;
+    use crate::types::{ArrayType, Field, FieldType as CodegenFieldType};
+
+    /// Helper to create a TypeDescription with primitive fields only
+    fn primitive_type_desc(type_name: &str, fields: Vec<(&str, u8)>) -> TypeDescription {
+        TypeDescription {
+            type_name: type_name.to_string(),
+            fields: fields
+                .into_iter()
+                .map(|(name, type_id)| FieldDescription {
+                    name: name.to_string(),
+                    field_type: FieldTypeDescription::primitive(type_id),
+                    default_value: String::new(),
+                })
+                .collect(),
+        }
+    }
+
+    /// Helper to create a TypeDescription with a nested field referencing another type
+    fn nested_type_desc(
+        type_name: &str,
+        nested_field_name: &str,
+        nested_type_name: &str,
+    ) -> TypeDescription {
+        TypeDescription {
+            type_name: type_name.to_string(),
+            fields: vec![FieldDescription {
+                name: nested_field_name.to_string(),
+                field_type: FieldTypeDescription::nested(
+                    TypeId::NESTED_TYPE,
+                    nested_type_name.to_string(),
+                ),
+                default_value: String::new(),
+            }],
+        }
+    }
+
+    #[test]
+    fn test_collect_referenced_types_with_msg_prefix() {
+        let parent = nested_type_desc(
+            "test_msgs/msg/Parent",
+            "child",
+            "test_msgs/msg/Child",
+        );
+        let child = primitive_type_desc("test_msgs/msg/Child", vec![("value", TypeId::INT32)]);
+
+        let mut all_deps = BTreeMap::new();
+        all_deps.insert("test_msgs/Child".to_string(), child.clone());
+
+        let mut collected = BTreeMap::new();
+        collect_referenced_types(&parent, &all_deps, &mut collected);
+
+        assert_eq!(collected.len(), 1);
+        assert!(collected.contains_key("test_msgs/msg/Child"));
+    }
+
+    #[test]
+    fn test_collect_referenced_types_with_srv_prefix() {
+        let parent = nested_type_desc(
+            "test_msgs/srv/MyService_Request",
+            "goal",
+            "test_msgs/srv/GoalInfo",
+        );
+        let goal = primitive_type_desc("test_msgs/srv/GoalInfo", vec![("id", TypeId::UINT8)]);
+
+        let mut all_deps = BTreeMap::new();
+        all_deps.insert("test_msgs/GoalInfo".to_string(), goal.clone());
+
+        let mut collected = BTreeMap::new();
+        collect_referenced_types(&parent, &all_deps, &mut collected);
+
+        assert_eq!(collected.len(), 1);
+        assert!(collected.contains_key("test_msgs/srv/GoalInfo"));
+    }
+
+    #[test]
+    fn test_collect_referenced_types_without_prefix() {
+        let parent = nested_type_desc(
+            "test_msgs/msg/Parent",
+            "child",
+            "test_msgs/Child",
+        );
+        let child = primitive_type_desc("test_msgs/msg/Child", vec![("value", TypeId::INT32)]);
+
+        let mut all_deps = BTreeMap::new();
+        all_deps.insert("test_msgs/Child".to_string(), child.clone());
+
+        let mut collected = BTreeMap::new();
+        collect_referenced_types(&parent, &all_deps, &mut collected);
+
+        assert_eq!(collected.len(), 1);
+        assert!(collected.contains_key("test_msgs/msg/Child"));
+    }
+
+    #[test]
+    fn test_collect_referenced_types_deeply_nested() {
+        let grandparent = nested_type_desc(
+            "pkg/msg/Grandparent",
+            "parent",
+            "pkg/msg/Parent",
+        );
+        let parent = nested_type_desc(
+            "pkg/msg/Parent",
+            "child",
+            "other_pkg/msg/Child",
+        );
+        let child = primitive_type_desc("other_pkg/msg/Child", vec![("x", TypeId::FLOAT64)]);
+
+        let mut all_deps = BTreeMap::new();
+        all_deps.insert("pkg/Parent".to_string(), parent.clone());
+        all_deps.insert("other_pkg/Child".to_string(), child.clone());
+
+        let mut collected = BTreeMap::new();
+        collect_referenced_types(&grandparent, &all_deps, &mut collected);
+
+        assert_eq!(collected.len(), 2);
+        assert!(collected.contains_key("pkg/msg/Parent"));
+        assert!(collected.contains_key("other_pkg/msg/Child"));
+    }
+
+    #[test]
+    fn test_collect_referenced_types_cross_package() {
+        let parent = nested_type_desc(
+            "nav_msgs/msg/Odometry",
+            "pose",
+            "geometry_msgs/msg/Pose",
+        );
+        let pose = primitive_type_desc(
+            "geometry_msgs/msg/Pose",
+            vec![("x", TypeId::FLOAT64), ("y", TypeId::FLOAT64)],
+        );
+
+        let mut all_deps = BTreeMap::new();
+        all_deps.insert("geometry_msgs/Pose".to_string(), pose.clone());
+
+        let mut collected = BTreeMap::new();
+        collect_referenced_types(&parent, &all_deps, &mut collected);
+
+        assert_eq!(collected.len(), 1);
+        assert!(collected.contains_key("geometry_msgs/msg/Pose"));
+    }
+
+    #[test]
+    fn test_collect_referenced_types_no_duplicates() {
+        let parent = TypeDescription {
+            type_name: "pkg/msg/Parent".to_string(),
+            fields: vec![
+                FieldDescription {
+                    name: "a".to_string(),
+                    field_type: FieldTypeDescription::nested(
+                        TypeId::NESTED_TYPE,
+                        "pkg/msg/Shared".to_string(),
+                    ),
+                    default_value: String::new(),
+                },
+                FieldDescription {
+                    name: "b".to_string(),
+                    field_type: FieldTypeDescription::nested(
+                        TypeId::NESTED_TYPE,
+                        "pkg/msg/Shared".to_string(),
+                    ),
+                    default_value: String::new(),
+                },
+            ],
+        };
+        let shared = primitive_type_desc("pkg/msg/Shared", vec![("val", TypeId::INT32)]);
+
+        let mut all_deps = BTreeMap::new();
+        all_deps.insert("pkg/Shared".to_string(), shared.clone());
+
+        let mut collected = BTreeMap::new();
+        collect_referenced_types(&parent, &all_deps, &mut collected);
+
+        assert_eq!(collected.len(), 1);
+    }
+
+    #[test]
+    fn test_collect_referenced_types_skips_primitives() {
+        let parent = primitive_type_desc(
+            "pkg/msg/Simple",
+            vec![("x", TypeId::INT32), ("y", TypeId::FLOAT64)],
+        );
+
+        let all_deps = BTreeMap::new();
+        let mut collected = BTreeMap::new();
+        collect_referenced_types(&parent, &all_deps, &mut collected);
+
+        assert!(collected.is_empty());
+    }
+
+    #[test]
+    fn test_build_type_description_msg_with_nested_dep() {
+        let child = primitive_type_desc(
+            "other_pkg/msg/Child",
+            vec![("data", TypeId::STRING)],
+        );
+
+        let mut resolved_deps = BTreeMap::new();
+        resolved_deps.insert("other_pkg/Child".to_string(), child);
+
+        let msg = ParsedMessage {
+            name: "Parent".to_string(),
+            package: "test_msgs".to_string(),
+            fields: vec![
+                Field {
+                    name: "child".to_string(),
+                    field_type: CodegenFieldType {
+                        base_type: "Child".to_string(),
+                        package: Some("other_pkg".to_string()),
+                        array: ArrayType::Single,
+                        string_bound: None,
+                    },
+                    default: None,
+                },
+                Field {
+                    name: "value".to_string(),
+                    field_type: CodegenFieldType {
+                        base_type: "int32".to_string(),
+                        package: None,
+                        array: ArrayType::Single,
+                        string_bound: None,
+                    },
+                    default: None,
+                },
+            ],
+            constants: vec![],
+            source: "other_pkg/Child child\nint32 value".to_string(),
+            path: PathBuf::new(),
+        };
+
+        let result = build_type_description_msg(&msg, &resolved_deps).unwrap();
+
+        assert_eq!(result.type_description.type_name, "test_msgs/msg/Parent");
+        assert_eq!(result.type_description.fields.len(), 2);
+        assert_eq!(result.referenced_type_descriptions.len(), 1);
+        assert_eq!(
+            result.referenced_type_descriptions[0].type_name,
+            "other_pkg/msg/Child"
+        );
+    }
+
+    #[test]
+    fn test_calculate_type_hash_with_nested_msg_prefix() {
+        let inner = primitive_type_desc(
+            "std_msgs/msg/Header",
+            vec![("frame_id", TypeId::STRING)],
+        );
+
+        let mut resolved_deps = BTreeMap::new();
+        resolved_deps.insert("std_msgs/Header".to_string(), inner);
+
+        let msg = ParsedMessage {
+            name: "Stamped".to_string(),
+            package: "test_msgs".to_string(),
+            fields: vec![Field {
+                name: "header".to_string(),
+                field_type: CodegenFieldType {
+                    base_type: "Header".to_string(),
+                    package: Some("std_msgs".to_string()),
+                    array: ArrayType::Single,
+                    string_bound: None,
+                },
+                default: None,
+            }],
+            constants: vec![],
+            source: "std_msgs/Header header".to_string(),
+            path: PathBuf::new(),
+        };
+
+        let hash = calculate_type_hash(&msg, &resolved_deps).unwrap();
+        assert_eq!(hash.0.len(), 32);
+
+        // Hash should be deterministic
+        let hash2 = calculate_type_hash(&msg, &resolved_deps).unwrap();
+        assert_eq!(hash, hash2);
+    }
+}
