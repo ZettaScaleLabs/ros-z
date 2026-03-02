@@ -123,6 +123,18 @@ func main() {
 }
 ```
 
+Create `hello_sub/go.mod`:
+
+```text
+module hello_sub
+
+go 1.23
+
+require github.com/ZettaScaleLabs/ros-z/crates/ros-z-go v0.0.0
+
+replace github.com/ZettaScaleLabs/ros-z/crates/ros-z-go => /path/to/ros-z/crates/ros-z-go
+```
+
 ## 4. Run
 
 You need a Zenoh router running first — publishers and subscribers only discover each other through a router:
@@ -142,11 +154,37 @@ CGO_LDFLAGS="-L/path/to/ros-z/target/release" go run main.go
 
 You should see the subscriber printing messages published by the publisher.
 
-## 5. Try the built-in examples
+## 5. Interop with ROS 2
 
-The repo ships ready-to-run examples. With a router already running:
+The subscriber above can also receive messages from a native ROS 2 node. On a machine with ROS 2 and `rmw_zenoh_cpp` installed:
 
 ```bash
+# ROS 2 host — start the Zenoh router and a talker
+ros2 run rmw_zenoh_cpp rmw_zenohd &
+ros2 run demo_nodes_cpp talker
+```
+
+On the ros-z-go host, connect to the ROS 2 router and run the subscriber:
+
+```bash
+# Terminal 1: connect to the ROS 2 host router
+cargo run --example zenoh_router -- -e tcp/<ROS2_HOST_IP>:7447
+
+# Terminal 2: subscriber
+cd hello_sub
+CGO_LDFLAGS="-L/path/to/ros-z/target/release" go run main.go
+```
+
+The Go subscriber will receive `std_msgs/String` messages published by the ROS 2 talker.
+
+## 6. Try the built-in examples
+
+The repo ships ready-to-run examples. Start a router first, then:
+
+```bash
+# Terminal 1: router
+cargo run --example zenoh_router
+
 # Publisher + subscriber in parallel (Ctrl+C to stop)
 just -f crates/ros-z-go/justfile demo
 
@@ -156,7 +194,7 @@ just -f crates/ros-z-go/justfile run-example subscriber
 just -f crates/ros-z-go/justfile run-example subscriber_channel   # channel-based / range loop
 ```
 
-## What next
+## What's next
 
 - **[Go Bindings](./go_bindings.md)** — full API reference: typed helpers, graph introspection, QoS, error handling
 - **[Message Generation](./message_generation.md)** — generate types from a full ROS 2 install
