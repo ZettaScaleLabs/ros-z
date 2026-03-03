@@ -165,9 +165,7 @@ impl TypeDescriptionClient {
             namespace, node_name, type_name
         );
 
-        // Create a client for the target node's get_type_description service
-        // The service is exposed as /{namespace}/{node_name}/get_type_description
-        // Build the absolute service name
+        // Build the absolute service name for this node.
         let service_name = if namespace.is_empty() || namespace == "/" {
             format!("/{}/get_type_description", node_name)
         } else {
@@ -182,25 +180,66 @@ impl TypeDescriptionClient {
         // Use empty namespace since we're using an absolute service name (starts with /)
         let client = self.create_client(&service_name, "")?;
 
-        info!("[TDC] Sending request to get_type_description service...");
+        self.query_with_client(
+            &client,
+            node_name,
+            namespace,
+            type_name,
+            type_hash,
+            include_sources,
+        )
+        .await
+    }
 
-        // Build the request
+    /// Send a type description request via an already-built client and wait for the response.
+    ///
+    /// Separating client creation from the actual query allows callers to hoist Querier
+    /// creation out of tight loops, mirroring rmw_zenoh_cpp where the Querier lives for
+    /// the lifetime of the service client rather than being freshly created per request.
+    async fn query_with_client(
+        &self,
+        client: &ZClient<GetTypeDescription>,
+        node_name: &str,
+        namespace: &str,
+        type_name: &str,
+        type_hash: &str,
+        include_sources: bool,
+    ) -> Result<GetTypeDescriptionResponse, DynamicError> {
         let request = GetTypeDescriptionRequest {
             type_name: type_name.to_string(),
             type_hash: type_hash.to_string(),
             include_type_sources: include_sources,
         };
 
-        // Send request
+        info!(
+            "[TDC] Sending request to get_type_description: node={}/{}",
+            namespace, node_name
+        );
+
         client
             .send_request(&request)
             .await
             .map_err(|e| DynamicError::SerializationError(e.to_string()))?;
 
-        // Wait for response
-        let response = client
-            .take_response_timeout(self.timeout)
-            .map_err(|e| DynamicError::DeserializationError(e.to_string()))?;
+        // Map a channel/recv timeout to the dedicated ServiceTimeout variant so callers
+        // can distinguish "service didn't respond" from actual CDR decode failures.
+        let node_display = if namespace.is_empty() || namespace == "/" {
+            node_name.to_string()
+        } else {
+            format!("{}/{}", namespace, node_name)
+        };
+        let service_display = if namespace.is_empty() || namespace == "/" {
+            format!("/{}/get_type_description", node_name)
+        } else {
+            format!("{}/{}/get_type_description", namespace, node_name)
+        };
+
+        let response = client.take_response_timeout(self.timeout).map_err(|_| {
+            DynamicError::ServiceTimeout {
+                node: node_display,
+                service: service_display,
+            }
+        })?;
 
         if response.successful {
             debug!(
@@ -244,7 +283,8 @@ impl TypeDescriptionClient {
 
         debug!("[TDC] Discovering type description for topic: {}", topic);
 
-        // Get publishers for the topic
+        // ── Phase 1: Publisher discovery ─────────────────────────────────────
+        // Retry up to 5 × 500 ms if the graph hasn't seen any publishers yet.
         let mut publishers = graph.get_entities_by_topic(EntityKind::Publisher, topic);
         debug!(
             "[TDC] Initial discovery found {} publishers for topic {}",
@@ -253,7 +293,6 @@ impl TypeDescriptionClient {
         );
 
         if publishers.is_empty() {
-            // Wait and retry multiple times - publishers might not have been discovered yet
             debug!("[TDC] No publishers found initially, waiting for discovery...");
             for attempt in 1..=5 {
                 tokio::time::sleep(Duration::from_millis(500)).await;
@@ -269,7 +308,6 @@ impl TypeDescriptionClient {
             }
 
             if publishers.is_empty() {
-                // Log all known topics for debugging
                 warn!(
                     "[TDC] No publishers found for topic {} after retries",
                     topic
@@ -281,12 +319,12 @@ impl TypeDescriptionClient {
             }
         }
 
-        // Get type info from the first publisher
-        let publisher = publishers.first().ok_or_else(|| {
+        // Extract type name and hash from the first publisher.
+        // All publishers on a topic share the same type in ROS 2.
+        let first_pub = publishers.first().ok_or_else(|| {
             DynamicError::SchemaNotFound(format!("No publishers found for topic: {}", topic))
         })?;
-
-        let endpoint = match &**publisher {
+        let first_ep = match &**first_pub {
             Entity::Endpoint(e) => e,
             _ => {
                 return Err(DynamicError::SerializationError(
@@ -294,58 +332,133 @@ impl TypeDescriptionClient {
                 ));
             }
         };
-
-        // Get type name from the publisher's type info
-        let type_info = endpoint.type_info.as_ref().ok_or_else(|| {
+        let type_info = first_ep.type_info.as_ref().ok_or_else(|| {
             DynamicError::SchemaNotFound(format!("Publisher on {} has no type information", topic))
         })?;
-
-        // Convert DDS type name to ROS 2 canonical name
-        // DDS format: "std_msgs::msg::dds_::String_"
-        // ROS 2 format: "std_msgs/msg/String"
         let type_name = normalize_type_name(&type_info.name);
         let type_hash = type_info.hash.to_rihs_string();
 
         info!(
             "[TDC] Found publisher for {}: node={}/{}, type={} (normalized from: {})",
-            topic, endpoint.node.namespace, endpoint.node.name, type_name, type_info.name
+            topic, first_ep.node.namespace, first_ep.node.name, type_name, type_info.name
         );
 
-        // Query the publisher's node for type description
+        // ── Phase 2: Create one ZClient (Querier) per publisher endpoint ─────
+        //
+        // This is the key fix for the flaky race condition.  In rmw_zenoh_cpp the
+        // Querier is created once when rmw_create_client is called and then reused
+        // for every send_request.  By the time user code calls a service the
+        // Querier has been alive long enough to have received queryable
+        // advertisements from the router.
+        //
+        // The old code called create_client() inside the retry loop, meaning a
+        // brand-new Querier was created and immediately used.  With AllComplete a
+        // fresh Querier that hasn't received advertisements yet resolves the GET
+        // instantly with zero replies, causing the 10 s take_response_timeout to
+        // expire before a reply ever arrives.
+        //
+        // By creating all Queriers here, before any GET is sent, we give them time
+        // to settle in Phase 3 below.
+        struct PubClient {
+            node_name: String,
+            namespace: String,
+            client: ZClient<GetTypeDescription>,
+        }
+
+        let mut pub_clients: Vec<PubClient> = Vec::new();
+        for publisher in &publishers {
+            let Entity::Endpoint(ep) = &**publisher else {
+                continue;
+            };
+            let service_name = if ep.node.namespace.is_empty() || ep.node.namespace == "/" {
+                format!("/{}/get_type_description", ep.node.name)
+            } else {
+                format!(
+                    "{}/{}/get_type_description",
+                    ep.node.namespace, ep.node.name
+                )
+            };
+            match self.create_client(&service_name, "") {
+                Ok(c) => pub_clients.push(PubClient {
+                    node_name: ep.node.name.clone(),
+                    namespace: ep.node.namespace.clone(),
+                    client: c,
+                }),
+                Err(e) => warn!("[TDC] Could not create client for {}: {}", service_name, e),
+            }
+        }
+
+        if pub_clients.is_empty() {
+            return Err(DynamicError::SchemaNotFound(format!(
+                "Could not create any service clients for topic: {}",
+                topic
+            )));
+        }
+
+        // ── Phase 3: Let Queriers settle ─────────────────────────────────────
+        //
+        // Allow the newly-declared Queriers to receive queryable advertisements
+        // from the router.  This mirrors the implicit settling time rmw_zenoh_cpp
+        // benefits from because rmw_create_client and rmw_send_request are called
+        // in different stages of a node's lifecycle.
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // ── Phase 4: Retry loop using the pre-built clients ──────────────────
+        //
+        // With settled Queriers the happy path succeeds on the first attempt.
+        // The retry loop is a safety net for loaded CI systems or slow networks.
         let deadline = tokio::time::Instant::now() + timeout;
         let mut last_error = None;
 
-        for publisher in publishers.iter() {
-            if tokio::time::Instant::now() > deadline {
+        'retry: loop {
+            for pc in &pub_clients {
+                if tokio::time::Instant::now() > deadline {
+                    break 'retry;
+                }
+
+                match self
+                    .query_with_client(
+                        &pc.client,
+                        &pc.node_name,
+                        &pc.namespace,
+                        &type_name,
+                        &type_hash,
+                        false,
+                    )
+                    .await
+                {
+                    Ok(response) if response.successful => {
+                        let schema = Self::response_to_schema(&response)?;
+                        return Ok((schema, type_hash.clone()));
+                    }
+                    Ok(response) => {
+                        // Definitive service failure (e.g. hash mismatch): no point retrying.
+                        last_error =
+                            Some(DynamicError::SerializationError(response.failure_reason));
+                        break 'retry;
+                    }
+                    Err(e @ DynamicError::ServiceTimeout { .. }) => {
+                        // Transient: Querier may not yet have received the advertisement.
+                        debug!("[TDC] Type description query timed out, retrying...");
+                        last_error = Some(e);
+                    }
+                    Err(e) => {
+                        last_error = Some(e);
+                        break 'retry;
+                    }
+                }
+            }
+
+            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+            if remaining.is_zero() {
                 break;
             }
 
-            let endpoint = match &**publisher {
-                Entity::Endpoint(e) => e,
-                _ => continue,
-            };
+            let delay = Duration::from_millis(500).min(remaining);
+            tokio::time::sleep(delay).await;
 
-            match self
-                .get_type_description(
-                    &endpoint.node.name,
-                    &endpoint.node.namespace,
-                    &type_name,
-                    &type_hash, // Pass the type hash from publisher's type info
-                    false,
-                )
-                .await
-            {
-                Ok(response) if response.successful => {
-                    let schema = Self::response_to_schema(&response)?;
-                    return Ok((schema, type_hash.clone()));
-                }
-                Ok(response) => {
-                    last_error = Some(DynamicError::SerializationError(response.failure_reason));
-                }
-                Err(e) => {
-                    last_error = Some(e);
-                }
-            }
+            // (Publisher list is fixed to the clients built in Phase 2;
+            // re-discovery on each retry is not needed once Queriers are settled.)
         }
 
         Err(last_error.unwrap_or_else(|| {
