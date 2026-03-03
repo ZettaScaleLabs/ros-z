@@ -70,6 +70,9 @@ jobs:
             ros-${{ matrix.distro }}-rmw-zenoh-cpp \
             ros-${{ matrix.distro }}-demo-nodes-cpp \
             ros-${{ matrix.distro }}-action-tutorials-cpp \
+            ros-${{ matrix.distro }}-geometry-msgs \
+            ros-${{ matrix.distro }}-sensor-msgs \
+            ros-${{ matrix.distro }}-nav-msgs \
             protobuf-compiler
 
       - name: Fix broken rmw_zenoh_cpp config for Kilted
@@ -102,10 +105,15 @@ jobs:
         run: |
           source /opt/ros/${{ matrix.distro }}/setup.bash
           export RMW_IMPLEMENTATION=rmw_zenoh_cpp
-          if [ "${{ matrix.ros_z_feature }}" = "humble" ]; then
-            cargo nextest run -p ros-z-tests --no-default-features --features ros-interop,humble --release
-            cargo nextest run -p ros-z-console --no-default-features --features ros-interop,humble --release
+          FEATURES="${{ matrix.ros_z_feature }}"
+          if [ "$FEATURES" = "humble" ]; then
+            cargo nextest run -p ros-z-tests --profile interop \
+              --no-default-features --features ros-interop,humble --release
+            cargo nextest run -p ros-z-console \
+              --no-default-features --features ros-interop,humble --release
           else
-            cargo nextest run -p ros-z-tests --features ros-interop,${{ matrix.ros_z_feature }} --release
-            cargo nextest run -p ros-z-console --features ros-interop --release
+            cargo nextest run -p ros-z-tests --profile interop \
+              --features "ros-interop,$FEATURES" --release
+            cargo nextest run -p ros-z-console \
+              --features ros-interop --release
           fi

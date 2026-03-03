@@ -226,6 +226,22 @@ pub fn build_type_description_msg(
     })
 }
 
+/// Convert a fully-qualified nested type name to the key format used in resolved_deps.
+///
+/// The resolver stores type descriptions keyed as `"pkg/TypeName"`, but
+/// `nested_type_name` in field descriptors uses `"pkg/subdir/TypeName"` (e.g.
+/// `"geometry_msgs/msg/Pose"`). This strips the middle path component so lookups
+/// succeed regardless of whether the subdir is `msg`, `srv`, `action`, or any
+/// future category.
+fn nested_type_name_to_key(name: &str) -> String {
+    let parts: Vec<&str> = name.splitn(3, '/').collect();
+    if parts.len() == 3 {
+        format!("{}/{}", parts[0], parts[2])
+    } else {
+        name.to_string()
+    }
+}
+
 /// Recursively collect all referenced types
 fn collect_referenced_types(
     type_desc: &TypeDescription,
@@ -234,8 +250,9 @@ fn collect_referenced_types(
 ) {
     for field in &type_desc.fields {
         if !field.field_type.nested_type_name.is_empty() {
-            // Parse the nested type name to get package/type
-            if let Some(dep) = all_deps.get(&field.field_type.nested_type_name)
+            let key = nested_type_name_to_key(&field.field_type.nested_type_name);
+
+            if let Some(dep) = all_deps.get(&key)
                 && !collected.contains_key(&dep.type_name)
             {
                 collect_referenced_types(dep, all_deps, collected);
@@ -368,4 +385,241 @@ pub fn is_primitive_type(base_type: &str) -> bool {
             | "float64"
             | "string"
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::*;
+    use crate::types::{ArrayType, Field, FieldType as CodegenFieldType};
+
+    /// Helper to create a TypeDescription with primitive fields only
+    fn primitive_type_desc(type_name: &str, fields: Vec<(&str, u8)>) -> TypeDescription {
+        TypeDescription {
+            type_name: type_name.to_string(),
+            fields: fields
+                .into_iter()
+                .map(|(name, type_id)| FieldDescription {
+                    name: name.to_string(),
+                    field_type: FieldTypeDescription::primitive(type_id),
+                    default_value: String::new(),
+                })
+                .collect(),
+        }
+    }
+
+    /// Helper to create a TypeDescription with a nested field referencing another type
+    fn nested_type_desc(
+        type_name: &str,
+        nested_field_name: &str,
+        nested_type_name: &str,
+    ) -> TypeDescription {
+        TypeDescription {
+            type_name: type_name.to_string(),
+            fields: vec![FieldDescription {
+                name: nested_field_name.to_string(),
+                field_type: FieldTypeDescription::nested(
+                    TypeId::NESTED_TYPE,
+                    nested_type_name.to_string(),
+                ),
+                default_value: String::new(),
+            }],
+        }
+    }
+
+    #[test]
+    fn test_collect_referenced_types_with_msg_prefix() {
+        let parent = nested_type_desc("test_msgs/msg/Parent", "child", "test_msgs/msg/Child");
+        let child = primitive_type_desc("test_msgs/msg/Child", vec![("value", TypeId::INT32)]);
+
+        let mut all_deps = BTreeMap::new();
+        all_deps.insert("test_msgs/Child".to_string(), child.clone());
+
+        let mut collected = BTreeMap::new();
+        collect_referenced_types(&parent, &all_deps, &mut collected);
+
+        assert_eq!(collected.len(), 1);
+        assert!(collected.contains_key("test_msgs/msg/Child"));
+    }
+
+    #[test]
+    fn test_collect_referenced_types_without_prefix() {
+        let parent = nested_type_desc("test_msgs/msg/Parent", "child", "test_msgs/Child");
+        let child = primitive_type_desc("test_msgs/msg/Child", vec![("value", TypeId::INT32)]);
+
+        let mut all_deps = BTreeMap::new();
+        all_deps.insert("test_msgs/Child".to_string(), child.clone());
+
+        let mut collected = BTreeMap::new();
+        collect_referenced_types(&parent, &all_deps, &mut collected);
+
+        assert_eq!(collected.len(), 1);
+        assert!(collected.contains_key("test_msgs/msg/Child"));
+    }
+
+    #[test]
+    fn test_collect_referenced_types_deeply_nested() {
+        let grandparent = nested_type_desc("pkg/msg/Grandparent", "parent", "pkg/msg/Parent");
+        let parent = nested_type_desc("pkg/msg/Parent", "child", "other_pkg/msg/Child");
+        let child = primitive_type_desc("other_pkg/msg/Child", vec![("x", TypeId::FLOAT64)]);
+
+        let mut all_deps = BTreeMap::new();
+        all_deps.insert("pkg/Parent".to_string(), parent.clone());
+        all_deps.insert("other_pkg/Child".to_string(), child.clone());
+
+        let mut collected = BTreeMap::new();
+        collect_referenced_types(&grandparent, &all_deps, &mut collected);
+
+        assert_eq!(collected.len(), 2);
+        assert!(collected.contains_key("pkg/msg/Parent"));
+        assert!(collected.contains_key("other_pkg/msg/Child"));
+    }
+
+    #[test]
+    fn test_collect_referenced_types_no_duplicates() {
+        let parent = TypeDescription {
+            type_name: "pkg/msg/Parent".to_string(),
+            fields: vec![
+                FieldDescription {
+                    name: "a".to_string(),
+                    field_type: FieldTypeDescription::nested(
+                        TypeId::NESTED_TYPE,
+                        "pkg/msg/Shared".to_string(),
+                    ),
+                    default_value: String::new(),
+                },
+                FieldDescription {
+                    name: "b".to_string(),
+                    field_type: FieldTypeDescription::nested(
+                        TypeId::NESTED_TYPE,
+                        "pkg/msg/Shared".to_string(),
+                    ),
+                    default_value: String::new(),
+                },
+            ],
+        };
+        let shared = primitive_type_desc("pkg/msg/Shared", vec![("val", TypeId::INT32)]);
+
+        let mut all_deps = BTreeMap::new();
+        all_deps.insert("pkg/Shared".to_string(), shared.clone());
+
+        let mut collected = BTreeMap::new();
+        collect_referenced_types(&parent, &all_deps, &mut collected);
+
+        assert_eq!(collected.len(), 1);
+    }
+
+    #[test]
+    fn test_collect_referenced_types_with_action_prefix() {
+        // action_msgs/action/GoalInfo references unique_identifier_msgs/action/UUID
+        // The /action/ subdir must be stripped the same way as /msg/ and /srv/
+        let parent = nested_type_desc(
+            "action_msgs/action/GoalStatus",
+            "goal_info",
+            "action_msgs/action/GoalInfo",
+        );
+        let goal_info = primitive_type_desc(
+            "action_msgs/action/GoalInfo",
+            vec![("stamp", TypeId::INT32)],
+        );
+
+        let mut all_deps = BTreeMap::new();
+        all_deps.insert("action_msgs/GoalInfo".to_string(), goal_info.clone());
+
+        let mut collected = BTreeMap::new();
+        collect_referenced_types(&parent, &all_deps, &mut collected);
+
+        assert_eq!(collected.len(), 1);
+        assert!(collected.contains_key("action_msgs/action/GoalInfo"));
+    }
+
+    // --- Tests for nested_type_name_to_key ---
+
+    #[test]
+    fn test_nested_type_name_to_key_msg() {
+        assert_eq!(
+            nested_type_name_to_key("geometry_msgs/msg/Pose"),
+            "geometry_msgs/Pose"
+        );
+    }
+
+    #[test]
+    fn test_nested_type_name_to_key_srv() {
+        assert_eq!(
+            nested_type_name_to_key("example_interfaces/srv/AddTwoInts"),
+            "example_interfaces/AddTwoInts"
+        );
+    }
+
+    #[test]
+    fn test_nested_type_name_to_key_action() {
+        assert_eq!(
+            nested_type_name_to_key("action_msgs/action/GoalInfo"),
+            "action_msgs/GoalInfo"
+        );
+    }
+
+    #[test]
+    fn test_nested_type_name_to_key_no_subdir() {
+        // Two-part names (already in pkg/Type format) pass through unchanged
+        assert_eq!(
+            nested_type_name_to_key("geometry_msgs/Pose"),
+            "geometry_msgs/Pose"
+        );
+    }
+
+    #[test]
+    fn test_nested_type_name_to_key_bare_name() {
+        // Unqualified names pass through unchanged
+        assert_eq!(nested_type_name_to_key("Pose"), "Pose");
+    }
+
+    #[test]
+    fn test_build_type_description_msg_with_nested_dep() {
+        let child = primitive_type_desc("other_pkg/msg/Child", vec![("data", TypeId::STRING)]);
+
+        let mut resolved_deps = BTreeMap::new();
+        resolved_deps.insert("other_pkg/Child".to_string(), child);
+
+        let msg = ParsedMessage {
+            name: "Parent".to_string(),
+            package: "test_msgs".to_string(),
+            fields: vec![
+                Field {
+                    name: "child".to_string(),
+                    field_type: CodegenFieldType {
+                        base_type: "Child".to_string(),
+                        package: Some("other_pkg".to_string()),
+                        array: ArrayType::Single,
+                        string_bound: None,
+                    },
+                    default: None,
+                },
+                Field {
+                    name: "value".to_string(),
+                    field_type: CodegenFieldType {
+                        base_type: "int32".to_string(),
+                        package: None,
+                        array: ArrayType::Single,
+                        string_bound: None,
+                    },
+                    default: None,
+                },
+            ],
+            constants: vec![],
+            source: "other_pkg/Child child\nint32 value".to_string(),
+            path: PathBuf::new(),
+        };
+
+        let result = build_type_description_msg(&msg, &resolved_deps).unwrap();
+
+        assert_eq!(result.type_description.type_name, "test_msgs/msg/Parent");
+        assert_eq!(result.type_description.fields.len(), 2);
+        assert_eq!(result.referenced_type_descriptions.len(), 1);
+        assert_eq!(
+            result.referenced_type_descriptions[0].type_name,
+            "other_pkg/msg/Child"
+        );
+    }
 }
