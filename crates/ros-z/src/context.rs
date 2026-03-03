@@ -334,12 +334,12 @@ impl ZContextBuilder {
     /// # Example
     /// ```
     /// // In shell:
-    /// // export ROSZ_CONFIG_OVERRIDE='mode="client";connect/endpoints=["tcp/192.168.1.1:7447"]'
+    /// // export ZENOH_CONFIG_OVERRIDE='mode="client";connect/endpoints=["tcp/192.168.1.1:7447"]'
     /// ```
     fn apply_env_overrides(mut self) -> Result<Self> {
-        if let Ok(overrides_str) = std::env::var("ROSZ_CONFIG_OVERRIDE") {
+        if let Ok(overrides_str) = std::env::var("ZENOH_CONFIG_OVERRIDE") {
             tracing::debug!(
-                "Applying config overrides from ROSZ_CONFIG_OVERRIDE: {}",
+                "Applying config overrides from ZENOH_CONFIG_OVERRIDE: {}",
                 overrides_str
             );
 
@@ -363,14 +363,14 @@ impl ZContextBuilder {
                         }
                         Err(e) => {
                             return Err(format!(
-                                "Failed to parse ROSZ_CONFIG_OVERRIDE value for key '{}': {} (value: {})",
+                                "Failed to parse ZENOH_CONFIG_OVERRIDE value for key '{}': {} (value: {})",
                                 key, e, value
                             ).into());
                         }
                     }
                 } else {
                     return Err(format!(
-                        "Invalid ROSZ_CONFIG_OVERRIDE format: '{}'. Expected 'key=value'",
+                        "Invalid ZENOH_CONFIG_OVERRIDE format: '{}'. Expected 'key=value'",
                         pair
                     )
                     .into());
@@ -393,7 +393,7 @@ impl Builder for ZContextBuilder {
         // Priority order:
         // 1. Custom Zenoh config passed via with_zenoh_config()
         // 2. Config file passed via with_config_file()
-        // 3. ROSZ_CONFIG_FILE environment variable
+        // 3. ZENOH_SESSION_CONFIG_URI environment variable (same as rmw_zenoh_cpp)
         // 4. **NEW DEFAULT**: ROS session config (connects to router at tcp/localhost:7447)
         //    This matches rmw_zenoh_cpp behavior
 
@@ -420,16 +420,16 @@ impl Builder for ZContextBuilder {
 
         let has_custom_config = builder.zenoh_config.is_some();
         let has_config_file = builder.config_file.is_some();
-        let has_env_config = std::env::var("ROSZ_CONFIG_FILE").is_ok();
+        let has_env_config = std::env::var("ZENOH_SESSION_CONFIG_URI").is_ok();
 
         let mut config = if let Some(config) = builder.zenoh_config {
             config
         } else if let Some(ref config_file) = builder.config_file {
             // Use explicit config file
             zenoh::Config::from_file(config_file)?
-        } else if let Ok(path) = std::env::var("ROSZ_CONFIG_FILE") {
-            // Use environment variable config file
-            zenoh::Config::from_file(path)?
+        } else if let Ok(uri) = std::env::var("ZENOH_SESSION_CONFIG_URI") {
+            // Use environment variable config URI (same as rmw_zenoh_cpp)
+            zenoh::Config::from_file(uri)?
         } else {
             // DEFAULT: Use ROS session config (requires router at localhost:7447)
             // This is the key change - matching rmw_zenoh_cpp behavior
