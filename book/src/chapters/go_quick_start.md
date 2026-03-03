@@ -175,4 +175,4 @@ just -f crates/ros-z-go/justfile run-example subscriber_channel   # channel-base
 
 - **[Go Bindings](./go_bindings.md)** — full API reference: typed helpers, graph introspection, QoS, error handling
 - **[Message Generation](./message_generation.md)** — generate types from a full ROS 2 install
-- **[ROS 2 Interoperability](./interop.md)** — connect `hello_sub` to a live ROS 2 talker
+- **[ROS 2 Interoperability](./interop.md)** — connect a ros-z subscriber to a live ROS 2 talker
