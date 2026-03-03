@@ -189,7 +189,6 @@ impl ZPayloadView {
     #[getter]
     fn is_cuda(&self) -> bool {
         use zenoh_buffers::ZSliceKind;
-        use zenoh_buffers::buffer::SplitBuffer;
         let zbuf: zenoh_buffers::ZBuf = self.sample.payload().clone().into();
         zbuf.zslices().any(|zs| zs.kind == ZSliceKind::CudaPtr)
     }
@@ -211,7 +210,6 @@ impl ZPayloadView {
     #[cfg(feature = "cuda")]
     fn as_dlpack(&self, py: Python<'_>) -> PyResult<Option<PyObject>> {
         use zenoh_buffers::ZSliceKind;
-        use zenoh_buffers::buffer::SplitBuffer;
         use zenoh_cuda::CudaBufInner;
 
         let zbuf: zenoh_buffers::ZBuf = self.sample.payload().clone().into();

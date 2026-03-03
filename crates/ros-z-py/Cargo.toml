@@ -29,7 +29,7 @@ parking_lot = { workspace = true }
 once_cell = "1.19"
 
 [features]
-cuda = ["zenoh-buffers/cuda", "dep:zenoh-cuda"]
+cuda = ["zenoh-buffers/cuda", "dep:zenoh-cuda", "ros-z/cuda"]
 
 [build-dependencies]
 anyhow = { workspace = true }

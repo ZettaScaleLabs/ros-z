@@ -19,6 +19,7 @@ zenoh = { workspace = true, default-features = false, features = [
 ] }
 zenoh-ext = { workspace = true }
 zenoh-buffers = { workspace = true }
+zenoh-codec = { workspace = true, optional = true }
 zenoh-cuda = { workspace = true, optional = true }
 strum = { workspace = true, features = ["derive"] }
 sha2 = { workspace = true }
@@ -63,7 +64,12 @@ prost-build = { workspace = true, optional = true }
 default = ["config-builders", "jazzy", "rmw-zenoh"]
 config-builders = []
 generate-configs = []
-cuda = ["zenoh-buffers/cuda", "dep:zenoh-cuda"]
+cuda = [
+  "zenoh-buffers/cuda",
+  "dep:zenoh-codec",
+  "zenoh-codec/cuda",
+  "dep:zenoh-cuda",
+]
 protobuf = ["prost", "prost-build"]
 flatbuffers = []
 python = ["pyo3"]

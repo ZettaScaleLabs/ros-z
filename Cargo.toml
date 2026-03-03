@@ -48,6 +48,7 @@ zenoh = { version = "1.7.2", default-features = false, features = [
 ] }
 zenoh-ext = { version = "1.7.2", features = ["unstable"] }
 zenoh-buffers = { version = "1.7.2" }
+zenoh-codec = { version = "1.7.2" }
 zenoh-cuda = { version = "1.7.2", path = "../../../../../project/zenoh-src/src/worktree-zenoh/cuda-zslice/commons/zenoh-cuda" }
 
 # CLI
@@ -98,9 +99,20 @@ cxx-build = "1.0.168"
 
 [patch.crates-io]
 # Point to feat/cuda-zslice branch for CUDA IPC transport support.
-# Only patching zenoh-buffers gives ros-z access to ZSliceKind::CudaPtr and CudaBufInner
-# without disrupting the full Zenoh transport stack.
+#
+# We must patch all three together:
+# - zenoh-buffers: adds ZSliceKind::CudaPtr (gated by `cuda` feature)
+# - zenoh-codec:   adds the matching CudaPtr codec arm (non-exhaustive otherwise)
+# - zenoh-protocol: same source as crates.io 1.7.2, but patched so that
+#   zenoh-link-commons (crates.io) and local zenoh-codec share one instance
+#   of the zenoh-protocol types (TransportMessage, etc.) — avoiding type mismatches.
+zenoh = { path = "../../../../../project/zenoh-src/src/worktree-zenoh/cuda-zslice/zenoh" }
 zenoh-buffers = { path = "../../../../../project/zenoh-src/src/worktree-zenoh/cuda-zslice/commons/zenoh-buffers" }
+zenoh-codec = { path = "../../../../../project/zenoh-src/src/worktree-zenoh/cuda-zslice/commons/zenoh-codec" }
+zenoh-protocol = { path = "../../../../../project/zenoh-src/src/worktree-zenoh/cuda-zslice/commons/zenoh-protocol" }
+zenoh-keyexpr = { path = "../../../../../project/zenoh-src/src/worktree-zenoh/cuda-zslice/commons/zenoh-keyexpr" }
+zenoh-shm = { path = "../../../../../project/zenoh-src/src/worktree-zenoh/cuda-zslice/commons/zenoh-shm" }
+zenoh-core = { path = "../../../../../project/zenoh-src/src/worktree-zenoh/cuda-zslice/commons/zenoh-core" }
 
 [profile.opt]
 inherits = "release"
