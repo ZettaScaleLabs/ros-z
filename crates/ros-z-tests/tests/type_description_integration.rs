@@ -554,7 +554,30 @@ fn test_multiple_publishers_schema_discovery() {
 
             println!("Two publishers created on /multi_pub_topic");
 
-            // Start both publishers
+            // Give publishers time to announce themselves to the graph so that
+            // the subscriber's auto-discovery can find them.
+            tokio::time::sleep(Duration::from_millis(500)).await;
+
+            // Create subscriber BEFORE starting to publish.  Publishers are
+            // already in the graph (announced at creation), so discovery works.
+            // Deferring the publish loops ensures messages arrive while the
+            // subscriber is actually ready to receive them.
+            let sub_ctx =
+                create_ros_z_context_with_router(&router).expect("Failed to create sub context");
+            let sub_node = sub_ctx
+                .create_node("listener")
+                .build()
+                .expect("Failed to create subscriber node");
+
+            println!("Discovering schema from publishers...");
+            let (subscriber, discovered_schema) = sub_node
+                .create_dyn_sub_auto("/multi_pub_topic", Duration::from_secs(15))
+                .await
+                .expect("Failed to create subscriber with auto-discovery");
+
+            println!("Discovered schema: {}", discovered_schema.type_name);
+
+            // Now start both publisher tasks — subscriber is ready.
             let schema1 = schema.clone();
             let schema2 = schema.clone();
 
@@ -575,25 +598,6 @@ fn test_multiple_publishers_schema_discovery() {
                     tokio::time::sleep(Duration::from_millis(150)).await;
                 }
             });
-
-            // Give publishers time to start
-            tokio::time::sleep(Duration::from_millis(500)).await;
-
-            // Create subscriber that discovers from any publisher
-            let sub_ctx =
-                create_ros_z_context_with_router(&router).expect("Failed to create sub context");
-            let sub_node = sub_ctx
-                .create_node("listener")
-                .build()
-                .expect("Failed to create subscriber node");
-
-            println!("Discovering schema from publishers...");
-            let (subscriber, discovered_schema) = sub_node
-                .create_dyn_sub_auto("/multi_pub_topic", Duration::from_secs(15))
-                .await
-                .expect("Failed to create subscriber with auto-discovery");
-
-            println!("Discovered schema: {}", discovered_schema.type_name);
 
             // Receive messages from both publishers
             let mut received = Vec::new();
