@@ -11,8 +11,7 @@
 //! The interop tests in `ros-z-tests` provide end-to-end correctness validation;
 //! these tests guard against regressions in future refactors.
 
-use std::collections::HashMap;
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 use ros_z_codegen::{discovery::discover_messages, resolver::Resolver, types::ResolvedMessage};
 

@@ -39,10 +39,12 @@ use ros_z::{
     Builder, WithTypeInfo,
     msg::{CdrSerdes, ZDeserializer, ZMessage, ZSerializer},
 };
-use ros_z_msgs::geometry_msgs::{PoseStamped, Twist, TwistStamped};
-use ros_z_msgs::nav_msgs::Odometry;
-use ros_z_msgs::sensor_msgs::Imu;
-use ros_z_msgs::std_msgs::{Header, String as RosString};
+use ros_z_msgs::{
+    geometry_msgs::{PoseStamped, Twist, TwistStamped},
+    nav_msgs::Odometry,
+    sensor_msgs::Imu,
+    std_msgs::{Header, String as RosString},
+};
 
 // ---------------------------------------------------------------------------
 // Test case definitions
