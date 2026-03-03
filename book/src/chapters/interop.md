@@ -9,29 +9,40 @@ ros-z nodes — whether written in Rust, Python, or Go — speak the same Zenoh 
 
 ## How It Works
 
+All participants connect to the same Zenoh router. Both sides can run on the same machine or on separate hosts.
+
+**Single host** — everything on one machine, `rmw_zenohd` is the router:
+
 ```mermaid
 graph LR
-    subgraph ros2 ["ROS 2 side"]
-        talker["demo_nodes_cpp<br>talker"]
-        rmw["rmw_zenoh_cpp"]
-        talker --> rmw
+    subgraph host ["Single host"]
+        talker["demo_nodes_cpp<br>talker"] --> rmw["rmw_zenoh_cpp"] --> router(["rmw_zenohd<br>localhost:7447"])
+        router <-->|Zenoh| rust["Rust<br>(ros-z)"]
+        router <-->|Zenoh| python["Python<br>(ros-z-py)"]
+        router <-->|Zenoh| go["Go<br>(ros-z-go)"]
     end
+```
 
-    router(["Zenoh router"])
+**Two hosts** — ROS 2 and ros-z on separate machines, one router bridges them:
 
-    subgraph rosz ["ros-z side"]
+```mermaid
+graph LR
+    subgraph ros2 ["ROS 2 host"]
+        talker["demo_nodes_cpp<br>talker"] --> rmw["rmw_zenoh_cpp"]
+    end
+    router(["Zenoh router<br>:7447"])
+    subgraph rosz ["ros-z host"]
         rust["Rust<br>(ros-z)"]
         python["Python<br>(ros-z-py)"]
         go["Go<br>(ros-z-go)"]
     end
-
     rmw <-->|Zenoh| router
     router <-->|Zenoh| rust
     router <-->|Zenoh| python
     router <-->|Zenoh| go
 ```
 
-All participants connect to the same Zenoh router. Both sides can run on the same machine or on separate hosts.
+The router can live on either host — see [Two Hosts](#two-hosts) below.
 
 **Requirements for successful message exchange:**
 
