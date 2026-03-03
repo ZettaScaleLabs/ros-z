@@ -156,21 +156,72 @@ You should see the subscriber printing messages published by the publisher.
 
 ## 5. Interop with ROS 2
 
-The subscriber above can also receive messages from a native ROS 2 node. On a machine with ROS 2 and `rmw_zenoh_cpp` installed:
+`hello_sub` can receive messages from a native ROS 2 node. Only one Zenoh router is needed — you can use either `rmw_zenohd` (from the ROS 2 side) or ros-z's `zenoh_router` (from the Go side) as the single meeting point.
 
-```bash
-# ROS 2 host — start the Zenoh router and a talker
-ros2 run rmw_zenoh_cpp rmw_zenohd &
-ros2 run demo_nodes_cpp talker
+```admonish note
+The two options below are equivalent. Pick whichever fits your setup.
 ```
 
-On the ros-z-go host, connect to the ROS 2 router and run the subscriber:
+### Option A — use `rmw_zenohd` as the router
+
+```mermaid
+graph LR
+    subgraph ros2 ["ROS 2 host"]
+        talker["demo_nodes_cpp\ntalker"]
+        rmwz["rmw_zenoh_cpp"]
+        router_a["rmw_zenohd\n(router :7447)"]
+        talker --> rmwz --> router_a
+    end
+
+    subgraph go ["ros-z-go host"]
+        sub["Go subscriber\nhello_sub"]
+        ctx["rosz context"]
+        sub --> ctx
+    end
+
+    router_a <-->|Zenoh| ctx
+```
 
 ```bash
-# Terminal 1: connect to the ROS 2 host router
-cargo run --example zenoh_router -- -e tcp/<ROS2_HOST_IP>:7447
+# ROS 2 host
+ros2 run rmw_zenoh_cpp rmw_zenohd &        # router
+ros2 run demo_nodes_cpp talker             # publisher
 
-# Terminal 2: subscriber
+# ros-z-go host (two terminals)
+cd hello_sub
+ZENOH_CONNECT=tcp/<ROS2_HOST_IP>:7447 \
+  CGO_LDFLAGS="-L/path/to/ros-z/target/release" go run main.go
+```
+
+### Option B — use `zenoh_router` as the router
+
+```mermaid
+graph LR
+    subgraph go ["ros-z-go host"]
+        router_b["zenoh_router\n(router :7447)"]
+        sub["Go subscriber\nhello_sub"]
+        ctx["rosz context"]
+        sub --> ctx --> router_b
+    end
+
+    subgraph ros2 ["ROS 2 host"]
+        talker["demo_nodes_cpp\ntalker"]
+        rmwz["rmw_zenoh_cpp"]
+        talker --> rmwz
+    end
+
+    rmwz <-->|Zenoh| router_b
+```
+
+```bash
+# ros-z-go host — start the router (terminal 1)
+cargo run --example zenoh_router
+
+# ROS 2 host — configure rmw_zenoh_cpp to connect to the ros-z router
+export ZENOH_CONFIG_OVERRIDE="connect/endpoints=[\"tcp/<GO_HOST_IP>:7447\"]"
+ros2 run demo_nodes_cpp talker
+
+# ros-z-go host — run the subscriber (terminal 2)
 cd hello_sub
 CGO_LDFLAGS="-L/path/to/ros-z/target/release" go run main.go
 ```
