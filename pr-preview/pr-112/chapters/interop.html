@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Quick Start - ros-z Documentation</title>
+        <title>ROS 2 Interoperability - ros-z Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -149,7 +149,7 @@
                         <a href="https://github.com/ZettaScaleLabs/ros-z" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/ZettaScaleLabs/ros-z/edit/main/src/chapters/go_quick_start.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                        <a href="https://github.com/ZettaScaleLabs/ros-z/edit/main/src/chapters/interop.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -183,165 +183,93 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="go-quick-start"><a class="header" href="#go-quick-start">Go Quick Start</a></h1>
-<p>Get a Go publisher and subscriber running in five minutes.</p>
+                        <h1 id="ros-2-interoperability"><a class="header" href="#ros-2-interoperability">ROS 2 Interoperability</a></h1>
+<p>ros-z nodes — whether written in Rust, Python, or Go — speak the same Zenoh wire protocol as <code>rmw_zenoh_cpp</code>, the official ROS 2 middleware plugin for Zenoh. This means they interoperate transparently: a Go subscriber can receive messages from a ROS 2 C++ talker, a Python publisher can send to a Rust listener, and so on.</p>
 <h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
 <ul>
-<li>Go 1.23+</li>
-<li>Rust toolchain (<code>rustup</code>)</li>
-<li><code>cbindgen</code> — <code>cargo install cbindgen</code></li>
-<li><code>just</code> — <code>cargo install just</code></li>
-<li>A Zenoh router — see <a href="./networking.html">Networking</a></li>
+<li>A ROS 2 installation with <code>rmw_zenoh_cpp</code> and <code>demo_nodes_cpp</code></li>
+<li>A Zenoh router running on <code>localhost:7447</code> (see <a href="./networking.html">Networking</a>)</li>
 </ul>
-<h2 id="1-set-up"><a class="header" href="#1-set-up">1. Set up</a></h2>
-<p>Generate bundled message types, build the Rust FFI library, and verify the installation in one command:</p>
-<pre><code class="language-bash">just -f crates/ros-z-go/justfile quickstart
-</code></pre>
-<p>This runs <code>codegen-bundled</code> (generates <code>std_msgs</code>, <code>geometry_msgs</code> — no ROS 2 needed), compiles
-<code>libros_z.a</code> into <code>target/release/</code>, and confirms both are present.</p>
-<h2 id="2-write-a-publisher"><a class="header" href="#2-write-a-publisher">2. Write a publisher</a></h2>
-<p>Create <code>hello_pub/main.go</code>:</p>
-<pre><code class="language-go">package main
-
-import (
-    "fmt"
-    "log"
-    "time"
-
-    "github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/rosz"
-    "github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/generated/std_msgs"
-)
-
-func main() {
-    ctx, err := rosz.NewContext().WithDomainID(0).Build()
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer ctx.Close()
-
-    node, err := ctx.CreateNode("go_talker").Build()
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer node.Close()
-
-    pub, err := node.CreatePublisher("chatter").Build(&amp;std_msgs.String{})
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer pub.Close()
-
-    for i := 0; ; i++ {
-        msg := &amp;std_msgs.String{Data: fmt.Sprintf("Hello #%d", i)}
-        if err := pub.Publish(msg); err != nil {
-            log.Printf("publish error: %v", err)
-        }
-        fmt.Printf("Published: %s\n", msg.Data)
-        time.Sleep(500 * time.Millisecond)
-    }
-}
-</code></pre>
-<p>Create <code>hello_pub/go.mod</code>:</p>
-<pre><code class="language-text">module hello_pub
-
-go 1.23
-
-require github.com/ZettaScaleLabs/ros-z/crates/ros-z-go v0.0.0
-
-replace github.com/ZettaScaleLabs/ros-z/crates/ros-z-go =&gt; /path/to/ros-z/crates/ros-z-go
-</code></pre>
-<h2 id="3-write-a-subscriber"><a class="header" href="#3-write-a-subscriber">3. Write a subscriber</a></h2>
-<p>Create <code>hello_sub/main.go</code>:</p>
-<pre><code class="language-go">package main
-
-import (
-    "log"
-
-    "github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/rosz"
-    "github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/generated/std_msgs"
-)
-
-func main() {
-    ctx, err := rosz.NewContext().WithDomainID(0).Build()
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer ctx.Close()
-
-    node, err := ctx.CreateNode("go_listener").Build()
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer node.Close()
-
-    _, err = node.CreateSubscriber("chatter").
-        BuildWithCallback(&amp;std_msgs.String{}, func(data []byte) {
-            msg := &amp;std_msgs.String{}
-            if err := msg.DeserializeCDR(data); err != nil {
-                log.Printf("deserialize error: %v", err)
-                return
-            }
-            log.Printf("Received: %s", msg.Data)
-        })
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    select {} // block forever
-}
-</code></pre>
-<p>Create <code>hello_sub/go.mod</code>:</p>
-<pre><code class="language-text">module hello_sub
-
-go 1.23
-
-require github.com/ZettaScaleLabs/ros-z/crates/ros-z-go v0.0.0
-
-replace github.com/ZettaScaleLabs/ros-z/crates/ros-z-go =&gt; /path/to/ros-z/crates/ros-z-go
-</code></pre>
-<h2 id="4-run"><a class="header" href="#4-run">4. Run</a></h2>
-<p>You need a Zenoh router running first — publishers and subscribers only discover each other through a router:</p>
-<pre><code class="language-bash"># Terminal 1: router
-cargo run --example zenoh_router
-
-# Terminal 2: subscriber
-cd hello_sub
-CGO_LDFLAGS="-L/path/to/ros-z/target/release" go run main.go
-
-# Terminal 3: publisher
-cd hello_pub
-CGO_LDFLAGS="-L/path/to/ros-z/target/release" go run main.go
-</code></pre>
-<p>You should see the subscriber printing messages published by the publisher.</p>
-<h2 id="5-try-the-built-in-examples"><a class="header" href="#5-try-the-built-in-examples">5. Try the built-in examples</a></h2>
-<p>The repo ships ready-to-run examples. Start a router first, then:</p>
-<pre><code class="language-bash"># Terminal 1: router
-cargo run --example zenoh_router
-
-# Publisher + subscriber in parallel (Ctrl+C to stop)
-just -f crates/ros-z-go/justfile demo
-
-# Or run each individually
-just -f crates/ros-z-go/justfile run-example publisher
-just -f crates/ros-z-go/justfile run-example subscriber
-just -f crates/ros-z-go/justfile run-example subscriber_channel   # channel-based / range loop
-</code></pre>
-<h2 id="whats-next"><a class="header" href="#whats-next">What's next</a></h2>
+<h2 id="how-it-works"><a class="header" href="#how-it-works">How It Works</a></h2>
+<p>All participants connect to the same Zenoh router on the local machine.</p>
+<pre class="mermaid">graph LR
+    talker[&quot;demo_nodes_cpp&lt;br&gt;talker&quot;] --&gt; rmw[&quot;rmw_zenoh_cpp&quot;] --&gt; router([&quot;Zenoh router&lt;br&gt;localhost:7447&quot;])
+    router &lt;--&gt;|Zenoh| rust[&quot;Rust&lt;br&gt;(ros-z)&quot;]
+    router &lt;--&gt;|Zenoh| python[&quot;Python&lt;br&gt;(ros-z-py)&quot;]
+    router &lt;--&gt;|Zenoh| go[&quot;Go&lt;br&gt;(ros-z-go)&quot;]
+</pre>
+<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+<div class="admonition-title">
+<div id="admonition-note-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-note"></a>
+</div>
+<div>
+<p>The Zenoh router can be <code>rmw_zenohd</code>, <code>zenohd</code>, <code>cargo run --example zenoh_router</code>, or Docker.
+See <a href="./networking.html">Networking</a> for all options.</p>
+</div>
+</div>
+<p><strong>Requirements for successful message exchange:</strong></p>
 <ul>
-<li><strong><a href="./go_bindings.html">Go Bindings</a></strong> — full API reference: typed helpers, graph introspection, QoS, error handling</li>
-<li><strong><a href="./message_generation.html">Message Generation</a></strong> — generate types from a full ROS 2 install</li>
-<li><strong><a href="./interop.html">ROS 2 Interoperability</a></strong> — connect <code>hello_sub</code> to a live ROS 2 talker</li>
+<li>Both sides must use the same message type with matching RIHS01 type hashes</li>
+<li>ROS 2 nodes must use <code>rmw_zenoh_cpp</code> (<code>export RMW_IMPLEMENTATION=rmw_zenoh_cpp</code>)</li>
 </ul>
+<div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
+<div class="admonition-title">
+<div id="admonition-warning-title">
+<p>Warning</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-warning"></a>
+</div>
+<div>
+<p>If type hashes differ (e.g. mismatched message definitions), nodes silently drop messages.
+Enable <code>RUST_LOG=ros_z=debug</code> to inspect the hash in the key expression and compare with the ROS 2 side.
+See <a href="./troubleshooting.html">Troubleshooting</a> for diagnosis steps.</p>
+</div>
+</div>
+<h2 id="setup"><a class="header" href="#setup">Setup</a></h2>
+<pre><code class="language-bash"># Terminal 1 — router
+ros2 run rmw_zenoh_cpp rmw_zenohd
+
+# Terminal 2 — ROS 2 talker
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+ros2 run demo_nodes_cpp talker
+
+# Terminal 3 — ros-z listener (see Rust / Python / Go below)
+</code></pre>
+<hr />
+<h2 id="rust"><a class="header" href="#rust">Rust</a></h2>
+<pre><code class="language-bash">cargo run --example demo_nodes_listener
+</code></pre>
+<p>For more detail on publisher/subscriber patterns see <a href="./pubsub.html">Pub/Sub</a>.</p>
+<hr />
+<h2 id="python"><a class="header" href="#python">Python</a></h2>
+<pre><code class="language-bash">cd crates/ros-z-py
+source .venv/bin/activate
+python examples/topic_demo.py -r listener
+</code></pre>
+<p>Or go the other way — Python publishes, ROS 2 listens:</p>
+<pre><code class="language-bash">python examples/topic_demo.py -r talker
+# On ROS 2 side:
+ros2 topic echo /chatter std_msgs/msg/String
+</code></pre>
+<p>For more detail see <a href="./python.html">Python Bindings</a>.</p>
+<hr />
+<h2 id="go"><a class="header" href="#go">Go</a></h2>
+<pre><code class="language-bash">just -f crates/ros-z-go/justfile run-example subscriber
+</code></pre>
+<p>For more detail see <a href="./go_quick_start.html">Go Quick Start</a>.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../chapters/go_bindings.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../chapters/config_advanced.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next prefetch" href="../chapters/shm.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../chapters/message_generation.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -351,11 +279,11 @@ just -f crates/ros-z-go/justfile run-example subscriber_channel   # channel-base
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../chapters/go_bindings.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../chapters/config_advanced.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next prefetch" href="../chapters/shm.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../chapters/message_generation.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>

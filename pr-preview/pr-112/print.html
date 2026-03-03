@@ -1054,38 +1054,7 @@ let ctx = ZContextBuilder::default()
 </span><span class="boring">}</span></code></pre>
 <p>The rule format follows the ROS 2 convention: <code>from:=to</code>.</p>
 <h2 id="ros-2-interoperability"><a class="header" href="#ros-2-interoperability">ROS 2 Interoperability</a></h2>
-<p>ros-z publishers and subscribers interoperate with ROS 2 C++ and Python nodes when both sides share the same Zenoh transport:</p>
-<p><strong>Requirements:</strong></p>
-<ul>
-<li>ROS 2 nodes must use <code>rmw_zenoh_cpp</code> (<code>export RMW_IMPLEMENTATION=rmw_zenoh_cpp</code>) <strong>or</strong> be bridged via <code>zenoh-bridge-ros2dds</code></li>
-<li>Both sides must use matching message types with identical RIHS01 type hashes</li>
-<li>All nodes must connect to the same Zenoh router</li>
-</ul>
-<pre><code class="language-bash"># List active topics
-ros2 topic list
-
-# Echo messages from ros-z publisher
-ros2 topic echo /chatter
-
-# Publish to ros-z subscriber from ROS 2
-ros2 topic pub /chatter std_msgs/msg/String "data: 'Hello from ROS 2'"
-
-# Check topic info
-ros2 topic info /chatter
-</code></pre>
-<div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
-<div class="admonition-title">
-<div id="admonition-warning-title">
-<p>Warning</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/pubsub.html#admonition-warning"></a>
-</div>
-<div>
-<p>If type hashes differ (e.g. mismatched message definitions), nodes won't exchange messages.
-Enable <code>RUST_LOG=ros_z=debug</code> to see the hash in the key expression and compare it with the ROS 2 side.
-See <a href="chapters/./troubleshooting.html">Troubleshooting</a> for diagnosis steps.</p>
-</div>
-</div>
+<p>ros-z publishers and subscribers interoperate with ROS 2 C++ and Python nodes via the shared Zenoh transport. See the dedicated <strong><a href="chapters/./interop.html">ROS 2 Interoperability</a></strong> chapter for setup instructions covering Rust, Python, and Go.</p>
 <h2 id="resources"><a class="header" href="#resources">Resources</a></h2>
 <ul>
 <li><strong><a href="chapters/./custom_messages.html">Custom Messages</a></strong> - Defining and using custom message types</li>
@@ -2800,6 +2769,83 @@ let ctx = ZContextBuilder::default()
 <p>These defaults are tuned for ROS 2 deployments and match <code>rmw_zenoh_cpp</code> exactly. Only modify them if you have specific performance requirements.</p>
 </div>
 </div>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="ros-2-interoperability-2"><a class="header" href="#ros-2-interoperability-2">ROS 2 Interoperability</a></h1>
+<p>ros-z nodes — whether written in Rust, Python, or Go — speak the same Zenoh wire protocol as <code>rmw_zenoh_cpp</code>, the official ROS 2 middleware plugin for Zenoh. This means they interoperate transparently: a Go subscriber can receive messages from a ROS 2 C++ talker, a Python publisher can send to a Rust listener, and so on.</p>
+<h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
+<ul>
+<li>A ROS 2 installation with <code>rmw_zenoh_cpp</code> and <code>demo_nodes_cpp</code></li>
+<li>A Zenoh router running on <code>localhost:7447</code> (see <a href="chapters/./networking.html">Networking</a>)</li>
+</ul>
+<h2 id="how-it-works"><a class="header" href="#how-it-works">How It Works</a></h2>
+<p>All participants connect to the same Zenoh router on the local machine.</p>
+<pre class="mermaid">graph LR
+    talker[&quot;demo_nodes_cpp&lt;br&gt;talker&quot;] --&gt; rmw[&quot;rmw_zenoh_cpp&quot;] --&gt; router([&quot;Zenoh router&lt;br&gt;localhost:7447&quot;])
+    router &lt;--&gt;|Zenoh| rust[&quot;Rust&lt;br&gt;(ros-z)&quot;]
+    router &lt;--&gt;|Zenoh| python[&quot;Python&lt;br&gt;(ros-z-py)&quot;]
+    router &lt;--&gt;|Zenoh| go[&quot;Go&lt;br&gt;(ros-z-go)&quot;]
+</pre>
+<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+<div class="admonition-title">
+<div id="admonition-note-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/interop.html#admonition-note"></a>
+</div>
+<div>
+<p>The Zenoh router can be <code>rmw_zenohd</code>, <code>zenohd</code>, <code>cargo run --example zenoh_router</code>, or Docker.
+See <a href="chapters/./networking.html">Networking</a> for all options.</p>
+</div>
+</div>
+<p><strong>Requirements for successful message exchange:</strong></p>
+<ul>
+<li>Both sides must use the same message type with matching RIHS01 type hashes</li>
+<li>ROS 2 nodes must use <code>rmw_zenoh_cpp</code> (<code>export RMW_IMPLEMENTATION=rmw_zenoh_cpp</code>)</li>
+</ul>
+<div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
+<div class="admonition-title">
+<div id="admonition-warning-title">
+<p>Warning</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/interop.html#admonition-warning"></a>
+</div>
+<div>
+<p>If type hashes differ (e.g. mismatched message definitions), nodes silently drop messages.
+Enable <code>RUST_LOG=ros_z=debug</code> to inspect the hash in the key expression and compare with the ROS 2 side.
+See <a href="chapters/./troubleshooting.html">Troubleshooting</a> for diagnosis steps.</p>
+</div>
+</div>
+<h2 id="setup"><a class="header" href="#setup">Setup</a></h2>
+<pre><code class="language-bash"># Terminal 1 — router
+ros2 run rmw_zenoh_cpp rmw_zenohd
+
+# Terminal 2 — ROS 2 talker
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+ros2 run demo_nodes_cpp talker
+
+# Terminal 3 — ros-z listener (see Rust / Python / Go below)
+</code></pre>
+<hr />
+<h2 id="rust"><a class="header" href="#rust">Rust</a></h2>
+<pre><code class="language-bash">cargo run --example demo_nodes_listener
+</code></pre>
+<p>For more detail on publisher/subscriber patterns see <a href="chapters/./pubsub.html">Pub/Sub</a>.</p>
+<hr />
+<h2 id="python"><a class="header" href="#python">Python</a></h2>
+<pre><code class="language-bash">cd crates/ros-z-py
+source .venv/bin/activate
+python examples/topic_demo.py -r listener
+</code></pre>
+<p>Or go the other way — Python publishes, ROS 2 listens:</p>
+<pre><code class="language-bash">python examples/topic_demo.py -r talker
+# On ROS 2 side:
+ros2 topic echo /chatter std_msgs/msg/String
+</code></pre>
+<p>For more detail see <a href="chapters/./python.html">Python Bindings</a>.</p>
+<hr />
+<h2 id="go"><a class="header" href="#go">Go</a></h2>
+<pre><code class="language-bash">just -f crates/ros-z-go/justfile run-example subscriber
+</code></pre>
+<p>For more detail see <a href="chapters/./go_quick_start.html">Go Quick Start</a>.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="message-generation"><a class="header" href="#message-generation">Message Generation</a></h1>
 <p><strong>Automatic Rust type generation from ROS 2 message definitions at build time.</strong> The code generation system converts <code>.msg</code>, <code>.srv</code>, and <code>.action</code> files into type-safe Rust structs with full serialization support and ROS 2 compatibility.</p>
 <div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
@@ -4278,7 +4324,7 @@ schema discovery using the ROS 2 Type Description service (REP-2016).</p>
 <p>Echo works with all ROS 2 message types: primitives, nested messages, arrays, and custom types. No recompilation needed!</p>
 </div>
 </div>
-<h3 id="how-it-works"><a class="header" href="#how-it-works">How It Works</a></h3>
+<h3 id="how-it-works-1"><a class="header" href="#how-it-works-1">How It Works</a></h3>
 <p>When you echo a topic, ros-z-console:</p>
 <ol>
 <li><strong>Discovers publishers</strong> on the topic using graph monitoring</li>
@@ -4623,13 +4669,13 @@ sqlite3 ros-z-metrics.db "SELECT topic, AVG(msgs_sec) FROM metrics GROUP BY topi
     H --&gt;|deserialize| I[Rust Struct]
 </pre>
 <h2 id="installation"><a class="header" href="#installation">Installation</a></h2>
-<h3 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h3>
+<h3 id="prerequisites-1"><a class="header" href="#prerequisites-1">Prerequisites</a></h3>
 <ul>
 <li>Python 3.8+</li>
 <li>Rust toolchain</li>
 <li>maturin (<code>pip install maturin</code>)</li>
 </ul>
-<h3 id="setup"><a class="header" href="#setup">Setup</a></h3>
+<h3 id="setup-1"><a class="header" href="#setup-1">Setup</a></h3>
 <pre><code class="language-bash"># Create and activate virtual environment
 cd crates/ros-z-py
 python -m venv .venv
@@ -4840,7 +4886,7 @@ pub.publish(echo)
 <p>For best performance with large payloads, avoid calling <code>bytes()</code> on <code>ZBufView</code> fields. Use <code>memoryview()</code> for read access, or pass the <code>ZBufView</code> directly when re-publishing.</p>
 </div>
 </div>
-<h3 id="how-it-works-1"><a class="header" href="#how-it-works-1">How It Works</a></h3>
+<h3 id="how-it-works-2"><a class="header" href="#how-it-works-2">How It Works</a></h3>
 <p>The optimization operates at three layers:</p>
 <ol>
 <li>
@@ -4853,30 +4899,8 @@ pub.publish(echo)
 <p><strong>Pass-through re-publish</strong>: The <code>FromPyMessage</code> derive macro recognizes <code>ZBufView</code> inputs and extracts the inner ZBuf via <code>clone()</code>, which only increments a reference count on the underlying memory.</p>
 </li>
 </ol>
-<h2 id="ros-2-interoperability-2"><a class="header" href="#ros-2-interoperability-2">ROS 2 Interoperability</a></h2>
-<p>Python nodes work seamlessly with Rust and ROS 2 nodes:</p>
-<pre><code class="language-bash"># Terminal 1: Start Zenoh router
-cargo run --example zenoh_router
-
-# Terminal 2: Run Python publisher (using topic_demo.py)
-cd crates/ros-z-py
-source .venv/bin/activate
-python examples/topic_demo.py -r talker
-
-# Terminal 3: Listen with ROS 2 CLI
-ros2 topic echo /chatter std_msgs/msg/String
-</code></pre>
-<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
-<div class="admonition-title">
-<div id="admonition-success-title">
-<p>Success</p>
-</div>
-<a class="admonition-anchor-link" href="chapters/python.html#admonition-success"></a>
-</div>
-<div>
-<p>Messages published from Python are received by ROS 2 CLI, Rust nodes, and any other ROS 2-compatible system connected via Zenoh.</p>
-</div>
-</div>
+<h2 id="ros-2-interoperability-3"><a class="header" href="#ros-2-interoperability-3">ROS 2 Interoperability</a></h2>
+<p>Python nodes interoperate with ROS 2 C++ nodes via the shared Zenoh transport. See the dedicated <strong><a href="chapters/./interop.html">ROS 2 Interoperability</a></strong> chapter for setup instructions.</p>
 <h2 id="running-tests"><a class="header" href="#running-tests">Running Tests</a></h2>
 <pre><code class="language-bash"># Python unit tests
 cd crates/ros-z-py
@@ -5401,7 +5425,7 @@ ROSZ_LOG=error go run main.go   # errors only
 </ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="go-quick-start"><a class="header" href="#go-quick-start">Go Quick Start</a></h1>
 <p>Get a Go publisher and subscriber running in five minutes.</p>
-<h2 id="prerequisites-1"><a class="header" href="#prerequisites-1">Prerequisites</a></h2>
+<h2 id="prerequisites-2"><a class="header" href="#prerequisites-2">Prerequisites</a></h2>
 <ul>
 <li>Go 1.23+</li>
 <li>Rust toolchain (<code>rustup</code>)</li>
@@ -5506,6 +5530,15 @@ func main() {
     select {} // block forever
 }
 </code></pre>
+<p>Create <code>hello_sub/go.mod</code>:</p>
+<pre><code class="language-text">module hello_sub
+
+go 1.23
+
+require github.com/ZettaScaleLabs/ros-z/crates/ros-z-go v0.0.0
+
+replace github.com/ZettaScaleLabs/ros-z/crates/ros-z-go =&gt; /path/to/ros-z/crates/ros-z-go
+</code></pre>
 <h2 id="4-run"><a class="header" href="#4-run">4. Run</a></h2>
 <p>You need a Zenoh router running first — publishers and subscribers only discover each other through a router:</p>
 <pre><code class="language-bash"># Terminal 1: router
@@ -5521,8 +5554,11 @@ CGO_LDFLAGS="-L/path/to/ros-z/target/release" go run main.go
 </code></pre>
 <p>You should see the subscriber printing messages published by the publisher.</p>
 <h2 id="5-try-the-built-in-examples"><a class="header" href="#5-try-the-built-in-examples">5. Try the built-in examples</a></h2>
-<p>The repo ships ready-to-run examples. With a router already running:</p>
-<pre><code class="language-bash"># Publisher + subscriber in parallel (Ctrl+C to stop)
+<p>The repo ships ready-to-run examples. Start a router first, then:</p>
+<pre><code class="language-bash"># Terminal 1: router
+cargo run --example zenoh_router
+
+# Publisher + subscriber in parallel (Ctrl+C to stop)
 just -f crates/ros-z-go/justfile demo
 
 # Or run each individually
@@ -5530,10 +5566,11 @@ just -f crates/ros-z-go/justfile run-example publisher
 just -f crates/ros-z-go/justfile run-example subscriber
 just -f crates/ros-z-go/justfile run-example subscriber_channel   # channel-based / range loop
 </code></pre>
-<h2 id="what-next"><a class="header" href="#what-next">What next</a></h2>
+<h2 id="whats-next"><a class="header" href="#whats-next">What's next</a></h2>
 <ul>
 <li><strong><a href="chapters/./go_bindings.html">Go Bindings</a></strong> — full API reference: typed helpers, graph introspection, QoS, error handling</li>
 <li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> — generate types from a full ROS 2 install</li>
+<li><strong><a href="chapters/./interop.html">ROS 2 Interoperability</a></strong> — connect <code>hello_sub</code> to a live ROS 2 talker</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="shared-memory-shm"><a class="header" href="#shared-memory-shm">Shared Memory (SHM)</a></h1>
 <p>Shared Memory (SHM) enables zero-copy publishing of large messages by serializing directly into shared memory buffers, eliminating the need to copy data between processes.</p>
@@ -5732,7 +5769,7 @@ fn main() -&gt; zenoh::Result&lt;()&gt; {
 <tr><td>Policy</td><td><code>BlockOn&lt;GarbageCollect&gt;</code></td><td>Wait for GC if pool exhausted</td></tr>
 </tbody></table>
 </div>
-<h2 id="how-it-works-2"><a class="header" href="#how-it-works-2">How It Works</a></h2>
+<h2 id="how-it-works-3"><a class="header" href="#how-it-works-3">How It Works</a></h2>
 <h3 id="architecture-2"><a class="header" href="#architecture-2">Architecture</a></h3>
 <pre><code class="language-text">Message with dynamic fields
     ↓
