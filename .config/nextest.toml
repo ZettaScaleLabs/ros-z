@@ -1,2 +1,9 @@
 [profile.default]
 slow-timeout = { period = "30s", terminate-after = 2 }
+
+# Profile for interop tests that spawn ros2 CLI subprocesses.
+# Each test owns its own TestRouter port so all 14 tests run in parallel.
+# The larger slow-timeout budget accommodates subprocess startup on CI runners.
+[profile.interop]
+slow-timeout = { period = "60s", terminate-after = 2 }
+test-threads = 8

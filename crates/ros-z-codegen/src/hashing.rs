@@ -226,6 +226,22 @@ pub fn build_type_description_msg(
     })
 }
 
+/// Convert a fully-qualified nested type name to the key format used in resolved_deps.
+///
+/// The resolver stores type descriptions keyed as `"pkg/TypeName"`, but
+/// `nested_type_name` in field descriptors uses `"pkg/subdir/TypeName"` (e.g.
+/// `"geometry_msgs/msg/Pose"`). This strips the middle path component so lookups
+/// succeed regardless of whether the subdir is `msg`, `srv`, `action`, or any
+/// future category.
+fn nested_type_name_to_key(name: &str) -> String {
+    let parts: Vec<&str> = name.splitn(3, '/').collect();
+    if parts.len() == 3 {
+        format!("{}/{}", parts[0], parts[2])
+    } else {
+        name.to_string()
+    }
+}
+
 /// Recursively collect all referenced types
 fn collect_referenced_types(
     type_desc: &TypeDescription,
@@ -234,15 +250,7 @@ fn collect_referenced_types(
 ) {
     for field in &type_desc.fields {
         if !field.field_type.nested_type_name.is_empty() {
-            // Convert "package/msg/Type" to "package/Type" key format
-            // to match the resolved_deps key format used by the resolver
-            let key = if field.field_type.nested_type_name.contains("/msg/") {
-                field.field_type.nested_type_name.replace("/msg/", "/")
-            } else if field.field_type.nested_type_name.contains("/srv/") {
-                field.field_type.nested_type_name.replace("/srv/", "/")
-            } else {
-                field.field_type.nested_type_name.clone()
-            };
+            let key = nested_type_name_to_key(&field.field_type.nested_type_name);
 
             if let Some(dep) = all_deps.get(&key)
                 && !collected.contains_key(&dep.type_name)
@@ -422,11 +430,7 @@ mod tests {
 
     #[test]
     fn test_collect_referenced_types_with_msg_prefix() {
-        let parent = nested_type_desc(
-            "test_msgs/msg/Parent",
-            "child",
-            "test_msgs/msg/Child",
-        );
+        let parent = nested_type_desc("test_msgs/msg/Parent", "child", "test_msgs/msg/Child");
         let child = primitive_type_desc("test_msgs/msg/Child", vec![("value", TypeId::INT32)]);
 
         let mut all_deps = BTreeMap::new();
@@ -460,11 +464,7 @@ mod tests {
 
     #[test]
     fn test_collect_referenced_types_without_prefix() {
-        let parent = nested_type_desc(
-            "test_msgs/msg/Parent",
-            "child",
-            "test_msgs/Child",
-        );
+        let parent = nested_type_desc("test_msgs/msg/Parent", "child", "test_msgs/Child");
         let child = primitive_type_desc("test_msgs/msg/Child", vec![("value", TypeId::INT32)]);
 
         let mut all_deps = BTreeMap::new();
@@ -479,16 +479,8 @@ mod tests {
 
     #[test]
     fn test_collect_referenced_types_deeply_nested() {
-        let grandparent = nested_type_desc(
-            "pkg/msg/Grandparent",
-            "parent",
-            "pkg/msg/Parent",
-        );
-        let parent = nested_type_desc(
-            "pkg/msg/Parent",
-            "child",
-            "other_pkg/msg/Child",
-        );
+        let grandparent = nested_type_desc("pkg/msg/Grandparent", "parent", "pkg/msg/Parent");
+        let parent = nested_type_desc("pkg/msg/Parent", "child", "other_pkg/msg/Child");
         let child = primitive_type_desc("other_pkg/msg/Child", vec![("x", TypeId::FLOAT64)]);
 
         let mut all_deps = BTreeMap::new();
@@ -505,11 +497,7 @@ mod tests {
 
     #[test]
     fn test_collect_referenced_types_cross_package() {
-        let parent = nested_type_desc(
-            "nav_msgs/msg/Odometry",
-            "pose",
-            "geometry_msgs/msg/Pose",
-        );
+        let parent = nested_type_desc("nav_msgs/msg/Odometry", "pose", "geometry_msgs/msg/Pose");
         let pose = primitive_type_desc(
             "geometry_msgs/msg/Pose",
             vec![("x", TypeId::FLOAT64), ("y", TypeId::FLOAT64)],
@@ -560,6 +548,71 @@ mod tests {
     }
 
     #[test]
+    fn test_collect_referenced_types_with_action_prefix() {
+        // action_msgs/action/GoalInfo references unique_identifier_msgs/action/UUID
+        // The /action/ subdir must be stripped the same way as /msg/ and /srv/
+        let parent = nested_type_desc(
+            "action_msgs/action/GoalStatus",
+            "goal_info",
+            "action_msgs/action/GoalInfo",
+        );
+        let goal_info = primitive_type_desc(
+            "action_msgs/action/GoalInfo",
+            vec![("stamp", TypeId::INT32)],
+        );
+
+        let mut all_deps = BTreeMap::new();
+        all_deps.insert("action_msgs/GoalInfo".to_string(), goal_info.clone());
+
+        let mut collected = BTreeMap::new();
+        collect_referenced_types(&parent, &all_deps, &mut collected);
+
+        assert_eq!(collected.len(), 1);
+        assert!(collected.contains_key("action_msgs/action/GoalInfo"));
+    }
+
+    // --- Tests for nested_type_name_to_key ---
+
+    #[test]
+    fn test_nested_type_name_to_key_msg() {
+        assert_eq!(
+            nested_type_name_to_key("geometry_msgs/msg/Pose"),
+            "geometry_msgs/Pose"
+        );
+    }
+
+    #[test]
+    fn test_nested_type_name_to_key_srv() {
+        assert_eq!(
+            nested_type_name_to_key("example_interfaces/srv/AddTwoInts"),
+            "example_interfaces/AddTwoInts"
+        );
+    }
+
+    #[test]
+    fn test_nested_type_name_to_key_action() {
+        assert_eq!(
+            nested_type_name_to_key("action_msgs/action/GoalInfo"),
+            "action_msgs/GoalInfo"
+        );
+    }
+
+    #[test]
+    fn test_nested_type_name_to_key_no_subdir() {
+        // Two-part names (already in pkg/Type format) pass through unchanged
+        assert_eq!(
+            nested_type_name_to_key("geometry_msgs/Pose"),
+            "geometry_msgs/Pose"
+        );
+    }
+
+    #[test]
+    fn test_nested_type_name_to_key_bare_name() {
+        // Unqualified names pass through unchanged
+        assert_eq!(nested_type_name_to_key("Pose"), "Pose");
+    }
+
+    #[test]
     fn test_collect_referenced_types_skips_primitives() {
         let parent = primitive_type_desc(
             "pkg/msg/Simple",
@@ -575,10 +628,7 @@ mod tests {
 
     #[test]
     fn test_build_type_description_msg_with_nested_dep() {
-        let child = primitive_type_desc(
-            "other_pkg/msg/Child",
-            vec![("data", TypeId::STRING)],
-        );
+        let child = primitive_type_desc("other_pkg/msg/Child", vec![("data", TypeId::STRING)]);
 
         let mut resolved_deps = BTreeMap::new();
         resolved_deps.insert("other_pkg/Child".to_string(), child);
@@ -626,10 +676,7 @@ mod tests {
 
     #[test]
     fn test_calculate_type_hash_with_nested_msg_prefix() {
-        let inner = primitive_type_desc(
-            "std_msgs/msg/Header",
-            vec![("frame_id", TypeId::STRING)],
-        );
+        let inner = primitive_type_desc("std_msgs/msg/Header", vec![("frame_id", TypeId::STRING)]);
 
         let mut resolved_deps = BTreeMap::new();
         resolved_deps.insert("std_msgs/Header".to_string(), inner);
