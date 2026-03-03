@@ -12,7 +12,7 @@ ros-z nodes — whether written in Rust, Python, or Go — speak the same Zenoh 
 ```mermaid
 graph LR
     subgraph ros2 ["ROS 2 side"]
-        talker["demo_nodes_cpp\ntalker"]
+        talker["demo_nodes_cpp<br>talker"]
         rmw["rmw_zenoh_cpp"]
         talker --> rmw
     end
@@ -20,9 +20,9 @@ graph LR
     router(["Zenoh router"])
 
     subgraph rosz ["ros-z side"]
-        rust["Rust\n(ros-z)"]
-        python["Python\n(ros-z-py)"]
-        go["Go\n(ros-z-go)"]
+        rust["Rust<br>(ros-z)"]
+        python["Python<br>(ros-z-py)"]
+        go["Go<br>(ros-z-go)"]
     end
 
     rmw <-->|Zenoh| router
