@@ -6,6 +6,7 @@ use std::{
     sync::{Arc, Weak},
     time::SystemTime,
 };
+use tokio::sync::Notify;
 use tracing::debug;
 
 use crate::entity::{
@@ -318,7 +319,21 @@ pub struct Graph {
     pub data: Arc<Mutex<GraphData>>,
     pub event_manager: Arc<GraphEventManager>,
     pub zid: ZenohId,
+    /// Notified whenever an entity appears or disappears in the graph.
+    ///
+    /// Publishers use this to implement `wait_for_subscription`: they register
+    /// a `notified()` future before sampling the graph, then `await` it so no
+    /// arrival is missed between the sample and the wait.
+    pub change_notify: Arc<Notify>,
     _subscriber: Subscriber<()>,
+}
+
+impl std::fmt::Debug for Graph {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Graph")
+            .field("zid", &self.zid)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Graph {
@@ -357,8 +372,10 @@ impl Graph {
         let parser_arc = Arc::new(parser);
         let graph_data = Arc::new(Mutex::new(GraphData::new_with_parser(parser_arc.clone())));
         let event_manager = Arc::new(GraphEventManager::new());
+        let change_notify = Arc::new(Notify::new());
         let c_graph_data = graph_data.clone();
         let c_event_manager = event_manager.clone();
+        let c_change_notify = change_notify.clone();
         let c_zid = zid;
         let c_liveliness_pattern = liveliness_pattern.clone();
         let c_parser = parser_arc.clone();
@@ -414,6 +431,8 @@ impl Graph {
                                 );
                             }
                         }
+                        // Wake any tasks waiting in wait_for_subscription / wait_for_publisher.
+                        c_change_notify.notify_waiters();
                     }
                     SampleKind::Delete => {
                         debug!("[GRF] Entity disappeared: {}", ke.0);
@@ -423,6 +442,7 @@ impl Graph {
                             c_event_manager.trigger_graph_change(&entity, false, c_zid);
                         }
                         graph_data_guard.remove(&ke);
+                        c_change_notify.notify_waiters();
                     }
                 }
             })
@@ -480,6 +500,7 @@ impl Graph {
             _subscriber: sub,
             data: graph_data,
             event_manager,
+            change_notify,
             zid,
         })
     }

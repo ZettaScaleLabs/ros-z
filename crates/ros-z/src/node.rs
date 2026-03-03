@@ -238,6 +238,7 @@ impl ZNode {
         ZPubBuilder {
             entity,
             session: self.session.clone(),
+            graph: self.graph.clone(),
             with_attachment: true,
             shm_config: self.shm_config.clone(),
             keyexpr_format: self.keyexpr_format,

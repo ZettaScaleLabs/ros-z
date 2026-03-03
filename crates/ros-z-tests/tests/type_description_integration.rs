@@ -554,10 +554,6 @@ fn test_multiple_publishers_schema_discovery() {
 
             println!("Two publishers created on /multi_pub_topic");
 
-            // Give publishers time to announce themselves to the graph so that
-            // the subscriber's auto-discovery can find them.
-            tokio::time::sleep(Duration::from_millis(500)).await;
-
             // Create subscriber BEFORE starting to publish.  Publishers are
             // already in the graph (announced at creation), so discovery works.
             // Deferring the publish loops ensures messages arrive while the
@@ -577,7 +573,19 @@ fn test_multiple_publishers_schema_discovery() {
 
             println!("Discovered schema: {}", discovered_schema.type_name);
 
-            // Now start both publisher tasks — subscriber is ready.
+            // Wait until pub1 and pub2 each see the subscriber before publishing.
+            // This is the ros-z equivalent of rclcpp's rcl_wait_for_subscribers().
+            let matched1 = publisher1
+                .wait_for_subscription(1, Duration::from_secs(10))
+                .await;
+            let matched2 = publisher2
+                .wait_for_subscription(1, Duration::from_secs(10))
+                .await;
+            assert!(matched1, "pub1 timed out waiting for subscriber");
+            assert!(matched2, "pub2 timed out waiting for subscriber");
+            println!("Both publishers matched subscriber — starting to publish");
+
+            // Now start both publisher tasks.
             let schema1 = schema.clone();
             let schema2 = schema.clone();
 

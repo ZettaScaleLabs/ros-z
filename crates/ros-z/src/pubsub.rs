@@ -9,8 +9,9 @@ use zenoh::{Result, Session, Wait, sample::Sample};
 use crate::Builder;
 use crate::attachment::{Attachment, GidArray};
 use crate::common::DataHandler;
-use crate::entity::EndpointEntity;
+use crate::entity::{EndpointEntity, EntityKind};
 use crate::event::EventsManager;
+use crate::graph::Graph;
 use crate::impl_with_type_info;
 use crate::queue::BoundedQueue;
 use crate::topic_name;
@@ -40,6 +41,7 @@ pub struct ZPub<T: ZMessage, S: ZSerializer> {
     /// Cached Zenoh encoding for this publisher (performance optimization).
     /// If set, this encoding will be used for all published messages.
     encoding: Option<Arc<zenoh::bytes::Encoding>>,
+    graph: Arc<Graph>,
     _phantom_data: PhantomData<(T, S)>,
 }
 
@@ -55,6 +57,7 @@ impl<T: ZMessage, S: ZSerializer> std::fmt::Debug for ZPub<T, S> {
 pub struct ZPubBuilder<T, S = CdrSerdes<T>> {
     pub entity: EndpointEntity,
     pub session: Arc<Session>,
+    pub graph: Arc<Graph>,
     pub with_attachment: bool,
     pub(crate) shm_config: Option<Arc<crate::shm::ShmConfig>>,
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
@@ -136,6 +139,7 @@ impl<T, S> ZPubBuilder<T, S> {
         ZPubBuilder {
             entity: self.entity,
             session: self.session,
+            graph: self.graph,
             with_attachment: self.with_attachment,
             shm_config: self.shm_config,
             keyexpr_format: self.keyexpr_format,
@@ -314,6 +318,7 @@ where
             shm_config: self.shm_config,
             dyn_schema: self.dyn_schema,
             encoding,
+            graph: self.graph,
             _phantom_data: Default::default(),
         })
     }
@@ -324,6 +329,58 @@ where
     T: ZMessage + 'static,
     S: for<'a> ZSerializer<Input<'a> = &'a T> + 'static,
 {
+    /// Wait until at least `count` subscribers are matched on this publisher's topic,
+    /// or until `timeout` elapses.
+    ///
+    /// Returns `true` if the required number of subscribers appeared within the
+    /// timeout, `false` otherwise.
+    ///
+    /// This mirrors rclcpp's `rcl_wait_for_subscribers()` pattern: the publisher
+    /// registers a graph-change notification *before* sampling the subscriber count,
+    /// so no arrival is missed between the check and the wait.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// // Ensure at least one subscriber is ready before publishing.
+    /// assert!(publisher.wait_for_subscription(1, Duration::from_secs(5)).await);
+    /// ```
+    pub async fn wait_for_subscription(&self, count: usize, timeout: Duration) -> bool {
+        let deadline = tokio::time::Instant::now() + timeout;
+        loop {
+            // Arm the notification *before* reading the count to avoid a TOCTOU
+            // race where a subscriber arrives between the count check and the await.
+            let notified = self.graph.change_notify.notified();
+            tokio::pin!(notified);
+
+            let n = self
+                .graph
+                .get_entities_by_topic(EntityKind::Subscription, &self.entity.topic)
+                .len();
+            if n >= count {
+                return true;
+            }
+
+            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+            if remaining.is_zero() {
+                return false;
+            }
+
+            // Sleep until either a graph change fires or the deadline passes.
+            if tokio::time::timeout(remaining, &mut notified)
+                .await
+                .is_err()
+            {
+                // Timeout — do one final check in case a late notification was missed.
+                return self
+                    .graph
+                    .get_entities_by_topic(EntityKind::Subscription, &self.entity.topic)
+                    .len()
+                    >= count;
+            }
+        }
+    }
+
     fn new_attachment(&self) -> Attachment {
         let sn = self.sn.fetch_add(1, Ordering::Relaxed);
         trace!(
