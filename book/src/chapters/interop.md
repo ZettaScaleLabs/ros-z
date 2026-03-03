@@ -31,7 +31,7 @@ graph LR
     router <-->|Zenoh| go
 ```
 
-All participants connect to the same Zenoh router. The router can be started on either side — see [Choosing a router](#choosing-a-router) below.
+All participants connect to the same Zenoh router. Both sides can run on the same machine or on separate hosts.
 
 **Requirements for successful message exchange:**
 
@@ -45,34 +45,70 @@ Enable `RUST_LOG=ros_z=debug` to inspect the hash in the key expression and comp
 See [Troubleshooting](./troubleshooting.md) for diagnosis steps.
 ```
 
-## Choosing a Router
+## Single Host
 
-You need exactly one router connecting both sides. Pick whichever is more convenient:
-
-**Option A — use `rmw_zenohd` (ROS 2 side hosts the router)**
+When ROS 2 and ros-z run on the same machine, `rmw_zenohd` acts as the router and ros-z nodes connect to it on `localhost:7447` by default — no extra configuration needed.
 
 ```bash
-# ROS 2 host (terminal 1)
+# Terminal 1 — router
 ros2 run rmw_zenoh_cpp rmw_zenohd
+
+# Terminal 2 — ROS 2 talker
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+ros2 run demo_nodes_cpp talker
+
+# Terminal 3 — ros-z listener (any binding, see below)
 ```
 
-ros-z nodes connect to it via the `ZENOH_CONNECT` environment variable:
+## Two Hosts
 
-```bash
-ZENOH_CONNECT=tcp/<ROS2_HOST_IP>:7447 <ros-z command>
+When ROS 2 and ros-z run on separate machines, you need one router reachable by both. Pick whichever side is more convenient to host it:
+
+**Option A — `rmw_zenohd` hosts the router (ROS 2 side)**
+
+```mermaid
+graph LR
+    subgraph ros2 ["ROS 2 host"]
+        talker["demo_nodes_cpp<br>talker"] --> rmw["rmw_zenoh_cpp"] --> router["rmw_zenohd<br>:7447"]
+    end
+    subgraph rosz ["ros-z host"]
+        node["ros-z node"]
+    end
+    router <-->|"ZENOH_CONNECT=tcp://&lt;ROS2_IP&gt;:7447"| node
 ```
 
-**Option B — use `zenoh_router` (ros-z side hosts the router)**
+```bash
+# ROS 2 host — router + talker
+ros2 run rmw_zenoh_cpp rmw_zenohd
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+ros2 run demo_nodes_cpp talker
+
+# ros-z host — connect to ROS 2 router
+ZENOH_CONNECT=tcp/<ROS2_IP>:7447 <ros-z command>
+```
+
+**Option B — `zenoh_router` hosts the router (ros-z side)**
+
+```mermaid
+graph LR
+    subgraph rosz ["ros-z host"]
+        router["zenoh_router<br>:7447"]
+        node["ros-z node"] --> router
+    end
+    subgraph ros2 ["ROS 2 host"]
+        talker["demo_nodes_cpp<br>talker"] --> rmw["rmw_zenoh_cpp"]
+    end
+    rmw <-->|"ZENOH_CONFIG_OVERRIDE"| router
+```
 
 ```bash
-# ros-z host (terminal 1)
+# ros-z host — router + listener
 cargo run --example zenoh_router
-```
+<ros-z command>
 
-ROS 2 nodes connect to it via `ZENOH_CONFIG_OVERRIDE`:
-
-```bash
-export ZENOH_CONFIG_OVERRIDE="connect/endpoints=[\"tcp/<ROSZ_HOST_IP>:7447\"]"
+# ROS 2 host — connect to ros-z router
+export ZENOH_CONFIG_OVERRIDE="connect/endpoints=[\"tcp/<ROSZ_IP>:7447\"]"
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
 ros2 run demo_nodes_cpp talker
 ```
 
@@ -80,22 +116,13 @@ ros2 run demo_nodes_cpp talker
 
 ## Rust
 
-**Terminal 1 — router** (either option above)
-
-**Terminal 2 — ROS 2 talker:**
-
-```bash
-export RMW_IMPLEMENTATION=rmw_zenoh_cpp
-ros2 run demo_nodes_cpp talker
-```
-
-**Terminal 3 — ros-z listener:**
+**Single host** — after starting `rmw_zenohd` and the ROS 2 talker:
 
 ```bash
 cargo run --example demo_nodes_listener
 ```
 
-You should see the Rust listener printing messages published by the ROS 2 talker.
+**Two hosts** — prepend `ZENOH_CONNECT=tcp/<ROS2_IP>:7447` (Option A) or use Option B.
 
 For more detail on publisher/subscriber patterns see [Pub/Sub](./pubsub.md).
 
@@ -103,16 +130,7 @@ For more detail on publisher/subscriber patterns see [Pub/Sub](./pubsub.md).
 
 ## Python
 
-**Terminal 1 — router** (either option above)
-
-**Terminal 2 — ROS 2 talker:**
-
-```bash
-export RMW_IMPLEMENTATION=rmw_zenoh_cpp
-ros2 run demo_nodes_cpp talker
-```
-
-**Terminal 3 — ros-z-py listener:**
+**Single host** — after starting `rmw_zenohd` and the ROS 2 talker:
 
 ```bash
 cd crates/ros-z-py
@@ -123,12 +141,12 @@ python examples/topic_demo.py -r listener
 Or go the other way — Python publishes, ROS 2 listens:
 
 ```bash
-# Terminal 2 — Python publisher
 python examples/topic_demo.py -r talker
-
-# Terminal 3 — ROS 2 subscriber
+# On ROS 2 side:
 ros2 topic echo /chatter std_msgs/msg/String
 ```
+
+**Two hosts** — prepend `ZENOH_CONNECT=tcp/<ROS2_IP>:7447` (Option A) or use Option B.
 
 For more detail see [Python Bindings](./python.md).
 
@@ -136,19 +154,12 @@ For more detail see [Python Bindings](./python.md).
 
 ## Go
 
-**Terminal 1 — router** (either option above)
-
-**Terminal 2 — ROS 2 talker:**
-
-```bash
-export RMW_IMPLEMENTATION=rmw_zenoh_cpp
-ros2 run demo_nodes_cpp talker
-```
-
-**Terminal 3 — ros-z-go listener:**
+**Single host** — after starting `rmw_zenohd` and the ROS 2 talker:
 
 ```bash
 just -f crates/ros-z-go/justfile run-example subscriber
 ```
+
+**Two hosts** — prepend `ZENOH_CONNECT=tcp/<ROS2_IP>:7447` (Option A) or use Option B.
 
 For more detail see [Go Quick Start](./go_quick_start.md).
