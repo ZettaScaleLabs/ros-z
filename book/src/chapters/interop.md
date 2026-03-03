@@ -148,8 +148,7 @@ ros2 run demo_nodes_cpp talker
 **Terminal 3 — ros-z-go listener:**
 
 ```bash
-cd hello_sub
-CGO_LDFLAGS="-L/path/to/ros-z/target/release" go run main.go
+just -f crates/ros-z-go/justfile run-example subscriber
 ```
 
 For more detail see [Go Quick Start](./go_quick_start.md).
