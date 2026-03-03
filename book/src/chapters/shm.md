@@ -604,6 +604,22 @@ cargo run --example shm_pointcloud2
 === All patterns completed successfully ===
 ```
 
+## Python Bindings
+
+The Python `ZContextBuilder` exposes the same methods as the Rust API:
+
+```python
+import ros_z_py as rz
+
+ctx = rz.ZContextBuilder().with_shm_enabled().build()
+ctx = rz.ZContextBuilder().with_shm_pool_size(100 * 1024 * 1024).build()
+ctx = rz.ZContextBuilder().with_shm_enabled().with_shm_threshold(4096).build()
+```
+
+The same environment variables apply: `ZENOH_SHM_ALLOC_SIZE` and
+`ZENOH_SHM_MESSAGE_SIZE_THRESHOLD` are read automatically inside
+`with_shm_enabled()` and `with_shm_pool_size()`, matching `rmw_zenoh_cpp` behavior.
+
 ## Testing
 
 ### Run SHM Tests
