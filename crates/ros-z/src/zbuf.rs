@@ -200,6 +200,16 @@ impl<'de> Deserialize<'de> for ZBuf {
                     let v_start = v.as_ptr() as usize;
                     let v_end = v_start + v.len();
                     for zslice in source.zslices() {
+                        // CudaPtr fast path: return the slice directly without pointer
+                        // comparison — device memory has no CPU-accessible bytes to compare.
+                        #[cfg(feature = "cuda")]
+                        if zslice.kind == zenoh_buffers::ZSliceKind::CudaPtr {
+                            let mut zbuf = ZenohZBuf::default();
+                            zbuf.push_zslice(zslice.clone());
+                            return Some(zbuf);
+                        }
+
+                        // CPU zero-copy path: check if v falls within the ZSlice bytes.
                         let s_start = zslice.as_slice().as_ptr() as usize;
                         let s_end = s_start + zslice.len();
                         if v_start >= s_start && v_end <= s_end {

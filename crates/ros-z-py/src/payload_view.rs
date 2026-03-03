@@ -180,4 +180,210 @@ impl ZPayloadView {
             }
         }
     }
+
+    /// Returns True if the payload resides on a CUDA device.
+    ///
+    /// This is True when the subscriber received a CUDA IPC handle from
+    /// a publisher that wrote to GPU memory (via `ZBuf::from(CudaBufInner)`).
+    #[cfg(feature = "cuda")]
+    #[getter]
+    fn is_cuda(&self) -> bool {
+        use zenoh_buffers::ZSliceKind;
+        use zenoh_buffers::buffer::SplitBuffer;
+        let zbuf: zenoh_buffers::ZBuf = self.sample.payload().clone().into();
+        zbuf.zslices().any(|zs| zs.kind == ZSliceKind::CudaPtr)
+    }
+
+    /// Return a DLPack capsule for the CUDA payload, suitable for `torch.from_dlpack()`.
+    ///
+    /// Returns `None` if the payload is not a CUDA tensor.
+    ///
+    /// The returned capsule exposes the GPU memory as a 1-D `uint8` tensor.
+    /// No data is copied — the GPU buffer is shared directly with the consumer.
+    ///
+    /// # Example (Python)
+    ///
+    /// ```python
+    /// view = subscriber.recv_raw_view()
+    /// if view.is_cuda:
+    ///     tensor = torch.from_dlpack(view.as_dlpack())
+    /// ```
+    #[cfg(feature = "cuda")]
+    fn as_dlpack(&self, py: Python<'_>) -> PyResult<Option<PyObject>> {
+        use zenoh_buffers::ZSliceKind;
+        use zenoh_buffers::buffer::SplitBuffer;
+        use zenoh_cuda::CudaBufInner;
+
+        let zbuf: zenoh_buffers::ZBuf = self.sample.payload().clone().into();
+        for zslice in zbuf.zslices() {
+            if zslice.kind != ZSliceKind::CudaPtr {
+                continue;
+            }
+            let Some(cuda) = zslice.downcast_ref::<CudaBufInner>() else {
+                continue;
+            };
+
+            // Heap-allocate the context (shape + ZSlice keepalive).
+            let ctx = Box::new(DlpackCtx {
+                shape: cuda.cuda_len as i64,
+                _zslice: zslice.clone(),
+            });
+            let ctx_ptr = Box::into_raw(ctx);
+
+            // Build the DLManagedTensor. The shape pointer points into ctx,
+            // which is kept alive by manager_ctx until the deleter is called.
+            let managed = Box::new(DLManagedTensor {
+                dl_tensor: DLTensor {
+                    data: cuda.as_device_ptr() as *mut std::ffi::c_void,
+                    device: DLDevice {
+                        device_type: 2, // kDLCUDA
+                        device_id: cuda.device_id,
+                    },
+                    ndim: 1,
+                    dtype: DLDataType {
+                        code: 1, // kDLUInt
+                        bits: 8,
+                        lanes: 1,
+                    },
+                    shape: unsafe { &mut (*ctx_ptr).shape as *mut i64 },
+                    strides: std::ptr::null_mut(),
+                    byte_offset: 0,
+                },
+                manager_ctx: ctx_ptr as *mut std::ffi::c_void,
+                deleter: Some(dlpack_deleter),
+            });
+            let managed_ptr = Box::into_raw(managed);
+
+            // Create a PyCapsule named "dltensor".
+            let obj = unsafe {
+                let name = b"dltensor\0".as_ptr() as *const std::ffi::c_char;
+                let capsule = ffi::PyCapsule_New(
+                    managed_ptr as *mut std::ffi::c_void,
+                    name,
+                    Some(dlpack_capsule_destructor),
+                );
+                if capsule.is_null() {
+                    // Allocation failed — free what we allocated.
+                    let _ = Box::from_raw((*managed_ptr).manager_ctx as *mut DlpackCtx);
+                    let _ = Box::from_raw(managed_ptr);
+                    return Err(pyo3::exceptions::PyMemoryError::new_err(
+                        "PyCapsule_New returned null",
+                    ));
+                }
+                PyObject::from_owned_ptr(py, capsule)
+            };
+
+            return Ok(Some(obj));
+        }
+        Ok(None)
+    }
+}
+
+// DLPack C ABI structures and helpers (gated on `cuda` feature).
+//
+// DLPack (https://dmlc.github.io/dlpack/latest/) defines a standard tensor
+// interchange format used by PyTorch, TensorFlow, CuPy, and others.
+// We expose CUDA-backed ZBuf payloads as 1-D uint8 DLPack tensors.
+
+#[cfg(feature = "cuda")]
+#[repr(C)]
+struct DLDevice {
+    /// Device type: 2 = kDLCUDA.
+    device_type: i32,
+    /// CUDA device ordinal.
+    device_id: i32,
+}
+
+#[cfg(feature = "cuda")]
+#[repr(C)]
+struct DLDataType {
+    /// Type code: 1 = kDLUInt.
+    code: u8,
+    /// Number of bits per element.
+    bits: u8,
+    /// Number of lanes (1 for scalar types).
+    lanes: u16,
+}
+
+#[cfg(feature = "cuda")]
+#[repr(C)]
+struct DLTensor {
+    /// Raw device pointer.
+    data: *mut std::ffi::c_void,
+    device: DLDevice,
+    ndim: i32,
+    dtype: DLDataType,
+    /// Pointer to shape array (length = ndim).
+    shape: *mut i64,
+    /// Pointer to strides array, or null for compact layout.
+    strides: *mut i64,
+    byte_offset: u64,
+}
+
+#[cfg(feature = "cuda")]
+#[repr(C)]
+struct DLManagedTensor {
+    dl_tensor: DLTensor,
+    /// Opaque context pointer freed by `deleter`.
+    manager_ctx: *mut std::ffi::c_void,
+    /// Called by the consumer to release resources. May be null.
+    deleter: Option<unsafe extern "C" fn(*mut DLManagedTensor)>,
+}
+
+/// Holds the shape value and keeps the ZSlice (and its CudaBufInner Arc) alive.
+#[cfg(feature = "cuda")]
+struct DlpackCtx {
+    shape: i64,
+    _zslice: zenoh_buffers::ZSlice,
+}
+
+// SAFETY: DlpackCtx contains a ZSlice (which holds Arc<CudaBufInner>).
+// CudaBufInner is Send+Sync, so DlpackCtx is too.
+#[cfg(feature = "cuda")]
+unsafe impl Send for DlpackCtx {}
+#[cfg(feature = "cuda")]
+unsafe impl Sync for DlpackCtx {}
+
+/// DLManagedTensor deleter: frees the DlpackCtx, called by the tensor consumer.
+///
+/// The DLManagedTensor itself is freed by `dlpack_capsule_destructor`.
+#[cfg(feature = "cuda")]
+unsafe extern "C" fn dlpack_deleter(managed: *mut DLManagedTensor) {
+    if managed.is_null() {
+        return;
+    }
+    let ctx_ptr = (*managed).manager_ctx;
+    // Set to null so the capsule destructor skips double-free.
+    (*managed).manager_ctx = std::ptr::null_mut();
+    if !ctx_ptr.is_null() {
+        drop(Box::from_raw(ctx_ptr as *mut DlpackCtx));
+    }
+}
+
+/// PyCapsule destructor: frees the DLManagedTensor (and ctx if not yet freed).
+///
+/// Called by the Python GC when the capsule is collected. If PyTorch already
+/// consumed the tensor (calling `deleter`), only the DLManagedTensor box is freed.
+#[cfg(feature = "cuda")]
+unsafe extern "C" fn dlpack_capsule_destructor(capsule: *mut ffi::PyObject) {
+    // Try current name; if PyTorch renamed it, try "used_dltensor".
+    let name_cur = b"dltensor\0".as_ptr() as *const std::ffi::c_char;
+    let mut ptr = ffi::PyCapsule_GetPointer(capsule, name_cur) as *mut DLManagedTensor;
+    if ptr.is_null() {
+        // PyCapsule_GetPointer sets an error when the name doesn't match.
+        ffi::PyErr_Clear();
+        let name_used = b"used_dltensor\0".as_ptr() as *const std::ffi::c_char;
+        ptr = ffi::PyCapsule_GetPointer(capsule, name_used) as *mut DLManagedTensor;
+        if ptr.is_null() {
+            ffi::PyErr_Clear();
+            return;
+        }
+    }
+    // Free ctx if the deleter hasn't run yet.
+    let ctx_ptr = (*ptr).manager_ctx;
+    if !ctx_ptr.is_null() {
+        drop(Box::from_raw(ctx_ptr as *mut DlpackCtx));
+    }
+    // Free the DLManagedTensor itself.
+    drop(Box::from_raw(ptr));
 }

@@ -80,7 +80,9 @@
 
 use std::sync::Arc;
 use zenoh::Wait;
-use zenoh::shm::{BlockOn, GarbageCollect, PosixShmProviderBackend, ShmProvider, ZShmMut};
+use zenoh::shm::{
+    BlockOn, GarbageCollect, PosixShmProviderBackend, ShmProvider, ShmProviderBackend, ZShmMut,
+};
 use zenoh_buffers::ZBuf;
 
 /// Default shared memory pool size (10 MB).
@@ -110,16 +112,35 @@ pub const DEFAULT_SHM_THRESHOLD: usize = 512;
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Clone)]
-pub struct ShmConfig {
+/// Configuration for Shared Memory (SHM) support.
+///
+/// Generic over the SHM provider backend `B`. The default backend is
+/// [`PosixShmProviderBackend`], which preserves backwards compatibility for
+/// all existing callsites. Custom backends (e.g., CUDA unified memory) can be
+/// plugged in by specifying `B`.
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use ros_z::shm::{ShmConfig, ShmProviderBuilder};
+/// use std::sync::Arc;
+///
+/// # fn main() -> ros_z::Result<()> {
+/// let provider = Arc::new(ShmProviderBuilder::new(50 * 1024 * 1024).build()?);
+/// let config = ShmConfig::new(provider)
+///     .with_threshold(10_000);  // 10KB threshold
+/// # Ok(())
+/// # }
+/// ```
+pub struct ShmConfig<B: ShmProviderBackend = PosixShmProviderBackend> {
     /// The SHM provider for allocating shared memory buffers.
-    pub(crate) provider: Arc<ShmProvider<PosixShmProviderBackend>>,
+    pub(crate) provider: Arc<ShmProvider<B>>,
     /// Minimum message size (in bytes) to use SHM.
     /// Messages smaller than this will use regular memory.
     pub(crate) threshold: usize,
 }
 
-impl ShmConfig {
+impl<B: ShmProviderBackend> ShmConfig<B> {
     /// Create a new SHM configuration with the given provider.
     ///
     /// Uses the default threshold of 512 bytes.
@@ -136,7 +157,7 @@ impl ShmConfig {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn new(provider: Arc<ShmProvider<PosixShmProviderBackend>>) -> Self {
+    pub fn new(provider: Arc<ShmProvider<B>>) -> Self {
         Self {
             provider,
             threshold: DEFAULT_SHM_THRESHOLD,
@@ -171,10 +192,13 @@ impl ShmConfig {
     }
 
     /// Get a reference to the SHM provider.
-    pub fn provider(&self) -> &ShmProvider<PosixShmProviderBackend> {
+    pub fn provider(&self) -> &ShmProvider<B> {
         &self.provider
     }
+}
 
+// Concrete impl for the default POSIX backend — from_env() always creates a POSIX provider.
+impl ShmConfig {
     /// Create SHM configuration from environment variables.
     ///
     /// Reads:
@@ -228,7 +252,17 @@ impl ShmConfig {
     }
 }
 
-impl std::fmt::Debug for ShmConfig {
+// Manual Clone so we don't require B: Clone (Arc<ShmProvider<B>> is always Clone).
+impl<B: ShmProviderBackend> Clone for ShmConfig<B> {
+    fn clone(&self) -> Self {
+        Self {
+            provider: Arc::clone(&self.provider),
+            threshold: self.threshold,
+        }
+    }
+}
+
+impl<B: ShmProviderBackend> std::fmt::Debug for ShmConfig<B> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ShmConfig")
             .field("threshold", &self.threshold)
@@ -343,8 +377,8 @@ impl ShmWriter {
     /// # Errors
     ///
     /// Returns an error if SHM allocation fails.
-    pub fn new(
-        provider: &ShmProvider<PosixShmProviderBackend>,
+    pub fn new<B: ShmProviderBackend>(
+        provider: &ShmProvider<B>,
         capacity: usize,
     ) -> zenoh::Result<Self> {
         let buffer = provider

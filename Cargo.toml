@@ -48,6 +48,7 @@ zenoh = { version = "1.7.2", default-features = false, features = [
 ] }
 zenoh-ext = { version = "1.7.2", features = ["unstable"] }
 zenoh-buffers = { version = "1.7.2" }
+zenoh-cuda = { version = "1.7.2", path = "../../../../../project/zenoh-src/src/worktree-zenoh/cuda-zslice/commons/zenoh-cuda" }
 
 # CLI
 clap = "4.5.45"
@@ -94,6 +95,12 @@ serde-big-array = "0.5"
 # Build dependencies
 bindgen = "0.72.0"
 cxx-build = "1.0.168"
+
+[patch.crates-io]
+# Point to feat/cuda-zslice branch for CUDA IPC transport support.
+# Only patching zenoh-buffers gives ros-z access to ZSliceKind::CudaPtr and CudaBufInner
+# without disrupting the full Zenoh transport stack.
+zenoh-buffers = { path = "../../../../../project/zenoh-src/src/worktree-zenoh/cuda-zslice/commons/zenoh-buffers" }
 
 [profile.opt]
 inherits = "release"
