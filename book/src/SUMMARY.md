@@ -20,6 +20,7 @@
 - [Networking](./chapters/networking.md)
   - [Configuration Options](./chapters/config_options.md)
   - [Advanced Configuration](./chapters/config_advanced.md)
+- [ROS 2 Interoperability](./chapters/interop.md)
 - [Message Generation](./chapters/message_generation.md)
   - [Custom Messages](./chapters/custom_messages.md)
   - [Protobuf Serialization](./chapters/protobuf.md)
