@@ -11,19 +11,24 @@ ros-z nodes — whether written in Rust, Python, or Go — speak the same Zenoh 
 
 All participants connect to the same Zenoh router. Both sides can run on the same machine or on separate hosts.
 
-**Single host** — everything on one machine, `rmw_zenohd` is the router:
+```admonish note
+The Zenoh router can be any of: `rmw_zenohd` (ROS 2), `cargo run --example zenoh_router`, a pre-built binary, or Docker.
+See [Networking](./networking.md) for all options.
+```
+
+**Single host** — everything on one machine, one router:
 
 ```mermaid
 graph LR
     subgraph host ["Single host"]
-        talker["demo_nodes_cpp<br>talker"] --> rmw["rmw_zenoh_cpp"] --> router(["rmw_zenohd<br>localhost:7447"])
+        talker["demo_nodes_cpp<br>talker"] --> rmw["rmw_zenoh_cpp"] --> router(["Zenoh router<br>localhost:7447"])
         router <-->|Zenoh| rust["Rust<br>(ros-z)"]
         router <-->|Zenoh| python["Python<br>(ros-z-py)"]
         router <-->|Zenoh| go["Go<br>(ros-z-go)"]
     end
 ```
 
-**Two hosts** — ROS 2 and ros-z on separate machines, one router bridges them:
+**Two hosts** — one router bridges both machines:
 
 ```mermaid
 graph LR
@@ -58,10 +63,10 @@ See [Troubleshooting](./troubleshooting.md) for diagnosis steps.
 
 ## Single Host
 
-When ROS 2 and ros-z run on the same machine, `rmw_zenohd` acts as the router and ros-z nodes connect to it on `localhost:7447` by default — no extra configuration needed.
+When ROS 2 and ros-z run on the same machine, one Zenoh router on `localhost:7447` is enough — ros-z nodes connect to it by default with no extra configuration.
 
 ```bash
-# Terminal 1 — router
+# Terminal 1 — router (any method, e.g. rmw_zenohd or zenohd)
 ros2 run rmw_zenoh_cpp rmw_zenohd
 
 # Terminal 2 — ROS 2 talker
@@ -75,12 +80,12 @@ ros2 run demo_nodes_cpp talker
 
 When ROS 2 and ros-z run on separate machines, you need one router reachable by both. Pick whichever side is more convenient to host it:
 
-**Option A — `rmw_zenohd` hosts the router (ROS 2 side)**
+### Option A — router on the ROS 2 host
 
 ```mermaid
 graph LR
     subgraph ros2 ["ROS 2 host"]
-        talker["demo_nodes_cpp<br>talker"] --> rmw["rmw_zenoh_cpp"] --> router["rmw_zenohd<br>:7447"]
+        talker["demo_nodes_cpp<br>talker"] --> rmw["rmw_zenoh_cpp"] --> router(["Zenoh router<br>:7447"])
     end
     subgraph rosz ["ros-z host"]
         node["ros-z node"]
@@ -89,8 +94,8 @@ graph LR
 ```
 
 ```bash
-# ROS 2 host — router + talker
-ros2 run rmw_zenoh_cpp rmw_zenohd
+# ROS 2 host — start router, then talker
+ros2 run rmw_zenoh_cpp rmw_zenohd   # or any other router method
 export RMW_IMPLEMENTATION=rmw_zenoh_cpp
 ros2 run demo_nodes_cpp talker
 
@@ -98,12 +103,12 @@ ros2 run demo_nodes_cpp talker
 ZENOH_CONNECT=tcp/<ROS2_IP>:7447 <ros-z command>
 ```
 
-**Option B — `zenoh_router` hosts the router (ros-z side)**
+### Option B — router on the ros-z host
 
 ```mermaid
 graph LR
     subgraph rosz ["ros-z host"]
-        router["zenoh_router<br>:7447"]
+        router(["Zenoh router<br>:7447"])
         node["ros-z node"] --> router
     end
     subgraph ros2 ["ROS 2 host"]
@@ -113,8 +118,8 @@ graph LR
 ```
 
 ```bash
-# ros-z host — router + listener
-cargo run --example zenoh_router
+# ros-z host — start router, then listener
+cargo run --example zenoh_router    # or any other router method
 <ros-z command>
 
 # ROS 2 host — connect to ros-z router
