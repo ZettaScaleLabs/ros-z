@@ -205,10 +205,16 @@
 <li>Custom port configurations</li>
 <li>Multiple isolated networks</li>
 </ul>
-<h2 id="option-3-environment-variable-overrides"><a class="header" href="#option-3-environment-variable-overrides">Option 3: Environment Variable Overrides</a></h2>
-<p>Override any Zenoh configuration setting using the <code>ROSZ_CONFIG_OVERRIDE</code> environment variable without changing code:</p>
+<h2 id="option-3-config-file-via-environment-variable"><a class="header" href="#option-3-config-file-via-environment-variable">Option 3: Config File via Environment Variable</a></h2>
+<p>Point to a JSON5 config file without changing code, using the same variable as <code>rmw_zenoh_cpp</code>:</p>
+<pre><code class="language-bash">export ZENOH_SESSION_CONFIG_URI=/path/to/session_config.json5
+</code></pre>
+<pre><code class="language-rust ignore">// No code changes needed - the config file is loaded automatically
+let ctx = ZContextBuilder::default().build()?;</code></pre>
+<h2 id="option-4-environment-variable-overrides"><a class="header" href="#option-4-environment-variable-overrides">Option 4: Environment Variable Overrides</a></h2>
+<p>Override individual Zenoh configuration settings using the <code>ZENOH_CONFIG_OVERRIDE</code> environment variable, using the same variable as <code>rmw_zenoh_cpp</code>:</p>
 <pre><code class="language-bash"># Override mode and endpoint
-export ROSZ_CONFIG_OVERRIDE='mode="client";connect/endpoints=["tcp/192.168.1.100:7447"]'
+export ZENOH_CONFIG_OVERRIDE='mode="client";connect/endpoints=["tcp/192.168.1.100:7447"]'
 
 # Run any ros-z application — overrides apply automatically
 cargo run --example z_pubsub
@@ -223,13 +229,13 @@ let ctx = ZContextBuilder::default().build()?;</code></pre>
 </ul>
 <p><strong>Common examples:</strong></p>
 <pre><code class="language-bash"># Connect to remote router
-export ROSZ_CONFIG_OVERRIDE='connect/endpoints=["tcp/10.0.0.5:7447"]'
+export ZENOH_CONFIG_OVERRIDE='connect/endpoints=["tcp/10.0.0.5:7447"]'
 
 # Enable multicast scouting explicitly
-export ROSZ_CONFIG_OVERRIDE='scouting/multicast/enabled=true'
+export ZENOH_CONFIG_OVERRIDE='scouting/multicast/enabled=true'
 
 # Multiple overrides
-export ROSZ_CONFIG_OVERRIDE='mode="client";connect/timeout_ms=5000;scouting/multicast/enabled=false'
+export ZENOH_CONFIG_OVERRIDE='mode="client";connect/timeout_ms=5000;scouting/multicast/enabled=false'
 </code></pre>
 <div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
 <div class="admonition-title">
@@ -242,7 +248,7 @@ export ROSZ_CONFIG_OVERRIDE='mode="client";connect/timeout_ms=5000;scouting/mult
 <p>Environment variable overrides have the highest priority and will override any programmatic configuration or config file settings.</p>
 </div>
 </div>
-<h2 id="option-4-advanced-configuration-builders"><a class="header" href="#option-4-advanced-configuration-builders">Option 4: Advanced Configuration Builders</a></h2>
+<h2 id="option-5-advanced-configuration-builders"><a class="header" href="#option-5-advanced-configuration-builders">Option 5: Advanced Configuration Builders</a></h2>
 <p>Fine-tune session or router settings programmatically:</p>
 <pre><code class="language-rust ignore">use ros_z::config::{SessionConfigBuilder, RouterConfigBuilder};
 
@@ -267,7 +273,7 @@ zenoh::open(router_config).await?;</code></pre>
 <tr><td><code>RouterConfigBuilder</code></td><td><code>with_listen_port(port)</code></td><td>Set custom router port</td></tr>
 </tbody></table>
 </div>
-<h2 id="option-5-peer-mode-using-multicast-discovery-no-router-required"><a class="header" href="#option-5-peer-mode-using-multicast-discovery-no-router-required">Option 5: Peer Mode Using Multicast Discovery (No Router Required)</a></h2>
+<h2 id="option-6-peer-mode-using-multicast-discovery-no-router-required"><a class="header" href="#option-6-peer-mode-using-multicast-discovery-no-router-required">Option 6: Peer Mode Using Multicast Discovery (No Router Required)</a></h2>
 <p>Revert to multicast peer discovery for simple setups:</p>
 <pre><code class="language-rust ignore">// Use vanilla Zenoh config (peer mode with multicast)
 let ctx = ZContextBuilder::default()
@@ -284,7 +290,7 @@ let ctx = ZContextBuilder::default()
 <p>Multicast scouting discovery is convenient for quick testing but doesn't scale well and won't work with ROS 2 nodes using <code>rmw_zenoh_cpp</code> (which expects a zenoh router).</p>
 </div>
 </div>
-<h2 id="option-6-load-from-config-file"><a class="header" href="#option-6-load-from-config-file">Option 6: Load from Config File</a></h2>
+<h2 id="option-7-load-from-config-file-programmatic"><a class="header" href="#option-7-load-from-config-file-programmatic">Option 7: Load from Config File (Programmatic)</a></h2>
 <p>Use JSON5 config files for complex deployments:</p>
 <pre><code class="language-rust ignore">let ctx = ZContextBuilder::default()
     .with_config_file("/etc/zenoh/session_config.json5")
