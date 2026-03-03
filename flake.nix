@@ -33,6 +33,8 @@
 
         pkgs = import nixpkgs {
           inherit system;
+          # allowUnfree is required for CUDA packages (proprietary NVIDIA runtime)
+          config.allowUnfree = true;
           overlays = [
             nix-ros-overlay.overlays.default
             rust-overlay.overlays.default
@@ -225,6 +227,17 @@
           cargo-nextest
         ];
 
+        # CUDA build inputs — only available on Linux; requires allowUnfree = true above.
+        # These packages provide libcudart.so for the zenoh-cuda crate.
+        cudaInputs = pkgs.lib.optionals pkgs.stdenv.isLinux (with pkgs.cudaPackages; [ cuda_cudart ]);
+
+        # Shell-hook fragment that sets CUDA_PATH for the zenoh-cuda build.rs.
+        # build.rs searches $CUDA_PATH/lib64 and $CUDA_PATH/lib for libcudart.so.
+        cudaShellHook = pkgs.lib.optionalString pkgs.stdenv.isLinux ''
+          export CUDA_PATH="${pkgs.cudaPackages.cuda_cudart}"
+          export LD_LIBRARY_PATH="${pkgs.cudaPackages.cuda_cudart.lib}/lib:$LD_LIBRARY_PATH"
+        '';
+
         # Environment variables for Rust/C++ interop
         commonEnvVars = rec {
           LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
@@ -402,6 +415,32 @@
               mdbook-admonish install book/ 2>/dev/null || true
             '';
           };
+
+          # CUDA-enabled shell (no ROS).
+          # Usage: nix develop .#cuda
+          # Provides libcudart so `cargo build --features cuda` works.
+          cuda = mkDevShell {
+            name = "ros-z-cuda";
+            packages = [
+              rustfmt-nightly-bin
+            ]
+            ++ commonBuildInputs
+            ++ devTools
+            ++ pythonTools
+            ++ testTools
+            ++ cudaInputs
+            ++ pre-commit-check.enabledPackages;
+            extraShellHook = ''
+              ${pre-commit-check.shellHook}
+              ${cudaShellHook}
+            '';
+            banner = ''
+              echo "🦀 ros-z CUDA development environment"
+              echo "Rust: $(rustc --version)"
+              echo "CUDA_PATH: $CUDA_PATH"
+              echo "Build with: cargo build --features cuda"
+            '';
+          };
         }
         # Add per-distro dev shells (ros-jazzy, ros-rolling, ...)
         // (builtins.listToAttrs (
@@ -416,6 +455,45 @@
             name = "ros-${distro}-ci";
             value = allDistroShells.${distro}.ci;
           }) distros
+        ))
+        # Add per-distro CUDA shells (ros-jazzy-cuda, ...)
+        // (builtins.listToAttrs (
+          builtins.map (
+            distro:
+            let
+              rosEnv = mkRosEnv distro;
+            in
+            {
+              name = "ros-${distro}-cuda";
+              value = mkDevShell {
+                name = "ros-z-cuda-${distro}";
+                packages = [
+                  rustfmt-nightly-bin
+                ]
+                ++ commonBuildInputs
+                ++ devTools
+                ++ pythonTools
+                ++ testTools
+                ++ cudaInputs
+                ++ [ rosEnv.dev ]
+                ++ pre-commit-check.enabledPackages;
+                rosEnvPath = rosEnv.dev;
+                rosDistro = distro;
+                extraShellHook = ''
+                  ${pre-commit-check.shellHook}
+                  ${cudaShellHook}
+                  mdbook-mermaid install book/ 2>/dev/null || true
+                  mdbook-admonish install book/ 2>/dev/null || true
+                '';
+                banner = ''
+                  echo "🦀 ros-z CUDA + ROS ${distro} environment"
+                  echo "Rust: $(rustc --version)"
+                  echo "CUDA_PATH: $CUDA_PATH"
+                  echo "Build with: cargo build --features cuda,jazzy"
+                '';
+              };
+            }
+          ) distros
         ));
 
         formatter = pkgs.nixfmt-rfc-style;
