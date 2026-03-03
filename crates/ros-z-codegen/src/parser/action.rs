@@ -44,27 +44,39 @@ pub fn parse_action(
     path: &Path,
 ) -> Result<ParsedAction> {
     // Split by "---" separator (three sections: goal, result, feedback)
-    let sections: Vec<&str> = content.split("\n---\n").collect();
+    // Use line scanning to handle files with no leading/trailing newlines around delimiters
+    let lines: Vec<&str> = content.lines().collect();
+    let delimiter_indices: Vec<usize> = lines
+        .iter()
+        .enumerate()
+        .filter(|(_, line)| line.trim() == "---")
+        .map(|(i, _)| i)
+        .collect();
 
-    if sections.len() != 3 {
+    if delimiter_indices.len() != 2 {
         bail!(
             "Action file must have exactly 3 sections (goal, result, feedback), found {}",
-            sections.len()
+            delimiter_indices.len() + 1
         );
     }
 
-    let goal_content = sections[0];
-    let result_content = sections[1];
-    let feedback_content = sections[2];
+    let goal_content = lines[..delimiter_indices[0]].join("\n");
+    let result_content = lines[delimiter_indices[0] + 1..delimiter_indices[1]].join("\n");
+    let feedback_content = lines[delimiter_indices[1] + 1..].join("\n");
 
     // Parse each section as a message
-    let goal = parse_action_section(goal_content, &format!("{}Goal", action_name), package, path)?;
+    let goal = parse_action_section(
+        &goal_content,
+        &format!("{}Goal", action_name),
+        package,
+        path,
+    )?;
 
     let result = if result_content.trim().is_empty() {
         None
     } else {
         Some(parse_action_section(
-            result_content,
+            &result_content,
             &format!("{}Result", action_name),
             package,
             path,
@@ -75,7 +87,7 @@ pub fn parse_action(
         None
     } else {
         Some(parse_action_section(
-            feedback_content,
+            &feedback_content,
             &format!("{}Feedback", action_name),
             package,
             path,
@@ -253,6 +265,41 @@ int32 result
                 .to_string()
                 .contains("exactly 3 sections")
         );
+    }
+
+    #[test]
+    fn test_parse_all_empty_sections() {
+        // "---\n---\n" — valid, all three sections empty
+        let content = "---\n---\n";
+        let path = PathBuf::from("Empty.action");
+        let result = parse_action(content, "Empty", "test_pkg", &path);
+        assert!(result.is_ok());
+        let action = result.unwrap();
+        assert!(action.goal.fields.is_empty());
+        assert!(action.result.is_none());
+        assert!(action.feedback.is_none());
+    }
+
+    #[test]
+    fn test_parse_action_with_content_no_trailing_newline() {
+        // Valid file without trailing newline after last section
+        let content = "string test1\n---\nstring test2\n---\nstring test3";
+        let path = PathBuf::from("NoTrail.action");
+        let result = parse_action(content, "NoTrail", "test_pkg", &path);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_action_comment_only_sections() {
+        // Sections containing only comments — non-empty strings, produce Some with zero fields
+        let content = "#goal\n---\n#result\n---\n#feedback\n";
+        let path = PathBuf::from("CommentOnly.action");
+        let result = parse_action(content, "CommentOnly", "test_pkg", &path);
+        assert!(result.is_ok());
+        let action = result.unwrap();
+        assert!(action.goal.fields.is_empty());
+        assert_eq!(action.result.as_ref().unwrap().fields.len(), 0);
+        assert_eq!(action.feedback.as_ref().unwrap().fields.len(), 0);
     }
 
     #[test]
