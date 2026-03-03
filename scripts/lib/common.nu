@@ -72,9 +72,9 @@ export def run-cmd [
         }
 
         if $shell == "bash" {
-            nix develop $flake -c bash -c $cmd
+            nix develop $flake --command bash -c $cmd
         } else {
-            nix develop $flake -c nu -c $cmd
+            nix develop $flake --command nu -c $cmd
         }
     }
 }
