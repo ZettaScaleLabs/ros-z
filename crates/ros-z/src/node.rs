@@ -238,6 +238,7 @@ impl ZNode {
         ZPubBuilder {
             entity,
             session: self.session.clone(),
+            graph: self.graph.clone(),
             with_attachment: true,
             shm_config: self.shm_config.clone(),
             keyexpr_format: self.keyexpr_format,
@@ -538,12 +539,16 @@ impl ZNode {
             topic
         );
 
-        // Create a TypeDescriptionClient to discover the schema
+        // Create a TypeDescriptionClient to discover the schema.
+        // Use a short per-attempt timeout (3 s) so that transient Zenoh routing
+        // delays can be recovered by the retry loop inside get_type_description_for_topic
+        // rather than burning the entire discovery_timeout on a single query.
         let client = TypeDescriptionClient::with_graph(
             self.session.clone(),
             self.counter.clone(),
             self.graph.clone(),
-        );
+        )
+        .with_timeout(Duration::from_secs(3));
 
         // Discover schema from topic publishers
         let (schema, type_hash) = client

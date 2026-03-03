@@ -38,6 +38,9 @@ pub enum DynamicError {
     /// Schema not found in registry
     SchemaNotFound(String),
 
+    /// Type description service call timed out — no response from the remote node.
+    ServiceTimeout { node: String, service: String },
+
     /// Invalid default value for field type
     InvalidDefaultValue { field: String, reason: String },
 
@@ -96,6 +99,13 @@ impl fmt::Display for DynamicError {
             }
             DynamicError::SchemaNotFound(name) => {
                 write!(f, "Schema '{}' not found in registry", name)
+            }
+            DynamicError::ServiceTimeout { node, service } => {
+                write!(
+                    f,
+                    "type description service timed out: no response from node '{}' on service '{}'",
+                    node, service
+                )
             }
             DynamicError::InvalidDefaultValue { field, reason } => {
                 write!(f, "Invalid default value for field '{}': {}", field, reason)
