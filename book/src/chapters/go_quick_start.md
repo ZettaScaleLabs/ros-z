@@ -183,9 +183,11 @@ graph LR
 ```
 
 ```bash
-# ROS 2 host
-ros2 run rmw_zenoh_cpp rmw_zenohd &        # router
-ros2 run demo_nodes_cpp talker             # publisher
+# ROS 2 host (terminal 1) — router
+ros2 run rmw_zenoh_cpp rmw_zenohd
+
+# ROS 2 host (terminal 2) — publisher
+ros2 run demo_nodes_cpp talker
 
 # ros-z-go host (two terminals)
 cd hello_sub
