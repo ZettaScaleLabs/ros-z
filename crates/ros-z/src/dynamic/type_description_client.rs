@@ -47,7 +47,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 use zenoh::Session;
 
 use crate::context::GlobalCounter;
@@ -172,7 +172,7 @@ impl TypeDescriptionClient {
             format!("{}/{}/get_type_description", namespace, node_name)
         };
 
-        info!(
+        debug!(
             "[TDC] Creating client for absolute service: {}",
             service_name
         );
@@ -211,7 +211,7 @@ impl TypeDescriptionClient {
             include_type_sources: include_sources,
         };
 
-        info!(
+        debug!(
             "[TDC] Sending request to get_type_description: node={}/{}",
             namespace, node_name
         );
@@ -338,7 +338,7 @@ impl TypeDescriptionClient {
         let type_name = normalize_type_name(&type_info.name);
         let type_hash = type_info.hash.to_rihs_string();
 
-        info!(
+        debug!(
             "[TDC] Found publisher for {}: node={}/{}, type={} (normalized from: {})",
             topic, first_ep.node.namespace, first_ep.node.name, type_name, type_info.name
         );
@@ -359,13 +359,8 @@ impl TypeDescriptionClient {
         //
         // By creating all Queriers here, before any GET is sent, we give them time
         // to settle in Phase 3 below.
-        struct PubClient {
-            node_name: String,
-            namespace: String,
-            client: ZClient<GetTypeDescription>,
-        }
-
-        let mut pub_clients: Vec<PubClient> = Vec::new();
+        // (node_name, namespace, client)
+        let mut pub_clients: Vec<(String, String, ZClient<GetTypeDescription>)> = Vec::new();
         for publisher in &publishers {
             let Entity::Endpoint(ep) = &**publisher else {
                 continue;
@@ -379,11 +374,7 @@ impl TypeDescriptionClient {
                 )
             };
             match self.create_client(&service_name, "") {
-                Ok(c) => pub_clients.push(PubClient {
-                    node_name: ep.node.name.clone(),
-                    namespace: ep.node.namespace.clone(),
-                    client: c,
-                }),
+                Ok(c) => pub_clients.push((ep.node.name.clone(), ep.node.namespace.clone(), c)),
                 Err(e) => warn!("[TDC] Could not create client for {}: {}", service_name, e),
             }
         }
@@ -411,20 +402,13 @@ impl TypeDescriptionClient {
         let mut last_error = None;
 
         'retry: loop {
-            for pc in &pub_clients {
+            for (node_name, namespace, client) in &pub_clients {
                 if tokio::time::Instant::now() > deadline {
                     break 'retry;
                 }
 
                 match self
-                    .query_with_client(
-                        &pc.client,
-                        &pc.node_name,
-                        &pc.namespace,
-                        &type_name,
-                        &type_hash,
-                        false,
-                    )
+                    .query_with_client(client, node_name, namespace, &type_name, &type_hash, false)
                     .await
                 {
                     Ok(response) if response.successful => {
