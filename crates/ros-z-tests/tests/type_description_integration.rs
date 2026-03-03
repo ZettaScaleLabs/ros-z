@@ -431,23 +431,7 @@ fn test_static_pub_dynamic_sub_known_schema() {
 
             println!("Static publisher created");
 
-            // Start publishing in background
-            let pub_handle = tokio::spawn(async move {
-                for i in 0..10 {
-                    let msg = RosString {
-                        data: format!("Static message {}", i),
-                    };
-                    if let Err(e) = publisher.publish(&msg) {
-                        eprintln!("Publish error: {}", e);
-                    }
-                    tokio::time::sleep(Duration::from_millis(100)).await;
-                }
-            });
-
-            // Give publisher time to start
-            tokio::time::sleep(Duration::from_millis(500)).await;
-
-            // Create subscriber with known schema (no discovery)
+            // Create subscriber before publishing so no messages are missed.
             let sub_ctx =
                 create_ros_z_context_with_router(&router).expect("Failed to create sub context");
             let sub_node = sub_ctx
@@ -466,6 +450,24 @@ fn test_static_pub_dynamic_sub_known_schema() {
                 .expect("Failed to create dynamic subscriber");
 
             println!("Dynamic subscriber created with known schema");
+
+            // Wait until the subscriber has matched the publisher at the middleware
+            // level before starting to publish — eliminates the race where all
+            // messages are sent before the subscriber is ready.
+            publisher
+                .wait_for_subscription(1, Duration::from_secs(10))
+                .await;
+
+            // Publish in the background so we can receive concurrently.
+            let pub_handle = tokio::task::spawn(async move {
+                for i in 0..10 {
+                    let msg = RosString {
+                        data: format!("Static message {}", i),
+                    };
+                    publisher.publish(&msg).expect("Failed to publish");
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                }
+            });
 
             // Receive messages
             let mut received = Vec::new();

@@ -163,11 +163,12 @@ fn test_zpub_builder_with_dyn_schema() {
     let schema = create_point_schema();
 
     // Create a mock builder to test with_dyn_schema
+    let session = zenoh::Wait::wait(zenoh::open(zenoh::Config::default())).unwrap();
+    let graph = std::sync::Arc::new(crate::graph::Graph::new(&session, 0).unwrap());
     let builder: ZPubBuilder<DynamicMessage> = ZPubBuilder {
         entity: Default::default(),
-        session: std::sync::Arc::new(
-            zenoh::Wait::wait(zenoh::open(zenoh::Config::default())).unwrap(),
-        ),
+        session: std::sync::Arc::new(session),
+        graph,
         keyexpr_format: ros_z_protocol::KeyExprFormat::default(),
         with_attachment: true,
         shm_config: None,
@@ -194,11 +195,12 @@ fn test_zpub_builder_with_serdes_preserves_schema() {
     let schema = create_test_schema();
 
     // Create builder with schema
+    let session = zenoh::Wait::wait(zenoh::open(zenoh::Config::default())).unwrap();
+    let graph = std::sync::Arc::new(crate::graph::Graph::new(&session, 0).unwrap());
     let builder: ZPubBuilder<DynamicMessage> = ZPubBuilder {
         entity: Default::default(),
-        session: std::sync::Arc::new(
-            zenoh::Wait::wait(zenoh::open(zenoh::Config::default())).unwrap(),
-        ),
+        session: std::sync::Arc::new(session),
+        graph,
         keyexpr_format: ros_z_protocol::KeyExprFormat::default(),
         with_attachment: true,
         shm_config: None,
