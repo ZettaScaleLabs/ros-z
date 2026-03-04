@@ -12,18 +12,24 @@ A lifecycle node moves through a defined set of states. Only in the **Active** s
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Unconfigured: create
-    Unconfigured --> Inactive: configure ✓
-    Unconfigured --> Finalized: shutdown
-    Inactive --> Active: activate ✓
-    Inactive --> Unconfigured: cleanup ✓
-    Inactive --> Finalized: shutdown
-    Active --> Inactive: deactivate ✓
-    Active --> Finalized: shutdown
-    Finalized --> [*]
-    Unconfigured --> Unconfigured: configure ✗ (failure)
-    note right of Active: Publishers deliver messages
-    note right of Inactive: Publishers drop messages silently
+    direction LR
+
+    [*] --> Unconfigured
+
+    state "Unconfigured" as Unconfigured
+    state "Inactive" as Inactive
+    state "Active<br>(publishing)" as Active
+    state "Finalized" as Finalized
+
+    Unconfigured --> Inactive    : configure
+    Inactive     --> Active      : activate
+    Active       --> Inactive    : deactivate
+    Inactive     --> Unconfigured: cleanup
+
+    Unconfigured --> Finalized   : shutdown
+    Inactive     --> Finalized   : shutdown
+    Active       --> Finalized   : shutdown
+    Finalized    --> [*]
 ```
 
 ### Primary States
