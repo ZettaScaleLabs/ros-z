@@ -180,6 +180,7 @@ jobs:
       - name: SHM tests
         if: runner.os == 'Linux'
         run: |
+          sudo prlimit --memlock=unlimited --pid=$$
           source /tmp/nix-dev-env.sh
           nu scripts/test-pure-rust.nu test-shm
         shell: bash
@@ -271,6 +272,7 @@ jobs:
 
       - name: Run pytest
         run: |
+          sudo prlimit --memlock=unlimited --pid=$$
           source /tmp/nix-dev-env.sh
           nu scripts/test-python.nu --distro ${{ matrix.distro }} run-pytest
 

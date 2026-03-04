@@ -6,6 +6,23 @@ use ros_z::Builder;
 use ros_z::context::{ZContext, ZContextBuilder};
 use std::sync::Arc;
 
+/// Read `ZENOH_SHM_ALLOC_SIZE` env var (bytes). Mirrors rmw_zenoh_cpp behavior.
+fn read_shm_alloc_size() -> Option<usize> {
+    std::env::var("ZENOH_SHM_ALLOC_SIZE")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|&n| n > 0)
+}
+
+/// Read `ZENOH_SHM_MESSAGE_SIZE_THRESHOLD` env var (bytes). Must be a power of two.
+/// Mirrors rmw_zenoh_cpp behavior.
+fn read_shm_threshold() -> Option<usize> {
+    std::env::var("ZENOH_SHM_MESSAGE_SIZE_THRESHOLD")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|&n| n > 0 && n.is_power_of_two())
+}
+
 #[pyclass(name = "ZContextBuilder")]
 #[derive(Default)]
 pub struct PyZContextBuilder {
@@ -43,6 +60,61 @@ impl PyZContextBuilder {
     /// Disable multicast scouting (useful for isolated tests)
     pub fn disable_multicast_scouting(mut slf: PyRefMut<'_, Self>) -> PyRefMut<'_, Self> {
         slf.builder = std::mem::take(&mut slf.builder).disable_multicast_scouting();
+        slf
+    }
+
+    /// Enable Zenoh shared memory transport with default pool size (48 MiB).
+    ///
+    /// SHM transparently accelerates large message transfers between nodes on the same
+    /// host. Both publisher and subscriber must have SHM enabled. Also enable SHM on
+    /// the router if messages must be routed.
+    ///
+    /// Pool size and threshold can be overridden via env vars ``ZENOH_SHM_ALLOC_SIZE``
+    /// and ``ZENOH_SHM_MESSAGE_SIZE_THRESHOLD`` (must be power of two), matching
+    /// rmw_zenoh_cpp behavior.
+    pub fn with_shm_enabled(mut slf: PyRefMut<'_, Self>) -> PyResult<PyRefMut<'_, Self>> {
+        let pool_size = read_shm_alloc_size();
+        let threshold = read_shm_threshold();
+
+        let builder = std::mem::take(&mut slf.builder);
+        let builder = match pool_size {
+            Some(size) => builder
+                .with_shm_pool_size(size)
+                .map_err(|e| e.into_pyerr())?,
+            None => builder.with_shm_enabled().map_err(|e| e.into_pyerr())?,
+        };
+        let builder = match threshold {
+            Some(t) => builder.with_shm_threshold(t),
+            None => builder,
+        };
+        slf.builder = builder;
+        Ok(slf)
+    }
+
+    /// Enable Zenoh shared memory transport with a custom pool size in bytes.
+    ///
+    /// ``ZENOH_SHM_MESSAGE_SIZE_THRESHOLD`` env var still applies if set.
+    pub fn with_shm_pool_size(
+        mut slf: PyRefMut<'_, Self>,
+        size_bytes: usize,
+    ) -> PyResult<PyRefMut<'_, Self>> {
+        let threshold = read_shm_threshold();
+        let builder = std::mem::take(&mut slf.builder)
+            .with_shm_pool_size(size_bytes)
+            .map_err(|e| e.into_pyerr())?;
+        slf.builder = match threshold {
+            Some(t) => builder.with_shm_threshold(t),
+            None => builder,
+        };
+        Ok(slf)
+    }
+
+    /// Set the minimum message size (bytes) for SHM transport.
+    ///
+    /// Messages smaller than this threshold are sent via network. Only effective
+    /// after ``with_shm_enabled()`` or ``with_shm_pool_size()``.
+    pub fn with_shm_threshold(mut slf: PyRefMut<'_, Self>, threshold: usize) -> PyRefMut<'_, Self> {
+        slf.builder = std::mem::take(&mut slf.builder).with_shm_threshold(threshold);
         slf
     }
 
