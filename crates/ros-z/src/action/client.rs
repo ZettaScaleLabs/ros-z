@@ -11,7 +11,9 @@ use tokio::sync::{mpsc, watch};
 use zenoh::Result;
 
 use super::{GoalId, GoalInfo, GoalStatus, Time, ZAction, messages::*};
-use crate::{Builder, msg::ZMessage, qos::QosProfile, topic_name::qualify_topic_name};
+use crate::{
+    Builder, entity::TypeInfo, msg::ZMessage, qos::QosProfile, topic_name::qualify_topic_name,
+};
 
 /// Type states for goal handles.
 pub mod goal_state {
@@ -52,6 +54,12 @@ pub struct ZActionClientBuilder<'a, A: ZAction> {
     pub feedback_topic_qos: Option<QosProfile>,
     /// QoS profile for the status topic.
     pub status_topic_qos: Option<QosProfile>,
+    /// Override for goal (send_goal) type info; uses `A::send_goal_type_info()` if None.
+    pub goal_type_info: Option<TypeInfo>,
+    /// Override for result (get_result) type info; uses `A::get_result_type_info()` if None.
+    pub result_type_info: Option<TypeInfo>,
+    /// Override for feedback type info; uses `A::feedback_type_info()` if None.
+    pub feedback_type_info: Option<TypeInfo>,
     /// Phantom data for the action type and backend.
     pub _phantom: std::marker::PhantomData<A>,
 }
@@ -81,6 +89,27 @@ impl<'a, A: ZAction> ZActionClientBuilder<'a, A> {
         self.status_topic_qos = Some(qos);
         self
     }
+
+    /// Override the goal type info used for graph registration.
+    ///
+    /// By default `A::send_goal_type_info()` is used. Set this to supply a
+    /// runtime-determined type hash (e.g. from Python message classes).
+    pub fn with_goal_type_info(mut self, info: TypeInfo) -> Self {
+        self.goal_type_info = Some(info);
+        self
+    }
+
+    /// Override the result type info used for graph registration.
+    pub fn with_result_type_info(mut self, info: TypeInfo) -> Self {
+        self.result_type_info = Some(info);
+        self
+    }
+
+    /// Override the feedback type info used for graph registration.
+    pub fn with_feedback_type_info(mut self, info: TypeInfo) -> Self {
+        self.feedback_type_info = Some(info);
+        self
+    }
 }
 
 impl<'a, A: ZAction> ZActionClientBuilder<'a, A> {
@@ -93,6 +122,9 @@ impl<'a, A: ZAction> ZActionClientBuilder<'a, A> {
             cancel_service_qos: None,
             feedback_topic_qos: None,
             status_topic_qos: None,
+            goal_type_info: None,
+            result_type_info: None,
+            feedback_type_info: None,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -132,8 +164,8 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
         let status_topic_name = format!("{}/_action/status", qualified_action_name);
 
         // Create goal client using node API for proper graph registration
-        // Use the action's send_goal_type_info for proper ROS 2 interop
-        let goal_type_info = Some(A::send_goal_type_info());
+        // Use override if provided, otherwise fall back to the action's static type info.
+        let goal_type_info = Some(self.goal_type_info.unwrap_or_else(A::send_goal_type_info));
         let mut goal_client_builder = self
             .node
             .create_client_impl::<GoalService<A>>(&goal_service_name, goal_type_info);
@@ -143,8 +175,10 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
         let goal_client = goal_client_builder.build()?;
 
         // Create result client using node API for proper graph registration
-        // Use the action's get_result_type_info for proper ROS 2 interop
-        let result_type_info = Some(A::get_result_type_info());
+        let result_type_info = Some(
+            self.result_type_info
+                .unwrap_or_else(A::get_result_type_info),
+        );
         let mut result_client_builder = self
             .node
             .create_client_impl::<ResultService<A>>(&result_service_name, result_type_info);
@@ -170,8 +204,10 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
         });
 
         // Create feedback subscriber with callback for proper graph registration
-        // Use the action's feedback_type_info for proper ROS 2 interop
-        let feedback_type_info = Some(A::feedback_type_info());
+        let feedback_type_info = Some(
+            self.feedback_type_info
+                .unwrap_or_else(A::feedback_type_info),
+        );
         let mut feedback_sub_builder = self
             .node
             .create_sub_impl::<FeedbackMessage<A>>(&feedback_topic_name, feedback_type_info);

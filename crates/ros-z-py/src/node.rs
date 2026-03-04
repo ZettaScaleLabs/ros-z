@@ -16,8 +16,23 @@ use ros_z::entity::{TypeHash, TypeInfo};
 use ros_z::node::ZNode;
 use std::sync::Arc;
 
+/// Try to extract type info from a message class.
+///
+/// Returns `None` if `__msgtype__` or `__hash__` are absent or not strings —
+/// e.g. for inline msgspec structs without a registered type hash.
+fn try_extract_type_info(msg_class: &Bound<'_, PyAny>) -> Option<TypeInfo> {
+    let msg_type: String = msg_class.getattr("__msgtype__").ok()?.extract().ok()?;
+    let type_hash_str: String = msg_class.getattr("__hash__").ok()?.extract().ok()?;
+    let type_hash = TypeHash::from_rihs_string(&type_hash_str)?;
+    let rust_type_name = python_type_to_rust_type(&msg_type);
+    Some(TypeInfo::new(&rust_type_name, type_hash))
+}
+
 /// Extract type information from a msgspec message class.
-/// The class must have `__msgtype__` and `__hash__` class attributes.
+///
+/// `__msgtype__` (a string like `"my_pkg/msg/Goal"`) is required.
+/// `__hash__` (a RIHS01 string) is optional — absent or non-string values
+/// result in a zero hash, which is fine for Python-to-Python communication.
 fn extract_type_info_from_class(msg_class: &Bound<'_, PyAny>) -> PyResult<(String, TypeInfo)> {
     let msg_type: String = msg_class
         .getattr("__msgtype__")
@@ -31,24 +46,13 @@ fn extract_type_info_from_class(msg_class: &Bound<'_, PyAny>) -> PyResult<(Strin
             pyo3::exceptions::PyTypeError::new_err("Message class __msgtype__ must be a string")
         })?;
 
-    let type_hash_str: String = msg_class
+    // __hash__ is optional. If it's a valid RIHS01 string, use it; otherwise zero hash.
+    let type_hash = msg_class
         .getattr("__hash__")
-        .map_err(|_| {
-            pyo3::exceptions::PyTypeError::new_err(
-                "Message class must have __hash__ class attribute",
-            )
-        })?
-        .extract()
-        .map_err(|_| {
-            pyo3::exceptions::PyTypeError::new_err("Message class __hash__ must be a string")
-        })?;
-
-    let type_hash = TypeHash::from_rihs_string(&type_hash_str).ok_or_else(|| {
-        pyo3::exceptions::PyValueError::new_err(format!(
-            "Invalid type hash format: {}",
-            type_hash_str
-        ))
-    })?;
+        .ok()
+        .and_then(|v| v.extract::<String>().ok())
+        .and_then(|s| TypeHash::from_rihs_string(&s))
+        .unwrap_or_else(TypeHash::zero);
 
     let rust_type_name = python_type_to_rust_type(&msg_type);
     let type_info = TypeInfo::new(&rust_type_name, type_hash);
@@ -305,12 +309,26 @@ impl PyZNode {
         let (result_type_name, _) = extract_type_info_from_class(result_type)?;
         let (feedback_type_name, _) = extract_type_info_from_class(feedback_type)?;
 
+        let goal_ti = try_extract_type_info(goal_type);
+        let result_ti = try_extract_type_info(result_type);
+        let feedback_ti = try_extract_type_info(feedback_type);
+
         let node = Arc::clone(&self.inner);
         let rt = get_tokio_rt();
 
         let client = py.allow_threads(|| {
             let _guard = rt.enter();
-            node.create_action_client::<RawBytesAction>(&action_name)
+            let mut builder = node.create_action_client::<RawBytesAction>(&action_name);
+            if let Some(ti) = goal_ti {
+                builder = builder.with_goal_type_info(ti);
+            }
+            if let Some(ti) = result_ti {
+                builder = builder.with_result_type_info(ti);
+            }
+            if let Some(ti) = feedback_ti {
+                builder = builder.with_feedback_type_info(ti);
+            }
+            builder
                 .build()
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })?;
@@ -341,12 +359,26 @@ impl PyZNode {
         let (result_type_name, _) = extract_type_info_from_class(result_type)?;
         let (feedback_type_name, _) = extract_type_info_from_class(feedback_type)?;
 
+        let goal_ti = try_extract_type_info(goal_type);
+        let result_ti = try_extract_type_info(result_type);
+        let feedback_ti = try_extract_type_info(feedback_type);
+
         let node = Arc::clone(&self.inner);
         let rt = get_tokio_rt();
 
         let server = py.allow_threads(|| {
             let _guard = rt.enter();
-            node.create_action_server::<RawBytesAction>(&action_name)
+            let mut builder = node.create_action_server::<RawBytesAction>(&action_name);
+            if let Some(ti) = goal_ti {
+                builder = builder.with_goal_type_info(ti);
+            }
+            if let Some(ti) = result_ti {
+                builder = builder.with_result_type_info(ti);
+            }
+            if let Some(ti) = feedback_ti {
+                builder = builder.with_feedback_type_info(ti);
+            }
+            builder
                 .build()
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })?;
