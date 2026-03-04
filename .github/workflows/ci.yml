@@ -271,6 +271,7 @@ jobs:
 
       - name: Run pytest
         run: |
+          sudo prlimit --memlock=unlimited --pid=$$
           source /tmp/nix-dev-env.sh
           nu scripts/test-python.nu --distro ${{ matrix.distro }} run-pytest
 
