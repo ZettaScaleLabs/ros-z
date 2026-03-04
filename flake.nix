@@ -237,7 +237,7 @@
         # /run/opengl-driver and /run/current-system/sw — the driver is host-managed
         # and not distributed via the Nix CUDA packages.
         cudaShellHook = pkgs.lib.optionalString pkgs.stdenv.isLinux ''
-          export CUDA_PATH="${pkgs.cudaPackages.cuda_cudart}"
+          export CUDA_PATH="${pkgs.cudaPackages.cuda_cudart.lib}"
           export LD_LIBRARY_PATH="${pkgs.cudaPackages.cuda_cudart.lib}/lib:/run/opengl-driver/lib:$LD_LIBRARY_PATH"
           export PATH="/run/current-system/sw/bin:$PATH"
         '';
