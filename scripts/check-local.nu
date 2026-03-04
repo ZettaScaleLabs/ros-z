@@ -34,7 +34,7 @@ log-header "Running ros-z Pre-Submission Checks"
 let checks = [
     {name: "Formatting (cargo fmt)", cmd: "cargo fmt --check"},
     {name: "Clippy (all targets)", cmd: "cargo clippy --all-targets -- -D warnings"},
-    {name: "Build (cargo build)", cmd: "cargo build"},
+    {name: "Build (cargo build)", cmd: "cargo build --examples"},
     {name: "Tests", cmd: (if (which cargo-nextest | is-not-empty) {
         "cargo nextest run"
     } else {
@@ -83,7 +83,8 @@ if $failed_count == 0 {
     exit 0
 } else {
     let icon = if (is-ci) { "✗" } else { $"(ansi red)✗(ansi reset)" }
-    print $"($icon) ($failed_count) check(s) failed\n"
+    let plural = if $failed_count == 1 { "check" } else { "checks" }
+    print $"($icon) ($failed_count) ($plural) failed\n"
     print "Please fix the issues above before submitting your PR."
     exit 1
 }
