@@ -233,9 +233,13 @@
 
         # Shell-hook fragment that sets CUDA_PATH for the zenoh-cuda build.rs.
         # build.rs searches $CUDA_PATH/lib64 and $CUDA_PATH/lib for libcudart.so.
+        # Also exposes the host NVIDIA driver (nvidia-smi, libcuda.so) from NixOS's
+        # /run/opengl-driver and /run/current-system/sw — the driver is host-managed
+        # and not distributed via the Nix CUDA packages.
         cudaShellHook = pkgs.lib.optionalString pkgs.stdenv.isLinux ''
           export CUDA_PATH="${pkgs.cudaPackages.cuda_cudart}"
-          export LD_LIBRARY_PATH="${pkgs.cudaPackages.cuda_cudart.lib}/lib:$LD_LIBRARY_PATH"
+          export LD_LIBRARY_PATH="${pkgs.cudaPackages.cuda_cudart.lib}/lib:/run/opengl-driver/lib:$LD_LIBRARY_PATH"
+          export PATH="/run/current-system/sw/bin:$PATH"
         '';
 
         # Environment variables for Rust/C++ interop
