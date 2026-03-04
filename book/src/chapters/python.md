@@ -155,15 +155,20 @@ they are not compatible with `rmw_zenoh_cpp` typed actions.
 
 A goal moves through these states during its lifetime:
 
-```text
-send_goal()
-    │
-    ▼
-ACCEPTED ──► EXECUTING ──► SUCCEEDED
-                │
-                ├─ cancel() ──► CANCELING ──► CANCELED
-                │
-                └─ server abort ──────────── ABORTED
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> ACCEPTED : client: send_goal()
+    ACCEPTED --> EXECUTING : server: accept_and_execute()
+
+    EXECUTING --> SUCCEEDED : server: succeed()
+    EXECUTING --> ABORTED : server: abort()
+    EXECUTING --> CANCELING : client: cancel()
+    CANCELING --> CANCELED : server: canceled()
+
+    SUCCEEDED --> [*]
+    ABORTED --> [*]
+    CANCELED --> [*]
 ```
 
 `handle.status` returns the current state as an integer.
