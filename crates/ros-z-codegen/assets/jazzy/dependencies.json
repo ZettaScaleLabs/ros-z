@@ -55,6 +55,11 @@
     },
     "unique_identifier_msgs": {
       "dependencies": []
+    },
+    "lifecycle_msgs": {
+      "dependencies": [
+        "builtin_interfaces"
+      ]
     }
   }
 }
