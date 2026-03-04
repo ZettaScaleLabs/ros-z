@@ -49,6 +49,7 @@ impl ParameterService {
     /// Spawns 6 parameter service servers and creates the /parameter_events publisher.
     pub fn new(
         session: Arc<Session>,
+        graph: Arc<crate::graph::Graph>,
         node_name: &str,
         namespace: &str,
         node_id: usize,
@@ -242,6 +243,7 @@ impl ParameterService {
             ZPubBuilder {
                 entity: pub_entity,
                 session: session.clone(),
+                graph: graph.clone(),
                 with_attachment: true,
                 shm_config: None,
                 keyexpr_format: ke_format,

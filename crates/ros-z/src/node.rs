@@ -253,6 +253,7 @@ impl Builder for ZNodeBuilder {
             debug!("[NOD] Creating parameter service");
             let service = ParameterService::new(
                 self.session.clone(),
+                self.graph.clone(),
                 &self.name,
                 &self.namespace,
                 id,
