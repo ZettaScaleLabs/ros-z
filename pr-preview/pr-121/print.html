@@ -2067,6 +2067,43 @@ ros2 lifecycle set /my_node activate
 </tbody></table>
 </div>
 <p>The <code>~/transition_event</code> topic publishes a <code>TransitionEvent</code> message on every state change, enabling external monitoring.</p>
+<h2 id="lifecycle-client"><a class="header" href="#lifecycle-client">Lifecycle Client</a></h2>
+<p><code>ZLifecycleClient</code> lets you drive a remote lifecycle node's state machine from Rust code — the building block for bringup managers and system orchestrators.</p>
+<pre><code class="language-rust ignore">use std::time::Duration;
+use ros_z::prelude::*;
+use ros_z::lifecycle::ZLifecycleClient;
+
+<span class="boring">async fn run() -&gt; zenoh::Result&lt;()&gt; {
+</span>let ctx = ZContextBuilder::default().build()?;
+let mgr = ctx.create_node("bringup_manager").build()?;
+
+// Connect to the lifecycle node's management services
+let client = ZLifecycleClient::new(&amp;mgr, "camera_driver")?;
+let timeout = Duration::from_secs(5);
+
+// Drive the node through its lifecycle
+client.configure(timeout).await?;
+client.activate(timeout).await?;
+
+// Query the current state at any time
+let state = client.get_state(timeout).await?;
+println!("camera_driver is {:?}", state);
+
+// Graceful shutdown (auto-detects the current state)
+client.shutdown(timeout).await?;
+<span class="boring">Ok(())
+</span><span class="boring">}</span></code></pre>
+<div id="admonition-tip-1" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-1-title">
+<div class="admonition-title">
+<div id="admonition-tip-1-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/lifecycle.html#admonition-tip-1"></a>
+</div>
+<div>
+<p><code>shutdown()</code> queries the node's current state and sends the correct shutdown transition automatically. You don't need to deactivate or cleanup first.</p>
+</div>
+</div>
 <h2 id="full-example-managed-talker"><a class="header" href="#full-example-managed-talker">Full Example: Managed Talker</a></h2>
 <pre><code class="language-rust ignore">use ros_z::{Builder, Result, context::ZContextBuilder, lifecycle::CallbackReturn};
 use ros_z_msgs::std_msgs::String as RosString;
@@ -2141,6 +2178,85 @@ fn main() -&gt; Result&lt;()&gt; {
 
     println!("node finalized");
     Ok(())
+}</code></pre>
+<h2 id="full-example-bringup-orchestrator"><a class="header" href="#full-example-bringup-orchestrator">Full Example: Bringup Orchestrator</a></h2>
+<pre><code class="language-rust ignore">use std::time::Duration;
+
+use ros_z::{
+    Builder, Result,
+    context::ZContextBuilder,
+    lifecycle::{CallbackReturn, ZLifecycleClient},
+};
+
+fn main() -&gt; Result&lt;()&gt; {
+    // Shared Zenoh context — both the lifecycle node and the client connect
+    // through the same context (in production they'd typically be separate
+    // processes connected via a Zenoh router).
+    let ctx = ZContextBuilder::default().build()?;
+
+    // --- Lifecycle node (simulates a remote node) ---
+    let mut node = ctx.create_lifecycle_node("camera_driver").build()?;
+
+    node.on_configure = Box::new(|_| {
+        println!("[camera_driver] on_configure: opening device");
+        CallbackReturn::Success
+    });
+    node.on_activate = Box::new(|_| {
+        println!("[camera_driver] on_activate: streaming");
+        CallbackReturn::Success
+    });
+    node.on_deactivate = Box::new(|_| {
+        println!("[camera_driver] on_deactivate: paused");
+        CallbackReturn::Success
+    });
+    node.on_shutdown = Box::new(|_| {
+        println!("[camera_driver] on_shutdown: releasing device");
+        CallbackReturn::Success
+    });
+
+    // Give services a moment to register with Zenoh
+    std::thread::sleep(Duration::from_millis(200));
+
+    // --- Bringup manager ---
+    let mgr = ctx.create_node("bringup_manager").build()?;
+    let client = ZLifecycleClient::new(&amp;mgr, "camera_driver")?;
+
+    // Allow time for service discovery
+    std::thread::sleep(Duration::from_millis(300));
+
+    let timeout = Duration::from_secs(5);
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
+    rt.block_on(async {
+        // Query the initial state
+        let state = client.get_state(timeout).await?;
+        println!("[bringup] camera_driver is {:?}", state);
+
+        // Drive the node through its lifecycle
+        println!("[bringup] configuring...");
+        assert!(client.configure(timeout).await?);
+
+        println!("[bringup] activating...");
+        assert!(client.activate(timeout).await?);
+
+        let state = client.get_state(timeout).await?;
+        println!("[bringup] camera_driver is now {:?}", state);
+
+        // Simulate some work
+        println!("[bringup] node is running... (would do work here)");
+
+        // Graceful shutdown
+        println!("[bringup] deactivating...");
+        assert!(client.deactivate(timeout).await?);
+
+        println!("[bringup] shutting down...");
+        assert!(client.shutdown(timeout).await?);
+
+        let state = client.get_state(timeout).await?;
+        println!("[bringup] camera_driver is now {:?}", state);
+
+        Ok(())
+    })
 }</code></pre>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="building-ros-z"><a class="header" href="#building-ros-z">Building ros-z</a></h1>
 <p><strong>ros-z is designed to work without ROS 2 dependencies by default, enabling pure Rust development while optionally integrating with existing ROS 2 installations.</strong> This flexible approach lets you choose your dependency level based on project requirements.</p>
