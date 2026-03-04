@@ -1886,18 +1886,24 @@ impl ZAction for CountAction {
 <h2 id="state-machine"><a class="header" href="#state-machine">State Machine</a></h2>
 <p>A lifecycle node moves through a defined set of states. Only in the <strong>Active</strong> state does a node send or receive messages.</p>
 <pre class="mermaid">stateDiagram-v2
-    [*] --&gt; Unconfigured: create
-    Unconfigured --&gt; Inactive: configure ✓
-    Unconfigured --&gt; Finalized: shutdown
-    Inactive --&gt; Active: activate ✓
-    Inactive --&gt; Unconfigured: cleanup ✓
-    Inactive --&gt; Finalized: shutdown
-    Active --&gt; Inactive: deactivate ✓
-    Active --&gt; Finalized: shutdown
-    Finalized --&gt; [*]
-    Unconfigured --&gt; Unconfigured: configure ✗ (failure)
-    note right of Active: Publishers deliver messages
-    note right of Inactive: Publishers drop messages silently
+    direction LR
+
+    [*] --&gt; Unconfigured
+
+    state &quot;Unconfigured&quot; as Unconfigured
+    state &quot;Inactive&quot; as Inactive
+    state &quot;Active&lt;br&gt;(publishing)&quot; as Active
+    state &quot;Finalized&quot; as Finalized
+
+    Unconfigured --&gt; Inactive    : configure
+    Inactive     --&gt; Active      : activate
+    Active       --&gt; Inactive    : deactivate
+    Inactive     --&gt; Unconfigured: cleanup
+
+    Unconfigured --&gt; Finalized   : shutdown
+    Inactive     --&gt; Finalized   : shutdown
+    Active       --&gt; Finalized   : shutdown
+    Finalized    --&gt; [*]
 </pre>
 <h3 id="primary-states"><a class="header" href="#primary-states">Primary States</a></h3>
 <div class="table-wrapper"><table><thead><tr><th>State</th><th>ID</th><th>Description</th></tr></thead><tbody>
