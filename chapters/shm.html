@@ -724,6 +724,17 @@ fn generate_pointcloud_normal(num_points: usize) -&gt; PointCloud2 {
 
 === All patterns completed successfully ===
 </code></pre>
+<h2 id="python-bindings"><a class="header" href="#python-bindings">Python Bindings</a></h2>
+<p>The Python <code>ZContextBuilder</code> exposes the same methods as the Rust API:</p>
+<pre><code class="language-python">import ros_z_py as rz
+
+ctx = rz.ZContextBuilder().with_shm_enabled().build()
+ctx = rz.ZContextBuilder().with_shm_pool_size(100 * 1024 * 1024).build()
+ctx = rz.ZContextBuilder().with_shm_enabled().with_shm_threshold(4096).build()
+</code></pre>
+<p>The same environment variables apply: <code>ZENOH_SHM_ALLOC_SIZE</code> and
+<code>ZENOH_SHM_MESSAGE_SIZE_THRESHOLD</code> are read automatically inside
+<code>with_shm_enabled()</code> and <code>with_shm_pool_size()</code>, matching <code>rmw_zenoh_cpp</code> behavior.</p>
 <h2 id="testing"><a class="header" href="#testing">Testing</a></h2>
 <h3 id="run-shm-tests"><a class="header" href="#run-shm-tests">Run SHM Tests</a></h3>
 <pre><code class="language-bash"># SHM integration tests

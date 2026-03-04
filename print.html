@@ -5112,6 +5112,17 @@ fn generate_pointcloud_normal(num_points: usize) -&gt; PointCloud2 {
 
 === All patterns completed successfully ===
 </code></pre>
+<h2 id="python-bindings"><a class="header" href="#python-bindings">Python Bindings</a></h2>
+<p>The Python <code>ZContextBuilder</code> exposes the same methods as the Rust API:</p>
+<pre><code class="language-python">import ros_z_py as rz
+
+ctx = rz.ZContextBuilder().with_shm_enabled().build()
+ctx = rz.ZContextBuilder().with_shm_pool_size(100 * 1024 * 1024).build()
+ctx = rz.ZContextBuilder().with_shm_enabled().with_shm_threshold(4096).build()
+</code></pre>
+<p>The same environment variables apply: <code>ZENOH_SHM_ALLOC_SIZE</code> and
+<code>ZENOH_SHM_MESSAGE_SIZE_THRESHOLD</code> are read automatically inside
+<code>with_shm_enabled()</code> and <code>with_shm_pool_size()</code>, matching <code>rmw_zenoh_cpp</code> behavior.</p>
 <h2 id="testing"><a class="header" href="#testing">Testing</a></h2>
 <h3 id="run-shm-tests"><a class="header" href="#run-shm-tests">Run SHM Tests</a></h3>
 <pre><code class="language-bash"># SHM integration tests
@@ -5799,7 +5810,7 @@ ros2 run demo_nodes_cpp talker
 <li><a href="https://docs.ros.org/en/jazzy/Concepts/Intermediate/About-Different-Middleware-Vendors.html">ROS 2 RMW Documentation</a></li>
 <li><a href="https://github.com/ZettaScaleLabs/ros-z">ros-z GitHub Repository</a></li>
 </ul>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="python-bindings"><a class="header" href="#python-bindings">Python Bindings</a></h1>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="python-bindings-1"><a class="header" href="#python-bindings-1">Python Bindings</a></h1>
 <p><strong>ros-z provides Python bindings via <code>ros-z-py</code>, enabling Python applications to communicate with Rust and ROS 2 nodes using the same Zenoh transport.</strong> The bindings use PyO3 for Rust-Python interop and msgspec for efficient message serialization.</p>
 <div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
 <div class="admonition-title">
