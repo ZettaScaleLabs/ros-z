@@ -20,14 +20,24 @@ use ros_z::{
     parameter::{ParameterDescriptor, ParameterType, ParameterValue},
 };
 
+/// Spin time for `ros2` CLI discovery (seconds). Each `ros2` invocation needs
+/// time to connect to the Zenoh router and receive liveliness tokens.
+const SPIN_TIME: &str = "2";
+
+/// Build a `ros2` command with rmw_zenoh_cpp environment and discovery spin time.
+fn ros2_cmd(rmw_env: &str) -> Command {
+    let mut cmd = Command::new("ros2");
+    cmd.env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
+        .env("ZENOH_CONFIG_OVERRIDE", rmw_env);
+    cmd
+}
+
 /// Wait until `ros2 node list` shows the given node name, or panic after timeout.
 fn wait_for_node(node_name: &str, rmw_env: &str, timeout: Duration) {
     let start = Instant::now();
     loop {
-        let output = Command::new("ros2")
-            .args(["node", "list"])
-            .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
-            .env("ZENOH_CONFIG_OVERRIDE", rmw_env)
+        let output = ros2_cmd(rmw_env)
+            .args(["node", "list", "--spin-time", SPIN_TIME, "--no-daemon"])
             .output()
             .expect("Failed to run ros2 node list");
 
@@ -75,13 +85,17 @@ fn test_ros2_param_list_on_ros_z_node() {
         thread::sleep(Duration::from_secs(30));
     });
 
-    // Wait until rmw_zenoh_cpp discovers the ros-z node
     wait_for_node("param_list_node", &rmw_env, Duration::from_secs(15));
 
-    let output = Command::new("timeout")
-        .args(["10", "ros2", "param", "list", "/param_list_node"])
-        .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
-        .env("ZENOH_CONFIG_OVERRIDE", &rmw_env)
+    let output = ros2_cmd(&rmw_env)
+        .args([
+            "param",
+            "list",
+            "/param_list_node",
+            "--spin-time",
+            SPIN_TIME,
+            "--no-daemon",
+        ])
         .output()
         .expect("Failed to run ros2 param list");
 
@@ -126,34 +140,40 @@ fn test_ros2_param_get_set_on_ros_z_node() {
         thread::sleep(Duration::from_secs(60));
     });
 
-    // Wait until rmw_zenoh_cpp discovers the ros-z node
     wait_for_node("param_getset_node", &rmw_env, Duration::from_secs(15));
 
     // Get initial value
-    let output = Command::new("timeout")
-        .args(["10", "ros2", "param", "get", "/param_getset_node", "count"])
-        .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
-        .env("ZENOH_CONFIG_OVERRIDE", &rmw_env)
+    let output = ros2_cmd(&rmw_env)
+        .args([
+            "param",
+            "get",
+            "/param_getset_node",
+            "count",
+            "--spin-time",
+            SPIN_TIME,
+            "--no-daemon",
+        ])
         .output()
         .expect("Failed to run ros2 param get");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    println!("Initial get: {}", stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    println!("Initial get stdout: {}", stdout);
+    println!("Initial get stderr: {}", stderr);
     assert!(stdout.contains("0"), "Expected value 0, got: {}", stdout);
 
     // Set new value
-    let output = Command::new("timeout")
+    let output = ros2_cmd(&rmw_env)
         .args([
-            "10",
-            "ros2",
             "param",
             "set",
             "/param_getset_node",
             "count",
             "42",
+            "--spin-time",
+            SPIN_TIME,
+            "--no-daemon",
         ])
-        .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
-        .env("ZENOH_CONFIG_OVERRIDE", &rmw_env)
         .output()
         .expect("Failed to run ros2 param set");
 
@@ -168,10 +188,16 @@ fn test_ros2_param_get_set_on_ros_z_node() {
     );
 
     // Get updated value
-    let output = Command::new("timeout")
-        .args(["10", "ros2", "param", "get", "/param_getset_node", "count"])
-        .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
-        .env("ZENOH_CONFIG_OVERRIDE", &rmw_env)
+    let output = ros2_cmd(&rmw_env)
+        .args([
+            "param",
+            "get",
+            "/param_getset_node",
+            "count",
+            "--spin-time",
+            SPIN_TIME,
+            "--no-daemon",
+        ])
         .output()
         .expect("Failed to run ros2 param get");
 
@@ -225,20 +251,23 @@ fn test_ros_z_reads_rclcpp_node_params() {
 
     let _guard = ProcessGuard::new(server, "rclcpp_param_node");
 
-    // Wait until rmw_zenoh_cpp discovers the rclcpp node
     wait_for_node("rclcpp_param_node", &rmw_env, Duration::from_secs(15));
 
-    let output = Command::new("timeout")
-        .args(["10", "ros2", "param", "list", "/rclcpp_param_node"])
-        .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
-        .env("ZENOH_CONFIG_OVERRIDE", &rmw_env)
+    let output = ros2_cmd(&rmw_env)
+        .args([
+            "param",
+            "list",
+            "/rclcpp_param_node",
+            "--spin-time",
+            SPIN_TIME,
+            "--no-daemon",
+        ])
         .output()
         .expect("Failed to run ros2 param list");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     println!("rclcpp node params: {}", stdout);
 
-    // All rclcpp nodes have use_sim_time by default
     assert!(
         stdout.contains("use_sim_time"),
         "Expected 'use_sim_time' in rclcpp node params, got: {}",
