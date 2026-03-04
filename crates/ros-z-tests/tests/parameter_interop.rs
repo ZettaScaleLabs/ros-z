@@ -8,13 +8,46 @@
 
 mod common;
 
-use std::{process::Command, thread, time::Duration};
+use std::{
+    process::Command,
+    thread,
+    time::{Duration, Instant},
+};
 
 use common::*;
 use ros_z::{
     Builder,
     parameter::{ParameterDescriptor, ParameterType, ParameterValue},
 };
+
+/// Wait until `ros2 node list` shows the given node name, or panic after timeout.
+fn wait_for_node(node_name: &str, rmw_env: &str, timeout: Duration) {
+    let start = Instant::now();
+    loop {
+        let output = Command::new("ros2")
+            .args(["node", "list"])
+            .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
+            .env("ZENOH_CONFIG_OVERRIDE", rmw_env)
+            .output()
+            .expect("Failed to run ros2 node list");
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        if stdout.contains(node_name) {
+            println!("Node {} discovered after {:?}", node_name, start.elapsed());
+            return;
+        }
+
+        if start.elapsed() > timeout {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            panic!(
+                "Timed out waiting for node {} after {:?}\nstdout: {}\nstderr: {}",
+                node_name, timeout, stdout, stderr
+            );
+        }
+
+        thread::sleep(Duration::from_secs(1));
+    }
+}
 
 /// Test that `ros2 param list` can see parameters declared on a ros-z node.
 #[test]
@@ -24,6 +57,7 @@ fn test_ros2_param_list_on_ros_z_node() {
     }
 
     let router = TestRouter::new();
+    let rmw_env = router.rmw_zenoh_env();
 
     let endpoint = router.endpoint().to_string();
     let _server = thread::spawn(move || {
@@ -41,12 +75,13 @@ fn test_ros2_param_list_on_ros_z_node() {
         thread::sleep(Duration::from_secs(30));
     });
 
-    wait_for_ready(Duration::from_secs(10));
+    // Wait until rmw_zenoh_cpp discovers the ros-z node
+    wait_for_node("param_list_node", &rmw_env, Duration::from_secs(15));
 
     let output = Command::new("timeout")
         .args(["10", "ros2", "param", "list", "/param_list_node"])
         .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
-        .env("ZENOH_CONFIG_OVERRIDE", router.rmw_zenoh_env())
+        .env("ZENOH_CONFIG_OVERRIDE", &rmw_env)
         .output()
         .expect("Failed to run ros2 param list");
 
@@ -77,6 +112,7 @@ fn test_ros2_param_get_set_on_ros_z_node() {
     }
 
     let router = TestRouter::new();
+    let rmw_env = router.rmw_zenoh_env();
 
     let endpoint = router.endpoint().to_string();
     let _server = thread::spawn(move || {
@@ -90,9 +126,8 @@ fn test_ros2_param_get_set_on_ros_z_node() {
         thread::sleep(Duration::from_secs(60));
     });
 
-    wait_for_ready(Duration::from_secs(10));
-
-    let rmw_env = router.rmw_zenoh_env();
+    // Wait until rmw_zenoh_cpp discovers the ros-z node
+    wait_for_node("param_getset_node", &rmw_env, Duration::from_secs(15));
 
     // Get initial value
     let output = Command::new("timeout")
@@ -169,6 +204,7 @@ fn test_ros_z_reads_rclcpp_node_params() {
     }
 
     let router = TestRouter::new();
+    let rmw_env = router.rmw_zenoh_env();
 
     // Start an rclcpp talker node (it declares the 'use_sim_time' parameter by default)
     let server = Command::new("ros2")
@@ -181,7 +217,7 @@ fn test_ros_z_reads_rclcpp_node_params() {
             "__node:=rclcpp_param_node",
         ])
         .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
-        .env("ZENOH_CONFIG_OVERRIDE", router.rmw_zenoh_env())
+        .env("ZENOH_CONFIG_OVERRIDE", &rmw_env)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
@@ -189,13 +225,13 @@ fn test_ros_z_reads_rclcpp_node_params() {
 
     let _guard = ProcessGuard::new(server, "rclcpp_param_node");
 
-    wait_for_ready(Duration::from_secs(5));
+    // Wait until rmw_zenoh_cpp discovers the rclcpp node
+    wait_for_node("rclcpp_param_node", &rmw_env, Duration::from_secs(15));
 
-    // Use ros2 param list to verify the rclcpp node's parameters are visible
     let output = Command::new("timeout")
         .args(["10", "ros2", "param", "list", "/rclcpp_param_node"])
         .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
-        .env("ZENOH_CONFIG_OVERRIDE", router.rmw_zenoh_env())
+        .env("ZENOH_CONFIG_OVERRIDE", &rmw_env)
         .output()
         .expect("Failed to run ros2 param list");
 
