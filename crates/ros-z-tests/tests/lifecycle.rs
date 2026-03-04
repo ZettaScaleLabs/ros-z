@@ -19,6 +19,7 @@ use ros_z::{
     context::ZContextBuilder,
     lifecycle::{CallbackReturn, LifecycleState, ZLifecycleNode},
 };
+#[cfg(feature = "ros-msgs")]
 use ros_z_msgs::std_msgs::String as RosString;
 
 // ---------------------------------------------------------------------------
