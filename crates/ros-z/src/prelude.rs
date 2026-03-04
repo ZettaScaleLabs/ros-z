@@ -39,3 +39,8 @@ pub use crate::entity::{TypeHash, TypeInfo};
 
 /// The `Result` alias used throughout ros-z (equivalent to `zenoh::Result`).
 pub use zenoh::Result;
+
+/// Lifecycle node support.
+pub use crate::lifecycle::{
+    CallbackReturn, LifecycleState, ManagedEntity, ZLifecycleNode, ZLifecyclePublisher,
+};

@@ -541,6 +541,21 @@ impl std::fmt::Debug for ZContext {
 impl ZContext {
     /// Create a builder for a new ROS 2 node within this context.
     ///
+    /// Create a lifecycle node builder.
+    ///
+    /// Call `.build()` on the returned builder (requires `use ros_z::Builder;`).
+    pub fn create_lifecycle_node<S: AsRef<str>>(
+        &self,
+        name: S,
+    ) -> crate::lifecycle::node::ZLifecycleNodeBuilder {
+        crate::lifecycle::node::ZLifecycleNodeBuilder {
+            ctx: self.clone(),
+            name: name.as_ref().to_owned(),
+            namespace: None,
+            enable_communication_interface: true,
+        }
+    }
+
     /// Call `.build()` on the returned [`ZNodeBuilder`](crate::node::ZNodeBuilder) to
     /// produce the node. Requires `use ros_z::Builder;` in scope.
     pub fn create_node<S: AsRef<str>>(&self, name: S) -> ZNodeBuilder {
