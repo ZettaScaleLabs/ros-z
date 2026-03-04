@@ -237,7 +237,7 @@ impl ServiceTypeInfo for GetParametersSrv {
         TypeInfo::new(
             "rcl_interfaces::srv::dds_::GetParameters_",
             TypeHash::from_rihs_string(
-                "RIHS01_ff8625a0d92dea6238645a1cf2a8e5cc4d6cae3ad55cc60ebab668229d69bca1",
+                "RIHS01_bf9803d5c74cf989a5de3e0c2e99444599a627c7ff75f97b8c05b01003675cbc",
             )
             .expect("Invalid RIHS hash"),
         )
@@ -275,7 +275,7 @@ impl ServiceTypeInfo for ListParametersSrv {
         TypeInfo::new(
             "rcl_interfaces::srv::dds_::ListParameters_",
             TypeHash::from_rihs_string(
-                "RIHS01_a49844813120a5b0f2e1b4d052cbe518b9b14cffebdb337f9b103ee675d15200",
+                "RIHS01_3e6062bfbb27bfb8730d4cef2558221f51a11646d78e7bb30a1e83afac3aad9d",
             )
             .expect("Invalid RIHS hash"),
         )
@@ -294,7 +294,7 @@ impl ServiceTypeInfo for SetParametersSrv {
         TypeInfo::new(
             "rcl_interfaces::srv::dds_::SetParameters_",
             TypeHash::from_rihs_string(
-                "RIHS01_341f8d1e8090b1c83f6703f2ec068dccb8c6f77248f74a8b90dc1c045e3c01e6",
+                "RIHS01_56eed9a67e169f9cb6c1f987bc88f868c14a8fc9f743a263bc734c154015d7e0",
             )
             .expect("Invalid RIHS hash"),
         )
@@ -313,7 +313,7 @@ impl ServiceTypeInfo for SetParametersAtomicallySrv {
         TypeInfo::new(
             "rcl_interfaces::srv::dds_::SetParametersAtomically_",
             TypeHash::from_rihs_string(
-                "RIHS01_ab3180991930f27403422debfc099e1dbed1041112d2ed4f5405768ae12a6399",
+                "RIHS01_0e192ef259c07fc3c07a13191d27002222e65e00ccec653ca05e856f79285fcd",
             )
             .expect("Invalid RIHS hash"),
         )
@@ -329,7 +329,7 @@ pub fn parameter_event_type_info() -> TypeInfo {
     TypeInfo::new(
         "rcl_interfaces::msg::dds_::ParameterEvent_",
         TypeHash::from_rihs_string(
-            "RIHS01_0971aa2439a481ea54019869e8f8e2848875db8905803c2b905e833803d755a5",
+            "RIHS01_043e627780fcad87a22d225bc2a037361dba713fca6a6b9f4b869a5aa0393204",
         )
         .expect("Invalid RIHS hash"),
     )
