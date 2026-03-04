@@ -9,8 +9,6 @@
 //! The tests do **not** require a running Zenoh router; they use `ZContextBuilder`
 //! in peer mode (no connect endpoints) so they can run offline.
 
-mod common;
-
 use std::sync::{
     Arc,
     atomic::{AtomicU32, Ordering},
@@ -20,7 +18,6 @@ use ros_z::{
     Builder,
     context::ZContextBuilder,
     lifecycle::{CallbackReturn, LifecycleState, ZLifecycleNode},
-    prelude::*,
 };
 use ros_z_msgs::std_msgs::String as RosString;
 
