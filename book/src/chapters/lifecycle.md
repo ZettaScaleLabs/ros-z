@@ -225,8 +225,49 @@ ros2 lifecycle set /my_node activate
 
 The `~/transition_event` topic publishes a `TransitionEvent` message on every state change, enabling external monitoring.
 
+## Lifecycle Client
+
+`ZLifecycleClient` lets you drive a remote lifecycle node's state machine from Rust code — the building block for bringup managers and system orchestrators.
+
+```rust,ignore
+use std::time::Duration;
+use ros_z::prelude::*;
+use ros_z::lifecycle::ZLifecycleClient;
+
+# async fn run() -> zenoh::Result<()> {
+let ctx = ZContextBuilder::default().build()?;
+let mgr = ctx.create_node("bringup_manager").build()?;
+
+// Connect to the lifecycle node's management services
+let client = ZLifecycleClient::new(&mgr, "camera_driver")?;
+let timeout = Duration::from_secs(5);
+
+// Drive the node through its lifecycle
+client.configure(timeout).await?;
+client.activate(timeout).await?;
+
+// Query the current state at any time
+let state = client.get_state(timeout).await?;
+println!("camera_driver is {:?}", state);
+
+// Graceful shutdown (auto-detects the current state)
+client.shutdown(timeout).await?;
+# Ok(())
+# }
+```
+
+```admonish tip
+`shutdown()` queries the node's current state and sends the correct shutdown transition automatically. You don't need to deactivate or cleanup first.
+```
+
 ## Full Example: Managed Talker
 
 ```rust,ignore
 {{#include ../../../crates/ros-z/examples/lifecycle_talker.rs:full_example}}
+```
+
+## Full Example: Bringup Orchestrator
+
+```rust,ignore
+{{#include ../../../crates/ros-z/examples/lifecycle_bringup.rs:full_example}}
 ```

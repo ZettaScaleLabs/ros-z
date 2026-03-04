@@ -272,3 +272,182 @@ fn test_publisher_topic_name() {
     // After qualification the topic should contain "my_topic"
     assert!(pub_.topic_name().contains("my_topic"));
 }
+
+// ---------------------------------------------------------------------------
+// disable_communication_interface tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_disable_communication_interface() {
+    // Building a lifecycle node with services disabled should still work
+    // for purely local usage (no service overhead).
+    let ctx = ZContextBuilder::default()
+        .disable_multicast_scouting()
+        .build()
+        .expect("context");
+    let mut node = ctx
+        .create_lifecycle_node("lc_no_comm")
+        .disable_communication_interface()
+        .build()
+        .expect("lifecycle node");
+
+    // State machine works fine without services
+    assert_eq!(node.get_current_state(), LifecycleState::Unconfigured);
+    node.configure().unwrap();
+    assert_eq!(node.get_current_state(), LifecycleState::Inactive);
+}
+
+// ---------------------------------------------------------------------------
+// ZLifecycleClient integration tests (require Zenoh router)
+// ---------------------------------------------------------------------------
+
+mod common;
+
+use ros_z::lifecycle::ZLifecycleClient;
+
+struct ClientTestEnv {
+    _router: common::TestRouter,
+    _node: ros_z::lifecycle::ZLifecycleNode,
+    _ctx_node: ros_z::context::ZContext,
+    _ctx_client: ros_z::context::ZContext,
+    _mgr_node: ros_z::node::ZNode,
+    client: ZLifecycleClient,
+}
+
+fn make_client_test_env(node_name: &str) -> ClientTestEnv {
+    use std::thread;
+    use std::time::Duration;
+
+    let router = common::TestRouter::new();
+
+    let ctx_node =
+        common::create_ros_z_context_with_endpoint(router.endpoint()).expect("node context");
+    let lc_node = ctx_node
+        .create_lifecycle_node(node_name)
+        .build()
+        .expect("lifecycle node");
+
+    thread::sleep(Duration::from_millis(500));
+
+    let ctx_client =
+        common::create_ros_z_context_with_endpoint(router.endpoint()).expect("client context");
+    let mgr_node = ctx_client
+        .create_node("lifecycle_manager")
+        .build()
+        .expect("manager node");
+    let client = ZLifecycleClient::new(&mgr_node, node_name).expect("lifecycle client");
+
+    thread::sleep(Duration::from_millis(500));
+
+    ClientTestEnv {
+        _router: router,
+        _node: lc_node,
+        _ctx_node: ctx_node,
+        _ctx_client: ctx_client,
+        _mgr_node: mgr_node,
+        client,
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_client_get_state() {
+    let env = make_client_test_env("lc_client_get_state");
+    let timeout = std::time::Duration::from_secs(5);
+
+    let state = env.client.get_state(timeout).await.expect("get_state");
+    assert_eq!(state, LifecycleState::Unconfigured);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_client_configure_activate_full_cycle() {
+    let env = make_client_test_env("lc_client_full_cycle");
+    let timeout = std::time::Duration::from_secs(5);
+
+    // configure: Unconfigured → Inactive
+    assert!(env.client.configure(timeout).await.expect("configure"));
+    assert_eq!(
+        env.client.get_state(timeout).await.expect("state"),
+        LifecycleState::Inactive
+    );
+
+    // activate: Inactive → Active
+    assert!(env.client.activate(timeout).await.expect("activate"));
+    assert_eq!(
+        env.client.get_state(timeout).await.expect("state"),
+        LifecycleState::Active
+    );
+
+    // deactivate: Active → Inactive
+    assert!(env.client.deactivate(timeout).await.expect("deactivate"));
+    assert_eq!(
+        env.client.get_state(timeout).await.expect("state"),
+        LifecycleState::Inactive
+    );
+
+    // cleanup: Inactive → Unconfigured
+    assert!(env.client.cleanup(timeout).await.expect("cleanup"));
+    assert_eq!(
+        env.client.get_state(timeout).await.expect("state"),
+        LifecycleState::Unconfigured
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_client_shutdown() {
+    let env = make_client_test_env("lc_client_shutdown");
+    let timeout = std::time::Duration::from_secs(5);
+
+    // shutdown from Unconfigured → Finalized
+    assert!(env.client.shutdown(timeout).await.expect("shutdown"));
+    assert_eq!(
+        env.client.get_state(timeout).await.expect("state"),
+        LifecycleState::Finalized
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_client_get_available_states() {
+    let env = make_client_test_env("lc_client_avail_states");
+    let timeout = std::time::Duration::from_secs(5);
+
+    let states = env
+        .client
+        .get_available_states(timeout)
+        .await
+        .expect("get_available_states");
+    // Should contain all 11 states (4 primary + 7 transition states)
+    assert!(states.len() >= 4);
+    let ids: Vec<u8> = states.iter().map(|s| s.id).collect();
+    assert!(ids.contains(&1)); // Unconfigured
+    assert!(ids.contains(&2)); // Inactive
+    assert!(ids.contains(&3)); // Active
+    assert!(ids.contains(&4)); // Finalized
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_client_get_available_transitions() {
+    let env = make_client_test_env("lc_client_avail_trans");
+    let timeout = std::time::Duration::from_secs(5);
+
+    let transitions = env
+        .client
+        .get_available_transitions(timeout)
+        .await
+        .expect("get_available_transitions");
+    // From Unconfigured: configure + shutdown = 2 transitions
+    assert_eq!(transitions.len(), 2);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_client_invalid_transition_returns_false() {
+    let env = make_client_test_env("lc_client_invalid");
+    let timeout = std::time::Duration::from_secs(5);
+
+    // Trying to activate from Unconfigured (should fail — need configure first)
+    let result = env
+        .client
+        .trigger(ros_z::lifecycle::TransitionId::Activate, timeout)
+        .await
+        .expect("trigger");
+    assert!(!result);
+}
