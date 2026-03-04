@@ -45,5 +45,6 @@ pub use zenoh::Result;
 
 /// Lifecycle node support.
 pub use crate::lifecycle::{
-    CallbackReturn, LifecycleState, ManagedEntity, ZLifecycleNode, ZLifecyclePublisher,
+    CallbackReturn, LifecycleState, ManagedEntity, ZLifecycleClient, ZLifecycleNode,
+    ZLifecyclePublisher,
 };
