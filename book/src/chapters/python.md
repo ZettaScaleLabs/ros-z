@@ -153,21 +153,26 @@ they are not compatible with `rmw_zenoh_cpp` typed actions.
 
 ### Goal Status
 
-`GoalStatus` constants mirror `action_msgs/msg/GoalStatus`:
+A goal moves through these states during its lifetime:
 
-| Constant | Value | `is_active()` | `is_terminal()` |
-|----------|-------|--------------|----------------|
-| `ACCEPTED` | 1 | ✓ | — |
-| `EXECUTING` | 2 | ✓ | — |
-| `CANCELING` | 3 | ✓ | — |
-| `SUCCEEDED` | 4 | — | ✓ |
-| `CANCELED` | 5 | — | ✓ |
-| `ABORTED` | 6 | — | ✓ |
+```text
+send_goal()
+    │
+    ▼
+ACCEPTED ──► EXECUTING ──► SUCCEEDED
+                │
+                ├─ cancel() ──► CANCELING ──► CANCELED
+                │
+                └─ server abort ──────────── ABORTED
+```
 
-```python
+`handle.status` returns the current state as an integer.
+`GoalStatus` wraps it with helpers:
+
+```python,ignore
 status = ros_z_py.GoalStatus(handle.status)
-if status.is_terminal():
-    print("Done:", status)
+status.is_active()    # True while ACCEPTED / EXECUTING / CANCELING
+status.is_terminal()  # True once SUCCEEDED / CANCELED / ABORTED
 ```
 
 ```admonish warning
