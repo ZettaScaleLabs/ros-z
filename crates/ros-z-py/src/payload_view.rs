@@ -378,7 +378,7 @@ impl ZPayloadView {
             // cuda → torch → cpu → numpy (device copy)
             let t = self.as_torch(py)?;
             let cpu = t.call_method0(py, "cpu")?;
-            return Ok(cpu.call_method0(py, "numpy")?);
+            return cpu.call_method0(py, "numpy");
         }
         let raw = self.raw_bytes(py)?;
         let np = py.import_bound("numpy")?;

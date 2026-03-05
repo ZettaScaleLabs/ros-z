@@ -236,6 +236,7 @@ impl PyCudaBuf {
     /// Returns:
     ///     CudaZBuf: Ready for `publisher.publish_zbuf()`.
     #[pyo3(signature = (keepalive=None))]
+    #[allow(clippy::wrong_self_convention)] // &mut self required by #[pyclass]; inner is taken
     pub fn into_zbuf(&mut self, keepalive: Option<PyObject>) -> PyResult<ZBufWrapper> {
         let inner = self
             .inner
