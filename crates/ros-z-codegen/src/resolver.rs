@@ -933,7 +933,7 @@ impl ResolvedMessageExt for ResolvedMessage {
             .parsed
             .path
             .to_str()
-            .map_or(false, |p| p.contains("/action/"));
+            .is_some_and(|p| p.contains("/action/"));
 
         let type_name = if is_action_component && self.parsed.name.ends_with("Goal") {
             let base = &self.parsed.name[..self.parsed.name.len() - 4];
