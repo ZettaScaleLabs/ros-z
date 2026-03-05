@@ -4,6 +4,8 @@ use pyo3::prelude::*;
 
 mod action;
 mod context;
+#[cfg(feature = "cuda")]
+mod cuda_buf;
 mod error;
 mod graph;
 mod node;
@@ -71,6 +73,10 @@ fn ros_z_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyZActionServer>()?;
     m.add_class::<PyZServerGoalRequest>()?;
     m.add_class::<PyZServerExecutingHandle>()?;
+    #[cfg(feature = "cuda")]
+    m.add_class::<cuda_buf::PyCudaBuf>()?;
+    #[cfg(feature = "cuda")]
+    m.add_class::<cuda_buf::ZBufWrapper>()?;
 
     // QoS presets
     m.add(

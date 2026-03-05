@@ -40,6 +40,28 @@ impl PyZPublisher {
         self.inner.publish(data.into()).map_err(|e| e.into_pyerr())
     }
 
+    /// Publish a CUDA ZBuf directly (zero-copy GPU transport).
+    ///
+    /// Use this to send a CUDA device buffer via IPC without any CPU copies.
+    /// The subscriber receives a `ZPayloadView` with `is_cuda=True` and can
+    /// extract the GPU tensor via `as_dlpack()`.
+    ///
+    /// Args:
+    ///     zbuf: A `CudaZBuf` returned by `PyCudaBuf.into_zbuf()`.
+    ///
+    /// Example (Python):
+    ///     buf = PyCudaBuf.alloc_device(4 * 1024 * 1024, device_id=0)
+    ///     # ... fill via cupy/torch ...
+    ///     publisher.publish_zbuf(buf.into_zbuf())
+    #[cfg(feature = "cuda")]
+    fn publish_zbuf(&self, zbuf: &crate::cuda_buf::ZBufWrapper) -> PyResult<()> {
+        use zenoh_buffers::ZBuf as ZenohZBuf;
+        let zenoh_zbuf: ZenohZBuf = zbuf.0.clone().into_inner();
+        self.inner
+            .publish(zenoh_zbuf.into())
+            .map_err(|e| e.into_pyerr())
+    }
+
     /// Get the topic name (for debugging)
     unsafe fn get_type_name(&self) -> String {
         self.type_name.clone()

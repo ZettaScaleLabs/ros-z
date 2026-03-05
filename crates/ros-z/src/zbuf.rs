@@ -50,6 +50,33 @@ impl ZBuf {
     pub fn from_zenoh(zbuf: ZenohZBuf) -> Self {
         Self(zbuf)
     }
+
+    /// Creates a ZBuf that carries CUDA device memory.
+    ///
+    /// The resulting `ZBuf` has its ZSlice kind set to `ZSliceKind::CudaPtr`,
+    /// which signals the transport layer to send a CUDA IPC handle instead of
+    /// copying the bytes over the network.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use ros_z::{ZBuf, CudaBufInner};
+    ///
+    /// let cuda = CudaBufInner::alloc_device(1024 * 1024, 0)?;
+    /// // ... fill via CUDA kernel ...
+    /// let zbuf = ZBuf::from_cuda(cuda);
+    /// publisher.publish(&PointCloud2 { data: zbuf, .. }).await?;
+    /// ```
+    #[cfg(feature = "cuda")]
+    pub fn from_cuda(buf: zenoh_cuda::CudaBufInner) -> Self {
+        use std::sync::Arc;
+        use zenoh_buffers::{ZSlice, ZSliceKind};
+        let mut zslice = ZSlice::from(Arc::new(buf));
+        zslice.kind = ZSliceKind::CudaPtr;
+        let mut zbuf = ZenohZBuf::default();
+        zbuf.push_zslice(zslice);
+        ZBuf(zbuf)
+    }
 }
 
 // Conversions
