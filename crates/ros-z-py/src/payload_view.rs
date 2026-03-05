@@ -342,46 +342,48 @@ unsafe impl Send for DlpackCtx {}
 #[cfg(feature = "cuda")]
 unsafe impl Sync for DlpackCtx {}
 
-/// DLManagedTensor deleter: frees the DlpackCtx, called by the tensor consumer.
+/// DLManagedTensor deleter — called by the tensor consumer (e.g. PyTorch).
 ///
-/// The DLManagedTensor itself is freed by `dlpack_capsule_destructor`.
+/// Per the DLPack spec the deleter owns ALL resources: ctx, AND the
+/// DLManagedTensor struct itself.  PyTorch 2.0+ does not free the struct
+/// after calling the deleter, but it does expect the struct to be gone
+/// before the capsule destructor runs (it renames the capsule to
+/// "used_dltensor" as a tombstone).  Freeing the struct here avoids the
+/// double-free that would occur if `dlpack_capsule_destructor` also freed it.
 #[cfg(feature = "cuda")]
 unsafe extern "C" fn dlpack_deleter(managed: *mut DLManagedTensor) {
     if managed.is_null() {
         return;
     }
     let ctx_ptr = (*managed).manager_ctx;
-    // Set to null so the capsule destructor skips double-free.
-    (*managed).manager_ctx = std::ptr::null_mut();
     if !ctx_ptr.is_null() {
         drop(Box::from_raw(ctx_ptr as *mut DlpackCtx));
     }
+    // Free the DLManagedTensor itself — per spec the deleter is responsible.
+    drop(Box::from_raw(managed));
 }
 
-/// PyCapsule destructor: frees the DLManagedTensor (and ctx if not yet freed).
+/// PyCapsule destructor — only runs when the capsule is GC'd uncollected.
 ///
-/// Called by the Python GC when the capsule is collected. If PyTorch already
-/// consumed the tensor (calling `deleter`), only the DLManagedTensor box is freed.
+/// If PyTorch consumed the capsule it renames it to "used_dltensor" and
+/// calls `dlpack_deleter` which frees everything.  In that case this
+/// function finds the "dltensor" lookup failing and returns early.
+/// If nobody consumed the capsule (e.g. the subscriber errored out before
+/// calling `from_dlpack`) the capsule is still named "dltensor" and we
+/// free it here to avoid a leak.
 #[cfg(feature = "cuda")]
 unsafe extern "C" fn dlpack_capsule_destructor(capsule: *mut ffi::PyObject) {
-    // Try current name; if PyTorch renamed it, try "used_dltensor".
     let name_cur = b"dltensor\0".as_ptr() as *const std::ffi::c_char;
-    let mut ptr = ffi::PyCapsule_GetPointer(capsule, name_cur) as *mut DLManagedTensor;
+    let ptr = ffi::PyCapsule_GetPointer(capsule, name_cur) as *mut DLManagedTensor;
     if ptr.is_null() {
-        // PyCapsule_GetPointer sets an error when the name doesn't match.
+        // Capsule was already consumed ("used_dltensor") — deleter freed everything.
         ffi::PyErr_Clear();
-        let name_used = b"used_dltensor\0".as_ptr() as *const std::ffi::c_char;
-        ptr = ffi::PyCapsule_GetPointer(capsule, name_used) as *mut DLManagedTensor;
-        if ptr.is_null() {
-            ffi::PyErr_Clear();
-            return;
-        }
+        return;
     }
-    // Free ctx if the deleter hasn't run yet.
+    // Never consumed — free ctx and managed tensor.
     let ctx_ptr = (*ptr).manager_ctx;
     if !ctx_ptr.is_null() {
         drop(Box::from_raw(ctx_ptr as *mut DlpackCtx));
     }
-    // Free the DLManagedTensor itself.
     drop(Box::from_raw(ptr));
 }

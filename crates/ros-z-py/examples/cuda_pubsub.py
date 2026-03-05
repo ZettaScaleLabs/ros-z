@@ -50,7 +50,7 @@ MSG_TYPE = sensor_msgs.LaserScan
 SUB_LISTEN = "tcp/127.0.0.1:7448"
 
 
-def run_publisher(use_torch: bool):
+def run_publisher(use_torch: bool, warmup: float = 1.0):
     ctx = (
         ZContextBuilder()
         .with_shm_enabled()
@@ -80,7 +80,7 @@ def run_publisher(use_torch: bool):
             print("[pub] cupy not available, skipping fill")
 
     # Allow subscriber declaration to propagate before publishing.
-    time.sleep(1.0)
+    time.sleep(warmup)
 
     zbuf = buf.into_zbuf()
     pub.publish_zbuf(zbuf)
@@ -93,6 +93,13 @@ def run_publisher(use_torch: bool):
 
 
 def run_subscriber(use_torch: bool, timeout: float = 30.0):
+    # Import torch before initializing the zenoh/CUDA context so that
+    # PyTorch's allocator initializes first.  Importing torch after
+    # cudaIpcOpenMemHandle has already run triggers a libstdc++ double-free
+    # due to conflicting allocator state between PyTorch and the Nix runtime.
+    if use_torch:
+        import torch as _torch  # noqa: F401 — side-effect: init allocator
+
     ctx = (
         ZContextBuilder()
         .with_shm_enabled()
@@ -161,10 +168,17 @@ def main():
         default=30.0,
         help="Subscriber timeout in seconds (default: 30)",
     )
+    parser.add_argument(
+        "--warmup",
+        type=float,
+        default=1.0,
+        help="Publisher warmup sleep before publishing (default: 1.0). "
+        "Increase to 4-5 when subscriber uses --torch (first CUDA init is slow).",
+    )
     args = parser.parse_args()
 
     if args.pub:
-        run_publisher(use_torch=args.torch)
+        run_publisher(use_torch=args.torch, warmup=args.warmup)
     else:
         run_subscriber(use_torch=args.torch, timeout=args.timeout)
 
