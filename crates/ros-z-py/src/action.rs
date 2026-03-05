@@ -365,22 +365,18 @@ type RawActionServer = ros_z::action::server::ZActionServer<RawBytesAction>;
 pub struct PyZActionServer {
     inner: Arc<RawActionServer>,
     goal_type: Py<PyAny>,
-    result_type: Py<PyAny>,
-    feedback_type: Py<PyAny>,
 }
 
 impl PyZActionServer {
     pub fn new(
         inner: RawActionServer,
         goal_type: Py<PyAny>,
-        result_type: Py<PyAny>,
-        feedback_type: Py<PyAny>,
+        _result_type: Py<PyAny>,
+        _feedback_type: Py<PyAny>,
     ) -> Self {
         Self {
             inner: Arc::new(inner),
             goal_type,
-            result_type,
-            feedback_type,
         }
     }
 }
@@ -426,8 +422,6 @@ impl PyZActionServer {
                     goal_id,
                     goal_bytes,
                     goal_type: self.goal_type.clone_ref(py),
-                    result_type: self.result_type.clone_ref(py),
-                    feedback_type: self.feedback_type.clone_ref(py),
                 }))
             }
             None => Ok(None),
@@ -449,8 +443,6 @@ pub struct PyZServerGoalRequest {
     goal_id: [u8; 16],
     goal_bytes: Vec<u8>,
     goal_type: Py<PyAny>,
-    result_type: Py<PyAny>,
-    feedback_type: Py<PyAny>,
 }
 
 #[pymethods]
