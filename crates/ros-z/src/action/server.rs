@@ -175,49 +175,6 @@ impl<'a, A: ZAction> ZActionServerBuilder<'a, A> {
     }
 }
 
-// Legacy cancel handler for polling mode (no driver loop).
-async fn handle_cancel_requests_legacy_inner<A: ZAction>(
-    inner: &InnerServer<A>,
-    query: zenoh::query::Query,
-) {
-    tracing::debug!("Received cancel request (polling mode)");
-    let payload = query.payload().unwrap().to_bytes();
-    let request = match <CancelGoalServiceRequest as ZMessage>::deserialize(&payload) {
-        Ok(r) => r,
-        Err(e) => {
-            tracing::error!("Failed to deserialize cancel request: {}", e);
-            return;
-        }
-    };
-
-    let cancelled = inner.goal_manager.read(|manager| {
-        if let Some(ServerGoalState::Executing { cancel_flag, .. }) =
-            manager.goals.get(&request.goal_info.goal_id)
-        {
-            cancel_flag.store(true, std::sync::atomic::Ordering::Relaxed);
-            true
-        } else {
-            false
-        }
-    });
-
-    let response = CancelGoalServiceResponse {
-        return_code: if cancelled { 1 } else { 0 },
-        goals_canceling: if cancelled {
-            vec![request.goal_info]
-        } else {
-            vec![]
-        },
-    };
-    let response_bytes = <CancelGoalServiceResponse as ZMessage>::serialize(&response);
-    let attachment: Attachment = query.attachment().unwrap().try_into().unwrap();
-    let _ = query
-        .reply(query.key_expr().clone(), response_bytes)
-        .attachment(attachment)
-        .wait();
-    tracing::debug!("Sent cancel response (polling mode)");
-}
-
 // Legacy result handler to preserve original behavior (using InnerServer)
 async fn handle_result_requests_legacy_inner<A: ZAction>(
     inner: &InnerServer<A>,
@@ -405,28 +362,11 @@ impl<'a, A: ZAction> Builder for ZActionServerBuilder<'a, A> {
             }
         });
 
-        // Spawn background task to handle cancel requests (default mode for manual goal handling)
-        // This task will also be cancelled if with_handler() is called
-        let weak_inner = Arc::downgrade(&inner);
-        let global_shutdown = cancellation_token.clone();
-        let handler_token = result_handler_token.clone();
-
-        tokio::spawn(async move {
-            tokio::select! {
-                _ = global_shutdown.cancelled() => {
-                    tracing::debug!("Cancel handler stopping due to global shutdown");
-                },
-                _ = handler_token.cancelled() => {
-                    tracing::debug!("Cancel handler stopping - switching to full driver mode");
-                },
-                _ = async {
-                    while let Some(inner) = weak_inner.upgrade() {
-                        let query = inner.cancel_server.queue().recv_async().await;
-                        handle_cancel_requests_legacy_inner(&inner, query).await;
-                    }
-                } => {},
-            }
-        });
+        // Note: cancel requests are NOT handled by a background task in polling mode.
+        // In polling mode (Python), cancel requests are processed on-demand via
+        // GoalHandle::try_process_cancel(), called from the is_cancel_requested getter.
+        // This avoids competing with explicit recv_cancel() calls in Rust code.
+        // In driver mode (with_handler), the driver loop handles cancel requests.
 
         Ok(ZActionServer {
             inner,
@@ -487,7 +427,7 @@ impl<A: ZAction> ZActionServer<A> {
         &self.inner.result_server
     }
 
-    fn cancel_server(&self) -> &Arc<crate::service::ZServer<CancelService<A>>> {
+    pub(crate) fn cancel_server(&self) -> &Arc<crate::service::ZServer<CancelService<A>>> {
         &self.inner.cancel_server
     }
 
@@ -1008,6 +948,55 @@ impl<A: ZAction> GoalHandle<A, Executing> {
             .as_ref()
             .map(|flag| flag.load(Ordering::Relaxed))
             .unwrap_or(false)
+    }
+
+    /// Check for and process any pending cancel request for this goal (polling mode).
+    ///
+    /// This is a non-blocking operation that checks the cancel service queue.
+    /// If a cancel request is found for this goal, the cancel flag is set and
+    /// a response is sent to the client. Returns `true` if a cancel was requested
+    /// (either via the flag already set, or a newly processed request).
+    ///
+    /// Use this in polling loops instead of a background task. It does not compete
+    /// with explicit `recv_cancel()` calls on the same server from other threads.
+    pub fn try_process_cancel(&self) -> bool {
+        // Fast path: flag already set
+        if self.is_cancel_requested() {
+            return true;
+        }
+        // Non-blocking check of the cancel service queue
+        let queue = self.server.cancel_server().queue();
+        if let Some(query) = queue.try_recv() {
+            let payload = match query.payload() {
+                Some(p) => p.to_bytes(),
+                None => return false,
+            };
+            let request = match <CancelGoalServiceRequest as ZMessage>::deserialize(&payload) {
+                Ok(r) => r,
+                Err(e) => {
+                    tracing::error!("try_process_cancel: deserialize error: {}", e);
+                    return false;
+                }
+            };
+            if request.goal_info.goal_id == self.info.goal_id {
+                self.server.request_cancel(self.info.goal_id);
+                let response = CancelGoalServiceResponse {
+                    return_code: 1,
+                    goals_canceling: vec![request.goal_info],
+                };
+                let response_bytes = <CancelGoalServiceResponse as ZMessage>::serialize(&response);
+                if let Some(raw_attachment) = query.attachment() {
+                    if let Ok(attachment) = Attachment::try_from(raw_attachment) {
+                        let _ = query
+                            .reply(query.key_expr().clone(), response_bytes)
+                            .attachment(attachment)
+                            .wait();
+                    }
+                }
+                return true;
+            }
+        }
+        false
     }
 
     /// Mark this goal as succeeded with the given result.
