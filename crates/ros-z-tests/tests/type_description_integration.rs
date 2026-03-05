@@ -69,15 +69,23 @@ fn test_static_pub_dynamic_sub_with_type_discovery() {
                 panic!("TypeDescriptionService not available");
             }
 
-            // Start publishing in background
+            // Publish continuously until cancelled — schema discovery can be slow
+            // under CI load, so we keep messages flowing until the subscriber has
+            // received what it needs.
+            let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel::<()>();
             let pub_handle = tokio::spawn(async move {
-                for i in 0..10 {
+                let mut i = 0u32;
+                loop {
+                    if cancel_rx.try_recv().is_ok() {
+                        break;
+                    }
                     let msg = RosString {
                         data: format!("Hello from static publisher: {}", i),
                     };
                     if let Err(e) = publisher.publish(&msg) {
                         eprintln!("Publish error: {}", e);
                     }
+                    i += 1;
                     tokio::time::sleep(Duration::from_millis(100)).await;
                 }
             });
@@ -122,7 +130,8 @@ fn test_static_pub_dynamic_sub_with_type_discovery() {
                 }
             }
 
-            // Wait for publisher to finish
+            // Stop publisher now that we have enough messages
+            let _ = cancel_tx.send(());
             let _ = pub_handle.await;
 
             received
