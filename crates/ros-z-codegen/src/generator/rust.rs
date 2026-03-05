@@ -64,8 +64,13 @@ pub fn generate_message_impl_with_context(
         &msg.parsed.constants,
         ctx,
     )?;
-    let type_info =
-        generate_message_type_info(&msg.parsed.package, &msg.parsed.name, &msg.type_hash);
+    let type_info = generate_message_type_info(
+        &msg.parsed.package,
+        &msg.parsed.name,
+        &msg.type_hash,
+        &msg.parsed.fields,
+        ctx,
+    )?;
 
     // No longer need custom serde - ros_z::ZBuf implements Serialize/Deserialize
 
@@ -431,12 +436,19 @@ fn generate_message_type_info(
     package: &str,
     name: &str,
     type_hash: &crate::types::TypeHash,
-) -> TokenStream {
+    fields: &[Field],
+    ctx: &GenerationContext,
+) -> Result<TokenStream> {
     let name_ident = format_ident!("{}", name);
     let type_name = format!("{}::msg::dds_::{}_", package, name);
+    let schema_type_name = format!("{}/msg/{}", package, name);
     let hash_str = type_hash.to_rihs_string();
+    let schema_field_tokens: Vec<TokenStream> = fields
+        .iter()
+        .map(|field| generate_schema_builder_field_tokens(field, package, ctx))
+        .collect::<Result<Vec<_>>>()?;
 
-    quote! {
+    Ok(quote! {
         impl ::ros_z::MessageTypeInfo for #name_ident {
             fn type_name() -> &'static str {
                 #type_name
@@ -446,10 +458,97 @@ fn generate_message_type_info(
                 ::ros_z::entity::TypeHash::from_rihs_string(#hash_str)
                     .expect("Invalid RIHS hash")
             }
+
+            fn message_schema() -> Option<::std::sync::Arc<::ros_z::dynamic::MessageSchema>> {
+                static SCHEMA: ::std::sync::OnceLock<
+                    Option<::std::sync::Arc<::ros_z::dynamic::MessageSchema>>
+                > = ::std::sync::OnceLock::new();
+
+                SCHEMA
+                    .get_or_init(|| {
+                        ::ros_z::dynamic::MessageSchema::builder(#schema_type_name)
+                            #(#schema_field_tokens)*
+                            .build()
+                            .ok()
+                    })
+                    .clone()
+            }
         }
 
         impl ::ros_z::ros_msg::WithTypeInfo for #name_ident {}
-    }
+    })
+}
+
+/// Generate schema builder tokens for one message field.
+fn generate_schema_builder_field_tokens(
+    field: &Field,
+    source_package: &str,
+    ctx: &GenerationContext,
+) -> Result<TokenStream> {
+    let field_type = generate_schema_field_type_tokens(&field.field_type, source_package, ctx)?;
+    let field_name = &field.name;
+    Ok(quote! { .field(#field_name, #field_type) })
+}
+
+/// Generate runtime dynamic `FieldType` tokens for one field.
+fn generate_schema_field_type_tokens(
+    field_type: &FieldType,
+    source_package: &str,
+    ctx: &GenerationContext,
+) -> Result<TokenStream> {
+    let base = generate_schema_base_field_type_tokens(field_type, source_package, ctx)?;
+
+    Ok(match &field_type.array {
+        ArrayType::Single => base,
+        ArrayType::Fixed(n) => {
+            quote! { ::ros_z::dynamic::FieldType::Array(::std::boxed::Box::new(#base), #n) }
+        }
+        ArrayType::Unbounded => {
+            quote! { ::ros_z::dynamic::FieldType::Sequence(::std::boxed::Box::new(#base)) }
+        }
+        ArrayType::Bounded(n) => {
+            quote! {
+                ::ros_z::dynamic::FieldType::BoundedSequence(::std::boxed::Box::new(#base), #n)
+            }
+        }
+    })
+}
+
+/// Generate runtime dynamic `FieldType` tokens for the non-array base type.
+fn generate_schema_base_field_type_tokens(
+    field_type: &FieldType,
+    source_package: &str,
+    ctx: &GenerationContext,
+) -> Result<TokenStream> {
+    Ok(match field_type.base_type.as_str() {
+        "bool" => quote! { ::ros_z::dynamic::FieldType::Bool },
+        "byte" | "uint8" | "char" => quote! { ::ros_z::dynamic::FieldType::Uint8 },
+        "int8" => quote! { ::ros_z::dynamic::FieldType::Int8 },
+        "uint16" | "wchar" => quote! { ::ros_z::dynamic::FieldType::Uint16 },
+        "int16" => quote! { ::ros_z::dynamic::FieldType::Int16 },
+        "uint32" => quote! { ::ros_z::dynamic::FieldType::Uint32 },
+        "int32" => quote! { ::ros_z::dynamic::FieldType::Int32 },
+        "uint64" => quote! { ::ros_z::dynamic::FieldType::Uint64 },
+        "int64" => quote! { ::ros_z::dynamic::FieldType::Int64 },
+        "float32" => quote! { ::ros_z::dynamic::FieldType::Float32 },
+        "float64" => quote! { ::ros_z::dynamic::FieldType::Float64 },
+        "string" => {
+            if let Some(bound) = field_type.string_bound {
+                quote! { ::ros_z::dynamic::FieldType::BoundedString(#bound) }
+            } else {
+                quote! { ::ros_z::dynamic::FieldType::String }
+            }
+        }
+        _ => {
+            let nested_type =
+                generate_base_type_tokens_with_context(field_type, source_package, ctx)?;
+            quote! {
+                ::ros_z::dynamic::FieldType::Message(
+                    <#nested_type as ::ros_z::MessageTypeInfo>::message_schema()?
+                )
+            }
+        }
+    })
 }
 
 /// Generate accurate size estimation implementation for SHM serialization
@@ -855,6 +954,10 @@ mod tests {
         assert!(code.contains("Deserialize"));
         // Should have MessageTypeInfo
         assert!(code.contains("MessageTypeInfo"));
+        // Should provide optional runtime schema hook
+        assert!(code.contains("message_schema"));
+        assert!(code.contains("MessageSchema :: builder"));
+        assert!(code.contains("FieldType :: Int32"));
     }
 
     #[test]
@@ -987,5 +1090,43 @@ mod tests {
         assert!(code.contains("ServiceTypeInfo"));
         assert!(code.contains("AddTwoIntsRequest"));
         assert!(code.contains("AddTwoIntsResponse"));
+    }
+
+    #[test]
+    fn test_generate_schema_for_nested_message_uses_message_schema_hook() {
+        let msg = ResolvedMessage {
+            parsed: ParsedMessage {
+                name: "StampedPoint".to_string(),
+                package: "test_msgs".to_string(),
+                fields: vec![Field {
+                    name: "point".to_string(),
+                    field_type: FieldType {
+                        base_type: "Point".to_string(),
+                        package: Some("geometry_msgs".to_string()),
+                        array: ArrayType::Single,
+                        string_bound: None,
+                    },
+                    default: None,
+                }],
+                constants: vec![],
+                source: String::new(),
+                path: PathBuf::new(),
+            },
+            type_hash: TypeHash([0u8; 32]),
+            definition: String::new(),
+        };
+
+        let ctx = GenerationContext::new(
+            Some("ros_z_msgs".to_string()),
+            std::iter::once("test_msgs".to_string()).collect(),
+        );
+
+        let tokens = generate_message_impl_with_context(&msg, &ctx).unwrap();
+        let code = tokens.to_string();
+
+        assert!(code.contains("FieldType :: Message"));
+        assert!(code.contains("MessageTypeInfo"));
+        assert!(code.contains("message_schema"));
+        assert!(code.contains("geometry_msgs :: Point"));
     }
 }
