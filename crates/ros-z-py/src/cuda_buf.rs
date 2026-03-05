@@ -56,6 +56,33 @@ impl PyCudaBuf {
         Ok(Self { inner: Some(inner) })
     }
 
+    /// Wrap an externally-owned CUDA device pointer (e.g. from PyTorch).
+    ///
+    /// This does NOT allocate memory — it wraps `ptr` in a non-owning
+    /// `CudaBufInner` that will NOT call `cudaFree` on drop.
+    ///
+    /// Use this to publish a torch tensor with zero copies:
+    ///
+    /// ```python
+    /// import torch
+    /// tensor = torch.zeros(1024 * 1024, dtype=torch.uint8, device="cuda:0")
+    /// # tensor must stay alive until after publish_zbuf() returns
+    /// buf = PyCudaBuf.from_device_ptr(tensor.data_ptr(), tensor.nbytes, device_id=0)
+    /// publisher.publish_zbuf(buf.into_zbuf())
+    /// # safe to let tensor go out of scope now
+    /// ```
+    ///
+    /// Args:
+    ///     ptr: Raw CUDA device pointer as integer (e.g. `tensor.data_ptr()`).
+    ///     len: Number of bytes.
+    ///     device_id: CUDA device ordinal (0-indexed).
+    #[staticmethod]
+    fn from_device_ptr(ptr: usize, len: usize, device_id: i32) -> PyResult<Self> {
+        let inner = CudaBufInner::from_device_ptr_borrowed(ptr as *mut u8, len, device_id)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        Ok(Self { inner: Some(inner) })
+    }
+
     /// Allocate pinned host memory (cudaMallocHost).
     ///
     /// Pinned memory is CPU-accessible and DMA-friendly for fast GPU transfers.

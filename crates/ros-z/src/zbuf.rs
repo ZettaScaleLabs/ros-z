@@ -51,6 +51,28 @@ impl ZBuf {
         Self(zbuf)
     }
 
+    /// Iterate over CUDA device-memory slices in this buffer.
+    ///
+    /// Returns an iterator over [`zenoh_cuda::CudaBufInner`] references for each
+    /// ZSlice with `kind = ZSliceKind::CudaPtr`. Empty on CPU-only buffers.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// for cuda in msg.data.cuda_slices() {
+    ///     let ptr = cuda.as_device_ptr();  // pass to CUDA kernel
+    ///     let len = cuda.cuda_len;
+    /// }
+    /// ```
+    #[cfg(feature = "cuda")]
+    pub fn cuda_slices(&self) -> impl Iterator<Item = &zenoh_cuda::CudaBufInner> {
+        use zenoh_buffers::ZSliceKind;
+        self.0
+            .zslices()
+            .filter(|zs| zs.kind == ZSliceKind::CudaPtr)
+            .filter_map(|zs| zs.downcast_ref::<zenoh_cuda::CudaBufInner>())
+    }
+
     /// Creates a ZBuf that carries CUDA device memory.
     ///
     /// The resulting `ZBuf` has its ZSlice kind set to `ZSliceKind::CudaPtr`,
