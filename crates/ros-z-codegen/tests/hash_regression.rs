@@ -268,6 +268,77 @@ fn print_hashes() {
     println!();
 }
 
+/// All packages needed to resolve rcl_interfaces service types.
+fn rcl_interfaces_packages() -> &'static [&'static str] {
+    &["builtin_interfaces", "service_msgs", "rcl_interfaces"]
+}
+
+// --- rcl_interfaces service hash regression tests ---
+//
+// These values match the hardcoded hashes in `crates/ros-z/src/parameter/wire_types.rs`,
+// which were verified against rmw_zenoh_cpp interop tests.
+// They guard against regressions in byte-type mapping and action-suffix detection.
+
+#[test]
+fn test_expected_hash_describe_parameters() {
+    let resolved = resolve_services_from_packages(rcl_interfaces_packages());
+    let hash = get_service_hash(&resolved, "rcl_interfaces/srv/DescribeParameters");
+    assert_eq!(
+        hash, "RIHS01_845b484d71eb0673dae682f2e3ba3c4851a65a3dcfb97bddd82c5b57e91e4cff",
+        "rcl_interfaces/srv/DescribeParameters hash mismatch"
+    );
+}
+
+#[test]
+fn test_expected_hash_get_parameters() {
+    let resolved = resolve_services_from_packages(rcl_interfaces_packages());
+    let hash = get_service_hash(&resolved, "rcl_interfaces/srv/GetParameters");
+    assert_eq!(
+        hash, "RIHS01_bf9803d5c74cf989a5de3e0c2e99444599a627c7ff75f97b8c05b01003675cbc",
+        "rcl_interfaces/srv/GetParameters hash mismatch"
+    );
+}
+
+#[test]
+fn test_expected_hash_get_parameter_types() {
+    let resolved = resolve_services_from_packages(rcl_interfaces_packages());
+    let hash = get_service_hash(&resolved, "rcl_interfaces/srv/GetParameterTypes");
+    assert_eq!(
+        hash, "RIHS01_da199c878688b3e530bdfe3ca8f74cb9fa0c303101e980a9e8f260e25e1c80ca",
+        "rcl_interfaces/srv/GetParameterTypes hash mismatch"
+    );
+}
+
+#[test]
+fn test_expected_hash_list_parameters() {
+    let resolved = resolve_services_from_packages(rcl_interfaces_packages());
+    let hash = get_service_hash(&resolved, "rcl_interfaces/srv/ListParameters");
+    assert_eq!(
+        hash, "RIHS01_3e6062bfbb27bfb8730d4cef2558221f51a11646d78e7bb30a1e83afac3aad9d",
+        "rcl_interfaces/srv/ListParameters hash mismatch"
+    );
+}
+
+#[test]
+fn test_expected_hash_set_parameters() {
+    let resolved = resolve_services_from_packages(rcl_interfaces_packages());
+    let hash = get_service_hash(&resolved, "rcl_interfaces/srv/SetParameters");
+    assert_eq!(
+        hash, "RIHS01_56eed9a67e169f9cb6c1f987bc88f868c14a8fc9f743a263bc734c154015d7e0",
+        "rcl_interfaces/srv/SetParameters hash mismatch"
+    );
+}
+
+#[test]
+fn test_expected_hash_set_parameters_atomically() {
+    let resolved = resolve_services_from_packages(rcl_interfaces_packages());
+    let hash = get_service_hash(&resolved, "rcl_interfaces/srv/SetParametersAtomically");
+    assert_eq!(
+        hash, "RIHS01_0e192ef259c07fc3c07a13191d27002222e65e00ccec653ca05e856f79285fcd",
+        "rcl_interfaces/srv/SetParametersAtomically hash mismatch"
+    );
+}
+
 #[test]
 #[ignore = "utility: prints current service hash values for comparison with wire_types.rs"]
 fn print_service_hashes() {
