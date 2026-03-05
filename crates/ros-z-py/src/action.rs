@@ -1,24 +1,26 @@
 //! Action client/server support for Python bindings.
 //!
 //! Uses `RawBytesAction` (Goal/Result/Feedback = `DynActionMessage`) so any
-//! registered message type works without per-type Rust code.
+//! msgspec type works without per-type Rust code or type registry lookup.
 //!
-//! # Python-to-Python compatibility
+//! # Wire format
 //!
-//! The wire format embeds a 4-byte CDR length prefix around each goal/result/feedback
-//! payload. Both sides use `DynActionMessage`, so the protocol is self-consistent.
+//! Goal/result/feedback payloads are encoded with `msgspec.msgpack.encode` and
+//! decoded with `msgspec.msgpack.decode(bytes, type=Cls)`. This is Python-to-Python
+//! only — not CDR-compatible with rmw_zenoh_cpp.
 //!
 //! # ROS 2 interop
 //!
-//! Not supported via this Python API — the zero-hash TypeInfo and byte-wrapping
-//! are incompatible with rmw_zenoh_cpp. Use typed Rust action implementations for
-//! ROS 2 interop.
+//! Not supported via this Python API — the zero-hash TypeInfo and msgpack
+//! encoding are incompatible with rmw_zenoh_cpp. Use typed Rust action
+//! implementations for ROS 2 interop.
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use once_cell::sync::OnceCell;
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 use ros_z::action::{GoalId, GoalStatus};
 
 use crate::raw_bytes::{DynActionMessage, RawBytesAction};
@@ -37,6 +39,26 @@ pub(crate) fn get_tokio_rt() -> &'static tokio::runtime::Runtime {
             .build()
             .expect("Failed to create tokio runtime for ros_z_py actions")
     })
+}
+
+// ---- Serialization helpers ----
+
+/// Encode a Python object to msgpack bytes using `msgspec.msgpack.encode`.
+fn msgspec_encode(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
+    py.import_bound("msgspec.msgpack")?
+        .call_method1("encode", (obj,))?
+        .extract::<Vec<u8>>()
+}
+
+/// Decode msgpack bytes to a Python object of the given class using
+/// `msgspec.msgpack.decode(bytes, type=cls)`.
+fn msgspec_decode(py: Python<'_>, bytes: &[u8], cls: &Py<PyAny>) -> PyResult<PyObject> {
+    let kwargs = PyDict::new_bound(py);
+    kwargs.set_item("type", cls.bind(py))?;
+    let result =
+        py.import_bound("msgspec.msgpack")?
+            .call_method("decode", (bytes,), Some(&kwargs))?;
+    Ok(result.unbind())
 }
 
 // ---- Goal status (unchanged, already registered) ----
@@ -114,23 +136,23 @@ type RawClientGoalHandle =
 #[pyclass(name = "ZActionClient")]
 pub struct PyZActionClient {
     inner: Arc<RawActionClient>,
-    goal_type_name: String,
-    result_type_name: String,
-    feedback_type_name: String,
+    goal_type: Py<PyAny>,
+    result_type: Py<PyAny>,
+    feedback_type: Py<PyAny>,
 }
 
 impl PyZActionClient {
     pub fn new(
         inner: RawActionClient,
-        goal_type_name: String,
-        result_type_name: String,
-        feedback_type_name: String,
+        goal_type: Py<PyAny>,
+        result_type: Py<PyAny>,
+        feedback_type: Py<PyAny>,
     ) -> Self {
         Self {
             inner: Arc::new(inner),
-            goal_type_name,
-            result_type_name,
-            feedback_type_name,
+            goal_type,
+            result_type,
+            feedback_type,
         }
     }
 }
@@ -142,9 +164,8 @@ impl PyZActionClient {
     /// Returns an `ActionGoalHandle` on success, raises on rejection or error.
     #[pyo3(signature = (goal))]
     fn send_goal(&self, py: Python, goal: &Bound<'_, PyAny>) -> PyResult<PyZClientGoalHandle> {
-        // Serialize Python goal object to CDR bytes (with header)
-        let cdr_bytes = ros_z_msgs::serialize_to_cdr(&self.goal_type_name, py, goal)?;
-        let goal_msg = DynActionMessage(cdr_bytes);
+        let encoded = msgspec_encode(py, goal)?;
+        let goal_msg = DynActionMessage(encoded);
 
         let client = Arc::clone(&self.inner);
         let rt = get_tokio_rt();
@@ -197,15 +218,15 @@ impl PyZActionClient {
             handle: Mutex::new(Some(handle)),
             flume_feedback_rx,
             status_arc,
-            result_type_name: self.result_type_name.clone(),
-            feedback_type_name: self.feedback_type_name.clone(),
+            result_type: self.result_type.clone_ref(py),
+            feedback_type: self.feedback_type.clone_ref(py),
         })
     }
 
-    /// Get the goal type name (for debugging).
+    /// Get the goal type class (for debugging).
     #[getter]
-    fn goal_type(&self) -> &str {
-        &self.goal_type_name
+    fn goal_type(&self, py: Python) -> PyObject {
+        self.goal_type.clone_ref(py)
     }
 }
 
@@ -226,11 +247,10 @@ pub struct PyZClientGoalHandle {
     flume_feedback_rx: flume::Receiver<DynActionMessage>,
     /// Latest goal status (updated by background task).
     status_arc: Arc<Mutex<GoalStatus>>,
-    result_type_name: String,
-    feedback_type_name: String,
+    result_type: Py<PyAny>,
+    feedback_type: Py<PyAny>,
 }
 
-#[allow(unsafe_op_in_unsafe_fn)]
 #[pymethods]
 impl PyZClientGoalHandle {
     /// Return the goal ID as bytes (16-byte UUID).
@@ -249,7 +269,7 @@ impl PyZClientGoalHandle {
     ///
     /// Returns None on timeout or if the feedback channel is closed.
     #[pyo3(signature = (timeout=None))]
-    unsafe fn recv_feedback(&self, py: Python, timeout: Option<f64>) -> PyResult<Option<PyObject>> {
+    fn recv_feedback(&self, py: Python, timeout: Option<f64>) -> PyResult<Option<PyObject>> {
         let rx = self.flume_feedback_rx.clone();
         let bytes_opt = py.allow_threads(move || {
             if let Some(t) = timeout.map(Duration::from_secs_f64) {
@@ -259,21 +279,15 @@ impl PyZClientGoalHandle {
             }
         });
         match bytes_opt {
-            Some(bytes) => {
-                let obj = ros_z_msgs::deserialize_from_cdr(&self.feedback_type_name, py, &bytes)?;
-                Ok(Some(obj))
-            }
+            Some(bytes) => Ok(Some(msgspec_decode(py, &bytes, &self.feedback_type)?)),
             None => Ok(None),
         }
     }
 
     /// Try to receive feedback without blocking.
-    unsafe fn try_recv_feedback(&self, py: Python) -> PyResult<Option<PyObject>> {
+    fn try_recv_feedback(&self, py: Python) -> PyResult<Option<PyObject>> {
         match self.flume_feedback_rx.try_recv() {
-            Ok(msg) => {
-                let obj = ros_z_msgs::deserialize_from_cdr(&self.feedback_type_name, py, &msg.0)?;
-                Ok(Some(obj))
-            }
+            Ok(msg) => Ok(Some(msgspec_decode(py, &msg.0, &self.feedback_type)?)),
             Err(_) => Ok(None),
         }
     }
@@ -283,7 +297,7 @@ impl PyZClientGoalHandle {
     /// Consumes the goal handle internally. Returns None on timeout.
     /// Raises RuntimeError if called more than once.
     #[pyo3(signature = (timeout=None))]
-    unsafe fn get_result(&self, py: Python, timeout: Option<f64>) -> PyResult<Option<PyObject>> {
+    fn get_result(&self, py: Python, timeout: Option<f64>) -> PyResult<Option<PyObject>> {
         let handle =
             self.handle.lock().unwrap().take().ok_or_else(|| {
                 pyo3::exceptions::PyRuntimeError::new_err("Result already retrieved")
@@ -309,10 +323,7 @@ impl PyZClientGoalHandle {
         })?;
 
         match result {
-            Some(bytes) => {
-                let obj = ros_z_msgs::deserialize_from_cdr(&self.result_type_name, py, &bytes)?;
-                Ok(Some(obj))
-            }
+            Some(bytes) => Ok(Some(msgspec_decode(py, &bytes, &self.result_type)?)),
             None => Ok(None),
         }
     }
@@ -353,23 +364,23 @@ type RawActionServer = ros_z::action::server::ZActionServer<RawBytesAction>;
 #[pyclass(name = "ZActionServer")]
 pub struct PyZActionServer {
     inner: Arc<RawActionServer>,
-    goal_type_name: String,
-    result_type_name: String,
-    feedback_type_name: String,
+    goal_type: Py<PyAny>,
+    result_type: Py<PyAny>,
+    feedback_type: Py<PyAny>,
 }
 
 impl PyZActionServer {
     pub fn new(
         inner: RawActionServer,
-        goal_type_name: String,
-        result_type_name: String,
-        feedback_type_name: String,
+        goal_type: Py<PyAny>,
+        result_type: Py<PyAny>,
+        feedback_type: Py<PyAny>,
     ) -> Self {
         Self {
             inner: Arc::new(inner),
-            goal_type_name,
-            result_type_name,
-            feedback_type_name,
+            goal_type,
+            result_type,
+            feedback_type,
         }
     }
 }
@@ -414,9 +425,9 @@ impl PyZActionServer {
                     handle: Mutex::new(Some(handle)),
                     goal_id,
                     goal_bytes,
-                    goal_type_name: self.goal_type_name.clone(),
-                    result_type_name: self.result_type_name.clone(),
-                    feedback_type_name: self.feedback_type_name.clone(),
+                    goal_type: self.goal_type.clone_ref(py),
+                    result_type: self.result_type.clone_ref(py),
+                    feedback_type: self.feedback_type.clone_ref(py),
                 }))
             }
             None => Ok(None),
@@ -437,12 +448,11 @@ pub struct PyZServerGoalRequest {
     handle: Mutex<Option<RawRequestedHandle>>,
     goal_id: [u8; 16],
     goal_bytes: Vec<u8>,
-    goal_type_name: String,
-    result_type_name: String,
-    feedback_type_name: String,
+    goal_type: Py<PyAny>,
+    result_type: Py<PyAny>,
+    feedback_type: Py<PyAny>,
 }
 
-#[allow(unsafe_op_in_unsafe_fn)]
 #[pymethods]
 impl PyZServerGoalRequest {
     /// The goal ID as bytes (16-byte UUID).
@@ -452,15 +462,15 @@ impl PyZServerGoalRequest {
     }
 
     /// The goal as a Python object.
-    unsafe fn goal(&self, py: Python) -> PyResult<PyObject> {
-        ros_z_msgs::deserialize_from_cdr(&self.goal_type_name, py, &self.goal_bytes)
+    fn goal(&self, py: Python) -> PyResult<PyObject> {
+        msgspec_decode(py, &self.goal_bytes, &self.goal_type)
     }
 
     /// Accept this goal request and begin execution.
     ///
     /// Returns a `ServerGoalHandle` for the executing goal.
     /// Raises RuntimeError if already accepted/rejected.
-    fn accept_and_execute(&self) -> PyResult<PyZServerExecutingHandle> {
+    fn accept_and_execute(&self, py: Python) -> PyResult<PyZServerExecutingHandle> {
         let handle = self.handle.lock().unwrap().take().ok_or_else(|| {
             pyo3::exceptions::PyRuntimeError::new_err("Goal request already handled")
         })?;
@@ -472,9 +482,7 @@ impl PyZServerGoalRequest {
             handle: Mutex::new(Some(executing)),
             goal_id: self.goal_id,
             goal_bytes: self.goal_bytes.clone(),
-            goal_type_name: self.goal_type_name.clone(),
-            feedback_type_name: self.feedback_type_name.clone(),
-            result_type_name: self.result_type_name.clone(),
+            goal_type: self.goal_type.clone_ref(py),
         })
     }
 
@@ -503,12 +511,9 @@ pub struct PyZServerExecutingHandle {
     handle: Mutex<Option<RawExecutingHandle>>,
     goal_id: [u8; 16],
     goal_bytes: Vec<u8>,
-    goal_type_name: String,
-    feedback_type_name: String,
-    result_type_name: String,
+    goal_type: Py<PyAny>,
 }
 
-#[allow(unsafe_op_in_unsafe_fn)]
 #[pymethods]
 impl PyZServerExecutingHandle {
     /// The goal ID as bytes (16-byte UUID).
@@ -518,8 +523,8 @@ impl PyZServerExecutingHandle {
     }
 
     /// The goal as a Python object.
-    unsafe fn goal(&self, py: Python) -> PyResult<PyObject> {
-        ros_z_msgs::deserialize_from_cdr(&self.goal_type_name, py, &self.goal_bytes)
+    fn goal(&self, py: Python) -> PyResult<PyObject> {
+        msgspec_decode(py, &self.goal_bytes, &self.goal_type)
     }
 
     /// Whether the client has requested cancellation of this goal.
@@ -532,9 +537,9 @@ impl PyZServerExecutingHandle {
     }
 
     /// Publish a feedback message to the client.
-    unsafe fn publish_feedback(&self, py: Python, feedback: &Bound<'_, PyAny>) -> PyResult<()> {
-        let cdr_bytes = ros_z_msgs::serialize_to_cdr(&self.feedback_type_name, py, feedback)?;
-        let msg = DynActionMessage(cdr_bytes);
+    fn publish_feedback(&self, py: Python, feedback: &Bound<'_, PyAny>) -> PyResult<()> {
+        let encoded = msgspec_encode(py, feedback)?;
+        let msg = DynActionMessage(encoded);
 
         self.handle
             .lock()
@@ -546,25 +551,25 @@ impl PyZServerExecutingHandle {
     }
 
     /// Mark the goal as succeeded with the given result.
-    unsafe fn succeed(&self, py: Python, result: &Bound<'_, PyAny>) -> PyResult<()> {
+    fn succeed(&self, py: Python, result: &Bound<'_, PyAny>) -> PyResult<()> {
         self.terminate(py, result, "succeed")
     }
 
     /// Mark the goal as aborted with the given result.
-    unsafe fn abort(&self, py: Python, result: &Bound<'_, PyAny>) -> PyResult<()> {
+    fn abort(&self, py: Python, result: &Bound<'_, PyAny>) -> PyResult<()> {
         self.terminate(py, result, "abort")
     }
 
     /// Mark the goal as canceled with the given result.
-    unsafe fn canceled(&self, py: Python, result: &Bound<'_, PyAny>) -> PyResult<()> {
+    fn canceled(&self, py: Python, result: &Bound<'_, PyAny>) -> PyResult<()> {
         self.terminate(py, result, "canceled")
     }
 }
 
 impl PyZServerExecutingHandle {
     fn terminate(&self, py: Python, result: &Bound<'_, PyAny>, how: &str) -> PyResult<()> {
-        let cdr_bytes = ros_z_msgs::serialize_to_cdr(&self.result_type_name, py, result)?;
-        let msg = DynActionMessage(cdr_bytes);
+        let encoded = msgspec_encode(py, result)?;
+        let msg = DynActionMessage(encoded);
 
         let handle =
             self.handle.lock().unwrap().take().ok_or_else(|| {

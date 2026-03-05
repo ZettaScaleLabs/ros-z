@@ -305,9 +305,10 @@ impl PyZNode {
         result_type: &Bound<'_, PyAny>,
         feedback_type: &Bound<'_, PyAny>,
     ) -> PyResult<PyZActionClient> {
-        let (goal_type_name, _) = extract_type_info_from_class(goal_type)?;
-        let (result_type_name, _) = extract_type_info_from_class(result_type)?;
-        let (feedback_type_name, _) = extract_type_info_from_class(feedback_type)?;
+        // __msgtype__ is still required (validates the class); __hash__ is optional.
+        extract_type_info_from_class(goal_type)?;
+        extract_type_info_from_class(result_type)?;
+        extract_type_info_from_class(feedback_type)?;
 
         let goal_ti = try_extract_type_info(goal_type);
         let result_ti = try_extract_type_info(result_type);
@@ -335,9 +336,9 @@ impl PyZNode {
 
         Ok(PyZActionClient::new(
             client,
-            goal_type_name,
-            result_type_name,
-            feedback_type_name,
+            goal_type.clone().unbind(),
+            result_type.clone().unbind(),
+            feedback_type.clone().unbind(),
         ))
     }
 
@@ -355,9 +356,10 @@ impl PyZNode {
         result_type: &Bound<'_, PyAny>,
         feedback_type: &Bound<'_, PyAny>,
     ) -> PyResult<PyZActionServer> {
-        let (goal_type_name, _) = extract_type_info_from_class(goal_type)?;
-        let (result_type_name, _) = extract_type_info_from_class(result_type)?;
-        let (feedback_type_name, _) = extract_type_info_from_class(feedback_type)?;
+        // __msgtype__ is still required (validates the class); __hash__ is optional.
+        extract_type_info_from_class(goal_type)?;
+        extract_type_info_from_class(result_type)?;
+        extract_type_info_from_class(feedback_type)?;
 
         let goal_ti = try_extract_type_info(goal_type);
         let result_ti = try_extract_type_info(result_type);
@@ -385,9 +387,9 @@ impl PyZNode {
 
         Ok(PyZActionServer::new(
             server,
-            goal_type_name,
-            result_type_name,
-            feedback_type_name,
+            goal_type.clone().unbind(),
+            result_type.clone().unbind(),
+            feedback_type.clone().unbind(),
         ))
     }
 
