@@ -41,6 +41,9 @@ pub struct GeneratorConfig {
     /// Set of local package names (used with external_crate to determine
     /// which types need external references)
     pub local_packages: std::collections::HashSet<String>,
+
+    /// Output JSON definitions for external generators (Go, Python, etc.)
+    pub json_out: Option<PathBuf>,
 }
 
 /// Message generator that orchestrates parsing, resolution, and code generation
@@ -118,6 +121,17 @@ impl MessageGenerator {
             resolved_services.len(),
             resolved_actions.len()
         );
+
+        // Export JSON definitions for external generators
+        if let Some(json_path) = &self.config.json_out {
+            generator::json::export_json(
+                &resolved_messages,
+                &resolved_services,
+                &resolved_actions,
+                json_path,
+            )?;
+            println!("cargo:info=Exported JSON manifest to {:?}", json_path);
+        }
 
         // Generate CDR-compatible types (using pure Rust codegen with ZBuf support)
         if self.config.generate_cdr {
@@ -502,6 +516,7 @@ pub fn generate_user_messages(output_dir: &Path, is_humble: bool) -> Result<()> 
         output_dir: output_dir.to_path_buf(),
         external_crate: Some("ros_z_msgs".to_string()),
         local_packages,
+        json_out: None,
     };
 
     let generator = MessageGenerator::new(config);

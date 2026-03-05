@@ -55,6 +55,8 @@ pub mod encoding;
 pub mod entity;
 /// Graph events emitted by the Zenoh network graph.
 pub mod event;
+#[cfg(feature = "ffi")]
+pub mod ffi;
 /// ROS 2 graph introspection (node/topic/service discovery).
 pub mod graph;
 /// Typed message wrappers and helpers.

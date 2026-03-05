@@ -201,24 +201,7 @@ The optimization operates at three layers:
 
 ## ROS 2 Interoperability
 
-Python nodes work seamlessly with Rust and ROS 2 nodes:
-
-```bash
-# Terminal 1: Start Zenoh router
-cargo run --example zenoh_router
-
-# Terminal 2: Run Python publisher (using topic_demo.py)
-cd crates/ros-z-py
-source .venv/bin/activate
-python examples/topic_demo.py -r talker
-
-# Terminal 3: Listen with ROS 2 CLI
-ros2 topic echo /chatter std_msgs/msg/String
-```
-
-```admonish success
-Messages published from Python are received by ROS 2 CLI, Rust nodes, and any other ROS 2-compatible system connected via Zenoh.
-```
+Python nodes interoperate with ROS 2 C++ nodes via the shared Zenoh transport. See the dedicated **[ROS 2 Interoperability](./interop.md)** chapter for setup instructions.
 
 ## Running Tests
 
