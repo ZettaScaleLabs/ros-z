@@ -8,7 +8,7 @@ cross-process, so publisher and subscriber must run in separate processes.
 Requirements:
     - ros_z_py built with --features cuda
     - CUDA-capable GPU (tested on GTX 1650 Ti)
-    - Optional: cupy for publisher-side tensor fill
+    - Optional: cupy for raw publisher-side tensor fill
     - Optional: torch for typed tensor round-trip (--torch)
 
 Usage:
@@ -22,12 +22,13 @@ Usage:
         python cuda_pubsub.py --sub --torch &
         python cuda_pubsub.py --pub --torch --warmup 5
 
-The --torch mode uses PyCudaBuf.from_torch() on the publisher side to attach
-tensor metadata (shape, dtype) to the wire format, so the subscriber receives
-a correctly-shaped tensor via torch.from_dlpack() with no out-of-band convention.
+The --torch mode demonstrates the high-level API:
 
-Without --torch the example uses raw device memory (CudaPtr ZSlice) and the
-subscriber sees a 1-D uint8 view.
+    Publisher:  pub.publish_tensor(tensor)          # any device, any dtype
+    Subscriber: tensor = view.as_torch()            # shape + dtype preserved
+
+Without --torch the example uses raw device memory (CudaPtr ZSlice) via
+PyCudaBuf.alloc_device() and the subscriber receives a 1-D uint8 view.
 """
 
 import argparse
@@ -78,9 +79,7 @@ def run_publisher(use_torch: bool, warmup: float = 1.0):
     time.sleep(warmup)
 
     if use_torch:
-        # Typed tensor path: PyCudaBuf.from_torch() wraps the tensor and
-        # attaches shape + dtype metadata so the subscriber receives a
-        # correctly-shaped tensor via as_dlpack() with no out-of-band convention.
+        # High-level API: publish_tensor() handles wrapping, metadata, and keepalive.
         import torch
 
         shape = TENSOR_SHAPE
@@ -90,18 +89,14 @@ def run_publisher(use_torch: bool, warmup: float = 1.0):
         )
         torch.cuda.synchronize(DEVICE_ID)
 
-        nbytes = tensor.nbytes
         print(
-            f"[pub] from_torch: shape={list(tensor.shape)}, dtype={tensor.dtype},"
-            f" device={tensor.device}, nbytes={nbytes}"
+            f"[pub] publish_tensor: shape={list(tensor.shape)}, dtype={tensor.dtype},"
+            f" device={tensor.device}, nbytes={tensor.nbytes}"
         )
 
-        # from_torch() captures data_ptr + shape + dtype + strides.
-        # The tensor stays alive throughout this function (IPC handle keepalive).
-        buf = PyCudaBuf.from_torch(tensor)
-        zbuf = buf.into_zbuf()
-        pub.publish_zbuf(zbuf)
-        print("[pub] published typed CUDA tensor (CudaTensor ZSlice)")
+        # One line: captures shape+dtype, sends zero-copy IPC handle.
+        pub.publish_tensor(tensor)
+        print("[pub] published typed CUDA tensor via publish_tensor()")
 
         # Keep allocation alive while subscriber opens the IPC handle.
         time.sleep(3.0)
@@ -171,11 +166,8 @@ def run_subscriber(use_torch: bool, timeout: float = 30.0):
     if use_torch:
         import torch
 
-        capsule = view.as_dlpack()
-        if capsule is None:
-            print("[sub] ERROR: as_dlpack() returned None")
-            sys.exit(1)
-        tensor = torch.from_dlpack(capsule)
+        # High-level API: as_torch() reconstructs the tensor with original shape+dtype.
+        tensor = view.as_torch()
         print(
             f"[sub] tensor: shape={list(tensor.shape)}, dtype={tensor.dtype}, device={tensor.device}"
         )
@@ -221,7 +213,7 @@ def main():
     parser.add_argument(
         "--torch",
         action="store_true",
-        help="Use cupy (pub) / torch (sub) for fill and verify",
+        help="Use publish_tensor() / as_torch() high-level API",
     )
     parser.add_argument(
         "--timeout",
