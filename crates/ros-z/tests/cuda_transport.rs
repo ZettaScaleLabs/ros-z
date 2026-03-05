@@ -123,7 +123,7 @@ fn test_pinned_pubsub_inprocess() {
     std::thread::sleep(Duration::from_millis(300));
 
     // Allocate pinned memory and write a pattern from CPU
-    let mut pinned = CudaBufInner::alloc_pinned(64, 0).expect("alloc_pinned");
+    let pinned = CudaBufInner::alloc_pinned(64, 0).expect("alloc_pinned");
     let slice = unsafe { std::slice::from_raw_parts_mut(pinned.as_device_ptr(), pinned.cuda_len) };
     slice
         .iter_mut()

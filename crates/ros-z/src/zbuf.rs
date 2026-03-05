@@ -69,8 +69,44 @@ impl ZBuf {
         use zenoh_buffers::ZSliceKind;
         self.0
             .zslices()
-            .filter(|zs| zs.kind == ZSliceKind::CudaPtr)
+            .filter(|zs| zs.kind == ZSliceKind::CudaPtr || zs.kind == ZSliceKind::CudaTensor)
             .filter_map(|zs| zs.downcast_ref::<zenoh_cuda::CudaBufInner>())
+    }
+
+    /// Iterate over typed CUDA tensor ZSlices (those with DLPack tensor metadata).
+    ///
+    /// Returns an iterator of `(CudaBufInner, TensorMeta)` pairs for each ZSlice
+    /// with `kind = ZSliceKind::CudaTensor` that carries shape/dtype information.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// for (cuda, meta) in msg.data.typed_cuda_slices() {
+    ///     let ptr = cuda.as_device_ptr();
+    ///     println!("shape={:?} dtype_bits={}", meta.shape, meta.dtype_bits);
+    /// }
+    /// ```
+    #[cfg(feature = "cuda")]
+    pub fn typed_cuda_slices(
+        &self,
+    ) -> impl Iterator<Item = (&zenoh_cuda::CudaBufInner, &zenoh_cuda::TensorMeta)> {
+        self.cuda_slices()
+            .filter_map(|c| c.tensor_meta().map(|m| (c, m)))
+    }
+
+    /// Creates a ZBuf that carries a typed CUDA tensor (with DLPack metadata).
+    ///
+    /// The ZSlice kind is set to `ZSliceKind::CudaTensor`. The receiver can call
+    /// `as_dlpack()` to get a correctly-shaped tensor with no out-of-band convention.
+    #[cfg(feature = "cuda")]
+    pub fn from_cuda_tensor(buf: zenoh_cuda::CudaBufInner) -> Self {
+        use std::sync::Arc;
+        use zenoh_buffers::{ZSlice, ZSliceKind};
+        let mut zslice = ZSlice::from(Arc::new(buf));
+        zslice.kind = ZSliceKind::CudaTensor;
+        let mut zbuf = ZenohZBuf::default();
+        zbuf.push_zslice(zslice);
+        ZBuf(zbuf)
     }
 
     /// Creates a ZBuf that carries CUDA device memory.
@@ -249,10 +285,12 @@ impl<'de> Deserialize<'de> for ZBuf {
                     let v_start = v.as_ptr() as usize;
                     let v_end = v_start + v.len();
                     for zslice in source.zslices() {
-                        // CudaPtr fast path: return the slice directly without pointer
+                        // CudaPtr/CudaTensor fast path: return the slice directly without pointer
                         // comparison — device memory has no CPU-accessible bytes to compare.
                         #[cfg(feature = "cuda")]
-                        if zslice.kind == zenoh_buffers::ZSliceKind::CudaPtr {
+                        if zslice.kind == zenoh_buffers::ZSliceKind::CudaPtr
+                            || zslice.kind == zenoh_buffers::ZSliceKind::CudaTensor
+                        {
                             let mut zbuf = ZenohZBuf::default();
                             zbuf.push_zslice(zslice.clone());
                             return Some(zbuf);

@@ -6,6 +6,7 @@
 
 use pyo3::prelude::*;
 use ros_z::{CudaBufInner, ZBuf};
+use zenoh_cuda::TensorMeta;
 
 /// A CUDA-backed buffer that can be published as a zero-copy GPU payload.
 ///
@@ -122,6 +123,94 @@ impl PyCudaBuf {
             .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("buffer already consumed"))
     }
 
+    /// Wrap an existing CUDA tensor (e.g. from PyTorch) with shape and dtype metadata.
+    ///
+    /// Captures `data_ptr()`, `nbytes`, `shape`, `dtype`, and `stride()` from
+    /// the tensor. The resulting buffer does NOT own the allocation — the source
+    /// tensor must remain alive until after `publish_zbuf()` returns.
+    ///
+    /// The returned `PyCudaBuf` wraps the tensor as a `CudaTensor` ZSlice, so
+    /// `as_dlpack()` on the subscriber side returns the correct shape and dtype.
+    ///
+    /// Args:
+    ///     tensor: A `torch.Tensor` on a CUDA device.
+    ///
+    /// Raises:
+    ///     ValueError: If the tensor is not on a CUDA device.
+    ///     RuntimeError: On CUDA IPC handle errors.
+    #[staticmethod]
+    fn from_torch(tensor: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let ptr: usize = tensor.getattr("data_ptr")?.call0()?.extract()?;
+        let nbytes: usize = tensor.getattr("nbytes")?.extract()?;
+        let device_type: String = tensor.getattr("device")?.getattr("type")?.extract()?;
+        if device_type != "cuda" {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "tensor must be on a CUDA device",
+            ));
+        }
+        let device_id: i32 = tensor
+            .getattr("device")?
+            .getattr("index")?
+            .extract::<Option<i32>>()?
+            .unwrap_or(0);
+        let shape: Vec<i64> = tensor.getattr("shape")?.extract()?;
+        let dtype_str: String = tensor.getattr("dtype")?.str()?.extract()?;
+        let (dtype_code, dtype_bits, dtype_lanes) = parse_torch_dtype(&dtype_str)?;
+        let strides: Vec<i64> = tensor.getattr("stride")?.call0()?.extract()?;
+        let strides = if strides == c_contiguous_strides(&shape) {
+            None
+        } else {
+            Some(strides)
+        };
+        let meta = TensorMeta {
+            ndim: shape.len() as i32,
+            shape,
+            dtype_code,
+            dtype_bits,
+            dtype_lanes,
+            byte_offset: 0,
+            strides,
+        };
+        let inner = CudaBufInner::from_device_ptr_borrowed(ptr as *mut u8, nbytes, device_id)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?
+            .with_tensor_meta(meta);
+        Ok(Self { inner: Some(inner) })
+    }
+
+    /// Attach DLPack tensor metadata (shape and dtype) to this buffer.
+    ///
+    /// After calling this, `into_zbuf()` will produce a `CudaTensor` ZSlice
+    /// and the subscriber can reconstruct the correct shape/dtype via `as_dlpack()`.
+    ///
+    /// Args:
+    ///     shape: List of dimension sizes (e.g. `[480, 640, 3]`).
+    ///     dtype: DType string: one of "float32", "float16", "bfloat16",
+    ///            "float64", "int8", "int16", "int32", "int64",
+    ///            "uint8", "uint16", "uint32", "uint64", "bool".
+    ///
+    /// Returns:
+    ///     Self (for chaining).
+    fn with_tensor_meta(&mut self, shape: Vec<i64>, dtype: &str) -> PyResult<()> {
+        if self.inner.is_none() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "buffer already consumed",
+            ));
+        }
+        let (dtype_code, dtype_bits, dtype_lanes) = parse_torch_dtype(dtype)?;
+        let meta = TensorMeta {
+            ndim: shape.len() as i32,
+            shape,
+            dtype_code,
+            dtype_bits,
+            dtype_lanes,
+            byte_offset: 0,
+            strides: None,
+        };
+        let old = self.inner.take().unwrap();
+        self.inner = Some(old.with_tensor_meta(meta));
+        Ok(())
+    }
+
     /// Consume this buffer and return a `ZBuf` with `kind = CudaPtr`.
     ///
     /// After calling this, the `PyCudaBuf` is no longer usable.
@@ -134,8 +223,53 @@ impl PyCudaBuf {
             .inner
             .take()
             .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("buffer already consumed"))?;
-        Ok(ZBufWrapper(ZBuf::from_cuda(inner)))
+        let zbuf = if inner.tensor_meta().is_some() {
+            ZBuf::from_cuda_tensor(inner)
+        } else {
+            ZBuf::from_cuda(inner)
+        };
+        Ok(ZBufWrapper(zbuf))
     }
+}
+
+/// Map a torch dtype string to DLPack (dtype_code, dtype_bits, dtype_lanes).
+///
+/// dtype_code: 0=Int, 1=UInt, 2=Float, 4=BFloat16, 5=Complex
+fn parse_torch_dtype(dtype: &str) -> PyResult<(u8, u8, u16)> {
+    // torch repr is "torch.float32" or just "float32"
+    let s = dtype.strip_prefix("torch.").unwrap_or(dtype);
+    let result = match s {
+        "float16" => (2u8, 16u8, 1u16),
+        "float32" => (2, 32, 1),
+        "float64" => (2, 64, 1),
+        "bfloat16" => (4, 16, 1),
+        "int8" => (0, 8, 1),
+        "int16" => (0, 16, 1),
+        "int32" => (0, 32, 1),
+        "int64" => (0, 64, 1),
+        "uint8" => (1, 8, 1),
+        "uint16" => (1, 16, 1),
+        "uint32" => (1, 32, 1),
+        "uint64" => (1, 64, 1),
+        "bool" => (1, 1, 1),
+        other => {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "unsupported dtype '{}'; expected one of: float16, float32, float64, \
+                 bfloat16, int8/16/32/64, uint8/16/32/64, bool",
+                other
+            )));
+        }
+    };
+    Ok(result)
+}
+
+/// Compute C-contiguous strides for a given shape (element strides, not byte strides).
+fn c_contiguous_strides(shape: &[i64]) -> Vec<i64> {
+    let mut strides = vec![1i64; shape.len()];
+    for i in (0..shape.len().saturating_sub(1)).rev() {
+        strides[i] = strides[i + 1] * shape[i + 1];
+    }
+    strides
 }
 
 /// Thin wrapper so Python can hold a `ZBuf` returned by `PyCudaBuf.into_zbuf()`.

@@ -113,6 +113,7 @@ zenoh-protocol = { path = "../../../../../project/zenoh-src/src/worktree-zenoh/c
 zenoh-keyexpr = { path = "../../../../../project/zenoh-src/src/worktree-zenoh/cuda-zslice/commons/zenoh-keyexpr" }
 zenoh-shm = { path = "../../../../../project/zenoh-src/src/worktree-zenoh/cuda-zslice/commons/zenoh-shm" }
 zenoh-core = { path = "../../../../../project/zenoh-src/src/worktree-zenoh/cuda-zslice/commons/zenoh-core" }
+zenoh-transport = { path = "../../../../../project/zenoh-src/src/worktree-zenoh/cuda-zslice/io/zenoh-transport" }
 
 [profile.opt]
 inherits = "release"

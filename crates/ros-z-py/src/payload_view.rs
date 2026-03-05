@@ -190,7 +190,8 @@ impl ZPayloadView {
     fn is_cuda(&self) -> bool {
         use zenoh_buffers::ZSliceKind;
         let zbuf: zenoh_buffers::ZBuf = self.sample.payload().clone().into();
-        zbuf.zslices().any(|zs| zs.kind == ZSliceKind::CudaPtr)
+        zbuf.zslices()
+            .any(|zs| zs.kind == ZSliceKind::CudaPtr || zs.kind == ZSliceKind::CudaTensor)
     }
 
     /// Return a DLPack capsule for the CUDA payload, suitable for `torch.from_dlpack()`.
@@ -214,21 +215,51 @@ impl ZPayloadView {
 
         let zbuf: zenoh_buffers::ZBuf = self.sample.payload().clone().into();
         for zslice in zbuf.zslices() {
-            if zslice.kind != ZSliceKind::CudaPtr {
+            if zslice.kind != ZSliceKind::CudaPtr && zslice.kind != ZSliceKind::CudaTensor {
                 continue;
             }
             let Some(cuda) = zslice.downcast_ref::<CudaBufInner>() else {
                 continue;
             };
 
-            // Heap-allocate the context (shape + ZSlice keepalive).
+            // Build shape, dtype, strides from TensorMeta (CudaTensor) or fallback (CudaPtr).
+            let (ndim, shape_vec, dtype, strides_vec, byte_offset) =
+                if let Some(meta) = cuda.tensor_meta() {
+                    (
+                        meta.ndim,
+                        meta.shape.clone(),
+                        DLDataType {
+                            code: meta.dtype_code,
+                            bits: meta.dtype_bits,
+                            lanes: meta.dtype_lanes,
+                        },
+                        meta.strides.clone(),
+                        meta.byte_offset,
+                    )
+                } else {
+                    // CudaPtr fallback: 1-D uint8 tensor.
+                    (
+                        1,
+                        vec![cuda.cuda_len as i64],
+                        DLDataType {
+                            code: 1, // kDLUInt
+                            bits: 8,
+                            lanes: 1,
+                        },
+                        None,
+                        0u64,
+                    )
+                };
+
+            // Heap-allocate the context (shape + strides + ZSlice keepalive).
             let ctx = Box::new(DlpackCtx {
-                shape: cuda.cuda_len as i64,
+                shape: shape_vec,
+                strides: strides_vec,
                 _zslice: zslice.clone(),
             });
             let ctx_ptr = Box::into_raw(ctx);
 
-            // Build the DLManagedTensor. The shape pointer points into ctx,
+            // Build the DLManagedTensor. shape/strides pointers live in ctx,
             // which is kept alive by manager_ctx until the deleter is called.
             let managed = Box::new(DLManagedTensor {
                 dl_tensor: DLTensor {
@@ -237,15 +268,16 @@ impl ZPayloadView {
                         device_type: 2, // kDLCUDA
                         device_id: cuda.device_id,
                     },
-                    ndim: 1,
-                    dtype: DLDataType {
-                        code: 1, // kDLUInt
-                        bits: 8,
-                        lanes: 1,
+                    ndim,
+                    dtype,
+                    shape: unsafe { (*ctx_ptr).shape.as_mut_ptr() },
+                    strides: unsafe {
+                        match (*ctx_ptr).strides.as_mut() {
+                            Some(sv) => sv.as_mut_ptr(),
+                            None => std::ptr::null_mut(),
+                        }
                     },
-                    shape: unsafe { &mut (*ctx_ptr).shape as *mut i64 },
-                    strides: std::ptr::null_mut(),
-                    byte_offset: 0,
+                    byte_offset,
                 },
                 manager_ctx: ctx_ptr as *mut std::ffi::c_void,
                 deleter: Some(dlpack_deleter),
@@ -328,10 +360,14 @@ struct DLManagedTensor {
     deleter: Option<unsafe extern "C" fn(*mut DLManagedTensor)>,
 }
 
-/// Holds the shape value and keeps the ZSlice (and its CudaBufInner Arc) alive.
+/// Holds shape/strides arrays and keeps the ZSlice (and its CudaBufInner Arc) alive.
+///
+/// The DLManagedTensor's shape and strides pointers point into these Vecs,
+/// so this struct must not be moved or dropped until the deleter is called.
 #[cfg(feature = "cuda")]
 struct DlpackCtx {
-    shape: i64,
+    shape: Vec<i64>,
+    strides: Option<Vec<i64>>,
     _zslice: zenoh_buffers::ZSlice,
 }
 
