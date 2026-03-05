@@ -170,21 +170,34 @@ impl PyZActionClient {
         let client = Arc::clone(&self.inner);
         let rt = get_tokio_rt();
 
-        // send_goal is async — release GIL while blocking
+        // send_goal is async — release GIL while blocking.
+        // Apply a timeout slightly above the Zenoh querier timeout (10 s) so that
+        // callers get a clear RuntimeError when no server is present instead of
+        // blocking forever (the shared flume channel keeps the receiver alive even
+        // after the Zenoh query expires and its error is discarded).
         let mut handle: RawClientGoalHandle = py.allow_threads(move || {
             rt.block_on(async move {
-                client
-                    .send_goal(goal_msg)
+                tokio::time::timeout(Duration::from_secs(11), client.send_goal(goal_msg))
                     .await
+                    .map_err(|_| {
+                        pyo3::exceptions::PyRuntimeError::new_err(
+                            "send_goal timed out: no action server responded",
+                        )
+                    })?
                     .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
             })
         })?;
 
-        // Take feedback + status receivers before storing the handle
-        let tokio_feedback_rx = handle.feedback();
-        let tokio_status_rx = handle.status_watch();
-
         let goal_id = *handle.id().as_bytes();
+
+        // Take feedback receiver from handle (needed for feedback routing).
+        let tokio_feedback_rx = handle.feedback();
+
+        // Subscribe to status watch WITHOUT taking status_rx from handle.
+        // Preserving handle.status_rx lets handle.result() wait for terminal
+        // status before querying the server — without this, the server drops
+        // get_result queries for goals that aren't yet terminated.
+        let tokio_status_rx = self.inner.status_watch(GoalId::from_bytes(goal_id));
 
         // Bridge feedback: tokio mpsc → flume channel (blocking-friendly for Python)
         let (flume_tx, flume_feedback_rx) = flume::unbounded::<DynActionMessage>();
@@ -199,12 +212,19 @@ impl PyZActionClient {
         }
 
         // Bridge status: watch → Arc<Mutex<GoalStatus>>
-        let status_arc = Arc::new(Mutex::new(GoalStatus::Unknown));
+        // Initialize to Accepted: send_goal succeeded so the goal is at least Accepted.
+        let status_arc = Arc::new(Mutex::new(GoalStatus::Accepted));
         if let Some(mut rx) = tokio_status_rx {
+            // Read the current watch value immediately — the status may have already
+            // advanced to Executing (or beyond) by the time we subscribe.
+            let current = *rx.borrow_and_update();
+            if current != GoalStatus::Unknown {
+                *status_arc.lock().unwrap() = current;
+            }
             let status_clone = Arc::clone(&status_arc);
             rt.spawn(async move {
                 while rx.changed().await.is_ok() {
-                    let s = *rx.borrow();
+                    let s = *rx.borrow_and_update();
                     if let Ok(mut guard) = status_clone.lock() {
                         *guard = s;
                     }
@@ -520,6 +540,7 @@ impl PyZServerExecutingHandle {
     }
 
     /// Whether the client has requested cancellation of this goal.
+    #[getter]
     fn is_cancel_requested(&self) -> bool {
         self.handle
             .lock()

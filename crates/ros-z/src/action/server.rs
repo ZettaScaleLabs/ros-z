@@ -175,6 +175,49 @@ impl<'a, A: ZAction> ZActionServerBuilder<'a, A> {
     }
 }
 
+// Legacy cancel handler for polling mode (no driver loop).
+async fn handle_cancel_requests_legacy_inner<A: ZAction>(
+    inner: &InnerServer<A>,
+    query: zenoh::query::Query,
+) {
+    tracing::debug!("Received cancel request (polling mode)");
+    let payload = query.payload().unwrap().to_bytes();
+    let request = match <CancelGoalServiceRequest as ZMessage>::deserialize(&payload) {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::error!("Failed to deserialize cancel request: {}", e);
+            return;
+        }
+    };
+
+    let cancelled = inner.goal_manager.read(|manager| {
+        if let Some(ServerGoalState::Executing { cancel_flag, .. }) =
+            manager.goals.get(&request.goal_info.goal_id)
+        {
+            cancel_flag.store(true, std::sync::atomic::Ordering::Relaxed);
+            true
+        } else {
+            false
+        }
+    });
+
+    let response = CancelGoalServiceResponse {
+        return_code: if cancelled { 1 } else { 0 },
+        goals_canceling: if cancelled {
+            vec![request.goal_info]
+        } else {
+            vec![]
+        },
+    };
+    let response_bytes = <CancelGoalServiceResponse as ZMessage>::serialize(&response);
+    let attachment: Attachment = query.attachment().unwrap().try_into().unwrap();
+    let _ = query
+        .reply(query.key_expr().clone(), response_bytes)
+        .attachment(attachment)
+        .wait();
+    tracing::debug!("Sent cancel response (polling mode)");
+}
+
 // Legacy result handler to preserve original behavior (using InnerServer)
 async fn handle_result_requests_legacy_inner<A: ZAction>(
     inner: &InnerServer<A>,
@@ -357,6 +400,29 @@ impl<'a, A: ZAction> Builder for ZActionServerBuilder<'a, A> {
                     while let Some(inner) = weak_inner.upgrade() {
                         let query = inner.result_server.queue().recv_async().await;
                         handle_result_requests_legacy_inner(&inner, query).await;
+                    }
+                } => {},
+            }
+        });
+
+        // Spawn background task to handle cancel requests (default mode for manual goal handling)
+        // This task will also be cancelled if with_handler() is called
+        let weak_inner = Arc::downgrade(&inner);
+        let global_shutdown = cancellation_token.clone();
+        let handler_token = result_handler_token.clone();
+
+        tokio::spawn(async move {
+            tokio::select! {
+                _ = global_shutdown.cancelled() => {
+                    tracing::debug!("Cancel handler stopping due to global shutdown");
+                },
+                _ = handler_token.cancelled() => {
+                    tracing::debug!("Cancel handler stopping - switching to full driver mode");
+                },
+                _ = async {
+                    while let Some(inner) = weak_inner.upgrade() {
+                        let query = inner.cancel_server.queue().recv_async().await;
+                        handle_cancel_requests_legacy_inner(&inner, query).await;
                     }
                 } => {},
             }
