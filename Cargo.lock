@@ -287,7 +287,7 @@ checksum = "f9abbd1bc6865053c427f7198e6af43bfdedc55ab791faed4fbd361d789575ff"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.110",
+ "syn 2.0.114",
 ]
 
 [[package]]
@@ -2761,7 +2761,6 @@ dependencies = [
  "ros-z-schema",
  "serde",
  "serde_json",
- "serde_yaml",
  "sha2",
  "slab",
  "strum 0.27.2",
@@ -2882,7 +2881,7 @@ dependencies = [
  "ros-z",
  "ros-z-cdr",
  "ros-z-msgs",
- "serde",
+ "serde_json",
  "tokio",
  "zenoh",
  "zenoh-buffers",
@@ -4909,6 +4908,7 @@ dependencies = [
  "zenoh-collections",
  "zenoh-config",
  "zenoh-core",
+ "zenoh-cuda",
  "zenoh-keyexpr",
  "zenoh-link",
  "zenoh-link-commons",
@@ -5417,6 +5417,7 @@ dependencies = [
  "zenoh-config",
  "zenoh-core",
  "zenoh-crypto",
+ "zenoh-cuda",
  "zenoh-link",
  "zenoh-link-commons",
  "zenoh-protocol",

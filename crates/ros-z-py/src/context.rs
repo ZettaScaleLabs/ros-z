@@ -57,6 +57,20 @@ impl PyZContextBuilder {
         slf
     }
 
+    /// Listen on specific Zenoh endpoints (e.g., "tcp/127.0.0.1:7448")
+    ///
+    /// Use this to make a session accept incoming connections.
+    /// Useful for direct peer-to-peer CUDA IPC without a router.
+    pub fn with_listen_endpoints(
+        mut slf: PyRefMut<'_, Self>,
+        endpoints: Vec<String>,
+    ) -> PyRefMut<'_, Self> {
+        use serde_json::json;
+        slf.builder =
+            std::mem::take(&mut slf.builder).with_json("listen/endpoints", json!(endpoints));
+        slf
+    }
+
     /// Disable multicast scouting (useful for isolated tests)
     pub fn disable_multicast_scouting(mut slf: PyRefMut<'_, Self>) -> PyRefMut<'_, Self> {
         slf.builder = std::mem::take(&mut slf.builder).disable_multicast_scouting();
@@ -185,6 +199,7 @@ impl PyZContextBuilder {
         slf.builder = std::mem::take(&mut slf.builder).with_shm_threshold(threshold);
         slf
     }
+
 
     /// Build the context
     pub fn build(&mut self) -> PyResult<PyZContext> {

@@ -274,7 +274,13 @@ impl ZContextBuilder {
         let provider = Arc::new(
             crate::shm::ShmProviderBuilder::new(crate::shm::DEFAULT_SHM_POOL_SIZE).build()?,
         );
-        Ok(self.with_shm_config(crate::shm::ShmConfig::new(provider)))
+        // Override the `false` set by common_overrides() so the zenoh transport
+        // advertises the SHM extension in InitSyn/InitAck handshake.  Without
+        // this, `ShmContext::new` returns None and `ext_shm` stays None even
+        // when the `shared-memory` feature is compiled in.
+        Ok(self
+            .with_shm_config(crate::shm::ShmConfig::new(provider))
+            .with_json("transport/shared_memory/enabled", json!(true)))
     }
 
     /// Enable SHM with custom pool size.

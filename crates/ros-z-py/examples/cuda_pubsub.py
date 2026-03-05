@@ -24,12 +24,13 @@ memory and optionally verifies via torch.from_dlpack().
 
 import argparse
 import sys
+import time
 
 try:
     from ros_z_py import (
         PyCudaBuf,
-        PyZContextBuilder,
-        PyZNodeBuilder,
+        ZContextBuilder,
+        sensor_msgs,
     )
 except ImportError as e:
     print(f"Failed to import ros_z_py (build with --features cuda): {e}")
@@ -40,11 +41,25 @@ PAYLOAD_BYTES = 4 * 1024 * 1024  # 4 MB
 DEVICE_ID = 0
 FILL_VALUE = 42
 
+# Use LaserScan as a placeholder type for the publisher/subscriber factory.
+# publish_zbuf() bypasses message serialization so any registered type works.
+MSG_TYPE = sensor_msgs.LaserScan
+
+# Direct peer connection: subscriber listens on a fixed port, publisher connects.
+# This ensures the SHM/CUDA IPC extension is negotiated directly without a router.
+SUB_LISTEN = "tcp/127.0.0.1:7448"
+
 
 def run_publisher(use_torch: bool):
-    ctx = PyZContextBuilder().build()
-    node = PyZNodeBuilder(ctx).build()
-    pub = node.create_publisher(TOPIC, "sensor_msgs/msg/Image")
+    ctx = (
+        ZContextBuilder()
+        .with_shm_enabled()
+        .with_logging_enabled()
+        .with_connect_endpoints([SUB_LISTEN])
+        .build()
+    )
+    node = ctx.create_node("cuda_pub").build()
+    pub = node.create_publisher(TOPIC, MSG_TYPE)
 
     print(f"[pub] allocating {PAYLOAD_BYTES // 1024 // 1024} MB on GPU {DEVICE_ID} …")
     buf = PyCudaBuf.alloc_device(PAYLOAD_BYTES, device_id=DEVICE_ID)
@@ -64,15 +79,29 @@ def run_publisher(use_torch: bool):
         except ImportError:
             print("[pub] cupy not available, skipping fill")
 
+    # Allow subscriber declaration to propagate before publishing.
+    time.sleep(1.0)
+
     zbuf = buf.into_zbuf()
     pub.publish_zbuf(zbuf)
     print("[pub] published CUDA IPC handle — subscriber can now map this memory")
 
+    # Keep the GPU allocation alive while the subscriber opens the IPC handle.
+    # cudaIpcOpenMemHandle requires the source allocation to still exist.
+    time.sleep(3.0)
+    print("[pub] done — releasing GPU memory")
+
 
 def run_subscriber(use_torch: bool, timeout: float = 30.0):
-    ctx = PyZContextBuilder().build()
-    node = PyZNodeBuilder(ctx).build()
-    sub = node.create_subscriber(TOPIC, "sensor_msgs/msg/Image")
+    ctx = (
+        ZContextBuilder()
+        .with_shm_enabled()
+        .with_logging_enabled()
+        .with_listen_endpoints([SUB_LISTEN])
+        .build()
+    )
+    node = ctx.create_node("cuda_sub").build()
+    sub = node.create_subscriber(TOPIC, MSG_TYPE)
 
     print(f"[sub] waiting for CUDA tensor on {TOPIC} (timeout={timeout}s) …")
     view = sub.recv_raw_view(timeout=timeout)
