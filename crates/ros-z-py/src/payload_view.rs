@@ -307,6 +307,91 @@ impl ZPayloadView {
         }
         Ok(None)
     }
+
+    /// Return the raw payload bytes as a Python `bytes` object.
+    ///
+    /// For CPU payloads this is the full message bytes (CDR-encoded or raw).
+    /// For CUDA payloads this returns an empty `bytes` (device memory has no
+    /// CPU-readable representation).
+    ///
+    /// Useful for detecting the numpy NPY magic prefix to reconstruct a CPU
+    /// tensor that was published via `publish_tensor(cpu_tensor)`.
+    fn raw_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, pyo3::types::PyBytes>> {
+        Ok(pyo3::types::PyBytes::new_bound(py, self.as_slice()))
+    }
+
+    /// Return the payload as a `torch.Tensor`.
+    ///
+    /// - CUDA payload (`is_cuda=True`): calls `torch.from_dlpack(as_dlpack())` —
+    ///   zero-copy, returns a tensor on the originating CUDA device.
+    /// - CPU numpy payload (published via `publish_tensor(cpu_tensor)`): decodes
+    ///   the numpy NPY wire format and returns a CPU `torch.Tensor` with the
+    ///   original shape and dtype.
+    /// - Other CPU bytes: returns a 1-D `torch.uint8` tensor over the raw bytes.
+    ///
+    /// Requires `torch` to be installed.
+    #[cfg(feature = "cuda")]
+    fn as_torch(&self, py: Python<'_>) -> PyResult<PyObject> {
+        if self.is_cuda() {
+            let capsule = self.as_dlpack(py)?.ok_or_else(|| {
+                pyo3::exceptions::PyRuntimeError::new_err(
+                    "as_dlpack returned None for CUDA payload",
+                )
+            })?;
+            let torch = py.import_bound("torch")?;
+            return Ok(torch.call_method1("from_dlpack", (capsule,))?.into());
+        }
+        // CPU path: try numpy NPY format, fall back to raw uint8
+        let raw = self.raw_bytes(py)?;
+        let np = py.import_bound("numpy")?;
+        let torch = py.import_bound("torch")?;
+        if self.as_slice().starts_with(b"\x93NUMPY") {
+            let io = py.import_bound("io")?;
+            let buf = io.call_method1("BytesIO", (&raw,))?;
+            let arr = np.call_method1("load", (buf,))?;
+            let arr_copy = arr.call_method0("copy")?;
+            Ok(torch.call_method1("from_numpy", (arr_copy,))?.into())
+        } else {
+            // Fallback: 1-D uint8
+            let kwargs = pyo3::types::PyDict::new_bound(py);
+            kwargs.set_item("dtype", np.getattr("uint8")?)?;
+            Ok(torch
+                .call_method1(
+                    "from_numpy",
+                    (np.call_method("frombuffer", (&raw,), Some(&kwargs))?,),
+                )?
+                .into())
+        }
+    }
+
+    /// Return the payload as a `numpy.ndarray`.
+    ///
+    /// - CUDA payload: copies GPU memory to CPU then returns numpy array.
+    ///   (involves a device→host copy; prefer `as_torch()` for GPU workflows).
+    /// - CPU numpy payload: decodes NPY format, returns array with original shape/dtype.
+    /// - Other CPU bytes: returns 1-D `uint8` array over the raw bytes.
+    ///
+    /// Requires `numpy` (and `torch` for CUDA payloads) to be installed.
+    #[cfg(feature = "cuda")]
+    fn as_numpy(&self, py: Python<'_>) -> PyResult<PyObject> {
+        if self.is_cuda() {
+            // cuda → torch → cpu → numpy (device copy)
+            let t = self.as_torch(py)?;
+            let cpu = t.call_method0(py, "cpu")?;
+            return Ok(cpu.call_method0(py, "numpy")?);
+        }
+        let raw = self.raw_bytes(py)?;
+        let np = py.import_bound("numpy")?;
+        if self.as_slice().starts_with(b"\x93NUMPY") {
+            let io = py.import_bound("io")?;
+            let buf = io.call_method1("BytesIO", (&raw,))?;
+            Ok(np.call_method1("load", (buf,))?.into())
+        } else {
+            let kwargs = pyo3::types::PyDict::new_bound(py);
+            kwargs.set_item("dtype", np.getattr("uint8")?)?;
+            Ok(np.call_method("frombuffer", (&raw,), Some(&kwargs))?.into())
+        }
+    }
 }
 
 // DLPack C ABI structures and helpers (gated on `cuda` feature).

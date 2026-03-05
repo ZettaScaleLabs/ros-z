@@ -56,10 +56,91 @@ impl PyZPublisher {
     #[cfg(feature = "cuda")]
     fn publish_zbuf(&self, zbuf: &crate::cuda_buf::ZBufWrapper) -> PyResult<()> {
         use zenoh_buffers::ZBuf as ZenohZBuf;
-        let zenoh_zbuf: ZenohZBuf = zbuf.0.clone().into_inner();
+        let zenoh_zbuf: ZenohZBuf = zbuf.zbuf.clone().into_inner();
         self.inner
             .publish(zenoh_zbuf.into())
             .map_err(|e| e.into_pyerr())
+    }
+
+    /// Publish raw bytes directly (no CDR framing).
+    ///
+    /// Used internally by `publish_tensor` for the CPU tensor path (numpy NPY format).
+    /// Can also be used for arbitrary byte payloads.
+    fn publish_bytes(&self, data: &[u8]) -> PyResult<()> {
+        self.inner.publish(data.into()).map_err(|e| e.into_pyerr())
+    }
+
+    /// Publish a tensor (torch or numpy) with zero boilerplate.
+    ///
+    /// Dispatches automatically based on device:
+    ///
+    /// - **CUDA tensor** (`tensor.device.type == "cuda"`): wraps via
+    ///   `PyCudaBuf.from_torch()` and sends as a CUDA IPC payload (zero GPU copies).
+    ///   The subscriber receives `is_cuda=True` and can call `as_torch()`.
+    ///
+    /// - **CPU tensor** (`tensor.device.type == "cpu"` or numpy array): serializes
+    ///   using numpy's NPY format (shape + dtype preserved). The subscriber calls
+    ///   `as_torch()` or `as_numpy()` to reconstruct.
+    ///
+    /// **Lifetime note for CUDA tensors:** the source `tensor` must remain live
+    /// until the subscriber calls `cudaIpcOpenMemHandle`. This method keeps `tensor`
+    /// alive until `publish_zbuf` returns (IPC handle serialized on wire), but the
+    /// subscriber process still needs the source allocation to exist when it opens
+    /// the handle. For best results use a short `time.sleep` after publish, or
+    /// keep `tensor` in scope for the expected round-trip window.
+    ///
+    /// Args:
+    ///     tensor: A `torch.Tensor` (any device) or `numpy.ndarray`.
+    ///
+    /// Example:
+    ///     # CUDA:
+    ///     pub.publish_tensor(torch.zeros(480, 640, 3, dtype=torch.float16, device="cuda"))
+    ///     # CPU:
+    ///     pub.publish_tensor(torch.arange(1024, dtype=torch.float32))
+    ///     pub.publish_tensor(np.zeros((256, 256), dtype=np.uint8))
+    #[cfg(feature = "cuda")]
+    fn publish_tensor(&self, py: Python<'_>, tensor: &Bound<'_, PyAny>) -> PyResult<()> {
+        // Detect device type — works for torch.Tensor (has .device) and np.ndarray (no .device)
+        let device_type: Option<String> = tensor
+            .getattr("device")
+            .ok()
+            .and_then(|d| d.getattr("type").ok())
+            .and_then(|t| t.extract().ok());
+
+        match device_type.as_deref() {
+            Some("cuda") => {
+                // CUDA zero-copy path
+                let mut buf = crate::cuda_buf::PyCudaBuf::from_torch(tensor)?;
+                // Pass tensor as keepalive so GC cannot collect it before publish_zbuf returns
+                let keepalive = Some(tensor.clone().into());
+                let zbuf = buf.into_zbuf(keepalive)?;
+                let zenoh_zbuf: zenoh_buffers::ZBuf = zbuf.zbuf.clone().into_inner();
+                self.inner
+                    .publish(zenoh_zbuf.into())
+                    .map_err(|e| e.into_pyerr())
+            }
+            _ => {
+                // CPU path: numpy ndarray or cpu torch.Tensor
+                // Convert torch.Tensor → numpy if needed
+                let np = py.import_bound("numpy")?;
+                let arr = if tensor.hasattr("numpy")? {
+                    // torch.Tensor: call .detach().cpu().numpy()
+                    tensor
+                        .call_method0("detach")?
+                        .call_method0("cpu")?
+                        .call_method0("numpy")?
+                } else {
+                    // Already numpy-like: wrap with np.asarray for uniform handling
+                    np.call_method1("asarray", (tensor,))?
+                };
+                // Serialize as numpy NPY format (contains shape + dtype + strides)
+                let io = py.import_bound("io")?;
+                let buf = io.call_method0("BytesIO")?;
+                np.call_method1("save", (&buf, arr))?;
+                let payload: Vec<u8> = buf.call_method0("getvalue")?.extract()?;
+                self.publish_bytes(&payload)
+            }
+        }
     }
 
     /// Get the topic name (for debugging)

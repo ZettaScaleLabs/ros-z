@@ -139,7 +139,7 @@ impl PyCudaBuf {
     ///     ValueError: If the tensor is not on a CUDA device.
     ///     RuntimeError: On CUDA IPC handle errors.
     #[staticmethod]
-    fn from_torch(tensor: &Bound<'_, PyAny>) -> PyResult<Self> {
+    pub fn from_torch(tensor: &Bound<'_, PyAny>) -> PyResult<Self> {
         let ptr: usize = tensor.getattr("data_ptr")?.call0()?.extract()?;
         let nbytes: usize = tensor.getattr("nbytes")?.extract()?;
         let device_type: String = tensor.getattr("device")?.getattr("type")?.extract()?;
@@ -211,14 +211,32 @@ impl PyCudaBuf {
         Ok(())
     }
 
-    /// Consume this buffer and return a `ZBuf` with `kind = CudaPtr`.
+    /// Consume this buffer and return a `CudaZBuf` ready for publishing.
     ///
     /// After calling this, the `PyCudaBuf` is no longer usable.
-    /// Pass the returned `ZBuf` to a message's `data` field and publish.
+    ///
+    /// **Lifetime contract:** For non-owning buffers (created via `from_torch` or
+    /// `from_device_ptr`), the source allocation must remain alive until the
+    /// subscriber has opened the IPC handle. Pass the source tensor as `keepalive`
+    /// to prevent Python's GC from collecting it prematurely:
+    ///
+    /// ```python
+    /// zbuf = buf.into_zbuf(keepalive=tensor)
+    /// publisher.publish_zbuf(zbuf)
+    /// # tensor is held alive until zbuf is dropped (after publish_zbuf returns)
+    /// ```
+    ///
+    /// Note: even with keepalive, the publisher process should keep the allocation
+    /// alive long enough for the subscriber to call `cudaIpcOpenMemHandle` (~RTT).
+    /// `publish_tensor()` handles this automatically.
+    ///
+    /// Args:
+    ///     keepalive: Optional Python object to keep alive (e.g. the source tensor).
     ///
     /// Returns:
-    ///     ZBuf: A ZBuf wrapping the CUDA allocation, ready for publishing.
-    fn into_zbuf(&mut self) -> PyResult<ZBufWrapper> {
+    ///     CudaZBuf: Ready for `publisher.publish_zbuf()`.
+    #[pyo3(signature = (keepalive=None))]
+    pub fn into_zbuf(&mut self, keepalive: Option<PyObject>) -> PyResult<ZBufWrapper> {
         let inner = self
             .inner
             .take()
@@ -228,7 +246,7 @@ impl PyCudaBuf {
         } else {
             ZBuf::from_cuda(inner)
         };
-        Ok(ZBufWrapper(zbuf))
+        Ok(ZBufWrapper { zbuf, keepalive })
     }
 }
 
@@ -272,19 +290,25 @@ fn c_contiguous_strides(shape: &[i64]) -> Vec<i64> {
     strides
 }
 
-/// Thin wrapper so Python can hold a `ZBuf` returned by `PyCudaBuf.into_zbuf()`.
+/// Wrapper returned by `PyCudaBuf.into_zbuf()`, passed to `publisher.publish_zbuf()`.
 ///
-/// The ros-z Python publisher accepts the inner ZBuf directly via the bridge.
-/// Users typically pass `buf.into_zbuf()` straight to `msg.data = ...`.
+/// Holds an optional `keepalive` reference to prevent GC of the source tensor
+/// while the ZBuf is in flight (see `into_zbuf(keepalive=)` docs).
 #[pyclass(name = "CudaZBuf")]
-pub struct ZBufWrapper(pub ZBuf);
+pub struct ZBufWrapper {
+    pub zbuf: ZBuf,
+    /// Keeps the source Python object (e.g. torch.Tensor) alive until this
+    /// CudaZBuf is dropped, preventing premature GC of the GPU allocation.
+    #[allow(dead_code)]
+    pub keepalive: Option<PyObject>,
+}
 
 #[pymethods]
 impl ZBufWrapper {
     /// Number of bytes in the ZBuf (0 for device-only memory, as expected).
     fn __len__(&self) -> usize {
         use zenoh_buffers::buffer::Buffer;
-        self.0.len()
+        self.zbuf.len()
     }
 
     fn __repr__(&self) -> String {
