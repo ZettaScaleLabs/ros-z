@@ -437,10 +437,10 @@ fn reply_with<T: serde::Serialize>(query: Query, response: &T) {
     use zenoh::Wait;
     let mut reply = query.reply(query.key_expr().clone(), bytes);
     // Echo the request attachment back so rmw_zenoh_cpp can match response to request.
-    if let Some(att_bytes) = query.attachment() {
-        if let Ok(att) = Attachment::try_from(att_bytes) {
-            reply = reply.attachment(att);
-        }
+    if let Some(att_bytes) = query.attachment()
+        && let Ok(att) = Attachment::try_from(att_bytes)
+    {
+        reply = reply.attachment(att);
     }
     if let Err(e) = reply.wait() {
         warn!("[PARAMS] Failed to send response: {}", e);

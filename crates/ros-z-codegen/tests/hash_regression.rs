@@ -13,7 +13,11 @@
 
 use std::{collections::HashMap, path::PathBuf};
 
-use ros_z_codegen::{discovery::discover_messages, resolver::Resolver, types::ResolvedMessage};
+use ros_z_codegen::{
+    discovery::{discover_messages, discover_services},
+    resolver::Resolver,
+    types::{ResolvedMessage, ResolvedService},
+};
 
 /// Path to the bundled Jazzy message assets.
 fn assets_dir() -> PathBuf {
@@ -198,6 +202,47 @@ fn test_expected_hash_odometry() {
     );
 }
 
+/// Resolve services from the listed packages using the bundled Jazzy assets.
+fn resolve_services_from_packages(packages: &[&str]) -> HashMap<String, ResolvedService> {
+    let assets = assets_dir();
+
+    let mut all_messages = Vec::new();
+    let mut all_services = Vec::new();
+    for pkg in packages {
+        let pkg_path = assets.join(pkg);
+        let msgs = discover_messages(&pkg_path, pkg)
+            .unwrap_or_else(|e| panic!("Failed to discover messages in {pkg}: {e}"));
+        all_messages.extend(msgs);
+        let srvs = discover_services(&pkg_path, pkg)
+            .unwrap_or_else(|e| panic!("Failed to discover services in {pkg}: {e}"));
+        all_services.extend(srvs);
+    }
+
+    let mut resolver = Resolver::new(false /* is_humble */);
+    let _ = resolver
+        .resolve_messages(all_messages)
+        .expect("Failed to resolve messages");
+    let resolved = resolver
+        .resolve_services(all_services)
+        .expect("Failed to resolve services");
+
+    resolved
+        .into_iter()
+        .map(|r| {
+            let key = format!("{}/srv/{}", r.parsed.package, r.parsed.name);
+            (key, r)
+        })
+        .collect()
+}
+
+fn get_service_hash(resolved: &HashMap<String, ResolvedService>, type_name: &str) -> String {
+    resolved
+        .get(type_name)
+        .unwrap_or_else(|| panic!("Type {type_name} not found in resolved services"))
+        .type_hash
+        .to_rihs_string()
+}
+
 // --- Helper to print current hash values (run with --ignored --nocapture) ---
 
 #[test]
@@ -219,6 +264,32 @@ fn print_hashes() {
     for t in types {
         let hash = get_hash(&resolved, t);
         println!("  {t}: {hash}");
+    }
+    println!();
+}
+
+#[test]
+#[ignore = "utility: prints current service hash values for comparison with wire_types.rs"]
+fn print_service_hashes() {
+    let packages = &["builtin_interfaces", "service_msgs", "rcl_interfaces"];
+    let resolved = resolve_services_from_packages(packages);
+
+    let services = [
+        "rcl_interfaces/srv/GetParameters",
+        "rcl_interfaces/srv/SetParameters",
+        "rcl_interfaces/srv/ListParameters",
+        "rcl_interfaces/srv/DescribeParameters",
+        "rcl_interfaces/srv/GetParameterTypes",
+        "rcl_interfaces/srv/SetParametersAtomically",
+    ];
+
+    println!("\n=== Computed RIHS01 service hashes (jazzy assets) ===");
+    for t in services {
+        if let Some(r) = resolved.get(t) {
+            println!("  {t}: {}", r.type_hash.to_rihs_string());
+        } else {
+            println!("  {t}: NOT FOUND");
+        }
     }
     println!();
 }

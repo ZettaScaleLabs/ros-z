@@ -924,15 +924,24 @@ impl ResolvedMessageExt for ResolvedMessage {
             types::ArrayType,
         };
 
-        // Determine if this is an action component based on name suffix
-        // Action components need underscore before suffix: Fibonacci_Goal, Fibonacci_Result, Fibonacci_Feedback
-        let type_name = if self.parsed.name.ends_with("Goal") {
+        // Determine if this is an action component based on the source path.
+        // Action components (Goal, Result, Feedback) are parsed from .action files, whose
+        // paths contain "/action/". Regular messages (even those whose names end with
+        // "Goal", "Result", or "Feedback", like ListParametersResult) are parsed from
+        // .msg files, whose paths contain "/msg/".
+        let is_action_component = self
+            .parsed
+            .path
+            .to_str()
+            .map_or(false, |p| p.contains("/action/"));
+
+        let type_name = if is_action_component && self.parsed.name.ends_with("Goal") {
             let base = &self.parsed.name[..self.parsed.name.len() - 4];
             format!("{}/action/{}_Goal", self.parsed.package, base)
-        } else if self.parsed.name.ends_with("Result") {
+        } else if is_action_component && self.parsed.name.ends_with("Result") {
             let base = &self.parsed.name[..self.parsed.name.len() - 6];
             format!("{}/action/{}_Result", self.parsed.package, base)
-        } else if self.parsed.name.ends_with("Feedback") {
+        } else if is_action_component && self.parsed.name.ends_with("Feedback") {
             let base = &self.parsed.name[..self.parsed.name.len() - 8];
             format!("{}/action/{}_Feedback", self.parsed.package, base)
         } else {
@@ -961,9 +970,11 @@ impl ResolvedMessageExt for ResolvedMessage {
                     _ => 0,
                 };
 
-                // Determine nested type path based on type name suffix
-                // Action types need underscore: Fibonacci_Goal, Fibonacci_Result, Fibonacci_Feedback
-                // For same-package references (no explicit package), use the message's package
+                // Determine nested type path. Action components (Goal/Result/Feedback)
+                // use the /action/ path with an underscore separator, but only when the
+                // *current* message is itself an action component (path contains "/action/").
+                // Regular messages — including those whose names happen to end with
+                // "Goal", "Result", or "Feedback" — always use /msg/.
                 let pkg = field
                     .field_type
                     .package
@@ -972,15 +983,18 @@ impl ResolvedMessageExt for ResolvedMessage {
                 let nested_type_name =
                     if crate::hashing::is_primitive_type(&field.field_type.base_type) {
                         String::new()
-                    } else if field.field_type.base_type.ends_with("Goal") {
+                    } else if is_action_component && field.field_type.base_type.ends_with("Goal") {
                         let base =
                             &field.field_type.base_type[..field.field_type.base_type.len() - 4];
                         format!("{}/action/{}_Goal", pkg, base)
-                    } else if field.field_type.base_type.ends_with("Result") {
+                    } else if is_action_component && field.field_type.base_type.ends_with("Result")
+                    {
                         let base =
                             &field.field_type.base_type[..field.field_type.base_type.len() - 6];
                         format!("{}/action/{}_Result", pkg, base)
-                    } else if field.field_type.base_type.ends_with("Feedback") {
+                    } else if is_action_component
+                        && field.field_type.base_type.ends_with("Feedback")
+                    {
                         let base =
                             &field.field_type.base_type[..field.field_type.base_type.len() - 8];
                         format!("{}/action/{}_Feedback", pkg, base)
