@@ -1,0 +1,4 @@
+builtin_interfaces/Time timestamp
+Transition transition
+State start_state
+State goal_state

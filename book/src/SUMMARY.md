@@ -11,6 +11,7 @@
 - [Pub/Sub](./chapters/pubsub.md)
 - [Services](./chapters/services.md)
 - [Actions](./chapters/actions.md)
+- [Lifecycle Nodes](./chapters/lifecycle.md)
 
 # User Guide
 

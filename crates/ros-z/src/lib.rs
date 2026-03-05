@@ -57,6 +57,8 @@ pub mod entity;
 pub mod event;
 /// ROS 2 graph introspection (node/topic/service discovery).
 pub mod graph;
+/// ROS 2 lifecycle node support (state machine, lifecycle publisher).
+pub mod lifecycle;
 /// Typed message wrappers and helpers.
 pub mod msg;
 /// ROS 2 node creation and management.
