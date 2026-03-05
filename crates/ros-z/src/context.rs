@@ -556,6 +556,8 @@ impl ZContext {
             shm_config: self.shm_config.clone(),
             keyexpr_format: self.keyexpr_format,
             enable_type_desc_service: false,
+            enable_parameters: true,
+            parameter_overrides: std::collections::HashMap::new(),
         }
     }
 

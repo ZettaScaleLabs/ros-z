@@ -36,6 +36,7 @@ ros-z-cdr = { path = "crates/ros-z-cdr" }
 serde = "1.0.219"
 serde_bytes = "0.11"
 serde_json = "1.0"
+serde_yaml = "0.9"
 
 # Zenoh
 zenoh = { version = "1.7.2", default-features = false, features = [

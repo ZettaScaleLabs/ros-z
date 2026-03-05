@@ -55,6 +55,11 @@
     },
     "unique_identifier_msgs": {
       "dependencies": []
+    },
+    "rcl_interfaces": {
+      "dependencies": [
+        "builtin_interfaces"
+      ]
     }
   }
 }
