@@ -365,6 +365,97 @@ mod tests {
         Ok(())
     }
 
+    /// Regression test: cancel for goal B must not be silently dropped when goal A polls first.
+    ///
+    /// With the old `try_process_cancel` implementation, if goal A polled the shared cancel
+    /// queue and found a request for goal B, it would discard the message (ID mismatch) and
+    /// return false. Goal B's subsequent poll would find an empty queue and also return false —
+    /// the cancel was lost.
+    ///
+    /// The fix introduces `CancelDispatcher`: both handles call `drain()` which routes every
+    /// pending message to the correct per-goal channel, so each handle only sees its own cancels.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_try_process_cancel_multi_goal() -> Result<()> {
+        let (_ctx, _node, client, server) = setup_test().await?;
+
+        // Send two goals and get handles to both
+        let goal1 = TestGoal { order: 1 };
+        let goal2 = TestGoal { order: 2 };
+
+        // Server must accept each goal immediately so the client can proceed to send the next one.
+        // (client.send_goal blocks until the server sends an accept response)
+        let server_clone = server.clone();
+        let server_task = tokio::spawn(async move {
+            let req1 = timeout(Duration::from_secs(5), server_clone.recv_goal())
+                .await
+                .expect("timeout receiving goal 1")?;
+            // Accept immediately so the client unblocks and sends goal 2
+            let handle1 = req1.accept().execute();
+
+            let req2 = timeout(Duration::from_secs(5), server_clone.recv_goal())
+                .await
+                .expect("timeout receiving goal 2")?;
+            let handle2 = req2.accept().execute();
+
+            Ok::<_, zenoh::Error>((handle1, handle2))
+        });
+
+        let goal_handle1 = timeout(Duration::from_secs(5), client.send_goal(goal1))
+            .await
+            .expect("timeout sending goal 1")?;
+        let goal_handle2 = timeout(Duration::from_secs(5), client.send_goal(goal2))
+            .await
+            .expect("timeout sending goal 2")?;
+
+        let (handle1, handle2) = server_task.await.expect("server task failed")?;
+
+        // Spawn a task that sends the cancel for goal2 and then awaits the result.
+        // We move goal_handle2 into this task so that cancel() and result() can be called
+        // in sequence without a borrow/move conflict in the outer scope.
+        let client_task = tokio::spawn(async move {
+            let cancel_response = timeout(Duration::from_secs(5), goal_handle2.cancel())
+                .await
+                .expect("timeout awaiting cancel response")?;
+            // After cancel is confirmed, fetch the final result
+            let result = timeout(Duration::from_secs(5), goal_handle2.result())
+                .await
+                .expect("timeout getting result 2")?;
+            Ok::<_, zenoh::Error>((cancel_response, result))
+        });
+
+        // Give the cancel request time to arrive on the server side
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        // Goal 1 polls first — must NOT steal the cancel intended for goal 2
+        assert!(
+            !handle1.try_process_cancel(),
+            "handle1.try_process_cancel() should return false (cancel was for goal2)"
+        );
+
+        // Goal 2 polls second — must see the cancel routed to its channel
+        assert!(
+            handle2.try_process_cancel(),
+            "handle2.try_process_cancel() should return true (cancel was for goal2)"
+        );
+
+        // Complete both goals so the client task can finish
+        handle1.succeed(TestResult { value: 1 })?;
+        handle2.canceled(TestResult { value: 2 })?;
+
+        let (cancel_response, _) = client_task.await.expect("client task panicked")?;
+        assert_eq!(cancel_response.return_code, 1);
+
+        let _ = timeout(Duration::from_secs(5), goal_handle1.result())
+            .await
+            .expect("timeout getting result 1")?;
+
+        drop(server);
+        drop(client);
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        Ok(())
+    }
+
     /// Tests handling multiple concurrent goals
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_multiple_goals_comm() -> Result<()> {
