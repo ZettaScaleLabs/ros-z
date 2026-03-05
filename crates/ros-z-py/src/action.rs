@@ -540,12 +540,15 @@ impl PyZServerExecutingHandle {
     }
 
     /// Whether the client has requested cancellation of this goal.
+    ///
+    /// Also processes any pending cancel service request from the cancel queue
+    /// (polling mode: no background handler). Non-blocking.
     #[getter]
     fn is_cancel_requested(&self) -> bool {
         self.handle
             .lock()
             .ok()
-            .and_then(|g| g.as_ref().map(|h| h.is_cancel_requested()))
+            .and_then(|g| g.as_ref().map(|h| h.try_process_cancel()))
             .unwrap_or(false)
     }
 
