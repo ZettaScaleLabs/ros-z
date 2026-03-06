@@ -37,5 +37,8 @@ pub use crate::ros_msg::{ActionTypeInfo, MessageTypeInfo, ServiceTypeInfo, WithT
 /// Type identity helpers for custom message definitions.
 pub use crate::entity::{TypeHash, TypeInfo};
 
+/// Cache subscriber: retains a sliding window of messages indexed by time.
+pub use crate::cache::{ExtractorStamp, ZCache, ZCacheBuilder, ZenohStamp};
+
 /// The `Result` alias used throughout ros-z (equivalent to `zenoh::Result`).
 pub use zenoh::Result;
