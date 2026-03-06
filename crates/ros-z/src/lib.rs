@@ -43,6 +43,8 @@
 pub mod action;
 /// Attachment helpers for carrying metadata alongside messages.
 pub mod attachment;
+/// Timestamp-indexed, capacity-bounded message cache.
+pub mod cache;
 mod common;
 /// Configuration types and builder helpers.
 pub mod config;
