@@ -285,6 +285,11 @@ impl MessageGenerator {
             self.config.local_packages.clone(),
         );
 
+        // Compute plain types across all messages once (bottom-up over full type graph)
+        let all_msgs_vec: Vec<ResolvedMessage> =
+            packages.values().flatten().map(|m| (*m).clone()).collect();
+        let plain_types = generator::rust::compute_plain_types(&all_msgs_vec);
+
         for package_name in all_package_names {
             let package_ident = quote::format_ident!("{}", &package_name);
 
@@ -294,7 +299,11 @@ impl MessageGenerator {
                 .map(|msgs| {
                     msgs.iter()
                         .map(|msg| {
-                            generator::rust::generate_message_impl_with_context(msg, &gen_ctx)
+                            generator::rust::generate_message_impl_with_cdr(
+                                msg,
+                                &gen_ctx,
+                                &plain_types,
+                            )
                         })
                         .collect::<Result<Vec<_>>>()
                 })

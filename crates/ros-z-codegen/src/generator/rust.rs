@@ -30,6 +30,474 @@ impl GenerationContext {
     }
 }
 
+// ── Plainness detection ───────────────────────────────────────────────────────
+
+/// Returns true if the field type has a CDR wire layout identical to its
+/// in-memory layout (i.e., it qualifies for `CdrPlain`).
+///
+/// A type is plain iff:
+/// - It is a fixed-size numeric primitive (not bool, string, char/wchar).
+/// - OR it is a nested struct that is itself plain (looked up in `plain_types`).
+/// - AND it has no unbounded/bounded sequence dimension.
+///
+/// Fixed arrays of plain types are themselves plain.
+pub fn is_field_plain(field_type: &FieldType, plain_types: &HashSet<String>) -> bool {
+    // Sequences (Vec<T>) are never plain — they carry a variable-length prefix.
+    if matches!(
+        field_type.array,
+        ArrayType::Unbounded | ArrayType::Bounded(_)
+    ) {
+        return false;
+    }
+    // base type check
+    is_base_type_plain(
+        &field_type.base_type,
+        field_type.package.as_deref(),
+        plain_types,
+    )
+}
+
+fn is_base_type_plain(
+    base_type: &str,
+    package: Option<&str>,
+    plain_types: &HashSet<String>,
+) -> bool {
+    match base_type {
+        // bool: CDR bool is u8(0|1), bytemuck::Pod not impl'd for bool
+        "bool" | "string" | "wstring" | "char" | "wchar" => false,
+        "byte" | "uint8" | "int8" | "uint16" | "int16" | "uint32" | "int32" | "uint64"
+        | "int64" | "float32" | "float64" => true,
+        custom => {
+            // Look up in the set of already-confirmed-plain struct types.
+            let key = match package {
+                Some(pkg) => format!("{}::{}", pkg, custom),
+                None => custom.to_string(),
+            };
+            plain_types.contains(&key)
+        }
+    }
+}
+
+/// Returns the alignment (in bytes) of a primitive base type, or None for
+/// non-primitive / custom types.
+fn primitive_align(base_type: &str) -> Option<usize> {
+    match base_type {
+        "byte" | "uint8" | "int8" => Some(1),
+        "uint16" | "int16" => Some(2),
+        "uint32" | "int32" | "float32" => Some(4),
+        "uint64" | "int64" | "float64" => Some(8),
+        _ => None,
+    }
+}
+
+/// Compute the set of plain struct types for a slice of resolved messages.
+///
+/// Returns a `HashSet<String>` where each entry is `"package::TypeName"`.
+/// The computation is bottom-up: a struct is plain iff all its fields are plain
+/// AND the struct has no inter-field or trailing padding in C/Rust repr(C).
+///
+/// Padding detection: a struct has no padding iff all fields share the same
+/// alignment (or more precisely, every field's alignment divides the struct's
+/// natural alignment uniformly). We use the conservative rule: all primitive
+/// fields must have the same alignment. Nested plain structs are assumed to
+/// already satisfy this invariant.
+pub fn compute_plain_types(messages: &[ResolvedMessage]) -> HashSet<String> {
+    // Iterate until stable (handles mutually-dependent plain structs, though rare).
+    let mut plain: HashSet<String> = HashSet::new();
+    loop {
+        let before = plain.len();
+        'msg: for msg in messages {
+            let key = format!("{}::{}", msg.parsed.package, msg.parsed.name);
+            if plain.contains(&key) {
+                continue;
+            }
+            // All fields must individually be plain.
+            if !msg
+                .parsed
+                .fields
+                .iter()
+                .all(|f| is_field_plain(&f.field_type, &plain))
+            {
+                continue;
+            }
+            // Additionally, all direct primitive fields must share the same alignment
+            // to guarantee no inter-field or trailing padding.
+            let mut max_align: Option<usize> = None;
+            for field in &msg.parsed.fields {
+                if let Some(align) = primitive_align(&field.field_type.base_type) {
+                    match max_align {
+                        None => max_align = Some(align),
+                        Some(existing) if existing != align => continue 'msg, // mixed alignment → padding
+                        _ => {}
+                    }
+                }
+                // Custom (nested plain) types: their alignment is inherited from their
+                // own max primitive. We don't re-check here — they are already validated.
+            }
+            plain.insert(key);
+        }
+        if plain.len() == before {
+            break; // stable
+        }
+    }
+    plain
+}
+
+// ── CDR trait codegen ─────────────────────────────────────────────────────────
+
+/// Generate `CdrSerialize`, `CdrDeserialize`, `CdrSerializedSize` impls,
+/// and (when the struct is plain) the `CdrPlain` + `bytemuck::Pod/Zeroable` derives.
+fn generate_cdr_impls(
+    msg: &ResolvedMessage,
+    plain_types: &HashSet<String>,
+    ctx: &GenerationContext,
+) -> Result<TokenStream> {
+    let name = format_ident!("{}", msg.parsed.name);
+    let fields = &msg.parsed.fields;
+    let pkg = &msg.parsed.package;
+    let is_plain = plain_types.contains(&format!("{}::{}", pkg, &msg.parsed.name));
+
+    // ── CdrSerialize ──────────────────────────────────────────────────────────
+    let ser_fields: Vec<TokenStream> = fields
+        .iter()
+        .map(|f| generate_cdr_serialize_field(f, pkg, plain_types, ctx))
+        .collect::<Result<Vec<_>>>()?;
+
+    let ser_impl = quote! {
+        impl ::ros_z_cdr::CdrSerialize for #name {
+            fn cdr_serialize<BO, B>(
+                &self,
+                __w: &mut ::ros_z_cdr::CdrWriter<'_, BO, B>,
+            )
+            where
+                BO: ::byteorder::ByteOrder,
+                B: ::ros_z_cdr::CdrBuffer,
+            {
+                #(#ser_fields)*
+            }
+        }
+    };
+
+    // ── CdrDeserialize ────────────────────────────────────────────────────────
+    let de_fields: Vec<TokenStream> = fields
+        .iter()
+        .map(|f| generate_cdr_deserialize_field(f, pkg, plain_types, ctx))
+        .collect::<Result<Vec<_>>>()?;
+
+    let field_idents: Vec<Ident> = fields.iter().map(|f| escape_field_name(&f.name)).collect();
+
+    let de_impl = quote! {
+        impl ::ros_z_cdr::CdrDeserialize for #name {
+            fn cdr_deserialize<'__de, BO>(
+                __r: &mut ::ros_z_cdr::CdrReader<'__de, BO>,
+            ) -> ::ros_z_cdr::Result<Self>
+            where
+                BO: ::byteorder::ByteOrder,
+            {
+                #(#de_fields)*
+                Ok(Self { #(#field_idents),* })
+            }
+        }
+    };
+
+    // ── CdrSerializedSize ─────────────────────────────────────────────────────
+    let size_fields: Vec<TokenStream> = fields
+        .iter()
+        .map(|f| generate_cdr_size_field(f, pkg, plain_types, ctx))
+        .collect::<Result<Vec<_>>>()?;
+
+    let size_impl = quote! {
+        impl ::ros_z_cdr::CdrSerializedSize for #name {
+            fn cdr_serialized_size(&self, __pos: usize) -> usize {
+                let mut __p = __pos;
+                #(#size_fields)*
+                __p
+            }
+        }
+    };
+
+    // ── CdrPlain (only when struct is plain) ──────────────────────────────────
+    let plain_impl = if is_plain {
+        quote! {
+            #[cfg(target_endian = "little")]
+            unsafe impl ::ros_z_cdr::CdrPlain for #name {}
+        }
+    } else {
+        quote! {}
+    };
+
+    Ok(quote! {
+        #ser_impl
+        #de_impl
+        #size_impl
+        #plain_impl
+    })
+}
+
+/// Generate a single field's CdrSerialize statement.
+fn generate_cdr_serialize_field(
+    field: &Field,
+    source_pkg: &str,
+    plain_types: &HashSet<String>,
+    _ctx: &GenerationContext,
+) -> Result<TokenStream> {
+    let fname = escape_field_name(&field.name);
+    let ft = &field.field_type;
+
+    // ZBuf fields: byte sequences stored as ros_z::ZBuf (zero-copy Zenoh type).
+    // CdrSerialize is implemented for ros_z::ZBuf in the ros-z crate.
+    if is_zbuf_field(field) {
+        return Ok(quote! {
+            ::ros_z_cdr::CdrSerialize::cdr_serialize(&self.#fname, __w);
+        });
+    }
+
+    match &ft.array {
+        ArrayType::Single => Ok(quote! {
+            ::ros_z_cdr::CdrSerialize::cdr_serialize(&self.#fname, __w);
+        }),
+        ArrayType::Fixed(_) => {
+            let elem_plain = is_base_type_plain(
+                &ft.base_type,
+                ft.package.as_deref().or(Some(source_pkg)),
+                plain_types,
+            );
+            if elem_plain && !matches!(ft.base_type.as_str(), "bool" | "string" | "wstring") {
+                Ok(quote! {
+                    #[cfg(target_endian = "little")]
+                    __w.write_pod_slice(&self.#fname);
+                    #[cfg(not(target_endian = "little"))]
+                    for __item in &self.#fname {
+                        ::ros_z_cdr::CdrSerialize::cdr_serialize(__item, __w);
+                    }
+                })
+            } else {
+                Ok(quote! {
+                    for __item in &self.#fname {
+                        ::ros_z_cdr::CdrSerialize::cdr_serialize(__item, __w);
+                    }
+                })
+            }
+        }
+        ArrayType::Unbounded | ArrayType::Bounded(_) => {
+            // Check if element type is plain → bulk path
+            let elem_plain = is_base_type_plain(
+                &ft.base_type,
+                ft.package.as_deref().or(Some(source_pkg)),
+                plain_types,
+            );
+            if elem_plain && !matches!(ft.base_type.as_str(), "bool" | "string" | "wstring") {
+                Ok(quote! {
+                    __w.write_sequence_length(self.#fname.len());
+                    #[cfg(target_endian = "little")]
+                    if !self.#fname.is_empty() {
+                        __w.write_pod_slice(&self.#fname);
+                    }
+                    #[cfg(not(target_endian = "little"))]
+                    for __item in &self.#fname {
+                        ::ros_z_cdr::CdrSerialize::cdr_serialize(__item, __w);
+                    }
+                })
+            } else {
+                Ok(quote! {
+                    __w.write_sequence_length(self.#fname.len());
+                    for __item in &self.#fname {
+                        ::ros_z_cdr::CdrSerialize::cdr_serialize(__item, __w);
+                    }
+                })
+            }
+        }
+    }
+}
+
+/// Generate a single field's CdrDeserialize statement (binds a local variable).
+fn generate_cdr_deserialize_field(
+    field: &Field,
+    source_pkg: &str,
+    plain_types: &HashSet<String>,
+    ctx: &GenerationContext,
+) -> Result<TokenStream> {
+    let fname = escape_field_name(&field.name);
+    let ft = &field.field_type;
+    let rust_elem_ty = generate_field_type_tokens_with_context(ft, source_pkg, ctx)?;
+
+    // ZBuf: CdrDeserialize is implemented for ros_z::ZBuf in the ros-z crate.
+    if is_zbuf_field(field) {
+        return Ok(quote! {
+            let #fname: #rust_elem_ty = ::ros_z_cdr::CdrDeserialize::cdr_deserialize(__r)?;
+        });
+    }
+
+    match &ft.array {
+        ArrayType::Single => Ok(quote! {
+            let #fname = ::ros_z_cdr::CdrDeserialize::cdr_deserialize(__r)?;
+        }),
+        ArrayType::Fixed(n) => {
+            let n_lit = proc_macro2::Literal::usize_unsuffixed(*n);
+            let elem_plain = is_base_type_plain(
+                &ft.base_type,
+                ft.package.as_deref().or(Some(source_pkg)),
+                plain_types,
+            );
+            let base_ty = generate_base_type_tokens_with_context(ft, source_pkg, ctx)?;
+            if elem_plain && !matches!(ft.base_type.as_str(), "bool" | "string" | "wstring") {
+                Ok(quote! {
+                    let #fname: #rust_elem_ty = {
+                        #[cfg(target_endian = "little")]
+                        {
+                            let __slice = __r.read_pod_slice::<#base_ty>(#n_lit)?;
+                            ::std::convert::TryInto::try_into(__slice)
+                                .map_err(|_| ::ros_z_cdr::Error::UnexpectedEof)?
+                        }
+                        #[cfg(not(target_endian = "little"))]
+                        {
+                            let mut __arr = [Default::default(); #n_lit];
+                            for __slot in __arr.iter_mut() {
+                                *__slot = ::ros_z_cdr::CdrDeserialize::cdr_deserialize(__r)?;
+                            }
+                            __arr
+                        }
+                    };
+                })
+            } else {
+                Ok(quote! {
+                    let #fname: #rust_elem_ty = {
+                        let mut __arr = [Default::default(); #n_lit];
+                        for __slot in __arr.iter_mut() {
+                            *__slot = ::ros_z_cdr::CdrDeserialize::cdr_deserialize(__r)?;
+                        }
+                        __arr
+                    };
+                })
+            }
+        }
+        ArrayType::Unbounded | ArrayType::Bounded(_) => {
+            let elem_plain = is_base_type_plain(
+                &ft.base_type,
+                ft.package.as_deref().or(Some(source_pkg)),
+                plain_types,
+            );
+            let base_ty = generate_base_type_tokens_with_context(ft, source_pkg, ctx)?;
+            if elem_plain && !matches!(ft.base_type.as_str(), "bool" | "string" | "wstring") {
+                Ok(quote! {
+                    let #fname: Vec<#base_ty> = {
+                        let __count = __r.read_sequence_length()?;
+                        #[cfg(target_endian = "little")]
+                        {
+                            if __count > 0 {
+                                __r.read_pod_slice::<#base_ty>(__count)?.to_vec()
+                            } else {
+                                vec![]
+                            }
+                        }
+                        #[cfg(not(target_endian = "little"))]
+                        {
+                            let mut __v = Vec::with_capacity(__count);
+                            for _ in 0..__count {
+                                __v.push(::ros_z_cdr::CdrDeserialize::cdr_deserialize(__r)?);
+                            }
+                            __v
+                        }
+                    };
+                })
+            } else {
+                Ok(quote! {
+                    let #fname: Vec<#base_ty> = {
+                        let __count = __r.read_sequence_length()?;
+                        let mut __v = Vec::with_capacity(__count);
+                        for _ in 0..__count {
+                            __v.push(::ros_z_cdr::CdrDeserialize::cdr_deserialize(__r)?);
+                        }
+                        __v
+                    };
+                })
+            }
+        }
+    }
+}
+
+/// Generate a single field's CdrSerializedSize statement (updates `__p`).
+fn generate_cdr_size_field(
+    field: &Field,
+    source_pkg: &str,
+    plain_types: &HashSet<String>,
+    _ctx: &GenerationContext,
+) -> Result<TokenStream> {
+    let fname = escape_field_name(&field.name);
+    let ft = &field.field_type;
+
+    // ZBuf: u32 length prefix (4-byte aligned) + byte contents.
+    if is_zbuf_field(field) {
+        return Ok(quote! {
+            {
+                use ::zenoh_buffers::buffer::Buffer;
+                __p += (__p % 4 != 0) as usize * (4 - __p % 4) + 4;
+                __p += self.#fname.len();
+            }
+        });
+    }
+
+    match &ft.array {
+        ArrayType::Single => Ok(quote! {
+            __p = ::ros_z_cdr::CdrSerializedSize::cdr_serialized_size(&self.#fname, __p);
+        }),
+        ArrayType::Fixed(_) => {
+            let elem_plain = is_base_type_plain(
+                &ft.base_type,
+                ft.package.as_deref().or(Some(source_pkg)),
+                plain_types,
+            );
+            if elem_plain && !matches!(ft.base_type.as_str(), "bool" | "string" | "wstring") {
+                // O(1) size for plain fixed arrays: align + N * sizeof(T)
+                Ok(quote! {
+                    if !self.#fname.is_empty() {
+                        let __elem_align = ::std::mem::align_of_val(&self.#fname[0]);
+                        __p += (__p % __elem_align != 0) as usize
+                            * (__elem_align - __p % __elem_align);
+                        __p += self.#fname.len()
+                            * ::std::mem::size_of_val(&self.#fname[0]);
+                    }
+                })
+            } else {
+                Ok(quote! {
+                    for __item in &self.#fname {
+                        __p = ::ros_z_cdr::CdrSerializedSize::cdr_serialized_size(__item, __p);
+                    }
+                })
+            }
+        }
+        ArrayType::Unbounded | ArrayType::Bounded(_) => {
+            let elem_plain = is_base_type_plain(
+                &ft.base_type,
+                ft.package.as_deref().or(Some(source_pkg)),
+                plain_types,
+            );
+            if elem_plain && !matches!(ft.base_type.as_str(), "bool" | "string" | "wstring") {
+                // O(1) size for plain sequences: align + count * sizeof(T)
+                Ok(quote! {
+                    // u32 sequence length prefix
+                    __p += (__p % 4 != 0) as usize * (4 - __p % 4) + 4;
+                    if !self.#fname.is_empty() {
+                        let __elem_align = ::std::mem::align_of_val(&self.#fname[0]);
+                        __p += (__p % __elem_align != 0) as usize
+                            * (__elem_align - __p % __elem_align);
+                        __p += self.#fname.len()
+                            * ::std::mem::size_of_val(&self.#fname[0]);
+                    }
+                })
+            } else {
+                Ok(quote! {
+                    // u32 sequence length prefix
+                    __p += (__p % 4 != 0) as usize * (4 - __p % 4) + 4;
+                    for __item in &self.#fname {
+                        __p = ::ros_z_cdr::CdrSerializedSize::cdr_serialized_size(__item, __p);
+                    }
+                })
+            }
+        }
+    }
+}
+
 /// Generate Rust module for a package containing messages
 pub fn generate_package_module(package: &str, messages: &[ResolvedMessage]) -> Result<TokenStream> {
     let package_ident = format_ident!("{}", package);
@@ -55,28 +523,40 @@ pub fn generate_message_impl_with_context(
     msg: &ResolvedMessage,
     ctx: &GenerationContext,
 ) -> Result<TokenStream> {
+    generate_message_impl_with_cdr(msg, ctx, &HashSet::new())
+}
+
+/// Generate Rust implementation with CDR trait impls and plainness information.
+pub fn generate_message_impl_with_cdr(
+    msg: &ResolvedMessage,
+    ctx: &GenerationContext,
+    plain_types: &HashSet<String>,
+) -> Result<TokenStream> {
     let name = format_ident!("{}", msg.parsed.name);
 
+    let msg_is_plain =
+        plain_types.contains(&format!("{}::{}", msg.parsed.package, msg.parsed.name));
     let struct_def = generate_struct_with_context(
         &msg.parsed.package,
         &msg.parsed.name,
         &msg.parsed.fields,
         &msg.parsed.constants,
         ctx,
+        msg_is_plain,
     )?;
     let type_info =
         generate_message_type_info(&msg.parsed.package, &msg.parsed.name, &msg.type_hash);
 
-    // No longer need custom serde - ros_z::ZBuf implements Serialize/Deserialize
-
-    // Generate size estimation implementation
     let size_estimation_impl =
         generate_size_estimation_impl(&name, &msg.parsed.fields, &msg.parsed.package, ctx)?;
+
+    let cdr_impls = generate_cdr_impls(msg, plain_types, ctx)?;
 
     Ok(quote! {
         #struct_def
         #type_info
         #size_estimation_impl
+        #cdr_impls
     })
 }
 
@@ -94,6 +574,7 @@ fn generate_struct(
         fields,
         constants,
         &GenerationContext::default(),
+        false,
     )
 }
 
@@ -104,6 +585,7 @@ fn generate_struct_with_context(
     fields: &[Field],
     constants: &[crate::types::Constant],
     ctx: &GenerationContext,
+    is_plain: bool,
 ) -> Result<TokenStream> {
     let name_ident = format_ident!("{}", name);
     let field_defs: Vec<TokenStream> = fields
@@ -132,12 +614,22 @@ fn generate_struct_with_context(
     // Python bridge module path for derive macros
     let py_module_path = format!("ros_z_msgs_py.types.{}", package);
 
+    let bytemuck_derives = if is_plain {
+        quote! {
+            #[cfg_attr(target_endian = "little", repr(C))]
+            #[cfg_attr(target_endian = "little", derive(Copy, ::bytemuck::Pod, ::bytemuck::Zeroable))]
+        }
+    } else {
+        quote! {}
+    };
+
     if has_large_array {
         // Large array messages need smart-default for arrays >32 elements
         Ok(quote! {
             #[derive(Debug, Clone, ::smart_default::SmartDefault, ::serde::Serialize, ::serde::Deserialize)]
             #[cfg_attr(feature = "python_registry", derive(::ros_z_derive::FromPyMessage, ::ros_z_derive::IntoPyMessage))]
             #[cfg_attr(feature = "python_registry", ros_msg(module = #py_module_path))]
+            #bytemuck_derives
             pub struct #name_ident {
                 #(#field_defs),*
             }
@@ -152,6 +644,7 @@ fn generate_struct_with_context(
             #[derive(Debug, Clone, Default, ::serde::Serialize, ::serde::Deserialize)]
             #[cfg_attr(feature = "python_registry", derive(::ros_z_derive::FromPyMessage, ::ros_z_derive::IntoPyMessage))]
             #[cfg_attr(feature = "python_registry", ros_msg(module = #py_module_path))]
+            #bytemuck_derives
             pub struct #name_ident {
                 #(#field_defs),*
             }
