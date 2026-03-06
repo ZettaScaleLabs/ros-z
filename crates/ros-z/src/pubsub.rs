@@ -684,6 +684,56 @@ where
         self
     }
 
+    /// Build a raw Zenoh subscriber with a sample-level callback, returning
+    /// the subscriber and liveliness token.
+    ///
+    /// This is the canonical subscriber setup path used by [`ZCache`] so that
+    /// topic qualification, key-expression construction, and liveliness-token
+    /// declaration are not duplicated.
+    ///
+    /// [`ZCache`]: crate::cache::ZCache
+    pub(crate) fn build_raw_subscriber<F>(
+        mut self,
+        callback: F,
+    ) -> Result<(
+        zenoh::pubsub::Subscriber<()>,
+        zenoh::liveliness::LivelinessToken,
+    )>
+    where
+        F: Fn(Sample) + Send + Sync + 'static,
+    {
+        let qualified_topic = crate::topic_name::qualify_topic_name(
+            &self.entity.topic,
+            &self.entity.node.namespace,
+            &self.entity.node.name,
+        )
+        .map_err(|e| zenoh::Error::from(format!("Failed to qualify topic: {}", e)))?;
+
+        self.entity.topic = qualified_topic.clone();
+        debug!("[CACHE] Qualified topic: {}", qualified_topic);
+
+        let topic_ke = self.keyexpr_format.topic_key_expr(&self.entity)?;
+        let key_expr = (*topic_ke).clone();
+        debug!("[CACHE] Key expression: {}", key_expr);
+
+        let sub = self
+            .session
+            .declare_subscriber(key_expr)
+            .callback(callback)
+            .wait()?;
+
+        let lv_ke = self
+            .keyexpr_format
+            .liveliness_key_expr(&self.entity, &self.session.zid())?;
+        let lv_token = self
+            .session
+            .liveliness()
+            .declare_token((*lv_ke).clone())
+            .wait()?;
+
+        Ok((sub, lv_token))
+    }
+
     /// Internal method that all build variants use.
     fn build_internal<Q>(
         mut self,

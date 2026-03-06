@@ -183,6 +183,22 @@ name = "dynamic_message_interop"
 path = "examples/dynamic_message/interop.rs"
 required-features = []
 
+# Message cache examples
+[[example]]
+name = "z_cache_talker"
+path = "examples/z_cache/talker.rs"
+required-features = []
+
+[[example]]
+name = "z_cache_zenoh_stamp"
+path = "examples/z_cache/zenoh_stamp.rs"
+required-features = []
+
+[[example]]
+name = "z_cache_app_stamp"
+path = "examples/z_cache/app_stamp.rs"
+required-features = []
+
 [[example]]
 name = "shm_pointcloud2"
 path = "examples/shm_pointcloud2.rs"
