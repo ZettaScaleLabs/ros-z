@@ -149,10 +149,9 @@ mod tests {
             };
 
             // Respond to the cancel request
-            let response_bytes =
-                ros_z::msg::CdrSerdes::<ros_z::action::messages::CancelGoalResponse>::serialize(
-                    &cancel_resp,
-                );
+            let response_bytes = ros_z::msg::SerdeCdrSerdes::<
+                ros_z::action::messages::CancelGoalResponse,
+            >::serialize(&cancel_resp);
             response_tx
                 .reply(response_tx.key_expr().clone(), response_bytes)
                 .wait()?;

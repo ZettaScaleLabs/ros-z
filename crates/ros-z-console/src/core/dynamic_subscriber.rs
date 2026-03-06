@@ -7,7 +7,7 @@ use std::{sync::Arc, time::Duration};
 
 use flume::Receiver;
 use ros_z::{
-    dynamic::{DynamicCdrSerdes, DynamicMessage, MessageSchema},
+    dynamic::{DynamicMessage, DynamicSerdeCdrSerdes, MessageSchema},
     node::ZNode,
     pubsub::ZSub,
 };
@@ -25,7 +25,7 @@ pub struct DynamicTopicSubscriber {
     /// Channel for receiving messages asynchronously
     message_rx: Receiver<DynamicMessage>,
     /// Subscriber handle (kept alive to maintain subscription)
-    _subscriber: Arc<ZSub<DynamicMessage, Sample, DynamicCdrSerdes>>,
+    _subscriber: Arc<ZSub<DynamicMessage, Sample, DynamicSerdeCdrSerdes>>,
 }
 
 impl DynamicTopicSubscriber {

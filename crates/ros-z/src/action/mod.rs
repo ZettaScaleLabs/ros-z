@@ -1,4 +1,5 @@
 use crate::msg::ZMessage;
+use ros_z_cdr::{CdrBuffer, CdrDeserialize, CdrReader, CdrSerialize, CdrSerializedSize, CdrWriter};
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 
@@ -367,5 +368,113 @@ pub fn transition_goal_state(current: GoalStatus, event: GoalEvent) -> GoalStatu
 
         // Invalid transitions
         _ => GoalStatus::Unknown,
+    }
+}
+
+// ── CDR serialization impls ───────────────────────────────────────────────────
+// These allow GoalId, GoalStatus, Time, and GoalInfo to satisfy the
+// CdrSerialize + CdrDeserialize + CdrSerializedSize bounds, which in turn
+// lets the action message types use the NativeCdrSerdes blanket ZMessage impl.
+
+impl CdrSerialize for GoalId {
+    #[inline]
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.0.cdr_serialize(w);
+    }
+}
+
+impl CdrDeserialize for GoalId {
+    #[inline]
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(GoalId(<[u8; 16]>::cdr_deserialize(r)?))
+    }
+}
+
+impl CdrSerializedSize for GoalId {
+    #[inline]
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        self.0.cdr_serialized_size(pos)
+    }
+}
+
+impl CdrSerialize for GoalStatus {
+    #[inline]
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        (*self as i8).cdr_serialize(w);
+    }
+}
+
+impl CdrDeserialize for GoalStatus {
+    #[inline]
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        let v = i8::cdr_deserialize(r)?;
+        GoalStatus::try_from(v).map_err(|e| ros_z_cdr::error::Error::Custom(e))
+    }
+}
+
+impl CdrSerializedSize for GoalStatus {
+    #[inline]
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        pos + 1
+    }
+}
+
+impl CdrSerialize for Time {
+    #[inline]
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.sec.cdr_serialize(w);
+        self.nanosec.cdr_serialize(w);
+    }
+}
+
+impl CdrDeserialize for Time {
+    #[inline]
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(Time {
+            sec: i32::cdr_deserialize(r)?,
+            nanosec: u32::cdr_deserialize(r)?,
+        })
+    }
+}
+
+impl CdrSerializedSize for Time {
+    #[inline]
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        let p = self.sec.cdr_serialized_size(pos);
+        self.nanosec.cdr_serialized_size(p)
+    }
+}
+
+impl CdrSerialize for GoalInfo {
+    #[inline]
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.goal_id.cdr_serialize(w);
+        self.stamp.cdr_serialize(w);
+    }
+}
+
+impl CdrDeserialize for GoalInfo {
+    #[inline]
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(GoalInfo {
+            goal_id: GoalId::cdr_deserialize(r)?,
+            stamp: Time::cdr_deserialize(r)?,
+        })
+    }
+}
+
+impl CdrSerializedSize for GoalInfo {
+    #[inline]
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        let p = self.goal_id.cdr_serialized_size(pos);
+        self.stamp.cdr_serialized_size(p)
     }
 }

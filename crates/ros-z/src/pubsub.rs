@@ -16,7 +16,7 @@ use crate::impl_with_type_info;
 use crate::queue::BoundedQueue;
 use crate::topic_name;
 
-use crate::msg::{CdrSerdes, ZDeserializer, ZMessage, ZSerializer};
+use crate::msg::{SerdeCdrSerdes, ZDeserializer, ZMessage, ZSerializer};
 use crate::qos::QosProfile;
 use ros_z_protocol::qos::{QosDurability, QosHistory, QosReliability};
 use std::sync::Mutex;
@@ -54,7 +54,7 @@ impl<T: ZMessage, S: ZSerializer> std::fmt::Debug for ZPub<T, S> {
 }
 
 #[derive(Debug)]
-pub struct ZPubBuilder<T, S = CdrSerdes<T>> {
+pub struct ZPubBuilder<T, S = SerdeCdrSerdes<T>> {
     pub entity: EndpointEntity,
     pub session: Arc<Session>,
     pub graph: Arc<Graph>,
@@ -191,7 +191,7 @@ impl<T, S> ZPubBuilder<T, S> {
     /// ```ignore
     /// let publisher = node
     ///     .create_pub_impl::<DynamicMessage>("topic", None)
-    ///     .with_serdes::<DynamicCdrSerdes>()
+    ///     .with_serdes::<DynamicSerdeCdrSerdes>()
     ///     .with_dyn_schema(schema)
     ///     .build()?;
     /// ```
@@ -546,7 +546,7 @@ where
 }
 
 // Specialized implementation for DynamicMessage publisher
-impl ZPub<crate::dynamic::DynamicMessage, crate::dynamic::DynamicCdrSerdes> {
+impl ZPub<crate::dynamic::DynamicMessage, crate::dynamic::DynamicSerdeCdrSerdes> {
     /// Get the dynamic schema used by this publisher.
     ///
     /// Returns `None` if the publisher was not created with `.with_dyn_schema()`.
@@ -555,7 +555,7 @@ impl ZPub<crate::dynamic::DynamicMessage, crate::dynamic::DynamicCdrSerdes> {
     }
 }
 
-pub struct ZSubBuilder<T, S = CdrSerdes<T>> {
+pub struct ZSubBuilder<T, S = SerdeCdrSerdes<T>> {
     pub entity: EndpointEntity,
     pub session: Arc<Session>,
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
@@ -636,7 +636,7 @@ where
 
     /// Set the dynamic message schema for runtime-typed messages.
     ///
-    /// This is required when using `DynamicMessage` with `DynamicCdrSerdes`.
+    /// This is required when using `DynamicMessage` with `DynamicSerdeCdrSerdes`.
     /// The schema will be used to deserialize incoming messages.
     ///
     /// # Example
@@ -644,7 +644,7 @@ where
     /// ```ignore
     /// let subscriber = node
     ///     .create_sub::<DynamicMessage>("/topic")
-    ///     .with_serdes::<DynamicCdrSerdes>()
+    ///     .with_serdes::<DynamicSerdeCdrSerdes>()
     ///     .with_dyn_schema(schema)
     ///     .build()?;
     /// ```
@@ -866,7 +866,7 @@ pub struct ZSub<T: ZMessage, Q, S: ZDeserializer> {
     _lv_token: LivelinessToken,
     events_mgr: Arc<Mutex<EventsManager>>,
     /// Schema for dynamic message deserialization.
-    /// Required when using `DynamicMessage` with `DynamicCdrSerdes`.
+    /// Required when using `DynamicMessage` with `DynamicSerdeCdrSerdes`.
     pub dyn_schema: Option<Arc<crate::dynamic::schema::MessageSchema>>,
     /// Expected encoding for validation.
     pub expected_encoding: Option<crate::encoding::Encoding>,
@@ -970,7 +970,7 @@ where
 }
 
 // Specialized implementation for DynamicMessage
-impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicCdrSerdes> {
+impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicSerdeCdrSerdes> {
     /// Receive and deserialize the next dynamic message.
     ///
     /// This method requires that the subscriber was built with `.with_dyn_schema()`.
@@ -1003,7 +1003,7 @@ impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicCdrSerd
         tracing::Span::current().record("payload_len", payload.len());
         debug!("[SUB] Received dynamic message");
 
-        crate::dynamic::DynamicCdrSerdes::deserialize((&payload, schema))
+        crate::dynamic::DynamicSerdeCdrSerdes::deserialize((&payload, schema))
             .map_err(|e| zenoh::Error::from(e.to_string()))
     }
 
@@ -1023,7 +1023,7 @@ impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicCdrSerd
             .ok_or_else(|| zenoh::Error::from("Receive timed out"))?;
         let payload = sample.payload().to_bytes();
 
-        crate::dynamic::DynamicCdrSerdes::deserialize((&payload, schema))
+        crate::dynamic::DynamicSerdeCdrSerdes::deserialize((&payload, schema))
             .map_err(|e| zenoh::Error::from(e.to_string()))
     }
 
@@ -1041,7 +1041,7 @@ impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicCdrSerd
         let sample = queue.recv_async().await;
         let payload = sample.payload().to_bytes();
 
-        crate::dynamic::DynamicCdrSerdes::deserialize((&payload, schema))
+        crate::dynamic::DynamicSerdeCdrSerdes::deserialize((&payload, schema))
             .map_err(|e| zenoh::Error::from(e.to_string()))
     }
 
@@ -1053,7 +1053,7 @@ impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicCdrSerd
         match queue.try_recv() {
             Some(sample) => {
                 let payload = sample.payload().to_bytes();
-                let result = crate::dynamic::DynamicCdrSerdes::deserialize((&payload, schema))
+                let result = crate::dynamic::DynamicSerdeCdrSerdes::deserialize((&payload, schema))
                     .map_err(|e| zenoh::Error::from(e.to_string()));
                 Some(result)
             }
