@@ -151,22 +151,19 @@ let cache = node
 `get_before` and `get_after` use **inclusive** bounds (`≤` / `≥`), unlike the C++ `getElemBeforeTime` / `getElemAfterTime` which are **exclusive** (`<` / `>`). This matches the query semantics of `get_interval`.
 ```
 
-## Running the Example
+## Running the Examples
 
-The `z_cache` example demonstrates both stamp modes with a publisher and cache consumer:
+Three focused examples demonstrate the cache. Run them in separate terminals:
 
 ```bash
 # Terminal 1 — publisher (sends msg-0, msg-1, … every 100 ms)
-cargo run --example z_cache -- --role talker
+cargo run --example z_cache_talker
 
 # Terminal 2 — cache consumer with Zenoh transport timestamp (default)
-cargo run --example z_cache -- --role cache
+cargo run --example z_cache_zenoh_stamp
 
 # Terminal 2 — cache consumer with application-level timestamp
-cargo run --example z_cache -- --role cache --stamp app
-
-# Adjust capacity and query window
-cargo run --example z_cache -- --role cache --capacity 50 --window-ms 200
+cargo run --example z_cache_app_stamp
 ```
 
 ## Resources
