@@ -369,7 +369,7 @@ impl MessageGenerator {
 
         // Wrap in ros module for namespacing
         let wrapped_tokens = quote! {
-            #[allow(clippy::approx_constant, clippy::manual_is_multiple_of)]
+            #[allow(clippy::approx_constant, clippy::manual_is_multiple_of, clippy::let_and_return)]
             pub mod ros {
                 #all_tokens
             }

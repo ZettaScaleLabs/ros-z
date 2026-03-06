@@ -110,7 +110,7 @@ const CASES: &[InteropCase] = &[
 fn ros_z_pub_to_ros2_sub<T>(case: &InteropCase)
 where
     T: ZMessage + WithTypeInfo + Default + 'static,
-    SerdeCdrSerdes<T>: for<'a> ZSerializer<Input<'a> = &'a T>,
+    T::Serdes: for<'a> ZSerializer<Input<'a> = &'a T>,
 {
     if !check_ros2_available() {
         eprintln!("Skipping {}: ros2 CLI not available", case.type_name);
@@ -192,7 +192,7 @@ where
 fn ros2_pub_to_ros_z_sub<T>(case: &InteropCase)
 where
     T: ZMessage + WithTypeInfo + 'static,
-    SerdeCdrSerdes<T>: for<'a> ZDeserializer<Input<'a> = &'a [u8]>,
+    T::Serdes: for<'a> ZDeserializer<Input<'a> = &'a [u8]>,
 {
     if !check_ros2_available() {
         eprintln!("Skipping {}: ros2 CLI not available", case.type_name);
