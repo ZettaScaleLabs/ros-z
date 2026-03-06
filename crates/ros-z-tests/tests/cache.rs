@@ -398,42 +398,40 @@ fn cache_empty_query() {
 }
 
 // ---------------------------------------------------------------------------
-// Test 12: Zenoh timestamp fallback to now() when sample has no timestamp
+// Test 12: ZenohStamp — normal path receives messages indexed near SystemTime::now()
 // ---------------------------------------------------------------------------
-//
-// This test verifies that the cache still accepts messages when the Zenoh
-// timestamp is absent (the fallback path in ZenohStamp). Since we cannot
-// easily disable timestamping for a single publisher, we verify the behaviour
-// indirectly: messages published without any stamp intervention still land in
-// the cache (the fallback `SystemTime::now()` is used) and the cache is
-// non-empty after delivery.
 
 #[test]
-fn cache_zenoh_stamp_fallback_still_receives() {
+fn cache_zenoh_stamp_receives_and_queryable_by_wall_clock() {
     let router = TestRouter::new();
     let ctx = create_ros_z_context_with_router(&router).expect("ctx");
     let node = ctx.create_node("cache_node").build().expect("node");
-    // ZenohStamp is the default — this exercises the normal (non-fallback) path.
-    // The fallback path is exercised when sample.timestamp() == None; we test
-    // that the cache remains functional by verifying message delivery in the
-    // default config.
     let cache = node
-        .create_cache::<RosString>("/cache_fallback", 10)
+        .create_cache::<RosString>("/cache_wallclock", 10)
         .build()
         .expect("cache");
 
     let endpoint = router.endpoint().to_string();
     let msgs = vec![make_msg("hello"), make_msg("world")];
-    publish_n(&endpoint, "/cache_fallback", &msgs);
+    let before_publish = SystemTime::now();
+    publish_n(&endpoint, "/cache_wallclock", &msgs);
     thread::sleep(Duration::from_millis(300));
+    let after_publish = SystemTime::now();
 
     assert!(
         !cache.is_empty(),
         "cache should contain messages after delivery"
     );
-    // The most recent message should be findable near now.
-    let before = cache.get_before(SystemTime::now());
-    assert!(before.is_some());
+    // Messages arrive indexed by Zenoh transport timestamp (≈ wall clock).
+    // get_interval over the publish window should return them.
+    let window = cache.get_interval(
+        before_publish - Duration::from_millis(100),
+        after_publish + Duration::from_millis(100),
+    );
+    assert!(
+        !window.is_empty(),
+        "expected messages in publish-time window"
+    );
 }
 
 // ---------------------------------------------------------------------------

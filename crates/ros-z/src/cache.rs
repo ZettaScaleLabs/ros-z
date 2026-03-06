@@ -48,16 +48,14 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use parking_lot::Mutex;
+use parking_lot::RwLock;
 use tracing::{debug, warn};
+use zenoh::Result;
 use zenoh::liveliness::LivelinessToken;
-use zenoh::{Result, Wait};
 
 use crate::Builder;
-
 use crate::msg::{CdrSerdes, ZDeserializer, ZMessage};
 use crate::pubsub::ZSubBuilder;
-use crate::topic_name;
 
 // ---------------------------------------------------------------------------
 // Stamp strategy markers
@@ -81,15 +79,17 @@ pub struct ExtractorStamp<T, F: Fn(&T) -> SystemTime>(pub(crate) F, pub(crate) P
 // CacheInner — shared mutable state
 // ---------------------------------------------------------------------------
 
-struct CacheInner<T> {
-    entries: BTreeMap<SystemTime, T>,
+/// Internal cache storage — public for benchmarks only.
+#[doc(hidden)]
+pub struct CacheInner<T> {
+    pub entries: BTreeMap<SystemTime, Arc<T>>,
     capacity: usize,
     /// Guards against logging the missing-timestamp warning more than once.
     warned_no_ts: bool,
 }
 
 impl<T> CacheInner<T> {
-    fn new(capacity: usize) -> Self {
+    pub fn new(capacity: usize) -> Self {
         Self {
             entries: BTreeMap::new(),
             capacity,
@@ -97,8 +97,8 @@ impl<T> CacheInner<T> {
         }
     }
 
-    fn insert(&mut self, stamp: SystemTime, msg: T) {
-        self.entries.insert(stamp, msg);
+    pub fn insert(&mut self, stamp: SystemTime, msg: T) {
+        self.entries.insert(stamp, Arc::new(msg));
         // Evict the oldest entry when over capacity.
         while self.entries.len() > self.capacity {
             self.entries.pop_first();
@@ -116,19 +116,22 @@ impl<T> CacheInner<T> {
 /// Built via [`ZCacheBuilder`], created through
 /// [`ZNode::create_cache`](crate::node::ZNode::create_cache).
 ///
+/// Messages are stored as [`Arc<T>`] so query methods return shared references
+/// without deep-copying the message payload.
+///
 /// Dropping `ZCache` automatically deregisters the underlying Zenoh subscriber.
 pub struct ZCache<T: ZMessage> {
-    inner: Arc<Mutex<CacheInner<T>>>,
+    inner: Arc<RwLock<CacheInner<T>>>,
     _sub: zenoh::pubsub::Subscriber<()>,
     _lv_token: LivelinessToken,
 }
 
-impl<T: ZMessage + Clone> ZCache<T> {
+impl<T: ZMessage> ZCache<T> {
     /// All messages with timestamp in `[t_start, t_end]`, inclusive, ordered
     /// by timestamp ascending.
     ///
-    /// Returns clones of the stored messages. If `t_start > t_end` the result
-    /// is always empty (no panic).
+    /// Returns `Arc<T>` handles — no deep copy of message payload. If
+    /// `t_start > t_end` the result is always empty (no panic).
     ///
     /// # Example
     ///
@@ -138,15 +141,15 @@ impl<T: ZMessage + Clone> ZCache<T> {
     ///     SystemTime::now(),
     /// );
     /// ```
-    pub fn get_interval(&self, t_start: SystemTime, t_end: SystemTime) -> Vec<T> {
+    pub fn get_interval(&self, t_start: SystemTime, t_end: SystemTime) -> Vec<Arc<T>> {
         if t_start > t_end {
             return Vec::new();
         }
-        let inner = self.inner.lock();
+        let inner = self.inner.read();
         inner
             .entries
             .range(t_start..=t_end)
-            .map(|(_, v)| v.clone())
+            .map(|(_, v)| Arc::clone(v))
             .collect()
     }
 
@@ -158,13 +161,13 @@ impl<T: ZMessage + Clone> ZCache<T> {
     /// ```rust,ignore
     /// let latest = cache.get_before(SystemTime::now());
     /// ```
-    pub fn get_before(&self, t: SystemTime) -> Option<T> {
-        let inner = self.inner.lock();
+    pub fn get_before(&self, t: SystemTime) -> Option<Arc<T>> {
+        let inner = self.inner.read();
         inner
             .entries
             .range(..=t)
             .next_back()
-            .map(|(_, v)| v.clone())
+            .map(|(_, v)| Arc::clone(v))
     }
 
     /// The earliest message with timestamp ≥ `t`, or `None` if the cache is
@@ -175,9 +178,9 @@ impl<T: ZMessage + Clone> ZCache<T> {
     /// ```rust,ignore
     /// let next = cache.get_after(camera_timestamp);
     /// ```
-    pub fn get_after(&self, t: SystemTime) -> Option<T> {
-        let inner = self.inner.lock();
-        inner.entries.range(t..).next().map(|(_, v)| v.clone())
+    pub fn get_after(&self, t: SystemTime) -> Option<Arc<T>> {
+        let inner = self.inner.read();
+        inner.entries.range(t..).next().map(|(_, v)| Arc::clone(v))
     }
 
     /// The message whose timestamp is nearest to `t` (either side).
@@ -192,28 +195,34 @@ impl<T: ZMessage + Clone> ZCache<T> {
     /// ```rust,ignore
     /// let nearest_imu = cache.get_nearest(camera_stamp);
     /// ```
-    pub fn get_nearest(&self, t: SystemTime) -> Option<T> {
-        let inner = self.inner.lock();
+    pub fn get_nearest(&self, t: SystemTime) -> Option<Arc<T>> {
+        let inner = self.inner.read();
         if inner.entries.is_empty() {
             return None;
         }
 
-        let before = inner.entries.range(..=t).next_back().map(|(k, v)| (*k, v));
-        let after = inner.entries.range(t..).next().map(|(k, v)| (*k, v));
+        let before = inner
+            .entries
+            .range(..=t)
+            .next_back()
+            .map(|(k, v)| (*k, Arc::clone(v)));
+        let after = inner
+            .entries
+            .range(t..)
+            .next()
+            .map(|(k, v)| (*k, Arc::clone(v)));
 
         match (before, after) {
-            (None, Some((_, v))) => Some(v.clone()),
-            (Some((_, v)), None) => Some(v.clone()),
+            (None, Some((_, v))) => Some(v),
+            (Some((_, v)), None) => Some(v),
             (Some((kb, vb)), Some((ka, va))) => {
-                // Compute distances. SystemTime subtraction can return Duration
-                // only if the result is non-negative.
                 let dist_before = t.duration_since(kb).unwrap_or_default();
                 let dist_after = ka.duration_since(t).unwrap_or_default();
                 // On a tie prefer earlier (before) timestamp.
                 if dist_after < dist_before {
-                    Some(va.clone())
+                    Some(va)
                 } else {
-                    Some(vb.clone())
+                    Some(vb)
                 }
             }
             (None, None) => None,
@@ -221,51 +230,28 @@ impl<T: ZMessage + Clone> ZCache<T> {
     }
 
     /// Timestamp of the oldest cached message, or `None` if empty.
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// if let Some(oldest) = cache.oldest_stamp() {
-    ///     println!("Cache starts at {:?}", oldest);
-    /// }
-    /// ```
     pub fn oldest_stamp(&self) -> Option<SystemTime> {
-        self.inner.lock().entries.keys().next().copied()
+        self.inner.read().entries.keys().next().copied()
     }
 
     /// Timestamp of the newest cached message, or `None` if empty.
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// if let Some(newest) = cache.newest_stamp() {
-    ///     println!("Cache ends at {:?}", newest);
-    /// }
-    /// ```
     pub fn newest_stamp(&self) -> Option<SystemTime> {
-        self.inner.lock().entries.keys().next_back().copied()
+        self.inner.read().entries.keys().next_back().copied()
     }
 
     /// Number of messages currently in the cache.
     pub fn len(&self) -> usize {
-        self.inner.lock().entries.len()
+        self.inner.read().entries.len()
     }
 
     /// `true` if the cache holds no messages.
     pub fn is_empty(&self) -> bool {
-        self.inner.lock().entries.is_empty()
+        self.inner.read().entries.is_empty()
     }
 
     /// Remove all messages from the cache.
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// cache.clear();
-    /// assert!(cache.is_empty());
-    /// ```
     pub fn clear(&self) {
-        self.inner.lock().entries.clear();
+        self.inner.write().entries.clear();
     }
 }
 
@@ -298,21 +284,6 @@ impl<T: ZMessage, S> ZCacheBuilder<T, S, ZenohStamp> {
     /// The extractor receives a reference to the deserialized message and
     /// returns a `SystemTime` representing its logical timestamp (e.g.
     /// `header.stamp`).
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// use ros_z_msgs::sensor_msgs::Imu;
-    /// use std::time::{Duration, SystemTime};
-    ///
-    /// let cache = node
-    ///     .create_cache::<Imu>("/imu/data", 200)
-    ///     .with_stamp(|msg: &Imu| {
-    ///         SystemTime::UNIX_EPOCH
-    ///             + Duration::new(msg.header.stamp.sec as u64, msg.header.stamp.nanosec)
-    ///     })
-    ///     .build()?;
-    /// ```
     pub fn with_stamp<F>(self, extractor: F) -> ZCacheBuilder<T, S, ExtractorStamp<T, F>>
     where
         F: Fn(&T) -> SystemTime + Send + Sync + 'static,
@@ -325,9 +296,6 @@ impl<T: ZMessage, S> ZCacheBuilder<T, S, ZenohStamp> {
     }
 
     /// Maximum number of messages to retain. Oldest are evicted when full.
-    ///
-    /// Defaults to the value passed to
-    /// [`ZNode::create_cache`](crate::node::ZNode::create_cache).
     pub fn with_capacity(mut self, capacity: usize) -> Self {
         self.capacity = capacity;
         self
@@ -374,28 +342,42 @@ where
             capacity,
             ..
         } = self;
+        let inner = Arc::new(RwLock::new(CacheInner::<T>::new(capacity)));
+        let inner_cb = inner.clone();
 
-        build_cache_from_sub::<T, S, _>(
-            sub_builder,
-            capacity,
-            |sample: &zenoh::sample::Sample, inner: &mut CacheInner<T>, msg: T| {
-                let stamp = match sample.timestamp() {
-                    Some(ts) => ts.get_time().to_system_time(),
-                    None => {
-                        if !inner.warned_no_ts {
-                            warn!(
-                                "[CACHE] Incoming sample has no Zenoh timestamp; \
-                                 falling back to SystemTime::now(). \
-                                 Enable timestamping in the Zenoh config to avoid this."
-                            );
-                            inner.warned_no_ts = true;
-                        }
-                        SystemTime::now()
+        let (sub, lv_token) =
+            sub_builder.build_raw_subscriber(move |sample: zenoh::sample::Sample| {
+                let payload = sample.payload().to_bytes();
+                match S::deserialize(&payload) {
+                    Ok(msg) => {
+                        let stamp = match sample.timestamp() {
+                            Some(ts) => ts.get_time().to_system_time(),
+                            None => {
+                                let mut guard = inner_cb.write();
+                                if !guard.warned_no_ts {
+                                    warn!(
+                                        "[CACHE] Incoming sample has no Zenoh timestamp; \
+                                         falling back to SystemTime::now(). \
+                                         Enable timestamping in the Zenoh config to avoid this."
+                                    );
+                                    guard.warned_no_ts = true;
+                                }
+                                drop(guard);
+                                SystemTime::now()
+                            }
+                        };
+                        inner_cb.write().insert(stamp, msg);
                     }
-                };
-                inner.insert(stamp, msg);
-            },
-        )
+                    Err(e) => tracing::error!("[CACHE] Failed to deserialize message: {}", e),
+                }
+            })?;
+
+        debug!("[CACHE] ZenohStamp cache ready");
+        Ok(ZCache {
+            inner,
+            _sub: sub,
+            _lv_token: lv_token,
+        })
     }
 }
 
@@ -417,87 +399,26 @@ where
             capacity,
             stamp: ExtractorStamp(extractor, _),
         } = self;
+        let inner = Arc::new(RwLock::new(CacheInner::<T>::new(capacity)));
+        let inner_cb = inner.clone();
 
-        build_cache_from_sub::<T, S, _>(
-            sub_builder,
-            capacity,
-            move |_sample: &zenoh::sample::Sample, inner: &mut CacheInner<T>, msg: T| {
-                let stamp = extractor(&msg);
-                inner.insert(stamp, msg);
-            },
-        )
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Shared build helper
-// ---------------------------------------------------------------------------
-
-/// Common construction path shared by both stamp variants.
-///
-/// `insert_fn` receives the raw `Sample`, the mutable `CacheInner`, and the
-/// deserialized `T`. It is responsible for extracting the timestamp and calling
-/// `inner.insert(stamp, msg)`.
-fn build_cache_from_sub<T, S, InsertFn>(
-    mut sub_builder: ZSubBuilder<T, S>,
-    capacity: usize,
-    insert_fn: InsertFn,
-) -> Result<ZCache<T>>
-where
-    T: ZMessage + Send + Sync + 'static,
-    S: for<'a> ZDeserializer<Input<'a> = &'a [u8], Output = T> + 'static,
-    InsertFn: Fn(&zenoh::sample::Sample, &mut CacheInner<T>, T) + Send + Sync + 'static,
-{
-    // Qualify the topic name (same logic as ZSubBuilder::build_internal).
-    let qualified_topic = topic_name::qualify_topic_name(
-        &sub_builder.entity.topic,
-        &sub_builder.entity.node.namespace,
-        &sub_builder.entity.node.name,
-    )
-    .map_err(|e| zenoh::Error::from(format!("Failed to qualify topic: {}", e)))?;
-
-    sub_builder.entity.topic = qualified_topic.clone();
-    debug!("[CACHE] Qualified topic: {}", qualified_topic);
-
-    let session = sub_builder.session.clone();
-    let keyexpr_format = sub_builder.keyexpr_format;
-    let entity = sub_builder.entity.clone();
-
-    let topic_ke = keyexpr_format.topic_key_expr(&entity)?;
-    let key_expr = (*topic_ke).clone();
-    debug!("[CACHE] Key expression: {}", key_expr);
-
-    let inner = Arc::new(Mutex::new(CacheInner::<T>::new(capacity)));
-    let inner_cb = Arc::clone(&inner);
-
-    let cb_sub = session
-        .declare_subscriber(key_expr)
-        .callback(move |sample: zenoh::sample::Sample| {
-            let payload = sample.payload().to_bytes();
-            match S::deserialize(&payload) {
-                Ok(out) => {
-                    let msg = out;
-                    let mut guard = inner_cb.lock();
-                    insert_fn(&sample, &mut guard, msg);
+        let (sub, lv_token) =
+            sub_builder.build_raw_subscriber(move |sample: zenoh::sample::Sample| {
+                let payload = sample.payload().to_bytes();
+                match S::deserialize(&payload) {
+                    Ok(msg) => {
+                        let stamp = extractor(&msg);
+                        inner_cb.write().insert(stamp, msg);
+                    }
+                    Err(e) => tracing::error!("[CACHE] Failed to deserialize message: {}", e),
                 }
-                Err(e) => {
-                    tracing::error!("[CACHE] Failed to deserialize message: {}", e);
-                }
-            }
+            })?;
+
+        debug!("[CACHE] ExtractorStamp cache ready");
+        Ok(ZCache {
+            inner,
+            _sub: sub,
+            _lv_token: lv_token,
         })
-        .wait()?;
-
-    let lv_ke = keyexpr_format.liveliness_key_expr(&entity, &session.zid())?;
-    let lv_token = session
-        .liveliness()
-        .declare_token((*lv_ke).clone())
-        .wait()?;
-
-    debug!("[CACHE] Cache subscriber ready: topic={}", qualified_topic);
-
-    Ok(ZCache {
-        inner,
-        _sub: cb_sub,
-        _lv_token: lv_token,
-    })
+    }
 }
