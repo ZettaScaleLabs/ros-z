@@ -1067,13 +1067,13 @@ impl<A: ZAction> GoalHandle<A, Executing> {
                 goals_canceling: vec![request.goal_info],
             };
             let response_bytes = <CancelGoalServiceResponse as ZMessage>::serialize(&response);
-            if let Some(raw_attachment) = query.attachment() {
-                if let Ok(attachment) = Attachment::try_from(raw_attachment) {
-                    let _ = query
-                        .reply(query.key_expr().clone(), response_bytes)
-                        .attachment(attachment)
-                        .wait();
-                }
+            if let Some(raw_attachment) = query.attachment()
+                && let Ok(attachment) = Attachment::try_from(raw_attachment)
+            {
+                let _ = query
+                    .reply(query.key_expr().clone(), response_bytes)
+                    .attachment(attachment)
+                    .wait();
             }
             return true;
         }
