@@ -1,16 +1,24 @@
-//! Smoke tests for the `z_cache` example.
+//! Smoke tests for the `z_cache` examples.
 //!
-//! The example is included directly as a module via `#[path]` so the async
-//! helper functions can be called in-process from `#[tokio::test]` without
-//! spawning a subprocess.
+//! Each example file is included directly as a module via `#[path]` so the
+//! async helper functions can be called in-process from `#[tokio::test]`
+//! without spawning a subprocess.
 
 #![cfg(feature = "ros-msgs")]
 
 mod common;
 
 #[allow(dead_code, unused_imports)]
-#[path = "../../ros-z/examples/z_cache.rs"]
-mod z_cache_example;
+#[path = "../../ros-z/examples/z_cache/talker.rs"]
+mod z_cache_talker;
+
+#[allow(dead_code, unused_imports)]
+#[path = "../../ros-z/examples/z_cache/zenoh_stamp.rs"]
+mod z_cache_zenoh_stamp;
+
+#[allow(dead_code, unused_imports)]
+#[path = "../../ros-z/examples/z_cache/app_stamp.rs"]
+mod z_cache_app_stamp;
 
 use common::*;
 use ros_z::{Builder, context::ZContextBuilder};
@@ -37,9 +45,9 @@ fn make_ctx(endpoint: &str) -> ros_z::context::ZContext {
 async fn z_cache_cache_role_zenoh_stamp() {
     let router = TestRouter::new();
     let ctx = make_ctx(&router.endpoint());
-    z_cache_example::run_cache_zenoh(ctx, "/smoke/cache_zenoh".into(), 20, 500, 1)
+    z_cache_zenoh_stamp::run(ctx, "/smoke/cache_zenoh".into(), 20, 500, 1)
         .await
-        .expect("run_cache_zenoh returned Err");
+        .expect("run returned Err");
 }
 
 /// Cache role with ExtractorStamp: subscribe, run one query cycle, exit cleanly.
@@ -47,9 +55,9 @@ async fn z_cache_cache_role_zenoh_stamp() {
 async fn z_cache_cache_role_app_stamp() {
     let router = TestRouter::new();
     let ctx = make_ctx(&router.endpoint());
-    z_cache_example::run_cache_app(ctx, "/smoke/cache_app".into(), 20, 1)
+    z_cache_app_stamp::run(ctx, "/smoke/cache_app".into(), 20, 1)
         .await
-        .expect("run_cache_app returned Err");
+        .expect("run returned Err");
 }
 
 /// Talker role: publish 3 messages then exit cleanly.
@@ -57,7 +65,7 @@ async fn z_cache_cache_role_app_stamp() {
 async fn z_cache_talker_role() {
     let router = TestRouter::new();
     let ctx = make_ctx(&router.endpoint());
-    z_cache_example::run_talker(ctx, "/smoke/talker".into(), 3)
+    z_cache_talker::run(ctx, "/smoke/talker".into(), 3)
         .await
-        .expect("run_talker returned Err");
+        .expect("run returned Err");
 }
