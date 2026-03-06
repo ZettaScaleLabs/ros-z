@@ -1,139 +1,63 @@
 //! Smoke tests for the `z_cache` example.
 //!
-//! Each test runs the example with `--count N` so it exits cleanly after N
-//! iterations rather than looping forever. This lets us use `Command::output()`
-//! and assert on stdout without killing the process.
-//!
-//! Run with:
-//! ```bash
-//! cargo test --test z_cache_example -- --ignored
-//! ```
+//! The example is included directly as a module via `#[path]` so the async
+//! helper functions can be called in-process from `#[tokio::test]` without
+//! spawning a subprocess.
 
-use std::process::Command;
+#![cfg(feature = "ros-msgs")]
 
-/// Build the z_cache example and return its binary path.
-fn build_z_cache() -> std::path::PathBuf {
-    // CARGO_MANIFEST_DIR is crates/ros-z-tests — go up two levels to workspace root.
-    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
-    let workspace_root = std::path::Path::new(&manifest_dir)
-        .parent()
-        .and_then(|p| p.parent())
-        .expect("could not find workspace root")
-        .to_path_buf();
+mod common;
 
-    let output = Command::new("cargo")
-        .args([
-            "build",
-            "--package",
-            "ros-z",
-            "--example",
-            "z_cache",
-            "--features",
-            "jazzy",
-        ])
-        .current_dir(&workspace_root)
-        .output()
-        .expect("failed to invoke cargo build");
+#[allow(dead_code, unused_imports)]
+#[path = "../../ros-z/examples/z_cache.rs"]
+mod z_cache_example;
 
-    assert!(
-        output.status.success(),
-        "cargo build --example z_cache failed:\n{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+use common::*;
+use ros_z::{Builder, context::ZContextBuilder};
 
-    workspace_root.join("target/debug/examples/z_cache")
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+fn make_ctx(endpoint: &str) -> ros_z::context::ZContext {
+    ZContextBuilder::default()
+        .with_mode(String::from("client"))
+        .with_connect_endpoints([endpoint])
+        .build()
+        .expect("context")
 }
 
-#[test]
-#[ignore = "integration smoke test — builds and runs z_cache; invoke with --ignored"]
-fn z_cache_cache_role_zenoh_stamp() {
-    let binary = build_z_cache();
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
 
-    // --count 1: subscribe, wait 300 ms for connections, run one query cycle, exit.
-    let output = Command::new(&binary)
-        .args(["--role", "cache", "--count", "1"])
-        .output()
-        .expect("failed to run z_cache");
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    assert!(
-        output.status.success(),
-        "z_cache --role cache exited with {:?}\nstderr:\n{stderr}",
-        output.status.code()
-    );
-    assert!(
-        stdout.contains("[cache/zenoh] subscribed to"),
-        "missing startup banner\nstdout:\n{stdout}"
-    );
-    assert!(
-        stdout.contains("[cache/zenoh] window="),
-        "missing query output\nstdout:\n{stdout}"
-    );
+/// Cache role with ZenohStamp: subscribe, wait for connections, run one query
+/// cycle, exit cleanly.
+#[tokio::test(flavor = "multi_thread")]
+async fn z_cache_cache_role_zenoh_stamp() {
+    let router = TestRouter::new();
+    let ctx = make_ctx(&router.endpoint());
+    z_cache_example::run_cache_zenoh(ctx, "/smoke/cache_zenoh".into(), 20, 500, 1)
+        .await
+        .expect("run_cache_zenoh returned Err");
 }
 
-#[test]
-#[ignore = "integration smoke test — builds and runs z_cache; invoke with --ignored"]
-fn z_cache_cache_role_app_stamp() {
-    let binary = build_z_cache();
-
-    let output = Command::new(&binary)
-        .args(["--role", "cache", "--stamp", "app", "--count", "1"])
-        .output()
-        .expect("failed to run z_cache");
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    assert!(
-        output.status.success(),
-        "z_cache --role cache --stamp app exited with {:?}\nstderr:\n{stderr}",
-        output.status.code()
-    );
-    assert!(
-        stdout.contains("[cache/app] subscribed to"),
-        "missing startup banner\nstdout:\n{stdout}"
-    );
-    assert!(
-        stdout.contains("[cache/app] len="),
-        "missing query output\nstdout:\n{stdout}"
-    );
-    assert!(
-        stdout.contains("[cache/app] nearest to t=5s:"),
-        "missing get_nearest output\nstdout:\n{stdout}"
-    );
+/// Cache role with ExtractorStamp: subscribe, run one query cycle, exit cleanly.
+#[tokio::test(flavor = "multi_thread")]
+async fn z_cache_cache_role_app_stamp() {
+    let router = TestRouter::new();
+    let ctx = make_ctx(&router.endpoint());
+    z_cache_example::run_cache_app(ctx, "/smoke/cache_app".into(), 20, 1)
+        .await
+        .expect("run_cache_app returned Err");
 }
 
-#[test]
-#[ignore = "integration smoke test — builds and runs z_cache; invoke with --ignored"]
-fn z_cache_talker_role() {
-    let binary = build_z_cache();
-
-    // --count 3: publish 3 messages then exit.
-    let output = Command::new(&binary)
-        .args(["--role", "talker", "--count", "3"])
-        .output()
-        .expect("failed to run z_cache");
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    assert!(
-        output.status.success(),
-        "z_cache --role talker exited with {:?}\nstderr:\n{stderr}",
-        output.status.code()
-    );
-    assert!(
-        stdout.contains("[talker] publishing on"),
-        "missing startup banner\nstdout:\n{stdout}"
-    );
-    assert!(
-        stdout.contains("[talker] sent: msg-0"),
-        "missing first published message\nstdout:\n{stdout}"
-    );
-    assert!(
-        stdout.contains("[talker] sent: msg-2"),
-        "expected 3 messages (msg-0..msg-2)\nstdout:\n{stdout}"
-    );
+/// Talker role: publish 3 messages then exit cleanly.
+#[tokio::test(flavor = "multi_thread")]
+async fn z_cache_talker_role() {
+    let router = TestRouter::new();
+    let ctx = make_ctx(&router.endpoint());
+    z_cache_example::run_talker(ctx, "/smoke/talker".into(), 3)
+        .await
+        .expect("run_talker returned Err");
 }
