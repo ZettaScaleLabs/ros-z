@@ -412,7 +412,7 @@ impl CdrDeserialize for GoalStatus {
         r: &mut CdrReader<'de, BO>,
     ) -> ros_z_cdr::Result<Self> {
         let v = i8::cdr_deserialize(r)?;
-        GoalStatus::try_from(v).map_err(|e| ros_z_cdr::error::Error::Custom(e))
+        GoalStatus::try_from(v).map_err(ros_z_cdr::error::Error::Custom)
     }
 }
 
