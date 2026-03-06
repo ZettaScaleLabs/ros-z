@@ -2848,6 +2848,7 @@ dependencies = [
  "ros-z",
  "ros-z-cdr",
  "ros-z-msgs",
+ "serde",
  "tokio",
  "zenoh",
  "zenoh-buffers",
