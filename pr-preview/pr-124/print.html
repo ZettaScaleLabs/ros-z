@@ -1992,19 +1992,16 @@ cache.clear()          // remove all messages</code></pre>
 <p><code>get_before</code> and <code>get_after</code> use <strong>inclusive</strong> bounds (<code>≤</code> / <code>≥</code>), unlike the C++ <code>getElemBeforeTime</code> / <code>getElemAfterTime</code> which are <strong>exclusive</strong> (<code>&lt;</code> / <code>&gt;</code>). This matches the query semantics of <code>get_interval</code>.</p>
 </div>
 </div>
-<h2 id="running-the-example"><a class="header" href="#running-the-example">Running the Example</a></h2>
-<p>The <code>z_cache</code> example demonstrates both stamp modes with a publisher and cache consumer:</p>
+<h2 id="running-the-examples"><a class="header" href="#running-the-examples">Running the Examples</a></h2>
+<p>Three focused examples demonstrate the cache. Run them in separate terminals:</p>
 <pre><code class="language-bash"># Terminal 1 — publisher (sends msg-0, msg-1, … every 100 ms)
-cargo run --example z_cache -- --role talker
+cargo run --example z_cache_talker
 
 # Terminal 2 — cache consumer with Zenoh transport timestamp (default)
-cargo run --example z_cache -- --role cache
+cargo run --example z_cache_zenoh_stamp
 
 # Terminal 2 — cache consumer with application-level timestamp
-cargo run --example z_cache -- --role cache --stamp app
-
-# Adjust capacity and query window
-cargo run --example z_cache -- --role cache --capacity 50 --window-ms 200
+cargo run --example z_cache_app_stamp
 </code></pre>
 <h2 id="resources-3"><a class="header" href="#resources-3">Resources</a></h2>
 <ul>
