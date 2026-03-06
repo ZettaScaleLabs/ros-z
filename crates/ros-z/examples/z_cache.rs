@@ -69,6 +69,10 @@ struct Args {
     /// Query window in milliseconds (only used with --stamp zenoh)
     #[arg(short, long, default_value = "500")]
     window_ms: u64,
+
+    /// Exit after this many query/publish iterations (0 = run forever)
+    #[arg(long, default_value = "0")]
+    count: usize,
 }
 
 #[tokio::main]
@@ -87,12 +91,12 @@ async fn main() -> Result<()> {
     };
 
     match args.role {
-        Role::Talker => run_talker(ctx, args.topic).await,
+        Role::Talker => run_talker(ctx, args.topic, args.count).await,
         Role::Cache => match args.stamp {
             StampMode::Zenoh => {
-                run_cache_zenoh(ctx, args.topic, args.capacity, args.window_ms).await
+                run_cache_zenoh(ctx, args.topic, args.capacity, args.window_ms, args.count).await
             }
-            StampMode::App => run_cache_app(ctx, args.topic, args.capacity).await,
+            StampMode::App => run_cache_app(ctx, args.topic, args.capacity, args.count).await,
         },
     }
 }
@@ -101,7 +105,7 @@ async fn main() -> Result<()> {
 // Talker: publishes a new message every 100 ms carrying an incrementing counter
 // ---------------------------------------------------------------------------
 
-async fn run_talker(ctx: ros_z::context::ZContext, topic: String) -> Result<()> {
+async fn run_talker(ctx: ros_z::context::ZContext, topic: String, count: usize) -> Result<()> {
     let node = ctx.create_node("cache_talker").build()?;
     let publisher = node.create_pub::<RosString>(&topic).build()?;
 
@@ -116,7 +120,11 @@ async fn run_talker(ctx: ros_z::context::ZContext, topic: String) -> Result<()> 
         println!("[talker] sent: {}", msg.data);
         tokio::time::sleep(Duration::from_millis(100)).await;
         seq += 1;
+        if count > 0 && seq as usize >= count {
+            break;
+        }
     }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -130,6 +138,7 @@ async fn run_cache_zenoh(
     topic: String,
     capacity: usize,
     window_ms: u64,
+    count: usize,
 ) -> Result<()> {
     let node = ctx.create_node("cache_consumer").build()?;
 
@@ -146,6 +155,7 @@ async fn run_cache_zenoh(
     tokio::time::sleep(Duration::from_millis(300)).await;
 
     let window = Duration::from_millis(window_ms);
+    let mut i = 0usize;
     loop {
         let now = SystemTime::now();
         let t_start = now - window;
@@ -160,8 +170,13 @@ async fn run_cache_zenoh(
             newest.as_ref().map(|m| m.data.as_str()).unwrap_or("(none)"),
         );
 
+        i += 1;
+        if count > 0 && i >= count {
+            break;
+        }
         tokio::time::sleep(Duration::from_millis(500)).await;
     }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -175,6 +190,7 @@ async fn run_cache_app(
     ctx: ros_z::context::ZContext,
     topic: String,
     capacity: usize,
+    count: usize,
 ) -> Result<()> {
     let node = ctx.create_node("cache_consumer_app").build()?;
 
@@ -203,6 +219,7 @@ async fn run_cache_app(
 
     tokio::time::sleep(Duration::from_millis(300)).await;
 
+    let mut i = 0usize;
     loop {
         println!(
             "[cache/app] len={} | oldest={:?} | newest={:?}",
@@ -223,6 +240,11 @@ async fn run_cache_app(
                 .unwrap_or("(none)"),
         );
 
+        i += 1;
+        if count > 0 && i >= count {
+            break;
+        }
         tokio::time::sleep(Duration::from_millis(500)).await;
     }
+    Ok(())
 }
