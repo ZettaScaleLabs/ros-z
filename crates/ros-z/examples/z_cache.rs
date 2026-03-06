@@ -24,88 +24,106 @@
 
 use std::time::{Duration, SystemTime};
 
-use clap::{Parser, ValueEnum};
-use ros_z::{Builder, Result, context::ZContextBuilder};
+use ros_z::{Builder, Result};
 use ros_z_msgs::std_msgs::String as RosString;
 
-#[derive(Debug, Clone, Copy, ValueEnum)]
-enum Role {
-    /// Continuously publish messages on the topic
-    Talker,
-    /// Create a cache and periodically query it
-    Cache,
-}
+// Clap and the binary entry-point are only compiled when building the example
+// binary, not when the file is included as a module by the test suite.
+#[cfg(not(test))]
+mod cli {
+    use super::*;
+    use clap::{Parser, ValueEnum};
+    use ros_z::context::ZContextBuilder;
 
-#[derive(Debug, Clone, Copy, ValueEnum)]
-enum StampMode {
-    /// Index by Zenoh transport timestamp (default, zero-config)
-    Zenoh,
-    /// Index by parsing message payload as seconds since UNIX_EPOCH
-    App,
-}
-
-#[derive(Debug, Parser)]
-struct Args {
-    #[arg(short, long, value_enum, default_value = "cache")]
-    role: Role,
-
-    #[arg(short, long, default_value = "/cache_demo")]
-    topic: String,
-
-    #[arg(short, long, default_value = "peer")]
-    mode: String,
-
-    #[arg(short, long)]
-    endpoint: Option<String>,
-
-    /// Stamp strategy to use when role=cache
-    #[arg(long, value_enum, default_value = "zenoh")]
-    stamp: StampMode,
-
-    /// Cache capacity (max messages retained)
-    #[arg(short, long, default_value = "20")]
-    capacity: usize,
-
-    /// Query window in milliseconds (only used with --stamp zenoh)
-    #[arg(short, long, default_value = "500")]
-    window_ms: u64,
-
-    /// Exit after this many query/publish iterations (0 = run forever)
-    #[arg(long, default_value = "0")]
-    count: usize,
-}
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    zenoh::init_log_from_env_or("error");
-    let args = Args::parse();
-
-    let ctx = match args.endpoint {
-        Some(ref e) => ZContextBuilder::default()
-            .with_mode(args.mode.clone())
-            .with_connect_endpoints([e.as_str()])
-            .build()?,
-        None => ZContextBuilder::default()
-            .with_mode(args.mode.clone())
-            .build()?,
-    };
-
-    match args.role {
-        Role::Talker => run_talker(ctx, args.topic, args.count).await,
-        Role::Cache => match args.stamp {
-            StampMode::Zenoh => {
-                run_cache_zenoh(ctx, args.topic, args.capacity, args.window_ms, args.count).await
-            }
-            StampMode::App => run_cache_app(ctx, args.topic, args.capacity, args.count).await,
-        },
+    #[derive(Debug, Clone, Copy, ValueEnum)]
+    pub enum Role {
+        Talker,
+        Cache,
     }
+
+    #[derive(Debug, Clone, Copy, ValueEnum)]
+    pub enum StampMode {
+        Zenoh,
+        App,
+    }
+
+    #[derive(Debug, Parser)]
+    pub struct Args {
+        #[arg(short, long, value_enum, default_value = "cache")]
+        pub role: Role,
+
+        #[arg(short, long, default_value = "/cache_demo")]
+        pub topic: String,
+
+        #[arg(short, long, default_value = "peer")]
+        pub mode: String,
+
+        #[arg(short, long)]
+        pub endpoint: Option<String>,
+
+        /// Stamp strategy to use when role=cache
+        #[arg(long, value_enum, default_value = "zenoh")]
+        pub stamp: StampMode,
+
+        /// Cache capacity (max messages retained)
+        #[arg(short, long, default_value = "20")]
+        pub capacity: usize,
+
+        /// Query window in milliseconds (only used with --stamp zenoh)
+        #[arg(short, long, default_value = "500")]
+        pub window_ms: u64,
+
+        /// Exit after this many query/publish iterations (0 = run forever)
+        #[arg(long, default_value = "0")]
+        pub count: usize,
+    }
+
+    #[tokio::main]
+    pub async fn run() -> Result<()> {
+        zenoh::init_log_from_env_or("error");
+        let args = Args::parse();
+
+        let ctx = match args.endpoint {
+            Some(ref e) => ZContextBuilder::default()
+                .with_mode(args.mode.clone())
+                .with_connect_endpoints([e.as_str()])
+                .build()?,
+            None => ZContextBuilder::default()
+                .with_mode(args.mode.clone())
+                .build()?,
+        };
+
+        match args.role {
+            Role::Talker => super::run_talker(ctx, args.topic, args.count).await,
+            Role::Cache => match args.stamp {
+                StampMode::Zenoh => {
+                    super::run_cache_zenoh(
+                        ctx,
+                        args.topic,
+                        args.capacity,
+                        args.window_ms,
+                        args.count,
+                    )
+                    .await
+                }
+                StampMode::App => {
+                    super::run_cache_app(ctx, args.topic, args.capacity, args.count).await
+                }
+            },
+        }
+    }
+}
+
+#[cfg(not(test))]
+fn main() -> Result<()> {
+    cli::run()
 }
 
 // ---------------------------------------------------------------------------
 // Talker: publishes a new message every 100 ms carrying an incrementing counter
 // ---------------------------------------------------------------------------
 
-async fn run_talker(ctx: ros_z::context::ZContext, topic: String, count: usize) -> Result<()> {
+pub async fn run_talker(ctx: ros_z::context::ZContext, topic: String, count: usize) -> Result<()> {
     let node = ctx.create_node("cache_talker").build()?;
     let publisher = node.create_pub::<RosString>(&topic).build()?;
 
@@ -133,7 +151,7 @@ async fn run_talker(ctx: ros_z::context::ZContext, topic: String, count: usize) 
 // Queries a sliding [now-window_ms, now] window every 500 ms.
 // ---------------------------------------------------------------------------
 
-async fn run_cache_zenoh(
+pub async fn run_cache_zenoh(
     ctx: ros_z::context::ZContext,
     topic: String,
     capacity: usize,
@@ -186,7 +204,7 @@ async fn run_cache_zenoh(
 // Demonstrates sensor fusion: align by logical time, not transport time.
 // ---------------------------------------------------------------------------
 
-async fn run_cache_app(
+pub async fn run_cache_app(
     ctx: ros_z::context::ZContext,
     topic: String,
     capacity: usize,
