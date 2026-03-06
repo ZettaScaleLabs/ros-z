@@ -18,7 +18,7 @@ use std::{
 };
 
 use common::*;
-use ros_z::{Builder, cache::ZenohStamp};
+use ros_z::Builder;
 use ros_z_msgs::std_msgs::String as RosString;
 
 // ---------------------------------------------------------------------------
