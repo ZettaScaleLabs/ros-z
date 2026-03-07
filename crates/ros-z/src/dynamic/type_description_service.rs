@@ -38,6 +38,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
+use ros_z_cdr::{CdrBuffer, CdrDeserialize, CdrReader, CdrSerialize, CdrSerializedSize, CdrWriter};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, trace, warn};
 use zenoh::query::Query;
@@ -112,7 +113,183 @@ pub struct GetTypeDescriptionRequest {
     pub include_type_sources: bool,
 }
 
-// GetTypeDescriptionRequest implements ZMessage via blanket impl
+// ── CDR impls for wire types ──────────────────────────────────────────────────
+
+impl CdrSerialize for WireFieldType {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.type_id.cdr_serialize(w);
+        self.capacity.cdr_serialize(w);
+        self.string_capacity.cdr_serialize(w);
+        self.nested_type_name.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for WireFieldType {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(WireFieldType {
+            type_id: u8::cdr_deserialize(r)?,
+            capacity: u64::cdr_deserialize(r)?,
+            string_capacity: u64::cdr_deserialize(r)?,
+            nested_type_name: String::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for WireFieldType {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        let p = self.type_id.cdr_serialized_size(pos);
+        let p = self.capacity.cdr_serialized_size(p);
+        let p = self.string_capacity.cdr_serialized_size(p);
+        self.nested_type_name.cdr_serialized_size(p)
+    }
+}
+
+impl CdrSerialize for WireField {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.name.cdr_serialize(w);
+        self.field_type.cdr_serialize(w);
+        self.default_value.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for WireField {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(WireField {
+            name: String::cdr_deserialize(r)?,
+            field_type: WireFieldType::cdr_deserialize(r)?,
+            default_value: String::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for WireField {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        let p = self.name.cdr_serialized_size(pos);
+        let p = self.field_type.cdr_serialized_size(p);
+        self.default_value.cdr_serialized_size(p)
+    }
+}
+
+impl CdrSerialize for WireIndividualTypeDescription {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.type_name.cdr_serialize(w);
+        self.fields.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for WireIndividualTypeDescription {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(WireIndividualTypeDescription {
+            type_name: String::cdr_deserialize(r)?,
+            fields: Vec::<WireField>::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for WireIndividualTypeDescription {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        let p = self.type_name.cdr_serialized_size(pos);
+        self.fields.cdr_serialized_size(p)
+    }
+}
+
+impl CdrSerialize for WireTypeDescription {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.type_description.cdr_serialize(w);
+        self.referenced_type_descriptions.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for WireTypeDescription {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(WireTypeDescription {
+            type_description: WireIndividualTypeDescription::cdr_deserialize(r)?,
+            referenced_type_descriptions: Vec::<WireIndividualTypeDescription>::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for WireTypeDescription {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        let p = self.type_description.cdr_serialized_size(pos);
+        self.referenced_type_descriptions.cdr_serialized_size(p)
+    }
+}
+
+impl CdrSerialize for WireTypeSource {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.type_name.cdr_serialize(w);
+        self.encoding.cdr_serialize(w);
+        self.raw_file_contents.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for WireTypeSource {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(WireTypeSource {
+            type_name: String::cdr_deserialize(r)?,
+            encoding: String::cdr_deserialize(r)?,
+            raw_file_contents: String::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for WireTypeSource {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        let p = self.type_name.cdr_serialized_size(pos);
+        let p = self.encoding.cdr_serialized_size(p);
+        self.raw_file_contents.cdr_serialized_size(p)
+    }
+}
+
+impl CdrSerialize for WireKeyValue {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.key.cdr_serialize(w);
+        self.value.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for WireKeyValue {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(WireKeyValue {
+            key: String::cdr_deserialize(r)?,
+            value: String::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for WireKeyValue {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        let p = self.key.cdr_serialized_size(pos);
+        self.value.cdr_serialized_size(p)
+    }
+}
+
+impl CdrSerialize for GetTypeDescriptionRequest {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.type_name.cdr_serialize(w);
+        self.type_hash.cdr_serialize(w);
+        self.include_type_sources.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for GetTypeDescriptionRequest {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(GetTypeDescriptionRequest {
+            type_name: String::cdr_deserialize(r)?,
+            type_hash: String::cdr_deserialize(r)?,
+            include_type_sources: bool::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for GetTypeDescriptionRequest {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        let p = self.type_name.cdr_serialized_size(pos);
+        let p = self.type_hash.cdr_serialized_size(p);
+        self.include_type_sources.cdr_serialized_size(p)
+    }
+}
 
 /// GetTypeDescription service response.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -124,7 +301,37 @@ pub struct GetTypeDescriptionResponse {
     pub extra_information: Vec<WireKeyValue>,
 }
 
-// GetTypeDescriptionResponse implements ZMessage via blanket impl
+impl CdrSerialize for GetTypeDescriptionResponse {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.successful.cdr_serialize(w);
+        self.failure_reason.cdr_serialize(w);
+        self.type_description.cdr_serialize(w);
+        self.type_sources.cdr_serialize(w);
+        self.extra_information.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for GetTypeDescriptionResponse {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(GetTypeDescriptionResponse {
+            successful: bool::cdr_deserialize(r)?,
+            failure_reason: String::cdr_deserialize(r)?,
+            type_description: WireTypeDescription::cdr_deserialize(r)?,
+            type_sources: Vec::<WireTypeSource>::cdr_deserialize(r)?,
+            extra_information: Vec::<WireKeyValue>::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for GetTypeDescriptionResponse {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        let p = self.successful.cdr_serialized_size(pos);
+        let p = self.failure_reason.cdr_serialized_size(p);
+        let p = self.type_description.cdr_serialized_size(p);
+        let p = self.type_sources.cdr_serialized_size(p);
+        self.extra_information.cdr_serialized_size(p)
+    }
+}
 
 /// Marker type for GetTypeDescription service.
 pub struct GetTypeDescription;
@@ -384,11 +591,11 @@ impl TypeDescriptionService {
     /// This is called from the Zenoh callback when a query is received.
     /// It deserializes the request, looks up the schema, and sends the response.
     fn handle_query(schemas: &Arc<RwLock<HashMap<String, RegisteredSchema>>>, query: Query) {
-        use crate::msg::{CdrSerdes, ZDeserializer, ZSerializer};
+        use crate::msg::{SerdeCdrSerdes, ZDeserializer, ZSerializer};
 
         // Deserialize the request
         let request: GetTypeDescriptionRequest = match query.payload() {
-            Some(payload) => match CdrSerdes::deserialize(payload.to_bytes().as_ref()) {
+            Some(payload) => match SerdeCdrSerdes::deserialize(payload.to_bytes().as_ref()) {
                 Ok(req) => req,
                 Err(e) => {
                     warn!("[TDS] Failed to deserialize request: {}", e);
@@ -420,7 +627,7 @@ impl TypeDescriptionService {
         );
 
         // Serialize and send the response
-        let bytes = CdrSerdes::serialize(&response);
+        let bytes = SerdeCdrSerdes::serialize(&response);
         use zenoh::Wait;
         if let Err(e) = query.reply(query.key_expr().clone(), bytes).wait() {
             warn!("[TDS] Failed to send response: {}", e);

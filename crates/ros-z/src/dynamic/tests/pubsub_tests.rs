@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::dynamic::message::DynamicMessage;
 use crate::dynamic::schema::{FieldType, MessageSchema};
-use crate::dynamic::serdes::DynamicCdrSerdes;
+use crate::dynamic::serdes::DynamicSerdeCdrSerdes;
 use crate::msg::{ZDeserializer, ZSerializer};
 
 fn create_test_schema() -> Arc<MessageSchema> {
@@ -54,7 +54,7 @@ fn test_complex_schema_for_pubsub() {
     assert_eq!(twist.fields.len(), 2);
 }
 
-// Tests for unified pub/sub using DynamicCdrSerdes
+// Tests for unified pub/sub using DynamicSerdeCdrSerdes
 
 #[test]
 fn test_dynamic_cdr_serdes_roundtrip() {
@@ -64,12 +64,12 @@ fn test_dynamic_cdr_serdes_roundtrip() {
     msg.set("y", 2.5f64).unwrap();
     msg.set("z", 3.5f64).unwrap();
 
-    // Serialize using DynamicCdrSerdes (ZSerializer trait)
-    let bytes = DynamicCdrSerdes::serialize(&msg);
+    // Serialize using DynamicSerdeCdrSerdes (ZSerializer trait)
+    let bytes = DynamicSerdeCdrSerdes::serialize(&msg);
     assert!(!bytes.is_empty());
 
-    // Deserialize using DynamicCdrSerdes (ZDeserializer trait)
-    let deserialized = DynamicCdrSerdes::deserialize((&bytes, &schema)).unwrap();
+    // Deserialize using DynamicSerdeCdrSerdes (ZDeserializer trait)
+    let deserialized = DynamicSerdeCdrSerdes::deserialize((&bytes, &schema)).unwrap();
 
     assert_eq!(deserialized.get::<f64>("x").unwrap(), 1.5);
     assert_eq!(deserialized.get::<f64>("y").unwrap(), 2.5);
@@ -85,12 +85,12 @@ fn test_dynamic_cdr_serdes_zbuf() {
     msg.set("data", "Hello, unified pubsub!").unwrap();
 
     // Serialize to ZBuf
-    let zbuf = DynamicCdrSerdes::serialize_to_zbuf(&msg);
+    let zbuf = DynamicSerdeCdrSerdes::serialize_to_zbuf(&msg);
     assert!(zbuf.len() > 0);
 
     // Convert to bytes and deserialize
     let bytes: Vec<u8> = zbuf.contiguous().to_vec();
-    let deserialized = DynamicCdrSerdes::deserialize((&bytes, &schema)).unwrap();
+    let deserialized = DynamicSerdeCdrSerdes::deserialize((&bytes, &schema)).unwrap();
 
     assert_eq!(
         deserialized.get::<String>("data").unwrap(),
@@ -108,14 +108,14 @@ fn test_dynamic_cdr_serdes_to_buf() {
 
     // Serialize to existing buffer
     let mut buffer = Vec::new();
-    DynamicCdrSerdes::serialize_to_buf(&msg, &mut buffer);
+    DynamicSerdeCdrSerdes::serialize_to_buf(&msg, &mut buffer);
 
     // Should match serialize() output
-    let direct = DynamicCdrSerdes::serialize(&msg);
+    let direct = DynamicSerdeCdrSerdes::serialize(&msg);
     assert_eq!(buffer, direct);
 
     // Verify deserialize works
-    let deserialized = DynamicCdrSerdes::deserialize((&buffer, &schema)).unwrap();
+    let deserialized = DynamicSerdeCdrSerdes::deserialize((&buffer, &schema)).unwrap();
     assert_eq!(deserialized.get::<f64>("x").unwrap(), 10.0);
 }
 
@@ -188,7 +188,7 @@ fn test_zpub_builder_with_dyn_schema() {
 
 #[test]
 fn test_zpub_builder_with_serdes_preserves_schema() {
-    use crate::dynamic::{DynamicCdrSerdes, DynamicMessage};
+    use crate::dynamic::{DynamicMessage, DynamicSerdeCdrSerdes};
     use crate::pubsub::ZPubBuilder;
     use std::marker::PhantomData;
 
@@ -210,7 +210,7 @@ fn test_zpub_builder_with_serdes_preserves_schema() {
     };
 
     // Convert serdes type - schema should be preserved
-    let builder: ZPubBuilder<DynamicMessage, DynamicCdrSerdes> = builder.with_serdes();
+    let builder: ZPubBuilder<DynamicMessage, DynamicSerdeCdrSerdes> = builder.with_serdes();
     assert!(builder.dyn_schema.is_some());
     assert_eq!(
         builder.dyn_schema.as_ref().unwrap().type_name,

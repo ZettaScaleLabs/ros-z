@@ -1,6 +1,6 @@
 //! Serialization/deserialization implementations for dynamic messages.
 //!
-//! This module provides `DynamicCdrSerdes` which implements the `ZSerializer`
+//! This module provides `DynamicSerdeCdrSerdes` which implements the `ZSerializer`
 //! and `ZDeserializer` traits, allowing `DynamicMessage` to be used with
 //! the standard `ZPub`/`ZSub` infrastructure.
 
@@ -22,25 +22,25 @@ use super::schema::MessageSchema;
 /// # Example
 ///
 /// ```ignore
-/// use ros_z::dynamic::{DynamicMessage, DynamicCdrSerdes, MessageSchema};
+/// use ros_z::dynamic::{DynamicMessage, DynamicSerdeCdrSerdes, MessageSchema};
 /// use ros_z::pubsub::{ZPub, ZSub};
 ///
 /// // Publisher - schema is embedded in DynamicMessage
-/// let publisher: ZPub<DynamicMessage, DynamicCdrSerdes> = node
+/// let publisher: ZPub<DynamicMessage, DynamicSerdeCdrSerdes> = node
 ///     .create_pub("/topic")
-///     .with_serdes::<DynamicCdrSerdes>()
+///     .with_serdes::<DynamicSerdeCdrSerdes>()
 ///     .build()?;
 ///
 /// // Subscriber - schema must be provided via with_dyn_schema()
-/// let subscriber: ZSub<DynamicMessage, _, DynamicCdrSerdes> = node
+/// let subscriber: ZSub<DynamicMessage, _, DynamicSerdeCdrSerdes> = node
 ///     .create_sub("/topic")
-///     .with_serdes::<DynamicCdrSerdes>()
+///     .with_serdes::<DynamicSerdeCdrSerdes>()
 ///     .with_dyn_schema(schema)
 ///     .build()?;
 /// ```
-pub struct DynamicCdrSerdes;
+pub struct DynamicSerdeCdrSerdes;
 
-impl ZSerializer for DynamicCdrSerdes {
+impl ZSerializer for DynamicSerdeCdrSerdes {
     type Input<'a> = &'a DynamicMessage;
 
     fn serialize_to_zbuf(input: &DynamicMessage) -> ZBuf {
@@ -97,7 +97,7 @@ impl ZSerializer for DynamicCdrSerdes {
     }
 }
 
-impl ZDeserializer for DynamicCdrSerdes {
+impl ZDeserializer for DynamicSerdeCdrSerdes {
     type Input<'a> = (&'a [u8], &'a Arc<MessageSchema>);
     type Output = DynamicMessage;
     type Error = DynamicError;
@@ -131,7 +131,7 @@ mod tests {
         msg.set("y", 2.0f64).unwrap();
         msg.set("z", 3.0f64).unwrap();
 
-        let zbuf = DynamicCdrSerdes::serialize_to_zbuf(&msg);
+        let zbuf = DynamicSerdeCdrSerdes::serialize_to_zbuf(&msg);
         assert!(zbuf.len() > 0);
     }
 
@@ -144,10 +144,10 @@ mod tests {
         msg.set("z", 3.5f64).unwrap();
 
         // Serialize
-        let bytes = DynamicCdrSerdes::serialize(&msg);
+        let bytes = DynamicSerdeCdrSerdes::serialize(&msg);
 
         // Deserialize
-        let deserialized = DynamicCdrSerdes::deserialize((&bytes, &schema)).unwrap();
+        let deserialized = DynamicSerdeCdrSerdes::deserialize((&bytes, &schema)).unwrap();
 
         assert_eq!(deserialized.get::<f64>("x").unwrap(), 1.5);
         assert_eq!(deserialized.get::<f64>("y").unwrap(), 2.5);
@@ -163,10 +163,10 @@ mod tests {
         msg.set("z", 3.0f64).unwrap();
 
         let mut buffer = Vec::new();
-        DynamicCdrSerdes::serialize_to_buf(&msg, &mut buffer);
+        DynamicSerdeCdrSerdes::serialize_to_buf(&msg, &mut buffer);
 
         // Should match serialize() output
-        let direct = DynamicCdrSerdes::serialize(&msg);
+        let direct = DynamicSerdeCdrSerdes::serialize(&msg);
         assert_eq!(buffer, direct);
     }
 }

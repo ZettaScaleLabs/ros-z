@@ -17,12 +17,13 @@ zenoh-buffers = { workspace = true }
 prost = { workspace = true, optional = true }
 pyo3 = { workspace = true, optional = true }
 ros-z-derive = { path = "../ros-z-derive", optional = true }
-ros-z-cdr = { workspace = true, optional = true }
+ros-z-cdr = { workspace = true }
+byteorder = { workspace = true }
+bytemuck = { version = "1", features = ["derive"] }
 parking_lot = { workspace = true, optional = true }
 once_cell = { workspace = true, optional = true }
 
 [dev-dependencies]
-ros-z-cdr = { workspace = true }
 byteorder = { workspace = true }
 
 [build-dependencies]
@@ -76,7 +77,6 @@ rolling = ["ros-z/rolling"]
 kilted = ["ros-z/kilted"]
 python_registry = [
   "pyo3",
-  "ros-z-cdr",
   "parking_lot",
   "once_cell",
   "ros-z-derive",
