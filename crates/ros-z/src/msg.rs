@@ -467,7 +467,6 @@ pub trait ZService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zenoh_buffers::buffer::SplitBuffer;
 
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
     struct SimpleMessage {
@@ -799,7 +798,6 @@ mod fast_cdr_tests {
     use ros_z_cdr::{
         CdrBuffer, CdrDeserialize, CdrReader, CdrSerialize, CdrSerializedSize, CdrWriter,
     };
-    use zenoh_buffers::buffer::SplitBuffer;
 
     // ── Test types ────────────────────────────────────────────────────────────
 

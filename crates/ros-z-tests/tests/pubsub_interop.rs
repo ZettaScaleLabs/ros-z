@@ -37,7 +37,7 @@ use std::{
 use common::*;
 use ros_z::{
     Builder, WithTypeInfo,
-    msg::{SerdeCdrSerdes, ZDeserializer, ZMessage, ZSerializer},
+    msg::{ZDeserializer, ZMessage, ZSerializer},
 };
 use ros_z_msgs::{
     geometry_msgs::{PoseStamped, Twist, TwistStamped},
