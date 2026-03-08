@@ -399,6 +399,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::approx_constant, clippy::bool_assert_comparison)]
     fn test_primitives_roundtrip() {
         assert_eq!(roundtrip(&42i32), 42i32);
         assert_eq!(roundtrip(&3.14f64), 3.14f64);
