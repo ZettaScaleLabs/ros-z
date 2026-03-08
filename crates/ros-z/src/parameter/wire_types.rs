@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::ServiceTypeInfo;
 use crate::ZBuf;
 use crate::entity::{TypeHash, TypeInfo};
-use crate::msg::ZService;
+use crate::msg::{SerdeCdrSerdes, ZMessage, ZService};
 
 // ============================================================================
 // Parameter type constants (from ParameterType.msg)
@@ -337,3 +337,47 @@ pub fn parameter_event_type_info() -> TypeInfo {
 
 /// Constant for ListParameters: recursively get parameters with unlimited depth.
 pub const DEPTH_RECURSIVE: u64 = 0;
+
+// ============================================================================
+// ZMessage impls for service request/response types and ParameterEvent
+// ============================================================================
+
+impl ZMessage for DescribeParametersRequest {
+    type Serdes = SerdeCdrSerdes<Self>;
+}
+impl ZMessage for DescribeParametersResponse {
+    type Serdes = SerdeCdrSerdes<Self>;
+}
+impl ZMessage for GetParametersRequest {
+    type Serdes = SerdeCdrSerdes<Self>;
+}
+impl ZMessage for GetParametersResponse {
+    type Serdes = SerdeCdrSerdes<Self>;
+}
+impl ZMessage for GetParameterTypesRequest {
+    type Serdes = SerdeCdrSerdes<Self>;
+}
+impl ZMessage for GetParameterTypesResponse {
+    type Serdes = SerdeCdrSerdes<Self>;
+}
+impl ZMessage for ListParametersRequest {
+    type Serdes = SerdeCdrSerdes<Self>;
+}
+impl ZMessage for ListParametersResponse {
+    type Serdes = SerdeCdrSerdes<Self>;
+}
+impl ZMessage for SetParametersRequest {
+    type Serdes = SerdeCdrSerdes<Self>;
+}
+impl ZMessage for SetParametersResponse {
+    type Serdes = SerdeCdrSerdes<Self>;
+}
+impl ZMessage for SetParametersAtomicallyRequest {
+    type Serdes = SerdeCdrSerdes<Self>;
+}
+impl ZMessage for SetParametersAtomicallyResponse {
+    type Serdes = SerdeCdrSerdes<Self>;
+}
+impl ZMessage for WireParameterEvent {
+    type Serdes = SerdeCdrSerdes<Self>;
+}

@@ -15,7 +15,7 @@ use crate::ServiceTypeInfo;
 use crate::attachment::Attachment;
 use crate::context::GlobalCounter;
 use crate::entity::{EndpointEntity, EntityKind, NodeEntity, TypeInfo};
-use crate::msg::{CdrSerdes, ZDeserializer, ZSerializer};
+use crate::msg::{SerdeCdrSerdes, ZDeserializer, ZSerializer};
 use crate::pubsub::{ZPub, ZPubBuilder};
 use crate::qos::{QosDurability, QosHistory, QosProfile, QosReliability};
 use crate::service::ZServerBuilder;
@@ -38,7 +38,7 @@ type BoxedServer = Arc<dyn std::any::Any + Send + Sync>;
 pub struct ParameterService {
     store: Arc<RwLock<ParameterStore>>,
     on_set_callback: Arc<RwLock<Option<SetCallback>>>,
-    event_publisher: Arc<ZPub<WireParameterEvent, CdrSerdes<WireParameterEvent>>>,
+    event_publisher: Arc<ZPub<WireParameterEvent, SerdeCdrSerdes<WireParameterEvent>>>,
     /// Keeps all service servers alive.
     _servers: Arc<[BoxedServer]>,
     node_fqn: String,
@@ -240,7 +240,7 @@ impl ParameterService {
             },
         };
 
-        let pub_builder: ZPubBuilder<WireParameterEvent, CdrSerdes<WireParameterEvent>> =
+        let pub_builder: ZPubBuilder<WireParameterEvent, SerdeCdrSerdes<WireParameterEvent>> =
             ZPubBuilder {
                 entity: pub_entity,
                 session: session.clone(),
@@ -433,7 +433,7 @@ impl ParameterService {
 // ── Service callback handlers ─────────────────────────────────────────────────
 
 fn reply_with<T: serde::Serialize>(query: Query, response: &T) {
-    let bytes = CdrSerdes::<T>::serialize(response);
+    let bytes = SerdeCdrSerdes::<T>::serialize(response);
     use zenoh::Wait;
     let mut reply = query.reply(query.key_expr().clone(), bytes);
     // Echo the request attachment back so rmw_zenoh_cpp can match response to request.
@@ -449,7 +449,7 @@ fn reply_with<T: serde::Serialize>(query: Query, response: &T) {
 
 fn deserialize_request<T: for<'de> serde::Deserialize<'de>>(query: &Query) -> Option<T> {
     let payload = query.payload()?;
-    match CdrSerdes::<T>::deserialize(payload.to_bytes().as_ref()) {
+    match SerdeCdrSerdes::<T>::deserialize(payload.to_bytes().as_ref()) {
         Ok(req) => Some(req),
         Err(e) => {
             warn!("[PARAMS] Failed to deserialize request: {}", e);
@@ -669,7 +669,7 @@ fn publish_parameter_event(
         deleted_parameters,
     };
 
-    let bytes = CdrSerdes::<WireParameterEvent>::serialize(&event);
+    let bytes = SerdeCdrSerdes::<WireParameterEvent>::serialize(&event);
 
     // Publish to the Zenoh key for /parameter_events
     // We use a simplified key without QoS suffix since this is a well-known topic.
