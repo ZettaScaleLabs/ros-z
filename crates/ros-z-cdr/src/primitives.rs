@@ -384,16 +384,18 @@ impl<'a, BO: ByteOrder> CdrReader<'a, BO> {
     pub fn read_pod_slice<T: crate::plain::CdrPlain + bytemuck::Pod>(
         &mut self,
         count: usize,
-    ) -> Result<&'a [T]> {
+    ) -> Result<Vec<T>> {
         if count == 0 {
-            return Ok(&[]);
+            return Ok(vec![]);
         }
         self.align(std::mem::align_of::<T>())?;
         let byte_count = count
             .checked_mul(std::mem::size_of::<T>())
             .ok_or(Error::UnexpectedEof)?;
         let bytes = self.read_bytes(byte_count)?;
-        Ok(bytemuck::cast_slice(bytes))
+        // `pod_collect_to_vec` handles misaligned input buffers safely (copies into
+        // a freshly aligned allocation). `cast_slice` would panic on misaligned network data.
+        Ok(bytemuck::pod_collect_to_vec(bytes))
     }
 }
 

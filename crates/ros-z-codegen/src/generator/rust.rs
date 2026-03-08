@@ -385,7 +385,7 @@ fn generate_cdr_deserialize_field(
                         #[cfg(target_endian = "little")]
                         {
                             if __count > 0 {
-                                __r.read_pod_slice::<#base_ty>(__count)?.to_vec()
+                                __r.read_pod_slice::<#base_ty>(__count)?
                             } else {
                                 vec![]
                             }

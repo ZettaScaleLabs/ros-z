@@ -467,6 +467,7 @@ pub trait ZService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use zenoh_buffers::buffer::SplitBuffer;
 
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
     struct SimpleMessage {
