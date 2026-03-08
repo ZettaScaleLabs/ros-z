@@ -6,10 +6,11 @@
 //! The wrapper uses `serialize_bytes()` instead of `serialize_seq()` for better performance
 //! with large byte arrays, which is critical for messages like sensor images.
 
+use ros_z_cdr::{CdrBuffer, CdrDeserialize, CdrReader, CdrSerialize, CdrSerializedSize, CdrWriter};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
 use zenoh_buffers::ZBuf as ZenohZBuf;
-use zenoh_buffers::buffer::SplitBuffer;
+use zenoh_buffers::buffer::{Buffer, SplitBuffer};
 
 /// ROS-Z wrapper around Zenoh's ZBuf with optimized serde.
 ///
@@ -104,7 +105,61 @@ impl std::ops::DerefMut for ZBuf {
     }
 }
 
-// Optimized serde implementation
+// ── CdrSerialize / CdrDeserialize / CdrSerializedSize ────────────────────────
+//
+// CDR encoding for ZBuf: u32 sequence length prefix + raw bytes (like Vec<u8>).
+// This matches the ROS CDR wire format for `byte[]` / `uint8[]` fields.
+
+impl CdrSerialize for ZBuf {
+    #[inline]
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        let bytes = self.0.contiguous();
+        // write_bytes writes the u32 length prefix followed by the raw bytes
+        w.write_bytes(bytes.as_ref());
+    }
+}
+
+impl CdrDeserialize for ZBuf {
+    #[inline]
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        let count = r.read_sequence_length()?;
+        let bytes = r.read_bytes(count)?;
+        // Try zero-copy: check if the bytes sit inside a source ZBuf.
+        let zbuf = ros_z_cdr::ZBUF_DESER_SOURCE.with(|cell| {
+            let borrow = cell.borrow();
+            let source = borrow.as_ref()?;
+            let v_start = bytes.as_ptr() as usize;
+            let v_end = v_start + bytes.len();
+            for zslice in source.zslices() {
+                let s_start = zslice.as_slice().as_ptr() as usize;
+                let s_end = s_start + zslice.len();
+                if v_start >= s_start && v_end <= s_end {
+                    let offset = v_start - s_start;
+                    let sub = zslice.subslice(offset..offset + bytes.len())?;
+                    let mut z = ZenohZBuf::default();
+                    z.push_zslice(sub);
+                    return Some(z);
+                }
+            }
+            None
+        });
+        let inner = zbuf.unwrap_or_else(|| ZenohZBuf::from(bytes.to_vec()));
+        Ok(ZBuf(inner))
+    }
+}
+
+impl CdrSerializedSize for ZBuf {
+    #[inline]
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        // u32 length prefix (4-byte aligned) + byte contents
+        let after_len = pos + (4 - pos % 4) % 4 + 4;
+        after_len + self.0.len()
+    }
+}
+
+// ── Optimized serde implementation ──────────────────────────────────────────
 impl Serialize for ZBuf {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

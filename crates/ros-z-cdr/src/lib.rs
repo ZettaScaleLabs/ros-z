@@ -17,8 +17,10 @@
 pub mod buffer;
 pub mod deserializer;
 pub mod error;
+pub mod plain;
 pub mod primitives;
 pub mod serializer;
+pub mod traits;
 pub mod zbuf_writer;
 
 use std::cell::RefCell;
@@ -36,8 +38,11 @@ pub use buffer::CdrBuffer;
 pub use byteorder::{BigEndian, LittleEndian};
 pub use deserializer::{CdrDeserializer, from_bytes, from_bytes_with};
 pub use error::{Error, Result};
+#[cfg(target_endian = "little")]
+pub use plain::CdrPlain;
 pub use primitives::{CdrReader, CdrWriter};
 pub use serializer::{CdrSerializer, to_buffer, to_vec, to_vec_reuse};
+pub use traits::{CdrDeserialize, CdrSerialize, CdrSerializedSize, cdr_to_vec};
 pub use zbuf_writer::ZBufWriter;
 
 /// Native endian type alias for the current platform.

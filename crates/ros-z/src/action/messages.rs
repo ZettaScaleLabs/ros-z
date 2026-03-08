@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use ros_z_cdr::{CdrBuffer, CdrDeserialize, CdrReader, CdrSerialize, CdrSerializedSize, CdrWriter};
 use serde::{Deserialize, Serialize};
 
 use super::{GoalId, GoalInfo, GoalStatus, ZAction};
@@ -308,4 +309,270 @@ impl<A: ZAction> crate::ServiceTypeInfo for CancelService<A> {
         // Delegate to the action's cancel_goal_type_info method for proper interop
         A::cancel_goal_type_info()
     }
+}
+
+// ── CDR serialization impls ───────────────────────────────────────────────────
+// Concrete (non-generic) action message types now implement CdrSerialize +
+// CdrDeserialize + CdrSerializedSize directly, so the blanket
+// `impl<T: CdrSerialize + ...> ZMessage for T` covers them automatically.
+//
+// Generic types (GoalRequest<A>, etc.) still use the serde path via explicit
+// ZMessage impls below until ZAction's associated type bounds are updated.
+
+impl CdrSerialize for GoalStatusInfo {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.goal_info.cdr_serialize(w);
+        self.status.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for GoalStatusInfo {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(GoalStatusInfo {
+            goal_info: GoalInfo::cdr_deserialize(r)?,
+            status: GoalStatus::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for GoalStatusInfo {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        let p = self.goal_info.cdr_serialized_size(pos);
+        self.status.cdr_serialized_size(p)
+    }
+}
+
+impl CdrSerialize for CancelGoalRequest {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.goal_info.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for CancelGoalRequest {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(CancelGoalRequest {
+            goal_info: GoalInfo::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for CancelGoalRequest {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        self.goal_info.cdr_serialized_size(pos)
+    }
+}
+
+impl CdrSerialize for CancelGoalResponse {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.return_code.cdr_serialize(w);
+        self.goals_canceling.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for CancelGoalResponse {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(CancelGoalResponse {
+            return_code: i8::cdr_deserialize(r)?,
+            goals_canceling: Vec::<GoalInfo>::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for CancelGoalResponse {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        let p = self.return_code.cdr_serialized_size(pos);
+        self.goals_canceling.cdr_serialized_size(p)
+    }
+}
+
+impl CdrSerialize for GoalResponse {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.accepted.cdr_serialize(w);
+        self.stamp_sec.cdr_serialize(w);
+        self.stamp_nanosec.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for GoalResponse {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(GoalResponse {
+            accepted: bool::cdr_deserialize(r)?,
+            stamp_sec: i32::cdr_deserialize(r)?,
+            stamp_nanosec: u32::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for GoalResponse {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        let p = self.accepted.cdr_serialized_size(pos);
+        let p = self.stamp_sec.cdr_serialized_size(p);
+        self.stamp_nanosec.cdr_serialized_size(p)
+    }
+}
+
+impl CdrSerialize for ResultRequest {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.goal_id.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for ResultRequest {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(ResultRequest {
+            goal_id: GoalId::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for ResultRequest {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        self.goal_id.cdr_serialized_size(pos)
+    }
+}
+
+impl CdrSerialize for StatusMessage {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.status_list.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for StatusMessage {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(StatusMessage {
+            status_list: Vec::<GoalStatusInfo>::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for StatusMessage {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        self.status_list.cdr_serialized_size(pos)
+    }
+}
+
+impl CdrSerialize for SendGoalResponse {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.accepted.cdr_serialize(w);
+        self.stamp_sec.cdr_serialize(w);
+        self.stamp_nanosec.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for SendGoalResponse {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(SendGoalResponse {
+            accepted: bool::cdr_deserialize(r)?,
+            stamp_sec: i32::cdr_deserialize(r)?,
+            stamp_nanosec: u32::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for SendGoalResponse {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        let p = self.accepted.cdr_serialized_size(pos);
+        let p = self.stamp_sec.cdr_serialized_size(p);
+        self.stamp_nanosec.cdr_serialized_size(p)
+    }
+}
+
+impl CdrSerialize for GetResultRequest {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.goal_id.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for GetResultRequest {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(GetResultRequest {
+            goal_id: GoalId::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for GetResultRequest {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        self.goal_id.cdr_serialized_size(pos)
+    }
+}
+
+impl CdrSerialize for CancelGoalServiceRequest {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.goal_info.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for CancelGoalServiceRequest {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(CancelGoalServiceRequest {
+            goal_info: GoalInfo::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for CancelGoalServiceRequest {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        self.goal_info.cdr_serialized_size(pos)
+    }
+}
+
+impl CdrSerialize for CancelGoalServiceResponse {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.return_code.cdr_serialize(w);
+        self.goals_canceling.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for CancelGoalServiceResponse {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(CancelGoalServiceResponse {
+            return_code: i8::cdr_deserialize(r)?,
+            goals_canceling: Vec::<GoalInfo>::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for CancelGoalServiceResponse {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        let p = self.return_code.cdr_serialized_size(pos);
+        self.goals_canceling.cdr_serialized_size(p)
+    }
+}
+
+// ── Generic types: still use serde path until ZAction gains CDR bounds ────────
+
+impl<A: ZAction + 'static> crate::msg::ZMessage for GoalRequest<A>
+where
+    A::Goal: Send + Sync + serde::Serialize + for<'de> serde::Deserialize<'de> + 'static,
+{
+    type Serdes = crate::msg::SerdeCdrSerdes<GoalRequest<A>>;
+}
+
+impl<A: ZAction + 'static> crate::msg::ZMessage for ResultResponse<A>
+where
+    A::Result: Send + Sync + serde::Serialize + for<'de> serde::Deserialize<'de> + 'static,
+{
+    type Serdes = crate::msg::SerdeCdrSerdes<ResultResponse<A>>;
+}
+
+impl<A: ZAction + 'static> crate::msg::ZMessage for FeedbackMessage<A>
+where
+    A::Feedback: Send + Sync + serde::Serialize + for<'de> serde::Deserialize<'de> + 'static,
+{
+    type Serdes = crate::msg::SerdeCdrSerdes<FeedbackMessage<A>>;
+}
+
+impl<A: ZAction + 'static> crate::msg::ZMessage for SendGoalRequest<A>
+where
+    A::Goal: Send + Sync + serde::Serialize + for<'de> serde::Deserialize<'de> + 'static,
+{
+    type Serdes = crate::msg::SerdeCdrSerdes<SendGoalRequest<A>>;
+}
+
+impl<A: ZAction + 'static> crate::msg::ZMessage for GetResultResponse<A>
+where
+    A::Result: Send + Sync + serde::Serialize + for<'de> serde::Deserialize<'de> + 'static,
+{
+    type Serdes = crate::msg::SerdeCdrSerdes<GetResultResponse<A>>;
 }

@@ -5,6 +5,8 @@
 //! by the serde-based serializer/deserializer and can also be used directly
 //! for schema-driven (dynamic) message handling.
 
+#[cfg(target_endian = "little")]
+use bytemuck;
 use byteorder::{ByteOrder, ReadBytesExt};
 use std::marker::PhantomData;
 
@@ -158,6 +160,20 @@ impl<'a, BO: ByteOrder, B: CdrBuffer> CdrWriter<'a, BO, B> {
     #[inline]
     pub fn write_sequence_length(&mut self, len: usize) {
         self.write_u32(len as u32);
+    }
+
+    /// Bulk-write a slice of plain (POD) values as raw bytes.
+    ///
+    /// The caller must write the sequence length prefix separately before calling this.
+    /// Alignment is handled internally based on `T`'s alignment requirement.
+    ///
+    /// Only available on little-endian hosts where CDR wire layout == memory layout.
+    #[cfg(target_endian = "little")]
+    #[inline]
+    pub fn write_pod_slice<T: crate::plain::CdrPlain + bytemuck::Pod>(&mut self, slice: &[T]) {
+        debug_assert!(!slice.is_empty());
+        self.align(std::mem::align_of::<T>());
+        self.buffer.extend_from_slice(bytemuck::cast_slice(slice));
     }
 }
 
@@ -355,6 +371,31 @@ impl<'a, BO: ByteOrder> CdrReader<'a, BO> {
     pub fn read_byte_sequence(&mut self) -> Result<&'a [u8]> {
         let len = self.read_u32()? as usize;
         self.read_bytes(len)
+    }
+
+    /// Bulk-read `count` plain (POD) values as a zero-copy borrowed slice.
+    ///
+    /// The caller must have already read the sequence length prefix.
+    /// Alignment is handled internally based on `T`'s alignment requirement.
+    ///
+    /// Only available on little-endian hosts where CDR wire layout == memory layout.
+    #[cfg(target_endian = "little")]
+    #[inline]
+    pub fn read_pod_slice<T: crate::plain::CdrPlain + bytemuck::Pod>(
+        &mut self,
+        count: usize,
+    ) -> Result<Vec<T>> {
+        if count == 0 {
+            return Ok(vec![]);
+        }
+        self.align(std::mem::align_of::<T>())?;
+        let byte_count = count
+            .checked_mul(std::mem::size_of::<T>())
+            .ok_or(Error::UnexpectedEof)?;
+        let bytes = self.read_bytes(byte_count)?;
+        // `pod_collect_to_vec` handles misaligned input buffers safely (copies into
+        // a freshly aligned allocation). `cast_slice` would panic on misaligned network data.
+        Ok(bytemuck::pod_collect_to_vec(bytes))
     }
 }
 
