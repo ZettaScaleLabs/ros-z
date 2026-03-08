@@ -21,6 +21,9 @@ zenoh-buffers = { workspace = true } # For ZBuf operations in tests
 tokio = { workspace = true, features = ["full"] }
 once_cell = { workspace = true } # For lazy static zenohd daemon
 serial_test = "3.0" # For sequential test execution
+tracing-subscriber = { version = "0.3", features = [
+  "env-filter",
+] } # For RUST_LOG in tests
 nix = { version = "0.29", features = [
   "signal",
 ] } # For graceful process shutdown
