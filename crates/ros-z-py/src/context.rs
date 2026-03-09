@@ -200,7 +200,6 @@ impl PyZContextBuilder {
         slf
     }
 
-
     /// Build the context
     pub fn build(&mut self) -> PyResult<PyZContext> {
         let builder = std::mem::take(&mut self.builder);

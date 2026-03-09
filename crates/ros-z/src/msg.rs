@@ -246,10 +246,10 @@ where
         writer.into_zbuf()
     }
 
-    fn serialize_to_shm<B>(
+    fn serialize_to_shm<B: zenoh::shm::ShmProviderBackend>(
         input: &T,
         estimated_size: usize,
-        provider: &zenoh::shm::ShmProvider<zenoh::shm::PosixShmProviderBackend>,
+        provider: &zenoh::shm::ShmProvider<B>,
     ) -> zenoh::Result<(ZBuf, usize)> {
         let mut writer = crate::shm::ShmWriter::new(provider, estimated_size)?;
         writer.extend_from_slice(&CDR_HEADER_LE);
@@ -333,10 +333,10 @@ where
         writer.into_zbuf()
     }
 
-    fn serialize_to_shm(
+    fn serialize_to_shm<B: zenoh::shm::ShmProviderBackend>(
         input: &T,
         estimated_size: usize,
-        provider: &zenoh::shm::ShmProvider<zenoh::shm::PosixShmProviderBackend>,
+        provider: &zenoh::shm::ShmProvider<B>,
     ) -> zenoh::Result<(ZBuf, usize)> {
         let mut writer = crate::shm::ShmWriter::new(provider, estimated_size)?;
         writer.extend_from_slice(&CDR_HEADER_LE);

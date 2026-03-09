@@ -49,7 +49,7 @@ zenoh = { version = "1.7.2", default-features = false, features = [
 zenoh-ext = { version = "1.7.2", features = ["unstable"] }
 zenoh-buffers = { version = "1.7.2" }
 zenoh-codec = { version = "1.7.2" }
-zenoh-cuda = { version = "1.7.2", path = "../../../../../project/zenoh-src/src/worktree-zenoh/cuda-zslice/commons/zenoh-cuda" }
+zenoh-cuda = { version = "1.7.2", git = "https://github.com/ZettaScaleLabs/zenoh", branch = "feat/mem-transport" }
 
 # CLI
 clap = "4.5.45"
@@ -110,14 +110,14 @@ cxx-build = "1.0.168"
 # - zenoh-protocol: same source as crates.io 1.7.2, but patched so that
 #   zenoh-link-commons (crates.io) and local zenoh-codec share one instance
 #   of the zenoh-protocol types (TransportMessage, etc.) — avoiding type mismatches.
-zenoh = { path = "../../../../../project/zenoh-src/src/worktree-zenoh/cuda-zslice/zenoh" }
-zenoh-buffers = { path = "../../../../../project/zenoh-src/src/worktree-zenoh/cuda-zslice/commons/zenoh-buffers" }
-zenoh-codec = { path = "../../../../../project/zenoh-src/src/worktree-zenoh/cuda-zslice/commons/zenoh-codec" }
-zenoh-protocol = { path = "../../../../../project/zenoh-src/src/worktree-zenoh/cuda-zslice/commons/zenoh-protocol" }
-zenoh-keyexpr = { path = "../../../../../project/zenoh-src/src/worktree-zenoh/cuda-zslice/commons/zenoh-keyexpr" }
-zenoh-shm = { path = "../../../../../project/zenoh-src/src/worktree-zenoh/cuda-zslice/commons/zenoh-shm" }
-zenoh-core = { path = "../../../../../project/zenoh-src/src/worktree-zenoh/cuda-zslice/commons/zenoh-core" }
-zenoh-transport = { path = "../../../../../project/zenoh-src/src/worktree-zenoh/cuda-zslice/io/zenoh-transport" }
+zenoh = { git = "https://github.com/ZettaScaleLabs/zenoh", branch = "feat/mem-transport" }
+zenoh-buffers = { git = "https://github.com/ZettaScaleLabs/zenoh", branch = "feat/mem-transport" }
+zenoh-codec = { git = "https://github.com/ZettaScaleLabs/zenoh", branch = "feat/mem-transport" }
+zenoh-protocol = { git = "https://github.com/ZettaScaleLabs/zenoh", branch = "feat/mem-transport" }
+zenoh-keyexpr = { git = "https://github.com/ZettaScaleLabs/zenoh", branch = "feat/mem-transport" }
+zenoh-shm = { git = "https://github.com/ZettaScaleLabs/zenoh", branch = "feat/mem-transport" }
+zenoh-core = { git = "https://github.com/ZettaScaleLabs/zenoh", branch = "feat/mem-transport" }
+zenoh-transport = { git = "https://github.com/ZettaScaleLabs/zenoh", branch = "feat/mem-transport" }
 
 [profile.opt]
 inherits = "release"

@@ -5075,6 +5075,7 @@ dependencies = [
 [[package]]
 name = "zenoh"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "ahash",
  "arc-swap",
@@ -5111,21 +5112,22 @@ dependencies = [
  "zenoh-keyexpr",
  "zenoh-link",
  "zenoh-link-commons",
- "zenoh-macros 1.7.2",
+ "zenoh-macros 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
  "zenoh-plugin-trait",
  "zenoh-protocol",
- "zenoh-result 1.7.2",
+ "zenoh-result 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
  "zenoh-runtime",
  "zenoh-shm",
  "zenoh-sync",
  "zenoh-task",
  "zenoh-transport",
- "zenoh-util 1.7.2",
+ "zenoh-util 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
 ]
 
 [[package]]
 name = "zenoh-buffers"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "zenoh-collections",
 ]
@@ -5133,6 +5135,7 @@ dependencies = [
 [[package]]
 name = "zenoh-codec"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "tracing",
  "uhlc",
@@ -5145,6 +5148,7 @@ dependencies = [
 [[package]]
 name = "zenoh-collections"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "ahash",
 ]
@@ -5152,6 +5156,7 @@ dependencies = [
 [[package]]
 name = "zenoh-config"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "json5",
  "nonempty-collections",
@@ -5167,41 +5172,44 @@ dependencies = [
  "validated_struct",
  "zenoh-core",
  "zenoh-keyexpr",
- "zenoh-macros 1.7.2",
+ "zenoh-macros 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
  "zenoh-protocol",
- "zenoh-result 1.7.2",
- "zenoh-util 1.7.2",
+ "zenoh-result 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
+ "zenoh-util 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
 ]
 
 [[package]]
 name = "zenoh-core"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "lazy_static",
  "tokio",
- "zenoh-result 1.7.2",
+ "zenoh-result 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
  "zenoh-runtime",
 ]
 
 [[package]]
 name = "zenoh-crypto"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "aes",
  "hmac",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "sha3",
- "zenoh-result 1.7.2",
+ "zenoh-result 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
 ]
 
 [[package]]
 name = "zenoh-cuda"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "tracing",
  "zenoh-buffers",
- "zenoh-result 1.7.2",
+ "zenoh-result 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
 ]
 
 [[package]]
@@ -5227,6 +5235,7 @@ dependencies = [
 [[package]]
 name = "zenoh-keyexpr"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "getrandom 0.2.16",
  "hashbrown 0.16.0",
@@ -5235,12 +5244,13 @@ dependencies = [
  "schemars 1.1.0",
  "serde",
  "token-cell",
- "zenoh-result 1.7.2",
+ "zenoh-result 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
 ]
 
 [[package]]
 name = "zenoh-link"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "zenoh-config",
  "zenoh-link-commons",
@@ -5253,12 +5263,13 @@ dependencies = [
  "zenoh-link-unixsock_stream",
  "zenoh-link-ws",
  "zenoh-protocol",
- "zenoh-result 1.7.2",
+ "zenoh-result 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
 ]
 
 [[package]]
 name = "zenoh-link-commons"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "async-trait",
  "base64",
@@ -5283,14 +5294,15 @@ dependencies = [
  "zenoh-config",
  "zenoh-core",
  "zenoh-protocol",
- "zenoh-result 1.7.2",
+ "zenoh-result 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
  "zenoh-runtime",
- "zenoh-util 1.7.2",
+ "zenoh-util 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
 ]
 
 [[package]]
 name = "zenoh-link-quic"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "async-trait",
  "base64",
@@ -5308,13 +5320,14 @@ dependencies = [
  "zenoh-core",
  "zenoh-link-commons",
  "zenoh-protocol",
- "zenoh-result 1.7.2",
- "zenoh-util 1.7.2",
+ "zenoh-result 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
+ "zenoh-util 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
 ]
 
 [[package]]
 name = "zenoh-link-quic_datagram"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "async-trait",
  "quinn",
@@ -5327,13 +5340,14 @@ dependencies = [
  "zenoh-core",
  "zenoh-link-commons",
  "zenoh-protocol",
- "zenoh-result 1.7.2",
- "zenoh-util 1.7.2",
+ "zenoh-result 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
+ "zenoh-util 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
 ]
 
 [[package]]
 name = "zenoh-link-serial"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "async-trait",
  "tokio",
@@ -5344,13 +5358,14 @@ dependencies = [
  "zenoh-core",
  "zenoh-link-commons",
  "zenoh-protocol",
- "zenoh-result 1.7.2",
+ "zenoh-result 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
  "zenoh-runtime",
 ]
 
 [[package]]
 name = "zenoh-link-tcp"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "async-trait",
  "socket2 0.5.10",
@@ -5361,12 +5376,13 @@ dependencies = [
  "zenoh-core",
  "zenoh-link-commons",
  "zenoh-protocol",
- "zenoh-result 1.7.2",
+ "zenoh-result 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
 ]
 
 [[package]]
 name = "zenoh-link-tls"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "async-trait",
  "base64",
@@ -5388,13 +5404,14 @@ dependencies = [
  "zenoh-core",
  "zenoh-link-commons",
  "zenoh-protocol",
- "zenoh-result 1.7.2",
+ "zenoh-result 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
  "zenoh-runtime",
 ]
 
 [[package]]
 name = "zenoh-link-udp"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "async-trait",
  "libc",
@@ -5407,14 +5424,15 @@ dependencies = [
  "zenoh-core",
  "zenoh-link-commons",
  "zenoh-protocol",
- "zenoh-result 1.7.2",
+ "zenoh-result 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
  "zenoh-sync",
- "zenoh-util 1.7.2",
+ "zenoh-util 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
 ]
 
 [[package]]
 name = "zenoh-link-unixsock_stream"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "async-trait",
  "nix 0.29.0",
@@ -5425,13 +5443,14 @@ dependencies = [
  "zenoh-core",
  "zenoh-link-commons",
  "zenoh-protocol",
- "zenoh-result 1.7.2",
+ "zenoh-result 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
  "zenoh-runtime",
 ]
 
 [[package]]
 name = "zenoh-link-ws"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "async-trait",
  "futures-util",
@@ -5443,19 +5462,9 @@ dependencies = [
  "zenoh-core",
  "zenoh-link-commons",
  "zenoh-protocol",
- "zenoh-result 1.7.2",
+ "zenoh-result 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
  "zenoh-runtime",
- "zenoh-util 1.7.2",
-]
-
-[[package]]
-name = "zenoh-macros"
-version = "1.7.2"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.114",
- "zenoh-keyexpr",
+ "zenoh-util 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
 ]
 
 [[package]]
@@ -5471,19 +5480,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "zenoh-mem-transport"
+name = "zenoh-macros"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
- "tracing",
- "zenoh-buffers",
- "zenoh-cuda",
- "zenoh-result 1.7.2",
- "zenoh-shm",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.114",
+ "zenoh-keyexpr",
 ]
 
 [[package]]
 name = "zenoh-plugin-trait"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "git-version",
  "libloading",
@@ -5492,14 +5502,15 @@ dependencies = [
  "tracing",
  "zenoh-config",
  "zenoh-keyexpr",
- "zenoh-macros 1.7.2",
- "zenoh-result 1.7.2",
- "zenoh-util 1.7.2",
+ "zenoh-macros 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
+ "zenoh-result 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
+ "zenoh-util 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
 ]
 
 [[package]]
 name = "zenoh-protocol"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "const_format",
  "rand 0.8.5",
@@ -5507,15 +5518,8 @@ dependencies = [
  "uhlc",
  "zenoh-buffers",
  "zenoh-keyexpr",
- "zenoh-macros 1.7.2",
- "zenoh-result 1.7.2",
-]
-
-[[package]]
-name = "zenoh-result"
-version = "1.7.2"
-dependencies = [
- "anyhow",
+ "zenoh-macros 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
+ "zenoh-result 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
 ]
 
 [[package]]
@@ -5528,21 +5532,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "zenoh-result"
+version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
+dependencies = [
+ "anyhow",
+]
+
+[[package]]
 name = "zenoh-runtime"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "lazy_static",
  "ron",
  "serde",
  "tokio",
  "tracing",
- "zenoh-macros 1.7.2",
- "zenoh-result 1.7.2",
+ "zenoh-macros 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
+ "zenoh-result 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
 ]
 
 [[package]]
 name = "zenoh-shm"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "advisory-lock",
  "async-trait",
@@ -5564,13 +5578,14 @@ dependencies = [
  "winapi",
  "zenoh-buffers",
  "zenoh-core",
- "zenoh-macros 1.7.2",
- "zenoh-result 1.7.2",
+ "zenoh-macros 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
+ "zenoh-result 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
 ]
 
 [[package]]
 name = "zenoh-stats"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "ahash",
  "prometheus-client",
@@ -5583,6 +5598,7 @@ dependencies = [
 [[package]]
 name = "zenoh-sync"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "arc-swap",
  "event-listener",
@@ -5596,6 +5612,7 @@ dependencies = [
 [[package]]
 name = "zenoh-task"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "futures",
  "tokio",
@@ -5608,6 +5625,7 @@ dependencies = [
 [[package]]
 name = "zenoh-transport"
 version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
 dependencies = [
  "async-trait",
  "crossbeam-utils",
@@ -5630,40 +5648,14 @@ dependencies = [
  "zenoh-cuda",
  "zenoh-link",
  "zenoh-link-commons",
- "zenoh-mem-transport",
  "zenoh-protocol",
- "zenoh-result 1.7.2",
+ "zenoh-result 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
  "zenoh-runtime",
  "zenoh-shm",
  "zenoh-stats",
  "zenoh-sync",
  "zenoh-task",
- "zenoh-util 1.7.2",
-]
-
-[[package]]
-name = "zenoh-util"
-version = "1.7.2"
-dependencies = [
- "async-trait",
- "const_format",
- "flume",
- "home",
- "humantime",
- "lazy_static",
- "libc",
- "libloading",
- "pnet_datalink",
- "schemars 1.2.0",
- "serde",
- "serde_json",
- "shellexpand",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "winapi",
- "zenoh-core",
- "zenoh-result 1.7.2",
+ "zenoh-util 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
 ]
 
 [[package]]
@@ -5691,6 +5683,32 @@ dependencies = [
  "winapi",
  "zenoh-core",
  "zenoh-result 1.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "zenoh-util"
+version = "1.7.2"
+source = "git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport#6cff5db14a50c290d78379036f955cacbc4686c4"
+dependencies = [
+ "async-trait",
+ "const_format",
+ "flume",
+ "home",
+ "humantime",
+ "lazy_static",
+ "libc",
+ "libloading",
+ "pnet_datalink",
+ "schemars 1.2.0",
+ "serde",
+ "serde_json",
+ "shellexpand",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "winapi",
+ "zenoh-core",
+ "zenoh-result 1.7.2 (git+https://github.com/ZettaScaleLabs/zenoh?branch=feat%2Fmem-transport)",
 ]
 
 [[package]]
