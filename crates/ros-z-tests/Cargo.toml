@@ -40,7 +40,11 @@ ros-msgs = [
   "ros-z-msgs/nav_msgs",
   "ros-z-msgs/rcl_interfaces",
 ]
-ros-interop = ["ros-msgs"]
+ros-interop = [
+  "ros-msgs",
+  "ros-z-msgs/example_interfaces",
+  "ros-z-msgs/action_tutorials_interfaces",
+]
 python-interop = ["ros-msgs"]
 
 # ros2dds backend interop (with zenoh-bridge-ros2dds)
