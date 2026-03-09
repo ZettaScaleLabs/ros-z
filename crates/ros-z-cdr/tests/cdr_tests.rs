@@ -235,12 +235,13 @@ where
 {
     // Serialize
     let mut buffer: Vec<u8> = Vec::new();
-    let mut writer = CdrWriter::<LittleEndian, _>::new(&mut buffer);
-    // write_pod_slice asserts !slice.is_empty, so we need to handle empty specially
-    if !values.is_empty() {
-        writer.write_pod_slice(values);
+    {
+        let mut writer = CdrWriter::<LittleEndian, _>::new(&mut buffer);
+        // write_pod_slice asserts !slice.is_empty, so we need to handle empty specially
+        if !values.is_empty() {
+            writer.write_pod_slice(values);
+        }
     }
-    drop(writer);
 
     // Deserialize
     let mut reader = CdrReader::<LittleEndian>::new(&buffer);
