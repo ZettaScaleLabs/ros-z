@@ -618,6 +618,7 @@ pub extern "C" fn rmw_create_subscription(
         graph: graph.clone(),
         entity: entity.clone(),
         notifier,
+        reception_sn: std::sync::atomic::AtomicU64::new(0),
     };
 
     // Add local entity to graph for immediate discovery
@@ -2483,8 +2484,8 @@ pub extern "C" fn rmw_take_dynamic_message_with_info(
 pub extern "C" fn rmw_feature_supported(feature: rmw_feature_t) -> bool {
     #[allow(non_upper_case_globals)]
     match feature {
-        rmw_feature_e_RMW_FEATURE_MESSAGE_INFO_PUBLICATION_SEQUENCE_NUMBER => false,
-        rmw_feature_e_RMW_FEATURE_MESSAGE_INFO_RECEPTION_SEQUENCE_NUMBER => false,
+        rmw_feature_e_RMW_FEATURE_MESSAGE_INFO_PUBLICATION_SEQUENCE_NUMBER => true,
+        rmw_feature_e_RMW_FEATURE_MESSAGE_INFO_RECEPTION_SEQUENCE_NUMBER => true,
         rmw_feature_e_RMW_MIDDLEWARE_SUPPORTS_TYPE_DISCOVERY => true,
         rmw_feature_e_RMW_MIDDLEWARE_CAN_TAKE_DYNAMIC_MESSAGE => false,
         _ => false,
