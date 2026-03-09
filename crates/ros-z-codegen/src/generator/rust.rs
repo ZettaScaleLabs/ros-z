@@ -182,7 +182,7 @@ fn generate_cdr_impls(
     let de_fields: Vec<TokenStream> = fields
         .iter()
         .map(|f| generate_cdr_deserialize_field(f, pkg, plain_types, ctx))
-        .collect::<Result<Vec<_>>>()?;
+        .collect();
 
     let field_idents: Vec<Ident> = fields.iter().map(|f| escape_field_name(&f.name)).collect();
 
@@ -316,22 +316,22 @@ fn generate_cdr_deserialize_field(
     source_pkg: &str,
     plain_types: &HashSet<String>,
     ctx: &GenerationContext,
-) -> Result<TokenStream> {
+) -> TokenStream {
     let fname = escape_field_name(&field.name);
     let ft = &field.field_type;
-    let rust_elem_ty = generate_field_type_tokens_with_context(ft, source_pkg, ctx)?;
+    let rust_elem_ty = generate_field_type_tokens_with_context(ft, source_pkg, ctx);
 
     // ZBuf: CdrDeserialize is implemented for ros_z::ZBuf in the ros-z crate.
     if is_zbuf_field(field) {
-        return Ok(quote! {
+        return quote! {
             let #fname: #rust_elem_ty = ::ros_z_cdr::CdrDeserialize::cdr_deserialize(__r)?;
-        });
+        };
     }
 
     match &ft.array {
-        ArrayType::Single => Ok(quote! {
+        ArrayType::Single => quote! {
             let #fname = ::ros_z_cdr::CdrDeserialize::cdr_deserialize(__r)?;
-        }),
+        },
         ArrayType::Fixed(n) => {
             let n_lit = proc_macro2::Literal::usize_unsuffixed(*n);
             let elem_plain = is_base_type_plain(
@@ -339,9 +339,9 @@ fn generate_cdr_deserialize_field(
                 ft.package.as_deref().or(Some(source_pkg)),
                 plain_types,
             );
-            let base_ty = generate_base_type_tokens_with_context(ft, source_pkg, ctx)?;
+            let base_ty = generate_base_type_tokens_with_context(ft, source_pkg, ctx);
             if elem_plain && !matches!(ft.base_type.as_str(), "bool" | "string" | "wstring") {
-                Ok(quote! {
+                quote! {
                     let #fname: #rust_elem_ty = {
                         #[cfg(target_endian = "little")]
                         {
@@ -358,9 +358,9 @@ fn generate_cdr_deserialize_field(
                             __arr
                         }
                     };
-                })
+                }
             } else {
-                Ok(quote! {
+                quote! {
                     let #fname: #rust_elem_ty = {
                         let mut __arr = [Default::default(); #n_lit];
                         for __slot in __arr.iter_mut() {
@@ -368,7 +368,7 @@ fn generate_cdr_deserialize_field(
                         }
                         __arr
                     };
-                })
+                }
             }
         }
         ArrayType::Unbounded | ArrayType::Bounded(_) => {
@@ -377,9 +377,9 @@ fn generate_cdr_deserialize_field(
                 ft.package.as_deref().or(Some(source_pkg)),
                 plain_types,
             );
-            let base_ty = generate_base_type_tokens_with_context(ft, source_pkg, ctx)?;
+            let base_ty = generate_base_type_tokens_with_context(ft, source_pkg, ctx);
             if elem_plain && !matches!(ft.base_type.as_str(), "bool" | "string" | "wstring") {
-                Ok(quote! {
+                quote! {
                     let #fname: Vec<#base_ty> = {
                         let __count = __r.read_sequence_length()?;
                         #[cfg(target_endian = "little")]
@@ -399,9 +399,9 @@ fn generate_cdr_deserialize_field(
                             __v
                         }
                     };
-                })
+                }
             } else {
-                Ok(quote! {
+                quote! {
                     let #fname: Vec<#base_ty> = {
                         let __count = __r.read_sequence_length()?;
                         let mut __v = Vec::with_capacity(__count);
@@ -410,7 +410,7 @@ fn generate_cdr_deserialize_field(
                         }
                         __v
                     };
-                })
+                }
             }
         }
     }
@@ -550,7 +550,7 @@ pub fn generate_message_impl_with_cdr(
         &msg.type_hash,
         &msg.parsed.fields,
         ctx,
-    )?;
+    );
 
     let size_estimation_impl =
         generate_size_estimation_impl(&name, &msg.parsed.fields, &msg.parsed.package, ctx)?;
@@ -715,7 +715,7 @@ fn generate_field_def_with_context(
     // Escape Rust keywords with r# prefix
     let name = escape_field_name(&field.name);
     let field_type =
-        generate_field_type_tokens_with_context(&field.field_type, source_package, ctx)?;
+        generate_field_type_tokens_with_context(&field.field_type, source_package, ctx);
 
     // Check if this is a ZBuf field (for Python bridge attribute)
     let is_zbuf = is_zbuf_field(field);
@@ -836,7 +836,7 @@ fn escape_field_name(name: &str) -> Ident {
 
 /// Generate Rust type tokens for a field type
 #[allow(dead_code)]
-fn generate_field_type_tokens(field_type: &FieldType, source_package: &str) -> Result<TokenStream> {
+fn generate_field_type_tokens(field_type: &FieldType, source_package: &str) -> TokenStream {
     generate_field_type_tokens_with_context(
         field_type,
         source_package,
@@ -849,10 +849,10 @@ fn generate_field_type_tokens_with_context(
     field_type: &FieldType,
     source_package: &str,
     ctx: &GenerationContext,
-) -> Result<TokenStream> {
-    let base = generate_base_type_tokens_with_context(field_type, source_package, ctx)?;
+) -> TokenStream {
+    let base = generate_base_type_tokens_with_context(field_type, source_package, ctx);
 
-    Ok(match &field_type.array {
+    match &field_type.array {
         ArrayType::Single => base,
         ArrayType::Fixed(n) => {
             let n_lit = proc_macro2::Literal::usize_unsuffixed(*n);
@@ -871,12 +871,12 @@ fn generate_field_type_tokens_with_context(
             // Custom bounded type could be added for strict memory guarantees if needed
             quote! { ::std::vec::Vec<#base> }
         }
-    })
+    }
 }
 
 /// Generate base type tokens
 #[allow(dead_code)]
-fn generate_base_type_tokens(field_type: &FieldType, source_package: &str) -> Result<TokenStream> {
+fn generate_base_type_tokens(field_type: &FieldType, source_package: &str) -> TokenStream {
     generate_base_type_tokens_with_context(
         field_type,
         source_package,
@@ -889,8 +889,8 @@ fn generate_base_type_tokens_with_context(
     field_type: &FieldType,
     source_package: &str,
     ctx: &GenerationContext,
-) -> Result<TokenStream> {
-    Ok(match field_type.base_type.as_str() {
+) -> TokenStream {
+    match field_type.base_type.as_str() {
         "bool" => quote! { bool },
         "byte" | "uint8" => quote! { u8 },
         "char" | "int8" => quote! { i8 },
@@ -915,13 +915,13 @@ fn generate_base_type_tokens_with_context(
             {
                 // External package - use fully qualified path
                 let crate_ident = format_ident!("{}", ext_crate);
-                return Ok(quote! { ::#crate_ident::ros::#pkg_ident::#type_ident });
+                return quote! { ::#crate_ident::ros::#pkg_ident::#type_ident };
             }
 
             // Local package - use super:: as before
             quote! { super::#pkg_ident::#type_ident }
         }
-    })
+    }
 }
 
 /// Generate MessageTypeInfo trait implementation
@@ -931,7 +931,7 @@ fn generate_message_type_info(
     type_hash: &crate::types::TypeHash,
     fields: &[Field],
     ctx: &GenerationContext,
-) -> Result<TokenStream> {
+) -> TokenStream {
     let name_ident = format_ident!("{}", name);
     let type_name = format!("{}::msg::dds_::{}_", package, name);
     let schema_type_name = format!("{}/msg/{}", package, name);
@@ -939,9 +939,9 @@ fn generate_message_type_info(
     let schema_field_tokens: Vec<TokenStream> = fields
         .iter()
         .map(|field| generate_schema_builder_field_tokens(field, package, ctx))
-        .collect::<Result<Vec<_>>>()?;
+        .collect();
 
-    Ok(quote! {
+    quote! {
         impl ::ros_z::MessageTypeInfo for #name_ident {
             fn type_name() -> &'static str {
                 #type_name
@@ -970,7 +970,7 @@ fn generate_message_type_info(
         }
 
         impl ::ros_z::ros_msg::WithTypeInfo for #name_ident {}
-    })
+    }
 }
 
 /// Generate schema builder tokens for one message field.
@@ -978,10 +978,10 @@ fn generate_schema_builder_field_tokens(
     field: &Field,
     source_package: &str,
     ctx: &GenerationContext,
-) -> Result<TokenStream> {
-    let field_type = generate_schema_field_type_tokens(&field.field_type, source_package, ctx)?;
+) -> TokenStream {
+    let field_type = generate_schema_field_type_tokens(&field.field_type, source_package, ctx);
     let field_name = &field.name;
-    Ok(quote! { .field(#field_name, #field_type) })
+    quote! { .field(#field_name, #field_type) }
 }
 
 /// Generate runtime dynamic `FieldType` tokens for one field.
@@ -989,10 +989,10 @@ fn generate_schema_field_type_tokens(
     field_type: &FieldType,
     source_package: &str,
     ctx: &GenerationContext,
-) -> Result<TokenStream> {
-    let base = generate_schema_base_field_type_tokens(field_type, source_package, ctx)?;
+) -> TokenStream {
+    let base = generate_schema_base_field_type_tokens(field_type, source_package, ctx);
 
-    Ok(match &field_type.array {
+    match &field_type.array {
         ArrayType::Single => base,
         ArrayType::Fixed(n) => {
             quote! { ::ros_z::dynamic::FieldType::Array(::std::boxed::Box::new(#base), #n) }
@@ -1005,7 +1005,7 @@ fn generate_schema_field_type_tokens(
                 ::ros_z::dynamic::FieldType::BoundedSequence(::std::boxed::Box::new(#base), #n)
             }
         }
-    })
+    }
 }
 
 /// Generate runtime dynamic `FieldType` tokens for the non-array base type.
@@ -1013,8 +1013,8 @@ fn generate_schema_base_field_type_tokens(
     field_type: &FieldType,
     source_package: &str,
     ctx: &GenerationContext,
-) -> Result<TokenStream> {
-    Ok(match field_type.base_type.as_str() {
+) -> TokenStream {
+    match field_type.base_type.as_str() {
         "bool" => quote! { ::ros_z::dynamic::FieldType::Bool },
         "byte" | "uint8" | "char" => quote! { ::ros_z::dynamic::FieldType::Uint8 },
         "int8" => quote! { ::ros_z::dynamic::FieldType::Int8 },
@@ -1035,7 +1035,7 @@ fn generate_schema_base_field_type_tokens(
         }
         _ => {
             let nested_type =
-                generate_base_type_tokens_with_context(field_type, source_package, ctx)?;
+                generate_base_type_tokens_with_context(field_type, source_package, ctx);
             quote! {
                 ::ros_z::dynamic::FieldType::Message(
                     <#nested_type as ::ros_z::MessageTypeInfo>::message_schema()
@@ -1043,7 +1043,7 @@ fn generate_schema_base_field_type_tokens(
                 )
             }
         }
-    })
+    }
 }
 
 /// Generate accurate size estimation implementation for SHM serialization
