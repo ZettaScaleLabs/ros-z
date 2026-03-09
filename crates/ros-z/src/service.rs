@@ -626,3 +626,61 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    // -----------------------------------------------------------------------
+    // Topic name qualification for service names
+    // Service names follow the same rules as topic names
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_qualify_service_absolute_unchanged() {
+        let result = crate::topic_name::qualify_service_name("/add_two_ints", "/", "node").unwrap();
+        assert_eq!(result, "/add_two_ints");
+    }
+
+    #[test]
+    fn test_qualify_service_relative_adds_slash() {
+        let result = crate::topic_name::qualify_service_name("add_two_ints", "/", "node").unwrap();
+        assert_eq!(result, "/add_two_ints");
+    }
+
+    #[test]
+    fn test_qualify_service_with_namespace() {
+        let result =
+            crate::topic_name::qualify_service_name("add_two_ints", "/ns", "node").unwrap();
+        assert_eq!(result, "/ns/add_two_ints");
+    }
+
+    #[test]
+    fn test_qualify_service_multipart_name() {
+        let result =
+            crate::topic_name::qualify_service_name("/my/service/name", "/", "node").unwrap();
+        assert_eq!(result, "/my/service/name");
+    }
+
+    // -----------------------------------------------------------------------
+    // QoS stored in builder entity reflects the protocol values
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_protocol_qos_default_is_reliable() {
+        let qos = crate::qos::QosProfile::default();
+        let proto = qos.to_protocol_qos();
+        assert_eq!(
+            proto.reliability,
+            ros_z_protocol::qos::QosReliability::Reliable
+        );
+    }
+
+    #[test]
+    fn test_protocol_qos_default_is_volatile() {
+        let qos = crate::qos::QosProfile::default();
+        let proto = qos.to_protocol_qos();
+        assert_eq!(
+            proto.durability,
+            ros_z_protocol::qos::QosDurability::Volatile
+        );
+    }
+}

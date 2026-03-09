@@ -1116,3 +1116,79 @@ impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicSerdeCd
         self.dyn_schema.as_ref().map(|s| s.as_ref())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // -----------------------------------------------------------------------
+    // Topic name qualification (leading '/' is added when missing)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_qualify_absolute_topic_unchanged() {
+        let result = crate::topic_name::qualify_topic_name("/chatter", "/", "node").unwrap();
+        assert_eq!(result, "/chatter");
+    }
+
+    #[test]
+    fn test_qualify_relative_topic_adds_leading_slash() {
+        let result = crate::topic_name::qualify_topic_name("chatter", "/", "node").unwrap();
+        assert_eq!(result, "/chatter");
+    }
+
+    #[test]
+    fn test_qualify_topic_with_namespace() {
+        let result = crate::topic_name::qualify_topic_name("chatter", "/ns", "node").unwrap();
+        assert_eq!(result, "/ns/chatter");
+    }
+
+    #[test]
+    fn test_qualify_topic_nested_ns() {
+        let result = crate::topic_name::qualify_topic_name("/ns/sub/topic", "/", "node").unwrap();
+        assert_eq!(result, "/ns/sub/topic");
+    }
+
+    // -----------------------------------------------------------------------
+    // QoS override is stored in builder entity.qos
+    // QoS defaults: Reliable, Volatile, KeepLast(10)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_qos_reliability_encoding() {
+        // Reliable is the default, BestEffort maps to protocol value
+        let best_effort = QosProfile {
+            reliability: crate::qos::QosReliability::BestEffort,
+            ..Default::default()
+        };
+        let proto = best_effort.to_protocol_qos();
+        assert_eq!(
+            proto.reliability,
+            ros_z_protocol::qos::QosReliability::BestEffort
+        );
+    }
+
+    #[test]
+    fn test_qos_durability_encoding() {
+        let transient = QosProfile {
+            durability: crate::qos::QosDurability::TransientLocal,
+            ..Default::default()
+        };
+        let proto = transient.to_protocol_qos();
+        assert_eq!(
+            proto.durability,
+            ros_z_protocol::qos::QosDurability::TransientLocal
+        );
+    }
+
+    #[test]
+    fn test_qos_keep_last_depth_preserved_in_protocol() {
+        use std::num::NonZeroUsize;
+        let qos = QosProfile {
+            history: crate::qos::QosHistory::KeepLast(NonZeroUsize::new(5).unwrap()),
+            ..Default::default()
+        };
+        let proto = qos.to_protocol_qos();
+        assert_eq!(proto.history, ros_z_protocol::qos::QosHistory::KeepLast(5));
+    }
+}
