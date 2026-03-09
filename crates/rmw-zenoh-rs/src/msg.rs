@@ -1,6 +1,6 @@
 use crate::type_support::MessageTypeSupport;
 use ros_z::entity::{TypeHash, TypeInfo};
-use ros_z::msg::{ZDeserializer, ZMessage, ZSerdes, ZSerializer, ZService};
+use ros_z::msg::{ZDeserializer, ZSerdes, ZSerializer, ZService};
 use ros_z::ros_msg::WithTypeInfo;
 use ros_z::{MessageTypeInfo, ServiceTypeInfo};
 
@@ -131,8 +131,6 @@ impl ZSerdes<RosMessage> for RosSerdes {
         ))
     }
 }
-
-impl ZMessage for RosMessage {}
 
 impl MessageTypeInfo for RosMessage {
     // Static methods return placeholder values since RosMessage is a generic wrapper

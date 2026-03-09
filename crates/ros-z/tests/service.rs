@@ -26,8 +26,6 @@ impl MessageTypeInfo for AddTwoIntsRequest {
 
 impl ros_z::WithTypeInfo for AddTwoIntsRequest {}
 
-impl ros_z::msg::ZMessage for AddTwoIntsRequest {}
-
 // Simple test service response
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 struct AddTwoIntsResponse {
@@ -45,8 +43,6 @@ impl MessageTypeInfo for AddTwoIntsResponse {
 }
 
 impl ros_z::WithTypeInfo for AddTwoIntsResponse {}
-
-impl ros_z::msg::ZMessage for AddTwoIntsResponse {}
 
 // Service type definition
 struct AddTwoInts;

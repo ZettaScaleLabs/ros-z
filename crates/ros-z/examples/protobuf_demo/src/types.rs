@@ -2,7 +2,7 @@
 use ros_z::{
     MessageTypeInfo, ServiceTypeInfo, WithTypeInfo,
     entity::TypeHash,
-    msg::{ProtobufSerdes, ZMessage, ZService},
+    msg::{ProtobufSerdes, ZService},
 };
 
 // Include protobuf messages generated from sensor_data.proto
@@ -26,8 +26,6 @@ impl MessageTypeInfo for SensorData {
 
 impl WithTypeInfo for SensorData {}
 
-impl ZMessage for SensorData {}
-
 // SensorData uses serde/CDR for backward compatibility with the original pub/sub demo
 
 // ========== CalculateRequest Trait Implementations ==========
@@ -44,8 +42,6 @@ impl MessageTypeInfo for CalculateRequest {
 
 impl WithTypeInfo for CalculateRequest {}
 
-impl ZMessage for CalculateRequest {}
-
 // ========== CalculateResponse Trait Implementations ==========
 
 impl MessageTypeInfo for CalculateResponse {
@@ -59,8 +55,6 @@ impl MessageTypeInfo for CalculateResponse {
 }
 
 impl WithTypeInfo for CalculateResponse {}
-
-impl ZMessage for CalculateResponse {}
 
 // ========== Calculate Service Definition ==========
 

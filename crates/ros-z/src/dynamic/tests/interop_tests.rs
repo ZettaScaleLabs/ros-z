@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use crate::dynamic::message::DynamicMessage;
 use crate::dynamic::schema::{FieldType, MessageSchema};
-use crate::msg::{NativeCdrSerdes, ZMessage, ZSerdes};
+use crate::msg::{NativeCdrSerdes, ZSerdes};
 
 use ros_z_msgs::geometry_msgs::{Point, Twist, Vector3};
 use ros_z_msgs::std_msgs::String as StdString;

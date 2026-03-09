@@ -7,7 +7,7 @@
 
 use ros_z::{
     dynamic::{DynamicMessage, FieldType, MessageSchema},
-    msg::{NativeCdrSerdes, ZMessage, ZSerdes},
+    msg::{NativeCdrSerdes, ZSerdes},
 };
 use ros_z_msgs::{
     geometry_msgs::{Point, Twist, Vector3},
