@@ -162,18 +162,56 @@ impl PyCudaBuf {
         } else {
             Some(strides)
         };
+
+        // Use PyTorch's _share_cuda_() to get the correct IPC handle and byte offset.
+        //
+        // PyTorch's CUDA caching allocator sub-allocates tensors from large cudaMalloc
+        // pool blocks.  cudaIpcGetMemHandle(data_ptr) returns the handle for the entire
+        // pool block (same handle for all tensors in the block).  cudaIpcOpenMemHandle
+        // on the subscriber returns the pool block BASE, not data_ptr.
+        //
+        // _share_cuda_() returns:
+        //   (device, handle_bytes[66], storage_size, storage_offset, ...)
+        // where:
+        //   handle_bytes[2..66] = 64-byte cudaIpcMemHandle_t (pool block handle)
+        //   storage_offset      = byte offset from pool block base to tensor data
+        //
+        // We transmit storage_offset as TensorMeta.byte_offset so the subscriber
+        // can apply it after opening the IPC handle.
+        let storage = tensor.call_method0("untyped_storage")?;
+        let share_result = storage.call_method0("_share_cuda_")?;
+        // share_result is a tuple: (device, handle_66bytes, size, offset, ...)
+        let handle_item = share_result.get_item(1)?;
+        let handle_py: &[u8] = handle_item.extract()?;
+        if handle_py.len() < 66 {
+            return Err(pyo3::exceptions::PyRuntimeError::new_err(format!(
+                "_share_cuda_() handle too short: {} < 66",
+                handle_py.len()
+            )));
+        }
+        // bytes [2..66]: skip 2-byte PyTorch version prefix, take 64-byte IPC handle
+        let mut ipc_handle = [0u8; 64];
+        ipc_handle.copy_from_slice(&handle_py[2..66]);
+        let byte_offset_py = share_result.get_item(3)?;
+        let byte_offset: u64 = byte_offset_py.extract::<usize>()? as u64;
+
         let meta = TensorMeta {
             ndim: shape.len() as i32,
             shape,
             dtype_code,
             dtype_bits,
             dtype_lanes,
-            byte_offset: 0,
+            byte_offset,
             strides,
         };
-        let inner = CudaBufInner::from_device_ptr_borrowed(ptr as *mut u8, nbytes, device_id)
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?
-            .with_tensor_meta(meta);
+        let inner = CudaBufInner::from_device_ptr_borrowed_with_offset(
+            ptr as *mut u8,
+            nbytes,
+            ipc_handle,
+            device_id,
+            byte_offset,
+        )
+        .with_tensor_meta(meta);
         Ok(Self { inner: Some(inner) })
     }
 

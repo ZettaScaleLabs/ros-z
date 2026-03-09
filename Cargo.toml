@@ -75,6 +75,10 @@ hex = "0.4"
 # FFI
 cxx = "1.0.168"
 
+# ML inference
+ort = { version = "2.0.0-rc.10", features = ["cuda"] }
+ndarray = "0.17"
+
 # Python
 pyo3 = { version = "0.22", features = ["extension-module", "abi3-py311"] }
 

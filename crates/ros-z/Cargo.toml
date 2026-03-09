@@ -34,6 +34,9 @@ serde_yaml = { workspace = true }
 dashmap = "5.5"
 prost = { workspace = true, optional = true }
 pyo3 = { workspace = true, optional = true }
+# Only for ort_classifier example (required-features = ["cuda"])
+ort = { workspace = true, optional = true }
+ndarray = { version = "0.17", optional = true }
 ros-z-cdr = { workspace = true }
 ros-z-codegen = { workspace = true, optional = true }
 ros-z-protocol = { path = "../ros-z-protocol", default-features = false, features = [
@@ -48,6 +51,7 @@ paste = "1.0"
 [dev-dependencies]
 ros-z-msgs = { path = "../ros-z-msgs" }
 ros-z-codegen = { path = "../ros-z-codegen" }
+anyhow = { workspace = true }
 
 [build-dependencies]
 serde = { workspace = true, features = ["serde_derive"] }
@@ -70,6 +74,8 @@ cuda = [
   "zenoh-codec/cuda",
   "dep:zenoh-cuda",
   "zenoh/cuda",
+  "dep:ort",
+  "dep:ndarray",
 ]
 protobuf = ["prost", "prost-build"]
 flatbuffers = []
@@ -218,6 +224,11 @@ required-features = []
 name = "shm_pointcloud2"
 path = "examples/shm_pointcloud2.rs"
 required-features = []
+
+[[example]]
+name = "ort_classifier"
+path = "examples/ort_classifier.rs"
+required-features = ["cuda"]
 
 [[example]]
 name = "encoding_demo"

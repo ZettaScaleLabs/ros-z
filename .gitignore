@@ -37,6 +37,11 @@ ros-z-msgs/python/uv.lock
 /book/*.js
 /book/*.css
 
+# ORT demo assets (downloaded locally per book instructions, not tracked)
+assets/*.onnx
+assets/imagenet_classes.txt
+assets/test_image.jpg
+
 *.db
 *.log
 

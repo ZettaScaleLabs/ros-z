@@ -103,7 +103,6 @@ pub use entity::{TypeHash, TypeInfo};
 pub use ros_msg::{ActionTypeInfo, MessageTypeInfo, ServiceTypeInfo, WithTypeInfo};
 pub use zbuf::ZBuf;
 pub use zenoh::Result;
-
 #[cfg(feature = "cuda")]
 pub use zenoh_cuda::{CudaBufInner, CudaIpcHandle, CudaMemKind};
 

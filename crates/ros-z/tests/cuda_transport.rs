@@ -10,9 +10,10 @@
 
 #![cfg(feature = "cuda")]
 
+use std::time::Duration;
+
 use ros_z::{Builder, CudaBufInner, ZBuf, context::ZContextBuilder};
 use ros_z_msgs::sensor_msgs::PointCloud2;
-use std::time::Duration;
 use zenoh_buffers::buffer::SplitBuffer;
 
 // ────────────────────────────────────────────────────────────
