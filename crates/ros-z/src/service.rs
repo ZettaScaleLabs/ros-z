@@ -29,7 +29,7 @@ use crate::{
     common::DataHandler,
     entity::EndpointEntity,
     impl_with_type_info,
-    msg::{SerdeCdrSerdes, ZMessage, ZSerdes, ZService},
+    msg::{CdrCompatSerdes, ZMessage, ZSerdes, ZService},
     qos::QosHistory,
     queue::BoundedQueue,
 };
@@ -179,7 +179,7 @@ where
     {
         let sample = self.take_sample()?;
         let msg =
-            <SerdeCdrSerdes as ZSerdes<T::Response>>::deserialize(&sample.payload().to_bytes())
+            <CdrCompatSerdes as ZSerdes<T::Response>>::deserialize(&sample.payload().to_bytes())
                 .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok(msg)
     }
@@ -193,7 +193,7 @@ where
     {
         let sample = self.take_sample_timeout(timeout)?;
         let payload_bytes = sample.payload().to_bytes();
-        let msg = <SerdeCdrSerdes as ZSerdes<T::Response>>::deserialize(&payload_bytes[..])
+        let msg = <CdrCompatSerdes as ZSerdes<T::Response>>::deserialize(&payload_bytes[..])
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok(msg)
     }
@@ -206,7 +206,7 @@ where
     {
         let sample = self.rx.recv_async().await?;
         let payload_bytes = sample.payload().to_bytes();
-        let msg = <SerdeCdrSerdes as ZSerdes<T::Response>>::deserialize(&payload_bytes[..])
+        let msg = <CdrCompatSerdes as ZSerdes<T::Response>>::deserialize(&payload_bytes[..])
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok(msg)
     }
@@ -234,7 +234,7 @@ where
     where
         T::Request: serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
     {
-        let payload = <SerdeCdrSerdes as ZSerdes<T::Request>>::serialize(msg);
+        let payload = <CdrCompatSerdes as ZSerdes<T::Request>>::serialize(msg);
         tracing::Span::current().record("payload_len", payload.len());
 
         // Log the key expression being queried
@@ -284,7 +284,7 @@ where
         let sn = attachment.sequence_number;
         self.inner
             .get()
-            .payload(<SerdeCdrSerdes as ZSerdes<T::Request>>::serialize(msg))
+            .payload(<CdrCompatSerdes as ZSerdes<T::Request>>::serialize(msg))
             .attachment(attachment)
             .callback(move |reply| {
                 match reply.into_result() {
@@ -542,7 +542,7 @@ where
 
         debug!("[SRV] Processing request");
 
-        let msg = <SerdeCdrSerdes as ZSerdes<T::Request>>::deserialize(&payload_bytes[..])
+        let msg = <CdrCompatSerdes as ZSerdes<T::Request>>::deserialize(&payload_bytes[..])
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
         self.map.insert(key.clone(), query);
 
@@ -567,7 +567,7 @@ where
             return Err("Existing query detected".into());
         }
         let payload_bytes = query.payload().unwrap().to_bytes();
-        let msg = <SerdeCdrSerdes as ZSerdes<T::Request>>::deserialize(&payload_bytes[..])
+        let msg = <CdrCompatSerdes as ZSerdes<T::Request>>::deserialize(&payload_bytes[..])
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
         self.map.insert(key.clone(), query);
 
@@ -593,7 +593,7 @@ where
         );
         match self.map.remove(key) {
             Some(query) => {
-                let payload = <SerdeCdrSerdes as ZSerdes<T::Response>>::serialize(msg);
+                let payload = <CdrCompatSerdes as ZSerdes<T::Response>>::serialize(msg);
                 tracing::Span::current().record("payload_len", payload.len());
 
                 debug!("[SRV] Sending response");
@@ -627,7 +627,7 @@ where
                 query
                     .reply(
                         &self.key_expr,
-                        <SerdeCdrSerdes as ZSerdes<T::Response>>::serialize(msg),
+                        <CdrCompatSerdes as ZSerdes<T::Response>>::serialize(msg),
                     )
                     .attachment(attachment)
                     .await

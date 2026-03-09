@@ -24,7 +24,7 @@ use super::{
 use crate::{
     Builder,
     attachment::Attachment,
-    msg::{NativeCdrSerdes, SerdeCdrSerdes, ZSerdes},
+    msg::{CdrCompatSerdes, CdrSerdes, ZSerdes},
     topic_name::qualify_topic_name,
 };
 
@@ -34,8 +34,8 @@ pub(crate) struct InnerServer<A: ZAction> {
     pub(crate) goal_server: Arc<crate::service::ZServer<GoalService<A>>>,
     pub(crate) result_server: Arc<crate::service::ZServer<ResultService<A>>>,
     pub(crate) cancel_server: Arc<crate::service::ZServer<CancelService<A>>>,
-    pub(crate) feedback_pub: Arc<crate::pubsub::ZPub<FeedbackMessage<A>, SerdeCdrSerdes>>,
-    pub(crate) status_pub: Arc<crate::pubsub::ZPub<StatusMessage, NativeCdrSerdes>>,
+    pub(crate) feedback_pub: Arc<crate::pubsub::ZPub<FeedbackMessage<A>, CdrCompatSerdes>>,
+    pub(crate) status_pub: Arc<crate::pubsub::ZPub<StatusMessage, CdrSerdes>>,
     pub(crate) goal_manager: Arc<SafeGoalManager<A>>,
     /// Token to cancel the default result handler when switching to full driver mode
     pub(crate) result_handler_token: CancellationToken,
@@ -152,7 +152,7 @@ async fn handle_result_requests_legacy_inner<A: ZAction>(
 ) {
     tracing::debug!("Received result request");
     let payload = query.payload().unwrap().to_bytes();
-    let request = match <NativeCdrSerdes as ZSerdes<GetResultRequest>>::deserialize(&payload) {
+    let request = match <CdrSerdes as ZSerdes<GetResultRequest>>::deserialize(&payload) {
         Ok(r) => r,
         Err(e) => {
             tracing::error!("Failed to deserialize result request: {}", e);
@@ -184,7 +184,7 @@ async fn handle_result_requests_legacy_inner<A: ZAction>(
             result,
         };
         let response_bytes =
-            <SerdeCdrSerdes as ZSerdes<GetResultResponse<A>>>::serialize(&response);
+            <CdrCompatSerdes as ZSerdes<GetResultResponse<A>>>::serialize(&response);
         let attachment: Attachment = query.attachment().unwrap().try_into().unwrap();
         //FIXME: address the result
         let _ = query
@@ -276,7 +276,7 @@ impl<'a, A: ZAction> Builder for ZActionServerBuilder<'a, A> {
         }
         // Keep attachments enabled for RMW-Zenoh compatibility
         let feedback_pub = feedback_pub_builder
-            .with_serdes::<SerdeCdrSerdes>()
+            .with_serdes::<CdrCompatSerdes>()
             .build()?;
 
         // Create status publisher using node API for proper graph registration
@@ -394,11 +394,11 @@ impl<A: ZAction> ZActionServer<A> {
         &self.inner.cancel_server
     }
 
-    fn feedback_pub(&self) -> &Arc<crate::pubsub::ZPub<FeedbackMessage<A>, SerdeCdrSerdes>> {
+    fn feedback_pub(&self) -> &Arc<crate::pubsub::ZPub<FeedbackMessage<A>, CdrCompatSerdes>> {
         &self.inner.feedback_pub
     }
 
-    fn status_pub(&self) -> &Arc<crate::pubsub::ZPub<StatusMessage, NativeCdrSerdes>> {
+    fn status_pub(&self) -> &Arc<crate::pubsub::ZPub<StatusMessage, CdrSerdes>> {
         &self.inner.status_pub
     }
 
@@ -448,7 +448,7 @@ impl<A: ZAction> ZActionServer<A> {
     pub async fn recv_goal(&self) -> Result<GoalHandle<A, Requested>> {
         let query = self.goal_server().queue().recv_async().await;
         let payload = query.payload().unwrap().to_bytes();
-        let request = <SerdeCdrSerdes as ZSerdes<SendGoalRequest<A>>>::deserialize(&payload)
+        let request = <CdrCompatSerdes as ZSerdes<SendGoalRequest<A>>>::deserialize(&payload)
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
 
         Ok(GoalHandle {
@@ -464,7 +464,7 @@ impl<A: ZAction> ZActionServer<A> {
     pub async fn recv_cancel(&self) -> Result<(CancelGoalServiceRequest, zenoh::query::Query)> {
         let query = self.cancel_server().queue().recv_async().await;
         let payload = query.payload().unwrap().to_bytes();
-        let request = <NativeCdrSerdes as ZSerdes<CancelGoalServiceRequest>>::deserialize(&payload)
+        let request = <CdrSerdes as ZSerdes<CancelGoalServiceRequest>>::deserialize(&payload)
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok((request, query))
     }
@@ -491,7 +491,7 @@ impl<A: ZAction> ZActionServer<A> {
     pub async fn recv_result_request(&self) -> Result<(GoalId, zenoh::query::Query)> {
         let query = self.result_server().queue().recv_async().await;
         let payload = query.payload().unwrap().to_bytes();
-        let request = <NativeCdrSerdes as ZSerdes<ResultRequest>>::deserialize(&payload)
+        let request = <CdrSerdes as ZSerdes<ResultRequest>>::deserialize(&payload)
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok((request.goal_id, query))
     }
@@ -502,7 +502,7 @@ impl<A: ZAction> ZActionServer<A> {
         query: &zenoh::query::Query,
         response: &GoalResponse,
     ) -> Result<()> {
-        let response_bytes = <NativeCdrSerdes as ZSerdes<GoalResponse>>::serialize(response);
+        let response_bytes = <CdrSerdes as ZSerdes<GoalResponse>>::serialize(response);
         let attachment: Attachment = query.attachment().unwrap().try_into().unwrap();
         let _ = query
             .reply(query.key_expr().clone(), response_bytes)
@@ -517,7 +517,7 @@ impl<A: ZAction> ZActionServer<A> {
     ) -> Result<(CancelGoalServiceRequest, zenoh::query::Query)> {
         let query = self.cancel_server().queue().recv_async().await;
         let payload = query.payload().unwrap().to_bytes();
-        let request = <NativeCdrSerdes as ZSerdes<CancelGoalServiceRequest>>::deserialize(&payload)
+        let request = <CdrSerdes as ZSerdes<CancelGoalServiceRequest>>::deserialize(&payload)
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok((request, query))
     }
@@ -527,8 +527,7 @@ impl<A: ZAction> ZActionServer<A> {
         query: &zenoh::query::Query,
         response: &CancelGoalServiceResponse,
     ) -> Result<()> {
-        let response_bytes =
-            <NativeCdrSerdes as ZSerdes<CancelGoalServiceResponse>>::serialize(response);
+        let response_bytes = <CdrSerdes as ZSerdes<CancelGoalServiceResponse>>::serialize(response);
         let attachment: Attachment = query.attachment().unwrap().try_into().unwrap();
         let _ = query
             .reply(query.key_expr().clone(), response_bytes)
@@ -543,7 +542,8 @@ impl<A: ZAction> ZActionServer<A> {
         query: &zenoh::query::Query,
         response: &GetResultResponse<A>,
     ) -> Result<()> {
-        let response_bytes = <SerdeCdrSerdes as ZSerdes<GetResultResponse<A>>>::serialize(response);
+        let response_bytes =
+            <CdrCompatSerdes as ZSerdes<GetResultResponse<A>>>::serialize(response);
         let attachment: Attachment = query.attachment().unwrap().try_into().unwrap();
         let _ = query
             .reply(query.key_expr().clone(), response_bytes)
@@ -764,7 +764,7 @@ impl<A: ZAction> GoalHandle<A, Requested> {
             stamp_sec: self.info.stamp.sec,
             stamp_nanosec: self.info.stamp.nanosec,
         };
-        let response_bytes = <NativeCdrSerdes as ZSerdes<SendGoalResponse>>::serialize(&response);
+        let response_bytes = <CdrSerdes as ZSerdes<SendGoalResponse>>::serialize(&response);
 
         if let Some(query) = self.query.take() {
             let attachment: Attachment = query.attachment().unwrap().try_into().unwrap();
@@ -811,7 +811,7 @@ impl<A: ZAction> GoalHandle<A, Requested> {
             stamp_sec: 0,
             stamp_nanosec: 0,
         };
-        let response_bytes = <NativeCdrSerdes as ZSerdes<GoalResponse>>::serialize(&response);
+        let response_bytes = <CdrSerdes as ZSerdes<GoalResponse>>::serialize(&response);
 
         if let Some(query) = self.query.take() {
             // FIXME: Address the unwrap usage

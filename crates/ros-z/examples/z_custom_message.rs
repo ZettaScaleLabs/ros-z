@@ -5,7 +5,7 @@ use ros_z::{
     Builder, MessageTypeInfo, Result, ServiceTypeInfo,
     context::ZContextBuilder,
     entity::TypeHash,
-    msg::{SerdeCdrSerdes, ZService},
+    msg::{CdrCompatSerdes, ZService},
 };
 use serde::{Deserialize, Serialize};
 
@@ -138,7 +138,7 @@ async fn run_status_publisher(robot_id: String) -> Result<()> {
     let node = ctx.create_node("robot_status_publisher").build()?;
     let zpub = node
         .create_pub::<RobotStatus>("/robot_status")
-        .with_serdes::<SerdeCdrSerdes>()
+        .with_serdes::<CdrCompatSerdes>()
         .build()?;
 
     let mut position_x = 0.0;
@@ -192,7 +192,7 @@ async fn run_status_subscriber() -> Result<()> {
     let node = ctx.create_node("robot_status_subscriber").build()?;
     let zsub = node
         .create_sub::<RobotStatus>("/robot_status")
-        .with_serdes::<SerdeCdrSerdes>()
+        .with_serdes::<CdrCompatSerdes>()
         .build()?;
 
     loop {

@@ -12,7 +12,7 @@ use crate::{
     action::{client::ZActionClientBuilder, server::ZActionServerBuilder},
     context::{GlobalCounter, RemapRules},
     dynamic::{
-        DynamicMessage, DynamicSerdeCdrSerdes, MessageSchema, TypeDescriptionClient,
+        DynamicCdrCompatSerdes, DynamicMessage, MessageSchema, TypeDescriptionClient,
         TypeDescriptionService,
     },
     entity::*,
@@ -208,7 +208,7 @@ impl ZNode {
     /// - Absolute topics (starting with '/') are used as-is
     /// - Private topics (starting with '~') are expanded to /<namespace>/<node_name>/<topic>
     /// - Relative topics are expanded to /<namespace>/<topic>
-    pub fn create_pub<T>(&self, topic: &str) -> ZPubBuilder<T, crate::msg::NativeCdrSerdes>
+    pub fn create_pub<T>(&self, topic: &str) -> ZPubBuilder<T, crate::msg::CdrSerdes>
     where
         T: ZMessage + WithTypeInfo,
     {
@@ -221,7 +221,7 @@ impl ZNode {
         &self,
         topic: &str,
         type_info: Option<crate::entity::TypeInfo>,
-    ) -> ZPubBuilder<T, crate::msg::NativeCdrSerdes>
+    ) -> ZPubBuilder<T, crate::msg::CdrSerdes>
     where
         T: ZMessage,
     {
@@ -255,7 +255,7 @@ impl ZNode {
     /// - Absolute topics (starting with '/') are used as-is
     /// - Private topics (starting with '~') are expanded to /<namespace>/<node_name>/<topic>
     /// - Relative topics are expanded to /<namespace>/<topic>
-    pub fn create_sub<T>(&self, topic: &str) -> ZSubBuilder<T, crate::msg::NativeCdrSerdes>
+    pub fn create_sub<T>(&self, topic: &str) -> ZSubBuilder<T, crate::msg::CdrSerdes>
     where
         T: ZMessage + WithTypeInfo,
     {
@@ -268,7 +268,7 @@ impl ZNode {
         &self,
         topic: &str,
         type_info: Option<crate::entity::TypeInfo>,
-    ) -> ZSubBuilder<T, crate::msg::NativeCdrSerdes>
+    ) -> ZSubBuilder<T, crate::msg::CdrSerdes>
     where
         T: ZMessage,
     {
@@ -443,7 +443,7 @@ impl ZNode {
         &self,
         topic: &str,
         schema: Arc<MessageSchema>,
-    ) -> Result<ZPub<DynamicMessage, DynamicSerdeCdrSerdes>> {
+    ) -> Result<ZPub<DynamicMessage, DynamicCdrCompatSerdes>> {
         // Register schema with type description service if enabled
         if let Some(service) = &self.type_desc_service {
             if let Err(e) = service.register_schema(schema.clone()) {
@@ -493,7 +493,7 @@ impl ZNode {
 
         // Build the publisher
         self.create_pub_impl::<DynamicMessage>(topic, type_info)
-            .with_serdes::<DynamicSerdeCdrSerdes>()
+            .with_serdes::<DynamicCdrCompatSerdes>()
             .with_dyn_schema(schema)
             .build()
     }
@@ -534,7 +534,7 @@ impl ZNode {
         topic: &str,
         discovery_timeout: Duration,
     ) -> Result<(
-        ZSub<DynamicMessage, Sample, DynamicSerdeCdrSerdes>,
+        ZSub<DynamicMessage, Sample, DynamicCdrCompatSerdes>,
         Arc<MessageSchema>,
     )> {
         debug!(
@@ -583,7 +583,7 @@ impl ZNode {
         // Build the subscriber with the discovered schema
         let subscriber = self
             .create_sub_impl::<DynamicMessage>(topic, type_info)
-            .with_serdes::<DynamicSerdeCdrSerdes>()
+            .with_serdes::<DynamicCdrCompatSerdes>()
             .with_dyn_schema(schema.clone())
             .build()?;
 
@@ -614,7 +614,7 @@ impl ZNode {
         &self,
         topic: &str,
         schema: Arc<MessageSchema>,
-    ) -> Result<ZSub<DynamicMessage, Sample, DynamicSerdeCdrSerdes>> {
+    ) -> Result<ZSub<DynamicMessage, Sample, DynamicCdrCompatSerdes>> {
         // Create TypeInfo from schema for proper key expression matching
         // Convert ROS 2 canonical name to DDS name
         // "std_msgs/msg/String" → "std_msgs::msg::dds_::String_"
@@ -649,7 +649,7 @@ impl ZNode {
 
         // Build the subscriber with proper type info
         self.create_sub_impl::<DynamicMessage>(topic, type_info)
-            .with_serdes::<DynamicSerdeCdrSerdes>()
+            .with_serdes::<DynamicCdrCompatSerdes>()
             .with_dyn_schema(schema)
             .build()
     }

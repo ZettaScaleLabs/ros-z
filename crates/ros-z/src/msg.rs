@@ -48,7 +48,7 @@ pub trait ZSerializer {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use ros_z::msg::{ZSerializer, SerdeCdrSerdes};
+    /// use ros_z::msg::{ZSerializer, CdrCompatSerdes};
     /// use serde::Serialize;
     ///
     /// #[derive(Serialize)]
@@ -56,7 +56,7 @@ pub trait ZSerializer {
     ///
     /// let msg = LargeMsg { data: vec![0; 1_000_000] };
     /// let hint = 4 + 4 + 1_000_000;  // header + length + data
-    /// let zbuf = SerdeCdrSerdes::serialize_to_zbuf_with_hint(&msg, hint);
+    /// let zbuf = CdrCompatSerdes::serialize_to_zbuf_with_hint(&msg, hint);
     /// ```
     fn serialize_to_zbuf_with_hint(input: Self::Input<'_>, capacity_hint: usize) -> ZBuf;
 
@@ -84,7 +84,7 @@ pub trait ZSerializer {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use ros_z::msg::{ZSerializer, SerdeCdrSerdes};
+    /// use ros_z::msg::{ZSerializer, CdrCompatSerdes};
     /// use ros_z::shm::ShmProviderBuilder;
     /// use serde::Serialize;
     ///
@@ -95,7 +95,7 @@ pub trait ZSerializer {
     /// let msg = MyMsg { value: 42 };
     /// let provider = ShmProviderBuilder::new(1024 * 1024).build()?;
     ///
-    /// let (zbuf, size) = SerdeCdrSerdes::serialize_to_shm(&msg, 128, &provider)?;
+    /// let (zbuf, size) = CdrCompatSerdes::serialize_to_shm(&msg, 128, &provider)?;
     /// println!("Serialized {} bytes to SHM", size);
     /// # Ok(())
     /// # }
@@ -145,13 +145,13 @@ pub trait ZDeserializer {
 /// Implement this trait to define a custom wire format for message type `T`.
 ///
 /// Two built-in implementations are provided:
-/// - [`NativeCdrSerdes`]: fast path using `CdrSerialize`/`CdrDeserialize` traits
-/// - [`SerdeCdrSerdes`]: compatibility path using `serde::Serialize`/`Deserialize`
+/// - [`CdrSerdes`]: fast path using `CdrSerialize`/`CdrDeserialize` traits
+/// - [`CdrCompatSerdes`]: compatibility path using `serde::Serialize`/`Deserialize`
 ///
 /// # Example
 ///
 /// ```rust,no_run
-/// use ros_z::msg::{ZSerdes, NativeCdrSerdes, SerdeCdrSerdes};
+/// use ros_z::msg::{ZSerdes, CdrSerdes, CdrCompatSerdes};
 /// use serde::{Serialize, Deserialize};
 ///
 /// #[derive(Serialize, Deserialize)]
@@ -159,7 +159,7 @@ pub trait ZDeserializer {
 ///
 /// // Use serde path (works with any serde type)
 /// fn publish_serde(msg: &MyMsg) -> zenoh_buffers::ZBuf {
-///     SerdeCdrSerdes::serialize(msg)
+///     CdrCompatSerdes::serialize(msg)
 /// }
 /// ```
 pub trait ZSerdes<T>: Send + Sync + 'static {
@@ -242,13 +242,13 @@ impl<T> ZMessage for T where T: Send + Sync + 'static {}
 /// - Custom user types with `#[derive(Serialize, Deserialize)]`
 /// - Internal wire types that haven't been migrated to native CDR
 ///
-/// Performance: ~15-30% slower than `NativeCdrSerdes` due to serde overhead.
-pub struct SerdeCdrSerdes;
+/// Performance: ~15-30% slower than `CdrSerdes` due to serde overhead.
+pub struct CdrCompatSerdes;
 
 /// CDR encapsulation header for little-endian encoding
 pub const CDR_HEADER_LE: [u8; 4] = [0x00, 0x01, 0x00, 0x00];
 
-impl<T> ZSerdes<T> for SerdeCdrSerdes
+impl<T> ZSerdes<T> for CdrCompatSerdes
 where
     T: serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
 {
@@ -309,13 +309,13 @@ where
 }
 
 // Keep old ZSerializer/ZDeserializer impls on a wrapper for backwards compat
-// with any callers that use SerdeCdrSerdes::<T>::serialize_to_zbuf() etc.
+// with any callers that use CdrCompatSerdes::<T>::serialize_to_zbuf() etc.
 // We provide a type alias for backwards compat.
-/// Backwards-compatible wrapper. Prefer [`SerdeCdrSerdes`] (unit struct).
+/// Backwards-compatible wrapper. Prefer [`CdrCompatSerdes`] (unit struct).
 #[doc(hidden)]
-pub struct SerdeCdrSerdesTyped<T>(PhantomData<T>);
+pub struct CdrCompatSerdesTyped<T>(PhantomData<T>);
 
-impl<T> ZSerializer for SerdeCdrSerdesTyped<T>
+impl<T> ZSerializer for CdrCompatSerdesTyped<T>
 where
     T: Serialize,
 {
@@ -366,7 +366,7 @@ where
     }
 }
 
-impl<T> ZDeserializer for SerdeCdrSerdesTyped<T>
+impl<T> ZDeserializer for CdrCompatSerdesTyped<T>
 where
     for<'a> T: Deserialize<'a>,
 {
@@ -397,14 +397,14 @@ where
 
 /// Unit struct implementing CDR serialization via native `CdrSerialize`/`CdrDeserialize` traits.
 ///
-/// Generated message types implement these traits and use `NativeCdrSerdes` as their
+/// Generated message types implement these traits and use `CdrSerdes` as their
 /// default serdes. This enables the POD bulk fast path for sequences of
 /// plain types (e.g., `Vec<f32>`, `Vec<geometry_msgs::Point>`).
 ///
 /// This is the default serdes for `ZPub`, `ZSub`, `ZClient`, and `ZServer`.
-pub struct NativeCdrSerdes;
+pub struct CdrSerdes;
 
-impl<T> ZSerdes<T> for NativeCdrSerdes
+impl<T> ZSerdes<T> for CdrSerdes
 where
     T: CdrSerialize + CdrSerializedSize + CdrDeserialize + Send + Sync + 'static,
 {
@@ -462,11 +462,11 @@ where
     }
 }
 
-/// Backwards-compatible typed wrapper for NativeCdrSerdes.
+/// Backwards-compatible typed wrapper for CdrSerdes.
 #[doc(hidden)]
-pub struct NativeCdrSerdesTyped<T>(PhantomData<T>);
+pub struct CdrSerdesTyped<T>(PhantomData<T>);
 
-impl<T> ZSerializer for NativeCdrSerdesTyped<T>
+impl<T> ZSerializer for CdrSerdesTyped<T>
 where
     T: CdrSerialize + CdrSerializedSize,
 {
@@ -515,7 +515,7 @@ where
     }
 }
 
-impl<T> ZDeserializer for NativeCdrSerdesTyped<T>
+impl<T> ZDeserializer for CdrSerdesTyped<T>
 where
     T: CdrDeserialize,
 {
@@ -696,14 +696,15 @@ mod tests {
             text: "Hello, ZBuf!".to_string(),
         };
 
-        let zbuf = SerdeCdrSerdes::serialize(&msg);
+        let zbuf = CdrCompatSerdes::serialize(&msg);
         let bytes = zbuf.contiguous();
 
         // Verify CDR header
         assert_eq!(&bytes[0..4], &CDR_HEADER_LE);
 
         // Verify roundtrip
-        let deserialized = <SerdeCdrSerdes as ZSerdes<SimpleMessage>>::deserialize(&bytes).unwrap();
+        let deserialized =
+            <CdrCompatSerdes as ZSerdes<SimpleMessage>>::deserialize(&bytes).unwrap();
         assert_eq!(deserialized, msg);
     }
 
@@ -715,8 +716,8 @@ mod tests {
         };
 
         // Both methods should produce identical bytes
-        let zbuf = SerdeCdrSerdes::serialize(&msg);
-        let vec = SerdeCdrSerdes::serialize_to_vec(&msg);
+        let zbuf = CdrCompatSerdes::serialize(&msg);
+        let vec = CdrCompatSerdes::serialize_to_vec(&msg);
 
         let zbuf_bytes = zbuf.contiguous();
         assert_eq!(&*zbuf_bytes, &vec[..]);
@@ -729,13 +730,14 @@ mod tests {
             text: "trait test".to_string(),
         };
 
-        // Use SerdeCdrSerdes directly for serde-only types
-        let zbuf = SerdeCdrSerdes::serialize(&msg);
+        // Use CdrCompatSerdes directly for serde-only types
+        let zbuf = CdrCompatSerdes::serialize(&msg);
         let bytes = zbuf.contiguous();
 
         assert_eq!(&bytes[0..4], &CDR_HEADER_LE);
 
-        let deserialized = <SerdeCdrSerdes as ZSerdes<SimpleMessage>>::deserialize(&bytes).unwrap();
+        let deserialized =
+            <CdrCompatSerdes as ZSerdes<SimpleMessage>>::deserialize(&bytes).unwrap();
         assert_eq!(deserialized, msg);
     }
 
@@ -747,8 +749,8 @@ mod tests {
         };
 
         // Serialize using both methods
-        let vec1 = SerdeCdrSerdes::serialize_to_vec(&msg);
-        let zbuf = SerdeCdrSerdes::serialize(&msg);
+        let vec1 = CdrCompatSerdes::serialize_to_vec(&msg);
+        let zbuf = CdrCompatSerdes::serialize(&msg);
         let zbuf_bytes = zbuf.contiguous();
         let vec2 = zbuf_bytes.to_vec();
 
@@ -776,10 +778,10 @@ mod tests {
         };
 
         // Serialize using serialize_to_vec
-        let buffer = SerdeCdrSerdes::serialize_to_vec(&original);
+        let buffer = CdrCompatSerdes::serialize_to_vec(&original);
 
         // Deserialize
-        let deserialized = <SerdeCdrSerdes as ZSerdes<LargeMessage>>::deserialize(&buffer)
+        let deserialized = <CdrCompatSerdes as ZSerdes<LargeMessage>>::deserialize(&buffer)
             .expect("Failed to deserialize");
 
         // Should match original
@@ -793,14 +795,15 @@ mod tests {
             text: "trait test".to_string(),
         };
 
-        // Use SerdeCdrSerdes directly for serde-only types
-        let serialized = SerdeCdrSerdes::serialize_to_vec(&msg);
+        // Use CdrCompatSerdes directly for serde-only types
+        let serialized = CdrCompatSerdes::serialize_to_vec(&msg);
         assert!(!serialized.is_empty());
         assert_eq!(&serialized[0..4], &CDR_HEADER_LE);
 
-        // Deserialize using SerdeCdrSerdes
-        let deserialized = <SerdeCdrSerdes as ZSerdes<SimpleMessage>>::deserialize(&serialized[..])
-            .expect("Failed to deserialize");
+        // Deserialize using CdrCompatSerdes
+        let deserialized =
+            <CdrCompatSerdes as ZSerdes<SimpleMessage>>::deserialize(&serialized[..])
+                .expect("Failed to deserialize");
         assert_eq!(deserialized, msg);
     }
 
@@ -860,11 +863,11 @@ mod tests {
     }
 }
 
-/// Tests for `NativeCdrSerdes` — the `CdrSerialize`-based CDR fast path.
+/// Tests for `CdrSerdes` — the `CdrSerialize`-based CDR fast path.
 ///
 /// These tests verify:
-/// 1. Byte-identical wire output between `SerdeCdrSerdes` (serde path) and `NativeCdrSerdes` (CDR trait path).
-/// 2. Roundtrip correctness for `NativeCdrSerdes`.
+/// 1. Byte-identical wire output between `CdrCompatSerdes` (serde path) and `CdrSerdes` (CDR trait path).
+/// 2. Roundtrip correctness for `CdrSerdes`.
 /// 3. POD bulk path produces the same bytes for plain sequences as the element loop.
 #[cfg(test)]
 mod fast_cdr_tests {
@@ -1003,13 +1006,13 @@ mod fast_cdr_tests {
     fn serde_bytes<T: serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static>(
         value: &T,
     ) -> Vec<u8> {
-        SerdeCdrSerdes::serialize_to_vec(value)
+        CdrCompatSerdes::serialize_to_vec(value)
     }
 
     fn fast_bytes<T: CdrSerialize + CdrSerializedSize + CdrDeserialize + Send + Sync + 'static>(
         value: &T,
     ) -> Vec<u8> {
-        NativeCdrSerdes::serialize_to_vec(value)
+        CdrSerdes::serialize_to_vec(value)
     }
 
     fn fast_deserialize<
@@ -1017,7 +1020,7 @@ mod fast_cdr_tests {
     >(
         bytes: &[u8],
     ) -> T {
-        NativeCdrSerdes::deserialize(bytes).expect("NativeCdrSerdes::deserialize failed")
+        CdrSerdes::deserialize(bytes).expect("CdrSerdes::deserialize failed")
     }
 
     // ── Tests ─────────────────────────────────────────────────────────────────

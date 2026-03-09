@@ -374,7 +374,7 @@ pub fn transition_goal_state(current: GoalStatus, event: GoalEvent) -> GoalStatu
 // ── CDR serialization impls ───────────────────────────────────────────────────
 // These allow GoalId, GoalStatus, Time, and GoalInfo to satisfy the
 // CdrSerialize + CdrDeserialize + CdrSerializedSize bounds, which in turn
-// lets the action message types use the NativeCdrSerdes blanket ZMessage impl.
+// lets the action message types use the CdrSerdes blanket ZMessage impl.
 
 impl CdrSerialize for GoalId {
     #[inline]

@@ -1,6 +1,6 @@
 //! Serialization/deserialization implementations for dynamic messages.
 //!
-//! This module provides `DynamicSerdeCdrSerdes` which implements the `ZSerializer`
+//! This module provides `DynamicCdrCompatSerdes` which implements the `ZSerializer`
 //! and `ZDeserializer` traits, allowing `DynamicMessage` to be used with
 //! the standard `ZPub`/`ZSub` infrastructure.
 
@@ -22,25 +22,25 @@ use super::schema::MessageSchema;
 /// # Example
 ///
 /// ```ignore
-/// use ros_z::dynamic::{DynamicMessage, DynamicSerdeCdrSerdes, MessageSchema};
+/// use ros_z::dynamic::{DynamicMessage, DynamicCdrCompatSerdes, MessageSchema};
 /// use ros_z::pubsub::{ZPub, ZSub};
 ///
 /// // Publisher - schema is embedded in DynamicMessage
-/// let publisher: ZPub<DynamicMessage, DynamicSerdeCdrSerdes> = node
+/// let publisher: ZPub<DynamicMessage, DynamicCdrCompatSerdes> = node
 ///     .create_pub("/topic")
-///     .with_serdes::<DynamicSerdeCdrSerdes>()
+///     .with_serdes::<DynamicCdrCompatSerdes>()
 ///     .build()?;
 ///
 /// // Subscriber - schema must be provided via with_dyn_schema()
-/// let subscriber: ZSub<DynamicMessage, _, DynamicSerdeCdrSerdes> = node
+/// let subscriber: ZSub<DynamicMessage, _, DynamicCdrCompatSerdes> = node
 ///     .create_sub("/topic")
-///     .with_serdes::<DynamicSerdeCdrSerdes>()
+///     .with_serdes::<DynamicCdrCompatSerdes>()
 ///     .with_dyn_schema(schema)
 ///     .build()?;
 /// ```
-pub struct DynamicSerdeCdrSerdes;
+pub struct DynamicCdrCompatSerdes;
 
-impl ZSerializer for DynamicSerdeCdrSerdes {
+impl ZSerializer for DynamicCdrCompatSerdes {
     type Input<'a> = &'a DynamicMessage;
 
     fn serialize_to_zbuf(input: &DynamicMessage) -> ZBuf {
@@ -97,7 +97,7 @@ impl ZSerializer for DynamicSerdeCdrSerdes {
     }
 }
 
-impl ZDeserializer for DynamicSerdeCdrSerdes {
+impl ZDeserializer for DynamicCdrCompatSerdes {
     type Input<'a> = (&'a [u8], &'a Arc<MessageSchema>);
     type Output = DynamicMessage;
     type Error = DynamicError;
@@ -108,13 +108,13 @@ impl ZDeserializer for DynamicSerdeCdrSerdes {
     }
 }
 
-/// `ZSerdes<DynamicMessage>` implementation for `DynamicSerdeCdrSerdes`.
+/// `ZSerdes<DynamicMessage>` implementation for `DynamicCdrCompatSerdes`.
 ///
 /// The `deserialize` method on this impl requires a schema at runtime; when called
 /// without one (plain byte-slice path) it returns an error. The real deserialization
 /// path is the specialized `ZSub<DynamicMessage, …>` impl which calls
-/// `DynamicSerdeCdrSerdes::deserialize((&bytes, schema))` directly.
-impl ZSerdes<DynamicMessage> for DynamicSerdeCdrSerdes {
+/// `DynamicCdrCompatSerdes::deserialize((&bytes, schema))` directly.
+impl ZSerdes<DynamicMessage> for DynamicCdrCompatSerdes {
     type Error = DynamicError;
 
     fn serialize(msg: &DynamicMessage) -> ZBuf {
@@ -182,7 +182,7 @@ mod tests {
         msg.set("y", 2.0f64).unwrap();
         msg.set("z", 3.0f64).unwrap();
 
-        let zbuf = DynamicSerdeCdrSerdes::serialize_to_zbuf(&msg);
+        let zbuf = DynamicCdrCompatSerdes::serialize_to_zbuf(&msg);
         assert!(zbuf.len() > 0);
     }
 
@@ -195,11 +195,11 @@ mod tests {
         msg.set("z", 3.5f64).unwrap();
 
         // Serialize
-        let bytes = <DynamicSerdeCdrSerdes as crate::msg::ZSerializer>::serialize(&msg);
+        let bytes = <DynamicCdrCompatSerdes as crate::msg::ZSerializer>::serialize(&msg);
 
         // Deserialize
         let deserialized =
-            <DynamicSerdeCdrSerdes as crate::msg::ZDeserializer>::deserialize((&bytes, &schema))
+            <DynamicCdrCompatSerdes as crate::msg::ZDeserializer>::deserialize((&bytes, &schema))
                 .unwrap();
 
         assert_eq!(deserialized.get::<f64>("x").unwrap(), 1.5);
@@ -216,10 +216,10 @@ mod tests {
         msg.set("z", 3.0f64).unwrap();
 
         let mut buffer = Vec::new();
-        DynamicSerdeCdrSerdes::serialize_to_buf(&msg, &mut buffer);
+        DynamicCdrCompatSerdes::serialize_to_buf(&msg, &mut buffer);
 
         // Should match serialize() output
-        let direct = <DynamicSerdeCdrSerdes as crate::msg::ZSerializer>::serialize(&msg);
+        let direct = <DynamicCdrCompatSerdes as crate::msg::ZSerializer>::serialize(&msg);
         assert_eq!(buffer, direct);
     }
 }

@@ -644,7 +644,7 @@ fn generate_serialize_to_zbuf(
             match_arms.push(quote! {
                 #full_name => {
                     let rust_msg = <ros::#package_ident::#name_ident>::from_py(msg)?;
-                    Ok(::ros_z::msg::NativeCdrSerdes::serialize(&rust_msg))
+                    Ok(::ros_z::msg::CdrSerdes::serialize(&rust_msg))
                 }
             });
         }
@@ -660,7 +660,7 @@ fn generate_serialize_to_zbuf(
         match_arms.push(quote! {
             #req_full_name => {
                 let rust_msg = <ros::#package_ident::#req_name_ident>::from_py(msg)?;
-                Ok(::ros_z::msg::NativeCdrSerdes::serialize(&rust_msg))
+                Ok(::ros_z::msg::CdrSerdes::serialize(&rust_msg))
             }
         });
 
@@ -670,7 +670,7 @@ fn generate_serialize_to_zbuf(
         match_arms.push(quote! {
             #resp_full_name => {
                 let rust_msg = <ros::#package_ident::#resp_name_ident>::from_py(msg)?;
-                Ok(::ros_z::msg::NativeCdrSerdes::serialize(&rust_msg))
+                Ok(::ros_z::msg::CdrSerdes::serialize(&rust_msg))
             }
         });
     }

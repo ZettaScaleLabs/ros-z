@@ -8,7 +8,7 @@ use ros_z::{
     Builder, Result,
     context::ZContextBuilder,
     define_action,
-    msg::{NativeCdrSerdes, ZSerdes},
+    msg::{CdrSerdes, ZSerdes},
 };
 use serde::{Deserialize, Serialize};
 use tokio::time::timeout;
@@ -154,7 +154,7 @@ mod tests {
             };
 
             // Respond to the cancel request
-            let response_bytes = <NativeCdrSerdes as ZSerdes<
+            let response_bytes = <CdrSerdes as ZSerdes<
                 ros_z::action::messages::CancelGoalResponse,
             >>::serialize_to_vec(&cancel_resp);
             response_tx

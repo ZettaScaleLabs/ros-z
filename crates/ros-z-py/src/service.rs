@@ -1,7 +1,7 @@
 use anyhow::Result;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use ros_z::msg::{SerdeCdrSerdes, ZMessage, ZSerdes, ZService};
+use ros_z::msg::{CdrCompatSerdes, ZMessage, ZSerdes, ZService};
 use ros_z::service::{QueryKey, ZClient, ZServer};
 use std::time::Duration;
 
@@ -31,7 +31,7 @@ where
 {
     fn send_request_serialized(&self, data: &[u8]) -> Result<()> {
         // Deserialize the request from CDR bytes
-        let request = <SerdeCdrSerdes as ZSerdes<T::Request>>::deserialize(data)
+        let request = <CdrCompatSerdes as ZSerdes<T::Request>>::deserialize(data)
             .map_err(|e| anyhow::anyhow!("Failed to deserialize request: {:?}", e))?;
 
         // Send the request (this is async in Rust, but we'll block here for Python)
@@ -57,7 +57,7 @@ where
             .map_err(|e| anyhow::anyhow!("Failed to receive response: {}", e))?;
 
         // Serialize the response to CDR bytes
-        Ok(<SerdeCdrSerdes as ZSerdes<T::Response>>::serialize_to_vec(
+        Ok(<CdrCompatSerdes as ZSerdes<T::Response>>::serialize_to_vec(
             &response,
         ))
     }
@@ -66,7 +66,7 @@ where
         // Use a minimal timeout for non-blocking behavior
         match self.inner.take_response_timeout(Duration::from_millis(1)) {
             Ok(response) => Ok(Some(
-                <SerdeCdrSerdes as ZSerdes<T::Response>>::serialize_to_vec(&response),
+                <CdrCompatSerdes as ZSerdes<T::Response>>::serialize_to_vec(&response),
             )),
             Err(e) => {
                 let err_str = e.to_string();
@@ -122,13 +122,13 @@ where
         // Serialize the request to CDR bytes
         Ok((
             key,
-            <SerdeCdrSerdes as ZSerdes<T::Request>>::serialize_to_vec(&request),
+            <CdrCompatSerdes as ZSerdes<T::Request>>::serialize_to_vec(&request),
         ))
     }
 
     fn send_response_serialized(&self, data: &[u8], key: &QueryKey) -> Result<()> {
         // Deserialize the response from CDR bytes
-        let response = <SerdeCdrSerdes as ZSerdes<T::Response>>::deserialize(data)
+        let response = <CdrCompatSerdes as ZSerdes<T::Response>>::deserialize(data)
             .map_err(|e| anyhow::anyhow!("Failed to deserialize response: {:?}", e))?;
 
         let mut server = self
