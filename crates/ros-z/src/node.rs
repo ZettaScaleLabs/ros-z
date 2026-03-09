@@ -221,22 +221,30 @@ impl ZNode {
         debug!("[NOD] Creating publisher: topic={}", topic);
         let mut builder = self.create_pub_impl(topic, Some(T::type_info()));
 
-        if let Some(service) = &self.type_desc_service
-            && let Some(schema) = T::message_schema()
-        {
-            if let Err(e) = service.register_schema(schema.clone()) {
-                warn!(
-                    "[NOD] Failed to register static schema {} with type description service: {}",
-                    schema.type_name, e
-                );
-            } else {
-                debug!(
-                    "[NOD] Registered static schema {} with type description service",
-                    schema.type_name
-                );
-            }
+        if let Some(service) = &self.type_desc_service {
+            match T::message_schema() {
+                Some(schema) => {
+                    if let Err(e) = service.register_schema(schema.clone()) {
+                        warn!(
+                            "[NOD] Failed to register static schema {} with type description service: {}",
+                            schema.type_name, e
+                        );
+                    } else {
+                        debug!(
+                            "[NOD] Registered static schema {} with type description service",
+                            schema.type_name
+                        );
+                    }
 
-            builder = builder.with_dyn_schema(schema);
+                    builder = builder.with_dyn_schema(schema);
+                }
+                None => {
+                    debug!(
+                        "[NOD] No static schema provided for {}, skipping type description registration",
+                        std::any::type_name::<T>()
+                    );
+                }
+            }
         }
 
         builder
