@@ -150,8 +150,8 @@ async fn test_action_goal_reject() {
             Ok(Ok(requested)) => {
                 requested.reject().expect("reject should succeed");
             }
-            Ok(Err(e)) => eprintln!("recv_goal error: {}", e),
-            Err(_) => eprintln!("timeout waiting for goal"),
+            Ok(Err(e)) => panic!("recv_goal error: {}", e),
+            Err(_) => panic!("timeout waiting for goal"),
         }
 
         tokio::time::sleep(Duration::from_secs(2)).await;
