@@ -336,7 +336,7 @@ impl ZAction for CountAction {
 
 **Key points:**
 
-- `Goal`, `Feedback`, and `Result` can be any struct that implements `Serialize + Deserialize + Clone + Send + Sync + 'static` (blanket implementation via `ZMessage`)
+- `Goal`, `Feedback`, and `Result` can be any struct that is `Send + Sync + 'static` — the `ZMessage` trait is satisfied automatically via a blanket impl, no manual `impl ZMessage` needed
 - `name()` sets the Zenoh key prefix for the action's internal services and topics
 - The default `send_goal_type_info()`, `get_result_type_info()`, etc. all return `TypeHash::zero()`, which is correct for ros-z-to-ros-z communication. For ROS 2 interop, override these with the correct RIHS01 hashes.
 

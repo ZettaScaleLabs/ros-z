@@ -140,7 +140,9 @@ pub fn run_service_client(
     println!("Successfully demonstrated protobuf service calls!");
     println!("\nKey points:");
     println!("1. Request/Response: Protobuf messages generated from .proto files");
-    println!("2. Both implement MessageTypeInfo, WithTypeInfo, and ZMessage traits");
+    println!(
+        "2. Both implement MessageTypeInfo and WithTypeInfo (ZMessage is automatic via blanket impl)"
+    );
     println!("3. Service type implements ZService and ServiceTypeInfo");
     println!("4. Works seamlessly with node.create_service() and node.create_client()");
     println!("5. Uses ProtobufSerdes for pure protobuf serialization (not CDR!)");
