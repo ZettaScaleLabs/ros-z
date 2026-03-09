@@ -219,3 +219,214 @@ fn test_endianness() {
     assert_eq!(val, le_result);
     assert_eq!(val, be_result);
 }
+
+// ============================================================================
+// Proptest: CDR roundtrip coverage (bulk POD path + serde path)
+// ============================================================================
+
+use proptest::prelude::*;
+use ros_z_cdr::{CdrPlain, CdrReader, CdrWriter};
+
+/// Write a slice via `write_pod_slice` and read it back via `read_pod_slice`.
+#[cfg(target_endian = "little")]
+fn pod_slice_roundtrip<T>(values: &[T]) -> Vec<T>
+where
+    T: CdrPlain + bytemuck::Pod + PartialEq + std::fmt::Debug,
+{
+    // Serialize
+    let mut buffer: Vec<u8> = Vec::new();
+    let mut writer = CdrWriter::<LittleEndian, _>::new(&mut buffer);
+    // write_pod_slice asserts !slice.is_empty, so we need to handle empty specially
+    if !values.is_empty() {
+        writer.write_pod_slice(values);
+    }
+    drop(writer);
+
+    // Deserialize
+    let mut reader = CdrReader::<LittleEndian>::new(&buffer);
+    if values.is_empty() {
+        vec![]
+    } else {
+        reader
+            .read_pod_slice::<T>(values.len())
+            .expect("read_pod_slice")
+    }
+}
+
+proptest! {
+    // ── Bulk-copy path: numeric types ────────────────────────────────────────
+
+    #[test]
+    fn prop_pod_slice_i8(values in proptest::collection::vec(any::<i8>(), 1..=64)) {
+        #[cfg(target_endian = "little")]
+        {
+            let result = pod_slice_roundtrip(&values);
+            prop_assert_eq!(result, values);
+        }
+    }
+
+    #[test]
+    fn prop_pod_slice_u8(values in proptest::collection::vec(any::<u8>(), 1..=64)) {
+        #[cfg(target_endian = "little")]
+        {
+            let result = pod_slice_roundtrip(&values);
+            prop_assert_eq!(result, values);
+        }
+    }
+
+    #[test]
+    fn prop_pod_slice_i16(values in proptest::collection::vec(any::<i16>(), 1..=64)) {
+        #[cfg(target_endian = "little")]
+        {
+            let result = pod_slice_roundtrip(&values);
+            prop_assert_eq!(result, values);
+        }
+    }
+
+    #[test]
+    fn prop_pod_slice_u16(values in proptest::collection::vec(any::<u16>(), 1..=64)) {
+        #[cfg(target_endian = "little")]
+        {
+            let result = pod_slice_roundtrip(&values);
+            prop_assert_eq!(result, values);
+        }
+    }
+
+    #[test]
+    fn prop_pod_slice_i32(values in proptest::collection::vec(any::<i32>(), 1..=64)) {
+        #[cfg(target_endian = "little")]
+        {
+            let result = pod_slice_roundtrip(&values);
+            prop_assert_eq!(result, values);
+        }
+    }
+
+    #[test]
+    fn prop_pod_slice_u32(values in proptest::collection::vec(any::<u32>(), 1..=64)) {
+        #[cfg(target_endian = "little")]
+        {
+            let result = pod_slice_roundtrip(&values);
+            prop_assert_eq!(result, values);
+        }
+    }
+
+    #[test]
+    fn prop_pod_slice_i64(values in proptest::collection::vec(any::<i64>(), 1..=64)) {
+        #[cfg(target_endian = "little")]
+        {
+            let result = pod_slice_roundtrip(&values);
+            prop_assert_eq!(result, values);
+        }
+    }
+
+    #[test]
+    fn prop_pod_slice_u64(values in proptest::collection::vec(any::<u64>(), 1..=64)) {
+        #[cfg(target_endian = "little")]
+        {
+            let result = pod_slice_roundtrip(&values);
+            prop_assert_eq!(result, values);
+        }
+    }
+
+    #[test]
+    fn prop_pod_slice_f32(values in proptest::collection::vec(any::<f32>(), 1..=64)) {
+        #[cfg(target_endian = "little")]
+        {
+            let result = pod_slice_roundtrip(&values);
+            // f32::NaN != NaN, so compare bits instead
+            for (a, b) in result.iter().zip(values.iter()) {
+                prop_assert_eq!(a.to_bits(), b.to_bits());
+            }
+        }
+    }
+
+    #[test]
+    fn prop_pod_slice_f64(values in proptest::collection::vec(any::<f64>(), 1..=64)) {
+        #[cfg(target_endian = "little")]
+        {
+            let result = pod_slice_roundtrip(&values);
+            for (a, b) in result.iter().zip(values.iter()) {
+                prop_assert_eq!(a.to_bits(), b.to_bits());
+            }
+        }
+    }
+
+    // ── Bulk-copy path: empty slice (len=0) handled correctly ─────────────
+
+    #[test]
+    fn prop_pod_slice_empty_i32(_unused in 0_u8..=0) {
+        #[cfg(target_endian = "little")]
+        {
+            let empty: Vec<i32> = vec![];
+            let result = pod_slice_roundtrip(&empty);
+            prop_assert_eq!(result, empty);
+        }
+    }
+
+    // ── Bulk-copy path: mid-stream alignment (u8 before slice) ───────────
+
+    #[test]
+    fn prop_pod_slice_mid_stream_alignment(
+        prefix in any::<u8>(),
+        values in proptest::collection::vec(any::<i32>(), 1..=32),
+    ) {
+        #[cfg(target_endian = "little")]
+        {
+            let mut buffer: Vec<u8> = Vec::new();
+            {
+                let mut writer = CdrWriter::<LittleEndian, _>::new(&mut buffer);
+                // Write a u8 first to force non-zero stream position
+                writer.write_u8(prefix);
+                writer.write_pod_slice(&values);
+            }
+
+            let mut reader = CdrReader::<LittleEndian>::new(&buffer);
+            let read_prefix = reader.read_u8().expect("read prefix");
+            let read_values = reader.read_pod_slice::<i32>(values.len()).expect("read slice");
+
+            prop_assert_eq!(read_prefix, prefix);
+            prop_assert_eq!(read_values, values);
+        }
+    }
+
+    // ── Serde path: Vec<i32> roundtrip ───────────────────────────────────
+
+    #[test]
+    fn prop_serde_vec_i32(values in proptest::collection::vec(any::<i32>(), 0..=64)) {
+        let serialized = to_vec::<_, LittleEndian>(&values, 256).expect("serialize");
+        let (deserialized, _): (Vec<i32>, _) = from_bytes::<Vec<i32>, LittleEndian>(&serialized).expect("deserialize");
+        prop_assert_eq!(deserialized, values);
+    }
+
+    #[test]
+    fn prop_serde_vec_f64(values in proptest::collection::vec(any::<f64>(), 0..=64)) {
+        let serialized = to_vec::<_, LittleEndian>(&values, 256).expect("serialize");
+        let (deserialized, _): (Vec<f64>, _) = from_bytes::<Vec<f64>, LittleEndian>(&serialized).expect("deserialize");
+        for (a, b) in deserialized.iter().zip(values.iter()) {
+            prop_assert_eq!(a.to_bits(), b.to_bits());
+        }
+    }
+
+    // ── Serde path: Vec<String> roundtrip ────────────────────────────────
+
+    #[test]
+    fn prop_serde_vec_string(
+        values in proptest::collection::vec(
+            "[a-zA-Z0-9 !@#$%^&*()_+\\-=\\[\\]{}|;':\",./<>?]{0,64}",
+            0..=16,
+        ),
+    ) {
+        let serialized = to_vec::<_, LittleEndian>(&values, 512).expect("serialize");
+        let (deserialized, _): (Vec<String>, _) = from_bytes::<Vec<String>, LittleEndian>(&serialized).expect("deserialize");
+        prop_assert_eq!(deserialized, values);
+    }
+
+    // ── Serde path: String with unicode ──────────────────────────────────
+
+    #[test]
+    fn prop_serde_string_unicode(s in "\\PC{0,100}") {
+        let serialized = to_vec::<_, LittleEndian>(&s, 256).expect("serialize");
+        let (deserialized, _): (String, _) = from_bytes::<String, LittleEndian>(&serialized).expect("deserialize");
+        prop_assert_eq!(deserialized, s);
+    }
+}

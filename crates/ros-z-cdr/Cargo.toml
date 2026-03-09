@@ -13,3 +13,4 @@ thiserror = "1.0"
 
 [dev-dependencies]
 serde = { workspace = true, features = ["derive"] }
+proptest = "1"
