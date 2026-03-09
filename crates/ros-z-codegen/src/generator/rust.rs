@@ -953,18 +953,19 @@ fn generate_message_type_info(
             }
 
             fn message_schema() -> Option<::std::sync::Arc<::ros_z::dynamic::MessageSchema>> {
-                static SCHEMA: ::std::sync::OnceLock<
-                    Option<::std::sync::Arc<::ros_z::dynamic::MessageSchema>>
-                > = ::std::sync::OnceLock::new();
+                static SCHEMA: ::std::sync::OnceLock<::std::sync::Arc<::ros_z::dynamic::MessageSchema>> =
+                    ::std::sync::OnceLock::new();
 
-                SCHEMA
-                    .get_or_init(|| {
-                        ::ros_z::dynamic::MessageSchema::builder(#schema_type_name)
-                            #(#schema_field_tokens)*
-                            .build()
-                            .ok()
-                    })
-                    .clone()
+                Some(
+                    SCHEMA
+                        .get_or_init(|| {
+                            ::ros_z::dynamic::MessageSchema::builder(#schema_type_name)
+                                #(#schema_field_tokens)*
+                                .build()
+                                .expect("generated message schema must be valid")
+                        })
+                        .clone(),
+                )
             }
         }
 
@@ -1037,7 +1038,8 @@ fn generate_schema_base_field_type_tokens(
                 generate_base_type_tokens_with_context(field_type, source_package, ctx)?;
             quote! {
                 ::ros_z::dynamic::FieldType::Message(
-                    <#nested_type as ::ros_z::MessageTypeInfo>::message_schema()?
+                    <#nested_type as ::ros_z::MessageTypeInfo>::message_schema()
+                        .expect("generated nested message schema must be available")
                 )
             }
         }
