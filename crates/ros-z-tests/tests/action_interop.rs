@@ -5,9 +5,7 @@ mod common;
 use std::{sync::Arc, time::Duration};
 
 use common::*;
-use ros_z::Builder;
-use ros_z::action::server::ExecutingGoal;
-
+use ros_z::{Builder, action::server::ExecutingGoal};
 // Distro-specific action interfaces:
 // - Humble/Jazzy: action_tutorials_cpp uses action_tutorials_interfaces
 // - Kilted: action_tutorials_cpp uses example_interfaces
