@@ -263,11 +263,11 @@ client.shutdown(timeout).await?;
 ## Full Example: Managed Talker
 
 ```rust,ignore
-{{#include ../../../crates/ros-z/examples/lifecycle_talker.rs:full_example}}
+{{#include ../../../crates/ros-z/examples/lifecycle/talker.rs:full_example}}
 ```
 
 ## Full Example: Bringup Orchestrator
 
 ```rust,ignore
-{{#include ../../../crates/ros-z/examples/lifecycle_bringup.rs:full_example}}
+{{#include ../../../crates/ros-z/examples/lifecycle/bringup.rs:full_example}}
 ```

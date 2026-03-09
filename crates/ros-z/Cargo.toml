@@ -221,10 +221,10 @@ required-features = []
 
 [[example]]
 name = "lifecycle_talker"
-path = "examples/lifecycle_talker.rs"
+path = "examples/lifecycle/talker.rs"
 required-features = []
 
 [[example]]
 name = "lifecycle_bringup"
-path = "examples/lifecycle_bringup.rs"
+path = "examples/lifecycle/bringup.rs"
 required-features = []
