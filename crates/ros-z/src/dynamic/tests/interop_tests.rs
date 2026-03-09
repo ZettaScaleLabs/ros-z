@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use crate::dynamic::message::DynamicMessage;
 use crate::dynamic::schema::{FieldType, MessageSchema};
-use crate::msg::ZMessage;
+use crate::msg::{NativeCdrSerdes, ZMessage, ZSerdes};
 
 use ros_z_msgs::geometry_msgs::{Point, Twist, Vector3};
 use ros_z_msgs::std_msgs::String as StdString;
@@ -61,7 +61,7 @@ fn test_static_point_to_dynamic() {
     };
 
     // Serialize to CDR bytes
-    let cdr_bytes = static_msg.serialize();
+    let cdr_bytes = NativeCdrSerdes::serialize_to_vec(&static_msg);
 
     // Deserialize as dynamic message
     let schema = create_point_schema();
@@ -86,7 +86,7 @@ fn test_dynamic_point_to_static() {
     let cdr_bytes = dynamic_msg.to_cdr().unwrap();
 
     // Deserialize as static message
-    let static_msg = Point::deserialize(&cdr_bytes).unwrap();
+    let static_msg = <NativeCdrSerdes as ZSerdes<Point>>::deserialize(&cdr_bytes).unwrap();
 
     // Verify values match
     assert_eq!(static_msg.x, 10.0);
@@ -102,7 +102,7 @@ fn test_static_string_to_dynamic() {
     };
 
     // Serialize to CDR bytes
-    let cdr_bytes = static_msg.serialize();
+    let cdr_bytes = NativeCdrSerdes::serialize_to_vec(&static_msg);
 
     // Deserialize as dynamic message
     let schema = create_string_schema();
@@ -126,7 +126,7 @@ fn test_dynamic_string_to_static() {
     let cdr_bytes = dynamic_msg.to_cdr().unwrap();
 
     // Deserialize as static message
-    let static_msg = StdString::deserialize(&cdr_bytes).unwrap();
+    let static_msg = <NativeCdrSerdes as ZSerdes<StdString>>::deserialize(&cdr_bytes).unwrap();
 
     // Verify value matches
     assert_eq!(static_msg.data, "Hello from dynamic!");
@@ -149,7 +149,7 @@ fn test_static_twist_to_dynamic() {
     };
 
     // Serialize to CDR bytes
-    let cdr_bytes = static_msg.serialize();
+    let cdr_bytes = NativeCdrSerdes::serialize_to_vec(&static_msg);
 
     // Deserialize as dynamic message
     let schema = create_twist_schema();
@@ -180,7 +180,7 @@ fn test_dynamic_twist_to_static() {
     let cdr_bytes = dynamic_msg.to_cdr().unwrap();
 
     // Deserialize as static message
-    let static_msg = Twist::deserialize(&cdr_bytes).unwrap();
+    let static_msg = <NativeCdrSerdes as ZSerdes<Twist>>::deserialize(&cdr_bytes).unwrap();
 
     // Verify values match
     assert_eq!(static_msg.linear.x, 0.5);
@@ -201,13 +201,13 @@ fn test_roundtrip_static_dynamic_static() {
     };
 
     // Static → CDR → Dynamic
-    let cdr_bytes = original.serialize();
+    let cdr_bytes = NativeCdrSerdes::serialize_to_vec(&original);
     let schema = create_point_schema();
     let dynamic_msg = DynamicMessage::from_cdr(&cdr_bytes, &schema).unwrap();
 
     // Dynamic → CDR → Static
     let cdr_bytes2 = dynamic_msg.to_cdr().unwrap();
-    let recovered = Point::deserialize(&cdr_bytes2).unwrap();
+    let recovered = <NativeCdrSerdes as ZSerdes<Point>>::deserialize(&cdr_bytes2).unwrap();
 
     // Verify original matches recovered
     assert_eq!(original.x, recovered.x);
@@ -226,10 +226,10 @@ fn test_roundtrip_dynamic_static_dynamic() {
 
     // Dynamic → CDR → Static
     let cdr_bytes = original.to_cdr().unwrap();
-    let static_msg = Point::deserialize(&cdr_bytes).unwrap();
+    let static_msg = <NativeCdrSerdes as ZSerdes<Point>>::deserialize(&cdr_bytes).unwrap();
 
     // Static → CDR → Dynamic
-    let cdr_bytes2 = static_msg.serialize();
+    let cdr_bytes2 = NativeCdrSerdes::serialize_to_vec(&static_msg);
     let recovered = DynamicMessage::from_cdr(&cdr_bytes2, &schema).unwrap();
 
     // Verify original matches recovered
@@ -262,7 +262,7 @@ fn test_cdr_bytes_identical() {
     dynamic_msg.set("y", 2.0f64).unwrap();
     dynamic_msg.set("z", 3.0f64).unwrap();
 
-    let static_bytes = static_msg.serialize();
+    let static_bytes = NativeCdrSerdes::serialize_to_vec(&static_msg);
     let dynamic_bytes = dynamic_msg.to_cdr().unwrap();
 
     // CDR bytes should be identical

@@ -5,7 +5,10 @@
 
 use std::time::Instant;
 
-use ros_z::{ZBuf, msg::ZMessage};
+use ros_z::{
+    ZBuf,
+    msg::{NativeCdrSerdes, ZMessage, ZSerdes},
+};
 use ros_z_msgs::{builtin_interfaces::Time, sensor_msgs::*, std_msgs::Header};
 use zenoh_buffers::buffer::Buffer;
 
@@ -30,13 +33,13 @@ fn test_pointcloud2_serialization_performance() {
 
     // Warm up
     for _ in 0..5 {
-        let _ = cloud.serialize_to_zbuf();
+        let _ = NativeCdrSerdes::serialize(&cloud);
     }
 
     // Benchmark with accurate size estimation (current implementation)
     let start = Instant::now();
     for _ in 0..100 {
-        let zbuf = cloud.serialize_to_zbuf();
+        let zbuf = NativeCdrSerdes::serialize(&cloud);
         assert!(zbuf.len() > 1_000_000);
     }
     let with_estimation = start.elapsed();
@@ -68,13 +71,13 @@ fn test_image_serialization_performance() {
 
     // Warm up
     for _ in 0..5 {
-        let _ = image.serialize_to_zbuf();
+        let _ = NativeCdrSerdes::serialize(&image);
     }
 
     // Benchmark
     let start = Instant::now();
     for _ in 0..100 {
-        let zbuf = image.serialize_to_zbuf();
+        let zbuf = NativeCdrSerdes::serialize(&image);
         assert!(zbuf.len() > 920_000);
     }
     let elapsed = start.elapsed();
@@ -105,7 +108,7 @@ fn test_estimated_size_matches_actual() {
     };
 
     let estimated = cloud.estimated_serialized_size();
-    let zbuf = cloud.serialize_to_zbuf();
+    let zbuf = NativeCdrSerdes::serialize(&cloud);
     let actual = zbuf.len();
 
     println!("PointCloud2: estimated={}, actual={}", estimated, actual);
@@ -130,7 +133,7 @@ fn test_estimated_size_matches_actual() {
     };
 
     let estimated = image.estimated_serialized_size();
-    let zbuf = image.serialize_to_zbuf();
+    let zbuf = NativeCdrSerdes::serialize(&image);
     let actual = zbuf.len();
 
     println!("Image: estimated={}, actual={}", estimated, actual);
@@ -158,7 +161,7 @@ fn test_estimated_size_matches_actual() {
     };
 
     let estimated = scan.estimated_serialized_size();
-    let zbuf = scan.serialize_to_zbuf();
+    let zbuf = NativeCdrSerdes::serialize(&scan);
     let actual = zbuf.len();
 
     println!("LaserScan: estimated={}, actual={}", estimated, actual);
@@ -171,8 +174,6 @@ fn test_estimated_size_matches_actual() {
 
 #[test]
 fn test_capacity_hint_api() {
-    use ros_z::msg::{SerdeCdrSerdes, ZSerializer};
-
     let cloud = PointCloud2 {
         header: Header {
             stamp: Time { sec: 0, nanosec: 0 },
@@ -188,14 +189,14 @@ fn test_capacity_hint_api() {
         is_dense: true,
     };
 
-    // Test the low-level API with explicit hint
+    // Test serialize_with_hint (capacity hint API)
     let hint = cloud.estimated_serialized_size();
-    let zbuf = SerdeCdrSerdes::<PointCloud2>::serialize_to_zbuf_with_hint(&cloud, hint);
+    let zbuf = <NativeCdrSerdes as ZSerdes<PointCloud2>>::serialize_with_hint(&cloud, hint);
 
     assert!(zbuf.len() > 50_000);
     println!("Serialized with explicit hint: {} bytes", zbuf.len());
 
-    // Test that ZMessage::serialize_to_zbuf uses the hint automatically
-    let zbuf2 = cloud.serialize_to_zbuf();
+    // Both serialize paths should produce the same length
+    let zbuf2 = NativeCdrSerdes::serialize(&cloud);
     assert_eq!(zbuf.len(), zbuf2.len());
 }

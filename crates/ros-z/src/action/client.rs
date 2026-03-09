@@ -11,7 +11,12 @@ use tokio::sync::{mpsc, watch};
 use zenoh::Result;
 
 use super::{GoalId, GoalInfo, GoalStatus, Time, ZAction, messages::*};
-use crate::{Builder, msg::ZMessage, qos::QosProfile, topic_name::qualify_topic_name};
+use crate::{
+    Builder,
+    msg::{NativeCdrSerdes, SerdeCdrSerdes, ZSerdes},
+    qos::QosProfile,
+    topic_name::qualify_topic_name,
+};
 
 /// Type states for goal handles.
 pub mod goal_state {
@@ -178,6 +183,8 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
         if let Some(qos) = self.feedback_topic_qos {
             feedback_sub_builder.entity.qos = qos.to_protocol_qos();
         }
+        // FeedbackMessage<A> uses serde (not native CDR), so use SerdeCdrSerdes.
+        let feedback_sub_builder = feedback_sub_builder.with_serdes::<SerdeCdrSerdes>();
         tracing::debug!(
             "Creating feedback subscriber with callback for {}",
             feedback_topic_name
@@ -309,9 +316,8 @@ pub struct ZActionClient<A: ZAction> {
     goal_client: Arc<crate::service::ZClient<GoalService<A>>>,
     result_client: Arc<crate::service::ZClient<ResultService<A>>>,
     cancel_client: Arc<crate::service::ZClient<CancelService<A>>>,
-    feedback_sub:
-        Arc<crate::pubsub::ZSub<FeedbackMessage<A>, (), <FeedbackMessage<A> as ZMessage>::Serdes>>,
-    status_sub: Arc<crate::pubsub::ZSub<StatusMessage, (), <StatusMessage as ZMessage>::Serdes>>,
+    feedback_sub: Arc<crate::pubsub::ZSub<FeedbackMessage<A>, (), SerdeCdrSerdes>>,
+    status_sub: Arc<crate::pubsub::ZSub<StatusMessage, (), NativeCdrSerdes>>,
     goal_board: Arc<GoalBoard<A>>,
 }
 
@@ -403,7 +409,7 @@ impl<A: ZAction> ZActionClient<A> {
             payload.len(),
             payload
         );
-        let response = <SendGoalResponse as ZMessage>::deserialize(&payload)
+        let response = <NativeCdrSerdes as ZSerdes<SendGoalResponse>>::deserialize(&payload)
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
 
         // 5. Check if accepted
@@ -430,8 +436,9 @@ impl<A: ZAction> ZActionClient<A> {
         self.cancel_client.send_request(&request).await?;
         let sample = self.cancel_client.rx.recv_async().await?;
         let payload = sample.payload().to_bytes();
-        let response = <CancelGoalServiceResponse as ZMessage>::deserialize(&payload)
-            .map_err(|e| zenoh::Error::from(e.to_string()))?;
+        let response =
+            <NativeCdrSerdes as ZSerdes<CancelGoalServiceResponse>>::deserialize(&payload)
+                .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok(response)
     }
 
@@ -447,8 +454,9 @@ impl<A: ZAction> ZActionClient<A> {
         self.cancel_client.send_request(&request).await?;
         let sample = self.cancel_client.rx.recv_async().await?;
         let payload = sample.payload().to_bytes();
-        let response = <CancelGoalServiceResponse as ZMessage>::deserialize(&payload)
-            .map_err(|e| zenoh::Error::from(e.to_string()))?;
+        let response =
+            <NativeCdrSerdes as ZSerdes<CancelGoalServiceResponse>>::deserialize(&payload)
+                .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok(response)
     }
 
@@ -477,7 +485,7 @@ impl<A: ZAction> ZActionClient<A> {
         self.result_client.send_request(&request).await?;
         let sample = self.result_client.rx.recv_async().await?;
         let payload = sample.payload().to_bytes();
-        let response = <GetResultResponse<A> as ZMessage>::deserialize(&payload)
+        let response = <SerdeCdrSerdes as ZSerdes<GetResultResponse<A>>>::deserialize(&payload)
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
 
         Ok(response.result)
@@ -493,7 +501,7 @@ impl<A: ZAction> ZActionClient<A> {
     pub async fn recv_goal_response_low(&self) -> Result<SendGoalResponse> {
         let sample = self.goal_client.rx.recv_async().await?;
         let payload = sample.payload().to_bytes();
-        <SendGoalResponse as ZMessage>::deserialize(&payload)
+        <NativeCdrSerdes as ZSerdes<SendGoalResponse>>::deserialize(&payload)
             .map_err(|e| zenoh::Error::from(e.to_string()))
     }
 
@@ -506,7 +514,7 @@ impl<A: ZAction> ZActionClient<A> {
     pub async fn recv_cancel_response_low(&self) -> Result<CancelGoalServiceResponse> {
         let sample = self.cancel_client.rx.recv_async().await?;
         let payload = sample.payload().to_bytes();
-        <CancelGoalServiceResponse as ZMessage>::deserialize(&payload)
+        <NativeCdrSerdes as ZSerdes<CancelGoalServiceResponse>>::deserialize(&payload)
             .map_err(|e| zenoh::Error::from(e.to_string()))
     }
 
@@ -519,7 +527,7 @@ impl<A: ZAction> ZActionClient<A> {
     pub async fn recv_result_response_low(&self) -> Result<GetResultResponse<A>> {
         let sample = self.result_client.rx.recv_async().await?;
         let payload = sample.payload().to_bytes();
-        <GetResultResponse<A> as ZMessage>::deserialize(&payload)
+        <SerdeCdrSerdes as ZSerdes<GetResultResponse<A>>>::deserialize(&payload)
             .map_err(|e| zenoh::Error::from(e.to_string()))
     }
 }

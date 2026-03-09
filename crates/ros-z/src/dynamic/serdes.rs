@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use zenoh_buffers::ZBuf;
 
-use crate::msg::{ZDeserializer, ZSerializer};
+use crate::msg::{ZDeserializer, ZSerdes, ZSerializer};
 
 use super::error::DynamicError;
 use super::message::DynamicMessage;
@@ -108,6 +108,57 @@ impl ZDeserializer for DynamicSerdeCdrSerdes {
     }
 }
 
+/// `ZSerdes<DynamicMessage>` implementation for `DynamicSerdeCdrSerdes`.
+///
+/// The `deserialize` method on this impl requires a schema at runtime; when called
+/// without one (plain byte-slice path) it returns an error. The real deserialization
+/// path is the specialized `ZSub<DynamicMessage, …>` impl which calls
+/// `DynamicSerdeCdrSerdes::deserialize((&bytes, schema))` directly.
+impl ZSerdes<DynamicMessage> for DynamicSerdeCdrSerdes {
+    type Error = DynamicError;
+
+    fn serialize(msg: &DynamicMessage) -> ZBuf {
+        msg.to_cdr_zbuf()
+            .expect("DynamicMessage CDR serialization failed")
+    }
+
+    fn serialize_with_hint(msg: &DynamicMessage, _capacity_hint: usize) -> ZBuf {
+        <Self as crate::msg::ZSerdes<DynamicMessage>>::serialize(msg)
+    }
+
+    fn serialize_to_shm(
+        msg: &DynamicMessage,
+        _estimated_size: usize,
+        provider: &zenoh::shm::ShmProvider<zenoh::shm::PosixShmProviderBackend>,
+    ) -> zenoh::Result<(ZBuf, usize)> {
+        let data = msg.to_cdr().map_err(|e| {
+            zenoh::Error::from(format!("DynamicMessage serialization failed: {}", e))
+        })?;
+        let actual_size = data.len();
+
+        use zenoh::Wait;
+        use zenoh::shm::{BlockOn, GarbageCollect};
+
+        let mut shm_buf = provider
+            .alloc(actual_size)
+            .with_policy::<BlockOn<GarbageCollect>>()
+            .wait()
+            .map_err(|e| zenoh::Error::from(format!("SHM allocation failed: {}", e)))?;
+
+        shm_buf[0..actual_size].copy_from_slice(&data);
+        Ok((ZBuf::from(shm_buf), actual_size))
+    }
+
+    fn serialize_to_vec(msg: &DynamicMessage) -> Vec<u8> {
+        msg.to_cdr()
+            .expect("DynamicMessage CDR serialization failed")
+    }
+
+    fn deserialize(_buf: &[u8]) -> Result<DynamicMessage, DynamicError> {
+        Err(DynamicError::SchemaMissing)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -144,10 +195,12 @@ mod tests {
         msg.set("z", 3.5f64).unwrap();
 
         // Serialize
-        let bytes = DynamicSerdeCdrSerdes::serialize(&msg);
+        let bytes = <DynamicSerdeCdrSerdes as crate::msg::ZSerializer>::serialize(&msg);
 
         // Deserialize
-        let deserialized = DynamicSerdeCdrSerdes::deserialize((&bytes, &schema)).unwrap();
+        let deserialized =
+            <DynamicSerdeCdrSerdes as crate::msg::ZDeserializer>::deserialize((&bytes, &schema))
+                .unwrap();
 
         assert_eq!(deserialized.get::<f64>("x").unwrap(), 1.5);
         assert_eq!(deserialized.get::<f64>("y").unwrap(), 2.5);
@@ -166,7 +219,7 @@ mod tests {
         DynamicSerdeCdrSerdes::serialize_to_buf(&msg, &mut buffer);
 
         // Should match serialize() output
-        let direct = DynamicSerdeCdrSerdes::serialize(&msg);
+        let direct = <DynamicSerdeCdrSerdes as crate::msg::ZSerializer>::serialize(&msg);
         assert_eq!(buffer, direct);
     }
 }

@@ -7,7 +7,7 @@
 
 use ros_z::{
     dynamic::{DynamicMessage, FieldType, MessageSchema},
-    msg::ZMessage,
+    msg::{NativeCdrSerdes, ZMessage, ZSerdes},
 };
 use ros_z_msgs::{
     geometry_msgs::{Point, Twist, Vector3},
@@ -52,7 +52,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Serialize static to CDR, then deserialize as dynamic
-    let cdr_bytes = static_point.serialize();
+    let cdr_bytes = NativeCdrSerdes::serialize_to_vec(&static_point);
     let dynamic_point = DynamicMessage::from_cdr(&cdr_bytes, &point_schema)?;
     println!(
         "Dynamic Point: x={}, y={}, z={}\n",
@@ -76,7 +76,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Serialize dynamic to CDR, then deserialize as static
     let cdr_bytes = dynamic_point.to_cdr()?;
-    let static_point = Point::deserialize(&cdr_bytes)?;
+    let static_point = <NativeCdrSerdes as ZSerdes<Point>>::deserialize(&cdr_bytes)?;
     println!(
         "Static Point: x={}, y={}, z={}\n",
         static_point.x, static_point.y, static_point.z
@@ -89,7 +89,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     println!("Static String: \"{}\"", static_string.data);
 
-    let cdr_bytes = static_string.serialize();
+    let cdr_bytes = NativeCdrSerdes::serialize_to_vec(&static_string);
     let dynamic_string = DynamicMessage::from_cdr(&cdr_bytes, &string_schema)?;
     println!(
         "Dynamic String: \"{}\"\n",
@@ -120,7 +120,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         static_twist.angular.x, static_twist.angular.y, static_twist.angular.z
     );
 
-    let cdr_bytes = static_twist.serialize();
+    let cdr_bytes = NativeCdrSerdes::serialize_to_vec(&static_twist);
     let dynamic_twist = DynamicMessage::from_cdr(&cdr_bytes, &twist_schema)?;
     println!("Dynamic Twist:");
     println!(
@@ -148,7 +148,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     dynamic_msg.set("y", 2.5f64)?;
     dynamic_msg.set("z", 3.5f64)?;
 
-    let static_cdr = static_msg.serialize();
+    let static_cdr = NativeCdrSerdes::serialize_to_vec(&static_msg);
     let dynamic_cdr = dynamic_msg.to_cdr()?;
 
     println!("Static CDR:  {} bytes", static_cdr.len());
@@ -175,10 +175,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Static → CDR → Dynamic → CDR → Static
-    let cdr1 = original.serialize();
+    let cdr1 = NativeCdrSerdes::serialize_to_vec(&original);
     let dynamic = DynamicMessage::from_cdr(&cdr1, &point_schema)?;
     let cdr2 = dynamic.to_cdr()?;
-    let recovered = Point::deserialize(&cdr2)?;
+    let recovered = <NativeCdrSerdes as ZSerdes<Point>>::deserialize(&cdr2)?;
 
     println!(
         "Recovered static: ({}, {}, {})",

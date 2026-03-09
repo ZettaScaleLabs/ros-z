@@ -208,7 +208,7 @@ impl ZNode {
     /// - Absolute topics (starting with '/') are used as-is
     /// - Private topics (starting with '~') are expanded to /<namespace>/<node_name>/<topic>
     /// - Relative topics are expanded to /<namespace>/<topic>
-    pub fn create_pub<T>(&self, topic: &str) -> ZPubBuilder<T, T::Serdes>
+    pub fn create_pub<T>(&self, topic: &str) -> ZPubBuilder<T, crate::msg::NativeCdrSerdes>
     where
         T: ZMessage + WithTypeInfo,
     {
@@ -221,7 +221,7 @@ impl ZNode {
         &self,
         topic: &str,
         type_info: Option<crate::entity::TypeInfo>,
-    ) -> ZPubBuilder<T, T::Serdes>
+    ) -> ZPubBuilder<T, crate::msg::NativeCdrSerdes>
     where
         T: ZMessage,
     {
@@ -255,7 +255,7 @@ impl ZNode {
     /// - Absolute topics (starting with '/') are used as-is
     /// - Private topics (starting with '~') are expanded to /<namespace>/<node_name>/<topic>
     /// - Relative topics are expanded to /<namespace>/<topic>
-    pub fn create_sub<T>(&self, topic: &str) -> ZSubBuilder<T, T::Serdes>
+    pub fn create_sub<T>(&self, topic: &str) -> ZSubBuilder<T, crate::msg::NativeCdrSerdes>
     where
         T: ZMessage + WithTypeInfo,
     {
@@ -268,7 +268,7 @@ impl ZNode {
         &self,
         topic: &str,
         type_info: Option<crate::entity::TypeInfo>,
-    ) -> ZSubBuilder<T, T::Serdes>
+    ) -> ZSubBuilder<T, crate::msg::NativeCdrSerdes>
     where
         T: ZMessage,
     {

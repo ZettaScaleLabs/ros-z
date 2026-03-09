@@ -87,13 +87,9 @@ pub use value::{DynamicValue, FromDynamic, IntoDynamic};
 
 use zenoh::sample::Sample;
 
-use crate::msg::ZMessage;
 use crate::pubsub::{ZPub, ZPubBuilder, ZSub, ZSubBuilder};
 
-// Implement ZMessage for DynamicMessage
-impl ZMessage for DynamicMessage {
-    type Serdes = DynamicSerdeCdrSerdes;
-}
+// ZMessage covered by blanket impl in ros_z::msg for all Send + Sync + 'static types.
 
 // Type aliases for convenience
 /// Type alias for a dynamic message publisher.

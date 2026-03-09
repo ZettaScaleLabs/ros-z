@@ -121,17 +121,18 @@ fn test_dynamic_cdr_serdes_to_buf() {
 
 #[test]
 fn test_zmessage_impl_for_dynamic_message() {
-    use crate::msg::ZMessage;
-
     let schema = create_point_schema();
     let mut msg = DynamicMessage::new(&schema);
     msg.set("x", 5.0f64).unwrap();
     msg.set("y", 6.0f64).unwrap();
     msg.set("z", 7.0f64).unwrap();
 
-    // Use ZMessage trait method (must use fully qualified syntax because
-    // DynamicMessage has its own serialize method that shadows the trait method)
-    let bytes = <DynamicMessage as ZMessage>::serialize(&msg);
+    // Use DynamicSerdeCdrSerdes for serialization (ZMessage is now a marker trait)
+    use crate::dynamic::DynamicSerdeCdrSerdes;
+    use crate::msg::ZSerdes;
+    let zbuf = <DynamicSerdeCdrSerdes as ZSerdes<DynamicMessage>>::serialize(&msg);
+    use zenoh_buffers::buffer::SplitBuffer;
+    let bytes = zbuf.contiguous();
     assert!(!bytes.is_empty());
 
     // Verify CDR header

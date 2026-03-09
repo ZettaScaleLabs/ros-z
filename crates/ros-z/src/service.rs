@@ -16,6 +16,7 @@ use zenoh::{
     query::{Query, Reply},
     sample::Sample,
 };
+use zenoh_buffers::buffer::Buffer as _;
 
 use std::sync::atomic::Ordering;
 
@@ -28,7 +29,7 @@ use crate::{
     common::DataHandler,
     entity::EndpointEntity,
     impl_with_type_info,
-    msg::{SerdeCdrSerdes, ZDeserializer, ZMessage, ZService},
+    msg::{SerdeCdrSerdes, ZMessage, ZSerdes, ZService},
     qos::QosHistory,
     queue::BoundedQueue,
 };
@@ -173,13 +174,13 @@ where
     // For ROS-Z
     pub fn take_response(&self) -> Result<T::Response>
     where
-        T::Response: ZMessage,
-        for<'a> <T::Response as ZMessage>::Serdes:
-            ZDeserializer<Output = T::Response, Input<'a> = &'a [u8]>,
+        T::Response:
+            ZMessage + serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
     {
         let sample = self.take_sample()?;
-        let msg = <T::Response as ZMessage>::deserialize(&sample.payload().to_bytes())
-            .map_err(|e| zenoh::Error::from(e.to_string()))?;
+        let msg =
+            <SerdeCdrSerdes as ZSerdes<T::Response>>::deserialize(&sample.payload().to_bytes())
+                .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok(msg)
     }
 
@@ -187,13 +188,12 @@ where
     /// arrives within the deadline.
     pub fn take_response_timeout(&self, timeout: Duration) -> Result<T::Response>
     where
-        T::Response: ZMessage,
-        for<'a> <T::Response as ZMessage>::Serdes:
-            ZDeserializer<Output = T::Response, Input<'a> = &'a [u8]>,
+        T::Response:
+            ZMessage + serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
     {
         let sample = self.take_sample_timeout(timeout)?;
         let payload_bytes = sample.payload().to_bytes();
-        let msg = <T::Response as ZMessage>::deserialize(&payload_bytes[..])
+        let msg = <SerdeCdrSerdes as ZSerdes<T::Response>>::deserialize(&payload_bytes[..])
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok(msg)
     }
@@ -201,13 +201,12 @@ where
     /// response arrives or the channel is disconnected.
     pub async fn take_response_async(&self) -> Result<T::Response>
     where
-        T::Response: ZMessage,
-        for<'a> <T::Response as ZMessage>::Serdes:
-            ZDeserializer<Output = T::Response, Input<'a> = &'a [u8]>,
+        T::Response:
+            ZMessage + serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
     {
         let sample = self.rx.recv_async().await?;
         let payload_bytes = sample.payload().to_bytes();
-        let msg = <T::Response as ZMessage>::deserialize(&payload_bytes[..])
+        let msg = <SerdeCdrSerdes as ZSerdes<T::Response>>::deserialize(&payload_bytes[..])
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok(msg)
     }
@@ -231,8 +230,11 @@ where
         sn = self.sn.load(Ordering::Acquire),
         payload_len = tracing::field::Empty
     ))]
-    pub async fn send_request(&self, msg: &T::Request) -> Result<()> {
-        let payload = msg.serialize();
+    pub async fn send_request(&self, msg: &T::Request) -> Result<()>
+    where
+        T::Request: serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
+    {
+        let payload = <SerdeCdrSerdes as ZSerdes<T::Request>>::serialize(msg);
         tracing::Span::current().record("payload_len", payload.len());
 
         // Log the key expression being queried
@@ -275,13 +277,14 @@ where
     pub fn rmw_send_request<F>(&self, msg: &T::Request, notify: F) -> Result<i64>
     where
         F: Fn() + Send + Sync + 'static,
+        T::Request: serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
     {
         let tx = self.tx.clone();
         let attachment = self.new_attachment();
         let sn = attachment.sequence_number;
         self.inner
             .get()
-            .payload(msg.serialize())
+            .payload(<SerdeCdrSerdes as ZSerdes<T::Request>>::serialize(msg))
             .attachment(attachment)
             .callback(move |reply| {
                 match reply.into_result() {
@@ -515,9 +518,8 @@ where
     ))]
     pub fn take_request(&mut self) -> Result<(QueryKey, T::Request)>
     where
-        T::Request: ZMessage + Send + Sync + 'static,
-        for<'a> <T::Request as ZMessage>::Serdes:
-            ZDeserializer<Output = T::Request, Input<'a> = &'a [u8]>,
+        T::Request:
+            ZMessage + serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
     {
         trace!("[SRV] Waiting for request");
 
@@ -540,7 +542,7 @@ where
 
         debug!("[SRV] Processing request");
 
-        let msg = <T::Request as ZMessage>::deserialize(&payload_bytes[..])
+        let msg = <SerdeCdrSerdes as ZSerdes<T::Request>>::deserialize(&payload_bytes[..])
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
         self.map.insert(key.clone(), query);
 
@@ -552,9 +554,8 @@ where
     /// This method may fail if the message does not deserialize as the requested type.
     pub async fn take_request_async(&mut self) -> Result<(QueryKey, T::Request)>
     where
-        T::Request: ZMessage + Send + Sync + 'static,
-        for<'a> <T::Request as ZMessage>::Serdes:
-            ZDeserializer<Output = T::Request, Input<'a> = &'a [u8]>,
+        T::Request:
+            ZMessage + serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
     {
         let queue = self.queue.as_ref().ok_or_else(|| {
             zenoh::Error::from("Server was built with callback, no queue available")
@@ -566,7 +567,7 @@ where
             return Err("Existing query detected".into());
         }
         let payload_bytes = query.payload().unwrap().to_bytes();
-        let msg = <T::Request as ZMessage>::deserialize(&payload_bytes[..])
+        let msg = <SerdeCdrSerdes as ZSerdes<T::Request>>::deserialize(&payload_bytes[..])
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
         self.map.insert(key.clone(), query);
 
@@ -582,14 +583,17 @@ where
         sn = %key.sn,
         payload_len = tracing::field::Empty
     ))]
-    pub fn send_response(&mut self, msg: &T::Response, key: &QueryKey) -> Result<()> {
+    pub fn send_response(&mut self, msg: &T::Response, key: &QueryKey) -> Result<()>
+    where
+        T::Response: serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
+    {
         debug!(
             "[SRV] Looking for query with key sn:{}, gid:{:?}",
             key.sn, key.gid
         );
         match self.map.remove(key) {
             Some(query) => {
-                let payload = msg.serialize();
+                let payload = <SerdeCdrSerdes as ZSerdes<T::Response>>::serialize(msg);
                 tracing::Span::current().record("payload_len", payload.len());
 
                 debug!("[SRV] Sending response");
@@ -612,13 +616,19 @@ where
     ///
     /// - `msg` is the response message to send.
     /// - `key` is the query key of the request to reply to and is obtained from [take_request](Self::take_request) or [take_request_async](Self::take_request_async)
-    pub async fn send_response_async(&mut self, msg: &T::Response, key: &QueryKey) -> Result<()> {
+    pub async fn send_response_async(&mut self, msg: &T::Response, key: &QueryKey) -> Result<()>
+    where
+        T::Response: serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
+    {
         match self.map.remove(key) {
             Some(query) => {
                 // Use the sequence number and GID from the request
                 let attachment = Attachment::new(key.sn, key.gid);
                 query
-                    .reply(&self.key_expr, msg.serialize())
+                    .reply(
+                        &self.key_expr,
+                        <SerdeCdrSerdes as ZSerdes<T::Response>>::serialize(msg),
+                    )
                     .attachment(attachment)
                     .await
             }

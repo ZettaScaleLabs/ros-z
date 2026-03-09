@@ -16,7 +16,7 @@ use crate::impl_with_type_info;
 use crate::queue::BoundedQueue;
 use crate::topic_name;
 
-use crate::msg::{SerdeCdrSerdes, ZDeserializer, ZMessage, ZSerializer};
+use crate::msg::{NativeCdrSerdes, ZMessage, ZSerdes};
 use crate::qos::QosProfile;
 use ros_z_protocol::qos::{QosDurability, QosHistory, QosReliability};
 use std::sync::Mutex;
@@ -25,7 +25,7 @@ use std::sync::Mutex;
 /// (synchronous) or [`async_publish`](ZPub::async_publish) (async).
 ///
 /// Create a publisher via [`ZNode::create_pub`](crate::node::ZNode::create_pub).
-pub struct ZPub<T: ZMessage, S: ZSerializer> {
+pub struct ZPub<T: ZMessage, S: ZSerdes<T> = NativeCdrSerdes> {
     pub entity: EndpointEntity,
     // TODO: replace this with the sample sn
     sn: AtomicUsize,
@@ -45,7 +45,7 @@ pub struct ZPub<T: ZMessage, S: ZSerializer> {
     _phantom_data: PhantomData<(T, S)>,
 }
 
-impl<T: ZMessage, S: ZSerializer> std::fmt::Debug for ZPub<T, S> {
+impl<T: ZMessage, S: ZSerdes<T>> std::fmt::Debug for ZPub<T, S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ZPub")
             .field("entity", &self.entity)
@@ -54,7 +54,7 @@ impl<T: ZMessage, S: ZSerializer> std::fmt::Debug for ZPub<T, S> {
 }
 
 #[derive(Debug)]
-pub struct ZPubBuilder<T, S = SerdeCdrSerdes<T>> {
+pub struct ZPubBuilder<T, S = NativeCdrSerdes> {
     pub entity: EndpointEntity,
     pub session: Arc<Session>,
     pub graph: Arc<Graph>,
@@ -235,7 +235,7 @@ impl<T, S> ZPubBuilder<T, S> {
 impl<T, S> Builder for ZPubBuilder<T, S>
 where
     T: ZMessage + 'static,
-    S: for<'a> ZSerializer<Input<'a> = &'a T> + 'static,
+    S: ZSerdes<T> + 'static,
 {
     type Output = ZPub<T, S>;
 
@@ -327,7 +327,7 @@ where
 impl<T, S> ZPub<T, S>
 where
     T: ZMessage + 'static,
-    S: for<'a> ZSerializer<Input<'a> = &'a T> + 'static,
+    S: ZSerdes<T> + 'static,
 {
     /// Wait until at least `count` subscribers are matched on this publisher's topic,
     /// or until `timeout` elapses.
@@ -410,7 +410,7 @@ where
 
             // Only use SHM if estimated size meets threshold
             if estimated_size >= shm_cfg.threshold() {
-                match S::serialize_to_shm(msg, estimated_size, shm_cfg.provider()) {
+                match <S as ZSerdes<T>>::serialize_to_shm(msg, estimated_size, shm_cfg.provider()) {
                     Ok((zbuf, actual_size)) => {
                         tracing::Span::current().record("used_shm", true);
                         debug!(
@@ -425,7 +425,7 @@ where
                             "[PUB] Direct SHM serialization failed: {}. Using regular memory",
                             e
                         );
-                        let zbuf = S::serialize_to_zbuf(msg);
+                        let zbuf = <S as ZSerdes<T>>::serialize(msg);
                         let size = zbuf.len();
                         (zbuf, size)
                     }
@@ -437,13 +437,13 @@ where
                     estimated_size,
                     shm_cfg.threshold()
                 );
-                let zbuf = S::serialize_to_zbuf(msg);
+                let zbuf = <S as ZSerdes<T>>::serialize(msg);
                 let size = zbuf.len();
                 (zbuf, size)
             }
         } else {
             tracing::Span::current().record("used_shm", false);
-            let zbuf = S::serialize_to_zbuf(msg);
+            let zbuf = <S as ZSerdes<T>>::serialize(msg);
             let size = zbuf.len();
             (zbuf, size)
         };
@@ -478,15 +478,15 @@ where
             let estimated_size = msg.estimated_serialized_size();
 
             if estimated_size >= shm_cfg.threshold() {
-                match S::serialize_to_shm(msg, estimated_size, shm_cfg.provider()) {
+                match <S as ZSerdes<T>>::serialize_to_shm(msg, estimated_size, shm_cfg.provider()) {
                     Ok((zbuf, _actual_size)) => zbuf,
-                    Err(_) => S::serialize_to_zbuf(msg),
+                    Err(_) => <S as ZSerdes<T>>::serialize(msg),
                 }
             } else {
-                S::serialize_to_zbuf(msg)
+                <S as ZSerdes<T>>::serialize(msg)
             }
         } else {
-            S::serialize_to_zbuf(msg)
+            <S as ZSerdes<T>>::serialize(msg)
         };
 
         let zbytes = zenoh::bytes::ZBytes::from(zbuf);
@@ -555,7 +555,7 @@ impl ZPub<crate::dynamic::DynamicMessage, crate::dynamic::DynamicSerdeCdrSerdes>
     }
 }
 
-pub struct ZSubBuilder<T, S = SerdeCdrSerdes<T>> {
+pub struct ZSubBuilder<T, S = NativeCdrSerdes> {
     pub entity: EndpointEntity,
     pub session: Arc<Session>,
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
@@ -691,7 +691,7 @@ where
         queue: Option<Arc<BoundedQueue<Q>>>,
     ) -> Result<ZSub<T, Q, S>>
     where
-        S: ZDeserializer,
+        S: ZSerdes<T>,
     {
         let qualified_topic = topic_name::qualify_topic_name(
             &self.entity.topic,
@@ -786,8 +786,8 @@ where
     /// A `ZSub` with no internal queue (callback-only mode)
     pub fn build_with_callback<F>(self, callback: F) -> Result<ZSub<T, (), S>>
     where
-        F: Fn(S::Output) + Send + Sync + 'static,
-        S: for<'a> ZDeserializer<Input<'a> = &'a [u8]> + 'static,
+        F: Fn(T) + Send + Sync + 'static,
+        S: ZSerdes<T> + 'static,
     {
         let expected_encoding = self.expected_encoding.clone();
         let callback = Arc::new(move |sample: Sample| {
@@ -810,7 +810,7 @@ where
             }
 
             let payload = sample.payload().to_bytes();
-            match S::deserialize(&payload) {
+            match <S as ZSerdes<T>>::deserialize(&payload) {
                 Ok(msg) => callback(msg),
                 Err(e) => tracing::error!("Failed to deserialize message: {}", e),
             }
@@ -823,7 +823,7 @@ where
     pub fn build_with_notifier<F>(self, notify: F) -> Result<ZSub<T, Sample, S>>
     where
         F: Fn() + Send + Sync + 'static,
-        S: ZDeserializer,
+        S: ZSerdes<T>,
     {
         let queue_size = match self.entity.qos.history {
             QosHistory::KeepLast(depth) => depth,
@@ -844,7 +844,7 @@ where
 impl<T, S> Builder for ZSubBuilder<T, S>
 where
     T: ZMessage + 'static + Sync + Send,
-    S: ZDeserializer,
+    S: ZSerdes<T>,
 {
     type Output = ZSub<T, Sample, S>;
 
@@ -859,7 +859,7 @@ where
     }
 }
 
-pub struct ZSub<T: ZMessage, Q, S: ZDeserializer> {
+pub struct ZSub<T: ZMessage, Q, S: ZSerdes<T> = NativeCdrSerdes> {
     pub entity: EndpointEntity,
     pub queue: Option<Arc<BoundedQueue<Q>>>,
     _inner: zenoh::pubsub::Subscriber<()>,
@@ -873,7 +873,7 @@ pub struct ZSub<T: ZMessage, Q, S: ZDeserializer> {
     _phantom_data: PhantomData<(T, Q, S)>,
 }
 
-impl<T: ZMessage, Q, S: ZDeserializer> std::fmt::Debug for ZSub<T, Q, S> {
+impl<T: ZMessage, Q, S: ZSerdes<T>> std::fmt::Debug for ZSub<T, Q, S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ZSub")
             .field("entity", &self.entity)
@@ -884,7 +884,7 @@ impl<T: ZMessage, Q, S: ZDeserializer> std::fmt::Debug for ZSub<T, Q, S> {
 impl<T, S> ZSub<T, Sample, S>
 where
     T: ZMessage,
-    S: ZDeserializer,
+    S: ZSerdes<T>,
 {
     /// Receive the next serialized message (raw sample)
     pub fn recv_serialized(&self) -> Result<Sample> {
@@ -925,14 +925,14 @@ where
 impl<T, S> ZSub<T, Sample, S>
 where
     T: ZMessage,
-    S: for<'a> ZDeserializer<Input<'a> = &'a [u8]>,
+    S: ZSerdes<T>,
 {
     /// Receive and deserialize the next message (aligned with ROS behavior)
     #[tracing::instrument(name = "recv", skip(self), fields(
         topic = %self.entity.topic,
         payload_len = tracing::field::Empty
     ))]
-    pub fn recv(&self) -> Result<S::Output> {
+    pub fn recv(&self) -> Result<T> {
         trace!("[SUB] Waiting for message");
 
         let queue = self.queue.as_ref().ok_or_else(|| {
@@ -944,10 +944,10 @@ where
         tracing::Span::current().record("payload_len", payload.len());
         debug!("[SUB] Received message");
 
-        S::deserialize(&payload).map_err(|e| zenoh::Error::from(e.to_string()))
+        <S as ZSerdes<T>>::deserialize(&payload).map_err(|e| zenoh::Error::from(e.to_string()))
     }
 
-    pub fn recv_timeout(&self, timeout: Duration) -> Result<S::Output> {
+    pub fn recv_timeout(&self, timeout: Duration) -> Result<T> {
         let queue = self.queue.as_ref().ok_or_else(|| {
             zenoh::Error::from("Subscriber was built with callback, no queue available")
         })?;
@@ -955,17 +955,17 @@ where
             .recv_timeout(timeout)
             .ok_or_else(|| zenoh::Error::from("Receive timed out"))?;
         let payload = sample.payload().to_bytes();
-        S::deserialize(&payload).map_err(|e| zenoh::Error::from(e.to_string()))
+        <S as ZSerdes<T>>::deserialize(&payload).map_err(|e| zenoh::Error::from(e.to_string()))
     }
 
     /// Async receive and deserialize the next message
-    pub async fn async_recv(&self) -> Result<S::Output> {
+    pub async fn async_recv(&self) -> Result<T> {
         let queue = self.queue.as_ref().ok_or_else(|| {
             zenoh::Error::from("Subscriber was built with callback, no queue available")
         })?;
         let sample = queue.recv_async().await;
         let payload = sample.payload().to_bytes();
-        S::deserialize(&payload).map_err(|e| zenoh::Error::from(e.to_string()))
+        <S as ZSerdes<T>>::deserialize(&payload).map_err(|e| zenoh::Error::from(e.to_string()))
     }
 }
 
@@ -985,7 +985,7 @@ impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicSerdeCd
         topic = %self.entity.topic,
         payload_len = tracing::field::Empty
     ))]
-    pub fn recv(&self) -> Result<crate::dynamic::DynamicMessage> {
+    pub fn recv_dynamic(&self) -> Result<crate::dynamic::DynamicMessage> {
         let schema = self.dyn_schema.as_ref().ok_or_else(|| {
             zenoh::Error::from(
                 "dyn_schema required for DynamicMessage (use .with_dyn_schema() when building)",
@@ -1003,12 +1003,17 @@ impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicSerdeCd
         tracing::Span::current().record("payload_len", payload.len());
         debug!("[SUB] Received dynamic message");
 
-        crate::dynamic::DynamicSerdeCdrSerdes::deserialize((&payload, schema))
-            .map_err(|e| zenoh::Error::from(e.to_string()))
+        <crate::dynamic::DynamicSerdeCdrSerdes as crate::msg::ZDeserializer>::deserialize((
+            &payload, schema,
+        ))
+        .map_err(|e| zenoh::Error::from(e.to_string()))
     }
 
     /// Receive a dynamic message with timeout.
-    pub fn recv_timeout(&self, timeout: Duration) -> Result<crate::dynamic::DynamicMessage> {
+    pub fn recv_timeout_dynamic(
+        &self,
+        timeout: Duration,
+    ) -> Result<crate::dynamic::DynamicMessage> {
         let schema = self
             .dyn_schema
             .as_ref()
@@ -1023,12 +1028,14 @@ impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicSerdeCd
             .ok_or_else(|| zenoh::Error::from("Receive timed out"))?;
         let payload = sample.payload().to_bytes();
 
-        crate::dynamic::DynamicSerdeCdrSerdes::deserialize((&payload, schema))
-            .map_err(|e| zenoh::Error::from(e.to_string()))
+        <crate::dynamic::DynamicSerdeCdrSerdes as crate::msg::ZDeserializer>::deserialize((
+            &payload, schema,
+        ))
+        .map_err(|e| zenoh::Error::from(e.to_string()))
     }
 
     /// Async receive a dynamic message.
-    pub async fn async_recv(&self) -> Result<crate::dynamic::DynamicMessage> {
+    pub async fn async_recv_dynamic(&self) -> Result<crate::dynamic::DynamicMessage> {
         let schema = self
             .dyn_schema
             .as_ref()
@@ -1041,8 +1048,10 @@ impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicSerdeCd
         let sample = queue.recv_async().await;
         let payload = sample.payload().to_bytes();
 
-        crate::dynamic::DynamicSerdeCdrSerdes::deserialize((&payload, schema))
-            .map_err(|e| zenoh::Error::from(e.to_string()))
+        <crate::dynamic::DynamicSerdeCdrSerdes as crate::msg::ZDeserializer>::deserialize((
+            &payload, schema,
+        ))
+        .map_err(|e| zenoh::Error::from(e.to_string()))
     }
 
     /// Try to receive a dynamic message without blocking.
@@ -1053,7 +1062,7 @@ impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicSerdeCd
         match queue.try_recv() {
             Some(sample) => {
                 let payload = sample.payload().to_bytes();
-                let result = crate::dynamic::DynamicSerdeCdrSerdes::deserialize((&payload, schema))
+                let result = <crate::dynamic::DynamicSerdeCdrSerdes as crate::msg::ZDeserializer>::deserialize((&payload, schema))
                     .map_err(|e| zenoh::Error::from(e.to_string()));
                 Some(result)
             }

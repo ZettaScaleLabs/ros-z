@@ -24,9 +24,7 @@ impl MessageTypeInfo for TestMessage {
 
 impl ros_z::ros_msg::WithTypeInfo for TestMessage {}
 
-impl ros_z::msg::ZMessage for TestMessage {
-    type Serdes = ros_z::msg::SerdeCdrSerdes<TestMessage>;
-}
+impl ros_z::msg::ZMessage for TestMessage {}
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn test_basic_pubsub() {

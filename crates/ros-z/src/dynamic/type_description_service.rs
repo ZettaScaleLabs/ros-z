@@ -591,17 +591,21 @@ impl TypeDescriptionService {
     /// This is called from the Zenoh callback when a query is received.
     /// It deserializes the request, looks up the schema, and sends the response.
     fn handle_query(schemas: &Arc<RwLock<HashMap<String, RegisteredSchema>>>, query: Query) {
-        use crate::msg::{SerdeCdrSerdes, ZDeserializer, ZSerializer};
+        use crate::msg::{SerdeCdrSerdes, ZSerdes};
 
         // Deserialize the request
         let request: GetTypeDescriptionRequest = match query.payload() {
-            Some(payload) => match SerdeCdrSerdes::deserialize(payload.to_bytes().as_ref()) {
-                Ok(req) => req,
-                Err(e) => {
-                    warn!("[TDS] Failed to deserialize request: {}", e);
-                    return;
+            Some(payload) => {
+                match <SerdeCdrSerdes as ZSerdes<GetTypeDescriptionRequest>>::deserialize(
+                    payload.to_bytes().as_ref(),
+                ) {
+                    Ok(req) => req,
+                    Err(e) => {
+                        warn!("[TDS] Failed to deserialize request: {}", e);
+                        return;
+                    }
                 }
-            },
+            }
             None => {
                 warn!("[TDS] Query has no payload");
                 return;
@@ -627,7 +631,7 @@ impl TypeDescriptionService {
         );
 
         // Serialize and send the response
-        let bytes = SerdeCdrSerdes::serialize(&response);
+        let bytes = <SerdeCdrSerdes as ZSerdes<GetTypeDescriptionResponse>>::serialize(&response);
         use zenoh::Wait;
         if let Err(e) = query.reply(query.key_expr().clone(), bytes).wait() {
             warn!("[TDS] Failed to send response: {}", e);

@@ -26,9 +26,7 @@ impl MessageTypeInfo for SensorData {
 
 impl WithTypeInfo for SensorData {}
 
-impl ZMessage for SensorData {
-    type Serdes = ros_z::msg::SerdeCdrSerdes<SensorData>;
-}
+impl ZMessage for SensorData {}
 
 // SensorData uses serde/CDR for backward compatibility with the original pub/sub demo
 
@@ -46,10 +44,7 @@ impl MessageTypeInfo for CalculateRequest {
 
 impl WithTypeInfo for CalculateRequest {}
 
-// Explicitly implement ZMessage to use ProtobufSerdes for pure protobuf serialization
-impl ZMessage for CalculateRequest {
-    type Serdes = ProtobufSerdes<CalculateRequest>;
-}
+impl ZMessage for CalculateRequest {}
 
 // ========== CalculateResponse Trait Implementations ==========
 
@@ -65,10 +60,7 @@ impl MessageTypeInfo for CalculateResponse {
 
 impl WithTypeInfo for CalculateResponse {}
 
-// Explicitly implement ZMessage to use ProtobufSerdes for pure protobuf serialization
-impl ZMessage for CalculateResponse {
-    type Serdes = ProtobufSerdes<CalculateResponse>;
-}
+impl ZMessage for CalculateResponse {}
 
 // ========== Calculate Service Definition ==========
 
