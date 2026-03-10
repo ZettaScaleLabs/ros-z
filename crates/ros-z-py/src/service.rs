@@ -26,8 +26,9 @@ impl<T: ZService> ZClientWrapper<T> {
 impl<T> RawClient for ZClientWrapper<T>
 where
     T: ZService + Send + Sync + 'static,
-    T::Request: ZMessage + serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
-    T::Response: ZMessage + serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
+    T::Request: ZMessage + Send + Sync + 'static,
+    T::Response: ZMessage + Send + Sync + 'static,
+    CdrCompatSerdes: ZSerdes<T::Request> + ZSerdes<T::Response>,
 {
     fn send_request_serialized(&self, data: &[u8]) -> Result<()> {
         // Deserialize the request from CDR bytes
@@ -106,8 +107,9 @@ impl<T: ZService> ZServerWrapper<T> {
 impl<T> RawServer for ZServerWrapper<T>
 where
     T: ZService + Send + Sync + 'static,
-    T::Request: ZMessage + serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
-    T::Response: ZMessage + serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
+    T::Request: ZMessage + Send + Sync + 'static,
+    T::Response: ZMessage + Send + Sync + 'static,
+    CdrCompatSerdes: ZSerdes<T::Request> + ZSerdes<T::Response>,
 {
     fn take_request_serialized(&self) -> Result<(QueryKey, Vec<u8>)> {
         let mut server = self
