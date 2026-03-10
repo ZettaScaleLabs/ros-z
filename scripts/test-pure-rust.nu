@@ -59,6 +59,14 @@ def check-distro-features [] {
     run-cmd "cargo check -p ros-z --no-default-features --features kilted"
 }
 
+def check-py-crate [] {
+    # ros-z-py is not in default-members so cargo clippy/build skip it by default.
+    # Explicit check here catches missing deps and type errors before CI does.
+    log-step "Check ros-z-py (Python bindings)"
+    run-cmd "cargo check -p ros-z-py"
+    run-cmd "cargo clippy -p ros-z-py -- -D warnings"
+}
+
 def test-shm [] {
     log-step "Test SHM functionality"
 
@@ -82,6 +90,7 @@ def get-test-map [] {
         check-console: { check-console }
         check-examples: { check-examples }
         check-distro-features: { check-distro-features }
+        check-py-crate: { check-py-crate }
         test-shm: { test-shm }
     }
 }
@@ -94,6 +103,7 @@ def get-test-pipeline [] {
         "check-console"
         "check-examples"
         "check-distro-features"
+        "check-py-crate"
         "test-shm"
     ]
 }
