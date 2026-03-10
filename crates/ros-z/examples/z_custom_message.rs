@@ -29,6 +29,10 @@ impl MessageTypeInfo for RobotStatus {
 
 impl ros_z::WithTypeInfo for RobotStatus {}
 
+impl ros_z::msg::ZMessage for RobotStatus {
+    type Serdes = ros_z::msg::SerdeCdrSerdes<RobotStatus>;
+}
+
 // Custom service request
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct NavigateToRequest {
@@ -49,6 +53,10 @@ impl MessageTypeInfo for NavigateToRequest {
 
 impl ros_z::WithTypeInfo for NavigateToRequest {}
 
+impl ros_z::msg::ZMessage for NavigateToRequest {
+    type Serdes = ros_z::msg::SerdeCdrSerdes<NavigateToRequest>;
+}
+
 // Custom service response
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct NavigateToResponse {
@@ -68,6 +76,10 @@ impl MessageTypeInfo for NavigateToResponse {
 }
 
 impl ros_z::WithTypeInfo for NavigateToResponse {}
+
+impl ros_z::msg::ZMessage for NavigateToResponse {
+    type Serdes = ros_z::msg::SerdeCdrSerdes<NavigateToResponse>;
+}
 
 // Service type definition
 pub struct NavigateTo;

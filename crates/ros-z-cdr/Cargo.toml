@@ -7,6 +7,7 @@ description = "CDR serialization for ros-z"
 [dependencies]
 serde = { workspace = true }
 byteorder = { workspace = true }
+bytemuck = { version = "1", features = ["derive", "extern_crate_alloc"] }
 zenoh-buffers = { workspace = true }
 thiserror = "1.0"
 

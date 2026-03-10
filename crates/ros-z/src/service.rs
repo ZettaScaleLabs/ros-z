@@ -28,7 +28,7 @@ use crate::{
     common::DataHandler,
     entity::EndpointEntity,
     impl_with_type_info,
-    msg::{CdrSerdes, ZDeserializer, ZMessage, ZService},
+    msg::{SerdeCdrSerdes, ZDeserializer, ZMessage, ZService},
     qos::QosHistory,
     queue::BoundedQueue,
 };
@@ -173,7 +173,9 @@ where
     // For ROS-Z
     pub fn take_response(&self) -> Result<T::Response>
     where
-        for<'c> T::Response: ZMessage<Serdes = CdrSerdes<T::Response>> + Deserialize<'c>,
+        T::Response: ZMessage,
+        for<'a> <T::Response as ZMessage>::Serdes:
+            ZDeserializer<Output = T::Response, Input<'a> = &'a [u8]>,
     {
         let sample = self.take_sample()?;
         let msg = <T::Response as ZMessage>::deserialize(&sample.payload().to_bytes())
