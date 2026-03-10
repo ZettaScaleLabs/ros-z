@@ -95,7 +95,7 @@ impl ZSerdes<RosMessage> for RosSerdes {
     }
 
     fn serialize_with_hint(msg: &RosMessage, _capacity_hint: usize) -> zenoh_buffers::ZBuf {
-        Self::serialize(msg)
+        <RosSerdes as ZSerdes<RosMessage>>::serialize(msg)
     }
 
     fn serialize_to_vec(msg: &RosMessage) -> Vec<u8> {

@@ -274,17 +274,17 @@ where
     }
 
     #[cfg(feature = "rmw")]
-    pub fn rmw_send_request<F>(&self, msg: &T::Request, notify: F) -> Result<i64>
+    pub fn rmw_send_request<S, F>(&self, msg: &T::Request, notify: F) -> Result<i64>
     where
+        S: ZSerdes<T::Request>,
         F: Fn() + Send + Sync + 'static,
-        T::Request: serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
     {
         let tx = self.tx.clone();
         let attachment = self.new_attachment();
         let sn = attachment.sequence_number;
         self.inner
             .get()
-            .payload(<CdrCompatSerdes as ZSerdes<T::Request>>::serialize(msg))
+            .payload(<S as ZSerdes<T::Request>>::serialize(msg))
             .attachment(attachment)
             .callback(move |reply| {
                 match reply.into_result() {
@@ -599,6 +599,32 @@ where
                 debug!("[SRV] Sending response");
 
                 // Use the sequence number and GID from the request
+                let attachment = Attachment::new(key.sn, key.gid);
+                query
+                    .reply(&self.key_expr, payload)
+                    .attachment(attachment)
+                    .wait()
+            }
+            None => {
+                error!("[SRV] No query found for sn={}", key.sn);
+                Err("Query map doesn't contain key".into())
+            }
+        }
+    }
+
+    /// RMW-specific: send response using an explicit serializer type parameter.
+    ///
+    /// Use this instead of [`send_response`](Self::send_response) when the response type does not
+    /// implement `serde::Serialize` (e.g., `RosMessage` in the RMW crate, which is serialized via
+    /// a C FFI path through `RosSerdes`).
+    #[cfg(feature = "rmw")]
+    pub fn rmw_send_response<S>(&mut self, msg: &T::Response, key: &QueryKey) -> Result<()>
+    where
+        S: ZSerdes<T::Response>,
+    {
+        match self.map.remove(key) {
+            Some(query) => {
+                let payload = <S as ZSerdes<T::Response>>::serialize(msg);
                 let attachment = Attachment::new(key.sn, key.gid);
                 query
                     .reply(&self.key_expr, payload)

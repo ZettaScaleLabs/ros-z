@@ -63,7 +63,9 @@ impl ClientImpl {
         };
 
         // Send the request with notification callback
-        let _ = self.inner.rmw_send_request(&req, notify_callback)?;
+        let _ = self
+            .inner
+            .rmw_send_request::<crate::msg::RosSerdes, _>(&req, notify_callback)?;
 
         // Return the sequence number we tracked
         unsafe {
@@ -317,7 +319,10 @@ impl ServiceImpl {
         let resp = crate::msg::RosMessage::new(response, self.response_ts.response);
 
         // Send response
-        match self.inner.send_response(&resp, &key) {
+        match self
+            .inner
+            .rmw_send_response::<crate::msg::RosSerdes>(&resp, &key)
+        {
             Ok(_) => {
                 tracing::debug!("[ServiceImpl::send_response] Response sent successfully");
                 Ok(())
