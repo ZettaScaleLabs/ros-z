@@ -35,15 +35,15 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct ZClientBuilder<T> {
+pub struct ZClientBuilder<T, S = CdrCompatSerdes> {
     pub entity: EndpointEntity,
     pub session: Arc<Session>,
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
-    pub _phantom_data: PhantomData<T>,
+    pub _phantom_data: PhantomData<(T, S)>,
 }
 
-impl_with_type_info!(ZClientBuilder<T>);
-impl_with_type_info!(ZServerBuilder<T>);
+impl_with_type_info!(ZClientBuilder<T, S>);
+impl_with_type_info!(ZServerBuilder<T, S>);
 
 /// A ROS 2-style service client that sends typed requests and receives typed responses.
 ///
@@ -63,7 +63,7 @@ impl_with_type_info!(ZServerBuilder<T>);
 /// client.send_request(&request).await?;
 /// let response = client.take_response_timeout(Duration::from_secs(5))?;
 /// ```
-pub struct ZClient<T: ZService> {
+pub struct ZClient<T: ZService, S = CdrCompatSerdes> {
     // TODO: replace this with the sample sn
     sn: AtomicUsize,
     // TODO: replace this with zenoh's global entity id
@@ -73,10 +73,10 @@ pub struct ZClient<T: ZService> {
     tx: flume::Sender<Sample>,
     pub rx: flume::Receiver<Sample>,
     topic: String,
-    _phantom_data: PhantomData<T>,
+    _phantom_data: PhantomData<(T, S)>,
 }
 
-impl<T: ZService> std::fmt::Debug for ZClient<T> {
+impl<T: ZService, S> std::fmt::Debug for ZClient<T, S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ZClient")
             .field("topic", &self.topic)
@@ -84,11 +84,26 @@ impl<T: ZService> std::fmt::Debug for ZClient<T> {
     }
 }
 
-impl<T> Builder for ZClientBuilder<T>
+impl<T, S> ZClientBuilder<T, S>
 where
     T: ZService,
 {
-    type Output = ZClient<T>;
+    /// Override the serialization format used by this client.
+    pub fn with_serdes<S2>(self) -> ZClientBuilder<T, S2> {
+        ZClientBuilder {
+            entity: self.entity,
+            session: self.session,
+            keyexpr_format: self.keyexpr_format,
+            _phantom_data: PhantomData,
+        }
+    }
+}
+
+impl<T, S> Builder for ZClientBuilder<T, S>
+where
+    T: ZService,
+{
+    type Output = ZClient<T, S>;
 
     #[tracing::instrument(name = "client_build", skip(self), fields(
         service = %self.entity.topic
@@ -145,7 +160,7 @@ where
     }
 }
 
-impl<T> ZClient<T>
+impl<T, S> ZClient<T, S>
 where
     T: ZService,
 {
@@ -171,16 +186,13 @@ where
     /// [`take_response_timeout`](ZClient::take_response_timeout) to wait up to a
     /// deadline, or [`take_response_async`](ZClient::take_response_async) to await
     /// indefinitely in an async context.
-    // For ROS-Z
     pub fn take_response(&self) -> Result<T::Response>
     where
-        T::Response:
-            ZMessage + serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
+        S: ZSerdes<T::Response>,
     {
         let sample = self.take_sample()?;
-        let msg =
-            <CdrCompatSerdes as ZSerdes<T::Response>>::deserialize(&sample.payload().to_bytes())
-                .map_err(|e| zenoh::Error::from(e.to_string()))?;
+        let msg = <S as ZSerdes<T::Response>>::deserialize(&sample.payload().to_bytes())
+            .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok(msg)
     }
 
@@ -188,34 +200,28 @@ where
     /// arrives within the deadline.
     pub fn take_response_timeout(&self, timeout: Duration) -> Result<T::Response>
     where
-        T::Response:
-            ZMessage + serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
+        S: ZSerdes<T::Response>,
     {
         let sample = self.take_sample_timeout(timeout)?;
         let payload_bytes = sample.payload().to_bytes();
-        let msg = <CdrCompatSerdes as ZSerdes<T::Response>>::deserialize(&payload_bytes[..])
+        let msg = <S as ZSerdes<T::Response>>::deserialize(&payload_bytes[..])
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok(msg)
     }
+
     /// Asynchronously wait for the next response. Awaits indefinitely until a
     /// response arrives or the channel is disconnected.
     pub async fn take_response_async(&self) -> Result<T::Response>
     where
-        T::Response:
-            ZMessage + serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
+        S: ZSerdes<T::Response>,
     {
         let sample = self.rx.recv_async().await?;
         let payload_bytes = sample.payload().to_bytes();
-        let msg = <CdrCompatSerdes as ZSerdes<T::Response>>::deserialize(&payload_bytes[..])
+        let msg = <S as ZSerdes<T::Response>>::deserialize(&payload_bytes[..])
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok(msg)
     }
-}
 
-impl<T> ZClient<T>
-where
-    T: ZService,
-{
     /// Send a typed request to the service server.
     ///
     /// This is an `async fn` — it must be `.await`ed. The call resolves once the
@@ -232,9 +238,9 @@ where
     ))]
     pub async fn send_request(&self, msg: &T::Request) -> Result<()>
     where
-        T::Request: serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
+        S: ZSerdes<T::Request>,
     {
-        let payload = <CdrCompatSerdes as ZSerdes<T::Request>>::serialize(msg);
+        let payload = <S as ZSerdes<T::Request>>::serialize(msg);
         tracing::Span::current().record("payload_len", payload.len());
 
         // Log the key expression being queried
@@ -274,7 +280,7 @@ where
     }
 
     #[cfg(feature = "rmw")]
-    pub fn rmw_send_request<S, F>(&self, msg: &T::Request, notify: F) -> Result<i64>
+    pub fn rmw_send_request<F>(&self, msg: &T::Request, notify: F) -> Result<i64>
     where
         S: ZSerdes<T::Request>,
         F: Fn() + Send + Sync + 'static,
@@ -310,14 +316,14 @@ where
 }
 
 #[derive(Debug)]
-pub struct ZServerBuilder<T> {
+pub struct ZServerBuilder<T, S = CdrCompatSerdes> {
     pub entity: EndpointEntity,
     pub session: Arc<Session>,
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
-    pub _phantom_data: PhantomData<T>,
+    pub _phantom_data: PhantomData<(T, S)>,
 }
 
-pub struct ZServer<T: ZService, Q = Query> {
+pub struct ZServer<T: ZService, Q = Query, S = CdrCompatSerdes> {
     // NOTE: This is biased toward RMW
     key_expr: KeyExpr<'static>,
     // TODO: replace this with the sample sn
@@ -328,10 +334,10 @@ pub struct ZServer<T: ZService, Q = Query> {
     lv_token: LivelinessToken,
     pub queue: Option<Arc<BoundedQueue<Q>>>,
     pub map: HashMap<QueryKey, Query>,
-    _phantom_data: PhantomData<T>,
+    _phantom_data: PhantomData<(T, S)>,
 }
 
-impl<T: ZService, Q> std::fmt::Debug for ZServer<T, Q> {
+impl<T: ZService, Q, S> std::fmt::Debug for ZServer<T, Q, S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ZServer")
             .field("key_expr", &self.key_expr.as_str())
@@ -339,7 +345,7 @@ impl<T: ZService, Q> std::fmt::Debug for ZServer<T, Q> {
     }
 }
 
-impl<T, Q> ZServer<T, Q>
+impl<T, Q, S> ZServer<T, Q, S>
 where
     T: ZService,
 {
@@ -356,16 +362,26 @@ where
     }
 }
 
-impl<T> ZServerBuilder<T>
+impl<T, S> ZServerBuilder<T, S>
 where
     T: ZService,
 {
+    /// Override the serialization format used by this server.
+    pub fn with_serdes<S2>(self) -> ZServerBuilder<T, S2> {
+        ZServerBuilder {
+            entity: self.entity,
+            session: self.session,
+            keyexpr_format: self.keyexpr_format,
+            _phantom_data: PhantomData,
+        }
+    }
+
     /// Internal method that all build variants use.
     fn build_internal<Q>(
         mut self,
         handler: DataHandler<Query>,
         queue: Option<Arc<BoundedQueue<Q>>>,
-    ) -> Result<ZServer<T, Q>> {
+    ) -> Result<ZServer<T, Q, S>> {
         let qualified_service = topic_name::qualify_service_name(
             &self.entity.topic,
             &self.entity.node.namespace,
@@ -430,7 +446,7 @@ where
         })
     }
 
-    pub fn build_with_callback<F>(self, callback: F) -> Result<ZServer<T, ()>>
+    pub fn build_with_callback<F>(self, callback: F) -> Result<ZServer<T, (), S>>
     where
         F: Fn(Query) + Send + Sync + 'static,
     {
@@ -438,7 +454,7 @@ where
     }
 
     #[cfg(feature = "rmw")]
-    pub fn build_with_notifier<F>(self, notify: F) -> Result<ZServer<T>>
+    pub fn build_with_notifier<F>(self, notify: F) -> Result<ZServer<T, Query, S>>
     where
         F: Fn() + Send + Sync + 'static,
     {
@@ -457,11 +473,11 @@ where
     }
 }
 
-impl<T> Builder for ZServerBuilder<T>
+impl<T, S> Builder for ZServerBuilder<T, S>
 where
     T: ZService,
 {
-    type Output = ZServer<T>;
+    type Output = ZServer<T, Query, S>;
 
     fn build(self) -> Result<Self::Output> {
         let queue_size = match self.entity.qos.history {
@@ -488,7 +504,7 @@ impl From<Attachment> for QueryKey {
     }
 }
 
-impl<T> ZServer<T, Query>
+impl<T, S> ZServer<T, Query, S>
 where
     T: ZService,
 {
@@ -518,8 +534,7 @@ where
     ))]
     pub fn take_request(&mut self) -> Result<(QueryKey, T::Request)>
     where
-        T::Request:
-            ZMessage + serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
+        S: ZSerdes<T::Request>,
     {
         trace!("[SRV] Waiting for request");
 
@@ -542,7 +557,7 @@ where
 
         debug!("[SRV] Processing request");
 
-        let msg = <CdrCompatSerdes as ZSerdes<T::Request>>::deserialize(&payload_bytes[..])
+        let msg = <S as ZSerdes<T::Request>>::deserialize(&payload_bytes[..])
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
         self.map.insert(key.clone(), query);
 
@@ -554,8 +569,7 @@ where
     /// This method may fail if the message does not deserialize as the requested type.
     pub async fn take_request_async(&mut self) -> Result<(QueryKey, T::Request)>
     where
-        T::Request:
-            ZMessage + serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
+        S: ZSerdes<T::Request>,
     {
         let queue = self.queue.as_ref().ok_or_else(|| {
             zenoh::Error::from("Server was built with callback, no queue available")
@@ -567,7 +581,7 @@ where
             return Err("Existing query detected".into());
         }
         let payload_bytes = query.payload().unwrap().to_bytes();
-        let msg = <CdrCompatSerdes as ZSerdes<T::Request>>::deserialize(&payload_bytes[..])
+        let msg = <S as ZSerdes<T::Request>>::deserialize(&payload_bytes[..])
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
         self.map.insert(key.clone(), query);
 
@@ -585,7 +599,7 @@ where
     ))]
     pub fn send_response(&mut self, msg: &T::Response, key: &QueryKey) -> Result<()>
     where
-        T::Response: serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
+        S: ZSerdes<T::Response>,
     {
         debug!(
             "[SRV] Looking for query with key sn:{}, gid:{:?}",
@@ -593,7 +607,7 @@ where
         );
         match self.map.remove(key) {
             Some(query) => {
-                let payload = <CdrCompatSerdes as ZSerdes<T::Response>>::serialize(msg);
+                let payload = <S as ZSerdes<T::Response>>::serialize(msg);
                 tracing::Span::current().record("payload_len", payload.len());
 
                 debug!("[SRV] Sending response");
@@ -612,13 +626,9 @@ where
         }
     }
 
-    /// RMW-specific: send response using an explicit serializer type parameter.
-    ///
-    /// Use this instead of [`send_response`](Self::send_response) when the response type does not
-    /// implement `serde::Serialize` (e.g., `RosMessage` in the RMW crate, which is serialized via
-    /// a C FFI path through `RosSerdes`).
+    /// RMW-specific: send response using the server's serdes type parameter.
     #[cfg(feature = "rmw")]
-    pub fn rmw_send_response<S>(&mut self, msg: &T::Response, key: &QueryKey) -> Result<()>
+    pub fn rmw_send_response(&mut self, msg: &T::Response, key: &QueryKey) -> Result<()>
     where
         S: ZSerdes<T::Response>,
     {
@@ -644,17 +654,14 @@ where
     /// - `key` is the query key of the request to reply to and is obtained from [take_request](Self::take_request) or [take_request_async](Self::take_request_async)
     pub async fn send_response_async(&mut self, msg: &T::Response, key: &QueryKey) -> Result<()>
     where
-        T::Response: serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
+        S: ZSerdes<T::Response>,
     {
         match self.map.remove(key) {
             Some(query) => {
                 // Use the sequence number and GID from the request
                 let attachment = Attachment::new(key.sn, key.gid);
                 query
-                    .reply(
-                        &self.key_expr,
-                        <CdrCompatSerdes as ZSerdes<T::Response>>::serialize(msg),
-                    )
+                    .reply(&self.key_expr, <S as ZSerdes<T::Response>>::serialize(msg))
                     .attachment(attachment)
                     .await
             }

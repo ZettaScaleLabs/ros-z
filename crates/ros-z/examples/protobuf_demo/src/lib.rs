@@ -101,7 +101,10 @@ pub fn run_service_client(
 ) -> Result<()> {
     let node = ctx.create_node("calculator_client").build()?;
 
-    let client = node.create_client::<Calculate>(service_name).build()?;
+    let client = node
+        .create_client::<Calculate>(service_name)
+        .with_serdes::<ProtobufSerdes>()
+        .build()?;
 
     println!("Calculator service client started");
     println!("Calling service '{}'...\n", service_name);
@@ -163,7 +166,10 @@ pub fn run_service_server(
 ) -> Result<()> {
     let node = ctx.create_node("calculator_server").build()?;
 
-    let mut server = node.create_service::<Calculate>(service_name).build()?;
+    let mut server = node
+        .create_service::<Calculate>(service_name)
+        .with_serdes::<ProtobufSerdes>()
+        .build()?;
 
     println!("Calculator service server started on '{}'", service_name);
     println!("Waiting for requests...\n");

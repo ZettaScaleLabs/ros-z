@@ -890,7 +890,8 @@ pub extern "C" fn rmw_create_client(
     let mut zclient_builder = node_impl
         .inner
         .create_client::<crate::msg::RosService>(&qualified_service)
-        .with_type_info(service_type_support.get_type_info());
+        .with_type_info(service_type_support.get_type_info())
+        .with_serdes::<crate::msg::RosSerdes>();
     zclient_builder.entity.qos = qos.to_protocol_qos();
     let entity = zclient_builder.entity.clone();
 
@@ -1052,7 +1053,8 @@ pub extern "C" fn rmw_create_service(
     let mut zserver_builder = node_impl
         .inner
         .create_service::<crate::msg::RosService>(&qualified_service)
-        .with_type_info(service_type_support.get_type_info());
+        .with_type_info(service_type_support.get_type_info())
+        .with_serdes::<crate::msg::RosSerdes>();
     zserver_builder.entity.qos = qos.to_protocol_qos();
     let entity = zserver_builder.entity.clone();
 
