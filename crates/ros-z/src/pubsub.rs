@@ -16,7 +16,7 @@ use crate::impl_with_type_info;
 use crate::queue::BoundedQueue;
 use crate::topic_name;
 
-use crate::msg::{CdrSerdes, ZMessage, ZSerdes};
+use crate::msg::{CdrSerdes, ZMessage, ZSerdes, ZSerializer};
 use crate::qos::QosProfile;
 use ros_z_protocol::qos::{QosDurability, QosHistory, QosReliability};
 use std::sync::Mutex;
@@ -25,7 +25,7 @@ use std::sync::Mutex;
 /// (synchronous) or [`async_publish`](ZPub::async_publish) (async).
 ///
 /// Create a publisher via [`ZNode::create_pub`](crate::node::ZNode::create_pub).
-pub struct ZPub<T: ZMessage, S: ZSerdes<T> = CdrSerdes> {
+pub struct ZPub<T: ZMessage, S = CdrSerdes> {
     pub entity: EndpointEntity,
     // TODO: replace this with the sample sn
     sn: AtomicUsize,
@@ -45,7 +45,7 @@ pub struct ZPub<T: ZMessage, S: ZSerdes<T> = CdrSerdes> {
     _phantom_data: PhantomData<(T, S)>,
 }
 
-impl<T: ZMessage, S: ZSerdes<T>> std::fmt::Debug for ZPub<T, S> {
+impl<T: ZMessage, S> std::fmt::Debug for ZPub<T, S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ZPub")
             .field("entity", &self.entity)
@@ -235,7 +235,6 @@ impl<T, S> ZPubBuilder<T, S> {
 impl<T, S> Builder for ZPubBuilder<T, S>
 where
     T: ZMessage + 'static,
-    S: ZSerdes<T> + 'static,
 {
     type Output = ZPub<T, S>;
 
@@ -327,7 +326,6 @@ where
 impl<T, S> ZPub<T, S>
 where
     T: ZMessage + 'static,
-    S: ZSerdes<T> + 'static,
 {
     /// Wait until at least `count` subscribers are matched on this publisher's topic,
     /// or until `timeout` elapses.
@@ -390,7 +388,13 @@ where
         );
         Attachment::new(sn as _, self.gid)
     }
+}
 
+impl<T, S> ZPub<T, S>
+where
+    T: ZMessage + 'static,
+    S: ZSerdes<T> + 'static,
+{
     /// Serialize and publish `msg` on the topic. Blocks until the put completes.
     ///
     /// Use [`async_publish`](ZPub::async_publish) when calling from async code to
@@ -502,7 +506,12 @@ where
         }
         put_builder.await
     }
+}
 
+impl<T, S> ZPub<T, S>
+where
+    T: ZMessage + 'static,
+{
     /// Publish pre-serialized data directly
     ///
     /// Accepts any type that implements `Into<ZBytes>`:
@@ -552,6 +561,37 @@ impl ZPub<crate::dynamic::DynamicMessage, crate::dynamic::DynamicCdrCompatSerdes
     /// Returns `None` if the publisher was not created with `.with_dyn_schema()`.
     pub fn schema(&self) -> Option<&crate::dynamic::schema::MessageSchema> {
         self.dyn_schema.as_ref().map(|s| s.as_ref())
+    }
+
+    /// Serialize and publish a dynamic message. Blocks until the put completes.
+    pub fn publish(&self, msg: &crate::dynamic::DynamicMessage) -> Result<()> {
+        use zenoh::Wait as _;
+        let zbuf = <crate::dynamic::DynamicCdrCompatSerdes as ZSerializer>::serialize(msg);
+        let actual_size = zbuf.len();
+        let zbytes = zenoh::bytes::ZBytes::from(zbuf);
+        let mut put_builder = self.inner.put(zbytes);
+        if let Some(ref enc) = self.encoding {
+            put_builder = put_builder.encoding((**enc).clone());
+        }
+        if self.with_attachment {
+            put_builder = put_builder.attachment(self.new_attachment());
+        }
+        tracing::debug!("[PUB] Publishing dynamic message: {}B", actual_size);
+        put_builder.wait()
+    }
+
+    /// Serialize and publish a dynamic message asynchronously.
+    pub async fn async_publish(&self, msg: &crate::dynamic::DynamicMessage) -> Result<()> {
+        let zbuf = <crate::dynamic::DynamicCdrCompatSerdes as ZSerializer>::serialize(msg);
+        let zbytes = zenoh::bytes::ZBytes::from(zbuf);
+        let mut put_builder = self.inner.put(zbytes);
+        if let Some(ref enc) = self.encoding {
+            put_builder = put_builder.encoding((**enc).clone());
+        }
+        if self.with_attachment {
+            put_builder = put_builder.attachment(self.new_attachment());
+        }
+        put_builder.await
     }
 }
 
@@ -689,10 +729,7 @@ where
         mut self,
         handler: DataHandler<Sample>,
         queue: Option<Arc<BoundedQueue<Q>>>,
-    ) -> Result<ZSub<T, Q, S>>
-    where
-        S: ZSerdes<T>,
-    {
+    ) -> Result<ZSub<T, Q, S>> {
         let qualified_topic = topic_name::qualify_topic_name(
             &self.entity.topic,
             &self.entity.node.namespace,
@@ -844,7 +881,6 @@ where
 impl<T, S> Builder for ZSubBuilder<T, S>
 where
     T: ZMessage + 'static + Sync + Send,
-    S: ZSerdes<T>,
 {
     type Output = ZSub<T, Sample, S>;
 
@@ -859,7 +895,7 @@ where
     }
 }
 
-pub struct ZSub<T: ZMessage, Q, S: ZSerdes<T> = CdrSerdes> {
+pub struct ZSub<T: ZMessage, Q, S = CdrSerdes> {
     pub entity: EndpointEntity,
     pub queue: Option<Arc<BoundedQueue<Q>>>,
     _inner: zenoh::pubsub::Subscriber<()>,
@@ -873,7 +909,7 @@ pub struct ZSub<T: ZMessage, Q, S: ZSerdes<T> = CdrSerdes> {
     _phantom_data: PhantomData<(T, Q, S)>,
 }
 
-impl<T: ZMessage, Q, S: ZSerdes<T>> std::fmt::Debug for ZSub<T, Q, S> {
+impl<T: ZMessage, Q, S> std::fmt::Debug for ZSub<T, Q, S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ZSub")
             .field("entity", &self.entity)
@@ -985,7 +1021,7 @@ impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicCdrComp
         topic = %self.entity.topic,
         payload_len = tracing::field::Empty
     ))]
-    pub fn recv_dynamic(&self) -> Result<crate::dynamic::DynamicMessage> {
+    pub fn recv(&self) -> Result<crate::dynamic::DynamicMessage> {
         let schema = self.dyn_schema.as_ref().ok_or_else(|| {
             zenoh::Error::from(
                 "dyn_schema required for DynamicMessage (use .with_dyn_schema() when building)",
@@ -1010,10 +1046,7 @@ impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicCdrComp
     }
 
     /// Receive a dynamic message with timeout.
-    pub fn recv_timeout_dynamic(
-        &self,
-        timeout: Duration,
-    ) -> Result<crate::dynamic::DynamicMessage> {
+    pub fn recv_timeout(&self, timeout: Duration) -> Result<crate::dynamic::DynamicMessage> {
         let schema = self
             .dyn_schema
             .as_ref()
@@ -1035,7 +1068,7 @@ impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicCdrComp
     }
 
     /// Async receive a dynamic message.
-    pub async fn async_recv_dynamic(&self) -> Result<crate::dynamic::DynamicMessage> {
+    pub async fn async_recv(&self) -> Result<crate::dynamic::DynamicMessage> {
         let schema = self
             .dyn_schema
             .as_ref()

@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use zenoh_buffers::ZBuf;
 
-use crate::msg::{ZDeserializer, ZSerdes, ZSerializer};
+use crate::msg::{ZDeserializer, ZSerializer};
 
 use super::error::DynamicError;
 use super::message::DynamicMessage;
@@ -105,57 +105,6 @@ impl ZDeserializer for DynamicCdrCompatSerdes {
     fn deserialize(input: Self::Input<'_>) -> Result<DynamicMessage, DynamicError> {
         let (bytes, schema) = input;
         DynamicMessage::from_cdr(bytes, schema)
-    }
-}
-
-/// `ZSerdes<DynamicMessage>` implementation for `DynamicCdrCompatSerdes`.
-///
-/// The `deserialize` method on this impl requires a schema at runtime; when called
-/// without one (plain byte-slice path) it returns an error. The real deserialization
-/// path is the specialized `ZSub<DynamicMessage, …>` impl which calls
-/// `DynamicCdrCompatSerdes::deserialize((&bytes, schema))` directly.
-impl ZSerdes<DynamicMessage> for DynamicCdrCompatSerdes {
-    type Error = DynamicError;
-
-    fn serialize(msg: &DynamicMessage) -> ZBuf {
-        msg.to_cdr_zbuf()
-            .expect("DynamicMessage CDR serialization failed")
-    }
-
-    fn serialize_with_hint(msg: &DynamicMessage, _capacity_hint: usize) -> ZBuf {
-        <Self as crate::msg::ZSerdes<DynamicMessage>>::serialize(msg)
-    }
-
-    fn serialize_to_shm(
-        msg: &DynamicMessage,
-        _estimated_size: usize,
-        provider: &zenoh::shm::ShmProvider<zenoh::shm::PosixShmProviderBackend>,
-    ) -> zenoh::Result<(ZBuf, usize)> {
-        let data = msg.to_cdr().map_err(|e| {
-            zenoh::Error::from(format!("DynamicMessage serialization failed: {}", e))
-        })?;
-        let actual_size = data.len();
-
-        use zenoh::Wait;
-        use zenoh::shm::{BlockOn, GarbageCollect};
-
-        let mut shm_buf = provider
-            .alloc(actual_size)
-            .with_policy::<BlockOn<GarbageCollect>>()
-            .wait()
-            .map_err(|e| zenoh::Error::from(format!("SHM allocation failed: {}", e)))?;
-
-        shm_buf[0..actual_size].copy_from_slice(&data);
-        Ok((ZBuf::from(shm_buf), actual_size))
-    }
-
-    fn serialize_to_vec(msg: &DynamicMessage) -> Vec<u8> {
-        msg.to_cdr()
-            .expect("DynamicMessage CDR serialization failed")
-    }
-
-    fn deserialize(_buf: &[u8]) -> Result<DynamicMessage, DynamicError> {
-        Err(DynamicError::SchemaMissing)
     }
 }
 

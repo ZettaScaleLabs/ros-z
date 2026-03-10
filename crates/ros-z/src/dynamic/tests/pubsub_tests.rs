@@ -127,10 +127,10 @@ fn test_zmessage_impl_for_dynamic_message() {
     msg.set("y", 6.0f64).unwrap();
     msg.set("z", 7.0f64).unwrap();
 
-    // Use DynamicCdrCompatSerdes for serialization (ZMessage is now a marker trait)
+    // Use DynamicCdrCompatSerdes for serialization via ZSerializer
     use crate::dynamic::DynamicCdrCompatSerdes;
-    use crate::msg::ZSerdes;
-    let zbuf = <DynamicCdrCompatSerdes as ZSerdes<DynamicMessage>>::serialize(&msg);
+    use crate::msg::ZSerializer;
+    let zbuf = <DynamicCdrCompatSerdes as ZSerializer>::serialize(&msg);
     use zenoh_buffers::buffer::SplitBuffer;
     let bytes = zbuf.contiguous();
     assert!(!bytes.is_empty());
