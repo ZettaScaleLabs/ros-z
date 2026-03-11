@@ -1,5 +1,5 @@
 use anyhow::Result;
-use ros_z::msg::{ZDeserializer, ZMessage, ZSerializer};
+use ros_z::msg::{ZMessage, ZSerdes};
 use ros_z::pubsub::{ZPub, ZSub};
 use std::time::Duration;
 use zenoh::bytes::ZBytes;
@@ -27,12 +27,15 @@ pub(crate) trait RawSubscriber: Send + Sync {
     fn try_recv_serialized(&self) -> Result<Option<Vec<u8>>>;
 }
 
-/// Wrapper for ZPub that implements RawPublisher
-pub struct ZPubWrapper<T: ZMessage, S: ZSerializer> {
+/// Wrapper for ZPub that implements RawPublisher.
+///
+/// No `S: ZSerializer` bound on the struct — `publish_serialized` only needs
+/// `T: ZMessage`, so any serdes type works here including `CdrSerdes`.
+pub struct ZPubWrapper<T: ZMessage, S> {
     inner: ZPub<T, S>,
 }
 
-impl<T: ZMessage, S: ZSerializer> ZPubWrapper<T, S> {
+impl<T: ZMessage, S> ZPubWrapper<T, S> {
     pub fn new(inner: ZPub<T, S>) -> Self {
         Self { inner }
     }
@@ -41,7 +44,7 @@ impl<T: ZMessage, S: ZSerializer> ZPubWrapper<T, S> {
 impl<T, S> RawPublisher for ZPubWrapper<T, S>
 where
     T: ZMessage + 'static,
-    S: for<'a> ZSerializer<Input<'a> = &'a T> + Send + Sync + 'static,
+    S: Send + Sync + 'static,
 {
     fn publish(&self, data: ZBytes) -> Result<()> {
         self.inner
@@ -50,12 +53,16 @@ where
     }
 }
 
-/// Wrapper for ZSub that implements RawSubscriber
-pub struct ZSubWrapper<T: ZMessage, S: ZDeserializer> {
+/// Wrapper for ZSub that implements RawSubscriber.
+///
+/// No `S: ZDeserializer` bound on the struct — the raw-sample path used here
+/// only needs `S: ZSerdes<T>` (to access `recv_serialized`), so `CdrSerdes`
+/// and other `ZSerdes` implementors work without implementing `ZDeserializer`.
+pub struct ZSubWrapper<T: ZMessage, S> {
     inner: ZSub<T, Sample, S>,
 }
 
-impl<T: ZMessage, S: ZDeserializer> ZSubWrapper<T, S> {
+impl<T: ZMessage, S> ZSubWrapper<T, S> {
     pub fn new(inner: ZSub<T, Sample, S>) -> Self {
         Self { inner }
     }
@@ -64,7 +71,7 @@ impl<T: ZMessage, S: ZDeserializer> ZSubWrapper<T, S> {
 impl<T, S> RawSubscriber for ZSubWrapper<T, S>
 where
     T: ZMessage + 'static,
-    S: for<'a> ZDeserializer<Input<'a> = &'a [u8]> + Send + Sync + 'static,
+    S: ZSerdes<T> + Send + Sync + 'static,
 {
     fn recv_sample(&self, timeout: Option<Duration>) -> Result<Sample> {
         if let Some(t) = timeout {
@@ -75,7 +82,9 @@ where
                 .recv_timeout(t)
                 .ok_or_else(|| anyhow::anyhow!("Receive timeout"))
         } else {
-            self.inner.recv_serialized().map_err(|e| anyhow::anyhow!(e))
+            self.inner
+                .recv_serialized()
+                .map_err(|e: zenoh::Error| anyhow::anyhow!(e))
         }
     }
 
