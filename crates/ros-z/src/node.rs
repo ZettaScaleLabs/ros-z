@@ -124,7 +124,9 @@ impl ZNodeBuilder {
     ///     .with_type_description_service()
     ///     .build()?;
     ///
-    /// // Now publishers created from this node can auto-register their schemas
+    /// // Dynamic publishers auto-register schemas.
+    /// // Static publishers also auto-register when their message type provides
+    /// // MessageTypeInfo::message_schema() (e.g. generated ros-z messages).
     /// ```
     pub fn with_type_description_service(mut self) -> Self {
         self.enable_type_desc_service = true;
@@ -201,8 +203,12 @@ impl Builder for ZNodeBuilder {
 }
 
 impl ZNode {
-    /// Create a publisher for the given topic
-    /// If T implements WithTypeInfo, type information will be automatically populated
+    /// Create a publisher for the given topic.
+    ///
+    /// If `T` implements [`WithTypeInfo`], type information is automatically populated.
+    /// If this node has type description service enabled and `T` provides a runtime
+    /// schema via [`crate::MessageTypeInfo::message_schema`], that schema is
+    /// automatically registered for `GetTypeDescription` discovery.
     ///
     /// The topic name will be qualified according to ROS 2 rules:
     /// - Absolute topics (starting with '/') are used as-is
@@ -213,7 +219,35 @@ impl ZNode {
         T: ZMessage + WithTypeInfo,
     {
         debug!("[NOD] Creating publisher: topic={}", topic);
-        self.create_pub_impl(topic, Some(T::type_info()))
+        let mut builder = self.create_pub_impl(topic, Some(T::type_info()));
+
+        if let Some(service) = &self.type_desc_service {
+            match T::message_schema() {
+                Some(schema) => {
+                    if let Err(e) = service.register_schema(schema.clone()) {
+                        warn!(
+                            "[NOD] Failed to register static schema {} with type description service: {}",
+                            schema.type_name, e
+                        );
+                    } else {
+                        debug!(
+                            "[NOD] Registered static schema {} with type description service",
+                            schema.type_name
+                        );
+                    }
+
+                    builder = builder.with_dyn_schema(schema);
+                }
+                None => {
+                    debug!(
+                        "[NOD] No static schema provided for {}, skipping type description registration",
+                        std::any::type_name::<T>()
+                    );
+                }
+            }
+        }
+
+        builder
     }
 
     #[doc(hidden)]
