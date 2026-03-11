@@ -439,29 +439,7 @@ pub.publish(echo)
 </li>
 </ol>
 <h2 id="ros-2-interoperability"><a class="header" href="#ros-2-interoperability">ROS 2 Interoperability</a></h2>
-<p>Python nodes work seamlessly with Rust and ROS 2 nodes:</p>
-<pre><code class="language-bash"># Terminal 1: Start Zenoh router
-cargo run --example zenoh_router
-
-# Terminal 2: Run Python publisher (using topic_demo.py)
-cd crates/ros-z-py
-source .venv/bin/activate
-python examples/topic_demo.py -r talker
-
-# Terminal 3: Listen with ROS 2 CLI
-ros2 topic echo /chatter std_msgs/msg/String
-</code></pre>
-<div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
-<div class="admonition-title">
-<div id="admonition-success-title">
-<p>Success</p>
-</div>
-<a class="admonition-anchor-link" href="#admonition-success"></a>
-</div>
-<div>
-<p>Messages published from Python are received by ROS 2 CLI, Rust nodes, and any other ROS 2-compatible system connected via Zenoh.</p>
-</div>
-</div>
+<p>Python nodes interoperate with ROS 2 C++ nodes via the shared Zenoh transport. See the dedicated <strong><a href="./interop.html">ROS 2 Interoperability</a></strong> chapter for setup instructions.</p>
 <h2 id="running-tests"><a class="header" href="#running-tests">Running Tests</a></h2>
 <pre><code class="language-bash"># Python unit tests
 cd crates/ros-z-py
@@ -538,7 +516,7 @@ Currently supported: <code>std_msgs/String</code>, <code>std_msgs/ByteMultiArray
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../chapters/rmw_zenoh_rs.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../chapters/console.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
@@ -552,7 +530,7 @@ Currently supported: <code>std_msgs/String</code>, <code>std_msgs/ByteMultiArray
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../chapters/rmw_zenoh_rs.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../chapters/console.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 

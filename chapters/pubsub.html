@@ -184,6 +184,17 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="publishers-and-subscribers"><a class="header" href="#publishers-and-subscribers">Publishers and Subscribers</a></h1>
+<div id="admonition-go-users" class="admonition admonish-note" role="note" aria-labelledby="admonition-go-users-title">
+<div class="admonition-title">
+<div id="admonition-go-users-title">
+<p>Go users</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-go-users"></a>
+</div>
+<div>
+<p>The code examples in this chapter are <strong>Rust</strong>. For Go pub/sub patterns, QoS presets, and the typed subscriber API, see the <a href="./go_bindings.html">Go Bindings</a> chapter.</p>
+</div>
+</div>
 <p><strong>ros-z implements ROS 2's publish-subscribe pattern with type-safe, zero-copy messaging over Zenoh.</strong> This enables efficient, decoupled communication between nodes with minimal overhead.</p>
 <div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
 <div class="admonition-title">
@@ -516,38 +527,7 @@ let ctx = ZContextBuilder::default()
 </span><span class="boring">}</span></code></pre>
 <p>The rule format follows the ROS 2 convention: <code>from:=to</code>.</p>
 <h2 id="ros-2-interoperability"><a class="header" href="#ros-2-interoperability">ROS 2 Interoperability</a></h2>
-<p>ros-z publishers and subscribers interoperate with ROS 2 C++ and Python nodes when both sides share the same Zenoh transport:</p>
-<p><strong>Requirements:</strong></p>
-<ul>
-<li>ROS 2 nodes must use <code>rmw_zenoh_cpp</code> (<code>export RMW_IMPLEMENTATION=rmw_zenoh_cpp</code>) <strong>or</strong> be bridged via <code>zenoh-bridge-ros2dds</code></li>
-<li>Both sides must use matching message types with identical RIHS01 type hashes</li>
-<li>All nodes must connect to the same Zenoh router</li>
-</ul>
-<pre><code class="language-bash"># List active topics
-ros2 topic list
-
-# Echo messages from ros-z publisher
-ros2 topic echo /chatter
-
-# Publish to ros-z subscriber from ROS 2
-ros2 topic pub /chatter std_msgs/msg/String "data: 'Hello from ROS 2'"
-
-# Check topic info
-ros2 topic info /chatter
-</code></pre>
-<div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
-<div class="admonition-title">
-<div id="admonition-warning-title">
-<p>Warning</p>
-</div>
-<a class="admonition-anchor-link" href="#admonition-warning"></a>
-</div>
-<div>
-<p>If type hashes differ (e.g. mismatched message definitions), nodes won't exchange messages.
-Enable <code>RUST_LOG=ros_z=debug</code> to see the hash in the key expression and compare it with the ROS 2 side.
-See <a href="./troubleshooting.html">Troubleshooting</a> for diagnosis steps.</p>
-</div>
-</div>
+<p>ros-z publishers and subscribers interoperate with ROS 2 C++ and Python nodes via the shared Zenoh transport. See the dedicated <strong><a href="./interop.html">ROS 2 Interoperability</a></strong> chapter for setup instructions covering Rust, Python, and Go.</p>
 <h2 id="resources"><a class="header" href="#resources">Resources</a></h2>
 <ul>
 <li><strong><a href="./custom_messages.html">Custom Messages</a></strong> - Defining and using custom message types</li>
