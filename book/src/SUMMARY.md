@@ -20,6 +20,7 @@
 - [Networking](./chapters/networking.md)
   - [Configuration Options](./chapters/config_options.md)
   - [Advanced Configuration](./chapters/config_advanced.md)
+- [ROS 2 Interoperability](./chapters/interop.md)
 - [Message Generation](./chapters/message_generation.md)
   - [Custom Messages](./chapters/custom_messages.md)
   - [Protobuf Serialization](./chapters/protobuf.md)
@@ -28,13 +29,18 @@
 
 - [ros-z-console](./chapters/console.md)
 
+# Language Bindings
+
+- [Python Bindings](./chapters/python.md)
+  - [Code Generation Internals](./chapters/python_codegen.md)
+- [Go Bindings](./chapters/go_bindings.md)
+  - [Quick Start](./chapters/go_quick_start.md)
+
 # Experimental
 
 - [Shared Memory (SHM)](./chapters/shm.md)
 - [Key Expression Formats](./chapters/keyexpr_formats.md)
 - [rmw_zenoh_rs](./chapters/rmw_zenoh_rs.md)
-- [Python Bindings](./chapters/python.md)
-  - [Code Generation Internals](./chapters/python_codegen.md)
 
 # Appendix
 

@@ -42,3 +42,19 @@ ros-z-msgs/python/uv.lock
 
 .claude
 .mcp.json
+
+# Go binaries
+/crates/ros-z-codegen-go/ros-z-codegen-go
+
+# Generated Go message packages (codegen test output)
+/builtin_interfaces/
+/std_msgs/
+/crates/ros-z-codegen-go/builtin_interfaces/
+/crates/ros-z-codegen-go/std_msgs/
+/crates/ros-z-go/generated/
+
+# Core dumps
+core
+
+# Build cache
+.cache/
