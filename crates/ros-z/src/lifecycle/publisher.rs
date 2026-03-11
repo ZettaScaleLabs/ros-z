@@ -7,7 +7,7 @@ use tracing::warn;
 use zenoh::Result;
 
 use crate::{
-    msg::{CdrSerdes, ZMessage, ZSerializer},
+    msg::{ZMessage, ZSerializer},
     pubsub::ZPub,
 };
 
@@ -38,7 +38,7 @@ pub trait ManagedEntity: Send + Sync {
 /// # Ok(())
 /// # }
 /// ```
-pub struct ZLifecyclePublisher<T: ZMessage, S: ZSerializer = CdrSerdes<T>> {
+pub struct ZLifecyclePublisher<T: ZMessage, S: ZSerializer = <T as ZMessage>::Serdes> {
     inner: ZPub<T, S>,
     activated: Arc<AtomicBool>,
     /// Throttle "publisher not activated" warnings to one per deactivation cycle.

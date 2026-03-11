@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     ServiceTypeInfo,
     entity::{TypeHash, TypeInfo},
-    msg::ZService,
+    msg::{SerdeCdrSerdes, ZMessage, ZService},
     ros_msg::{MessageTypeInfo, WithTypeInfo},
 };
 
@@ -33,6 +33,9 @@ impl MessageTypeInfo for LcState {
     }
 }
 impl WithTypeInfo for LcState {}
+impl ZMessage for LcState {
+    type Serdes = SerdeCdrSerdes<LcState>;
+}
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct LcTransition {
@@ -52,12 +55,19 @@ impl MessageTypeInfo for LcTransition {
     }
 }
 impl WithTypeInfo for LcTransition {}
+impl ZMessage for LcTransition {
+    type Serdes = SerdeCdrSerdes<LcTransition>;
+}
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct LcTransitionDescription {
     pub transition: LcTransition,
     pub start_state: LcState,
     pub goal_state: LcState,
+}
+
+impl ZMessage for LcTransitionDescription {
+    type Serdes = SerdeCdrSerdes<LcTransitionDescription>;
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -87,6 +97,9 @@ impl MessageTypeInfo for LcTransitionEvent {
     }
 }
 impl WithTypeInfo for LcTransitionEvent {}
+impl ZMessage for LcTransitionEvent {
+    type Serdes = SerdeCdrSerdes<LcTransitionEvent>;
+}
 
 // ---------------------------------------------------------------------------
 // Service types
@@ -99,9 +112,17 @@ pub struct ChangeStateRequest {
     pub transition: LcTransition,
 }
 
+impl ZMessage for ChangeStateRequest {
+    type Serdes = SerdeCdrSerdes<ChangeStateRequest>;
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ChangeStateResponse {
     pub success: bool,
+}
+
+impl ZMessage for ChangeStateResponse {
+    type Serdes = SerdeCdrSerdes<ChangeStateResponse>;
 }
 
 pub struct ChangeState;
@@ -128,9 +149,17 @@ impl ServiceTypeInfo for ChangeState {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct GetStateRequest {}
 
+impl ZMessage for GetStateRequest {
+    type Serdes = SerdeCdrSerdes<GetStateRequest>;
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct GetStateResponse {
     pub current_state: LcState,
+}
+
+impl ZMessage for GetStateResponse {
+    type Serdes = SerdeCdrSerdes<GetStateResponse>;
 }
 
 pub struct GetState;
@@ -157,9 +186,17 @@ impl ServiceTypeInfo for GetState {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct GetAvailableStatesRequest {}
 
+impl ZMessage for GetAvailableStatesRequest {
+    type Serdes = SerdeCdrSerdes<GetAvailableStatesRequest>;
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct GetAvailableStatesResponse {
     pub available_states: Vec<LcState>,
+}
+
+impl ZMessage for GetAvailableStatesResponse {
+    type Serdes = SerdeCdrSerdes<GetAvailableStatesResponse>;
 }
 
 pub struct GetAvailableStates;
@@ -186,9 +223,17 @@ impl ServiceTypeInfo for GetAvailableStates {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct GetAvailableTransitionsRequest {}
 
+impl ZMessage for GetAvailableTransitionsRequest {
+    type Serdes = SerdeCdrSerdes<GetAvailableTransitionsRequest>;
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct GetAvailableTransitionsResponse {
     pub available_transitions: Vec<LcTransitionDescription>,
+}
+
+impl ZMessage for GetAvailableTransitionsResponse {
+    type Serdes = SerdeCdrSerdes<GetAvailableTransitionsResponse>;
 }
 
 pub struct GetAvailableTransitions;

@@ -17,7 +17,7 @@ use crate::{
         publisher::{ManagedEntity, ZLifecyclePublisher},
         state_machine::{CallbackReturn, State, StateMachine, TransitionId},
     },
-    msg::{CdrSerdes, ZDeserializer, ZMessage, ZSerializer},
+    msg::{SerdeCdrSerdes, ZDeserializer, ZMessage, ZSerializer},
     node::ZNode,
     service::ZServer,
 };
@@ -78,7 +78,7 @@ pub struct ZLifecycleNode {
     _srv_get_transition_graph: ZServer<GetAvailableTransitions, ()>,
 
     // Transition-event publisher (Arc so trigger_transition can publish)
-    te_pub: Arc<crate::pubsub::ZPub<LcTransitionEvent, CdrSerdes<LcTransitionEvent>>>,
+    te_pub: Arc<crate::pubsub::ZPub<LcTransitionEvent, SerdeCdrSerdes<LcTransitionEvent>>>,
 }
 
 impl std::fmt::Debug for ZLifecycleNode {
@@ -183,6 +183,7 @@ impl ZLifecycleNode {
     pub fn create_publisher<T>(&self, topic: &str) -> Result<Arc<ZLifecyclePublisher<T>>>
     where
         T: ZMessage + crate::WithTypeInfo + serde::Serialize,
+        <T as ZMessage>::Serdes: Send + Sync,
     {
         let inner = self.inner.create_pub::<T>(topic).build()?;
         let lc_pub = ZLifecyclePublisher::new(inner);
@@ -389,7 +390,7 @@ where
     T: for<'de> serde::Deserialize<'de> + Send + Sync + 'static,
 {
     match query.payload() {
-        Some(payload) => match CdrSerdes::deserialize(payload.to_bytes().as_ref()) {
+        Some(payload) => match SerdeCdrSerdes::deserialize(payload.to_bytes().as_ref()) {
             Ok(req) => Some(req),
             Err(e) => {
                 warn!("failed to deserialize lifecycle request: {e}");
@@ -398,13 +399,13 @@ where
         },
         None => {
             // Empty payload is valid for e.g. GetStateRequest
-            CdrSerdes::<T>::deserialize(&[] as &[u8]).ok()
+            SerdeCdrSerdes::<T>::deserialize(&[] as &[u8]).ok()
         }
     }
 }
 
 fn encode_reply<T: serde::Serialize>(query: &Query, resp: &T) {
-    let bytes = CdrSerdes::serialize(resp);
+    let bytes = SerdeCdrSerdes::serialize(resp);
     if let Err(e) = query.reply(query.key_expr().clone(), bytes).wait() {
         warn!("failed to send lifecycle reply: {e}");
     }
