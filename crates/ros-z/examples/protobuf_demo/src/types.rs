@@ -26,6 +26,10 @@ impl MessageTypeInfo for SensorData {
 
 impl WithTypeInfo for SensorData {}
 
+impl ZMessage for SensorData {
+    type Serdes = ros_z::msg::SerdeCdrSerdes<SensorData>;
+}
+
 // SensorData uses serde/CDR for backward compatibility with the original pub/sub demo
 
 // ========== CalculateRequest Trait Implementations ==========

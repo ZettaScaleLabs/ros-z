@@ -171,7 +171,7 @@ fn test_estimated_size_matches_actual() {
 
 #[test]
 fn test_capacity_hint_api() {
-    use ros_z::msg::{CdrSerdes, ZSerializer};
+    use ros_z::msg::{SerdeCdrSerdes, ZSerializer};
 
     let cloud = PointCloud2 {
         header: Header {
@@ -190,7 +190,7 @@ fn test_capacity_hint_api() {
 
     // Test the low-level API with explicit hint
     let hint = cloud.estimated_serialized_size();
-    let zbuf = CdrSerdes::<PointCloud2>::serialize_to_zbuf_with_hint(&cloud, hint);
+    let zbuf = SerdeCdrSerdes::<PointCloud2>::serialize_to_zbuf_with_hint(&cloud, hint);
 
     assert!(zbuf.len() > 50_000);
     println!("Serialized with explicit hint: {} bytes", zbuf.len());

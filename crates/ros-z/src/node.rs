@@ -14,7 +14,7 @@ use crate::{
     action::{client::ZActionClientBuilder, server::ZActionServerBuilder},
     context::{GlobalCounter, RemapRules},
     dynamic::{
-        DynamicCdrSerdes, DynamicMessage, MessageSchema, TypeDescriptionClient,
+        DynamicMessage, DynamicSerdeCdrSerdes, MessageSchema, TypeDescriptionClient,
         TypeDescriptionService,
     },
     entity::*,
@@ -210,7 +210,7 @@ impl ZNode {
     /// - Absolute topics (starting with '/') are used as-is
     /// - Private topics (starting with '~') are expanded to /<namespace>/<node_name>/<topic>
     /// - Relative topics are expanded to /<namespace>/<topic>
-    pub fn create_pub<T>(&self, topic: &str) -> ZPubBuilder<T>
+    pub fn create_pub<T>(&self, topic: &str) -> ZPubBuilder<T, T::Serdes>
     where
         T: ZMessage + WithTypeInfo,
     {
@@ -223,7 +223,7 @@ impl ZNode {
         &self,
         topic: &str,
         type_info: Option<crate::entity::TypeInfo>,
-    ) -> ZPubBuilder<T>
+    ) -> ZPubBuilder<T, T::Serdes>
     where
         T: ZMessage,
     {
@@ -257,9 +257,9 @@ impl ZNode {
     /// - Absolute topics (starting with '/') are used as-is
     /// - Private topics (starting with '~') are expanded to /<namespace>/<node_name>/<topic>
     /// - Relative topics are expanded to /<namespace>/<topic>
-    pub fn create_sub<T>(&self, topic: &str) -> ZSubBuilder<T>
+    pub fn create_sub<T>(&self, topic: &str) -> ZSubBuilder<T, T::Serdes>
     where
-        T: WithTypeInfo,
+        T: ZMessage + WithTypeInfo,
     {
         debug!("[NOD] Creating subscriber: topic={}", topic);
         self.create_sub_impl(topic, Some(T::type_info()))
@@ -270,7 +270,10 @@ impl ZNode {
         &self,
         topic: &str,
         type_info: Option<crate::entity::TypeInfo>,
-    ) -> ZSubBuilder<T> {
+    ) -> ZSubBuilder<T, T::Serdes>
+    where
+        T: ZMessage,
+    {
         // Note: Topic qualification happens in ZSubBuilder::build()
         // to allow error handling in the Result type
         let entity = EndpointEntity {
@@ -568,7 +571,7 @@ impl ZNode {
         &self,
         topic: &str,
         schema: Arc<MessageSchema>,
-    ) -> Result<ZPub<DynamicMessage, DynamicCdrSerdes>> {
+    ) -> Result<ZPub<DynamicMessage, DynamicSerdeCdrSerdes>> {
         // Register schema with type description service if enabled
         if let Some(service) = &self.type_desc_service {
             if let Err(e) = service.register_schema(schema.clone()) {
@@ -618,7 +621,7 @@ impl ZNode {
 
         // Build the publisher
         self.create_pub_impl::<DynamicMessage>(topic, type_info)
-            .with_serdes::<DynamicCdrSerdes>()
+            .with_serdes::<DynamicSerdeCdrSerdes>()
             .with_dyn_schema(schema)
             .build()
     }
@@ -659,7 +662,7 @@ impl ZNode {
         topic: &str,
         discovery_timeout: Duration,
     ) -> Result<(
-        ZSub<DynamicMessage, Sample, DynamicCdrSerdes>,
+        ZSub<DynamicMessage, Sample, DynamicSerdeCdrSerdes>,
         Arc<MessageSchema>,
     )> {
         debug!(
@@ -708,7 +711,7 @@ impl ZNode {
         // Build the subscriber with the discovered schema
         let subscriber = self
             .create_sub_impl::<DynamicMessage>(topic, type_info)
-            .with_serdes::<DynamicCdrSerdes>()
+            .with_serdes::<DynamicSerdeCdrSerdes>()
             .with_dyn_schema(schema.clone())
             .build()?;
 
@@ -739,7 +742,7 @@ impl ZNode {
         &self,
         topic: &str,
         schema: Arc<MessageSchema>,
-    ) -> Result<ZSub<DynamicMessage, Sample, DynamicCdrSerdes>> {
+    ) -> Result<ZSub<DynamicMessage, Sample, DynamicSerdeCdrSerdes>> {
         // Create TypeInfo from schema for proper key expression matching
         // Convert ROS 2 canonical name to DDS name
         // "std_msgs/msg/String" → "std_msgs::msg::dds_::String_"
@@ -774,7 +777,7 @@ impl ZNode {
 
         // Build the subscriber with proper type info
         self.create_sub_impl::<DynamicMessage>(topic, type_info)
-            .with_serdes::<DynamicCdrSerdes>()
+            .with_serdes::<DynamicSerdeCdrSerdes>()
             .with_dyn_schema(schema)
             .build()
     }
