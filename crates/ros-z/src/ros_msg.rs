@@ -36,6 +36,17 @@ pub trait MessageTypeInfo {
         false
     }
 
+    /// Returns the runtime schema for this message type, if available.
+    ///
+    /// This enables static publishers created via [`crate::node::ZNode::create_pub`]
+    /// to auto-register schemas with a node's TypeDescription service.
+    ///
+    /// Default implementation returns `None` for backward compatibility.
+    /// Generated ROS2 message types can override this to return `Some(schema)`.
+    fn message_schema() -> Option<std::sync::Arc<crate::dynamic::MessageSchema>> {
+        None
+    }
+
     // === Dynamic Methods (Runtime) ===
 
     /// Returns the ROS message type name at runtime

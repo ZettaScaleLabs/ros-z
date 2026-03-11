@@ -44,6 +44,18 @@ def run-ros-interop [] {
         $"cargo nextest run -p ros-z-tests --features ros-interop,($distro)"
     }
 
+    # Pre-build with the same features nextest will use, so the build cache is
+    # settled before nextest records binary paths in its list phase. Without
+    # this, a stale fingerprint from the preceding clippy-rmw step (different
+    # feature set) triggers a concurrent recompile that replaces the binary
+    # while nextest is already running → double-spawn / "No such file" failure.
+    let prebuild_cmd = if $distro == "humble" {
+        "cargo build -j4 -p ros-z-tests --tests --no-default-features --features ros-interop,humble"
+    } else {
+        $"cargo build -j4 -p ros-z-tests --tests --features ros-interop,($distro)"
+    }
+    run-cmd $prebuild_cmd
+
     # Try without verbose logging first (faster)
     let result = (do -i { run-cmd $cmd --distro $distro | complete })
 

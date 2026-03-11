@@ -7,6 +7,8 @@ use zenoh::liveliness::LivelinessToken;
 use zenoh::sample::Sample;
 use zenoh::{Result, Session, Wait};
 
+#[cfg(feature = "ffi")]
+use crate::ffi::publisher::RawPublisher;
 use crate::{
     Builder, ServiceTypeInfo, WithTypeInfo,
     action::{client::ZActionClientBuilder, server::ZActionServerBuilder},
@@ -124,7 +126,9 @@ impl ZNodeBuilder {
     ///     .with_type_description_service()
     ///     .build()?;
     ///
-    /// // Now publishers created from this node can auto-register their schemas
+    /// // Dynamic publishers auto-register schemas.
+    /// // Static publishers also auto-register when their message type provides
+    /// // MessageTypeInfo::message_schema() (e.g. generated ros-z messages).
     /// ```
     pub fn with_type_description_service(mut self) -> Self {
         self.enable_type_desc_service = true;
@@ -201,8 +205,12 @@ impl Builder for ZNodeBuilder {
 }
 
 impl ZNode {
-    /// Create a publisher for the given topic
-    /// If T implements WithTypeInfo, type information will be automatically populated
+    /// Create a publisher for the given topic.
+    ///
+    /// If `T` implements [`WithTypeInfo`], type information is automatically populated.
+    /// If this node has type description service enabled and `T` provides a runtime
+    /// schema via [`crate::MessageTypeInfo::message_schema`], that schema is
+    /// automatically registered for `GetTypeDescription` discovery.
     ///
     /// The topic name will be qualified according to ROS 2 rules:
     /// - Absolute topics (starting with '/') are used as-is
@@ -213,7 +221,35 @@ impl ZNode {
         T: ZMessage + WithTypeInfo,
     {
         debug!("[NOD] Creating publisher: topic={}", topic);
-        self.create_pub_impl(topic, Some(T::type_info()))
+        let mut builder = self.create_pub_impl(topic, Some(T::type_info()));
+
+        if let Some(service) = &self.type_desc_service {
+            match T::message_schema() {
+                Some(schema) => {
+                    if let Err(e) = service.register_schema(schema.clone()) {
+                        warn!(
+                            "[NOD] Failed to register static schema {} with type description service: {}",
+                            schema.type_name, e
+                        );
+                    } else {
+                        debug!(
+                            "[NOD] Registered static schema {} with type description service",
+                            schema.type_name
+                        );
+                    }
+
+                    builder = builder.with_dyn_schema(schema);
+                }
+                None => {
+                    debug!(
+                        "[NOD] No static schema provided for {}, skipping type description registration",
+                        std::any::type_name::<T>()
+                    );
+                }
+            }
+        }
+
+        builder
     }
 
     #[doc(hidden)]
@@ -369,6 +405,132 @@ impl ZNode {
             keyexpr_format: self.keyexpr_format,
             _phantom_data: Default::default(),
         }
+    }
+
+    /// Create a raw publisher for FFI (no type safety)
+    #[cfg(feature = "ffi")]
+    pub fn create_raw_publisher(
+        &self,
+        topic: &str,
+        type_name: &str,
+        type_hash: &str,
+    ) -> Result<RawPublisher> {
+        self.create_raw_publisher_with_qos(topic, type_name, type_hash, None)
+    }
+
+    /// Create a raw publisher for FFI with optional QoS
+    #[cfg(feature = "ffi")]
+    pub fn create_raw_publisher_with_qos(
+        &self,
+        topic: &str,
+        type_name: &str,
+        type_hash: &str,
+        qos: Option<crate::qos::QosProfile>,
+    ) -> Result<RawPublisher> {
+        use crate::entity::{EndpointEntity, EntityKind};
+        use crate::topic_name;
+        use zenoh::qos::CongestionControl;
+
+        let qualified_topic =
+            topic_name::qualify_topic_name(topic, &self.entity.namespace, &self.entity.name)
+                .map_err(|e| zenoh::Error::from(format!("Failed to qualify topic: {}", e)))?;
+
+        let protocol_qos = qos.map(|q| q.to_protocol_qos()).unwrap_or_default();
+
+        let entity = EndpointEntity {
+            id: self.counter.increment(),
+            node: self.entity.clone(),
+            topic: qualified_topic.clone(),
+            kind: EntityKind::Publisher,
+            type_info: Some(TypeInfo {
+                name: type_name.to_string(),
+                hash: TypeHash::from_rihs_string(type_hash).unwrap_or(TypeHash::zero()),
+            }),
+            qos: protocol_qos,
+        };
+
+        let topic_ke = self.keyexpr_format.topic_key_expr(&entity)?;
+        let gid = crate::entity::endpoint_gid(&entity);
+        let publisher = self
+            .session
+            .declare_publisher((*topic_ke).clone())
+            .congestion_control(CongestionControl::Block)
+            .wait()?;
+
+        // Declare liveliness token so rmw_zenoh_cpp can discover this publisher.
+        let lv_ke = self
+            .keyexpr_format
+            .liveliness_key_expr(&entity, &self.session.zid())?;
+        let lv_token = self
+            .session
+            .liveliness()
+            .declare_token((*lv_ke).clone())
+            .wait()?;
+
+        Ok(RawPublisher::new(publisher, gid, lv_token))
+    }
+
+    /// Create a raw subscriber for FFI (no type safety)
+    /// Returns a RawSubscriber that must be kept alive as long as the subscription is active
+    #[cfg(feature = "ffi")]
+    pub fn create_raw_subscriber<F>(
+        &self,
+        topic: &str,
+        type_name: &str,
+        type_hash: &str,
+        callback: F,
+    ) -> Result<crate::ffi::subscriber::RawSubscriber>
+    where
+        F: Fn(&[u8]) + Send + Sync + 'static,
+    {
+        self.create_raw_subscriber_with_qos(topic, type_name, type_hash, callback, None)
+    }
+
+    /// Create a raw subscriber for FFI with optional QoS
+    #[cfg(feature = "ffi")]
+    pub fn create_raw_subscriber_with_qos<F>(
+        &self,
+        topic: &str,
+        type_name: &str,
+        type_hash: &str,
+        callback: F,
+        qos: Option<crate::qos::QosProfile>,
+    ) -> Result<crate::ffi::subscriber::RawSubscriber>
+    where
+        F: Fn(&[u8]) + Send + Sync + 'static,
+    {
+        use crate::entity::{EndpointEntity, EntityKind};
+        use crate::topic_name;
+
+        let qualified_topic =
+            topic_name::qualify_topic_name(topic, &self.entity.namespace, &self.entity.name)
+                .map_err(|e| zenoh::Error::from(format!("Failed to qualify topic: {}", e)))?;
+
+        let protocol_qos = qos.map(|q| q.to_protocol_qos()).unwrap_or_default();
+
+        let entity = EndpointEntity {
+            id: self.counter.increment(),
+            node: self.entity.clone(),
+            topic: qualified_topic.clone(),
+            kind: EntityKind::Subscription,
+            type_info: Some(TypeInfo {
+                name: type_name.to_string(),
+                hash: TypeHash::from_rihs_string(type_hash).unwrap_or(TypeHash::zero()),
+            }),
+            qos: protocol_qos,
+        };
+
+        let topic_ke = self.keyexpr_format.topic_key_expr(&entity)?;
+        let subscriber = self
+            .session
+            .declare_subscriber((*topic_ke).clone())
+            .callback(move |sample| {
+                let payload = sample.payload().to_bytes();
+                callback(&payload);
+            })
+            .wait()?;
+
+        Ok(crate::ffi::subscriber::RawSubscriber { inner: subscriber })
     }
 
     /// Create an action client for the given action name

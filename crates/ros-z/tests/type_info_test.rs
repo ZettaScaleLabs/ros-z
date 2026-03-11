@@ -163,6 +163,7 @@ fn test_default_dynamic_delegates_to_static() {
 
     // Dynamic methods delegate to static by default
     assert_eq!(msg.type_name_dyn(), "simple::Message");
+    assert!(SimpleMessage::message_schema().is_none());
 
     #[cfg(feature = "no-type-hash")]
     {

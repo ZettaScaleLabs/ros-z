@@ -13,6 +13,10 @@ include = [
   "Cargo.toml",
 ]
 
+[[bin]]
+name = "export_json"
+path = "src/bin/export_json.rs"
+
 [dependencies]
 # For code manipulation
 quote = { workspace = true }
