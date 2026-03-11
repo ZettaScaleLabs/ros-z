@@ -54,7 +54,7 @@ use zenoh::Result;
 use zenoh::liveliness::LivelinessToken;
 
 use crate::Builder;
-use crate::msg::{CdrSerdes, ZDeserializer, ZMessage};
+use crate::msg::{SerdeCdrSerdes, ZDeserializer, ZMessage};
 use crate::pubsub::ZSubBuilder;
 
 // ---------------------------------------------------------------------------
@@ -264,7 +264,7 @@ impl<T: ZMessage> ZCache<T> {
 /// Created by [`ZNode::create_cache`](crate::node::ZNode::create_cache).
 /// Use [`with_stamp`](ZCacheBuilder::with_stamp) to switch from the default
 /// Zenoh transport timestamp to an application-level extractor.
-pub struct ZCacheBuilder<T, S = CdrSerdes<T>, Stamp = ZenohStamp> {
+pub struct ZCacheBuilder<T, S = SerdeCdrSerdes<T>, Stamp = ZenohStamp> {
     pub(crate) sub_builder: ZSubBuilder<T, S>,
     capacity: usize,
     stamp: Stamp,

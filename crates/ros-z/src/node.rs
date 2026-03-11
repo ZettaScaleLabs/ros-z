@@ -356,7 +356,7 @@ impl ZNode {
     /// let now = SystemTime::now();
     /// let msgs = cache.get_interval(now - Duration::from_millis(100), now);
     /// ```
-    pub fn create_cache<T>(&self, topic: &str, capacity: usize) -> ZCacheBuilder<T>
+    pub fn create_cache<T>(&self, topic: &str, capacity: usize) -> ZCacheBuilder<T, T::Serdes>
     where
         T: ZMessage + WithTypeInfo,
     {
