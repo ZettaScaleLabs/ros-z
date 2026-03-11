@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use ros_z::{
     ZBuf,
-    msg::{CdrSerdes, ZMessage, ZSerdes},
+    msg::{CdrSerdes, ZSerdes},
     shm::ShmProviderBuilder,
 };
 use zenoh_buffers::buffer::Buffer;

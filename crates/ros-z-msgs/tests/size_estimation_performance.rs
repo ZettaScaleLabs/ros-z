@@ -7,7 +7,7 @@ use std::time::Instant;
 
 use ros_z::{
     ZBuf,
-    msg::{CdrSerdes, ZMessage, ZSerdes},
+    msg::{CdrSerdes, ZSerdes},
 };
 use ros_z_msgs::{builtin_interfaces::Time, sensor_msgs::*, std_msgs::Header};
 use zenoh_buffers::buffer::Buffer;
