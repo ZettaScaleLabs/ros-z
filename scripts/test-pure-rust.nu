@@ -25,7 +25,7 @@ def run-tests [] {
     if $result.exit_code != 0 {
         print "\n⚠️  Some tests failed. Retrying failed tests with debug logging..."
         $env.RUST_LOG = "ros_z=debug,warn"
-        run-cmd "cargo nextest run --failed"
+        run-cmd "cargo nextest run"
     }
 }
 
