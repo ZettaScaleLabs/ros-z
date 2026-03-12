@@ -13,6 +13,7 @@
 - [Actions](./chapters/actions.md)
 - [Lifecycle Nodes](./chapters/lifecycle.md)
 - [Message Cache](./chapters/message_cache.md)
+- [Parameters](./chapters/parameters.md)
 
 # User Guide
 

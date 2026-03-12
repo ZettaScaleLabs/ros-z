@@ -95,6 +95,9 @@ pub mod zbuf_view;
 #[macro_use]
 pub mod utils;
 
+/// ROS 2 parameter subsystem.
+pub mod parameter;
+
 pub use attachment::GidArray;
 pub use entity::{TypeHash, TypeInfo};
 pub use ros_msg::{ActionTypeInfo, MessageTypeInfo, ServiceTypeInfo, WithTypeInfo};

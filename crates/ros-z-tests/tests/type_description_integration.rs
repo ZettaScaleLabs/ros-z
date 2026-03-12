@@ -30,6 +30,13 @@ use ros_z_msgs::std_msgs::String as RosString;
 /// 7. Receive and verify messages
 #[test]
 fn test_static_pub_dynamic_sub_with_type_discovery() {
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "ros_z=debug,rmw_zenoh_rs=debug".parse().unwrap()),
+        )
+        .try_init();
+
     let router = TestRouter::new();
 
     println!("\n=== Test: Static Publisher -> Dynamic Subscriber with Type Discovery ===");

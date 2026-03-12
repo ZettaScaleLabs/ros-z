@@ -60,6 +60,7 @@ Leave the router running in a separate terminal, then run any example from the r
 | `z_custom_message` | Custom `.msg` types without `ros-z-msgs`; shows the codegen workflow | `cargo run --example z_custom_message -- --mode status-pub` |
 | `twist_pub` | Publishing `geometry_msgs/Twist` (common for robot velocity commands) | `cargo run --example twist_pub` |
 | `battery_state_sub` | Subscribing to `sensor_msgs/BatteryState` | `cargo run --example battery_state_sub` |
+| `z_parameters` | Parameter declare/get/set, validation callbacks, YAML loading | `cargo run --example z_parameters` |
 | `zenoh_router` | Embedded Zenoh router for development without installing `zenohd` | `cargo run --example zenoh_router` |
 
 ```admonish tip
@@ -293,4 +294,24 @@ This example demonstrates using protobuf serialization with ros-z, both for ROS 
 ```bash
 cd crates/ros-z/examples/protobuf_demo
 cargo run
+```
+
+---
+
+## Parameters Demo
+
+This example demonstrates the ros-z parameter subsystem: declaring typed parameters, validation callbacks, and loading from YAML files. See the [Parameters](./parameters.md) chapter for comprehensive documentation.
+
+**Quick start:**
+
+```bash
+cargo run --example z_parameters
+```
+
+**Run a specific demo:**
+
+```bash
+cargo run --example z_parameters -- --mode declare
+cargo run --example z_parameters -- --mode callback
+cargo run --example z_parameters -- --mode yaml
 ```

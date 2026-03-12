@@ -143,6 +143,7 @@ All packages are bundled in assets and work without ROS 2:
 | `nav_msgs` | Navigation | Paths, maps, odometry |
 | `example_interfaces` | Tutorial services | AddTwoInts, Fibonacci |
 | `action_tutorials_interfaces` | Tutorial actions | Fibonacci action |
+| `rcl_interfaces` | Parameter service types | Parameter service client interop |
 | `test_msgs` | Test types | Testing and validation |
 
 **Usage:**
