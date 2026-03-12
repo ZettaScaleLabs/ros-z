@@ -2399,6 +2399,294 @@ cargo run --example z_cache_app_stamp
 <li><strong><a href="chapters/./services.html">Services</a></strong> — Request/reply communication</li>
 <li><strong>API docs</strong> — <code>cargo doc -p ros-z --open</code>, then navigate to <code>ros_z::cache</code></li>
 </ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="parameters"><a class="header" href="#parameters">Parameters</a></h1>
+<p><strong>ros-z implements the full ROS 2 parameter subsystem for native nodes.</strong> Declare, get, set, and validate typed parameters at runtime — with config file loading, range constraints, and standard parameter services that interoperate with <code>ros2 param</code>.</p>
+<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+<div class="admonition-title">
+<div id="admonition-note-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/parameters.html#admonition-note"></a>
+</div>
+<div>
+<p>Parameters let you configure node behavior at runtime without recompilation. ros-z parameters are fully compatible with the ROS 2 parameter protocol, so <code>ros2 param list</code>, <code>ros2 param get</code>, and <code>ros2 param set</code> work out of the box against ros-z nodes.</p>
+</div>
+</div>
+<h2 id="visual-flow-2"><a class="header" href="#visual-flow-2">Visual Flow</a></h2>
+<pre class="mermaid">graph TD
+    A[ZNodeBuilder] --&gt;|configure| B[ZNode]
+    B --&gt;|owns| C[ParameterStore]
+    B --&gt;|owns| D[ParameterService]
+    D --&gt;|hosts| E[6 ZServers]
+    D --&gt;|publishes| F[/parameter_events]
+    E --&gt; G[get_parameters]
+    E --&gt; H[set_parameters]
+    E --&gt; I[list_parameters]
+    E --&gt; J[describe_parameters]
+    E --&gt; K[get_parameter_types]
+    E --&gt; L[set_parameters_atomically]
+</pre>
+<h2 id="key-features-2"><a class="header" href="#key-features-2">Key Features</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Feature</th><th>Description</th></tr></thead><tbody>
+<tr><td><strong>Typed values</strong></td><td>9 parameter types: bool, integer, double, string, byte/bool/integer/double/string arrays</td></tr>
+<tr><td><strong>Range validation</strong></td><td><code>FloatingPointRange</code> and <code>IntegerRange</code> constraints on descriptors</td></tr>
+<tr><td><strong>Read-only</strong></td><td>Parameters that reject all changes after declaration</td></tr>
+<tr><td><strong>YAML loading</strong></td><td>Load initial values from ROS 2 parameter YAML files with <code>/**</code> wildcard support</td></tr>
+<tr><td><strong>Overrides</strong></td><td>Programmatic overrides applied at declaration time</td></tr>
+<tr><td><strong>Validation callbacks</strong></td><td>Accept or reject changes with a reason string</td></tr>
+<tr><td><strong>Standard services</strong></td><td>6 parameter services compatible with <code>ros2 param</code> CLI</td></tr>
+<tr><td><strong>Parameter events</strong></td><td><code>/parameter_events</code> topic published on every change</td></tr>
+</tbody></table>
+</div>
+<h2 id="quick-start-2"><a class="header" href="#quick-start-2">Quick Start</a></h2>
+<pre><code class="language-rust ignore">use ros_z::{Builder, parameter::*};
+
+let node = ctx.create_node("my_node").build()?;
+
+// Declare a parameter with a descriptor
+let desc = ParameterDescriptor::new("max_speed", ParameterType::Double);
+node.declare_parameter("max_speed", ParameterValue::Double(1.0), desc)?;
+
+// Get and set
+let value = node.get_parameter("max_speed"); // Some(Double(1.0))
+node.set_parameter(Parameter::new("max_speed", ParameterValue::Double(2.5)))?;</code></pre>
+<h2 id="parameter-types"><a class="header" href="#parameter-types">Parameter Types</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Type</th><th>Rust variant</th><th>Wire type ID</th></tr></thead><tbody>
+<tr><td>Not set</td><td><code>ParameterValue::NotSet</code></td><td>0</td></tr>
+<tr><td>Bool</td><td><code>ParameterValue::Bool(bool)</code></td><td>1</td></tr>
+<tr><td>Integer</td><td><code>ParameterValue::Integer(i64)</code></td><td>2</td></tr>
+<tr><td>Double</td><td><code>ParameterValue::Double(f64)</code></td><td>3</td></tr>
+<tr><td>String</td><td><code>ParameterValue::String(String)</code></td><td>4</td></tr>
+<tr><td>Byte array</td><td><code>ParameterValue::ByteArray(Vec&lt;u8&gt;)</code></td><td>5</td></tr>
+<tr><td>Bool array</td><td><code>ParameterValue::BoolArray(Vec&lt;bool&gt;)</code></td><td>6</td></tr>
+<tr><td>Integer array</td><td><code>ParameterValue::IntegerArray(Vec&lt;i64&gt;)</code></td><td>7</td></tr>
+<tr><td>Double array</td><td><code>ParameterValue::DoubleArray(Vec&lt;f64&gt;)</code></td><td>8</td></tr>
+<tr><td>String array</td><td><code>ParameterValue::StringArray(Vec&lt;String&gt;)</code></td><td>9</td></tr>
+</tbody></table>
+</div>
+<h2 id="declaring-parameters"><a class="header" href="#declaring-parameters">Declaring Parameters</a></h2>
+<p>Parameters must be declared before use. A <code>ParameterDescriptor</code> specifies the name, expected type, and optional constraints:</p>
+<pre><code class="language-rust ignore">use ros_z::parameter::*;
+
+// Basic declaration
+let desc = ParameterDescriptor::new("timeout", ParameterType::Double);
+node.declare_parameter("timeout", ParameterValue::Double(5.0), desc)?;
+
+// With range constraint
+let mut desc = ParameterDescriptor::new("speed", ParameterType::Integer);
+desc.integer_range = Some(IntegerRange {
+    from_value: 0,
+    to_value: 100,
+    step: 1,
+});
+node.declare_parameter("speed", ParameterValue::Integer(50), desc)?;
+
+// Read-only parameter
+let mut desc = ParameterDescriptor::new("version", ParameterType::String);
+desc.read_only = true;
+node.declare_parameter("version", ParameterValue::String("1.0".into()), desc)?;</code></pre>
+<h2 id="getting-and-setting"><a class="header" href="#getting-and-setting">Getting and Setting</a></h2>
+<pre><code class="language-rust ignore">// Get returns Option&lt;ParameterValue&gt;
+let value = node.get_parameter("timeout"); // Some(Double(5.0))
+let missing = node.get_parameter("nonexistent"); // None
+
+// Set returns Result&lt;(), String&gt;
+node.set_parameter(Parameter::new("timeout", ParameterValue::Double(10.0)))?;
+
+// Type mismatches are rejected
+let err = node.set_parameter(Parameter::new("timeout", ParameterValue::Bool(true)));
+assert!(err.is_err());
+
+// Undeclare removes the parameter
+node.undeclare_parameter("timeout")?;</code></pre>
+<h2 id="validation-callbacks"><a class="header" href="#validation-callbacks">Validation Callbacks</a></h2>
+<p>Register a callback to accept or reject parameter changes before they take effect:</p>
+<pre><code class="language-rust ignore">/// Register a validation callback that rejects values outside a range.
+fn demo_callback(ctx: &amp;ros_z::context::ZContext) -&gt; Result&lt;()&gt; {
+    println!("\n=== Validation Callback Demo ===\n");
+
+    let node = ctx.create_node("callback_demo").build()?;
+
+    let mut desc = ParameterDescriptor::new("temperature", ParameterType::Double);
+    desc.floating_point_range = Some(FloatingPointRange {
+        from_value: -40.0,
+        to_value: 85.0,
+        step: 0.0,
+    });
+
+    node.declare_parameter("temperature", ParameterValue::Double(20.0), desc)
+        .expect("declare temperature");
+
+    // Reject temperatures above 50.0 with a custom callback
+    node.on_set_parameters(|params| {
+        for p in params {
+            if let ParameterValue::Double(v) = &amp;p.value
+                &amp;&amp; *v &gt; 50.0
+            {
+                return SetParametersResult::failure(format!(
+                    "{} = {} exceeds safety limit 50.0",
+                    p.name, v
+                ));
+            }
+        }
+        SetParametersResult::success()
+    });
+
+    // Valid change
+    node.set_parameter(Parameter::new("temperature", ParameterValue::Double(25.0)))
+        .expect("set to 25.0");
+    println!("temperature = {:?}", node.get_parameter("temperature"));
+
+    // Rejected by callback
+    let err = node
+        .set_parameter(Parameter::new("temperature", ParameterValue::Double(60.0)))
+        .unwrap_err();
+    println!("Callback rejected: {}", err);
+
+    // Value unchanged
+    println!(
+        "temperature unchanged = {:?}",
+        node.get_parameter("temperature")
+    );
+
+    Ok(())
+}</code></pre>
+<p>The callback receives all parameters being changed in a single batch. Return <code>SetParametersResult::success()</code> to accept or <code>SetParametersResult::failure("reason")</code> to reject the entire batch.</p>
+<h2 id="parameter-services"><a class="header" href="#parameter-services">Parameter Services</a></h2>
+<p>Each node with parameters enabled exposes 6 standard services:</p>
+<div class="table-wrapper"><table><thead><tr><th>Service</th><th>Purpose</th><th>CLI equivalent</th></tr></thead><tbody>
+<tr><td><code>/&lt;node&gt;/get_parameters</code></td><td>Read parameter values</td><td><code>ros2 param get</code></td></tr>
+<tr><td><code>/&lt;node&gt;/set_parameters</code></td><td>Update parameter values</td><td><code>ros2 param set</code></td></tr>
+<tr><td><code>/&lt;node&gt;/list_parameters</code></td><td>List declared parameter names</td><td><code>ros2 param list</code></td></tr>
+<tr><td><code>/&lt;node&gt;/describe_parameters</code></td><td>Get parameter descriptors</td><td><code>ros2 param describe</code></td></tr>
+<tr><td><code>/&lt;node&gt;/get_parameter_types</code></td><td>Get type IDs for parameters</td><td>—</td></tr>
+<tr><td><code>/&lt;node&gt;/set_parameters_atomically</code></td><td>All-or-nothing batch update</td><td>—</td></tr>
+</tbody></table>
+</div>
+<h2 id="loading-from-yaml"><a class="header" href="#loading-from-yaml">Loading from YAML</a></h2>
+<p>ros-z supports the standard ROS 2 parameter YAML format:</p>
+<pre><code class="language-yaml">/**:
+  ros__parameters:
+    global_timeout: 5.0
+    debug: true
+
+/my_node:
+  ros__parameters:
+    sensor_rate: 100
+    device_name: "lidar_front"
+</code></pre>
+<ul>
+<li><code>/**</code> applies to all nodes (wildcard)</li>
+<li><code>/my_node</code> applies only to that exact node</li>
+<li>Node-specific values override wildcard values</li>
+</ul>
+<p>Load via the builder:</p>
+<pre><code class="language-rust ignore">let node = ctx.create_node("my_node")
+    .with_parameter_file(Path::new("params.yaml"))?
+    .build()?;</code></pre>
+<p>Parameters from the file become overrides — they replace the default value when <code>declare_parameter</code> is called.</p>
+<h2 id="node-builder-options"><a class="header" href="#node-builder-options">Node Builder Options</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>Effect</th></tr></thead><tbody>
+<tr><td><code>.without_parameters()</code></td><td>Disable parameter services entirely</td></tr>
+<tr><td><code>.with_parameter_overrides(map)</code></td><td>Set overrides from a <code>HashMap&lt;String, ParameterValue&gt;</code></td></tr>
+<tr><td><code>.with_parameter_file(path)</code></td><td>Load overrides from a YAML file</td></tr>
+</tbody></table>
+</div>
+<p>If both a file and programmatic overrides are used, the last call wins.</p>
+<h2 id="parameter_events"><a class="header" href="#parameter_events">/parameter_events</a></h2>
+<p>Every successful parameter change publishes a <code>ParameterEvent</code> message to <code>/&lt;node&gt;/parameter_events</code> with QoS:</p>
+<ul>
+<li><strong>Reliability</strong>: Reliable</li>
+<li><strong>Durability</strong>: Transient Local</li>
+<li><strong>History</strong>: Keep Last (1000)</li>
+</ul>
+<p>This matches the ROS 2 default for parameter events. Tools like <code>ros2 param</code> and <code>rqt_reconfigure</code> subscribe to this topic.</p>
+<h2 id="ros-2-comparison"><a class="header" href="#ros-2-comparison">ROS 2 Comparison</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Operation</th><th>rclcpp (C++)</th><th>ros-z (Rust)</th></tr></thead><tbody>
+<tr><td>Declare</td><td><code>node-&gt;declare_parameter&lt;T&gt;("name", default)</code></td><td><code>node.declare_parameter("name", value, desc)</code></td></tr>
+<tr><td>Get</td><td><code>node-&gt;get_parameter&lt;T&gt;("name")</code></td><td><code>node.get_parameter("name")</code> → <code>Option&lt;ParameterValue&gt;</code></td></tr>
+<tr><td>Set</td><td><code>node-&gt;set_parameter(Parameter("name", v))</code></td><td><code>node.set_parameter(Parameter::new("name", v))</code> → <code>Result&lt;(), String&gt;</code></td></tr>
+<tr><td>Describe</td><td><code>node-&gt;describe_parameter("name")</code></td><td><code>node.describe_parameter("name")</code></td></tr>
+<tr><td>Callback</td><td><code>add_on_set_parameters_callback(cb)</code></td><td><code>node.on_set_parameters(cb)</code></td></tr>
+<tr><td>YAML load</td><td><code>--ros-args --params-file file.yaml</code></td><td><code>.with_parameter_file(path)</code></td></tr>
+<tr><td>Overrides</td><td><code>--ros-args -p name:=value</code></td><td><code>.with_parameter_overrides(map)</code></td></tr>
+<tr><td>Disable</td><td>not possible</td><td><code>.without_parameters()</code></td></tr>
+<tr><td>Range</td><td><code>FloatingPointRange</code> / <code>IntegerRange</code></td><td>same types in <code>ParameterDescriptor</code></td></tr>
+<tr><td>CLI tools</td><td><code>ros2 param list/get/set/dump</code></td><td>same (interop via standard services)</td></tr>
+</tbody></table>
+</div>
+<p><strong>Key differences:</strong></p>
+<ul>
+<li><strong>Error handling</strong>: ros-z returns <code>Result&lt;(), String&gt;</code> on set failures; rclcpp throws exceptions</li>
+<li><strong>Callbacks</strong>: ros-z callbacks receive <code>&amp;[Parameter]</code> (slice) and return <code>SetParametersResult</code>; rclcpp receives <code>std::vector&lt;rclcpp::Parameter&gt;</code></li>
+<li><strong>Opt-out</strong>: ros-z can disable parameter services with <code>.without_parameters()</code>; rclcpp always enables them</li>
+<li><strong>No <code>declare_parameter_if_not_declared</code></strong>: check <code>node.get_parameter("name").is_some()</code> first</li>
+</ul>
+<h2 id="ros-2-interoperability-2"><a class="header" href="#ros-2-interoperability-2">ROS 2 Interoperability</a></h2>
+<p>ros-z parameter services use the same CDR wire format and RIHS01 type hashes as rclcpp. When connected to the same Zenoh router, <code>ros2 param</code> commands work against ros-z nodes:</p>
+<pre><code class="language-bash"># List parameters on a ros-z node
+ros2 param list /my_node
+
+# Get a parameter value
+ros2 param get /my_node max_speed
+
+# Set a parameter value
+ros2 param set /my_node max_speed 2.5
+
+# Dump all parameters to YAML
+ros2 param dump /my_node
+</code></pre>
+<div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
+<div class="admonition-title">
+<div id="admonition-warning-title">
+<p>Warning</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/parameters.html#admonition-warning"></a>
+</div>
+<div>
+<p>ROS 2 nodes must use <code>rmw_zenoh_cpp</code> (<code>export RMW_IMPLEMENTATION=rmw_zenoh_cpp</code>) and connect to the same Zenoh router.</p>
+</div>
+</div>
+<h2 id="full-example"><a class="header" href="#full-example">Full Example</a></h2>
+<pre><code class="language-rust ignore">#[tokio::main]
+async fn main() -&gt; Result&lt;()&gt; {
+    zenoh::init_log_from_env_or("error");
+    let args = Args::parse();
+
+    let ctx = ZContextBuilder::default()
+        .with_connect_endpoints([&amp;args.endpoint])
+        .build()?;
+
+    match args.mode {
+        Mode::Declare =&gt; demo_declare(&amp;ctx)?,
+        Mode::Callback =&gt; demo_callback(&amp;ctx)?,
+        Mode::Yaml =&gt; demo_yaml(&amp;ctx)?,
+        Mode::All =&gt; {
+            demo_declare(&amp;ctx)?;
+            demo_callback(&amp;ctx)?;
+            demo_yaml(&amp;ctx)?;
+        }
+    }
+    Ok(())
+}</code></pre>
+<p><strong>Running the example:</strong></p>
+<pre><code class="language-bash"># Start a Zenoh router first
+cargo run --example zenoh_router
+
+# Run all parameter demos
+cargo run --example z_parameters
+
+# Run a specific demo
+cargo run --example z_parameters -- --mode declare
+cargo run --example z_parameters -- --mode callback
+cargo run --example z_parameters -- --mode yaml
+</code></pre>
+<h2 id="resources-4"><a class="header" href="#resources-4">Resources</a></h2>
+<ul>
+<li><strong><a href="chapters/./feature_flags.html">Feature Flags</a></strong> — <code>rcl_interfaces</code> feature for parameter service client types</li>
+<li><strong><a href="chapters/./services.html">Services</a></strong> — underlying service mechanism</li>
+<li><strong><a href="chapters/./quick_start.html">Quick Start</a></strong> — getting started with ros-z</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="building-ros-z"><a class="header" href="#building-ros-z">Building ros-z</a></h1>
 <p><strong>ros-z is designed to work without ROS 2 dependencies by default, enabling pure Rust development while optionally integrating with existing ROS 2 installations.</strong> This flexible approach lets you choose your dependency level based on project requirements.</p>
 <h2 id="philosophy"><a class="header" href="#philosophy">Philosophy</a></h2>
@@ -2696,6 +2984,7 @@ sudo apt update &amp;&amp; sudo apt install zenoh
 <tr><td><code>z_custom_message</code></td><td>Custom <code>.msg</code> types without <code>ros-z-msgs</code>; shows the codegen workflow</td><td><code>cargo run --example z_custom_message -- --mode status-pub</code></td></tr>
 <tr><td><code>twist_pub</code></td><td>Publishing <code>geometry_msgs/Twist</code> (common for robot velocity commands)</td><td><code>cargo run --example twist_pub</code></td></tr>
 <tr><td><code>battery_state_sub</code></td><td>Subscribing to <code>sensor_msgs/BatteryState</code></td><td><code>cargo run --example battery_state_sub</code></td></tr>
+<tr><td><code>z_parameters</code></td><td>Parameter declare/get/set, validation callbacks, YAML loading</td><td><code>cargo run --example z_parameters</code></td></tr>
 <tr><td><code>zenoh_router</code></td><td>Embedded Zenoh router for development without installing <code>zenohd</code></td><td><code>cargo run --example zenoh_router</code></td></tr>
 </tbody></table>
 </div><div id="admonition-tip-1" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-1-title">
@@ -2873,6 +3162,17 @@ ROS_Z_MSG_PATH="./my_robot_msgs" cargo build
 <pre><code class="language-bash">cd crates/ros-z/examples/protobuf_demo
 cargo run
 </code></pre>
+<hr />
+<h2 id="parameters-demo"><a class="header" href="#parameters-demo">Parameters Demo</a></h2>
+<p>This example demonstrates the ros-z parameter subsystem: declaring typed parameters, validation callbacks, and loading from YAML files. See the <a href="chapters/./parameters.html">Parameters</a> chapter for comprehensive documentation.</p>
+<p><strong>Quick start:</strong></p>
+<pre><code class="language-bash">cargo run --example z_parameters
+</code></pre>
+<p><strong>Run a specific demo:</strong></p>
+<pre><code class="language-bash">cargo run --example z_parameters -- --mode declare
+cargo run --example z_parameters -- --mode callback
+cargo run --example z_parameters -- --mode yaml
+</code></pre>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="networking"><a class="header" href="#networking">Networking</a></h1>
 <p><strong>Configure ros-z's Zenoh transport layer for optimal performance in your deployment environment.</strong> ros-z uses router-based architecture by default, matching ROS 2's official <code>rmw_zenoh_cpp</code> middleware for production-ready scalability.</p>
 <div align="center">
@@ -2896,7 +3196,7 @@ cargo run
 <tr><td><strong>Production Ready</strong></td><td>Battle-tested configuration used in real robotics systems</td></tr>
 </tbody></table>
 </div>
-<h2 id="quick-start-2"><a class="header" href="#quick-start-2">Quick Start</a></h2>
+<h2 id="quick-start-3"><a class="header" href="#quick-start-3">Quick Start</a></h2>
 <p>The default ros-z configuration connects to a Zenoh router on <code>tcp/localhost:7447</code>:</p>
 <pre><code class="language-rust ignore">use ros_z::context::ZContextBuilder;
 use ros_z::Builder;
@@ -3302,7 +3602,7 @@ let ctx = ZContextBuilder::default()
 <p>These defaults are tuned for ROS 2 deployments and match <code>rmw_zenoh_cpp</code> exactly. Only modify them if you have specific performance requirements.</p>
 </div>
 </div>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="ros-2-interoperability-2"><a class="header" href="#ros-2-interoperability-2">ROS 2 Interoperability</a></h1>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="ros-2-interoperability-3"><a class="header" href="#ros-2-interoperability-3">ROS 2 Interoperability</a></h1>
 <p>ros-z nodes — whether written in Rust, Python, or Go — speak the same Zenoh wire protocol as <code>rmw_zenoh_cpp</code>, the official ROS 2 middleware plugin for Zenoh. This means they interoperate transparently: a Go subscriber can receive messages from a ROS 2 C++ talker, a Python publisher can send to a Rust listener, and so on.</p>
 <h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
 <ul>
@@ -3405,7 +3705,7 @@ ros2 topic echo /chatter std_msgs/msg/String
     H --&gt; J[ros-z-msgs]
     I --&gt; J
 </pre>
-<h2 id="key-features-2"><a class="header" href="#key-features-2">Key Features</a></h2>
+<h2 id="key-features-3"><a class="header" href="#key-features-3">Key Features</a></h2>
 <div class="table-wrapper"><table><thead><tr><th>Feature</th><th>Description</th><th>Benefit</th></tr></thead><tbody>
 <tr><td><strong>Build-time generation</strong></td><td>Runs during <code>cargo build</code></td><td>No manual steps</td></tr>
 <tr><td><strong>Bundled definitions</strong></td><td>Includes common ROS types</td><td>Works without ROS 2</td></tr>
@@ -3806,7 +4106,7 @@ cargo build -p ros-z-msgs --features bundled_msgs
 </tbody></table>
 </div>
 <p>See <a href="chapters/./troubleshooting.html">Troubleshooting Guide</a> for detailed solutions.</p>
-<h2 id="resources-4"><a class="header" href="#resources-4">Resources</a></h2>
+<h2 id="resources-5"><a class="header" href="#resources-5">Resources</a></h2>
 <ul>
 <li><strong><a href="chapters/./feature_flags.html">Feature Flags</a></strong> - Available message packages</li>
 <li><strong><a href="chapters/./building.html">Building</a></strong> - Build configuration</li>
@@ -4053,7 +4353,7 @@ package::srv::dds_::ServiceName_
 </code></pre>
 <p>The trailing underscore and <code>dds_</code> infix match ROS 2's internal naming scheme.</p>
 <hr />
-<h2 id="resources-5"><a class="header" href="#resources-5">Resources</a></h2>
+<h2 id="resources-6"><a class="header" href="#resources-6">Resources</a></h2>
 <ul>
 <li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - How ros-z-msgs generates standard types</li>
 <li><strong><a href="chapters/./protobuf.html">Protobuf Serialization</a></strong> - Alternative serialization format</li>
@@ -4645,7 +4945,7 @@ let sub = node
 </code></pre>
 </div>
 </details>
-<h2 id="resources-6"><a class="header" href="#resources-6">Resources</a></h2>
+<h2 id="resources-7"><a class="header" href="#resources-7">Resources</a></h2>
 <ul>
 <li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - Understanding message architecture</li>
 <li><strong><a href="chapters/./custom_messages.html">Custom Messages</a></strong> - Manual message implementation</li>
@@ -5190,7 +5490,7 @@ sqlite3 ros-z-metrics.db "SELECT topic, AVG(msgs_sec) FROM metrics GROUP BY topi
 <p>Python bindings provide the same pub/sub and service patterns as Rust, with Pythonic APIs. Messages are automatically serialized/deserialized between Python objects and CDR format for ROS 2 compatibility.</p>
 </div>
 </div>
-<h2 id="visual-flow-2"><a class="header" href="#visual-flow-2">Visual Flow</a></h2>
+<h2 id="visual-flow-3"><a class="header" href="#visual-flow-3">Visual Flow</a></h2>
 <pre class="mermaid">graph TD
     A[Python Code] --&gt;|import| B[ros_z_py]
     B --&gt;|PyO3| C[Rust ros-z]
@@ -5231,7 +5531,7 @@ maturin develop
 <p>Use <code>maturin develop --release</code> for optimized builds when benchmarking or running in production.</p>
 </div>
 </div>
-<h2 id="quick-start-3"><a class="header" href="#quick-start-3">Quick Start</a></h2>
+<h2 id="quick-start-4"><a class="header" href="#quick-start-4">Quick Start</a></h2>
 <p>Here's a complete publisher and subscriber example from <a href="https://github.com/ZettaScaleLabs/ros-z/blob/main/crates/ros-z-py/examples/topic_demo.py"><code>crates/ros-z-py/examples/topic_demo.py</code></a>:</p>
 <h3 id="publisher-talker"><a class="header" href="#publisher-talker">Publisher (Talker)</a></h3>
 <pre><code class="language-python">def run_talker(ctx, topic: str, count: int, interval: float):
@@ -5432,7 +5732,7 @@ pub.publish(echo)
 <p><strong>Pass-through re-publish</strong>: The <code>FromPyMessage</code> derive macro recognizes <code>ZBufView</code> inputs and extracts the inner ZBuf via <code>clone()</code>, which only increments a reference count on the underlying memory.</p>
 </li>
 </ol>
-<h2 id="ros-2-interoperability-3"><a class="header" href="#ros-2-interoperability-3">ROS 2 Interoperability</a></h2>
+<h2 id="ros-2-interoperability-4"><a class="header" href="#ros-2-interoperability-4">ROS 2 Interoperability</a></h2>
 <p>Python nodes interoperate with ROS 2 C++ nodes via the shared Zenoh transport. See the dedicated <strong><a href="chapters/./interop.html">ROS 2 Interoperability</a></strong> chapter for setup instructions.</p>
 <h2 id="running-tests"><a class="header" href="#running-tests">Running Tests</a></h2>
 <pre><code class="language-bash"># Python unit tests
@@ -5496,7 +5796,7 @@ Currently supported: <code>std_msgs/String</code>, <code>std_msgs/ByteMultiArray
 </ul>
 </div>
 </details>
-<h2 id="resources-7"><a class="header" href="#resources-7">Resources</a></h2>
+<h2 id="resources-8"><a class="header" href="#resources-8">Resources</a></h2>
 <ul>
 <li><strong><a href="chapters/./python_codegen.html">Code Generation Internals</a></strong> - How Python bindings are generated</li>
 <li><strong><a href="chapters/./pubsub.html">Pub/Sub</a></strong> - Deep dive into pub-sub patterns</li>
@@ -6160,7 +6460,7 @@ just -f crates/ros-z-go/justfile run-example subscriber_channel   # channel-base
 <li>Network only transfers SHM references, not actual data (on same machine)</li>
 <li>Automatic fallback to regular serialization for remote nodes</li>
 </ul>
-<h2 id="quick-start-4"><a class="header" href="#quick-start-4">Quick Start</a></h2>
+<h2 id="quick-start-5"><a class="header" href="#quick-start-5">Quick Start</a></h2>
 <h3 id="default-behavior-shm-is-off"><a class="header" href="#default-behavior-shm-is-off">Default Behavior: SHM is OFF</a></h3>
 <p><strong>By default, SHM is disabled.</strong> Messages are serialized using regular memory allocation. You must explicitly enable SHM to use zero-copy publishing.</p>
 <h3 id="enable-shm-globally"><a class="header" href="#enable-shm-globally">Enable SHM Globally</a></h3>
@@ -7531,6 +7831,7 @@ cargo build --no-default-features --features humble
 <tr><td><code>nav_msgs</code></td><td>Navigation</td><td>Paths, maps, odometry</td></tr>
 <tr><td><code>example_interfaces</code></td><td>Tutorial services</td><td>AddTwoInts, Fibonacci</td></tr>
 <tr><td><code>action_tutorials_interfaces</code></td><td>Tutorial actions</td><td>Fibonacci action</td></tr>
+<tr><td><code>rcl_interfaces</code></td><td>Parameter service types</td><td>Parameter service client interop</td></tr>
 <tr><td><code>test_msgs</code></td><td>Test types</td><td>Testing and validation</td></tr>
 </tbody></table>
 </div>
@@ -7724,7 +8025,7 @@ cargo run --example z_srvcli          # example_interfaces (now bundled)
 <h3 id="custom-messages-1"><a class="header" href="#custom-messages-1">Custom Messages</a></h3>
 <pre><code class="language-bash">cargo run --example z_custom_message  # No features needed
 </code></pre>
-<h2 id="resources-8"><a class="header" href="#resources-8">Resources</a></h2>
+<h2 id="resources-9"><a class="header" href="#resources-9">Resources</a></h2>
 <ul>
 <li><strong><a href="chapters/./building.html">Building Guide</a></strong> - Build procedures for each scenario</li>
 <li><strong><a href="chapters/./distro_compatibility.html">ROS 2 Distribution Compatibility</a></strong> - Target Jazzy, Humble, or other distributions</li>
@@ -7972,7 +8273,7 @@ RUST_LOG=ros_z=debug cargo run --example z_pubsub
 <p>Then check that <code>ros-z-codegen/assets/jazzy/std_msgs/msg/String.msg</code> matches exactly.</p>
 </div>
 </details>
-<h2 id="resources-9"><a class="header" href="#resources-9">Resources</a></h2>
+<h2 id="resources-10"><a class="header" href="#resources-10">Resources</a></h2>
 <ul>
 <li><strong><a href="chapters/./building.html">Building Guide</a></strong> - Correct build procedures</li>
 <li><strong><a href="chapters/./networking.html">Networking</a></strong> - Zenoh router setup</li>

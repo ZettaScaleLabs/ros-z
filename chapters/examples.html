@@ -239,6 +239,7 @@ sudo apt update &amp;&amp; sudo apt install zenoh
 <tr><td><code>z_custom_message</code></td><td>Custom <code>.msg</code> types without <code>ros-z-msgs</code>; shows the codegen workflow</td><td><code>cargo run --example z_custom_message -- --mode status-pub</code></td></tr>
 <tr><td><code>twist_pub</code></td><td>Publishing <code>geometry_msgs/Twist</code> (common for robot velocity commands)</td><td><code>cargo run --example twist_pub</code></td></tr>
 <tr><td><code>battery_state_sub</code></td><td>Subscribing to <code>sensor_msgs/BatteryState</code></td><td><code>cargo run --example battery_state_sub</code></td></tr>
+<tr><td><code>z_parameters</code></td><td>Parameter declare/get/set, validation callbacks, YAML loading</td><td><code>cargo run --example z_parameters</code></td></tr>
 <tr><td><code>zenoh_router</code></td><td>Embedded Zenoh router for development without installing <code>zenohd</code></td><td><code>cargo run --example zenoh_router</code></td></tr>
 </tbody></table>
 </div><div id="admonition-tip-1" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-1-title">
@@ -415,6 +416,17 @@ ROS_Z_MSG_PATH="./my_robot_msgs" cargo build
 <p><strong>Quick start:</strong></p>
 <pre><code class="language-bash">cd crates/ros-z/examples/protobuf_demo
 cargo run
+</code></pre>
+<hr />
+<h2 id="parameters-demo"><a class="header" href="#parameters-demo">Parameters Demo</a></h2>
+<p>This example demonstrates the ros-z parameter subsystem: declaring typed parameters, validation callbacks, and loading from YAML files. See the <a href="./parameters.html">Parameters</a> chapter for comprehensive documentation.</p>
+<p><strong>Quick start:</strong></p>
+<pre><code class="language-bash">cargo run --example z_parameters
+</code></pre>
+<p><strong>Run a specific demo:</strong></p>
+<pre><code class="language-bash">cargo run --example z_parameters -- --mode declare
+cargo run --example z_parameters -- --mode callback
+cargo run --example z_parameters -- --mode yaml
 </code></pre>
 
                     </main>
