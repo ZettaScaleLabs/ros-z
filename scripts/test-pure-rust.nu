@@ -47,8 +47,8 @@ def check-console [] {
 }
 
 def check-examples [] {
-    log-step "Build all examples (cargo build --examples)"
-    run-cmd "cargo build --examples"
+    log-step "Check all examples (cargo check --examples)"
+    run-cmd "cargo check --examples"
 }
 
 def check-distro-features [] {
