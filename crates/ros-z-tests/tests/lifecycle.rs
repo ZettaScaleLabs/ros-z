@@ -315,8 +315,7 @@ struct ClientTestEnv {
 }
 
 fn make_client_test_env(node_name: &str) -> ClientTestEnv {
-    use std::thread;
-    use std::time::Duration;
+    use std::{thread, time::Duration};
 
     let router = common::TestRouter::new();
 

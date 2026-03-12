@@ -150,6 +150,7 @@ async fn handle_goal_request<A, F, Fut>(
         server,
         query: Some(query),
         cancel_flag: None,
+        cancel_rx: None,
         _state: PhantomData::<Requested>,
     };
 

@@ -25,8 +25,12 @@ graph TD
 ### Prerequisites
 
 - Python 3.8+
-- Rust toolchain
-- maturin (`pip install maturin`)
+- Rust 1.85+ — install via [rustup](https://rustup.rs): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+- maturin — `pip install maturin`
+
+```admonish tip title="Using Nix"
+If you use Nix, run `nix develop` in the repo root. It provides Rust, maturin, and all build tools automatically — skip the manual install steps above.
+```
 
 ### Setup
 
@@ -94,6 +98,81 @@ Examples from [`crates/ros-z-py/examples/service_demo.py`](https://github.com/Ze
 
 ```admonish tip
 Service servers use a pull model: `take_request()` blocks until a request arrives. This gives you explicit control over when to process requests.
+```
+
+## Action Patterns
+
+Actions extend services with long-running execution, incremental feedback, and cancellation.
+A goal is sent by the client, accepted or rejected by the server, executed with feedback
+published at each step, and finally terminated with a result.
+
+Examples from [`crates/ros-z-py/examples/action_demo.py`](https://github.com/ZettaScaleLabs/ros-z/blob/main/crates/ros-z-py/examples/action_demo.py).
+
+### Defining Message Types
+
+Actions require three message structs: Goal, Result, and Feedback.
+Each must have a `__msgtype__` class attribute:
+
+```python
+{{#include ../../../crates/ros-z-py/examples/action_demo.py:message_types}}
+```
+
+```admonish tip
+Types from `ros_z_msgs_py` already have `__msgtype__` and a ROS 2 type hash. Inline
+`msgspec.Struct` types (as above) use a zero hash and are **Python-to-Python only** —
+they are not compatible with `rmw_zenoh_cpp` typed actions.
+```
+
+### Action Server
+
+```python
+{{#include ../../../crates/ros-z-py/examples/action_demo.py:run_server}}
+```
+
+#### Server Lifecycle
+
+1. `recv_goal(timeout)` — blocks until a goal arrives; returns `None` on timeout
+2. `request.goal()` — deserialize the goal payload
+3. `request.accept_and_execute()` → `ServerGoalHandle` — or `request.reject()`
+4. `handle.publish_feedback(fb)` — send incremental progress
+5. `handle.is_cancel_requested` — poll for client cancellation
+6. `handle.succeed(result)` / `handle.abort(result)` / `handle.canceled(result)` — terminate
+
+### Action Client
+
+```python
+{{#include ../../../crates/ros-z-py/examples/action_demo.py:run_client}}
+```
+
+#### Client Lifecycle
+
+1. `client.send_goal(goal)` → `ActionGoalHandle` — blocks until accepted (raises on rejection)
+2. `handle.recv_feedback(timeout)` — receive next feedback; returns `None` when channel closes
+3. `handle.get_result(timeout)` — block until terminal state; returns `None` on timeout
+4. `handle.cancel()` — request cancellation (the server decides when to honour it)
+
+### Goal Status
+
+`GoalStatus` constants mirror `action_msgs/msg/GoalStatus`:
+
+| Constant | Value | `is_active()` | `is_terminal()` |
+|----------|-------|--------------|----------------|
+| `ACCEPTED` | 1 | ✓ | — |
+| `EXECUTING` | 2 | ✓ | — |
+| `CANCELING` | 3 | ✓ | — |
+| `SUCCEEDED` | 4 | — | ✓ |
+| `CANCELED` | 5 | — | ✓ |
+| `ABORTED` | 6 | — | ✓ |
+
+```python
+status = ros_z_py.GoalStatus(handle.status)
+if status.is_terminal():
+    print("Done:", status)
+```
+
+```admonish warning
+Python actions use a byte-wrapping wire format that is **not compatible** with
+`rmw_zenoh_cpp` typed actions. Use the Rust `ZAction` trait for ROS 2 interop.
 ```
 
 ## Complex Messages
