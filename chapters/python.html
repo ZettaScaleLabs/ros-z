@@ -211,9 +211,20 @@
 <h3 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h3>
 <ul>
 <li>Python 3.8+</li>
-<li>Rust toolchain</li>
-<li>maturin (<code>pip install maturin</code>)</li>
+<li>Rust 1.85+ — install via <a href="https://rustup.rs">rustup</a>: <code>curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh</code></li>
+<li>maturin — <code>pip install maturin</code></li>
 </ul>
+<div id="admonition-using-nix" class="admonition admonish-tip" role="note" aria-labelledby="admonition-using-nix-title">
+<div class="admonition-title">
+<div id="admonition-using-nix-title">
+<p>Using Nix</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-using-nix"></a>
+</div>
+<div>
+<p>If you use Nix, run <code>nix develop</code> in the repo root. It provides Rust, maturin, and all build tools automatically — skip the manual install steps above.</p>
+</div>
+</div>
 <h3 id="setup"><a class="header" href="#setup">Setup</a></h3>
 <pre><code class="language-bash"># Create and activate virtual environment
 cd crates/ros-z-py
@@ -351,6 +362,160 @@ maturin develop
 <p>Service servers use a pull model: <code>take_request()</code> blocks until a request arrives. This gives you explicit control over when to process requests.</p>
 </div>
 </div>
+<h2 id="action-patterns"><a class="header" href="#action-patterns">Action Patterns</a></h2>
+<p>Actions extend services with long-running execution, incremental feedback, and cancellation.
+A goal is sent by the client, accepted or rejected by the server, executed with feedback
+published at each step, and finally terminated with a result.</p>
+<p>Examples from <a href="https://github.com/ZettaScaleLabs/ros-z/blob/main/crates/ros-z-py/examples/action_demo.py"><code>crates/ros-z-py/examples/action_demo.py</code></a>.</p>
+<h3 id="defining-message-types"><a class="header" href="#defining-message-types">Defining Message Types</a></h3>
+<p>Actions require three message structs: Goal, Result, and Feedback.
+Each must have a <code>__msgtype__</code> class attribute:</p>
+<pre><code class="language-python">class CountToGoal(msgspec.Struct):
+    __msgtype__: ClassVar[str] = "action_demo/msg/CountToGoal"
+    target: int = 10
+
+
+class CountToResult(msgspec.Struct):
+    __msgtype__: ClassVar[str] = "action_demo/msg/CountToResult"
+    final_count: int = 0
+
+
+class CountToFeedback(msgspec.Struct):
+    __msgtype__: ClassVar[str] = "action_demo/msg/CountToFeedback"
+    current: int = 0
+
+
+</code></pre>
+<div id="admonition-tip-2" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-2-title">
+<div class="admonition-title">
+<div id="admonition-tip-2-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-tip-2"></a>
+</div>
+<div>
+<p>Types from <code>ros_z_msgs_py</code> already have <code>__msgtype__</code> and a ROS 2 type hash. Inline
+<code>msgspec.Struct</code> types (as above) use a zero hash and are <strong>Python-to-Python only</strong> —
+they are not compatible with <code>rmw_zenoh_cpp</code> typed actions.</p>
+</div>
+</div>
+<h3 id="action-server"><a class="header" href="#action-server">Action Server</a></h3>
+<pre><code class="language-python">def run_server(ctx, action: str):
+    node = ctx.create_node("count_to_server").build()
+    server = node.create_action_server(
+        action, CountToGoal, CountToResult, CountToFeedback
+    )
+
+    print("SERVER:READY", flush=True)
+
+    while True:
+        request = server.recv_goal(timeout=1.0)
+        if request is None:
+            continue
+
+        goal = request.goal()
+        print(f"SERVER:GOAL:{goal.target}", flush=True)
+        executing = request.accept_and_execute()
+
+        count = 0
+        while count &lt; goal.target:
+            time.sleep(0.2)
+            count += 1
+            executing.publish_feedback(CountToFeedback(current=count))
+            print(f"SERVER:FEEDBACK:{count}", flush=True)
+
+            if executing.is_cancel_requested:
+                print(f"SERVER:CANCELED:{count}", flush=True)
+                executing.canceled(CountToResult(final_count=count))
+                break
+        else:
+            print(f"SERVER:SUCCEEDED:{count}", flush=True)
+            executing.succeed(CountToResult(final_count=count))
+
+
+</code></pre>
+<h4 id="server-lifecycle"><a class="header" href="#server-lifecycle">Server Lifecycle</a></h4>
+<ol>
+<li><code>recv_goal(timeout)</code> — blocks until a goal arrives; returns <code>None</code> on timeout</li>
+<li><code>request.goal()</code> — deserialize the goal payload</li>
+<li><code>request.accept_and_execute()</code> → <code>ServerGoalHandle</code> — or <code>request.reject()</code></li>
+<li><code>handle.publish_feedback(fb)</code> — send incremental progress</li>
+<li><code>handle.is_cancel_requested</code> — poll for client cancellation</li>
+<li><code>handle.succeed(result)</code> / <code>handle.abort(result)</code> / <code>handle.canceled(result)</code> — terminate</li>
+</ol>
+<h3 id="action-client"><a class="header" href="#action-client">Action Client</a></h3>
+<pre><code class="language-python">def run_client(ctx, action: str, target: int, cancel_after: float | None):
+    node = ctx.create_node("count_to_client").build()
+    client = node.create_action_client(
+        action, CountToGoal, CountToResult, CountToFeedback
+    )
+
+    # Give server time to advertise
+    time.sleep(1.0)
+
+    print(f"CLIENT:SEND_GOAL:{target}", flush=True)
+    handle = client.send_goal(CountToGoal(target=target))
+
+    # Schedule cancellation if requested
+    if cancel_after is not None:
+
+        def _cancel():
+            time.sleep(cancel_after)
+            print("CLIENT:CANCEL", flush=True)
+            handle.cancel()
+
+        threading.Thread(target=_cancel, daemon=True).start()
+
+    # Drain feedback
+    while True:
+        fb = handle.recv_feedback(timeout=0.5)
+        if fb is None:
+            break
+        print(f"CLIENT:FEEDBACK:{fb.current}", flush=True)
+
+    result = handle.get_result(timeout=5.0)
+    if result is not None:
+        print(f"CLIENT:RESULT:{result.final_count}", flush=True)
+    else:
+        print("CLIENT:ERROR:no result", flush=True)
+        sys.exit(1)
+
+
+</code></pre>
+<h4 id="client-lifecycle"><a class="header" href="#client-lifecycle">Client Lifecycle</a></h4>
+<ol>
+<li><code>client.send_goal(goal)</code> → <code>ActionGoalHandle</code> — blocks until accepted (raises on rejection)</li>
+<li><code>handle.recv_feedback(timeout)</code> — receive next feedback; returns <code>None</code> when channel closes</li>
+<li><code>handle.get_result(timeout)</code> — block until terminal state; returns <code>None</code> on timeout</li>
+<li><code>handle.cancel()</code> — request cancellation (the server decides when to honour it)</li>
+</ol>
+<h3 id="goal-status"><a class="header" href="#goal-status">Goal Status</a></h3>
+<p><code>GoalStatus</code> constants mirror <code>action_msgs/msg/GoalStatus</code>:</p>
+<div class="table-wrapper"><table><thead><tr><th>Constant</th><th>Value</th><th><code>is_active()</code></th><th><code>is_terminal()</code></th></tr></thead><tbody>
+<tr><td><code>ACCEPTED</code></td><td>1</td><td>✓</td><td>—</td></tr>
+<tr><td><code>EXECUTING</code></td><td>2</td><td>✓</td><td>—</td></tr>
+<tr><td><code>CANCELING</code></td><td>3</td><td>✓</td><td>—</td></tr>
+<tr><td><code>SUCCEEDED</code></td><td>4</td><td>—</td><td>✓</td></tr>
+<tr><td><code>CANCELED</code></td><td>5</td><td>—</td><td>✓</td></tr>
+<tr><td><code>ABORTED</code></td><td>6</td><td>—</td><td>✓</td></tr>
+</tbody></table>
+</div>
+<pre><code class="language-python">status = ros_z_py.GoalStatus(handle.status)
+if status.is_terminal():
+    print("Done:", status)
+</code></pre>
+<div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
+<div class="admonition-title">
+<div id="admonition-warning-title">
+<p>Warning</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-warning"></a>
+</div>
+<div>
+<p>Python actions use a byte-wrapping wire format that is <strong>not compatible</strong> with
+<code>rmw_zenoh_cpp</code> typed actions. Use the Rust <code>ZAction</code> trait for ROS 2 interop.</p>
+</div>
+</div>
 <h2 id="complex-messages"><a class="header" href="#complex-messages">Complex Messages</a></h2>
 <p>Python bindings support nested message types like <code>geometry_msgs/Twist</code>:</p>
 <pre><code class="language-python">from ros_z_py import geometry_msgs
@@ -414,12 +579,12 @@ pub.publish(echo)
 <tr><td><code>bytes(view)</code></td><td>Convert to <code>bytes</code> (copies)</td></tr>
 <tr><td><code>view.is_zero_copy</code></td><td>Whether the view avoids internal copying</td></tr>
 </tbody></table>
-</div><div id="admonition-tip-2" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-2-title">
+</div><div id="admonition-tip-3" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-3-title">
 <div class="admonition-title">
-<div id="admonition-tip-2-title">
+<div id="admonition-tip-3-title">
 <p>Tip</p>
 </div>
-<a class="admonition-anchor-link" href="#admonition-tip-2"></a>
+<a class="admonition-anchor-link" href="#admonition-tip-3"></a>
 </div>
 <div>
 <p>For best performance with large payloads, avoid calling <code>bytes()</code> on <code>ZBufView</code> fields. Use <code>memoryview()</code> for read access, or pass the <code>ZBufView</code> directly when re-publishing.</p>
