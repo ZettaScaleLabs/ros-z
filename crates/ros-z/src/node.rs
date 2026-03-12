@@ -12,6 +12,7 @@ use crate::ffi::publisher::RawPublisher;
 use crate::{
     Builder, ServiceTypeInfo, WithTypeInfo,
     action::{client::ZActionClientBuilder, server::ZActionServerBuilder},
+    cache::ZCacheBuilder,
     context::{GlobalCounter, RemapRules},
     dynamic::{
         DynamicMessage, DynamicSerdeCdrSerdes, MessageSchema, TypeDescriptionClient,
@@ -327,6 +328,44 @@ impl ZNode {
             expected_encoding: None,
             _phantom_data: Default::default(),
         }
+    }
+
+    /// Create a timestamp-indexed sliding-window cache subscriber for `topic`,
+    /// retaining up to `capacity` messages.
+    ///
+    /// By default, messages are indexed by the Zenoh transport timestamp
+    /// (zero-config, works for any message type). Call
+    /// [`.with_stamp(|msg| ...)`](ZCacheBuilder::with_stamp) on the returned
+    /// builder to switch to application-level timestamp extraction (e.g.
+    /// `header.stamp`).
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use ros_z::prelude::*;
+    /// use ros_z_msgs::sensor_msgs::Imu;
+    /// use std::time::{Duration, SystemTime};
+    ///
+    /// let ctx = ZContextBuilder::default().build()?;
+    /// let node = ctx.create_node("cache_demo").build()?;
+    ///
+    /// // Zero-config (Zenoh transport timestamp)
+    /// let cache = node.create_cache::<Imu>("/imu/data", 200).build()?;
+    ///
+    /// // Pull messages from the last 100 ms
+    /// let now = SystemTime::now();
+    /// let msgs = cache.get_interval(now - Duration::from_millis(100), now);
+    /// ```
+    pub fn create_cache<T>(&self, topic: &str, capacity: usize) -> ZCacheBuilder<T, T::Serdes>
+    where
+        T: ZMessage + WithTypeInfo,
+    {
+        debug!(
+            "[NOD] Creating cache: topic={}, capacity={}",
+            topic, capacity
+        );
+        let sub_builder = self.create_sub_impl(topic, Some(T::type_info()));
+        ZCacheBuilder::new(sub_builder, capacity)
     }
 
     /// Create a service for the given service name
