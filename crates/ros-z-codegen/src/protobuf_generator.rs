@@ -209,8 +209,6 @@ impl ProtobufMessageGenerator {
         combined_output.push_str("#[allow(unused_imports)]\n");
         combined_output.push_str("use ros_z::ros_msg::WithTypeInfo;\n");
         combined_output.push_str("#[allow(unused_imports)]\n");
-        combined_output.push_str("use ros_z::msg::ZMessage;\n");
-        combined_output.push_str("#[allow(unused_imports)]\n");
         combined_output.push_str("use ros_z::msg::ProtobufSerdes;\n\n");
 
         // Compile all proto files at once to avoid duplicates
@@ -310,10 +308,6 @@ impl ProtobufMessageGenerator {
 }}
 
 impl ::ros_z::WithTypeInfo for {proto_type} {{}}
-
-impl ::ros_z::msg::ZMessage for {proto_type} {{
-    type Serdes = ::ros_z::msg::ProtobufSerdes<{proto_type}>;
-}}
 
 "#
             ));

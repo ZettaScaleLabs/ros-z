@@ -24,7 +24,7 @@ use common::*;
 use ros_z::{
     Builder,
     dynamic::{
-        DynamicMessage, DynamicSerdeCdrSerdes, MessageSchema, type_description_msg_to_schema,
+        DynamicCdrCompatSerdes, DynamicMessage, MessageSchema, type_description_msg_to_schema,
     },
 };
 use ros_z_msgs::type_description_interfaces::{
@@ -423,7 +423,7 @@ fn test_dynamic_subscriber_from_type_description() {
             println!("Step 3: Creating dynamic subscriber...");
             let zsub = node
                 .create_sub_impl::<DynamicMessage>("chatter", None)
-                .with_serdes::<DynamicSerdeCdrSerdes>()
+                .with_serdes::<DynamicCdrCompatSerdes>()
                 .with_dyn_schema(schema.clone())
                 .build()
                 .expect("Failed to create dynamic subscriber");

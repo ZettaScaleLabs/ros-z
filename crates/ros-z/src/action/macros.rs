@@ -67,27 +67,6 @@ macro_rules! define_action {
             }
         }
 
-        // Provide ZMessage impls via the serde (SerdeCdrSerdes) path for types that
-        // do not implement the CDR traits. Types that do implement CdrSerialize +
-        // CdrDeserialize + CdrSerializedSize get ZMessage automatically from the
-        // blanket impl in ros_z::msg and should NOT use define_action!.
-        impl $crate::msg::ZMessage for $goal_type
-        where
-            $goal_type: Send + Sync + 'static,
-        {
-            type Serdes = $crate::msg::SerdeCdrSerdes<$goal_type>;
-        }
-        impl $crate::msg::ZMessage for $result_type
-        where
-            $result_type: Send + Sync + 'static,
-        {
-            type Serdes = $crate::msg::SerdeCdrSerdes<$result_type>;
-        }
-        impl $crate::msg::ZMessage for $feedback_type
-        where
-            $feedback_type: Send + Sync + 'static,
-        {
-            type Serdes = $crate::msg::SerdeCdrSerdes<$feedback_type>;
-        }
+        // ZMessage is covered by the blanket impl in ros_z::msg.
     };
 }

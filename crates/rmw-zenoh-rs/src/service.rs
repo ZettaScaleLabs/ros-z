@@ -10,7 +10,7 @@ use zenoh::Result;
 
 /// Client implementation for RMW
 pub struct ClientImpl {
-    pub inner: ros_z::service::ZClient<crate::msg::RosService>,
+    pub inner: ros_z::service::ZClient<crate::msg::RosService, crate::msg::RosSerdes>,
     pub service_name: CString,
     pub options: rmw_client_options_t,
     pub request_ts: crate::type_support::ServiceTypeSupport,
@@ -171,7 +171,8 @@ impl ClientImpl {
 
 /// Service implementation for RMW
 pub struct ServiceImpl {
-    pub inner: ros_z::service::ZServer<crate::msg::RosService>,
+    pub inner:
+        ros_z::service::ZServer<crate::msg::RosService, zenoh::query::Query, crate::msg::RosSerdes>,
     pub service_name: CString,
     pub request_ts: crate::type_support::ServiceTypeSupport,
     pub response_ts: crate::type_support::ServiceTypeSupport,
@@ -317,7 +318,7 @@ impl ServiceImpl {
         let resp = crate::msg::RosMessage::new(response, self.response_ts.response);
 
         // Send response
-        match self.inner.send_response(&resp, &key) {
+        match self.inner.rmw_send_response(&resp, &key) {
             Ok(_) => {
                 tracing::debug!("[ServiceImpl::send_response] Response sent successfully");
                 Ok(())

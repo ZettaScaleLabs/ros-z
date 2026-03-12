@@ -4,7 +4,12 @@
 
 use std::time::Duration;
 
-use ros_z::{Builder, Result, context::ZContextBuilder, define_action, msg::ZSerializer};
+use ros_z::{
+    Builder, Result,
+    context::ZContextBuilder,
+    define_action,
+    msg::{CdrSerdes, ZSerdes},
+};
 use serde::{Deserialize, Serialize};
 use tokio::time::timeout;
 use zenoh::Wait;
@@ -149,9 +154,9 @@ mod tests {
             };
 
             // Respond to the cancel request
-            let response_bytes = ros_z::msg::SerdeCdrSerdes::<
+            let response_bytes = <CdrSerdes as ZSerdes<
                 ros_z::action::messages::CancelGoalResponse,
-            >::serialize(&cancel_resp);
+            >>::serialize_to_vec(&cancel_resp);
             response_tx
                 .reply(response_tx.key_expr().clone(), response_bytes)
                 .wait()?;

@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use ros_z::{
     ZBuf,
-    msg::{ZMessage, ZSerializer},
+    msg::{CdrSerdes, ZSerdes},
     shm::ShmProviderBuilder,
 };
 use zenoh_buffers::buffer::Buffer;
@@ -82,7 +82,8 @@ fn test_pointcloud2_shm_serialization_with_accurate_estimate() {
     );
 
     // Serialize to SHM - should not panic!
-    let result = <PointCloud2 as ZMessage>::Serdes::serialize_to_shm(&cloud, estimated, &provider);
+    let result =
+        <CdrSerdes as ZSerdes<PointCloud2>>::serialize_to_shm(&cloud, estimated, &provider);
 
     assert!(result.is_ok(), "SHM serialization should succeed");
 
@@ -148,7 +149,7 @@ fn test_image_shm_serialization_with_accurate_estimate() {
             .expect("Failed to create SHM provider"),
     );
 
-    let result = <Image as ZMessage>::Serdes::serialize_to_shm(&image, estimated, &provider);
+    let result = <CdrSerdes as ZSerdes<Image>>::serialize_to_shm(&image, estimated, &provider);
     assert!(result.is_ok(), "SHM serialization should succeed");
 
     let (zbuf, actual_size) = result.unwrap();
@@ -205,7 +206,7 @@ fn test_laserscan_shm_serialization_with_accurate_estimate() {
             .expect("Failed to create SHM provider"),
     );
 
-    let result = <LaserScan as ZMessage>::Serdes::serialize_to_shm(&scan, estimated, &provider);
+    let result = <CdrSerdes as ZSerdes<LaserScan>>::serialize_to_shm(&scan, estimated, &provider);
     assert!(result.is_ok(), "SHM serialization should succeed");
 
     let (zbuf, actual_size) = result.unwrap();
@@ -256,7 +257,7 @@ fn test_compressed_image_shm_serialization() {
     );
 
     let result =
-        <CompressedImage as ZMessage>::Serdes::serialize_to_shm(&img, estimated, &provider);
+        <CdrSerdes as ZSerdes<CompressedImage>>::serialize_to_shm(&img, estimated, &provider);
     assert!(result.is_ok(), "SHM serialization should succeed");
 
     let (zbuf, actual_size) = result.unwrap();
@@ -298,7 +299,7 @@ fn test_multiple_messages_share_shm_pool() {
         };
 
         let estimated = image.estimated_serialized_size();
-        let result = <Image as ZMessage>::Serdes::serialize_to_shm(&image, estimated, &provider);
+        let result = <CdrSerdes as ZSerdes<Image>>::serialize_to_shm(&image, estimated, &provider);
 
         assert!(
             result.is_ok(),

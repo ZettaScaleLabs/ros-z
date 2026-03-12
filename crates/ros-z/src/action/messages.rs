@@ -540,39 +540,4 @@ impl CdrSerializedSize for CancelGoalServiceResponse {
     }
 }
 
-// ── Generic types: still use serde path until ZAction gains CDR bounds ────────
-
-impl<A: ZAction + 'static> crate::msg::ZMessage for GoalRequest<A>
-where
-    A::Goal: Send + Sync + serde::Serialize + for<'de> serde::Deserialize<'de> + 'static,
-{
-    type Serdes = crate::msg::SerdeCdrSerdes<GoalRequest<A>>;
-}
-
-impl<A: ZAction + 'static> crate::msg::ZMessage for ResultResponse<A>
-where
-    A::Result: Send + Sync + serde::Serialize + for<'de> serde::Deserialize<'de> + 'static,
-{
-    type Serdes = crate::msg::SerdeCdrSerdes<ResultResponse<A>>;
-}
-
-impl<A: ZAction + 'static> crate::msg::ZMessage for FeedbackMessage<A>
-where
-    A::Feedback: Send + Sync + serde::Serialize + for<'de> serde::Deserialize<'de> + 'static,
-{
-    type Serdes = crate::msg::SerdeCdrSerdes<FeedbackMessage<A>>;
-}
-
-impl<A: ZAction + 'static> crate::msg::ZMessage for SendGoalRequest<A>
-where
-    A::Goal: Send + Sync + serde::Serialize + for<'de> serde::Deserialize<'de> + 'static,
-{
-    type Serdes = crate::msg::SerdeCdrSerdes<SendGoalRequest<A>>;
-}
-
-impl<A: ZAction + 'static> crate::msg::ZMessage for GetResultResponse<A>
-where
-    A::Result: Send + Sync + serde::Serialize + for<'de> serde::Deserialize<'de> + 'static,
-{
-    type Serdes = crate::msg::SerdeCdrSerdes<GetResultResponse<A>>;
-}
+// ZMessage is covered by the blanket impl in ros_z::msg for all Send + Sync + 'static types.

@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
-use ros_z::Builder;
+use ros_z::{Builder, msg::ProtobufSerdes};
 use zenoh::Wait;
 use zenoh::config::WhatAmI;
 
@@ -192,6 +192,7 @@ pub fn wait_for_service_ready(
         if let Ok(node) = ctx.create_node("service_readiness_checker").build()
             && let Ok(client) = node
                 .create_client::<protobuf_demo::Calculate>(service_name)
+                .with_serdes::<ProtobufSerdes>()
                 .build()
         {
             // Try a simple test request (add 1 + 1 = 2)

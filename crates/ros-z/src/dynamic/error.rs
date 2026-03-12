@@ -46,6 +46,9 @@ pub enum DynamicError {
 
     /// Bounded string/sequence exceeded maximum size
     BoundExceeded { max: usize, actual: usize },
+
+    /// Deserialization requires a schema (use the specialized recv() on DynamicMessage subscriber)
+    SchemaMissing,
 }
 
 impl fmt::Display for DynamicError {
@@ -115,6 +118,13 @@ impl fmt::Display for DynamicError {
                     f,
                     "Bounded type exceeded maximum size: max={}, actual={}",
                     max, actual
+                )
+            }
+            DynamicError::SchemaMissing => {
+                write!(
+                    f,
+                    "DynamicMessage deserialization requires a schema; use .with_dyn_schema() \
+                     when building the subscriber and call recv() on ZSub<DynamicMessage>"
                 )
             }
         }

@@ -34,6 +34,9 @@ log-header "Running ros-z Pre-Submission Checks"
 let checks = [
     {name: "Formatting (cargo fmt)", cmd: "cargo fmt --check"},
     {name: "Clippy (all targets)", cmd: "cargo clippy --all-targets -- -D warnings"},
+    # ros-z-py is not in default-members, so clippy above skips it.
+    # Explicit check here catches missing deps (e.g. serde) before CI does.
+    {name: "Check ros-z-py", cmd: "cargo check -p ros-z-py"},
     {name: "Build (cargo build)", cmd: "cargo build"},
     {name: "Tests", cmd: (if (which cargo-nextest | is-not-empty) {
         "cargo nextest run"

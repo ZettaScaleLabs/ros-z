@@ -48,7 +48,7 @@ pub trait ZSerializer {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use ros_z::msg::{ZSerializer, SerdeCdrSerdes};
+    /// use ros_z::msg::{ZSerializer, CdrCompatSerdes};
     /// use serde::Serialize;
     ///
     /// #[derive(Serialize)]
@@ -56,7 +56,7 @@ pub trait ZSerializer {
     ///
     /// let msg = LargeMsg { data: vec![0; 1_000_000] };
     /// let hint = 4 + 4 + 1_000_000;  // header + length + data
-    /// let zbuf = SerdeCdrSerdes::<LargeMsg>::serialize_to_zbuf_with_hint(&msg, hint);
+    /// let zbuf = CdrCompatSerdes::serialize_to_zbuf_with_hint(&msg, hint);
     /// ```
     fn serialize_to_zbuf_with_hint(input: Self::Input<'_>, capacity_hint: usize) -> ZBuf;
 
@@ -84,7 +84,7 @@ pub trait ZSerializer {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use ros_z::msg::{ZSerializer, SerdeCdrSerdes};
+    /// use ros_z::msg::{ZSerializer, CdrCompatSerdes};
     /// use ros_z::shm::ShmProviderBuilder;
     /// use serde::Serialize;
     ///
@@ -95,7 +95,7 @@ pub trait ZSerializer {
     /// let msg = MyMsg { value: 42 };
     /// let provider = ShmProviderBuilder::new(1024 * 1024).build()?;
     ///
-    /// let (zbuf, size) = SerdeCdrSerdes::<MyMsg>::serialize_to_shm(&msg, 128, &provider)?;
+    /// let (zbuf, size) = CdrCompatSerdes::serialize_to_shm(&msg, 128, &provider)?;
     /// println!("Serialized {} bytes to SHM", size);
     /// # Ok(())
     /// # }
@@ -139,28 +139,55 @@ pub trait ZDeserializer {
     fn deserialize(input: Self::Input<'_>) -> Result<Self::Output, Self::Error>;
 }
 
+/// Unified serialization/deserialization trait for ROS-Z messages.
+///
+/// `ZSerdes<T>` replaces the old `ZMessage::Serdes` associated type.
+/// Implement this trait to define a custom wire format for message type `T`.
+///
+/// Two built-in implementations are provided:
+/// - [`CdrSerdes`]: fast path using `CdrSerialize`/`CdrDeserialize` traits
+/// - [`CdrCompatSerdes`]: compatibility path using `serde::Serialize`/`Deserialize`
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use ros_z::msg::{ZSerdes, CdrSerdes, CdrCompatSerdes};
+/// use serde::{Serialize, Deserialize};
+///
+/// #[derive(Serialize, Deserialize)]
+/// struct MyMsg { value: u32 }
+///
+/// // Use serde path (works with any serde type)
+/// fn publish_serde(msg: &MyMsg) -> zenoh_buffers::ZBuf {
+///     CdrCompatSerdes::serialize(msg)
+/// }
+/// ```
+pub trait ZSerdes<T>: Send + Sync + 'static {
+    /// Error type returned by deserialization.
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    /// Serialize `msg` to a ZBuf.
+    fn serialize(msg: &T) -> ZBuf;
+
+    /// Serialize `msg` to a ZBuf with a capacity hint.
+    fn serialize_with_hint(msg: &T, capacity_hint: usize) -> ZBuf;
+
+    /// Serialize `msg` to a Vec<u8>.
+    fn serialize_to_vec(msg: &T) -> Vec<u8>;
+
+    /// Serialize `msg` to shared memory.
+    fn serialize_to_shm(
+        msg: &T,
+        estimated_size: usize,
+        provider: &zenoh::shm::ShmProvider<zenoh::shm::PosixShmProviderBackend>,
+    ) -> zenoh::Result<(ZBuf, usize)>;
+
+    /// Deserialize a message from a byte slice.
+    fn deserialize(buf: &[u8]) -> Result<T, Self::Error>;
+}
+
 // Core Z-Message trait
 pub trait ZMessage: Send + Sync + Sized + 'static {
-    type Serdes: for<'a> ZSerializer<Input<'a> = &'a Self> + ZDeserializer;
-
-    fn serialize(&self) -> Vec<u8> {
-        Self::Serdes::serialize(self)
-    }
-
-    fn serialize_to_zbuf(&self) -> ZBuf {
-        // Use accurate size estimation for optimal buffer allocation
-        Self::Serdes::serialize_to_zbuf_with_hint(self, self.estimated_serialized_size())
-    }
-
-    fn deserialize(
-        input: <Self::Serdes as ZDeserializer>::Input<'_>,
-    ) -> Result<Self, <Self::Serdes as ZDeserializer>::Error>
-    where
-        Self::Serdes: ZDeserializer<Output = Self>,
-    {
-        Self::Serdes::deserialize(input)
-    }
-
     /// Get an estimated upper bound on the serialized size of this message.
     ///
     /// This is used to pre-allocate buffers for optimal serialization performance,
@@ -201,29 +228,94 @@ pub trait ZMessage: Send + Sync + Sized + 'static {
     }
 }
 
-// Blanket implementation for types with dedicated CDR traits (fast path).
-// All generated message types satisfy these bounds; internal ros-z types that
-// only have serde get explicit ZMessage impls below using SerdeCdrSerdes instead.
-impl<T> ZMessage for T
-where
-    T: Send
-        + Sync
-        + ros_z_cdr::CdrSerialize
-        + ros_z_cdr::CdrDeserialize
-        + ros_z_cdr::CdrSerializedSize
-        + 'static,
-{
-    type Serdes = NativeCdrSerdes<T>;
-}
+// Blanket implementation: any type satisfying the CDR traits is a ZMessage.
+// All generated message types satisfy these bounds.
+impl<T> ZMessage for T where T: Send + Sync + 'static {}
 
 // ── Serde-based CDR serialization (existing path, kept for non-generated types) ───────────
 
-pub struct SerdeCdrSerdes<T>(PhantomData<T>);
+/// Unit struct implementing CDR serialization via serde.
+///
+/// Use this serdes when your type implements `serde::Serialize + serde::de::DeserializeOwned`
+/// but not the native `CdrSerialize`/`CdrDeserialize` traits. This includes:
+/// - roslibrust message types
+/// - Custom user types with `#[derive(Serialize, Deserialize)]`
+/// - Internal wire types that haven't been migrated to native CDR
+///
+/// Performance: ~15-30% slower than `CdrSerdes` due to serde overhead.
+pub struct CdrCompatSerdes;
 
 /// CDR encapsulation header for little-endian encoding
 pub const CDR_HEADER_LE: [u8; 4] = [0x00, 0x01, 0x00, 0x00];
 
-impl<T> ZSerializer for SerdeCdrSerdes<T>
+impl<T> ZSerdes<T> for CdrCompatSerdes
+where
+    T: serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
+{
+    type Error = CdrError;
+
+    fn serialize(msg: &T) -> ZBuf {
+        Self::serialize_with_hint(msg, 256)
+    }
+
+    fn serialize_with_hint(msg: &T, capacity_hint: usize) -> ZBuf {
+        let mut writer = ZBufWriter::with_capacity(capacity_hint);
+        writer.extend_from_slice(&CDR_HEADER_LE);
+        let mut serializer = CdrSerializer::<LittleEndian, ZBufWriter>::new(&mut writer);
+        msg.serialize(&mut serializer).unwrap();
+        writer.into_zbuf()
+    }
+
+    fn serialize_to_vec(msg: &T) -> Vec<u8> {
+        let mut buffer = Vec::new();
+        buffer.extend_from_slice(&CDR_HEADER_LE);
+        let mut fast_ser = CdrSerializer::<LittleEndian>::new(&mut buffer);
+        msg.serialize(&mut fast_ser).unwrap();
+        buffer
+    }
+
+    fn serialize_to_shm(
+        msg: &T,
+        estimated_size: usize,
+        provider: &zenoh::shm::ShmProvider<zenoh::shm::PosixShmProviderBackend>,
+    ) -> zenoh::Result<(ZBuf, usize)> {
+        let mut writer = crate::shm::ShmWriter::new(provider, estimated_size)?;
+        writer.extend_from_slice(&CDR_HEADER_LE);
+        let mut serializer = CdrSerializer::<LittleEndian, crate::shm::ShmWriter>::new(&mut writer);
+        msg.serialize(&mut serializer)
+            .map_err(|e| zenoh::Error::from(format!("CDR serialization failed: {}", e)))?;
+        let actual_size = writer.position();
+        let zbuf = writer.into_zbuf()?;
+        Ok((zbuf, actual_size))
+    }
+
+    fn deserialize(buf: &[u8]) -> Result<T, CdrError> {
+        if buf.len() < 4 {
+            return Err(CdrError("CDR data too short for header".into()));
+        }
+        let representation_identifier = &buf[0..2];
+        if representation_identifier != [0x00, 0x01] {
+            return Err(CdrError(format!(
+                "Expected CDR_LE encapsulation ({:?}), found {:?}",
+                [0x00, 0x01],
+                representation_identifier
+            )));
+        }
+        let payload = &buf[4..];
+        let x = ros_z_cdr::from_bytes::<T, byteorder::LittleEndian>(payload)
+            .map_err(|e| CdrError(e.to_string()))?;
+        Ok(x.0)
+    }
+}
+
+// Keep old ZSerializer/ZDeserializer impls on a wrapper for backwards compat
+// with any callers that use CdrCompatSerdes::<T>::serialize_to_zbuf() etc.
+// We provide a type alias for backwards compat.
+/// Backwards-compatible wrapper. Prefer [`CdrCompatSerdes`] (unit struct).
+#[doc(hidden)]
+pub struct CdrCompatSerdesTyped<T>(PhantomData<T>);
+
+impl<T> ZSerializer for CdrCompatSerdesTyped<T>
 where
     T: Serialize,
 {
@@ -274,7 +366,7 @@ where
     }
 }
 
-impl<T> ZDeserializer for SerdeCdrSerdes<T>
+impl<T> ZDeserializer for CdrCompatSerdesTyped<T>
 where
     for<'a> T: Deserialize<'a>,
 {
@@ -303,14 +395,78 @@ where
 
 // ── Fast CdrSerialize-based CDR serialization (new path for generated types) ────────────
 
-/// CDR serialization using the `CdrSerialize`/`CdrDeserialize` traits directly.
+/// Unit struct implementing CDR serialization via native `CdrSerialize`/`CdrDeserialize` traits.
 ///
-/// Generated message types implement these traits and use `NativeCdrSerdes` as their
-/// `ZMessage::Serdes` type. This enables the POD bulk fast path for sequences of
+/// Generated message types implement these traits and use `CdrSerdes` as their
+/// default serdes. This enables the POD bulk fast path for sequences of
 /// plain types (e.g., `Vec<f32>`, `Vec<geometry_msgs::Point>`).
-pub struct NativeCdrSerdes<T>(PhantomData<T>);
+///
+/// This is the default serdes for `ZPub`, `ZSub`, `ZClient`, and `ZServer`.
+pub struct CdrSerdes;
 
-impl<T> ZSerializer for NativeCdrSerdes<T>
+impl<T> ZSerdes<T> for CdrSerdes
+where
+    T: CdrSerialize + CdrSerializedSize + CdrDeserialize + Send + Sync + 'static,
+{
+    type Error = CdrError;
+
+    fn serialize(msg: &T) -> ZBuf {
+        let capacity_hint = msg.cdr_serialized_size(0) + 4;
+        Self::serialize_with_hint(msg, capacity_hint)
+    }
+
+    fn serialize_with_hint(msg: &T, capacity_hint: usize) -> ZBuf {
+        let mut writer = ZBufWriter::with_capacity(capacity_hint);
+        writer.extend_from_slice(&CDR_HEADER_LE);
+        ros_z_cdr::traits::cdr_to_zbuf_writer(msg, &mut writer);
+        writer.into_zbuf()
+    }
+
+    fn serialize_to_vec(msg: &T) -> Vec<u8> {
+        let mut buffer = Vec::new();
+        buffer.extend_from_slice(&CDR_HEADER_LE);
+        let mut cdr_writer = CdrWriter::<LittleEndian>::new(&mut buffer);
+        msg.cdr_serialize(&mut cdr_writer);
+        buffer
+    }
+
+    fn serialize_to_shm(
+        msg: &T,
+        estimated_size: usize,
+        provider: &zenoh::shm::ShmProvider<zenoh::shm::PosixShmProviderBackend>,
+    ) -> zenoh::Result<(ZBuf, usize)> {
+        let mut writer = crate::shm::ShmWriter::new(provider, estimated_size)?;
+        writer.extend_from_slice(&CDR_HEADER_LE);
+        let mut cdr_writer = CdrWriter::<LittleEndian, crate::shm::ShmWriter>::new(&mut writer);
+        msg.cdr_serialize(&mut cdr_writer);
+        let actual_size = writer.position();
+        let zbuf = writer.into_zbuf()?;
+        Ok((zbuf, actual_size))
+    }
+
+    fn deserialize(buf: &[u8]) -> Result<T, CdrError> {
+        if buf.len() < 4 {
+            return Err(CdrError("CDR data too short for header".into()));
+        }
+        let representation_identifier = &buf[0..2];
+        if representation_identifier != [0x00, 0x01] {
+            return Err(CdrError(format!(
+                "Expected CDR_LE encapsulation ({:?}), found {:?}",
+                [0x00, 0x01],
+                representation_identifier
+            )));
+        }
+        let payload = &buf[4..];
+        let mut reader = ros_z_cdr::CdrReader::<LittleEndian>::new(payload);
+        T::cdr_deserialize(&mut reader).map_err(|e| CdrError(e.to_string()))
+    }
+}
+
+/// Backwards-compatible typed wrapper for CdrSerdes.
+#[doc(hidden)]
+pub struct CdrSerdesTyped<T>(PhantomData<T>);
+
+impl<T> ZSerializer for CdrSerdesTyped<T>
 where
     T: CdrSerialize + CdrSerializedSize,
 {
@@ -359,7 +515,7 @@ where
     }
 }
 
-impl<T> ZDeserializer for NativeCdrSerdes<T>
+impl<T> ZDeserializer for CdrSerdesTyped<T>
 where
     T: CdrDeserialize,
 {
@@ -388,10 +544,61 @@ where
 // Protobuf
 
 #[cfg(feature = "protobuf")]
-pub struct ProtobufSerdes<T>(PhantomData<T>);
+pub struct ProtobufSerdes;
 
 #[cfg(feature = "protobuf")]
-impl<T> ZSerializer for ProtobufSerdes<T>
+impl<T> ZSerdes<T> for ProtobufSerdes
+where
+    T: ProstMessage + Default + Send + Sync + 'static,
+{
+    type Error = prost::DecodeError;
+
+    fn serialize(msg: &T) -> ZBuf {
+        ZBuf::from(msg.encode_to_vec())
+    }
+
+    fn serialize_with_hint(msg: &T, _capacity_hint: usize) -> ZBuf {
+        Self::serialize(msg)
+    }
+
+    fn serialize_to_vec(msg: &T) -> Vec<u8> {
+        msg.encode_to_vec()
+    }
+
+    fn serialize_to_shm(
+        msg: &T,
+        estimated_size: usize,
+        provider: &zenoh::shm::ShmProvider<zenoh::shm::PosixShmProviderBackend>,
+    ) -> zenoh::Result<(ZBuf, usize)> {
+        let data = msg.encode_to_vec();
+        let actual_size = data.len();
+
+        use zenoh::Wait;
+        use zenoh::shm::{BlockOn, GarbageCollect};
+
+        let mut shm_buf = provider
+            .alloc(estimated_size.max(actual_size))
+            .with_policy::<BlockOn<GarbageCollect>>()
+            .wait()
+            .map_err(|e| zenoh::Error::from(format!("SHM allocation failed: {}", e)))?;
+
+        shm_buf[0..actual_size].copy_from_slice(&data);
+
+        Ok((ZBuf::from(shm_buf), actual_size))
+    }
+
+    fn deserialize(buf: &[u8]) -> Result<T, prost::DecodeError> {
+        T::decode(buf)
+    }
+}
+
+/// Backwards-compatible typed protobuf wrapper.
+#[cfg(feature = "protobuf")]
+#[doc(hidden)]
+pub struct ProtobufSerdesTyped<T>(PhantomData<T>);
+
+#[cfg(feature = "protobuf")]
+impl<T> ZSerializer for ProtobufSerdesTyped<T>
 where
     T: ProstMessage,
 {
@@ -446,7 +653,7 @@ where
 }
 
 #[cfg(feature = "protobuf")]
-impl<T> ZDeserializer for ProtobufSerdes<T>
+impl<T> ZDeserializer for ProtobufSerdesTyped<T>
 where
     T: ProstMessage + Default,
 {
@@ -475,10 +682,6 @@ mod tests {
         text: String,
     }
 
-    impl ZMessage for SimpleMessage {
-        type Serdes = SerdeCdrSerdes<SimpleMessage>;
-    }
-
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
     struct LargeMessage {
         data: Vec<u8>,
@@ -493,14 +696,15 @@ mod tests {
             text: "Hello, ZBuf!".to_string(),
         };
 
-        let zbuf = SerdeCdrSerdes::<SimpleMessage>::serialize_to_zbuf(&msg);
+        let zbuf = CdrCompatSerdes::serialize(&msg);
         let bytes = zbuf.contiguous();
 
         // Verify CDR header
         assert_eq!(&bytes[0..4], &CDR_HEADER_LE);
 
         // Verify roundtrip
-        let deserialized = SerdeCdrSerdes::<SimpleMessage>::deserialize(&bytes).unwrap();
+        let deserialized =
+            <CdrCompatSerdes as ZSerdes<SimpleMessage>>::deserialize(&bytes).unwrap();
         assert_eq!(deserialized, msg);
     }
 
@@ -512,43 +716,11 @@ mod tests {
         };
 
         // Both methods should produce identical bytes
-        let zbuf = SerdeCdrSerdes::<SimpleMessage>::serialize_to_zbuf(&msg);
-        let vec = SerdeCdrSerdes::<SimpleMessage>::serialize(&msg);
+        let zbuf = CdrCompatSerdes::serialize(&msg);
+        let vec = CdrCompatSerdes::serialize_to_vec(&msg);
 
         let zbuf_bytes = zbuf.contiguous();
         assert_eq!(&*zbuf_bytes, &vec[..]);
-    }
-
-    #[test]
-    fn test_serialize_to_zbuf_reuse() {
-        let msg1 = SimpleMessage {
-            value: 1,
-            text: "first".to_string(),
-        };
-        let msg2 = SimpleMessage {
-            value: 2,
-            text: "second".to_string(),
-        };
-
-        let mut buffer = Vec::with_capacity(1024);
-
-        // First serialization
-        let zbuf1 = SerdeCdrSerdes::<SimpleMessage>::serialize_to_zbuf_reuse(&msg1, &mut buffer);
-        let bytes1 = zbuf1.contiguous();
-
-        // Buffer should be empty after take
-        assert!(buffer.is_empty());
-
-        // Second serialization (buffer will be reallocated)
-        let zbuf2 = SerdeCdrSerdes::<SimpleMessage>::serialize_to_zbuf_reuse(&msg2, &mut buffer);
-        let bytes2 = zbuf2.contiguous();
-
-        // Verify roundtrips
-        let decoded1 = SerdeCdrSerdes::<SimpleMessage>::deserialize(&bytes1).unwrap();
-        let decoded2 = SerdeCdrSerdes::<SimpleMessage>::deserialize(&bytes2).unwrap();
-
-        assert_eq!(decoded1, msg1);
-        assert_eq!(decoded2, msg2);
     }
 
     #[test]
@@ -558,13 +730,14 @@ mod tests {
             text: "trait test".to_string(),
         };
 
-        // ZMessage trait provides serialize_to_zbuf method
-        let zbuf = msg.serialize_to_zbuf();
+        // Use CdrCompatSerdes directly for serde-only types
+        let zbuf = CdrCompatSerdes::serialize(&msg);
         let bytes = zbuf.contiguous();
 
         assert_eq!(&bytes[0..4], &CDR_HEADER_LE);
 
-        let deserialized = <SimpleMessage as ZMessage>::deserialize(&bytes).unwrap();
+        let deserialized =
+            <CdrCompatSerdes as ZSerdes<SimpleMessage>>::deserialize(&bytes).unwrap();
         assert_eq!(deserialized, msg);
     }
 
@@ -576,9 +749,10 @@ mod tests {
         };
 
         // Serialize using both methods
-        let vec1 = SerdeCdrSerdes::<SimpleMessage>::serialize(&msg);
-        let mut vec2 = Vec::new();
-        SerdeCdrSerdes::<SimpleMessage>::serialize_to_buf(&msg, &mut vec2);
+        let vec1 = CdrCompatSerdes::serialize_to_vec(&msg);
+        let zbuf = CdrCompatSerdes::serialize(&msg);
+        let zbuf_bytes = zbuf.contiguous();
+        let vec2 = zbuf_bytes.to_vec();
 
         // Results should be identical
         assert_eq!(vec1, vec2);
@@ -587,54 +761,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cdr_serialize_to_buf_reuses_capacity() {
-        let msg = SimpleMessage {
-            value: 123,
-            text: "test".to_string(),
-        };
-
-        let mut buffer = Vec::with_capacity(1024);
-        SerdeCdrSerdes::<SimpleMessage>::serialize_to_buf(&msg, &mut buffer);
-
-        let capacity_after_first = buffer.capacity();
-        assert_eq!(capacity_after_first, 1024);
-
-        // Serialize again - should reuse capacity
-        SerdeCdrSerdes::<SimpleMessage>::serialize_to_buf(&msg, &mut buffer);
-        assert_eq!(buffer.capacity(), capacity_after_first);
-    }
-
-    #[test]
-    fn test_cdr_serialize_to_buf_clears_previous_data() {
-        let msg1 = LargeMessage {
-            data: vec![1; 1000],
-            count: 100,
-            nested: vec![],
-        };
-
-        let msg2 = SimpleMessage {
-            value: 1,
-            text: "x".to_string(),
-        };
-
-        let mut buffer = Vec::new();
-
-        // Serialize large message
-        SerdeCdrSerdes::<LargeMessage>::serialize_to_buf(&msg1, &mut buffer);
-        let len1 = buffer.len();
-        assert!(len1 > 100);
-
-        // Serialize small message - should clear buffer first
-        SerdeCdrSerdes::<SimpleMessage>::serialize_to_buf(&msg2, &mut buffer);
-        let len2 = buffer.len();
-        assert!(len2 < len1);
-
-        // Verify content is correct (not mixed)
-        assert_eq!(&buffer[0..4], &CDR_HEADER_LE); // CDR header
-    }
-
-    #[test]
-    fn test_cdr_roundtrip_with_serialize_to_buf() {
+    fn test_cdr_roundtrip_with_serialize_to_vec() {
         let original = LargeMessage {
             data: vec![1, 2, 3, 4, 5, 6, 7, 8],
             count: 42,
@@ -650,68 +777,15 @@ mod tests {
             ],
         };
 
-        // Serialize using serialize_to_buf
-        let mut buffer = Vec::new();
-        SerdeCdrSerdes::<LargeMessage>::serialize_to_buf(&original, &mut buffer);
+        // Serialize using serialize_to_vec
+        let buffer = CdrCompatSerdes::serialize_to_vec(&original);
 
         // Deserialize
-        let deserialized =
-            SerdeCdrSerdes::<LargeMessage>::deserialize(&buffer).expect("Failed to deserialize");
+        let deserialized = <CdrCompatSerdes as ZSerdes<LargeMessage>>::deserialize(&buffer)
+            .expect("Failed to deserialize");
 
         // Should match original
         assert_eq!(deserialized, original);
-    }
-
-    #[test]
-    fn test_serialize_to_buf_with_empty_buffer() {
-        let msg = SimpleMessage {
-            value: 99,
-            text: "empty buffer test".to_string(),
-        };
-
-        let mut buffer = Vec::new();
-        assert_eq!(buffer.capacity(), 0);
-
-        SerdeCdrSerdes::<SimpleMessage>::serialize_to_buf(&msg, &mut buffer);
-
-        assert!(!buffer.is_empty());
-        assert!(buffer.capacity() > 0);
-        assert_eq!(&buffer[0..4], &CDR_HEADER_LE); // CDR header
-    }
-
-    #[test]
-    fn test_serialize_to_buf_multiple_messages() {
-        let messages = vec![
-            SimpleMessage {
-                value: 1,
-                text: "one".to_string(),
-            },
-            SimpleMessage {
-                value: 2,
-                text: "two".to_string(),
-            },
-            SimpleMessage {
-                value: 3,
-                text: "three".to_string(),
-            },
-        ];
-
-        let mut buffer = Vec::new();
-        let mut all_serialized = Vec::new();
-
-        for msg in &messages {
-            SerdeCdrSerdes::<SimpleMessage>::serialize_to_buf(msg, &mut buffer);
-            all_serialized.push(buffer.clone());
-
-            // Verify each serialization is correct
-            let deserialized = SerdeCdrSerdes::<SimpleMessage>::deserialize(&buffer)
-                .expect("Failed to deserialize");
-            assert_eq!(&deserialized, msg);
-        }
-
-        // Verify all serializations are different
-        assert_ne!(all_serialized[0], all_serialized[1]);
-        assert_ne!(all_serialized[1], all_serialized[2]);
     }
 
     #[test]
@@ -721,20 +795,21 @@ mod tests {
             text: "trait test".to_string(),
         };
 
-        // ZMessage trait provides serialize method
-        let serialized = ZMessage::serialize(&msg);
+        // Use CdrCompatSerdes directly for serde-only types
+        let serialized = CdrCompatSerdes::serialize_to_vec(&msg);
         assert!(!serialized.is_empty());
         assert_eq!(&serialized[0..4], &CDR_HEADER_LE);
 
-        // ZMessage trait provides deserialize method
-        let deserialized = <SimpleMessage as ZMessage>::deserialize(&serialized[..])
-            .expect("Failed to deserialize");
+        // Deserialize using CdrCompatSerdes
+        let deserialized =
+            <CdrCompatSerdes as ZSerdes<SimpleMessage>>::deserialize(&serialized[..])
+                .expect("Failed to deserialize");
         assert_eq!(deserialized, msg);
     }
 
     #[cfg(feature = "protobuf")]
     #[test]
-    fn test_protobuf_serialize_to_buf() {
+    fn test_protobuf_serialize_to_vec() {
         use prost::Message;
 
         #[derive(Clone, PartialEq, Message)]
@@ -751,9 +826,10 @@ mod tests {
         };
 
         // Test both serialization methods
-        let vec1 = ProtobufSerdes::<ProtoMessage>::serialize(&msg);
-        let mut vec2 = Vec::new();
-        ProtobufSerdes::<ProtoMessage>::serialize_to_buf(&msg, &mut vec2);
+        let vec1 = ProtobufSerdes::serialize_to_vec(&msg);
+        let zbuf = ProtobufSerdes::serialize(&msg);
+        let zbuf_bytes = zbuf.contiguous();
+        let vec2 = zbuf_bytes.to_vec();
 
         // Results should be identical
         assert_eq!(vec1, vec2);
@@ -778,20 +854,20 @@ mod tests {
             name: "test".to_string(),
         };
 
-        let zbuf = ProtobufSerdes::<ProtoMessage>::serialize_to_zbuf(&msg);
+        let zbuf = ProtobufSerdes::serialize(&msg);
         let bytes = zbuf.contiguous();
 
         // Verify it matches the Vec<u8> serialization
-        let vec = ProtobufSerdes::<ProtoMessage>::serialize(&msg);
+        let vec = ProtobufSerdes::serialize_to_vec(&msg);
         assert_eq!(&*bytes, &vec[..]);
     }
 }
 
-/// Tests for `NativeCdrSerdes` — the `CdrSerialize`-based CDR fast path.
+/// Tests for `CdrSerdes` — the `CdrSerialize`-based CDR fast path.
 ///
 /// These tests verify:
-/// 1. Byte-identical wire output between `SerdeCdrSerdes` (serde path) and `NativeCdrSerdes` (CDR trait path).
-/// 2. Roundtrip correctness for `NativeCdrSerdes`.
+/// 1. Byte-identical wire output between `CdrCompatSerdes` (serde path) and `CdrSerdes` (CDR trait path).
+/// 2. Roundtrip correctness for `CdrSerdes`.
 /// 3. POD bulk path produces the same bytes for plain sequences as the element loop.
 #[cfg(test)]
 mod fast_cdr_tests {
@@ -927,16 +1003,24 @@ mod fast_cdr_tests {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    fn serde_bytes<T: Serialize>(value: &T) -> Vec<u8> {
-        SerdeCdrSerdes::<T>::serialize(value)
+    fn serde_bytes<T: serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static>(
+        value: &T,
+    ) -> Vec<u8> {
+        CdrCompatSerdes::serialize_to_vec(value)
     }
 
-    fn fast_bytes<T: CdrSerialize + CdrSerializedSize>(value: &T) -> Vec<u8> {
-        NativeCdrSerdes::<T>::serialize(value)
+    fn fast_bytes<T: CdrSerialize + CdrSerializedSize + CdrDeserialize + Send + Sync + 'static>(
+        value: &T,
+    ) -> Vec<u8> {
+        CdrSerdes::serialize_to_vec(value)
     }
 
-    fn fast_deserialize<T: CdrDeserialize>(bytes: &[u8]) -> T {
-        NativeCdrSerdes::<T>::deserialize(bytes).expect("NativeCdrSerdes::deserialize failed")
+    fn fast_deserialize<
+        T: CdrSerialize + CdrSerializedSize + CdrDeserialize + Send + Sync + 'static,
+    >(
+        bytes: &[u8],
+    ) -> T {
+        CdrSerdes::deserialize(bytes).expect("CdrSerdes::deserialize failed")
     }
 
     // ── Tests ─────────────────────────────────────────────────────────────────

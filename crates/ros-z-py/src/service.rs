@@ -1,7 +1,7 @@
 use anyhow::Result;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use ros_z::msg::{ZDeserializer, ZMessage, ZService};
+use ros_z::msg::{CdrCompatSerdes, ZMessage, ZSerdes, ZService};
 use ros_z::service::{QueryKey, ZClient, ZServer};
 use std::time::Duration;
 
@@ -28,14 +28,11 @@ where
     T: ZService + Send + Sync + 'static,
     T::Request: ZMessage + Send + Sync + 'static,
     T::Response: ZMessage + Send + Sync + 'static,
-    for<'a> <T::Request as ZMessage>::Serdes:
-        ZDeserializer<Output = T::Request, Input<'a> = &'a [u8]>,
-    for<'a> <T::Response as ZMessage>::Serdes:
-        ZDeserializer<Output = T::Response, Input<'a> = &'a [u8]>,
+    CdrCompatSerdes: ZSerdes<T::Request> + ZSerdes<T::Response>,
 {
     fn send_request_serialized(&self, data: &[u8]) -> Result<()> {
         // Deserialize the request from CDR bytes
-        let request = <T::Request as ZMessage>::deserialize(data)
+        let request = <CdrCompatSerdes as ZSerdes<T::Request>>::deserialize(data)
             .map_err(|e| anyhow::anyhow!("Failed to deserialize request: {:?}", e))?;
 
         // Send the request (this is async in Rust, but we'll block here for Python)
@@ -61,13 +58,17 @@ where
             .map_err(|e| anyhow::anyhow!("Failed to receive response: {}", e))?;
 
         // Serialize the response to CDR bytes
-        Ok(response.serialize())
+        Ok(<CdrCompatSerdes as ZSerdes<T::Response>>::serialize_to_vec(
+            &response,
+        ))
     }
 
     fn try_take_response_serialized(&self) -> Result<Option<Vec<u8>>> {
         // Use a minimal timeout for non-blocking behavior
         match self.inner.take_response_timeout(Duration::from_millis(1)) {
-            Ok(response) => Ok(Some(response.serialize())),
+            Ok(response) => Ok(Some(
+                <CdrCompatSerdes as ZSerdes<T::Response>>::serialize_to_vec(&response),
+            )),
             Err(e) => {
                 let err_str = e.to_string();
                 if err_str.contains("timeout")
@@ -108,10 +109,7 @@ where
     T: ZService + Send + Sync + 'static,
     T::Request: ZMessage + Send + Sync + 'static,
     T::Response: ZMessage + Send + Sync + 'static,
-    for<'a> <T::Request as ZMessage>::Serdes:
-        ZDeserializer<Output = T::Request, Input<'a> = &'a [u8]>,
-    for<'a> <T::Response as ZMessage>::Serdes:
-        ZDeserializer<Output = T::Response, Input<'a> = &'a [u8]>,
+    CdrCompatSerdes: ZSerdes<T::Request> + ZSerdes<T::Response>,
 {
     fn take_request_serialized(&self) -> Result<(QueryKey, Vec<u8>)> {
         let mut server = self
@@ -124,12 +122,15 @@ where
             .map_err(|e| anyhow::anyhow!("Failed to receive request: {}", e))?;
 
         // Serialize the request to CDR bytes
-        Ok((key, request.serialize()))
+        Ok((
+            key,
+            <CdrCompatSerdes as ZSerdes<T::Request>>::serialize_to_vec(&request),
+        ))
     }
 
     fn send_response_serialized(&self, data: &[u8], key: &QueryKey) -> Result<()> {
         // Deserialize the response from CDR bytes
-        let response = <T::Response as ZMessage>::deserialize(data)
+        let response = <CdrCompatSerdes as ZSerdes<T::Response>>::deserialize(data)
             .map_err(|e| anyhow::anyhow!("Failed to deserialize response: {:?}", e))?;
 
         let mut server = self

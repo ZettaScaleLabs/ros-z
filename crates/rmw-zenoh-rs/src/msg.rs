@@ -1,6 +1,6 @@
 use crate::type_support::MessageTypeSupport;
 use ros_z::entity::{TypeHash, TypeInfo};
-use ros_z::msg::{ZDeserializer, ZMessage, ZSerializer, ZService};
+use ros_z::msg::{ZDeserializer, ZSerdes, ZSerializer, ZService};
 use ros_z::ros_msg::WithTypeInfo;
 use ros_z::{MessageTypeInfo, ServiceTypeInfo};
 
@@ -79,8 +79,57 @@ impl ZSerializer for RosSerdes {
     }
 }
 
-impl ZMessage for RosMessage {
-    type Serdes = RosSerdes;
+/// `ZSerdes<RosMessage>` implementation for `RosSerdes`.
+///
+/// Serialization uses the C FFI path (`ts.serialize_message`).
+/// Deserialization via the `ZSerdes` interface is not supported — the RMW path
+/// deserializes directly into a pre-allocated C++ message via `ts.deserialize_message`
+/// in `SubscriptionImpl::take`. Calling `deserialize` on this impl returns an error.
+impl ZSerdes<RosMessage> for RosSerdes {
+    type Error = std::io::Error;
+
+    fn serialize(msg: &RosMessage) -> zenoh_buffers::ZBuf {
+        let RosMessage { msg: ptr, ts } = msg;
+        let bytes = unsafe { ts.serialize_message(*ptr) };
+        zenoh_buffers::ZBuf::from(bytes)
+    }
+
+    fn serialize_with_hint(msg: &RosMessage, _capacity_hint: usize) -> zenoh_buffers::ZBuf {
+        <RosSerdes as ZSerdes<RosMessage>>::serialize(msg)
+    }
+
+    fn serialize_to_vec(msg: &RosMessage) -> Vec<u8> {
+        let RosMessage { msg: ptr, ts } = msg;
+        unsafe { ts.serialize_message(*ptr) }
+    }
+
+    fn serialize_to_shm(
+        msg: &RosMessage,
+        _estimated_size: usize,
+        provider: &zenoh::shm::ShmProvider<zenoh::shm::PosixShmProviderBackend>,
+    ) -> zenoh::Result<(zenoh_buffers::ZBuf, usize)> {
+        let data = Self::serialize_to_vec(msg);
+        let actual_size = data.len();
+
+        use zenoh::Wait;
+        use zenoh::shm::{BlockOn, GarbageCollect};
+
+        let mut shm_buf = provider
+            .alloc(actual_size)
+            .with_policy::<BlockOn<GarbageCollect>>()
+            .wait()
+            .map_err(|e| zenoh::Error::from(format!("SHM allocation failed: {}", e)))?;
+
+        shm_buf[0..actual_size].copy_from_slice(&data);
+        Ok((zenoh_buffers::ZBuf::from(shm_buf), actual_size))
+    }
+
+    fn deserialize(_buf: &[u8]) -> Result<RosMessage, std::io::Error> {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "RosMessage deserialization requires a pre-allocated target; use SubscriptionImpl::take instead",
+        ))
+    }
 }
 
 impl MessageTypeInfo for RosMessage {

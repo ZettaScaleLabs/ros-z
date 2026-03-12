@@ -34,7 +34,7 @@ pub fn run_pubsub_demo(ctx: ZContext, max_count: Option<usize>) -> Result<()> {
     println!("--- Part 1: ROS geometry_msgs/Vector3 with Protobuf ---");
     let ros_pub = node
         .create_pub::<Vector3Proto>("/vector_proto")
-        .with_serdes::<ProtobufSerdes<Vector3Proto>>()
+        .with_serdes::<ProtobufSerdes>()
         .build()?;
 
     println!("Publishing ROS Vector3 messages...\n");
@@ -55,7 +55,7 @@ pub fn run_pubsub_demo(ctx: ZContext, max_count: Option<usize>) -> Result<()> {
     println!("\n--- Part 2: Custom SensorData message (pure protobuf) ---");
     let custom_pub = node
         .create_pub::<SensorData>("/sensor_data")
-        .with_serdes::<ProtobufSerdes<SensorData>>()
+        .with_serdes::<ProtobufSerdes>()
         .build()?;
 
     println!("Publishing custom SensorData messages...\n");
@@ -82,7 +82,7 @@ pub fn run_pubsub_demo(ctx: ZContext, max_count: Option<usize>) -> Result<()> {
     println!("\nKey points:");
     println!("1. ROS messages (Vector3Proto): Auto-generated from ros-z-msgs with MessageTypeInfo");
     println!("2. Custom messages (SensorData): Generated from your own .proto files");
-    println!("3. Both use .with_serdes::<ProtobufSerdes<T>>() for protobuf serialization");
+    println!("3. Both use .with_serdes::<ProtobufSerdes>() for protobuf serialization");
     println!("4. ros-z is transport-agnostic - works with ANY protobuf message!");
 
     Ok(())
@@ -101,7 +101,10 @@ pub fn run_service_client(
 ) -> Result<()> {
     let node = ctx.create_node("calculator_client").build()?;
 
-    let client = node.create_client::<Calculate>(service_name).build()?;
+    let client = node
+        .create_client::<Calculate>(service_name)
+        .with_serdes::<ProtobufSerdes>()
+        .build()?;
 
     println!("Calculator service client started");
     println!("Calling service '{}'...\n", service_name);
@@ -140,7 +143,9 @@ pub fn run_service_client(
     println!("Successfully demonstrated protobuf service calls!");
     println!("\nKey points:");
     println!("1. Request/Response: Protobuf messages generated from .proto files");
-    println!("2. Both implement MessageTypeInfo, WithTypeInfo, and ZMessage traits");
+    println!(
+        "2. Both implement MessageTypeInfo and WithTypeInfo (ZMessage is automatic via blanket impl)"
+    );
     println!("3. Service type implements ZService and ServiceTypeInfo");
     println!("4. Works seamlessly with node.create_service() and node.create_client()");
     println!("5. Uses ProtobufSerdes for pure protobuf serialization (not CDR!)");
@@ -161,7 +166,10 @@ pub fn run_service_server(
 ) -> Result<()> {
     let node = ctx.create_node("calculator_server").build()?;
 
-    let mut server = node.create_service::<Calculate>(service_name).build()?;
+    let mut server = node
+        .create_service::<Calculate>(service_name)
+        .with_serdes::<ProtobufSerdes>()
+        .build()?;
 
     println!("Calculator service server started on '{}'", service_name);
     println!("Waiting for requests...\n");

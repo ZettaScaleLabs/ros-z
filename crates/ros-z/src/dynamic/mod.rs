@@ -73,7 +73,7 @@ pub use error::DynamicError;
 pub use message::{DynamicMessage, DynamicMessageBuilder};
 pub use registry::{SchemaRegistry, get_schema, has_schema, register_schema};
 pub use schema::{FieldSchema, FieldType, MessageSchema, MessageSchemaBuilder};
-pub use serdes::DynamicSerdeCdrSerdes;
+pub use serdes::DynamicCdrCompatSerdes;
 pub use serialization::SerializationFormat;
 pub use type_description::{MessageSchemaTypeDescription, type_description_msg_to_schema};
 pub use type_description_client::TypeDescriptionClient;
@@ -87,23 +87,19 @@ pub use value::{DynamicValue, FromDynamic, IntoDynamic};
 
 use zenoh::sample::Sample;
 
-use crate::msg::ZMessage;
 use crate::pubsub::{ZPub, ZPubBuilder, ZSub, ZSubBuilder};
 
-// Implement ZMessage for DynamicMessage
-impl ZMessage for DynamicMessage {
-    type Serdes = DynamicSerdeCdrSerdes;
-}
+// ZMessage covered by blanket impl in ros_z::msg for all Send + Sync + 'static types.
 
 // Type aliases for convenience
 /// Type alias for a dynamic message publisher.
-pub type DynPub = ZPub<DynamicMessage, DynamicSerdeCdrSerdes>;
+pub type DynPub = ZPub<DynamicMessage, DynamicCdrCompatSerdes>;
 
 /// Type alias for a dynamic message subscriber.
-pub type DynSub = ZSub<DynamicMessage, Sample, DynamicSerdeCdrSerdes>;
+pub type DynSub = ZSub<DynamicMessage, Sample, DynamicCdrCompatSerdes>;
 
 /// Type alias for a dynamic message publisher builder.
-pub type DynPubBuilder = ZPubBuilder<DynamicMessage, DynamicSerdeCdrSerdes>;
+pub type DynPubBuilder = ZPubBuilder<DynamicMessage, DynamicCdrCompatSerdes>;
 
 /// Type alias for a dynamic message subscriber builder.
-pub type DynSubBuilder = ZSubBuilder<DynamicMessage, DynamicSerdeCdrSerdes>;
+pub type DynSubBuilder = ZSubBuilder<DynamicMessage, DynamicCdrCompatSerdes>;

@@ -1,6 +1,9 @@
 use std::{thread, time::Duration};
 
-use ros_z::{Builder, TypeHash, ZBuf, context::ZContextBuilder, ros_msg::MessageTypeInfo};
+use ros_z::{
+    Builder, TypeHash, ZBuf, context::ZContextBuilder, msg::CdrCompatSerdes,
+    ros_msg::MessageTypeInfo,
+};
 use ros_z_msgs::std_msgs::ByteMultiArray;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -24,10 +27,6 @@ impl MessageTypeInfo for TestMessage {
 
 impl ros_z::ros_msg::WithTypeInfo for TestMessage {}
 
-impl ros_z::msg::ZMessage for TestMessage {
-    type Serdes = ros_z::msg::SerdeCdrSerdes<TestMessage>;
-}
-
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn test_basic_pubsub() {
     let ctx = ZContextBuilder::default()
@@ -40,11 +39,13 @@ async fn test_basic_pubsub() {
 
     let publisher = node
         .create_pub::<TestMessage>("/test_topic")
+        .with_serdes::<CdrCompatSerdes>()
         .build()
         .unwrap();
 
     let subscriber = node
         .create_sub::<TestMessage>("/test_topic")
+        .with_serdes::<CdrCompatSerdes>()
         .build()
         .unwrap();
 
@@ -74,11 +75,13 @@ async fn test_multiple_messages() {
 
     let publisher = node
         .create_pub::<TestMessage>("/multi_topic")
+        .with_serdes::<CdrCompatSerdes>()
         .build()
         .unwrap();
 
     let subscriber = node
         .create_sub::<TestMessage>("/multi_topic")
+        .with_serdes::<CdrCompatSerdes>()
         .build()
         .unwrap();
 
@@ -112,11 +115,13 @@ async fn test_large_payload() {
 
     let publisher = node
         .create_pub::<TestMessage>("/large_topic")
+        .with_serdes::<CdrCompatSerdes>()
         .build()
         .unwrap();
 
     let subscriber = node
         .create_sub::<TestMessage>("/large_topic")
+        .with_serdes::<CdrCompatSerdes>()
         .build()
         .unwrap();
 

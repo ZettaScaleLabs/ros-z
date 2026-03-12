@@ -21,7 +21,10 @@ use super::{
     server::{Executing, GoalHandle, InnerServer, Requested, ZActionServer},
     state::ServerGoalState,
 };
-use crate::{attachment::Attachment, msg::ZMessage};
+use crate::{
+    attachment::Attachment,
+    msg::{CdrCompatSerdes, CdrSerdes, ZSerdes},
+};
 
 /// Runs the unified driver loop for an action server with automatic goal handling.
 ///
@@ -132,7 +135,7 @@ async fn handle_goal_request<A, F, Fut>(
 {
     tracing::debug!("Received goal request");
     let payload = query.payload().unwrap().to_bytes();
-    let request = match <GoalRequest<A> as ZMessage>::deserialize(&payload) {
+    let request = match <CdrCompatSerdes as ZSerdes<GoalRequest<A>>>::deserialize(&payload) {
         Ok(r) => r,
         Err(e) => {
             tracing::error!("Failed to deserialize goal request: {}", e);
@@ -169,7 +172,7 @@ async fn handle_cancel_request<A: ZAction>(
 ) {
     tracing::debug!("Received cancel request");
     let payload = query.payload().unwrap().to_bytes();
-    let request = match <CancelGoalServiceRequest as ZMessage>::deserialize(&payload) {
+    let request = match <CdrSerdes as ZSerdes<CancelGoalServiceRequest>>::deserialize(&payload) {
         Ok(r) => r,
         Err(e) => {
             tracing::error!("Failed to deserialize cancel request: {}", e);
@@ -199,7 +202,8 @@ async fn handle_cancel_request<A: ZAction>(
         },
     };
 
-    let response_bytes = <CancelGoalServiceResponse as ZMessage>::serialize(&response);
+    let response_bytes =
+        <CdrSerdes as ZSerdes<CancelGoalServiceResponse>>::serialize_to_vec(&response);
     let attachment: Attachment = query.attachment().unwrap().try_into().unwrap();
     // FIXME: address the result
     let _ = query
@@ -217,7 +221,7 @@ async fn handle_result_request<A: ZAction>(
 ) {
     tracing::debug!("Received result request");
     let payload = query.payload().unwrap().to_bytes();
-    let request = match <GetResultRequest as ZMessage>::deserialize(&payload) {
+    let request = match <CdrSerdes as ZSerdes<GetResultRequest>>::deserialize(&payload) {
         Ok(r) => r,
         Err(e) => {
             tracing::error!("Failed to deserialize result request: {}", e);
@@ -291,7 +295,8 @@ async fn handle_result_request<A: ZAction>(
         status: status as i8,
         result,
     };
-    let response_bytes = <GetResultResponse<A> as ZMessage>::serialize(&response);
+    let response_bytes =
+        <CdrCompatSerdes as ZSerdes<GetResultResponse<A>>>::serialize_to_vec(&response);
     let attachment: Attachment = query.attachment().unwrap().try_into().unwrap();
     let _ = query
         .reply(query.key_expr().clone(), response_bytes)

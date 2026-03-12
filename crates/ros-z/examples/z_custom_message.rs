@@ -2,8 +2,10 @@ use std::time::Duration;
 
 use clap::Parser;
 use ros_z::{
-    Builder, MessageTypeInfo, Result, ServiceTypeInfo, context::ZContextBuilder, entity::TypeHash,
-    msg::ZService,
+    Builder, MessageTypeInfo, Result, ServiceTypeInfo,
+    context::ZContextBuilder,
+    entity::TypeHash,
+    msg::{CdrCompatSerdes, ZService},
 };
 use serde::{Deserialize, Serialize};
 
@@ -29,10 +31,6 @@ impl MessageTypeInfo for RobotStatus {
 
 impl ros_z::WithTypeInfo for RobotStatus {}
 
-impl ros_z::msg::ZMessage for RobotStatus {
-    type Serdes = ros_z::msg::SerdeCdrSerdes<RobotStatus>;
-}
-
 // Custom service request
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct NavigateToRequest {
@@ -53,10 +51,6 @@ impl MessageTypeInfo for NavigateToRequest {
 
 impl ros_z::WithTypeInfo for NavigateToRequest {}
 
-impl ros_z::msg::ZMessage for NavigateToRequest {
-    type Serdes = ros_z::msg::SerdeCdrSerdes<NavigateToRequest>;
-}
-
 // Custom service response
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct NavigateToResponse {
@@ -76,10 +70,6 @@ impl MessageTypeInfo for NavigateToResponse {
 }
 
 impl ros_z::WithTypeInfo for NavigateToResponse {}
-
-impl ros_z::msg::ZMessage for NavigateToResponse {
-    type Serdes = ros_z::msg::SerdeCdrSerdes<NavigateToResponse>;
-}
 
 // Service type definition
 pub struct NavigateTo;
@@ -146,7 +136,10 @@ async fn run_status_publisher(robot_id: String) -> Result<()> {
 
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("robot_status_publisher").build()?;
-    let zpub = node.create_pub::<RobotStatus>("/robot_status").build()?;
+    let zpub = node
+        .create_pub::<RobotStatus>("/robot_status")
+        .with_serdes::<CdrCompatSerdes>()
+        .build()?;
 
     let mut position_x = 0.0;
     let mut position_y = 0.0;
@@ -197,7 +190,10 @@ async fn run_status_subscriber() -> Result<()> {
 
     let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("robot_status_subscriber").build()?;
-    let zsub = node.create_sub::<RobotStatus>("/robot_status").build()?;
+    let zsub = node
+        .create_sub::<RobotStatus>("/robot_status")
+        .with_serdes::<CdrCompatSerdes>()
+        .build()?;
 
     loop {
         let status = zsub.async_recv().await?;
