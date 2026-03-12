@@ -286,11 +286,14 @@ pub fn get_type_id(field_type: &FieldType) -> Result<u8> {
     }
 
     // Primitive types
-    // Note: In ROS2, 'char' is uint8 (unsigned), not int8 (signed)
+    // Note: In ROS2:
+    //   'char'  is uint8 (type_id 3)
+    //   'byte'  is its own distinct type (type_id 16) — NOT the same as uint8
     match (base_type, array) {
         // Single primitives
         ("int8", ArrayType::Single) => Ok(TypeId::INT8),
-        ("uint8" | "byte" | "char", ArrayType::Single) => Ok(TypeId::UINT8),
+        ("uint8" | "char", ArrayType::Single) => Ok(TypeId::UINT8),
+        ("byte", ArrayType::Single) => Ok(TypeId::BYTE),
         ("int16", ArrayType::Single) => Ok(TypeId::INT16),
         ("uint16", ArrayType::Single) => Ok(TypeId::UINT16),
         ("int32", ArrayType::Single) => Ok(TypeId::INT32),
@@ -304,7 +307,8 @@ pub fn get_type_id(field_type: &FieldType) -> Result<u8> {
 
         // Fixed arrays
         ("int8", ArrayType::Fixed(_)) => Ok(TypeId::INT8_ARRAY),
-        ("uint8" | "byte" | "char", ArrayType::Fixed(_)) => Ok(TypeId::UINT8_ARRAY),
+        ("uint8" | "char", ArrayType::Fixed(_)) => Ok(TypeId::UINT8_ARRAY),
+        ("byte", ArrayType::Fixed(_)) => Ok(TypeId::BYTE + TypeId::ARRAY_OFFSET),
         ("int16", ArrayType::Fixed(_)) => Ok(TypeId::INT16_ARRAY),
         ("uint16", ArrayType::Fixed(_)) => Ok(TypeId::UINT16_ARRAY),
         ("int32", ArrayType::Fixed(_)) => Ok(TypeId::INT32_ARRAY),
@@ -318,7 +322,8 @@ pub fn get_type_id(field_type: &FieldType) -> Result<u8> {
 
         // Bounded sequences
         ("int8", ArrayType::Bounded(_)) => Ok(TypeId::INT8_BOUNDED_SEQUENCE),
-        ("uint8" | "byte" | "char", ArrayType::Bounded(_)) => Ok(TypeId::UINT8_BOUNDED_SEQUENCE),
+        ("uint8" | "char", ArrayType::Bounded(_)) => Ok(TypeId::UINT8_BOUNDED_SEQUENCE),
+        ("byte", ArrayType::Bounded(_)) => Ok(TypeId::BYTE + TypeId::BOUNDED_SEQUENCE_OFFSET),
         ("int16", ArrayType::Bounded(_)) => Ok(TypeId::INT16_BOUNDED_SEQUENCE),
         ("uint16", ArrayType::Bounded(_)) => Ok(TypeId::UINT16_BOUNDED_SEQUENCE),
         ("int32", ArrayType::Bounded(_)) => Ok(TypeId::INT32_BOUNDED_SEQUENCE),
@@ -332,7 +337,8 @@ pub fn get_type_id(field_type: &FieldType) -> Result<u8> {
 
         // Unbounded sequences
         ("int8", ArrayType::Unbounded) => Ok(TypeId::INT8_UNBOUNDED_SEQUENCE),
-        ("uint8" | "byte" | "char", ArrayType::Unbounded) => Ok(TypeId::UINT8_UNBOUNDED_SEQUENCE),
+        ("uint8" | "char", ArrayType::Unbounded) => Ok(TypeId::UINT8_UNBOUNDED_SEQUENCE),
+        ("byte", ArrayType::Unbounded) => Ok(TypeId::BYTE + TypeId::UNBOUNDED_SEQUENCE_OFFSET),
         ("int16", ArrayType::Unbounded) => Ok(TypeId::INT16_UNBOUNDED_SEQUENCE),
         ("uint16", ArrayType::Unbounded) => Ok(TypeId::UINT16_UNBOUNDED_SEQUENCE),
         ("int32", ArrayType::Unbounded) => Ok(TypeId::INT32_UNBOUNDED_SEQUENCE),
