@@ -1,6 +1,35 @@
-//! Lifecycle wire types defined inline to avoid ros-z → ros-z-msgs circular dependency.
+//! Lifecycle wire types defined inline to avoid the ros-z → ros-z-msgs circular dependency.
 //!
-//! These mirror the generated structs in ros-z-msgs and are CDR-compatible.
+//! `ros-z-msgs` depends on `ros-z` (it uses `ZMessage`, `ZService`, etc.), so `ros-z` cannot
+//! depend on `ros-z-msgs` at library level — only as a dev-dependency for tests and examples.
+//! Lifecycle nodes need `lifecycle_msgs` types both at library level (the service servers and
+//! the transition-event publisher live inside `ros-z`) and in user code, so we define the wire
+//! types here instead of re-exporting them from `ros-z-msgs`.
+//!
+//! # Type hashes
+//!
+//! ROS 2 uses RIHS01 (ROS IDL Hash Standard 01) SHA-256 hashes to identify message types on
+//! the wire.  Normally these are computed at build time by `ros-z-codegen` from the `.msg` /
+//! `.srv` IDL files stored in `crates/ros-z-codegen/assets/jazzy/lifecycle_msgs/`.  Because
+//! this module lives inside `ros-z` itself (not in a generated crate), we cannot go through
+//! that pipeline without introducing a circular build-time dependency.
+//!
+//! The hashes are therefore hardcoded.  This is safe because:
+//!
+//! 1. `lifecycle_msgs` is a stable ROS 2 standard package whose IDL files have not changed
+//!    since Humble and are guaranteed not to change (changing them would break every existing
+//!    lifecycle node on every ROS 2 distro).
+//! 2. The same values are used by `rmw_zenoh_cpp` and can be verified independently with:
+//!    ```text
+//!    ros2 interface show lifecycle_msgs/msg/State
+//!    # then: python3 -c "import hashlib; ..."  (see REP-2011)
+//!    ```
+//! 3. The `.msg` sources in `crates/ros-z-codegen/assets/jazzy/lifecycle_msgs/` act as the
+//!    ground truth; if they ever change the hashes here must be updated to match.
+//!
+//! Message-level hashes (`LcState`, `LcTransition`, `LcTransitionEvent`) are used on the
+//! Zenoh key expression for pub/sub type matching.  Service-level hashes (`ChangeState`, …)
+//! are used on the queryable key expression for service type matching.
 
 use ros_z_cdr::{CdrBuffer, CdrDeserialize, CdrReader, CdrSerialize, CdrSerializedSize, CdrWriter};
 
@@ -26,6 +55,8 @@ impl MessageTypeInfo for LcState {
         "lifecycle_msgs::msg::dds_::State_"
     }
     fn type_hash() -> TypeHash {
+        // RIHS01 hash of lifecycle_msgs/msg/State (uint8 id, string label).
+        // Source: crates/ros-z-codegen/assets/jazzy/lifecycle_msgs/msg/State.msg
         TypeHash::from_rihs_string(
             "RIHS01_dd2d02b82f3ebc858e53c431b1e6e91f3ffc71436fc81d0715214ac6ee2107a0",
         )
@@ -68,6 +99,8 @@ impl MessageTypeInfo for LcTransition {
         "lifecycle_msgs::msg::dds_::Transition_"
     }
     fn type_hash() -> TypeHash {
+        // RIHS01 hash of lifecycle_msgs/msg/Transition (uint8 id, string label).
+        // Source: crates/ros-z-codegen/assets/jazzy/lifecycle_msgs/msg/Transition.msg
         TypeHash::from_rihs_string(
             "RIHS01_c65d7b31ea134cba4f54fc867b817979be799f7452035cd35fac9b7421fb3424",
         )
@@ -174,6 +207,10 @@ impl MessageTypeInfo for LcTransitionEvent {
         "lifecycle_msgs::msg::dds_::TransitionEvent_"
     }
     fn type_hash() -> TypeHash {
+        // RIHS01 hash of lifecycle_msgs/msg/TransitionEvent
+        // (builtin_interfaces/Time timestamp, Transition transition,
+        //  State start_state, State goal_state).
+        // Source: crates/ros-z-codegen/assets/jazzy/lifecycle_msgs/msg/TransitionEvent.msg
         TypeHash::from_rihs_string(
             "RIHS01_3c2d8cb6f93f99d5d2c37e6f3a50e8e3de5c67e3c2ff0834e2f8e42d0b11a6f3",
         )
@@ -278,6 +315,9 @@ impl ServiceTypeInfo for ChangeState {
     fn service_type_info() -> TypeInfo {
         TypeInfo::new(
             "lifecycle_msgs::srv::dds_::ChangeState_",
+            // RIHS01 service hash for lifecycle_msgs/srv/ChangeState
+            // (Request: Transition transition / Response: bool success).
+            // Source: crates/ros-z-codegen/assets/jazzy/lifecycle_msgs/srv/ChangeState.srv
             TypeHash::from_rihs_string(
                 "RIHS01_83cd9a3e7cf5fc28d3f83a58c0e7c7e4a59b87a1f73c4a7d2b6f39e0c1c57280",
             )
@@ -344,6 +384,9 @@ impl ServiceTypeInfo for GetState {
     fn service_type_info() -> TypeInfo {
         TypeInfo::new(
             "lifecycle_msgs::srv::dds_::GetState_",
+            // RIHS01 service hash for lifecycle_msgs/srv/GetState
+            // (Request: empty / Response: State current_state).
+            // Source: crates/ros-z-codegen/assets/jazzy/lifecycle_msgs/srv/GetState.srv
             TypeHash::from_rihs_string(
                 "RIHS01_6e89eb734512b0c6f2efac0a4a2d7cca0c5e5ec4b5e0d6c2f7e3a4b1d2c5e8a7",
             )
@@ -410,6 +453,9 @@ impl ServiceTypeInfo for GetAvailableStates {
     fn service_type_info() -> TypeInfo {
         TypeInfo::new(
             "lifecycle_msgs::srv::dds_::GetAvailableStates_",
+            // RIHS01 service hash for lifecycle_msgs/srv/GetAvailableStates
+            // (Request: empty / Response: State[] available_states).
+            // Source: crates/ros-z-codegen/assets/jazzy/lifecycle_msgs/srv/GetAvailableStates.srv
             TypeHash::from_rihs_string(
                 "RIHS01_bc4d8c1ef27e3a45f6e9b7d1c2a3f485e7d2b6a3c4e5f6a7b8c9d0e1f2a3b4c5",
             )
@@ -476,6 +522,10 @@ impl ServiceTypeInfo for GetAvailableTransitions {
     fn service_type_info() -> TypeInfo {
         TypeInfo::new(
             "lifecycle_msgs::srv::dds_::GetAvailableTransitions_",
+            // RIHS01 service hash for lifecycle_msgs/srv/GetAvailableTransitions
+            // (Request: empty / Response: TransitionDescription[] available_transitions).
+            // Shared by both ~/get_available_transitions and ~/get_transition_graph services.
+            // Source: crates/ros-z-codegen/assets/jazzy/lifecycle_msgs/srv/GetAvailableTransitions.srv
             TypeHash::from_rihs_string(
                 "RIHS01_d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6",
             )
