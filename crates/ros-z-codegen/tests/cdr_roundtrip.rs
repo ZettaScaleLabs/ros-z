@@ -55,7 +55,7 @@ fn roundtrip_basic_types_values() {
         byte_value: 0xFF,
         char_value: 0x41, // 'A'
         float32_value: 1.5_f32,
-        float64_value: -3.14_f64,
+        float64_value: -1.5_f64,
         int8_value: -42,
         uint8_value: 200,
         int16_value: -1000,
