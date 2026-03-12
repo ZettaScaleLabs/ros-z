@@ -5,7 +5,7 @@
 //! match statements, allowing any registered message type to work with pub/sub
 //! and services.
 
-use ros_z::msg::{ZDeserializer, ZMessage, ZSerializer, ZService};
+use ros_z::msg::{SerdeCdrSerdes, ZDeserializer, ZMessage, ZSerializer, ZService};
 use zenoh_buffers::ZBuf;
 
 /// A message type that wraps raw CDR bytes and passes them through unchanged.
@@ -122,6 +122,14 @@ impl<'de> serde::Deserialize<'de> for DynActionMessage {
             }
         }
         deserializer.deserialize_bytes(BytesVisitor)
+    }
+}
+
+impl ZMessage for DynActionMessage {
+    type Serdes = SerdeCdrSerdes<DynActionMessage>;
+
+    fn estimated_serialized_size(&self) -> usize {
+        4 + 4 + self.0.len() // CDR header + length prefix + payload
     }
 }
 
