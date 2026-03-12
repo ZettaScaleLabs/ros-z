@@ -112,6 +112,22 @@ pub fn parse_field_type(type_str: &str, _source_package: &str) -> Result<FieldTy
         (type_str, ArrayType::Single)
     };
 
+    // Extract string bound from base_str if it's a bounded string used in an array context
+    // e.g. "string<=10" in "string<=10[]" -> base="string", string_bound=Some(10)
+    let (base_str, string_bound) = if let Some(idx) = base_str.find("<=") {
+        if !base_str.contains('[') {
+            let base = &base_str[..idx];
+            let bound = base_str[idx + 2..]
+                .parse::<usize>()
+                .with_context(|| format!("Invalid string bound in '{}'", type_str))?;
+            (base, Some(bound))
+        } else {
+            (base_str, None)
+        }
+    } else {
+        (base_str, None)
+    };
+
     // Parse package/Type or Type
     let (package, base_type) = if let Some(idx) = base_str.find('/') {
         let pkg = base_str[..idx].to_string();
@@ -130,7 +146,7 @@ pub fn parse_field_type(type_str: &str, _source_package: &str) -> Result<FieldTy
         base_type,
         package,
         array,
-        string_bound: None,
+        string_bound,
     })
 }
 
