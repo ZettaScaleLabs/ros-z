@@ -33,9 +33,6 @@ jobs:
   formatting:
     name: Check Formatting
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
 
     steps:
       - name: Checkout repository
@@ -43,9 +40,6 @@ jobs:
 
       - name: Install Determinate Nix
         uses: DeterminateSystems/determinate-nix-action@v3
-
-      - name: FlakeHub cache
-        uses: DeterminateSystems/flakehub-cache-action@main
 
       - name: Check formatting
         run: nix build .#checks.x86_64-linux.pre-commit-check -L
@@ -81,10 +75,6 @@ jobs:
       - name: Install Determinate Nix (Linux)
         if: runner.os == 'Linux'
         uses: DeterminateSystems/determinate-nix-action@v3
-
-      - name: FlakeHub cache (Linux)
-        if: runner.os == 'Linux'
-        uses: DeterminateSystems/flakehub-cache-action@main
 
       - name: Install Nushell (Linux via Nix)
         if: runner.os == 'Linux'
@@ -340,7 +330,6 @@ jobs:
     name: Python Tests (ros-z-py) (${{ matrix.distro }})
     runs-on: ubuntu-latest
     permissions:
-      id-token: write
       contents: read
     strategy:
       fail-fast: false
@@ -372,9 +361,6 @@ jobs:
           # instead of rebuilding. ROS packages are already in ros.cachix.org
           # (maintained by nix-ros-overlay for all distros including kilted).
           skipPush: ${{ github.event_name == 'pull_request' }}
-
-      - name: FlakeHub cache
-        uses: DeterminateSystems/flakehub-cache-action@main
 
       - name: Install Nushell
         run: |
@@ -448,7 +434,6 @@ jobs:
     name: ROS Tests (clippy-rmw, interop) (${{ matrix.distro }})
     runs-on: ubuntu-latest
     permissions:
-      id-token: write
       contents: read
     strategy:
       fail-fast: false
@@ -476,9 +461,6 @@ jobs:
           name: ros
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
           skipPush: ${{ github.event_name == 'pull_request' }}
-
-      - name: FlakeHub cache
-        uses: DeterminateSystems/flakehub-cache-action@main
 
       - name: Install Nushell
         run: |
