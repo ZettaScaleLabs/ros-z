@@ -2,12 +2,12 @@
 //!
 //! These mirror the generated structs in ros-z-msgs and are CDR-compatible.
 
-use serde::{Deserialize, Serialize};
+use ros_z_cdr::{CdrBuffer, CdrDeserialize, CdrReader, CdrSerialize, CdrSerializedSize, CdrWriter};
 
 use crate::{
     ServiceTypeInfo,
     entity::{TypeHash, TypeInfo},
-    msg::{SerdeCdrSerdes, ZMessage, ZService},
+    msg::ZService,
     ros_msg::{MessageTypeInfo, WithTypeInfo},
 };
 
@@ -15,7 +15,7 @@ use crate::{
 // Messages
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default)]
 pub struct LcState {
     pub id: u8,
     pub label: String,
@@ -33,11 +33,31 @@ impl MessageTypeInfo for LcState {
     }
 }
 impl WithTypeInfo for LcState {}
-impl ZMessage for LcState {
-    type Serdes = SerdeCdrSerdes<LcState>;
+
+impl CdrSerialize for LcState {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.id.cdr_serialize(w);
+        self.label.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for LcState {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(LcState {
+            id: u8::cdr_deserialize(r)?,
+            label: String::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for LcState {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        let p = self.id.cdr_serialized_size(pos);
+        self.label.cdr_serialized_size(p)
+    }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default)]
 pub struct LcTransition {
     pub id: u8,
     pub label: String,
@@ -55,28 +75,93 @@ impl MessageTypeInfo for LcTransition {
     }
 }
 impl WithTypeInfo for LcTransition {}
-impl ZMessage for LcTransition {
-    type Serdes = SerdeCdrSerdes<LcTransition>;
+
+impl CdrSerialize for LcTransition {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.id.cdr_serialize(w);
+        self.label.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for LcTransition {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(LcTransition {
+            id: u8::cdr_deserialize(r)?,
+            label: String::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for LcTransition {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        let p = self.id.cdr_serialized_size(pos);
+        self.label.cdr_serialized_size(p)
+    }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default)]
 pub struct LcTransitionDescription {
     pub transition: LcTransition,
     pub start_state: LcState,
     pub goal_state: LcState,
 }
 
-impl ZMessage for LcTransitionDescription {
-    type Serdes = SerdeCdrSerdes<LcTransitionDescription>;
+impl CdrSerialize for LcTransitionDescription {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.transition.cdr_serialize(w);
+        self.start_state.cdr_serialize(w);
+        self.goal_state.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for LcTransitionDescription {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(LcTransitionDescription {
+            transition: LcTransition::cdr_deserialize(r)?,
+            start_state: LcState::cdr_deserialize(r)?,
+            goal_state: LcState::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for LcTransitionDescription {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        let p = self.transition.cdr_serialized_size(pos);
+        let p = self.start_state.cdr_serialized_size(p);
+        self.goal_state.cdr_serialized_size(p)
+    }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default)]
 pub struct LcTime {
     pub sec: i32,
     pub nanosec: u32,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+impl CdrSerialize for LcTime {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.sec.cdr_serialize(w);
+        self.nanosec.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for LcTime {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(LcTime {
+            sec: i32::cdr_deserialize(r)?,
+            nanosec: u32::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for LcTime {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        let p = self.sec.cdr_serialized_size(pos);
+        self.nanosec.cdr_serialized_size(p)
+    }
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct LcTransitionEvent {
     pub timestamp: LcTime,
     pub transition: LcTransition,
@@ -89,7 +174,6 @@ impl MessageTypeInfo for LcTransitionEvent {
         "lifecycle_msgs::msg::dds_::TransitionEvent_"
     }
     fn type_hash() -> TypeHash {
-        // Real hash from the ROS 2 Jazzy type system
         TypeHash::from_rihs_string(
             "RIHS01_3c2d8cb6f93f99d5d2c37e6f3a50e8e3de5c67e3c2ff0834e2f8e42d0b11a6f3",
         )
@@ -97,8 +181,34 @@ impl MessageTypeInfo for LcTransitionEvent {
     }
 }
 impl WithTypeInfo for LcTransitionEvent {}
-impl ZMessage for LcTransitionEvent {
-    type Serdes = SerdeCdrSerdes<LcTransitionEvent>;
+
+impl CdrSerialize for LcTransitionEvent {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.timestamp.cdr_serialize(w);
+        self.transition.cdr_serialize(w);
+        self.start_state.cdr_serialize(w);
+        self.goal_state.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for LcTransitionEvent {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(LcTransitionEvent {
+            timestamp: LcTime::cdr_deserialize(r)?,
+            transition: LcTransition::cdr_deserialize(r)?,
+            start_state: LcState::cdr_deserialize(r)?,
+            goal_state: LcState::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for LcTransitionEvent {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        let p = self.timestamp.cdr_serialized_size(pos);
+        let p = self.transition.cdr_serialized_size(p);
+        let p = self.start_state.cdr_serialized_size(p);
+        self.goal_state.cdr_serialized_size(p)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -107,22 +217,54 @@ impl ZMessage for LcTransitionEvent {
 
 // --- ChangeState ---
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default)]
 pub struct ChangeStateRequest {
     pub transition: LcTransition,
 }
 
-impl ZMessage for ChangeStateRequest {
-    type Serdes = SerdeCdrSerdes<ChangeStateRequest>;
+impl CdrSerialize for ChangeStateRequest {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.transition.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for ChangeStateRequest {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(ChangeStateRequest {
+            transition: LcTransition::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for ChangeStateRequest {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        self.transition.cdr_serialized_size(pos)
+    }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default)]
 pub struct ChangeStateResponse {
     pub success: bool,
 }
 
-impl ZMessage for ChangeStateResponse {
-    type Serdes = SerdeCdrSerdes<ChangeStateResponse>;
+impl CdrSerialize for ChangeStateResponse {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.success.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for ChangeStateResponse {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(ChangeStateResponse {
+            success: bool::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for ChangeStateResponse {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        self.success.cdr_serialized_size(pos)
+    }
 }
 
 pub struct ChangeState;
@@ -146,20 +288,49 @@ impl ServiceTypeInfo for ChangeState {
 
 // --- GetState ---
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default)]
 pub struct GetStateRequest {}
 
-impl ZMessage for GetStateRequest {
-    type Serdes = SerdeCdrSerdes<GetStateRequest>;
+impl CdrSerialize for GetStateRequest {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, _w: &mut CdrWriter<'_, BO, B>) {
+    }
+}
+impl CdrDeserialize for GetStateRequest {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        _r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(GetStateRequest {})
+    }
+}
+impl CdrSerializedSize for GetStateRequest {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        pos
+    }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default)]
 pub struct GetStateResponse {
     pub current_state: LcState,
 }
 
-impl ZMessage for GetStateResponse {
-    type Serdes = SerdeCdrSerdes<GetStateResponse>;
+impl CdrSerialize for GetStateResponse {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.current_state.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for GetStateResponse {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(GetStateResponse {
+            current_state: LcState::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for GetStateResponse {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        self.current_state.cdr_serialized_size(pos)
+    }
 }
 
 pub struct GetState;
@@ -183,20 +354,49 @@ impl ServiceTypeInfo for GetState {
 
 // --- GetAvailableStates ---
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default)]
 pub struct GetAvailableStatesRequest {}
 
-impl ZMessage for GetAvailableStatesRequest {
-    type Serdes = SerdeCdrSerdes<GetAvailableStatesRequest>;
+impl CdrSerialize for GetAvailableStatesRequest {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, _w: &mut CdrWriter<'_, BO, B>) {
+    }
+}
+impl CdrDeserialize for GetAvailableStatesRequest {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        _r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(GetAvailableStatesRequest {})
+    }
+}
+impl CdrSerializedSize for GetAvailableStatesRequest {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        pos
+    }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default)]
 pub struct GetAvailableStatesResponse {
     pub available_states: Vec<LcState>,
 }
 
-impl ZMessage for GetAvailableStatesResponse {
-    type Serdes = SerdeCdrSerdes<GetAvailableStatesResponse>;
+impl CdrSerialize for GetAvailableStatesResponse {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.available_states.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for GetAvailableStatesResponse {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(GetAvailableStatesResponse {
+            available_states: Vec::<LcState>::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for GetAvailableStatesResponse {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        self.available_states.cdr_serialized_size(pos)
+    }
 }
 
 pub struct GetAvailableStates;
@@ -220,20 +420,49 @@ impl ServiceTypeInfo for GetAvailableStates {
 
 // --- GetAvailableTransitions (used for both get_available_transitions and get_transition_graph) ---
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default)]
 pub struct GetAvailableTransitionsRequest {}
 
-impl ZMessage for GetAvailableTransitionsRequest {
-    type Serdes = SerdeCdrSerdes<GetAvailableTransitionsRequest>;
+impl CdrSerialize for GetAvailableTransitionsRequest {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, _w: &mut CdrWriter<'_, BO, B>) {
+    }
+}
+impl CdrDeserialize for GetAvailableTransitionsRequest {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        _r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(GetAvailableTransitionsRequest {})
+    }
+}
+impl CdrSerializedSize for GetAvailableTransitionsRequest {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        pos
+    }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default)]
 pub struct GetAvailableTransitionsResponse {
     pub available_transitions: Vec<LcTransitionDescription>,
 }
 
-impl ZMessage for GetAvailableTransitionsResponse {
-    type Serdes = SerdeCdrSerdes<GetAvailableTransitionsResponse>;
+impl CdrSerialize for GetAvailableTransitionsResponse {
+    fn cdr_serialize<BO: byteorder::ByteOrder, B: CdrBuffer>(&self, w: &mut CdrWriter<'_, BO, B>) {
+        self.available_transitions.cdr_serialize(w);
+    }
+}
+impl CdrDeserialize for GetAvailableTransitionsResponse {
+    fn cdr_deserialize<'de, BO: byteorder::ByteOrder>(
+        r: &mut CdrReader<'de, BO>,
+    ) -> ros_z_cdr::Result<Self> {
+        Ok(GetAvailableTransitionsResponse {
+            available_transitions: Vec::<LcTransitionDescription>::cdr_deserialize(r)?,
+        })
+    }
+}
+impl CdrSerializedSize for GetAvailableTransitionsResponse {
+    fn cdr_serialized_size(&self, pos: usize) -> usize {
+        self.available_transitions.cdr_serialized_size(pos)
+    }
 }
 
 pub struct GetAvailableTransitions;

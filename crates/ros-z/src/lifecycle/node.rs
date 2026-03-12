@@ -17,7 +17,7 @@ use crate::{
         publisher::{ManagedEntity, ZLifecyclePublisher},
         state_machine::{CallbackReturn, State, StateMachine, TransitionId},
     },
-    msg::{SerdeCdrSerdes, ZDeserializer, ZMessage, ZSerializer},
+    msg::{NativeCdrSerdes, ZDeserializer, ZMessage, ZSerializer},
     node::ZNode,
     service::ZServer,
 };
@@ -78,7 +78,7 @@ pub struct ZLifecycleNode {
     _srv_get_transition_graph: ZServer<GetAvailableTransitions, ()>,
 
     // Transition-event publisher (Arc so trigger_transition can publish)
-    te_pub: Arc<crate::pubsub::ZPub<LcTransitionEvent, SerdeCdrSerdes<LcTransitionEvent>>>,
+    te_pub: Arc<crate::pubsub::ZPub<LcTransitionEvent, NativeCdrSerdes<LcTransitionEvent>>>,
 }
 
 impl std::fmt::Debug for ZLifecycleNode {
@@ -387,10 +387,10 @@ impl Builder for ZLifecycleNodeBuilder {
 
 fn decode_request<T>(query: &Query) -> Option<T>
 where
-    T: for<'de> serde::Deserialize<'de> + Send + Sync + 'static,
+    T: ros_z_cdr::CdrDeserialize + Send + Sync + 'static,
 {
     match query.payload() {
-        Some(payload) => match SerdeCdrSerdes::deserialize(payload.to_bytes().as_ref()) {
+        Some(payload) => match NativeCdrSerdes::deserialize(payload.to_bytes().as_ref()) {
             Ok(req) => Some(req),
             Err(e) => {
                 warn!("failed to deserialize lifecycle request: {e}");
@@ -399,13 +399,16 @@ where
         },
         None => {
             // Empty payload is valid for e.g. GetStateRequest
-            SerdeCdrSerdes::<T>::deserialize(&[] as &[u8]).ok()
+            NativeCdrSerdes::<T>::deserialize(&[] as &[u8]).ok()
         }
     }
 }
 
-fn encode_reply<T: serde::Serialize>(query: &Query, resp: &T) {
-    let bytes = SerdeCdrSerdes::serialize(resp);
+fn encode_reply<T: ros_z_cdr::CdrSerialize + ros_z_cdr::CdrSerializedSize>(
+    query: &Query,
+    resp: &T,
+) {
+    let bytes = NativeCdrSerdes::serialize(resp);
     if let Err(e) = query.reply(query.key_expr().clone(), bytes).wait() {
         warn!("failed to send lifecycle reply: {e}");
     }
