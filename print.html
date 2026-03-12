@@ -1872,6 +1872,145 @@ impl ZAction for CountAction {
 <li><strong><a href="chapters/./custom_messages.html">Custom Messages</a></strong> - Defining custom action types with <code>.action</code> files</li>
 </ul>
 <p><strong>Action implementation is evolving. Check the ros-z repository for the latest examples and API updates.</strong></p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="message-cache"><a class="header" href="#message-cache">Message Cache</a></h1>
+<p><strong><code>ZCache&lt;T&gt;</code> is a timestamp-indexed, capacity-bounded sliding-window cache of received messages.</strong> It mirrors the ROS 2 <code>message_filters::Cache&lt;T&gt;</code> API, letting you query a time-ordered history of messages without a background thread or executor.</p>
+<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+<div class="admonition-title">
+<div id="admonition-note-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/message_cache.html#admonition-note"></a>
+</div>
+<div>
+<p><code>ZCache&lt;T&gt;</code> wraps a Zenoh subscriber and retains the N most recent messages in a <code>BTreeMap</code> keyed by timestamp. Queries run in O(log n) using Rust's range API.</p>
+</div>
+</div>
+<h2 id="quick-start-1"><a class="header" href="#quick-start-1">Quick Start</a></h2>
+<pre><code class="language-rust ignore">use ros_z::prelude::*;
+use ros_z_msgs::sensor_msgs::Imu;
+use std::time::{Duration, SystemTime};
+
+let ctx = ZContextBuilder::default().build()?;
+let node = ctx.create_node("cache_node").build()?;
+
+// Retain the 200 most recent messages, indexed by Zenoh transport timestamp.
+let cache = node.create_cache::&lt;Imu&gt;("/imu/data", 200).build()?;
+
+// Query the last 100 ms.
+let now = SystemTime::now();
+let window = cache.get_interval(now - Duration::from_millis(100), now);
+println!("Messages in window: {}", window.len());</code></pre>
+<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
+<div class="admonition-title">
+<div id="admonition-tip-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/message_cache.html#admonition-tip"></a>
+</div>
+<div>
+<p><code>use ros_z::Builder;</code> must be in scope to call <code>.build()</code>. It is re-exported by <code>ros_z::prelude::*</code>.</p>
+</div>
+</div>
+<h2 id="stamp-strategies"><a class="header" href="#stamp-strategies">Stamp Strategies</a></h2>
+<p>Two indexing strategies are available and selected at <strong>compile time</strong> via the type-state builder:</p>
+<div class="table-wrapper"><table><thead><tr><th>Strategy</th><th>Type</th><th>When to use</th></tr></thead><tbody>
+<tr><td><strong>ZenohStamp</strong> (default)</td><td><code>ZenohStamp</code></td><td>Zero-config; works for any message type. Indexed by the Zenoh transport timestamp.</td></tr>
+<tr><td><strong>ExtractorStamp</strong></td><td><code>ExtractorStamp&lt;T, F&gt;</code></td><td>Sensor fusion: align by logical time (e.g. <code>header.stamp</code>).</td></tr>
+</tbody></table>
+</div>
+<h3 id="zenohstamp-default"><a class="header" href="#zenohstamp-default">ZenohStamp (default)</a></h3>
+<p>No configuration needed. The cache reads the <code>uhlc::Timestamp</code> that the Zenoh transport attaches to every published sample and converts it to <code>SystemTime</code>. If timestamping is disabled on the peer, the cache falls back to <code>SystemTime::now()</code> at receive time and logs a one-time warning.</p>
+<pre><code class="language-rust ignore">use ros_z::prelude::*;
+use ros_z_msgs::sensor_msgs::LaserScan;
+
+let cache = node.create_cache::&lt;LaserScan&gt;("/scan", 100).build()?;</code></pre>
+<h3 id="extractorstamp-application-level"><a class="header" href="#extractorstamp-application-level">ExtractorStamp (application-level)</a></h3>
+<p>Supply a closure that extracts a <code>SystemTime</code> from the deserialized message. Use this when you need messages aligned by their logical capture time rather than network arrival time — the classic sensor fusion use case.</p>
+<pre><code class="language-rust ignore">use ros_z::prelude::*;
+use ros_z_msgs::sensor_msgs::Imu;
+use std::time::{Duration, SystemTime};
+
+let cache = node
+    .create_cache::&lt;Imu&gt;("/imu/data", 200)
+    .with_stamp(|msg: &amp;Imu| {
+        // Read header.stamp from the message.
+        SystemTime::UNIX_EPOCH
+            + Duration::new(msg.header.stamp.sec as u64, msg.header.stamp.nanosec)
+    })
+    .build()?;</code></pre>
+<h2 id="query-api"><a class="header" href="#query-api">Query API</a></h2>
+<p>All query methods take and return <code>SystemTime</code> values and return clones of the stored messages. They are safe to call from multiple threads.</p>
+<h3 id="get_intervalt_start-t_end---vect"><a class="header" href="#get_intervalt_start-t_end---vect"><code>get_interval(t_start, t_end) -&gt; Vec&lt;T&gt;</code></a></h3>
+<p>Returns all messages with timestamp in <code>[t_start, t_end]</code>, inclusive, ordered by timestamp ascending. If <code>t_start &gt; t_end</code> the result is empty (no panic).</p>
+<pre><code class="language-rust ignore">let msgs = cache.get_interval(
+    SystemTime::now() - Duration::from_millis(500),
+    SystemTime::now(),
+);</code></pre>
+<h3 id="get_beforet---optiont"><a class="header" href="#get_beforet---optiont"><code>get_before(t) -&gt; Option&lt;T&gt;</code></a></h3>
+<p>The most recent message with timestamp ≤ <code>t</code>. Returns <code>None</code> if the cache is empty or all messages are strictly after <code>t</code>.</p>
+<pre><code class="language-rust ignore">let latest = cache.get_before(SystemTime::now());</code></pre>
+<h3 id="get_aftert---optiont"><a class="header" href="#get_aftert---optiont"><code>get_after(t) -&gt; Option&lt;T&gt;</code></a></h3>
+<p>The earliest message with timestamp ≥ <code>t</code>. Returns <code>None</code> if the cache is empty or all messages are strictly before <code>t</code>.</p>
+<pre><code class="language-rust ignore">let next = cache.get_after(camera_stamp);</code></pre>
+<h3 id="get_nearestt---optiont"><a class="header" href="#get_nearestt---optiont"><code>get_nearest(t) -&gt; Option&lt;T&gt;</code></a></h3>
+<p>The message whose timestamp is nearest to <code>t</code> (either side). When two messages are equidistant, the one with the earlier timestamp is returned. Returns <code>None</code> if the cache is empty.</p>
+<pre><code class="language-rust ignore">// Align an IMU sample to a camera frame timestamp.
+let imu = imu_cache.get_nearest(camera_stamp);</code></pre>
+<h3 id="introspection"><a class="header" href="#introspection">Introspection</a></h3>
+<pre><code class="language-rust ignore">cache.oldest_stamp()   // Option&lt;SystemTime&gt; — timestamp of the oldest entry
+cache.newest_stamp()   // Option&lt;SystemTime&gt; — timestamp of the newest entry
+cache.len()            // usize — number of messages currently stored
+cache.is_empty()       // bool
+cache.clear()          // remove all messages</code></pre>
+<h2 id="capacity-and-eviction"><a class="header" href="#capacity-and-eviction">Capacity and Eviction</a></h2>
+<p>The cache holds at most <code>capacity</code> messages. When a new message arrives and the cache is full, the oldest message (smallest timestamp) is evicted first, regardless of insertion order. Capacity can be changed at build time:</p>
+<pre><code class="language-rust ignore">let cache = node
+    .create_cache::&lt;RosString&gt;("/topic", 10)  // initial capacity
+    .with_capacity(50)                         // override
+    .build()?;</code></pre>
+<h2 id="comparison-with-message_filterscachet"><a class="header" href="#comparison-with-message_filterscachet">Comparison with <code>message_filters::Cache&lt;T&gt;</code></a></h2>
+<p><code>ZCache&lt;T&gt;</code> covers the core <code>message_filters::Cache&lt;T&gt;</code> API with some differences:</p>
+<div class="table-wrapper"><table><thead><tr><th>Feature</th><th><code>message_filters::Cache&lt;T&gt;</code></th><th><code>ZCache&lt;T&gt;</code></th></tr></thead><tbody>
+<tr><td>Storage</td><td><code>std::deque</code> (insertion-sorted)</td><td><code>BTreeMap</code> (always sorted, O(log n) range)</td></tr>
+<tr><td>Stamp strategies</td><td>Runtime function pointer (<code>hasHeader</code> / receive time)</td><td><strong>Compile-time</strong> type-state (<code>ZenohStamp</code> / <code>ExtractorStamp</code>)</td></tr>
+<tr><td>Headerless messages</td><td><code>allow_headerless</code> flag, falls back to receive time</td><td><code>ZenohStamp</code> handles any type — no header needed</td></tr>
+<tr><td><code>getInterval</code></td><td>✅</td><td>✅ <code>get_interval</code></td></tr>
+<tr><td><code>getElemBeforeTime</code></td><td>Strict <code>&lt; t</code> (exclusive)</td><td><code>get_before</code>: inclusive <code>≤ t</code></td></tr>
+<tr><td><code>getElemAfterTime</code></td><td>Strict <code>&gt; t</code> (exclusive)</td><td><code>get_after</code>: inclusive <code>≥ t</code></td></tr>
+<tr><td><code>getSurroundingInterval</code></td><td>✅</td><td>Not implemented</td></tr>
+<tr><td><code>get_nearest</code></td><td>Not present</td><td>✅ nearest-neighbor lookup</td></tr>
+<tr><td><code>clear</code> / <code>len</code> / <code>is_empty</code></td><td>Not present</td><td>✅</td></tr>
+<tr><td>Filter chaining (<code>signalMessage</code>)</td><td>✅ (passes through to downstream)</td><td>Not applicable (ros-z has no filter chain)</td></tr>
+<tr><td>Subscriber lifecycle</td><td>External, via <code>connectInput</code></td><td>Owned by <code>ZCache</code>, dropped on <code>ZCache</code> drop</td></tr>
+</tbody></table>
+</div><div id="admonition-note-1" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-1-title">
+<div class="admonition-title">
+<div id="admonition-note-1-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/message_cache.html#admonition-note-1"></a>
+</div>
+<div>
+<p><code>get_before</code> and <code>get_after</code> use <strong>inclusive</strong> bounds (<code>≤</code> / <code>≥</code>), unlike the C++ <code>getElemBeforeTime</code> / <code>getElemAfterTime</code> which are <strong>exclusive</strong> (<code>&lt;</code> / <code>&gt;</code>). This matches the query semantics of <code>get_interval</code>.</p>
+</div>
+</div>
+<h2 id="running-the-examples"><a class="header" href="#running-the-examples">Running the Examples</a></h2>
+<p>Three focused examples demonstrate the cache. Run them in separate terminals:</p>
+<pre><code class="language-bash"># Terminal 1 — publisher (sends msg-0, msg-1, … every 100 ms)
+cargo run --example z_cache_talker
+
+# Terminal 2 — cache consumer with Zenoh transport timestamp (default)
+cargo run --example z_cache_zenoh_stamp
+
+# Terminal 2 — cache consumer with application-level timestamp
+cargo run --example z_cache_app_stamp
+</code></pre>
+<h2 id="resources-3"><a class="header" href="#resources-3">Resources</a></h2>
+<ul>
+<li><strong><a href="chapters/./pubsub.html">Pub/Sub</a></strong> — Publisher and subscriber patterns that <code>ZCache</code> builds on</li>
+<li><strong><a href="chapters/./services.html">Services</a></strong> — Request/reply communication</li>
+<li><strong>API docs</strong> — <code>cargo doc -p ros-z --open</code>, then navigate to <code>ros_z::cache</code></li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="building-ros-z"><a class="header" href="#building-ros-z">Building ros-z</a></h1>
 <p><strong>ros-z is designed to work without ROS 2 dependencies by default, enabling pure Rust development while optionally integrating with existing ROS 2 installations.</strong> This flexible approach lets you choose your dependency level based on project requirements.</p>
 <h2 id="philosophy"><a class="header" href="#philosophy">Philosophy</a></h2>
@@ -2369,7 +2508,7 @@ cargo run
 <tr><td><strong>Production Ready</strong></td><td>Battle-tested configuration used in real robotics systems</td></tr>
 </tbody></table>
 </div>
-<h2 id="quick-start-1"><a class="header" href="#quick-start-1">Quick Start</a></h2>
+<h2 id="quick-start-2"><a class="header" href="#quick-start-2">Quick Start</a></h2>
 <p>The default ros-z configuration connects to a Zenoh router on <code>tcp/localhost:7447</code>:</p>
 <pre><code class="language-rust ignore">use ros_z::context::ZContextBuilder;
 use ros_z::Builder;
@@ -3279,7 +3418,7 @@ cargo build -p ros-z-msgs --features bundled_msgs
 </tbody></table>
 </div>
 <p>See <a href="chapters/./troubleshooting.html">Troubleshooting Guide</a> for detailed solutions.</p>
-<h2 id="resources-3"><a class="header" href="#resources-3">Resources</a></h2>
+<h2 id="resources-4"><a class="header" href="#resources-4">Resources</a></h2>
 <ul>
 <li><strong><a href="chapters/./feature_flags.html">Feature Flags</a></strong> - Available message packages</li>
 <li><strong><a href="chapters/./building.html">Building</a></strong> - Build configuration</li>
@@ -3526,7 +3665,7 @@ package::srv::dds_::ServiceName_
 </code></pre>
 <p>The trailing underscore and <code>dds_</code> infix match ROS 2's internal naming scheme.</p>
 <hr />
-<h2 id="resources-4"><a class="header" href="#resources-4">Resources</a></h2>
+<h2 id="resources-5"><a class="header" href="#resources-5">Resources</a></h2>
 <ul>
 <li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - How ros-z-msgs generates standard types</li>
 <li><strong><a href="chapters/./protobuf.html">Protobuf Serialization</a></strong> - Alternative serialization format</li>
@@ -4118,7 +4257,7 @@ let sub = node
 </code></pre>
 </div>
 </details>
-<h2 id="resources-5"><a class="header" href="#resources-5">Resources</a></h2>
+<h2 id="resources-6"><a class="header" href="#resources-6">Resources</a></h2>
 <ul>
 <li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - Understanding message architecture</li>
 <li><strong><a href="chapters/./custom_messages.html">Custom Messages</a></strong> - Manual message implementation</li>
@@ -4704,7 +4843,7 @@ maturin develop
 <p>Use <code>maturin develop --release</code> for optimized builds when benchmarking or running in production.</p>
 </div>
 </div>
-<h2 id="quick-start-2"><a class="header" href="#quick-start-2">Quick Start</a></h2>
+<h2 id="quick-start-3"><a class="header" href="#quick-start-3">Quick Start</a></h2>
 <p>Here's a complete publisher and subscriber example from <a href="https://github.com/ZettaScaleLabs/ros-z/blob/main/crates/ros-z-py/examples/topic_demo.py"><code>crates/ros-z-py/examples/topic_demo.py</code></a>:</p>
 <h3 id="publisher-talker"><a class="header" href="#publisher-talker">Publisher (Talker)</a></h3>
 <pre><code class="language-python">def run_talker(ctx, topic: str, count: int, interval: float):
@@ -4969,7 +5108,7 @@ Currently supported: <code>std_msgs/String</code>, <code>std_msgs/ByteMultiArray
 </ul>
 </div>
 </details>
-<h2 id="resources-6"><a class="header" href="#resources-6">Resources</a></h2>
+<h2 id="resources-7"><a class="header" href="#resources-7">Resources</a></h2>
 <ul>
 <li><strong><a href="chapters/./python_codegen.html">Code Generation Internals</a></strong> - How Python bindings are generated</li>
 <li><strong><a href="chapters/./pubsub.html">Pub/Sub</a></strong> - Deep dive into pub-sub patterns</li>
@@ -5633,7 +5772,7 @@ just -f crates/ros-z-go/justfile run-example subscriber_channel   # channel-base
 <li>Network only transfers SHM references, not actual data (on same machine)</li>
 <li>Automatic fallback to regular serialization for remote nodes</li>
 </ul>
-<h2 id="quick-start-3"><a class="header" href="#quick-start-3">Quick Start</a></h2>
+<h2 id="quick-start-4"><a class="header" href="#quick-start-4">Quick Start</a></h2>
 <h3 id="default-behavior-shm-is-off"><a class="header" href="#default-behavior-shm-is-off">Default Behavior: SHM is OFF</a></h3>
 <p><strong>By default, SHM is disabled.</strong> Messages are serialized using regular memory allocation. You must explicitly enable SHM to use zero-copy publishing.</p>
 <h3 id="enable-shm-globally"><a class="header" href="#enable-shm-globally">Enable SHM Globally</a></h3>
@@ -7197,7 +7336,7 @@ cargo run --example z_srvcli          # example_interfaces (now bundled)
 <h3 id="custom-messages-1"><a class="header" href="#custom-messages-1">Custom Messages</a></h3>
 <pre><code class="language-bash">cargo run --example z_custom_message  # No features needed
 </code></pre>
-<h2 id="resources-7"><a class="header" href="#resources-7">Resources</a></h2>
+<h2 id="resources-8"><a class="header" href="#resources-8">Resources</a></h2>
 <ul>
 <li><strong><a href="chapters/./building.html">Building Guide</a></strong> - Build procedures for each scenario</li>
 <li><strong><a href="chapters/./distro_compatibility.html">ROS 2 Distribution Compatibility</a></strong> - Target Jazzy, Humble, or other distributions</li>
@@ -7445,7 +7584,7 @@ RUST_LOG=ros_z=debug cargo run --example z_pubsub
 <p>Then check that <code>ros-z-codegen/assets/jazzy/std_msgs/msg/String.msg</code> matches exactly.</p>
 </div>
 </details>
-<h2 id="resources-8"><a class="header" href="#resources-8">Resources</a></h2>
+<h2 id="resources-9"><a class="header" href="#resources-9">Resources</a></h2>
 <ul>
 <li><strong><a href="chapters/./building.html">Building Guide</a></strong> - Correct build procedures</li>
 <li><strong><a href="chapters/./networking.html">Networking</a></strong> - Zenoh router setup</li>
