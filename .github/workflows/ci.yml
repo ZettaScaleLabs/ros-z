@@ -391,7 +391,15 @@ jobs:
         with:
           shared-key: ${{ matrix.distro }}-python
 
+      - name: Cache Python venv
+        id: venv-cache
+        uses: actions/cache@v4
+        with:
+          path: crates/ros-z-py/.venv
+          key: ${{ runner.os }}-${{ matrix.distro }}-venv-${{ hashFiles('Cargo.lock', 'crates/ros-z-py/**') }}
+
       - name: Setup venv
+        if: steps.venv-cache.outputs.cache-hit != 'true'
         run: |
           source /tmp/nix-dev-env.sh
           nu scripts/test-python.nu --distro ${{ matrix.distro }} setup-venv
@@ -410,11 +418,6 @@ jobs:
         run: |
           source /tmp/nix-dev-env.sh
           nu scripts/test-python.nu --distro ${{ matrix.distro }} format-ruff
-
-      - name: Build package
-        run: |
-          source /tmp/nix-dev-env.sh
-          nu scripts/test-python.nu --distro ${{ matrix.distro }} build-package
 
       - name: MyPy type checking
         run: |
