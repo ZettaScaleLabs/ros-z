@@ -10,7 +10,7 @@
 //!
 //! Run with:
 //! ```bash
-//! cargo run --example lifecycle_bringup --features jazzy
+//! cargo run --example lifecycle_bringup
 //! ```
 
 // ANCHOR: full_example

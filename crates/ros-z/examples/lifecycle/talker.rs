@@ -7,7 +7,7 @@
 //!
 //! Run with:
 //! ```bash
-//! cargo run --example lifecycle_talker --features jazzy
+//! cargo run --example lifecycle_talker
 //! ```
 
 // ANCHOR: full_example
