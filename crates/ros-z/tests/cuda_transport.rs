@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use ros_z::{Builder, CudaBufInner, ZBuf, context::ZContextBuilder};
 use ros_z_msgs::sensor_msgs::PointCloud2;
-use zenoh_buffers::buffer::SplitBuffer;
+use zenoh_buffers::{ZSliceKind, buffer::SplitBuffer};
 
 // ────────────────────────────────────────────────────────────
 // Helper: build a minimal test context (peer mode, no router)
@@ -157,4 +157,107 @@ fn test_pinned_pubsub_inprocess() {
 fn test_cuda_slices_empty_for_cpu() {
     let zbuf = ZBuf::from(vec![1u8, 2, 3]);
     assert_eq!(zbuf.cuda_slices().count(), 0);
+}
+
+// ────────────────────────────────────────────────────────────
+// Test 6: Typed tensor metadata survives ZBuf round-trip
+//
+// Verifies that TensorMeta (shape, dtype) attached via from_cuda_tensor
+// is preserved and retrievable through typed_cuda_slices().
+// ────────────────────────────────────────────────────────────
+#[test]
+#[ignore = "requires CUDA device"]
+fn test_typed_tensor_zbuf() {
+    use zenoh_cuda::TensorMeta;
+
+    let shape = vec![480i64, 640, 3];
+    let meta = TensorMeta {
+        ndim: 3,
+        shape: shape.clone(),
+        dtype_code: 2,  // Float
+        dtype_bits: 16, // float16
+        dtype_lanes: 1,
+        byte_offset: 0,
+        strides: None, // C-contiguous
+    };
+
+    let buf = CudaBufInner::alloc_device(480 * 640 * 3 * 2, 0)
+        .expect("alloc_device")
+        .with_tensor_meta(meta);
+
+    // Verify metadata attached before wrapping
+    assert_eq!(buf.tensor_meta().unwrap().shape, shape);
+
+    let zbuf = ZBuf::from_cuda_tensor(buf);
+
+    // cuda_slices() sees it
+    assert_eq!(zbuf.cuda_slices().count(), 1);
+
+    // typed_cuda_slices() returns the metadata
+    let mut it = zbuf.typed_cuda_slices();
+    let (inner, meta_out) = it.next().expect("typed_cuda_slices must yield one entry");
+    assert!(it.next().is_none(), "only one slice expected");
+
+    assert_eq!(inner.cuda_len, 480 * 640 * 3 * 2);
+    assert_eq!(meta_out.ndim, 3);
+    assert_eq!(meta_out.shape, shape);
+    assert_eq!(meta_out.dtype_code, 2);
+    assert_eq!(meta_out.dtype_bits, 16);
+    assert_eq!(meta_out.dtype_lanes, 1);
+    assert!(meta_out.strides.is_none(), "C-contiguous → no strides");
+
+    // A raw CudaPtr ZBuf must NOT appear in typed_cuda_slices()
+    let raw_buf = CudaBufInner::alloc_device(64, 0).expect("alloc_device");
+    let raw_zbuf = ZBuf::from_cuda(raw_buf);
+    assert_eq!(
+        raw_zbuf.typed_cuda_slices().count(),
+        0,
+        "CudaPtr without metadata must not appear in typed_cuda_slices"
+    );
+}
+
+// ────────────────────────────────────────────────────────────
+// Test 7: Native IPC — device ZBuf encodes a non-zero IPC handle
+//
+// Verifies the publish side of the native IPC path: ZBuf::from_cuda()
+// produces a CudaTensor-or-CudaPtr ZSlice whose embedded IPC handle is
+// non-zero, confirming that cudaIpcGetMemHandle succeeded and that the
+// codec will have valid bytes to write on the wire.
+//
+// The full two-process decode (cudaIpcOpenMemHandle on the subscriber)
+// is exercised by the ORT cross-language demo (ort_publisher / ort_classifier).
+// ────────────────────────────────────────────────────────────
+#[test]
+#[ignore = "requires CUDA device"]
+fn test_native_ipc_handle_non_zero() {
+    const LEN: usize = 1024;
+
+    let buf = CudaBufInner::alloc_device(LEN, 0).expect("alloc_device");
+
+    // The IPC handle must be non-zero for a valid cudaMalloc allocation.
+    assert_ne!(
+        buf.ipc_handle, [0u8; 64],
+        "cudaIpcGetMemHandle must produce a non-zero handle"
+    );
+    assert_eq!(buf.device_id, 0);
+    assert_eq!(buf.cuda_len, LEN);
+
+    let zbuf = ZBuf::from_cuda(buf);
+    let inner = zbuf.cuda_slices().next().expect("must have one CUDA slice");
+
+    // The IPC handle stored in the ZSlice is the one that will be encoded
+    // on the wire and opened by the subscriber.
+    assert_ne!(
+        inner.ipc_handle, [0u8; 64],
+        "IPC handle must survive ZBuf wrapping"
+    );
+    assert_eq!(inner.cuda_len, LEN);
+
+    // ZSlice kind must be CudaPtr (not Raw / ShmPtr).
+    let zs = zbuf.zslices().next().expect("one zslice");
+    assert_eq!(
+        zs.kind,
+        ZSliceKind::CudaPtr,
+        "device ZBuf must have CudaPtr kind"
+    );
 }
