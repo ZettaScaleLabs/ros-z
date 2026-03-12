@@ -218,3 +218,13 @@ required-features = []
 name = "protobuf_interop"
 path = "examples/protobuf_interop.rs"
 required-features = []
+
+[[example]]
+name = "lifecycle_talker"
+path = "examples/lifecycle/talker.rs"
+required-features = []
+
+[[example]]
+name = "lifecycle_bringup"
+path = "examples/lifecycle/bringup.rs"
+required-features = []

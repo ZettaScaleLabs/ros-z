@@ -212,11 +212,22 @@ fn test_ros_z_add_two_ints_server_to_ros_z_client() {
         result.expect("Server failed");
     });
 
-    wait_for_ready(Duration::from_secs(2));
-
-    // Run ros-z client in the main thread using the example code
-    let ctx = create_ros_z_context_with_router(&router).expect("Failed to create ros-z context");
-    let result = demo_nodes::run_add_two_ints_client(ctx, 2, 3, false).expect("Client failed");
+    // Retry until the server is ready (avoids a fixed sleep that may not be
+    // long enough under CI load, especially on kilted which is slower to start).
+    let result = {
+        let deadline = std::time::Instant::now() + Duration::from_secs(15);
+        loop {
+            let ctx =
+                create_ros_z_context_with_router(&router).expect("Failed to create ros-z context");
+            match demo_nodes::run_add_two_ints_client(ctx, 2, 3, false) {
+                Ok(v) => break v,
+                Err(_) if std::time::Instant::now() < deadline => {
+                    thread::sleep(Duration::from_millis(500));
+                }
+                Err(e) => panic!("Client failed: {e}"),
+            }
+        }
+    };
 
     assert_eq!(result, 5, "Expected 2 + 3 = 5");
 

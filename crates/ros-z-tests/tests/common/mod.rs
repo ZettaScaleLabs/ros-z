@@ -1,5 +1,4 @@
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicU16, Ordering};
 use std::thread;
 use std::time::Duration;
 
@@ -82,18 +81,6 @@ impl Drop for ProcessGuard {
     }
 }
 
-/// Port counter for generating unique Zenoh router ports per test
-/// Use process ID to ensure unique ports across test binaries running in parallel
-static NEXT_PORT: once_cell::sync::Lazy<AtomicU16> = once_cell::sync::Lazy::new(|| {
-    let pid = std::process::id();
-    // Start from a port derived from PID to avoid collisions
-    // Use higher ports (30000-60000) to avoid common service ports
-    let base_port = 30000 + ((pid % 10000) as u16);
-    println!("Test process {} using base port {}", pid, base_port);
-
-    AtomicU16::new(base_port)
-});
-
 /// Per-test Zenoh router configuration
 pub struct TestRouter {
     #[allow(dead_code)]
@@ -103,11 +90,20 @@ pub struct TestRouter {
 }
 
 impl TestRouter {
-    /// Start a new Zenoh router session on a unique port for this test
+    /// Start a new Zenoh router session on a free OS-assigned port.
+    ///
+    /// Binds a TCP listener to `127.0.0.1:0`, reads back the assigned port,
+    /// then drops the listener before handing the port to Zenoh. This avoids
+    /// PID-derived port collisions when multiple test binaries run in parallel.
     pub fn new() -> Self {
-        let port = NEXT_PORT.fetch_add(1, Ordering::SeqCst);
-        let endpoint = format!("tcp/127.0.0.1:{}", port);
+        // Ask the OS for a free port, then release it for Zenoh to bind.
+        let port = {
+            let listener =
+                std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind port 0");
+            listener.local_addr().unwrap().port()
+        };
 
+        let endpoint = format!("tcp/127.0.0.1:{}", port);
         println!("Starting Zenoh router on port {}...", port);
 
         // Create Zenoh router session programmatically

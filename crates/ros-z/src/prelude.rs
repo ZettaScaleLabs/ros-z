@@ -42,3 +42,9 @@ pub use crate::cache::{ExtractorStamp, ZCache, ZCacheBuilder, ZenohStamp};
 
 /// The `Result` alias used throughout ros-z (equivalent to `zenoh::Result`).
 pub use zenoh::Result;
+
+/// Lifecycle node support.
+pub use crate::lifecycle::{
+    CallbackReturn, LifecycleState, ManagedEntity, ZLifecycleClient, ZLifecycleNode,
+    ZLifecyclePublisher,
+};
