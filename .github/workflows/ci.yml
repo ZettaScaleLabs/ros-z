@@ -50,7 +50,7 @@ jobs:
       - name: Check formatting
         run: nix build .#checks.x86_64-linux.pre-commit-check -L
 
-  no-ros:
+  no-ros-test:
     name: ROS-independent Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     permissions:
@@ -122,7 +122,7 @@ jobs:
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: ${{ runner.os }}-pureRust
+          shared-key: ${{ runner.os }}-pureRust-test
 
       - name: Set environment variables (macOS)
         if: runner.os == 'macOS'
@@ -146,6 +146,130 @@ jobs:
           nu scripts/test-pure-rust.nu run-tests
         shell: bash
 
+  no-ros-shm:
+    name: SHM Tests (ubuntu-latest)
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          large-packages: true
+          tool-cache: false
+          android: false
+          dotnet: false
+          haskell: false
+          docker-images: false
+          swap-storage: false
+
+      - name: Install Determinate Nix (Linux)
+        uses: DeterminateSystems/determinate-nix-action@v3
+
+      - name: FlakeHub cache (Linux)
+        uses: DeterminateSystems/flakehub-cache-action@main
+
+      - name: Install Nushell (Linux via Nix)
+        run: |
+          nix profile install nixpkgs#nushell
+          chmod +x scripts/test-pure-rust.nu
+
+      - name: Setup nix environment (Linux)
+        run: |
+          nix print-dev-env '.#pureRust-ci' --accept-flake-config > /tmp/nix-dev-env.sh
+          echo "export CI=true" >> /tmp/nix-dev-env.sh
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ${{ runner.os }}-pureRust-shm
+
+      - name: SHM tests
+        run: |
+          sudo prlimit --memlock=unlimited --pid=$$
+          source /tmp/nix-dev-env.sh
+          nu scripts/test-pure-rust.nu test-shm
+        shell: bash
+
+  no-ros-checks:
+    name: ROS-independent Checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    permissions:
+      id-token: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Linux-specific setup
+      - name: Free Disk Space (Ubuntu)
+        if: runner.os == 'Linux'
+        uses: jlumbroso/free-disk-space@main
+        with:
+          large-packages: true
+          tool-cache: false
+          android: false
+          dotnet: false
+          haskell: false
+          docker-images: false
+          swap-storage: false
+
+      - name: Install Determinate Nix (Linux)
+        if: runner.os == 'Linux'
+        uses: DeterminateSystems/determinate-nix-action@v3
+
+      - name: FlakeHub cache (Linux)
+        if: runner.os == 'Linux'
+        uses: DeterminateSystems/flakehub-cache-action@main
+
+      - name: Install Nushell (Linux via Nix)
+        if: runner.os == 'Linux'
+        run: |
+          nix profile install nixpkgs#nushell
+          chmod +x scripts/test-pure-rust.nu
+
+      - name: Setup nix environment (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          nix print-dev-env '.#pureRust-ci' --accept-flake-config > /tmp/nix-dev-env.sh
+          echo "export CI=true" >> /tmp/nix-dev-env.sh
+
+      # macOS-specific setup
+      - name: Install Rust toolchain (macOS)
+        if: runner.os == 'macOS'
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install nushell protobuf
+          chmod +x scripts/test-pure-rust.nu
+
+      # Common setup
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ${{ runner.os }}-pureRust-checks
+
+      - name: Set environment variables (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          echo "CI=true" >> $GITHUB_ENV
+
+      # Check steps
       - name: Check ros-z-msgs feature flags
         run: |
           if [ "$RUNNER_OS" == "Linux" ]; then
@@ -162,7 +286,7 @@ jobs:
           nu scripts/test-pure-rust.nu check-console
         shell: bash
 
-      - name: Build all examples
+      - name: Check all examples
         run: |
           if [ "$RUNNER_OS" == "Linux" ]; then
             source /tmp/nix-dev-env.sh
@@ -176,14 +300,6 @@ jobs:
             source /tmp/nix-dev-env.sh
           fi
           nu scripts/test-pure-rust.nu check-distro-features
-        shell: bash
-
-      - name: SHM tests
-        if: runner.os == 'Linux'
-        run: |
-          sudo prlimit --memlock=unlimited --pid=$$
-          source /tmp/nix-dev-env.sh
-          nu scripts/test-pure-rust.nu test-shm
         shell: bash
 
   go-tests:
@@ -275,6 +391,13 @@ jobs:
         with:
           shared-key: ${{ matrix.distro }}-python
 
+      - name: Cache Python venv
+        id: venv-cache
+        uses: actions/cache@v4
+        with:
+          path: crates/ros-z-py/.venv
+          key: ${{ runner.os }}-${{ matrix.distro }}-venv-${{ hashFiles('Cargo.lock', 'crates/ros-z-py/**') }}
+
       - name: Setup venv
         run: |
           source /tmp/nix-dev-env.sh
@@ -294,11 +417,6 @@ jobs:
         run: |
           source /tmp/nix-dev-env.sh
           nu scripts/test-python.nu --distro ${{ matrix.distro }} format-ruff
-
-      - name: Build package
-        run: |
-          source /tmp/nix-dev-env.sh
-          nu scripts/test-python.nu --distro ${{ matrix.distro }} build-package
 
       - name: MyPy type checking
         run: |

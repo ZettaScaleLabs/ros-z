@@ -34,10 +34,10 @@ def check-bundled-msgs [] {
     run-cmd "cargo check -p ros-z-msgs"
     run-cmd "cargo check -p ros-z-msgs --features bundled_msgs"
     run-cmd "cargo check -p ros-z-msgs --features common_interfaces"
-    run-cmd "cargo build -p ros-z-msgs --no-default-features --features std_msgs"
-    run-cmd "cargo build -p ros-z-msgs --no-default-features --features geometry_msgs"
-    run-cmd "cargo build -p ros-z-msgs --no-default-features --features sensor_msgs"
-    run-cmd "cargo build -p ros-z-msgs --no-default-features --features nav_msgs"
+    run-cmd "cargo check -p ros-z-msgs --no-default-features --features std_msgs"
+    run-cmd "cargo check -p ros-z-msgs --no-default-features --features geometry_msgs"
+    run-cmd "cargo check -p ros-z-msgs --no-default-features --features sensor_msgs"
+    run-cmd "cargo check -p ros-z-msgs --no-default-features --features nav_msgs"
 }
 
 def check-console [] {
@@ -47,8 +47,8 @@ def check-console [] {
 }
 
 def check-examples [] {
-    log-step "Build all examples (cargo build --examples)"
-    run-cmd "cargo build --examples"
+    log-step "Check all examples (cargo check --examples)"
+    run-cmd "cargo check --examples"
 }
 
 def check-distro-features [] {
