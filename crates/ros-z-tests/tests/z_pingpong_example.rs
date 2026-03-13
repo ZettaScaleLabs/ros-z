@@ -11,8 +11,7 @@ mod common;
 #[path = "../../ros-z/examples/z_pingpong.rs"]
 mod z_pingpong;
 
-use std::thread;
-use std::time::Duration;
+use std::{thread, time::Duration};
 
 use common::*;
 
@@ -23,8 +22,7 @@ fn test_z_pingpong_roundtrip() {
     // Run pong in a background thread (loops forever until dropped)
     let pong_endpoint = router.endpoint().to_string();
     let pong_handle = thread::spawn(move || {
-        let ctx =
-            create_ros_z_context_with_endpoint(&pong_endpoint).expect("pong context failed");
+        let ctx = create_ros_z_context_with_endpoint(&pong_endpoint).expect("pong context failed");
         let _ = z_pingpong::run_pong(ctx);
     });
 

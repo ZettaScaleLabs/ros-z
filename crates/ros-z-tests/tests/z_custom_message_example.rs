@@ -11,8 +11,7 @@ mod common;
 #[path = "../../ros-z/examples/z_custom_message.rs"]
 mod z_custom_message;
 
-use std::thread;
-use std::time::Duration;
+use std::{thread, time::Duration};
 
 use common::*;
 
@@ -32,8 +31,7 @@ fn test_z_custom_message_navigation() {
     thread::sleep(Duration::from_millis(500));
 
     // Run client
-    let client_ctx =
-        create_ros_z_context_with_router(&router).expect("client context failed");
+    let client_ctx = create_ros_z_context_with_router(&router).expect("client context failed");
     z_custom_message::run_navigation_client(client_ctx, 3.0, 4.0, 1.5)
         .expect("navigation client failed");
 

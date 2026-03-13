@@ -1,3 +1,5 @@
+#[cfg(not(test))]
+use std::{fs::File, path::PathBuf};
 use std::{
     sync::{
         Arc,
@@ -9,8 +11,6 @@ use std::{
 #[cfg(not(test))]
 use clap::Parser;
 #[cfg(not(test))]
-use std::{fs::File, path::PathBuf};
-#[cfg(not(test))]
 use csv::Writer;
 use ros_z::{Builder, Result, ZBuf, context::ZContextBuilder};
 use ros_z_msgs::std_msgs::ByteMultiArray;
@@ -19,15 +19,30 @@ use zenoh_buffers::buffer::{Buffer, SplitBuffer};
 #[cfg_attr(not(test), derive(Parser))]
 #[derive(Debug)]
 pub struct Args {
-    #[cfg_attr(not(test), arg(short, long, default_value = "ping", help = "Mode: ping or pong"))]
+    #[cfg_attr(
+        not(test),
+        arg(short, long, default_value = "ping", help = "Mode: ping or pong")
+    )]
     pub mode: String,
-    #[cfg_attr(not(test), arg(short, long, default_value = "64", help = "Payload size in bytes"))]
+    #[cfg_attr(
+        not(test),
+        arg(short, long, default_value = "64", help = "Payload size in bytes")
+    )]
     pub payload: usize,
-    #[cfg_attr(not(test), arg(short, long, default_value = "10", help = "Frequency in Hz"))]
+    #[cfg_attr(
+        not(test),
+        arg(short, long, default_value = "10", help = "Frequency in Hz")
+    )]
     pub frequency: usize,
-    #[cfg_attr(not(test), arg(short, long, default_value = "100", help = "Number of samples"))]
+    #[cfg_attr(
+        not(test),
+        arg(short, long, default_value = "100", help = "Number of samples")
+    )]
     pub sample: usize,
-    #[cfg_attr(not(test), arg(short, long, default_value = "", help = "Log file path"))]
+    #[cfg_attr(
+        not(test),
+        arg(short, long, default_value = "", help = "Log file path")
+    )]
     pub log: String,
 }
 

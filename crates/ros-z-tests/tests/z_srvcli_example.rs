@@ -11,8 +11,7 @@ mod common;
 #[path = "../../ros-z/examples/z_srvcli.rs"]
 mod z_srvcli;
 
-use std::thread;
-use std::time::Duration;
+use std::{thread, time::Duration};
 
 use common::*;
 
@@ -32,8 +31,7 @@ fn test_z_srvcli_add_two_ints() {
     thread::sleep(Duration::from_millis(500));
 
     // Run client in the foreground
-    let client_ctx =
-        create_ros_z_context_with_router(&router).expect("client context failed");
+    let client_ctx = create_ros_z_context_with_router(&router).expect("client context failed");
     tokio::runtime::Runtime::new()
         .unwrap()
         .block_on(z_srvcli::run_client(client_ctx, 3, 4))
