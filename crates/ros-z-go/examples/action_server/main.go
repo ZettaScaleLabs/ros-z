@@ -13,16 +13,14 @@
 package main
 
 import (
-	"encoding/binary"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/ZettaScaleLabs/ros-z-go/generated/example_interfaces"
-	"github.com/ZettaScaleLabs/ros-z-go/rosz"
+	"github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/generated/example_interfaces"
+	"github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/rosz"
 )
 
 func main() {
@@ -44,51 +42,35 @@ func main() {
 	}
 	defer node.Close()
 
-	// Create an action server
-	action := &example_interfaces.Fibonacci{}
-	server, err := node.CreateActionServer("fibonacci").Build(
-		action,
+	// Create a typed action server — no manual SerializeCDR/DeserializeCDR needed.
+	server, err := rosz.BuildTypedActionServer(
+		node.CreateActionServer("fibonacci"),
+		&example_interfaces.Fibonacci{},
 		// Goal callback: accept all goals with order > 0
-		func(goalBytes []byte) bool {
-			var goal example_interfaces.FibonacciGoal
-			if err := goal.DeserializeCDR(goalBytes); err != nil {
-				log.Printf("Failed to deserialize goal: %v", err)
-				return false
-			}
+		func(goal *example_interfaces.FibonacciGoal) bool {
 			log.Printf("Received goal request: order=%d", goal.Order)
 			return goal.Order > 0
 		},
-		// Execute callback: compute Fibonacci sequence
-		func(handle *rosz.ServerGoalHandle, goalBytes []byte) ([]byte, error) {
-			var goal example_interfaces.FibonacciGoal
-			if err := goal.DeserializeCDR(goalBytes); err != nil {
-				return nil, fmt.Errorf("failed to deserialize goal: %w", err)
-			}
-
+		// Execute callback: compute Fibonacci sequence with feedback
+		func(handle *rosz.ServerGoalHandle, goal *example_interfaces.FibonacciGoal) (*example_interfaces.FibonacciResult, error) {
 			log.Printf("Executing goal: computing Fibonacci(%d)", goal.Order)
 
 			sequence := []int32{0, 1}
 			for i := 2; i < int(goal.Order); i++ {
-				next := sequence[i-1] + sequence[i-2]
-				sequence = append(sequence, next)
+				sequence = append(sequence, sequence[i-1]+sequence[i-2])
 
 				// Publish feedback via the goal handle
-				feedback := &example_interfaces.FibonacciFeedback{
+				if err := handle.PublishFeedback(&example_interfaces.FibonacciFeedback{
 					Sequence: sequence,
-				}
-				if err := handle.PublishFeedback(feedback); err != nil {
+				}); err != nil {
 					log.Printf("Warning: failed to publish feedback: %v", err)
 				}
 
 				time.Sleep(500 * time.Millisecond)
 			}
 
-			// Return result
-			result := &example_interfaces.FibonacciResult{
-				Sequence: sequence,
-			}
 			log.Printf("Goal complete: sequence=%v", sequence)
-			return result.SerializeCDR()
+			return &example_interfaces.FibonacciResult{Sequence: sequence}, nil
 		},
 	)
 	if err != nil {
@@ -96,9 +78,6 @@ func main() {
 	}
 	defer server.Close()
 	log.Println("Action server 'fibonacci' ready")
-
-	// Suppress unused import warning for binary (used by generated code)
-	_ = binary.LittleEndian
 
 	log.Println("Waiting for goals... Press Ctrl+C to exit")
 
