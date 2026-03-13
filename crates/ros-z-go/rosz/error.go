@@ -35,11 +35,29 @@ const (
 	// ErrorCodeContextCreationFailed indicates context creation failed
 	ErrorCodeContextCreationFailed ErrorCode = -8
 
+	// ErrorCodeServiceCallFailed indicates service call failed
+	ErrorCodeServiceCallFailed ErrorCode = -9
+
+	// ErrorCodeServiceTimeout indicates service call timed out
+	ErrorCodeServiceTimeout ErrorCode = -10
+
+	// ErrorCodeActionGoalRejected indicates action goal was rejected by server
+	ErrorCodeActionGoalRejected ErrorCode = -11
+
+	// ErrorCodeActionCancelFailed indicates action cancellation failed
+	ErrorCodeActionCancelFailed ErrorCode = -12
+
+	// ErrorCodeActionResultFailed indicates getting action result failed
+	ErrorCodeActionResultFailed ErrorCode = -13
+
+	// ErrorCodeActionFeedbackFailed indicates publishing action feedback failed
+	ErrorCodeActionFeedbackFailed ErrorCode = -14
+
 	// ErrorCodeDeserializationFailed indicates CDR deserialization failed
-	ErrorCodeDeserializationFailed ErrorCode = -9
+	ErrorCodeDeserializationFailed ErrorCode = -15
 
 	// ErrorCodeBuildFailed indicates a builder failed to construct the entity (FFI returned null)
-	ErrorCodeBuildFailed ErrorCode = -10
+	ErrorCodeBuildFailed ErrorCode = -16
 
 	// ErrorCodeUnknown indicates an unknown error occurred
 	ErrorCodeUnknown ErrorCode = -100
@@ -71,6 +89,16 @@ func NewRoszError(code ErrorCode, msg string) RoszError {
 	return RoszError{code: code, msg: msg}
 }
 
+// IsTimeout returns true if the error is a timeout error
+func (e RoszError) IsTimeout() bool {
+	return e.code == ErrorCodeServiceTimeout
+}
+
+// IsRejected returns true if the error is an action goal rejection
+func (e RoszError) IsRejected() bool {
+	return e.code == ErrorCodeActionGoalRejected
+}
+
 // Is reports whether target matches this error by comparing error codes.
 // This enables errors.Is() support for RoszError.
 // Uses direct type assertion (not errors.As) to avoid recursive chain walking.
@@ -84,6 +112,10 @@ func (e RoszError) Is(target error) bool {
 
 // Sentinel errors for common failure modes
 var (
+	ErrTimeout      = NewRoszError(ErrorCodeServiceTimeout, "service call timed out")
+	ErrGoalRejected = NewRoszError(ErrorCodeActionGoalRejected, "goal rejected")
+	ErrResultFailed = NewRoszError(ErrorCodeActionResultFailed, "action result failed")
+	ErrCancelFailed = NewRoszError(ErrorCodeActionCancelFailed, "action cancel failed")
 	// ErrBuildFailed is returned when a builder's Build() call fails (FFI returned null pointer).
 	// Use errors.Is(err, rosz.ErrBuildFailed) to detect construction failures.
 	ErrBuildFailed = NewRoszError(ErrorCodeBuildFailed, "failed to build entity")

@@ -92,6 +92,11 @@ func QosSensorData() QosProfile {
 	return qos
 }
 
+// QosServicesDefault returns QoS suitable for services (Reliable, Volatile, KeepLast(10))
+func QosServicesDefault() QosProfile {
+	return QosDefault()
+}
+
 // QosParameterEvents returns QoS for parameter events (Reliable, Volatile, KeepLast(1000))
 func QosParameterEvents() QosProfile {
 	qos := QosDefault()
