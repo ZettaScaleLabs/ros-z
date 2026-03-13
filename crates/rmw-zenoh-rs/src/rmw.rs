@@ -585,9 +585,6 @@ pub extern "C" fn rmw_create_subscription(
     if let Err(e) = graph.event_manager.register_event_callback(
         entity_gid,
         sub_topic.clone(),
-=======
-        entity.topic.clone(),
->>>>>>> 5edbd34 (fix(event): restore topic parameter in register_event_callback)
         ros_z::event::ZenohEventType::SubscriptionMatched,
         move |change| {
             if let Ok(mut mgr) = events_mgr.lock() {
@@ -607,9 +604,6 @@ pub extern "C" fn rmw_create_subscription(
     if let Err(e) = graph.event_manager.register_event_callback(
         entity_gid,
         sub_topic.clone(),
-=======
-        entity.topic.clone(),
->>>>>>> 5edbd34 (fix(event): restore topic parameter in register_event_callback)
         ros_z::event::ZenohEventType::RequestedQosIncompatible,
         move |encoded_change| {
             // Decode policy_kind from upper 16 bits and change from lower 16 bits
