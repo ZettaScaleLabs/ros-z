@@ -15,8 +15,8 @@ use std::ffi::c_void;
 // - and many other RMW/RCL types
 include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/bindings.rs"));
 
-// Additional RMW constants not in bindings
-pub const RMW_RET_ALREADY_INIT: u32 = 13;
+// Note: RMW_RET_ALREADY_INIT does not exist in the RMW spec.
+// Use RMW_RET_INVALID_ARGUMENT when context is already initialized.
 
 // QoS policy values (used for compatibility)
 pub const RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL: u32 = 1;
