@@ -329,6 +329,211 @@ impl std::fmt::Debug for RmEventHandle {
 // RmEventHandle is Send because the Arc<Mutex<>> provides thread safety
 unsafe impl Send for RmEventHandle {}
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn gid(n: u8) -> GidArray {
+        let mut g = [0u8; 16];
+        g[0] = n;
+        g
+    }
+
+    // ── EventsManager ────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_events_manager_initial_state() {
+        let mgr = EventsManager::new(gid(1));
+        // All callbacks are None; take_event_status returns zeroed status
+        let status = {
+            let mut m = mgr;
+            m.take_event_status(ZenohEventType::PublicationMatched)
+        };
+        assert!(!status.changed);
+        assert_eq!(status.total_count, 0);
+        assert_eq!(status.current_count, 0);
+    }
+
+    #[test]
+    fn test_update_event_status_fires_callback() {
+        let called = Arc::new(Mutex::new(0i32));
+        let called_clone = called.clone();
+
+        let mut mgr = EventsManager::new(gid(2));
+        mgr.set_callback(ZenohEventType::SubscriptionMatched, move |change| {
+            *called_clone.lock().unwrap() += change;
+        });
+
+        mgr.update_event_status(ZenohEventType::SubscriptionMatched, 1);
+        assert_eq!(*called.lock().unwrap(), 1);
+
+        mgr.update_event_status(ZenohEventType::SubscriptionMatched, 1);
+        assert_eq!(*called.lock().unwrap(), 2);
+    }
+
+    #[test]
+    fn test_update_without_callback_no_panic() {
+        let mut mgr = EventsManager::new(gid(3));
+        // No callback registered — must not panic
+        mgr.update_event_status(ZenohEventType::MessageLost, 1);
+        let status = mgr.take_event_status(ZenohEventType::MessageLost);
+        assert!(status.changed);
+        assert_eq!(status.total_count, 1);
+    }
+
+    #[test]
+    fn test_set_callback_fires_immediately_for_unread_events() {
+        let mut mgr = EventsManager::new(gid(4));
+        // Accumulate events before any callback is registered
+        mgr.update_event_status(ZenohEventType::PublicationMatched, 3);
+
+        let fired = Arc::new(Mutex::new(0i32));
+        let fired_clone = fired.clone();
+        // Registering the callback now should fire immediately with the backlog
+        mgr.set_callback(ZenohEventType::PublicationMatched, move |change| {
+            *fired_clone.lock().unwrap() += change;
+        });
+
+        assert_eq!(*fired.lock().unwrap(), 3);
+    }
+
+    #[test]
+    fn test_set_callback_replaces_existing() {
+        let old_fired = Arc::new(Mutex::new(false));
+        let new_fired = Arc::new(Mutex::new(false));
+
+        let old_clone = old_fired.clone();
+        let new_clone = new_fired.clone();
+
+        let mut mgr = EventsManager::new(gid(5));
+        mgr.set_callback(ZenohEventType::LivelinessLost, move |_| {
+            *old_clone.lock().unwrap() = true;
+        });
+        mgr.set_callback(ZenohEventType::LivelinessLost, move |_| {
+            *new_clone.lock().unwrap() = true;
+        });
+
+        mgr.update_event_status(ZenohEventType::LivelinessLost, 1);
+        assert!(!*old_fired.lock().unwrap(), "old callback must not fire");
+        assert!(*new_fired.lock().unwrap(), "new callback must fire");
+    }
+
+    #[test]
+    fn test_take_event_status_resets_change_counters() {
+        let mut mgr = EventsManager::new(gid(6));
+        mgr.update_event_status(ZenohEventType::RequestedQosIncompatible, 2);
+
+        let first = mgr.take_event_status(ZenohEventType::RequestedQosIncompatible);
+        assert!(first.changed);
+        assert_eq!(first.total_count_change, 2);
+
+        // Second take: change counters must be reset, total count persists
+        let second = mgr.take_event_status(ZenohEventType::RequestedQosIncompatible);
+        assert!(!second.changed);
+        assert_eq!(second.total_count_change, 0);
+        assert_eq!(second.total_count, 2); // cumulative count unchanged
+    }
+
+    #[test]
+    fn test_update_with_policy_sets_last_policy_kind() {
+        let mut mgr = EventsManager::new(gid(7));
+        mgr.update_event_status_with_policy(ZenohEventType::OfferedQosIncompatible, 1, 42);
+        let status = mgr.take_event_status(ZenohEventType::OfferedQosIncompatible);
+        assert_eq!(status.last_policy_kind, 42);
+    }
+
+    // ── GraphEventManager ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_graph_event_manager_register_and_trigger() {
+        let mgr = GraphEventManager::new();
+        let fired = Arc::new(Mutex::new(0i32));
+        let fired_clone = fired.clone();
+
+        mgr.register_event_callback(gid(1), ZenohEventType::SubscriptionMatched, move |v| {
+            *fired_clone.lock().unwrap() += v;
+        })
+        .unwrap();
+
+        mgr.trigger_event(&gid(1), ZenohEventType::SubscriptionMatched, 5);
+        assert_eq!(*fired.lock().unwrap(), 5);
+    }
+
+    #[test]
+    fn test_graph_event_manager_unregister_stops_firing() {
+        let mgr = GraphEventManager::new();
+        let fired = Arc::new(Mutex::new(0i32));
+        let fired_clone = fired.clone();
+
+        mgr.register_event_callback(gid(2), ZenohEventType::PublicationMatched, move |v| {
+            *fired_clone.lock().unwrap() += v;
+        })
+        .unwrap();
+
+        mgr.trigger_event(&gid(2), ZenohEventType::PublicationMatched, 1);
+        assert_eq!(*fired.lock().unwrap(), 1);
+
+        mgr.unregister_entity(&gid(2));
+        mgr.trigger_event(&gid(2), ZenohEventType::PublicationMatched, 1);
+        assert_eq!(*fired.lock().unwrap(), 1); // unchanged
+    }
+
+    #[test]
+    fn test_graph_event_manager_no_callback_no_panic() {
+        let mgr = GraphEventManager::new();
+        // Trigger on an unregistered GID — must not panic
+        mgr.trigger_event(&gid(99), ZenohEventType::LivelinessChanged, 1);
+    }
+
+    // ── EventWaitData ────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_event_wait_data_set_and_check() {
+        let w = EventWaitData::new();
+        assert!(!w.is_triggered());
+        w.set_triggered(true);
+        assert!(w.is_triggered());
+        w.set_triggered(false);
+        assert!(!w.is_triggered());
+    }
+
+    // ── RmEventHandle ────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_rmevent_handle_is_ready_and_take() {
+        let mgr = Arc::new(Mutex::new(EventsManager::new(gid(8))));
+        let handle = RmEventHandle::new(mgr.clone(), ZenohEventType::MessageLost);
+
+        assert!(!handle.is_ready());
+
+        mgr.lock()
+            .unwrap()
+            .update_event_status(ZenohEventType::MessageLost, 2);
+
+        assert!(handle.is_ready());
+        let status = handle.take_event();
+        assert_eq!(status.total_count, 2);
+        assert!(!handle.is_ready()); // reset after take
+    }
+
+    #[test]
+    fn test_rmevent_handle_set_callback() {
+        let mgr = Arc::new(Mutex::new(EventsManager::new(gid(9))));
+        let handle = RmEventHandle::new(mgr.clone(), ZenohEventType::LivelinessChanged);
+        let fired = Arc::new(Mutex::new(0i32));
+        let fired_clone = fired.clone();
+
+        handle.set_callback(move |v| {
+            *fired_clone.lock().unwrap() += v;
+        });
+
+        mgr.lock()
+            .unwrap()
+            .update_event_status(ZenohEventType::LivelinessChanged, 3);
+        assert_eq!(*fired.lock().unwrap(), 3);
+    }
+}
+
 impl RmEventHandle {
     pub fn new(events_mgr: Arc<Mutex<EventsManager>>, event_type: ZenohEventType) -> Self {
         Self {

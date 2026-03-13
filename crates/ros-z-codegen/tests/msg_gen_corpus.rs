@@ -700,3 +700,73 @@ fn print_golden_hashes() {
         }
     }
 }
+
+// ============================================================================
+// Parser error path tests
+// ============================================================================
+
+mod parser_errors {
+    use ros_z_codegen::parser::{
+        parse_constant, parse_default_value, parse_field, parse_field_type,
+    };
+
+    #[test]
+    fn test_parse_field_too_few_tokens() {
+        // A field line needs at least "type name"; one token is invalid.
+        let err = parse_field("uint8", "pkg", 1).unwrap_err();
+        assert!(
+            err.to_string().contains("Invalid field format"),
+            "unexpected: {err}"
+        );
+    }
+
+    #[test]
+    fn test_parse_field_type_unclosed_bracket() {
+        let err = parse_field_type("uint8[", "pkg").unwrap_err();
+        assert!(
+            err.to_string().contains("Invalid array syntax"),
+            "unexpected: {err}"
+        );
+    }
+
+    #[test]
+    fn test_parse_field_type_invalid_fixed_size() {
+        let err = parse_field_type("uint8[abc]", "pkg").unwrap_err();
+        assert!(
+            err.to_string().contains("Invalid fixed array size"),
+            "unexpected: {err}"
+        );
+    }
+
+    #[test]
+    fn test_parse_field_type_invalid_bounded_array_size() {
+        let err = parse_field_type("uint8[<=xyz]", "pkg").unwrap_err();
+        assert!(
+            err.to_string().contains("Invalid bounded array size"),
+            "unexpected: {err}"
+        );
+    }
+
+    #[test]
+    fn test_parse_field_type_invalid_string_bound() {
+        let err = parse_field_type("string<=xyz", "pkg").unwrap_err();
+        assert!(
+            err.to_string().contains("Invalid string bound"),
+            "unexpected: {err}"
+        );
+    }
+
+    #[test]
+    fn test_parse_default_value_empty_array() {
+        // An empty array literal "[]" is not a valid default.
+        let err = parse_default_value("[]").unwrap_err();
+        assert!(err.to_string().contains("Empty array"), "unexpected: {err}");
+    }
+
+    #[test]
+    fn test_parse_constant_missing_value() {
+        // A constant line must have "TYPE NAME = VALUE"; missing "= value" is invalid.
+        let err = parse_constant("uint8 FOO", 1).unwrap_err();
+        assert!(err.to_string().contains("constant"), "unexpected: {err}");
+    }
+}
