@@ -477,9 +477,14 @@ mod tests {
         let fired = Arc::new(Mutex::new(0i32));
         let fired_clone = fired.clone();
 
-        mgr.register_event_callback(gid(1), ZenohEventType::SubscriptionMatched, move |v| {
-            *fired_clone.lock().unwrap() += v;
-        })
+        mgr.register_event_callback(
+            gid(1),
+            "/test".to_string(),
+            ZenohEventType::SubscriptionMatched,
+            move |v| {
+                *fired_clone.lock().unwrap() += v;
+            },
+        )
         .unwrap();
 
         mgr.trigger_event(&gid(1), ZenohEventType::SubscriptionMatched, 5);
@@ -492,9 +497,14 @@ mod tests {
         let fired = Arc::new(Mutex::new(0i32));
         let fired_clone = fired.clone();
 
-        mgr.register_event_callback(gid(2), ZenohEventType::PublicationMatched, move |v| {
-            *fired_clone.lock().unwrap() += v;
-        })
+        mgr.register_event_callback(
+            gid(2),
+            "/test".to_string(),
+            ZenohEventType::PublicationMatched,
+            move |v| {
+                *fired_clone.lock().unwrap() += v;
+            },
+        )
         .unwrap();
 
         mgr.trigger_event(&gid(2), ZenohEventType::PublicationMatched, 1);
