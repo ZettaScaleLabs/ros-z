@@ -274,12 +274,11 @@ impl GraphEventManager {
         let callbacks = self.event_callbacks.lock().unwrap();
         for (entity_gid, entity_callbacks) in callbacks.iter() {
             // Only notify entities on the same topic
-            if let Some(registered_topic) = entity_topics.get(entity_gid) {
-                if registered_topic == changed_topic {
-                    if let Some(callback) = entity_callbacks.get(&event_type) {
-                        callback(change);
-                    }
-                }
+            if let Some(registered_topic) = entity_topics.get(entity_gid)
+                && registered_topic == changed_topic
+                && let Some(callback) = entity_callbacks.get(&event_type)
+            {
+                callback(change);
             }
         }
     }
