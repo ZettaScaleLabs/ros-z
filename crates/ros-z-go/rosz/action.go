@@ -149,6 +149,10 @@ func (h *GoalHandle) GetResult() ([]byte, error) {
 
 // GetResultWithContext waits for and returns the goal result as raw bytes.
 // The context can be used to set a deadline or cancel the wait.
+// Cancelling ctx causes this function to return ctx.Err() immediately,
+// but the underlying Rust call continues running in the background until
+// the action server responds or the action client is closed. Do not rely
+// on context cancellation to abort the server-side execution.
 func (h *GoalHandle) GetResultWithContext(ctx context.Context) ([]byte, error) {
 	if h.handle == nil {
 		return nil, fmt.Errorf("goal handle is closed")
@@ -582,6 +586,19 @@ func (b *ActionServerBuilder) Build(
 	// Create pinned closure with both callbacks
 	closure := newActionClosure(b.action, goalCallback, executeCallback)
 
+	// Allocate the server struct and set the back-reference BEFORE the C call so
+	// that the execute callback can construct ServerGoalHandle the moment a goal
+	// arrives, even if os-scheduling places the first goal callback before Build()
+	// returns to Go. The handle field is populated after the C call succeeds.
+	// Set back-reference so execute callback can construct ServerGoalHandle.
+	// Safe: no goals can arrive until the server is discoverable on the network.
+	server := &ActionServer{
+		node:    b.node,
+		action:  b.action,
+		closure: closure,
+	}
+	closure.server = server
+
 	handle := C.ros_z_action_server_create(
 		b.node.handle,
 		actionC,
@@ -591,6 +608,8 @@ func (b *ActionServerBuilder) Build(
 		feedbackTypeC, feedbackHashC,
 		C.getActionGoalCallback(),
 		C.getActionExecuteCallback(),
+		// closure.pinner.Pin(closure) guarantees the struct address is stable,
+		// making this uintptr cast safe. Do not remove the Pin call above.
 		C.uintptr_t(uintptr(unsafe.Pointer(closure))),
 	)
 
@@ -599,15 +618,7 @@ func (b *ActionServerBuilder) Build(
 		return nil, fmt.Errorf("%w: action server for %s", ErrBuildFailed, b.action)
 	}
 
-	server := &ActionServer{
-		handle:  handle,
-		node:    b.node,
-		action:  b.action,
-		closure: closure,
-	}
-	// Set back-reference so execute callback can construct ServerGoalHandle.
-	// Safe: no goals can arrive until the server is discoverable on the network.
-	closure.server = server
+	server.handle = handle
 	runtime.SetFinalizer(server, (*ActionServer).Close)
 
 	return server, nil

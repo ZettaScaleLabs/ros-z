@@ -244,6 +244,8 @@ func (b *ServiceServerBuilder) Build(svc Service, callback func([]byte) ([]byte,
 		svcTypeC, svcHashC,
 		svcTypeC, svcHashC,
 		C.getServiceCallback(),
+		// closure.pinner.Pin(closure) guarantees the struct address is stable,
+		// making this uintptr cast safe. Do not remove the Pin call above.
 		C.uintptr_t(uintptr(unsafe.Pointer(closure))),
 	)
 
