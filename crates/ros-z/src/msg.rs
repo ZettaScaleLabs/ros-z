@@ -100,11 +100,13 @@ pub trait ZSerializer {
     /// # Ok(())
     /// # }
     /// ```
-    fn serialize_to_shm(
+    fn serialize_to_shm<B>(
         input: Self::Input<'_>,
         estimated_size: usize,
-        provider: &zenoh::shm::ShmProvider<zenoh::shm::PosixShmProviderBackend>,
-    ) -> zenoh::Result<(ZBuf, usize)>;
+        provider: &zenoh::shm::ShmProvider<B>,
+    ) -> zenoh::Result<(ZBuf, usize)>
+    where
+        B: zenoh::shm::ShmProviderBackend;
 
     /// Serialize to an existing buffer, returning the result as ZBuf.
     ///
@@ -244,10 +246,10 @@ where
         writer.into_zbuf()
     }
 
-    fn serialize_to_shm(
+    fn serialize_to_shm<B: zenoh::shm::ShmProviderBackend>(
         input: &T,
         estimated_size: usize,
-        provider: &zenoh::shm::ShmProvider<zenoh::shm::PosixShmProviderBackend>,
+        provider: &zenoh::shm::ShmProvider<B>,
     ) -> zenoh::Result<(ZBuf, usize)> {
         let mut writer = crate::shm::ShmWriter::new(provider, estimated_size)?;
         writer.extend_from_slice(&CDR_HEADER_LE);
@@ -331,10 +333,10 @@ where
         writer.into_zbuf()
     }
 
-    fn serialize_to_shm(
+    fn serialize_to_shm<B: zenoh::shm::ShmProviderBackend>(
         input: &T,
         estimated_size: usize,
-        provider: &zenoh::shm::ShmProvider<zenoh::shm::PosixShmProviderBackend>,
+        provider: &zenoh::shm::ShmProvider<B>,
     ) -> zenoh::Result<(ZBuf, usize)> {
         let mut writer = crate::shm::ShmWriter::new(provider, estimated_size)?;
         writer.extend_from_slice(&CDR_HEADER_LE);
@@ -410,11 +412,14 @@ where
         Self::serialize_to_zbuf(input)
     }
 
-    fn serialize_to_shm(
+    fn serialize_to_shm<B>(
         input: &T,
         estimated_size: usize,
-        provider: &zenoh::shm::ShmProvider<zenoh::shm::PosixShmProviderBackend>,
-    ) -> zenoh::Result<(ZBuf, usize)> {
+        provider: &zenoh::shm::ShmProvider<B>,
+    ) -> zenoh::Result<(ZBuf, usize)>
+    where
+        B: zenoh::shm::ShmProviderBackend,
+    {
         // For protobuf, we serialize to Vec first then copy to SHM
         // (protobuf doesn't support custom writers like CDR does)
         let data = input.encode_to_vec();

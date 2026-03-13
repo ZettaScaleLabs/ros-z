@@ -50,6 +50,91 @@ impl ZBuf {
     pub fn from_zenoh(zbuf: ZenohZBuf) -> Self {
         Self(zbuf)
     }
+
+    /// Iterate over CUDA device-memory slices in this buffer.
+    ///
+    /// Returns an iterator over [`zenoh_cuda::CudaBufInner`] references for each
+    /// ZSlice with `kind = ZSliceKind::CudaPtr`. Empty on CPU-only buffers.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// for cuda in msg.data.cuda_slices() {
+    ///     let ptr = cuda.as_device_ptr();  // pass to CUDA kernel
+    ///     let len = cuda.cuda_len;
+    /// }
+    /// ```
+    #[cfg(feature = "cuda")]
+    pub fn cuda_slices(&self) -> impl Iterator<Item = &zenoh_cuda::CudaBufInner> {
+        use zenoh_buffers::ZSliceKind;
+        self.0
+            .zslices()
+            .filter(|zs| zs.kind == ZSliceKind::CudaPtr || zs.kind == ZSliceKind::CudaTensor)
+            .filter_map(|zs| zs.downcast_ref::<zenoh_cuda::CudaBufInner>())
+    }
+
+    /// Iterate over typed CUDA tensor ZSlices (those with DLPack tensor metadata).
+    ///
+    /// Returns an iterator of `(CudaBufInner, TensorMeta)` pairs for each ZSlice
+    /// with `kind = ZSliceKind::CudaTensor` that carries shape/dtype information.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// for (cuda, meta) in msg.data.typed_cuda_slices() {
+    ///     let ptr = cuda.as_device_ptr();
+    ///     println!("shape={:?} dtype_bits={}", meta.shape, meta.dtype_bits);
+    /// }
+    /// ```
+    #[cfg(feature = "cuda")]
+    pub fn typed_cuda_slices(
+        &self,
+    ) -> impl Iterator<Item = (&zenoh_cuda::CudaBufInner, &zenoh_cuda::TensorMeta)> {
+        self.cuda_slices()
+            .filter_map(|c| c.tensor_meta().map(|m| (c, m)))
+    }
+
+    /// Creates a ZBuf that carries a typed CUDA tensor (with DLPack metadata).
+    ///
+    /// The ZSlice kind is set to `ZSliceKind::CudaTensor`. The receiver can call
+    /// `as_dlpack()` to get a correctly-shaped tensor with no out-of-band convention.
+    #[cfg(feature = "cuda")]
+    pub fn from_cuda_tensor(buf: zenoh_cuda::CudaBufInner) -> Self {
+        use std::sync::Arc;
+        use zenoh_buffers::{ZSlice, ZSliceKind};
+        let mut zslice = ZSlice::from(Arc::new(buf));
+        zslice.kind = ZSliceKind::CudaTensor;
+        let mut zbuf = ZenohZBuf::default();
+        zbuf.push_zslice(zslice);
+        ZBuf(zbuf)
+    }
+
+    /// Creates a ZBuf that carries CUDA device memory.
+    ///
+    /// The resulting `ZBuf` has its ZSlice kind set to `ZSliceKind::CudaPtr`,
+    /// which signals the transport layer to send a CUDA IPC handle instead of
+    /// copying the bytes over the network.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use ros_z::{ZBuf, CudaBufInner};
+    ///
+    /// let cuda = CudaBufInner::alloc_device(1024 * 1024, 0)?;
+    /// // ... fill via CUDA kernel ...
+    /// let zbuf = ZBuf::from_cuda(cuda);
+    /// publisher.publish(&PointCloud2 { data: zbuf, .. }).await?;
+    /// ```
+    #[cfg(feature = "cuda")]
+    pub fn from_cuda(buf: zenoh_cuda::CudaBufInner) -> Self {
+        use std::sync::Arc;
+        use zenoh_buffers::{ZSlice, ZSliceKind};
+        let mut zslice = ZSlice::from(Arc::new(buf));
+        zslice.kind = ZSliceKind::CudaPtr;
+        let mut zbuf = ZenohZBuf::default();
+        zbuf.push_zslice(zslice);
+        ZBuf(zbuf)
+    }
 }
 
 // Conversions
@@ -200,6 +285,18 @@ impl<'de> Deserialize<'de> for ZBuf {
                     let v_start = v.as_ptr() as usize;
                     let v_end = v_start + v.len();
                     for zslice in source.zslices() {
+                        // CudaPtr/CudaTensor fast path: return the slice directly without pointer
+                        // comparison — device memory has no CPU-accessible bytes to compare.
+                        #[cfg(feature = "cuda")]
+                        if zslice.kind == zenoh_buffers::ZSliceKind::CudaPtr
+                            || zslice.kind == zenoh_buffers::ZSliceKind::CudaTensor
+                        {
+                            let mut zbuf = ZenohZBuf::default();
+                            zbuf.push_zslice(zslice.clone());
+                            return Some(zbuf);
+                        }
+
+                        // CPU zero-copy path: check if v falls within the ZSlice bytes.
                         let s_start = zslice.as_slice().as_ptr() as usize;
                         let s_end = s_start + zslice.len();
                         if v_start >= s_start && v_end <= s_end {

@@ -20,12 +20,17 @@ ros-z-msgs = { path = "../ros-z-msgs", features = [
 ] }
 zenoh = { workspace = true }
 zenoh-buffers = { workspace = true }
+zenoh-cuda = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "time"] }
 anyhow = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 flume = { workspace = true }
 parking_lot = { workspace = true }
 once_cell = "1.19"
+serde_json = { workspace = true }
+
+[features]
+cuda = ["zenoh-buffers/cuda", "dep:zenoh-cuda", "ros-z/cuda"]
 
 [build-dependencies]
 anyhow = { workspace = true }

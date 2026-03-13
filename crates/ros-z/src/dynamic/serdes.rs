@@ -54,11 +54,14 @@ impl ZSerializer for DynamicSerdeCdrSerdes {
         Self::serialize_to_zbuf(input)
     }
 
-    fn serialize_to_shm(
+    fn serialize_to_shm<B>(
         input: &DynamicMessage,
         _estimated_size: usize,
-        provider: &zenoh::shm::ShmProvider<zenoh::shm::PosixShmProviderBackend>,
-    ) -> zenoh::Result<(ZBuf, usize)> {
+        provider: &zenoh::shm::ShmProvider<B>,
+    ) -> zenoh::Result<(ZBuf, usize)>
+    where
+        B: zenoh::shm::ShmProviderBackend,
+    {
         // DynamicMessage uses primitives-based serialization, not serde
         // So we serialize to Vec first, then copy to SHM
         // This is similar to the protobuf approach

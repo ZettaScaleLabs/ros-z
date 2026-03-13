@@ -19,6 +19,8 @@ zenoh = { workspace = true, default-features = false, features = [
 ] }
 zenoh-ext = { workspace = true }
 zenoh-buffers = { workspace = true }
+zenoh-codec = { workspace = true, optional = true }
+zenoh-cuda = { workspace = true, optional = true }
 strum = { workspace = true, features = ["derive"] }
 sha2 = { workspace = true }
 parking_lot = { workspace = true }
@@ -32,6 +34,9 @@ serde_yaml = { workspace = true }
 dashmap = "5.5"
 prost = { workspace = true, optional = true }
 pyo3 = { workspace = true, optional = true }
+# Only for ort_classifier example (required-features = ["cuda"])
+ort = { workspace = true, optional = true }
+ndarray = { version = "0.17", optional = true }
 ros-z-cdr = { workspace = true }
 ros-z-codegen = { workspace = true, optional = true }
 ros-z-protocol = { path = "../ros-z-protocol", default-features = false, features = [
@@ -46,6 +51,7 @@ paste = "1.0"
 [dev-dependencies]
 ros-z-msgs = { path = "../ros-z-msgs" }
 ros-z-codegen = { path = "../ros-z-codegen" }
+anyhow = { workspace = true }
 
 [build-dependencies]
 serde = { workspace = true, features = ["serde_derive"] }
@@ -62,6 +68,15 @@ prost-build = { workspace = true, optional = true }
 default = ["config-builders", "jazzy", "rmw-zenoh"]
 config-builders = []
 generate-configs = []
+cuda = [
+  "zenoh-buffers/cuda",
+  "dep:zenoh-codec",
+  "zenoh-codec/cuda",
+  "dep:zenoh-cuda",
+  "zenoh/cuda",
+  "dep:ort",
+  "dep:ndarray",
+]
 protobuf = ["prost", "prost-build"]
 flatbuffers = []
 python = ["pyo3"]
@@ -209,6 +224,11 @@ required-features = []
 name = "shm_pointcloud2"
 path = "examples/shm_pointcloud2.rs"
 required-features = []
+
+[[example]]
+name = "ort_classifier"
+path = "examples/ort_classifier.rs"
+required-features = ["cuda"]
 
 [[example]]
 name = "encoding_demo"

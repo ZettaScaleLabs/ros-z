@@ -17,7 +17,6 @@ jobs:
     name: Test documentation
     runs-on: ubuntu-latest
     permissions:
-      id-token: write
       contents: read
 
     steps:
@@ -26,9 +25,6 @@ jobs:
 
       - name: Install Determinate Nix
         uses: DeterminateSystems/determinate-nix-action@v3
-
-      - name: FlakeHub / Magic cache
-        uses: DeterminateSystems/flakehub-cache-action@main
 
       - name: Build ros-z library (required for mdbook test link path)
         run: |
@@ -63,9 +59,6 @@ jobs:
 
       - name: Install Determinate Nix
         uses: DeterminateSystems/determinate-nix-action@v3
-
-      - name: FlakeHub / Magic cache
-        uses: DeterminateSystems/flakehub-cache-action@main
 
       - name: Build mdbook in flake shell
         run: |

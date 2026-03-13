@@ -46,10 +46,10 @@ impl ZSerializer for RosSerdes {
         Self::serialize_to_zbuf(input)
     }
 
-    fn serialize_to_shm(
+    fn serialize_to_shm<B: zenoh::shm::ShmProviderBackend>(
         input: Self::Input<'_>,
         _estimated_size: usize,
-        provider: &zenoh::shm::ShmProvider<zenoh::shm::PosixShmProviderBackend>,
+        provider: &zenoh::shm::ShmProvider<B>,
     ) -> zenoh::Result<(zenoh_buffers::ZBuf, usize)> {
         // RosMessage uses C FFI serialization, which produces Vec<u8>
         // So we serialize to Vec first, then copy to SHM

@@ -42,6 +42,7 @@
 # Experimental
 
 - [Shared Memory (SHM)](./chapters/shm.md)
+- [GPU Tensor Transport](./chapters/gpu-tensor-transport.md)
 - [Key Expression Formats](./chapters/keyexpr_formats.md)
 - [rmw_zenoh_rs](./chapters/rmw_zenoh_rs.md)
 
