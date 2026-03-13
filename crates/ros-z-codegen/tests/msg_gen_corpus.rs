@@ -530,19 +530,19 @@ fn test_golden_hashes() {
     let cases = [
         (
             "Arrays",
-            "RIHS01_ed02ef17e8e25609ec24b0ccc4855da249fe0a1de40a0e2ecb8a5c1db5ba7364",
+            "RIHS01_f2a373b74b93feccf53bd195bfd5d6d33f3b8770c44fbe07e5bdb80bcba91b0a",
         ),
         (
             "BasicTypes",
-            "RIHS01_5bced6e4fb1318e7d9eca74f295009aa2c27bdf5dfc50b7ddafdd933889dc474",
+            "RIHS01_8614a017261eb9eecc4cf82f044feab34bedbd2b83c031f451ba15e8daa97247",
         ),
         (
             "BoundedPlainSequences",
-            "RIHS01_b444707f23bcab51d844c4cc87fe5f84930d53457c806e94c10fa79ec2e15e86",
+            "RIHS01_577a9b4de61219f4699274702985dfd35f4ada2bc88cf57251a174339c35f9fa",
         ),
         (
             "BoundedSequences",
-            "RIHS01_45c7dacc1a47b927b27c75f9ee360ba668d715e2c954ac01155ffbcad5a9447b",
+            "RIHS01_a9c6ddf375f5ffd4f37f3dbe73082652c7ca150b52bd4e03a73d016fc3e72ff7",
         ),
         (
             "Constants",
@@ -550,7 +550,7 @@ fn test_golden_hashes() {
         ),
         (
             "Defaults",
-            "RIHS01_f02e37408d37ea4820e7984d627cfe6ddc5b716809b9ab025ed0545d1f14f5d8",
+            "RIHS01_577d96cd5175213ee96074a8fd9bf4b83e00fd2e1db6e5e75ae688cd27029212",
         ),
         (
             "Empty",
@@ -558,11 +558,11 @@ fn test_golden_hashes() {
         ),
         (
             "MultiNested",
-            "RIHS01_7888e020c11dc8065aef5e4bd74758766f2abad07fe2df3ea2020a9e4e596d2f",
+            "RIHS01_677bdd1471c63e02356beaf1e09409a875c0e604f86cfefcad70166b1019e718",
         ),
         (
             "Nested",
-            "RIHS01_f982ee616c4495ae63bdcd732bc8e5db2591ba1775b4a8abca0e4e7eb86fdc62",
+            "RIHS01_f7508dd21e8e3a45218396836e71303befa72c54067dc6ceb50f499e636379ae",
         ),
         (
             "Strings",
@@ -570,7 +570,7 @@ fn test_golden_hashes() {
         ),
         (
             "UnboundedSequences",
-            "RIHS01_433de576e844332ab23b1133f390ad1b02e1f6d84f6a193bcd9c058a9b7bb834",
+            "RIHS01_c4c1310b554263d0e2c3ec3d4f3f86bd5a91b773fd7faba57a3e58b70da180f5",
         ),
     ];
     for (name, expected) in cases {
