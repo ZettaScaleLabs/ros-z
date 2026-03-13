@@ -558,6 +558,7 @@ impl ZPub<crate::dynamic::DynamicMessage, crate::dynamic::DynamicSerdeCdrSerdes>
 pub struct ZSubBuilder<T, S = SerdeCdrSerdes<T>> {
     pub entity: EndpointEntity,
     pub session: Arc<Session>,
+    pub graph: Arc<Graph>,
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
     pub dyn_schema: Option<Arc<crate::dynamic::schema::MessageSchema>>,
     pub locality: Option<zenoh::sample::Locality>,
@@ -580,6 +581,7 @@ where
         ZSubBuilder {
             entity: self.entity,
             session: self.session,
+            graph: self.graph,
             keyexpr_format: self.keyexpr_format,
             dyn_schema: self.dyn_schema,
             locality: self.locality,
@@ -814,6 +816,7 @@ where
             _lv_token: lv_token,
             queue,
             events_mgr: Arc::new(Mutex::new(EventsManager::new(gid))),
+            graph: self.graph,
             dyn_schema: self.dyn_schema,
             expected_encoding: self.expected_encoding,
             _phantom_data: Default::default(),
@@ -915,6 +918,7 @@ pub struct ZSub<T: ZMessage, Q, S: ZDeserializer> {
     _inner: zenoh::pubsub::Subscriber<()>,
     _lv_token: LivelinessToken,
     events_mgr: Arc<Mutex<EventsManager>>,
+    graph: Arc<Graph>,
     /// Schema for dynamic message deserialization.
     /// Required when using `DynamicMessage` with `DynamicSerdeCdrSerdes`.
     pub dyn_schema: Option<Arc<crate::dynamic::schema::MessageSchema>>,
@@ -969,6 +973,52 @@ where
     /// Check if there are messages available in the queue
     pub fn is_ready(&self) -> bool {
         self.queue.as_ref().map(|q| !q.is_empty()).unwrap_or(false)
+    }
+
+    /// Wait until at least `count` publishers are matched on this subscriber's topic,
+    /// or until `timeout` elapses.
+    ///
+    /// Returns `true` if the required number of publishers appeared within the
+    /// timeout, `false` otherwise.
+    ///
+    /// This mirrors `ZPub::wait_for_subscription` but from the subscriber side.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// // Ensure at least one publisher is ready before receiving.
+    /// assert!(subscriber.wait_for_publisher(1, Duration::from_secs(5)).await);
+    /// ```
+    pub async fn wait_for_publisher(&self, count: usize, timeout: Duration) -> bool {
+        let deadline = tokio::time::Instant::now() + timeout;
+        loop {
+            let notified = self.graph.change_notify.notified();
+            tokio::pin!(notified);
+
+            let n = self
+                .graph
+                .get_entities_by_topic(EntityKind::Publisher, &self.entity.topic)
+                .len();
+            if n >= count {
+                return true;
+            }
+
+            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+            if remaining.is_zero() {
+                return false;
+            }
+
+            if tokio::time::timeout(remaining, &mut notified)
+                .await
+                .is_err()
+            {
+                return self
+                    .graph
+                    .get_entities_by_topic(EntityKind::Publisher, &self.entity.topic)
+                    .len()
+                    >= count;
+            }
+        }
     }
 }
 

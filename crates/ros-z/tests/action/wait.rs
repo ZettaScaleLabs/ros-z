@@ -1,6 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use ros_z::{Builder, Result, context::ZContextBuilder, define_action};
+use serial_test::serial;
 use serde::{Deserialize, Serialize};
 use tokio::time;
 
@@ -75,8 +76,7 @@ async fn setup_test_with_client_server() -> Result<(
 mod tests {
     use super::*;
 
-    #[ignore = "requires worker_threads = 2"]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_action_client_async_wait_timeout() -> Result<()> {
         let (_client_node, _server_node, client, server) = setup_test_with_client_server().await?;
 
@@ -199,8 +199,8 @@ mod tests {
     /// - Client uses `borrow_and_update()` to mark initial status as "seen"
     /// - Without these, status could transition Unknown->Accepted->Executing->Succeeded
     ///   before `changed()` is called, causing it to wait forever for a change that already happened
+    #[serial]
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    #[ignore = "Flaky under resource constraints - passes in isolation (0.12s) but times out in full suite"]
     async fn test_action_status_async_wait() -> Result<()> {
         use tokio::sync::oneshot;
 
