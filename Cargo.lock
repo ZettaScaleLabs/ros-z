@@ -2912,6 +2912,7 @@ dependencies = [
  "serde",
  "serial_test",
  "tokio",
+ "tracing-subscriber",
  "zenoh",
  "zenoh-buffers",
 ]

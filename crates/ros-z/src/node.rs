@@ -1,11 +1,7 @@
-use crate::entity::EntityKind;
-use crate::graph::Graph;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
+
 use tracing::{debug, info, warn};
-use zenoh::liveliness::LivelinessToken;
-use zenoh::sample::Sample;
-use zenoh::{Result, Session, Wait};
+use zenoh::{Result, Session, Wait, liveliness::LivelinessToken, sample::Sample};
 
 #[cfg(feature = "ffi")]
 use crate::ffi::publisher::RawPublisher;
@@ -18,7 +14,8 @@ use crate::{
         DynamicMessage, DynamicSerdeCdrSerdes, MessageSchema, TypeDescriptionClient,
         TypeDescriptionService,
     },
-    entity::*,
+    entity::{EntityKind, *},
+    graph::Graph,
     msg::{ZMessage, ZService},
     parameter::{
         Parameter, ParameterDescriptor, ParameterValue, SetParametersResult,
@@ -544,9 +541,12 @@ impl ZNode {
         type_hash: &str,
         qos: Option<crate::qos::QosProfile>,
     ) -> Result<RawPublisher> {
-        use crate::entity::{EndpointEntity, EntityKind};
-        use crate::topic_name;
         use zenoh::qos::CongestionControl;
+
+        use crate::{
+            entity::{EndpointEntity, EntityKind},
+            topic_name,
+        };
 
         let qualified_topic =
             topic_name::qualify_topic_name(topic, &self.entity.namespace, &self.entity.name)
@@ -616,8 +616,10 @@ impl ZNode {
     where
         F: Fn(&[u8]) + Send + Sync + 'static,
     {
-        use crate::entity::{EndpointEntity, EntityKind};
-        use crate::topic_name;
+        use crate::{
+            entity::{EndpointEntity, EntityKind},
+            topic_name,
+        };
 
         let qualified_topic =
             topic_name::qualify_topic_name(topic, &self.entity.namespace, &self.entity.name)
@@ -723,6 +725,9 @@ impl ZNode {
     /// Returns the result indicating success or failure with a reason.
     /// The change will be validated against the parameter's descriptor and
     /// any registered `on_set_parameters` callback.
+    ///
+    /// Setting a parameter to `ParameterValue::NotSet` keeps it declared; use
+    /// [`ZNode::undeclare_parameter`] to remove it entirely.
     pub fn set_parameter(&self, param: Parameter) -> std::result::Result<(), String> {
         self.parameter_service
             .as_ref()
@@ -730,7 +735,7 @@ impl ZNode {
             .unwrap_or_else(|| Err("parameter services not enabled".to_string()))
     }
 
-    /// Undeclare a previously declared parameter.
+    /// Undeclare a previously declared parameter and publish a deleted event.
     pub fn undeclare_parameter(&self, name: &str) -> std::result::Result<(), String> {
         self.parameter_service
             .as_ref()

@@ -60,7 +60,10 @@ Leave the router running in a separate terminal, then run any example from the r
 | `z_custom_message` | Custom `.msg` types without `ros-z-msgs`; shows the codegen workflow | `cargo run --example z_custom_message -- --mode status-pub` |
 | `twist_pub` | Publishing `geometry_msgs/Twist` (common for robot velocity commands) | `cargo run --example twist_pub` |
 | `battery_state_sub` | Subscribing to `sensor_msgs/BatteryState` | `cargo run --example battery_state_sub` |
-| `z_parameters` | Parameter declare/get/set, validation callbacks, YAML loading | `cargo run --example z_parameters` |
+| `z_parameter_declare` | Local parameter declare/get/set/undeclare flow | `cargo run --example z_parameter_declare` |
+| `z_parameter_callback` | Validation callback flow for parameter changes | `cargo run --example z_parameter_callback` |
+| `z_parameter_yaml` | YAML parameter loading plus programmatic overrides | `cargo run --example z_parameter_yaml` |
+| `z_parameter_client` | Remote `ParameterClient` calls against a parameter server | `cargo run --example z_parameter_client` |
 | `zenoh_router` | Embedded Zenoh router for development without installing `zenohd` | `cargo run --example zenoh_router` |
 
 ```admonish tip
@@ -298,20 +301,15 @@ cargo run
 
 ---
 
-## Parameters Demo
+## Parameter Examples
 
-This example demonstrates the ros-z parameter subsystem: declaring typed parameters, validation callbacks, and loading from YAML files. See the [Parameters](./parameters.md) chapter for comprehensive documentation.
+These focused examples demonstrate the ros-z parameter subsystem without a mode-switching wrapper. See the [Parameters](./parameters.md) chapter for comprehensive documentation.
 
 **Quick start:**
 
 ```bash
-cargo run --example z_parameters
-```
-
-**Run a specific demo:**
-
-```bash
-cargo run --example z_parameters -- --mode declare
-cargo run --example z_parameters -- --mode callback
-cargo run --example z_parameters -- --mode yaml
+cargo run --example z_parameter_declare
+cargo run --example z_parameter_callback
+cargo run --example z_parameter_yaml
+cargo run --example z_parameter_client
 ```
