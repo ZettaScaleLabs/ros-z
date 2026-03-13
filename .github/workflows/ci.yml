@@ -238,9 +238,6 @@ jobs:
         with:
           shared-key: ubuntu-latest-coverage
 
-      - name: Install llvm-tools-preview
-        run: rustup component add llvm-tools-preview
-
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@v2
         with:
