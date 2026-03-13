@@ -31,6 +31,7 @@
 # Tools
 
 - [ros-z-console](./chapters/console.md)
+  - [TUI Demos](./chapters/console-demos.md)
 
 # Language Bindings
 

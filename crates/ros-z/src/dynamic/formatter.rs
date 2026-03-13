@@ -2,8 +2,9 @@
 //!
 //! Provides JSON and human-readable text formatting for dynamic messages.
 
-use ros_z::dynamic::{DynamicMessage, DynamicValue};
 use serde_json;
+
+use crate::dynamic::{DynamicMessage, DynamicValue};
 
 /// Convert a DynamicMessage to a JSON value
 ///
@@ -137,7 +138,7 @@ fn format_value_pretty(output: &mut String, name: &str, value: &DynamicValue, in
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ros_z::dynamic::{FieldType, MessageSchema};
+    use crate::dynamic::{FieldType, MessageSchema};
 
     #[test]
     fn test_json_primitives() {
