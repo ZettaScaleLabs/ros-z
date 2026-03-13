@@ -158,6 +158,26 @@ path = "examples/demo_nodes/fibonacci_action_server.rs"
 name = "z_srvcli"
 
 [[example]]
+name = "z_parameter_declare"
+path = "examples/parameters/declare.rs"
+required-features = []
+
+[[example]]
+name = "z_parameter_callback"
+path = "examples/parameters/callback.rs"
+required-features = []
+
+[[example]]
+name = "z_parameter_yaml"
+path = "examples/parameters/yaml.rs"
+required-features = []
+
+[[example]]
+name = "z_parameter_client"
+path = "examples/parameters/client.rs"
+required-features = []
+
+[[example]]
 name = "zenoh_router"
 path = "examples/zenoh_router.rs"
 required-features = []
