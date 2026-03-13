@@ -66,6 +66,8 @@ pub struct SubscriptionImpl {
     pub graph: std::sync::Arc<ros_z::graph::Graph>,
     pub entity: ros_z::entity::EndpointEntity,
     pub notifier: std::sync::Arc<crate::utils::Notifier>,
+    /// Per-subscriber reception counter. Incremented on every successful take.
+    pub reception_sn: std::sync::atomic::AtomicU64,
 }
 
 impl SubscriptionImpl {
@@ -111,20 +113,23 @@ impl SubscriptionImpl {
             // Fill in message_info
             if !message_info.is_null() {
                 unsafe {
-                    // Extract timestamp from attachment
-                    let source_timestamp = if let Some(attachment_bytes) = sample.attachment() {
-                        if let Ok(attachment) =
-                            ros_z::attachment::Attachment::try_from(attachment_bytes)
-                        {
-                            attachment.source_timestamp
+                    // Extract fields from attachment; fall back gracefully if absent.
+                    let (source_timestamp, pub_sn, gid) = if let Some(attachment_bytes) =
+                        sample.attachment()
+                    {
+                        if let Ok(att) = ros_z::attachment::Attachment::try_from(attachment_bytes) {
+                            (
+                                att.source_timestamp,
+                                att.sequence_number as u64,
+                                att.source_gid,
+                            )
                         } else {
-                            0
+                            (0, 0, [0u8; 16])
                         }
                     } else {
-                        0
+                        (0, 0, [0u8; 16])
                     };
 
-                    // Get current time for received_timestamp
                     let received_timestamp = std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
                         .unwrap_or_default()
@@ -132,12 +137,11 @@ impl SubscriptionImpl {
 
                     (*message_info).source_timestamp = source_timestamp;
                     (*message_info).received_timestamp = received_timestamp;
-                    (*message_info).publication_sequence_number = 0;
-                    (*message_info).reception_sequence_number = 0;
-
-                    // Set publisher GID to zeros for now
-                    // TODO: Extract proper GID from Zenoh sample
-                    (*message_info).publisher_gid.data = [0u8; 16];
+                    (*message_info).publication_sequence_number = pub_sn;
+                    (*message_info).reception_sequence_number = self
+                        .reception_sn
+                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    (*message_info).publisher_gid.data = gid;
                     (*message_info).publisher_gid.implementation_identifier =
                         crate::RMW_ZENOH_IDENTIFIER.as_ptr() as *const _;
                     (*message_info).from_intra_process = false;
@@ -197,11 +201,34 @@ impl SubscriptionImpl {
             // Fill in message_info if provided
             if !message_info.is_null() {
                 unsafe {
-                    (*message_info).source_timestamp = 0;
-                    (*message_info).received_timestamp = 0;
-                    (*message_info).publication_sequence_number = 0;
-                    (*message_info).reception_sequence_number = 0;
-                    (*message_info).publisher_gid.data = [0u8; 16];
+                    let (source_timestamp, pub_sn, gid) = if let Some(attachment_bytes) =
+                        sample.attachment()
+                    {
+                        if let Ok(att) = ros_z::attachment::Attachment::try_from(attachment_bytes) {
+                            (
+                                att.source_timestamp,
+                                att.sequence_number as u64,
+                                att.source_gid,
+                            )
+                        } else {
+                            (0, 0, [0u8; 16])
+                        }
+                    } else {
+                        (0, 0, [0u8; 16])
+                    };
+
+                    let received_timestamp = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_nanos() as i64;
+
+                    (*message_info).source_timestamp = source_timestamp;
+                    (*message_info).received_timestamp = received_timestamp;
+                    (*message_info).publication_sequence_number = pub_sn;
+                    (*message_info).reception_sequence_number = self
+                        .reception_sn
+                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    (*message_info).publisher_gid.data = gid;
                     (*message_info).publisher_gid.implementation_identifier =
                         crate::RMW_ZENOH_IDENTIFIER.as_ptr() as *const _;
                     (*message_info).from_intra_process = false;

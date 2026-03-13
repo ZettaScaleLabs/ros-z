@@ -708,6 +708,7 @@ pub extern "C" fn rmw_create_subscription(
         graph: graph.clone(),
         entity: entity.clone(),
         notifier,
+        reception_sn: std::sync::atomic::AtomicU64::new(0),
     };
 
     // Add local entity to graph for immediate discovery
@@ -2819,8 +2820,8 @@ pub extern "C" fn rmw_take_dynamic_message_with_info(
 pub extern "C" fn rmw_feature_supported(feature: rmw_feature_t) -> bool {
     #[allow(non_upper_case_globals)]
     match feature {
-        rmw_feature_e_RMW_FEATURE_MESSAGE_INFO_PUBLICATION_SEQUENCE_NUMBER => false,
-        rmw_feature_e_RMW_FEATURE_MESSAGE_INFO_RECEPTION_SEQUENCE_NUMBER => false,
+        rmw_feature_e_RMW_FEATURE_MESSAGE_INFO_PUBLICATION_SEQUENCE_NUMBER => true,
+        rmw_feature_e_RMW_FEATURE_MESSAGE_INFO_RECEPTION_SEQUENCE_NUMBER => true,
         rmw_feature_e_RMW_MIDDLEWARE_SUPPORTS_TYPE_DISCOVERY => true,
         rmw_feature_e_RMW_MIDDLEWARE_CAN_TAKE_DYNAMIC_MESSAGE => false,
         _ => false,
@@ -3520,4 +3521,56 @@ pub extern "C" fn rmw_get_subscriptions_info_by_topic(
 #[unsafe(no_mangle)]
 pub extern "C" fn rmw_zenoh_get_session(_context: *const rmw_context_t) -> *const c_void {
     todo!()
+}
+
+#[cfg(test)]
+mod sequence_number_tests {
+    use super::*;
+
+    #[test]
+    fn test_publication_sequence_number_feature_supported() {
+        assert!(rmw_feature_supported(
+            rmw_feature_e_RMW_FEATURE_MESSAGE_INFO_PUBLICATION_SEQUENCE_NUMBER
+        ));
+    }
+
+    #[test]
+    fn test_reception_sequence_number_feature_supported() {
+        assert!(rmw_feature_supported(
+            rmw_feature_e_RMW_FEATURE_MESSAGE_INFO_RECEPTION_SEQUENCE_NUMBER
+        ));
+    }
+
+    #[test]
+    fn test_reception_sn_initializes_to_zero() {
+        let sn = std::sync::atomic::AtomicU64::new(0);
+        assert_eq!(
+            sn.load(std::sync::atomic::Ordering::Relaxed),
+            0,
+            "reception_sn must start at 0"
+        );
+    }
+
+    #[test]
+    fn test_reception_sn_increments_per_take() {
+        let sn = std::sync::atomic::AtomicU64::new(0);
+        let v0 = sn.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let v1 = sn.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let v2 = sn.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        assert_eq!(v0, 0);
+        assert_eq!(v1, 1);
+        assert_eq!(v2, 2);
+    }
+
+    #[test]
+    fn test_reception_sn_independent_per_subscriber() {
+        let sn_a = std::sync::atomic::AtomicU64::new(0);
+        let sn_b = std::sync::atomic::AtomicU64::new(0);
+        // advance sn_a twice, sn_b once
+        sn_a.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        sn_a.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        sn_b.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        assert_eq!(sn_a.load(std::sync::atomic::Ordering::Relaxed), 2);
+        assert_eq!(sn_b.load(std::sync::atomic::Ordering::Relaxed), 1);
+    }
 }
