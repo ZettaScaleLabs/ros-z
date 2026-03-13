@@ -5,16 +5,14 @@ package interop_tests
 
 import (
 	"context"
-	"encoding/binary"
-	"fmt"
 	"os"
 	"os/exec"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/ZettaScaleLabs/ros-z-go/generated/example_interfaces"
-	"github.com/ZettaScaleLabs/ros-z-go/rosz"
+	"github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/generated/example_interfaces"
+	"github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/rosz"
 )
 
 // TestGoActionServerToROS2Client tests Go action server with ROS2 client.
@@ -323,10 +321,6 @@ func TestGoActionServerToGoClient(t *testing.T) {
 	}
 
 	goalHandle.Close()
-
-	// Suppress unused import warnings
-	_ = binary.LittleEndian
-	_ = fmt.Sprintf
 }
 
 // TestActionFeedbackMonitoring verifies that feedback published by the server

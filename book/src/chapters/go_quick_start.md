@@ -44,8 +44,8 @@ import (
     "log"
     "time"
 
-    "github.com/ZettaScaleLabs/ros-z-go/rosz"
-    "github.com/ZettaScaleLabs/ros-z-go/generated/std_msgs"
+    "github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/rosz"
+    "github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/generated/std_msgs"
 )
 
 func main() {
@@ -85,9 +85,9 @@ module hello_pub
 
 go 1.23
 
-require github.com/ZettaScaleLabs/ros-z-go v0.0.0
+require github.com/ZettaScaleLabs/ros-z/crates/ros-z-go v0.0.0
 
-replace github.com/ZettaScaleLabs/ros-z-go => /path/to/ros-z/crates/ros-z-go
+replace github.com/ZettaScaleLabs/ros-z/crates/ros-z-go => /path/to/ros-z/crates/ros-z-go
 ```
 
 ## 4. Write a subscriber
@@ -100,8 +100,8 @@ package main
 import (
     "log"
 
-    "github.com/ZettaScaleLabs/ros-z-go/rosz"
-    "github.com/ZettaScaleLabs/ros-z-go/generated/std_msgs"
+    "github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/rosz"
+    "github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/generated/std_msgs"
 )
 
 func main() {
@@ -117,7 +117,7 @@ func main() {
     }
     defer node.Close()
 
-    _, err = node.CreateSubscriber("chatter").
+    sub, err := node.CreateSubscriber("chatter").
         BuildWithCallback(&std_msgs.String{}, func(data []byte) {
             msg := &std_msgs.String{}
             if err := msg.DeserializeCDR(data); err != nil {
@@ -129,6 +129,7 @@ func main() {
     if err != nil {
         log.Fatal(err)
     }
+    defer sub.Close()
 
     select {} // block forever
 }

@@ -35,8 +35,8 @@ Callbacks flow in reverse: Rust invokes C function pointers → dispatched to Go
 Add to your `go.mod`:
 
 ```text
-require github.com/ZettaScaleLabs/ros-z-go v0.0.0
-replace github.com/ZettaScaleLabs/ros-z-go => /path/to/ros-z/crates/ros-z-go
+require github.com/ZettaScaleLabs/ros-z/crates/ros-z-go v0.0.0
+replace github.com/ZettaScaleLabs/ros-z/crates/ros-z-go => /path/to/ros-z/crates/ros-z-go
 ```
 
 The `#cgo LDFLAGS` in `rosz/context.go` resolves the library via `${SRCDIR}` — no extra `CGO_LDFLAGS` needed with a `replace` directive.
@@ -132,6 +132,11 @@ client, err := node.CreateServiceClient("add_two_ints").
     Build(&example_interfaces.AddTwoInts{})
 respBytes, err := client.Call(&example_interfaces.AddTwoIntsRequest{A: 5, B: 3})
 // client.CallWithTimeout(req, 10*time.Second) for a custom timeout
+var resp example_interfaces.AddTwoIntsResponse
+if err := resp.DeserializeCDR(respBytes); err != nil {
+    // handle error
+}
+// use resp.Sum
 ```
 
 ---
