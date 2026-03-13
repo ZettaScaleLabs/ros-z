@@ -247,7 +247,6 @@ jobs:
         run: |
           source /tmp/nix-dev-env.sh
           cargo llvm-cov \
-            --features jazzy \
             -p ros-z-codegen -p ros-z-cdr -p ros-z-protocol -p ros-z-schema \
             -j4 \
             --lcov --output-path lcov.info
