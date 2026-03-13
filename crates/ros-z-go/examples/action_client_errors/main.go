@@ -17,8 +17,8 @@ import (
 	"encoding/binary"
 	"log"
 
-	"github.com/ZettaScaleLabs/ros-z-go/generated/example_interfaces"
-	"github.com/ZettaScaleLabs/ros-z-go/rosz"
+	"github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/generated/example_interfaces"
+	"github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/rosz"
 )
 
 func main() {

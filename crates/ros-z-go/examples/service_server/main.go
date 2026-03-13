@@ -13,15 +13,14 @@
 package main
 
 import (
-	"encoding/binary"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/ZettaScaleLabs/ros-z-go/generated/example_interfaces"
-	"github.com/ZettaScaleLabs/ros-z-go/rosz"
+	"github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/generated/example_interfaces"
+	"github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/rosz"
 )
 
 func main() {
@@ -65,9 +64,6 @@ func main() {
 	}
 	defer server.Close()
 	log.Println("Service server 'add_two_ints' ready")
-
-	// Suppress unused import warning for binary (used by generated code)
-	_ = binary.LittleEndian
 
 	log.Println("Waiting for requests... Press Ctrl+C to exit")
 

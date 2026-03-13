@@ -39,9 +39,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ZettaScaleLabs/ros-z-go/generated/example_interfaces"
-	"github.com/ZettaScaleLabs/ros-z-go/generated/std_msgs"
-	"github.com/ZettaScaleLabs/ros-z-go/rosz"
+	"github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/generated/example_interfaces"
+	"github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/generated/std_msgs"
+	"github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/rosz"
 )
 
 // rustExampleBinary returns the path to a compiled Rust example binary.
