@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/ZettaScaleLabs/ros-z-go/rosz"
+	"github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/rosz"
 )
 
 // AddTwoIntsRequest is the request message

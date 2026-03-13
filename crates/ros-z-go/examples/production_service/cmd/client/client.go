@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ZettaScaleLabs/ros-z-go/examples/production_service/messages"
-	"github.com/ZettaScaleLabs/ros-z-go/rosz"
+	"github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/examples/production_service/messages"
+	"github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/rosz"
 )
 
 // ClientMetrics tracks client-side statistics

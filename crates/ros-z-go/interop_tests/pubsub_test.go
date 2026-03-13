@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ZettaScaleLabs/ros-z-go/generated/std_msgs"
-	"github.com/ZettaScaleLabs/ros-z-go/rosz"
+	"github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/generated/std_msgs"
+	"github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/rosz"
 )
 
 // TestGoPublisherToROS2Subscriber tests ros-z-go publisher -> ROS2 subscriber
