@@ -7,19 +7,57 @@ import (
 )
 
 func TestRoszError(t *testing.T) {
-	err := NewRoszError(ErrorCodePublishFailed, "publish failed")
+	err := NewRoszError(ErrorCodeServiceTimeout, "service timed out")
 
-	if err.Code() != ErrorCodePublishFailed {
-		t.Errorf("Code() = %d, want %d", err.Code(), ErrorCodePublishFailed)
+	if err.Code() != ErrorCodeServiceTimeout {
+		t.Errorf("Code() = %d, want %d", err.Code(), ErrorCodeServiceTimeout)
 	}
 
-	if err.Message() != "publish failed" {
-		t.Errorf("Message() = %q, want %q", err.Message(), "publish failed")
+	if err.Message() != "service timed out" {
+		t.Errorf("Message() = %q, want %q", err.Message(), "service timed out")
 	}
 
-	expected := "publish failed (code: -4)"
+	expected := "service timed out (code: -10)"
 	if err.Error() != expected {
 		t.Errorf("Error() = %q, want %q", err.Error(), expected)
+	}
+}
+
+func TestRoszErrorIsTimeout(t *testing.T) {
+	tests := []struct {
+		code      ErrorCode
+		isTimeout bool
+	}{
+		{ErrorCodeServiceTimeout, true},
+		{ErrorCodeServiceCallFailed, false},
+		{ErrorCodeActionGoalRejected, false},
+		{ErrorCodeSuccess, false},
+	}
+
+	for _, tt := range tests {
+		err := NewRoszError(tt.code, "test")
+		if got := err.IsTimeout(); got != tt.isTimeout {
+			t.Errorf("IsTimeout() for code %d = %v, want %v", tt.code, got, tt.isTimeout)
+		}
+	}
+}
+
+func TestRoszErrorIsRejected(t *testing.T) {
+	tests := []struct {
+		code       ErrorCode
+		isRejected bool
+	}{
+		{ErrorCodeActionGoalRejected, true},
+		{ErrorCodeServiceTimeout, false},
+		{ErrorCodePublishFailed, false},
+		{ErrorCodeSuccess, false},
+	}
+
+	for _, tt := range tests {
+		err := NewRoszError(tt.code, "test")
+		if got := err.IsRejected(); got != tt.isRejected {
+			t.Errorf("IsRejected() for code %d = %v, want %v", tt.code, got, tt.isRejected)
+		}
 	}
 }
 
@@ -32,34 +70,43 @@ func TestRoszErrorIsError(t *testing.T) {
 }
 
 func TestRoszErrorTypeAssertion(t *testing.T) {
-	var err error = NewRoszError(ErrorCodeSubscribeFailed, "subscribe failed")
+	var err error = NewRoszError(ErrorCodeServiceTimeout, "timeout occurred")
 
 	roszErr, ok := err.(RoszError)
 	if !ok {
 		t.Fatal("type assertion to RoszError failed")
 	}
 
-	if roszErr.Code() != ErrorCodeSubscribeFailed {
-		t.Errorf("Code() = %d, want %d", roszErr.Code(), ErrorCodeSubscribeFailed)
+	if roszErr.Code() != ErrorCodeServiceTimeout {
+		t.Errorf("Code() = %d, want %d", roszErr.Code(), ErrorCodeServiceTimeout)
+	}
+
+	if !roszErr.IsTimeout() {
+		t.Error("IsTimeout() should return true")
 	}
 }
 
 func TestRoszErrorWithErrors(t *testing.T) {
-	err := NewRoszError(ErrorCodeBuildFailed, "build failed")
+	err := NewRoszError(ErrorCodeActionGoalRejected, "goal rejected")
 
 	// errors.Is matches by error code (message is ignored)
-	if !errors.Is(err, NewRoszError(ErrorCodeBuildFailed, "different message")) {
+	if !errors.Is(err, NewRoszError(ErrorCodeActionGoalRejected, "different message")) {
 		t.Error("errors.Is should match RoszError with same code")
 	}
 
 	// errors.Is should not match different codes
-	if errors.Is(err, NewRoszError(ErrorCodePublishFailed, "build failed")) {
+	if errors.Is(err, NewRoszError(ErrorCodeServiceTimeout, "goal rejected")) {
 		t.Error("errors.Is should not match RoszError with different code")
 	}
 
 	// Sentinel errors should work with errors.Is
-	if !errors.Is(err, ErrBuildFailed) {
-		t.Error("errors.Is should match sentinel ErrBuildFailed")
+	if !errors.Is(err, ErrGoalRejected) {
+		t.Error("errors.Is should match sentinel ErrGoalRejected")
+	}
+
+	timeoutErr := NewRoszError(ErrorCodeServiceTimeout, "call timed out")
+	if !errors.Is(timeoutErr, ErrTimeout) {
+		t.Error("errors.Is should match sentinel ErrTimeout")
 	}
 
 	// errors.As should work
@@ -68,29 +115,29 @@ func TestRoszErrorWithErrors(t *testing.T) {
 		t.Error("errors.As should work for RoszError")
 	}
 
-	if targetErr.Code() != ErrorCodeBuildFailed {
-		t.Errorf("Code() after errors.As = %d, want %d", targetErr.Code(), ErrorCodeBuildFailed)
+	if targetErr.Code() != ErrorCodeActionGoalRejected {
+		t.Errorf("Code() after errors.As = %d, want %d", targetErr.Code(), ErrorCodeActionGoalRejected)
 	}
 }
 
 func TestRoszErrorIsNoRecursion(t *testing.T) {
 	// Wrapping a RoszError should not cause infinite recursion in Is()
-	inner := NewRoszError(ErrorCodeBuildFailed, "inner failure")
+	inner := NewRoszError(ErrorCodeServiceTimeout, "inner timeout")
 	wrapped := fmt.Errorf("outer: %w", inner)
 
 	// errors.Is walks the chain and calls Is() — must not infinite-loop
-	if !errors.Is(wrapped, ErrBuildFailed) {
-		t.Error("errors.Is should find ErrBuildFailed through wrapped chain")
+	if !errors.Is(wrapped, ErrTimeout) {
+		t.Error("errors.Is should find ErrTimeout through wrapped chain")
 	}
 
 	// Double-wrapped
 	doubleWrapped := fmt.Errorf("double: %w", wrapped)
-	if !errors.Is(doubleWrapped, ErrBuildFailed) {
-		t.Error("errors.Is should find ErrBuildFailed through double-wrapped chain")
+	if !errors.Is(doubleWrapped, ErrTimeout) {
+		t.Error("errors.Is should find ErrTimeout through double-wrapped chain")
 	}
 
 	// Different code should not match
-	if errors.Is(doubleWrapped, NewRoszError(ErrorCodePublishFailed, "")) {
+	if errors.Is(doubleWrapped, ErrGoalRejected) {
 		t.Error("errors.Is should not match different error code in chain")
 	}
 }
@@ -110,8 +157,13 @@ func TestErrorCodeConstants(t *testing.T) {
 		{ErrorCodeSubscribeFailed, -6},
 		{ErrorCodeNodeCreationFailed, -7},
 		{ErrorCodeContextCreationFailed, -8},
-		{ErrorCodeDeserializationFailed, -9},
-		{ErrorCodeBuildFailed, -10},
+		{ErrorCodeServiceCallFailed, -9},
+		{ErrorCodeServiceTimeout, -10},
+		{ErrorCodeActionGoalRejected, -11},
+		{ErrorCodeActionCancelFailed, -12},
+		{ErrorCodeActionResultFailed, -13},
+		{ErrorCodeActionFeedbackFailed, -14},
+		{ErrorCodeDeserializationFailed, -15},
 		{ErrorCodeUnknown, -100},
 	}
 

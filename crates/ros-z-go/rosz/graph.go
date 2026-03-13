@@ -22,6 +22,12 @@ type NodeInfo struct {
 	Namespace string
 }
 
+// ServiceInfo describes a discovered service
+type ServiceInfo struct {
+	Name     string
+	TypeName string
+}
+
 // GetTopicNamesAndTypes returns all topics visible in the ROS graph
 func (c *Context) GetTopicNamesAndTypes() ([]TopicInfo, error) {
 	if c.handle == nil {
@@ -84,6 +90,38 @@ func (c *Context) GetNodeNames() ([]NodeInfo, error) {
 	}
 
 	return nodes, nil
+}
+
+// GetServiceNamesAndTypes returns all services visible in the ROS graph
+func (c *Context) GetServiceNamesAndTypes() ([]ServiceInfo, error) {
+	if c.handle == nil {
+		return nil, fmt.Errorf("context is closed")
+	}
+
+	var cServices *C.ros_z_service_info_t
+	var count C.uintptr_t
+
+	result := C.ros_z_graph_get_service_names_and_types(c.handle, &cServices, &count)
+	if result != 0 {
+		return nil, NewRoszError(ErrorCode(result), "failed to get service names and types")
+	}
+
+	n := int(count)
+	if n == 0 {
+		return nil, nil
+	}
+	defer C.ros_z_graph_free_services(cServices, count)
+
+	services := make([]ServiceInfo, n)
+	cSlice := unsafe.Slice(cServices, n)
+	for i := 0; i < n; i++ {
+		services[i] = ServiceInfo{
+			Name:     C.GoString(cSlice[i].name),
+			TypeName: C.GoString(cSlice[i].type_name),
+		}
+	}
+
+	return services, nil
 }
 
 // NodeExists checks if a node with the given name and namespace exists in the graph

@@ -118,3 +118,21 @@ jobs:
             cargo nextest run -p ros-z-console \
               --features ros-interop --release
           fi
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: false
+
+      - name: Build Rust FFI library + example binaries
+        run: cargo build --release --features ffi --example z_pubsub --example z_srvcli
+
+      - name: Run Go integration tests (Go↔Go + Go↔Rust + Go↔ROS2)
+        shell: bash
+        run: |
+          source /opt/ros/${{ matrix.distro }}/setup.bash
+          export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+          cd crates/ros-z-go
+          CGO_LDFLAGS="-L$(git rev-parse --show-toplevel)/target/release" \
+            go test -v -tags integration -timeout 120s \
+            ./interop_tests/...

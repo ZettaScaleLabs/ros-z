@@ -38,6 +38,7 @@
   - [Code Generation Internals](./chapters/python_codegen.md)
 - [Go Bindings](./chapters/go_bindings.md)
   - [Quick Start](./chapters/go_quick_start.md)
+  - [Interop Tests](./chapters/go_interop_tests.md)
 
 # Experimental
 
