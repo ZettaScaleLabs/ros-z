@@ -135,7 +135,7 @@ pub fn check_qos_compatibility_with_policy(
 /// Convert ros-z Duration to rmw_time_t.
 /// ros-z uses {0, 0} for "infinite/no limit", but RMW uses RMW_DURATION_INFINITE.
 /// {0, 0} in RMW means RMW_DURATION_UNSPECIFIED which displays as "0 nanoseconds".
-fn duration_to_rmw_time(dur: &ros_z::qos::Duration) -> rmw_time_t {
+fn duration_to_rmw_time(dur: &ros_z::qos::QosDuration) -> rmw_time_t {
     if dur.sec == 0 && dur.nsec == 0 {
         // RMW_DURATION_INFINITE = {9223372036, 854775807}
         rmw_time_t {
@@ -152,11 +152,11 @@ fn duration_to_rmw_time(dur: &ros_z::qos::Duration) -> rmw_time_t {
 
 /// Convert rmw_time_t to ros-z Duration.
 /// RMW_DURATION_INFINITE maps back to ros-z {0, 0} (infinite).
-fn rmw_time_to_duration(time: &rmw_time_t) -> ros_z::qos::Duration {
+fn rmw_time_to_duration(time: &rmw_time_t) -> ros_z::qos::QosDuration {
     if time.sec == 9223372036 && time.nsec == 854775807 {
-        ros_z::qos::Duration { sec: 0, nsec: 0 }
+        ros_z::qos::QosDuration { sec: 0, nsec: 0 }
     } else {
-        ros_z::qos::Duration {
+        ros_z::qos::QosDuration {
             sec: time.sec,
             nsec: time.nsec,
         }
