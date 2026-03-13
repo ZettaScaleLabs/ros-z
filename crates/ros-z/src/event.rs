@@ -329,6 +329,33 @@ impl std::fmt::Debug for RmEventHandle {
 // RmEventHandle is Send because the Arc<Mutex<>> provides thread safety
 unsafe impl Send for RmEventHandle {}
 
+impl RmEventHandle {
+    pub fn new(events_mgr: Arc<Mutex<EventsManager>>, event_type: ZenohEventType) -> Self {
+        Self {
+            events_mgr,
+            event_type,
+        }
+    }
+
+    pub fn take_event(&self) -> ZenohEventStatus {
+        let mut mgr = self.events_mgr.lock().unwrap();
+        mgr.take_event_status(self.event_type)
+    }
+
+    pub fn is_ready(&self) -> bool {
+        let mgr = self.events_mgr.lock().unwrap();
+        mgr.event_statuses[self.event_type as usize].changed
+    }
+
+    pub fn set_callback<F>(&self, callback: F)
+    where
+        F: Fn(i32) + Send + Sync + 'static,
+    {
+        let mut mgr = self.events_mgr.lock().unwrap();
+        mgr.set_callback(self.event_type, callback);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -531,32 +558,5 @@ mod tests {
             .unwrap()
             .update_event_status(ZenohEventType::LivelinessChanged, 3);
         assert_eq!(*fired.lock().unwrap(), 3);
-    }
-}
-
-impl RmEventHandle {
-    pub fn new(events_mgr: Arc<Mutex<EventsManager>>, event_type: ZenohEventType) -> Self {
-        Self {
-            events_mgr,
-            event_type,
-        }
-    }
-
-    pub fn take_event(&self) -> ZenohEventStatus {
-        let mut mgr = self.events_mgr.lock().unwrap();
-        mgr.take_event_status(self.event_type)
-    }
-
-    pub fn is_ready(&self) -> bool {
-        let mgr = self.events_mgr.lock().unwrap();
-        mgr.event_statuses[self.event_type as usize].changed
-    }
-
-    pub fn set_callback<F>(&self, callback: F)
-    where
-        F: Fn(i32) + Send + Sync + 'static,
-    {
-        let mut mgr = self.events_mgr.lock().unwrap();
-        mgr.set_callback(self.event_type, callback);
     }
 }
