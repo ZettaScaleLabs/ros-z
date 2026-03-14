@@ -267,6 +267,8 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
         })?;
 
         Ok(ZActionClient {
+            action_name: qualified_action_name,
+            graph: self.node.graph.clone(),
             goal_client: Arc::new(goal_client),
             result_client: Arc::new(result_client),
             cancel_client: Arc::new(cancel_client),
@@ -342,6 +344,8 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
 /// # }
 /// ```
 pub struct ZActionClient<A: ZAction> {
+    action_name: String,
+    graph: Arc<crate::graph::Graph>,
     goal_client: Arc<crate::service::ZClient<GoalService<A>>>,
     result_client: Arc<crate::service::ZClient<ResultService<A>>>,
     cancel_client: Arc<crate::service::ZClient<CancelService<A>>>,
@@ -363,6 +367,8 @@ impl<A: ZAction> std::fmt::Debug for ZActionClient<A> {
 impl<A: ZAction> Clone for ZActionClient<A> {
     fn clone(&self) -> Self {
         Self {
+            action_name: self.action_name.clone(),
+            graph: self.graph.clone(),
             goal_client: self.goal_client.clone(),
             result_client: self.result_client.clone(),
             cancel_client: self.cancel_client.clone(),
@@ -374,6 +380,13 @@ impl<A: ZAction> Clone for ZActionClient<A> {
 }
 
 impl<A: ZAction> ZActionClient<A> {
+    /// Wait until the action server is fully available.
+    pub async fn wait_for_server(&self, timeout: std::time::Duration) -> bool {
+        self.graph
+            .wait_for_action_server(self.action_name.clone(), timeout)
+            .await
+    }
+
     /// Sends a goal to the action server.
     ///
     /// This method sends a goal to the action server and returns a `GoalHandle`
