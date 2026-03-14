@@ -36,6 +36,17 @@ type SetCallback = Arc<dyn Fn(&[Parameter]) -> SetParametersResult + Send + Sync
 /// Holds a type-erased ZServer to keep it alive without naming the full type.
 type BoxedServer = Arc<dyn std::any::Any + Send + Sync>;
 
+pub(crate) struct ParameterServiceConfig<'a> {
+    pub session: Arc<Session>,
+    pub graph: Arc<crate::graph::Graph>,
+    pub node_name: &'a str,
+    pub namespace: &'a str,
+    pub node_id: usize,
+    pub counter: &'a GlobalCounter,
+    pub clock: &'a crate::time::ZClock,
+    pub overrides: HashMap<String, ParameterValue>,
+}
+
 struct ParameterState {
     store: RwLock<ParameterStore>,
     on_set_callback: RwLock<Option<SetCallback>>,
@@ -242,15 +253,17 @@ impl ParameterService {
     /// Create a new ParameterService for the given node.
     ///
     /// Spawns 6 parameter service servers and creates the /parameter_events publisher.
-    pub fn new(
-        session: Arc<Session>,
-        graph: Arc<crate::graph::Graph>,
-        node_name: &str,
-        namespace: &str,
-        node_id: usize,
-        counter: &GlobalCounter,
-        overrides: HashMap<String, ParameterValue>,
-    ) -> ZResult<Self> {
+    pub(crate) fn new(config: ParameterServiceConfig<'_>) -> ZResult<Self> {
+        let ParameterServiceConfig {
+            session,
+            graph,
+            node_name,
+            namespace,
+            node_id,
+            counter,
+            clock,
+            overrides,
+        } = config;
         let node_entity = NodeEntity::new(
             0,
             session.zid(),
@@ -303,6 +316,7 @@ impl ParameterService {
                 entity: pub_entity,
                 session: session.clone(),
                 graph: graph.clone(),
+                clock: clock.clone(),
                 with_attachment: true,
                 shm_config: None,
                 keyexpr_format: ke_format,
@@ -333,6 +347,7 @@ impl ParameterService {
             let builder: ZServerBuilder<DescribeParametersSrv> = ZServerBuilder {
                 entity,
                 session: session.clone(),
+                clock: clock.clone(),
                 keyexpr_format: ke_format,
                 _phantom_data: Default::default(),
             };
@@ -352,6 +367,7 @@ impl ParameterService {
             let builder: ZServerBuilder<GetParametersSrv> = ZServerBuilder {
                 entity,
                 session: session.clone(),
+                clock: clock.clone(),
                 keyexpr_format: ke_format,
                 _phantom_data: Default::default(),
             };
@@ -371,6 +387,7 @@ impl ParameterService {
             let builder: ZServerBuilder<GetParameterTypesSrv> = ZServerBuilder {
                 entity,
                 session: session.clone(),
+                clock: clock.clone(),
                 keyexpr_format: ke_format,
                 _phantom_data: Default::default(),
             };
@@ -390,6 +407,7 @@ impl ParameterService {
             let builder: ZServerBuilder<ListParametersSrv> = ZServerBuilder {
                 entity,
                 session: session.clone(),
+                clock: clock.clone(),
                 keyexpr_format: ke_format,
                 _phantom_data: Default::default(),
             };
@@ -409,6 +427,7 @@ impl ParameterService {
             let builder: ZServerBuilder<SetParametersSrv> = ZServerBuilder {
                 entity,
                 session: session.clone(),
+                clock: clock.clone(),
                 keyexpr_format: ke_format,
                 _phantom_data: Default::default(),
             };
@@ -428,6 +447,7 @@ impl ParameterService {
             let builder: ZServerBuilder<SetParametersAtomicallySrv> = ZServerBuilder {
                 entity,
                 session: session.clone(),
+                clock: clock.clone(),
                 keyexpr_format: ke_format,
                 _phantom_data: Default::default(),
             };
