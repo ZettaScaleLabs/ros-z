@@ -222,7 +222,7 @@ impl PyZNode {
         if let Some(py_callback) = callback {
             // Callback-based subscription: no queue, callback fires on each message
             let type_name = msg_type_str.clone();
-            let _zsub = sub_builder
+            let zsub = sub_builder
                 .build_with_callback(move |raw_msg: RawBytesMessage| {
                     let payload = raw_msg.0;
                     Python::with_gil(|py| {
@@ -241,7 +241,7 @@ impl PyZNode {
                 .map_err(|e| e.into_pyerr())?;
 
             // Callback subs don't have a queue, wrap with a stub
-            Ok(PyZSubscriber::new_callback(msg_type_str))
+            Ok(PyZSubscriber::new_callback(zsub, msg_type_str))
         } else {
             let zsub = sub_builder.build().map_err(|e| e.into_pyerr())?;
             let wrapper = GenericSubWrapper::new(zsub);

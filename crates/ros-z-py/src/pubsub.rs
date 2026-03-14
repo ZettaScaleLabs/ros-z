@@ -1,4 +1,5 @@
 use crate::error::IntoPyErr;
+use std::any::Any;
 use crate::payload_view::ZPayloadView;
 use crate::traits::{RawPublisher, RawSubscriber};
 use pyo3::prelude::*;
@@ -46,10 +47,16 @@ impl PyZPublisher {
     }
 }
 
+
 #[pyclass(name = "ZSubscriber")]
 pub struct PyZSubscriber {
-    /// None for callback-based subscriptions (no queue)
+    /// Present for pull/queue-based subscriptions.
     inner: Option<Box<dyn RawSubscriber>>,
+
+    /// Keeps callback-based subscriptions alive.
+    /// Dropping the underlying Rust subscriber undeclares it.
+    callback_keepalive: Option<Box<dyn Any + Send>>,
+
     type_name: String,
 }
 
@@ -57,14 +64,20 @@ impl PyZSubscriber {
     pub fn new(inner: Box<dyn RawSubscriber>, type_name: String) -> Self {
         Self {
             inner: Some(inner),
+            callback_keepalive: None,
             type_name,
         }
     }
 
-    /// Create a callback-based subscriber (no queue, no recv methods)
-    pub fn new_callback(type_name: String) -> Self {
+    /// Create a callback-based subscriber.
+    /// The subscriber handle is stored only to keep it alive.
+    pub fn new_callback<S>(subscriber: S, type_name: String) -> Self
+    where
+        S: Any + Send + 'static,
+    {
         Self {
             inner: None,
+            callback_keepalive: Some(Box::new(subscriber)),
             type_name,
         }
     }
