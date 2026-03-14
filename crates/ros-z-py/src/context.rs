@@ -42,6 +42,12 @@ impl PyZContextBuilder {
         slf
     }
 
+    /// Set the default namespace inherited by nodes created from this context.
+    pub fn with_namespace(mut slf: PyRefMut<'_, Self>, namespace: String) -> PyRefMut<'_, Self> {
+        slf.builder = std::mem::take(&mut slf.builder).with_namespace(namespace);
+        slf
+    }
+
     /// Enable Zenoh logging initialization with default level "error"
     pub fn with_logging_enabled(mut slf: PyRefMut<'_, Self>) -> PyRefMut<'_, Self> {
         slf.builder = std::mem::take(&mut slf.builder).with_logging_enabled();
