@@ -4,7 +4,7 @@ use slab::Slab;
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, Weak},
-    time::SystemTime,
+    time::{Duration, SystemTime},
 };
 use tokio::sync::Notify;
 use tracing::debug;
@@ -337,6 +337,33 @@ impl std::fmt::Debug for Graph {
 }
 
 impl Graph {
+    async fn wait_until<F>(&self, timeout: Duration, predicate: F) -> bool
+    where
+        F: Fn(&Self) -> bool,
+    {
+        let deadline = tokio::time::Instant::now() + timeout;
+        loop {
+            let notified = self.change_notify.notified();
+            tokio::pin!(notified);
+
+            if predicate(self) {
+                return true;
+            }
+
+            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+            if remaining.is_zero() {
+                return false;
+            }
+
+            if tokio::time::timeout(remaining, &mut notified)
+                .await
+                .is_err()
+            {
+                return predicate(self);
+            }
+        }
+    }
+
     pub fn new(session: &Session, domain_id: usize) -> Result<Self> {
         // Default to RmwZenoh format
         let format = ros_z_protocol::KeyExprFormat::default();
@@ -1057,6 +1084,68 @@ impl Graph {
         res.sort();
         res.dedup();
         res
+    }
+
+    /// Wait for a node to appear in the graph.
+    pub async fn wait_for_node(&self, node_key: NodeKey, timeout: Duration) -> bool {
+        self.wait_until(timeout, move |graph| graph.node_exists(node_key.clone()))
+            .await
+    }
+
+    /// Wait until at least `count` entities of `kind` exist on `topic`.
+    pub async fn wait_for_topic(
+        &self,
+        kind: EntityKind,
+        topic: impl Into<String>,
+        count: usize,
+        timeout: Duration,
+    ) -> bool {
+        let topic = topic.into();
+        self.wait_until(timeout, move |graph| {
+            graph.get_entities_by_topic(kind, &topic).len() >= count
+        })
+        .await
+    }
+
+    /// Wait until at least `count` services are available on `service_name`.
+    pub async fn wait_for_service(
+        &self,
+        service_name: impl Into<String>,
+        count: usize,
+        timeout: Duration,
+    ) -> bool {
+        let service_name = service_name.into();
+        self.wait_until(timeout, move |graph| {
+            graph.count_by_service(EntityKind::Service, &service_name) >= count
+        })
+        .await
+    }
+
+    /// Wait for a full ROS 2 action server (services + publishers) to appear.
+    pub async fn wait_for_action_server(
+        &self,
+        action_name: impl Into<String>,
+        timeout: Duration,
+    ) -> bool {
+        let action_name = action_name.into();
+        let goal_service = format!("{action_name}/_action/send_goal");
+        let result_service = format!("{action_name}/_action/get_result");
+        let cancel_service = format!("{action_name}/_action/cancel_goal");
+        let feedback_topic = format!("{action_name}/_action/feedback");
+        let status_topic = format!("{action_name}/_action/status");
+
+        self.wait_until(timeout, move |graph| {
+            graph.count_by_service(EntityKind::Service, &goal_service) >= 1
+                && graph.count_by_service(EntityKind::Service, &result_service) >= 1
+                && graph.count_by_service(EntityKind::Service, &cancel_service) >= 1
+                && !graph
+                    .get_entities_by_topic(EntityKind::Publisher, &feedback_topic)
+                    .is_empty()
+                && !graph
+                    .get_entities_by_topic(EntityKind::Publisher, &status_topic)
+                    .is_empty()
+        })
+        .await
     }
 
     /// Create a serializable snapshot of the current graph state
