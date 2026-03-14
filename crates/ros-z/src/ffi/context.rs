@@ -13,6 +13,8 @@ pub struct CContext {
 #[repr(C)]
 pub struct CContextConfig {
     pub domain_id: u32,
+    /// Default namespace inherited by nodes created from this context (nullable)
+    pub namespace: *const c_char,
     /// Path to a Zenoh JSON5 config file (nullable)
     pub config_file: *const c_char,
     /// Array of connect endpoint strings (nullable)
@@ -77,6 +79,11 @@ pub unsafe extern "C" fn ros_z_context_create_with_config(
         let cfg = &*config;
         let mut builder =
             crate::context::ZContextBuilder::default().with_domain_id(cfg.domain_id as usize);
+
+        if let Some(Ok(namespace)) = (!cfg.namespace.is_null()).then(|| cstr_to_str(cfg.namespace))
+        {
+            builder = builder.with_namespace(namespace);
+        }
 
         // Config file
         if let Some(Ok(path)) = (!cfg.config_file.is_null()).then(|| cstr_to_str(cfg.config_file)) {
