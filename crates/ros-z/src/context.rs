@@ -6,7 +6,12 @@ use std::{
 use tracing::{debug, warn};
 use zenoh::{Result, Session, Wait};
 
-use crate::{Builder, graph::Graph, node::ZNodeBuilder};
+use crate::{
+    Builder,
+    graph::Graph,
+    node::ZNodeBuilder,
+    time::{ClockKind, ZClock},
+};
 
 #[derive(Debug, Default)]
 pub struct GlobalCounter(AtomicUsize);
@@ -74,6 +79,7 @@ pub struct ZContextBuilder {
     enable_logging: bool,
     shm_config: Option<Arc<crate::shm::ShmConfig>>,
     keyexpr_format: ros_z_protocol::KeyExprFormat,
+    clock: Option<ZClock>,
 }
 
 impl ZContextBuilder {
@@ -253,6 +259,18 @@ impl ZContextBuilder {
     /// Enable Zenoh logging initialization with default level "error"
     pub fn with_logging_enabled(mut self) -> Self {
         self.enable_logging = true;
+        self
+    }
+
+    /// Select the clock kind used by this context and all nodes created from it.
+    pub fn with_clock_kind(mut self, kind: ClockKind) -> Self {
+        self.clock = Some(ZClock::from_kind(kind));
+        self
+    }
+
+    /// Inject a pre-configured clock.
+    pub fn with_clock(mut self, clock: ZClock) -> Self {
+        self.clock = Some(clock);
         self
     }
 
@@ -499,6 +517,7 @@ impl Builder for ZContextBuilder {
             remap_rules: builder.remap_rules,
             shm_config: builder.shm_config,
             keyexpr_format: builder.keyexpr_format,
+            clock: builder.clock.unwrap_or_default(),
         })
     }
 }
@@ -527,6 +546,7 @@ pub struct ZContext {
     remap_rules: RemapRules,
     pub(crate) shm_config: Option<Arc<crate::shm::ShmConfig>>,
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
+    pub(crate) clock: ZClock,
 }
 
 impl std::fmt::Debug for ZContext {
@@ -570,6 +590,7 @@ impl ZContext {
             remap_rules: self.remap_rules.clone(),
             shm_config: self.shm_config.clone(),
             keyexpr_format: self.keyexpr_format,
+            clock: self.clock.clone(),
             enable_type_desc_service: false,
             enable_parameters: true,
             parameter_overrides: std::collections::HashMap::new(),
@@ -587,5 +608,10 @@ impl ZContext {
     /// Get a reference to the graph for setting up event callbacks
     pub fn graph(&self) -> &Arc<crate::graph::Graph> {
         &self.graph
+    }
+
+    /// Access the context clock used by nodes and runtime helpers.
+    pub fn clock(&self) -> &ZClock {
+        &self.clock
     }
 }
