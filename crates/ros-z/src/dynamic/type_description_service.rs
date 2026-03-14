@@ -444,6 +444,7 @@ impl TypeDescriptionService {
         namespace: &str,
         node_id: usize,
         counter: &crate::context::GlobalCounter,
+        clock: &crate::time::ZClock,
     ) -> ZResult<Self> {
         let schemas: Arc<RwLock<HashMap<String, RegisteredSchema>>> =
             Arc::new(RwLock::new(HashMap::new()));
@@ -476,6 +477,7 @@ impl TypeDescriptionService {
         let server_builder: ZServerBuilder<GetTypeDescription> = ZServerBuilder {
             entity,
             session,
+            clock: clock.clone(),
             keyexpr_format: ros_z_protocol::KeyExprFormat::default(),
             _phantom_data: Default::default(),
         };

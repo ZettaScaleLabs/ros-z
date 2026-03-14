@@ -1,11 +1,13 @@
 use zenoh::bytes::ZBytes;
 use zenoh_ext::{ZDeserializer, ZSerializer};
 
+use crate::time::{ZClock, ZTime};
+
 const RMW_GID_STORAGE_SIZE: usize = 16;
 
 pub type GidArray = [u8; RMW_GID_STORAGE_SIZE];
 
-#[derive(Hash)]
+#[derive(Clone, Hash)]
 pub struct Attachment {
     pub sequence_number: i64,
     pub source_timestamp: i64,
@@ -14,13 +16,27 @@ pub struct Attachment {
 
 impl Attachment {
     pub fn new(sn: i64, gid: GidArray) -> Self {
+        Self::with_source_time(
+            sn,
+            gid,
+            ZTime::from_system_time(std::time::SystemTime::now()),
+        )
+    }
+
+    pub fn with_clock(sn: i64, gid: GidArray, clock: &ZClock) -> Self {
+        Self::with_source_time(sn, gid, clock.now())
+    }
+
+    pub fn with_source_time(sn: i64, gid: GidArray, source_time: ZTime) -> Self {
         Self {
             sequence_number: sn,
-            source_timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_or(0, |v| v.as_nanos() as _),
+            source_timestamp: source_time.as_unix_nanos(),
             source_gid: gid,
         }
+    }
+
+    pub fn source_time(&self) -> ZTime {
+        ZTime::from_unix_nanos(self.source_timestamp)
     }
 }
 

@@ -511,6 +511,7 @@ impl TypeDescriptionClient {
         let builder: ZClientBuilder<GetTypeDescription> = ZClientBuilder {
             entity,
             session: self.session.clone(),
+            clock: crate::time::ZClock::default(),
             keyexpr_format: ros_z_protocol::KeyExprFormat::default(),
             _phantom_data: Default::default(),
         };
