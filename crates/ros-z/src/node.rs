@@ -85,14 +85,7 @@ pub struct ZNodeBuilder {
 
 impl ZNodeBuilder {
     pub fn with_namespace<S: AsRef<str>>(mut self, namespace: S) -> Self {
-        // Normalize namespace: "/" (root namespace) should be treated as "" (empty)
-        // This ensures consistent HashMap lookups across local and remote entities
-        let ns = namespace.as_ref();
-        self.namespace = if ns == "/" {
-            String::new()
-        } else {
-            ns.to_owned()
-        };
+        self.namespace = normalize_node_namespace(namespace.as_ref());
         self
     }
 
