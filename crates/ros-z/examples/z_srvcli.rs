@@ -1,3 +1,4 @@
+#[cfg(not(test))]
 use clap::{Parser, ValueEnum};
 use ros_z::{
     Builder, Result,
@@ -5,6 +6,7 @@ use ros_z::{
 };
 use ros_z_msgs::example_interfaces::{AddTwoIntsRequest, AddTwoIntsResponse, srv::AddTwoInts};
 
+#[cfg(not(test))]
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum Backend {
     /// RmwZenoh backend (default) - compatible with rmw_zenoh nodes
@@ -16,6 +18,7 @@ enum Backend {
     Ros2Dds,
 }
 
+#[cfg(not(test))]
 #[derive(Debug, Parser)]
 struct Args {
     #[arg(short, long, default_value = "server", help = "Mode: server or client")]
@@ -32,6 +35,7 @@ struct Args {
     backend: Backend,
 }
 
+#[cfg(not(test))]
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
@@ -55,7 +59,7 @@ async fn main() -> Result<()> {
     }
 }
 
-fn run_server(ctx: ZContext) -> Result<()> {
+pub fn run_server(ctx: ZContext) -> Result<()> {
     let node = ctx.create_node("add_two_ints_server").build()?;
     let mut zsrv = node.create_service::<AddTwoInts>("add_two_ints").build()?;
 
@@ -72,7 +76,7 @@ fn run_server(ctx: ZContext) -> Result<()> {
     }
 }
 
-async fn run_client(ctx: ZContext, a: i64, b: i64) -> Result<()> {
+pub async fn run_client(ctx: ZContext, a: i64, b: i64) -> Result<()> {
     let node = ctx.create_node("add_two_ints_client").build()?;
     let zcli = node.create_client::<AddTwoInts>("add_two_ints").build()?;
 
@@ -82,7 +86,7 @@ async fn run_client(ctx: ZContext, a: i64, b: i64) -> Result<()> {
     println!("Sending request: {} + {}", req.a, req.b);
 
     zcli.send_request(&req).await?;
-    let resp = zcli.take_response()?;
+    let resp = zcli.take_response_timeout(std::time::Duration::from_secs(5))?;
 
     println!("Received response: {}", resp.sum);
 
