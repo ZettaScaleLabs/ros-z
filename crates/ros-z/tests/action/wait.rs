@@ -1,8 +1,8 @@
 use std::{sync::Arc, time::Duration};
 
 use ros_z::{Builder, Result, context::ZContextBuilder, define_action};
-use serial_test::serial;
 use serde::{Deserialize, Serialize};
+use serial_test::serial;
 use tokio::time;
 
 // Define test action messages (similar to Fibonacci)
