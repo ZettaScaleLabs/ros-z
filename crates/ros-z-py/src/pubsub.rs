@@ -1,9 +1,9 @@
 use crate::error::IntoPyErr;
-use std::any::Any;
 use crate::payload_view::ZPayloadView;
 use crate::traits::{RawPublisher, RawSubscriber};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
+use std::any::Any;
 use std::time::Duration;
 use zenoh_buffers::buffer::SplitBuffer;
 
@@ -47,16 +47,13 @@ impl PyZPublisher {
     }
 }
 
-
 #[pyclass(name = "ZSubscriber")]
 pub struct PyZSubscriber {
     /// Present for pull/queue-based subscriptions.
     inner: Option<Box<dyn RawSubscriber>>,
-
     /// Keeps callback-based subscriptions alive.
-    /// Dropping the underlying Rust subscriber undeclares it.
+    #[allow(dead_code)]
     callback_keepalive: Option<Box<dyn Any + Send>>,
-
     type_name: String,
 }
 
