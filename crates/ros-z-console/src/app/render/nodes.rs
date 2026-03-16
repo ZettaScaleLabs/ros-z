@@ -30,7 +30,12 @@ impl App {
                 let style = list_item_style(i == self.selected_index);
 
                 // Format: "* <namespace>/<name>"
-                let full_name = format!("{}/{}", namespace, name);
+                // When namespace is "/" (root), avoid producing "//name"
+                let full_name = if namespace == "/" {
+                    format!("/{}", name)
+                } else {
+                    format!("{}/{}", namespace, name)
+                };
                 let icon_width = 2; // "* "
                 let node_max_width = list_width.saturating_sub(icon_width);
                 let display_node = truncate_with_ellipsis(&full_name, node_max_width);
@@ -68,14 +73,26 @@ impl App {
             return "No node selected".to_string();
         };
 
-        let node_key = (namespace.clone(), name.clone());
+        // Normalize namespace for HashMap lookup: graph stores root nodes under "" not "/"
+        let normalized_ns = if namespace == "/" {
+            String::new()
+        } else {
+            namespace.clone()
+        };
+        let node_key = (normalized_ns, name.clone());
         let publishers = graph.get_names_and_types_by_node(node_key.clone(), EntityKind::Publisher);
         let subscribers =
             graph.get_names_and_types_by_node(node_key.clone(), EntityKind::Subscription);
         let services = graph.get_names_and_types_by_node(node_key.clone(), EntityKind::Service);
         let clients = graph.get_names_and_types_by_node(node_key, EntityKind::Client);
 
-        let mut detail = format!("Node: {}/{}\n", namespace, name);
+        // Display format: avoid "//name" when namespace is "/"
+        let display_path = if namespace == "/" {
+            format!("/{}", name)
+        } else {
+            format!("{}/{}", namespace, name)
+        };
+        let mut detail = format!("Node: {}\n", display_path);
 
         let show_types = self.detail_state.publishers_expanded;
         let expand_hint = if show_types { "[-]" } else { "[+]" };

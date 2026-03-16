@@ -12,7 +12,9 @@ use app::{
 };
 use clap::{Parser, ValueEnum};
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
+    event::{
+        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, KeyModifiers,
+    },
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
@@ -158,9 +160,10 @@ async fn run_tui_loop(
             return Ok(());
         }
 
-        // Poll for events with timeout
+        // Poll for events with timeout (ignore Release events to prevent double-dispatch)
         if event::poll(Duration::from_millis(POLL_TIMEOUT_MS))?
             && let Event::Key(key) = event::read()?
+            && key.kind != KeyEventKind::Release
         {
             handle_key_event(app, key).await?;
         }
