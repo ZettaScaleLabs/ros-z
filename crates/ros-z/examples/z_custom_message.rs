@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+#[cfg(not(test))]
 use clap::Parser;
 use ros_z::{
     Builder, MessageTypeInfo, Result, ServiceTypeInfo, context::ZContextBuilder, entity::TypeHash,
@@ -95,6 +96,7 @@ impl ZService for NavigateTo {
     type Response = NavigateToResponse;
 }
 
+#[cfg(not(test))]
 #[derive(Debug, Parser)]
 struct Args {
     #[arg(
@@ -122,15 +124,21 @@ struct Args {
     max_speed: f64,
 }
 
+#[cfg(not(test))]
 #[tokio::main]
 async fn main() -> Result<()> {
     match Args::parse().mode.as_str() {
         "status-pub" => run_status_publisher(Args::parse().robot_id).await,
         "status-sub" => run_status_subscriber().await,
-        "nav-server" => run_navigation_server(),
+        "nav-server" => run_navigation_server(ZContextBuilder::default().build()?),
         "nav-client" => {
             let args = Args::parse();
-            run_navigation_client(args.target_x, args.target_y, args.max_speed)
+            run_navigation_client(
+                ZContextBuilder::default().build()?,
+                args.target_x,
+                args.target_y,
+                args.max_speed,
+            )
         }
         mode => {
             eprintln!(
@@ -216,10 +224,9 @@ async fn run_status_subscriber() -> Result<()> {
     }
 }
 
-fn run_navigation_server() -> Result<()> {
+pub fn run_navigation_server(ctx: ros_z::context::ZContext) -> Result<()> {
     println!("Starting navigation service server...");
 
-    let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("navigation_server").build()?;
     let mut zsrv = node.create_service::<NavigateTo>("/navigate_to").build()?;
 
@@ -263,10 +270,14 @@ fn run_navigation_server() -> Result<()> {
     }
 }
 
-fn run_navigation_client(target_x: f64, target_y: f64, max_speed: f64) -> Result<()> {
+pub fn run_navigation_client(
+    ctx: ros_z::context::ZContext,
+    target_x: f64,
+    target_y: f64,
+    max_speed: f64,
+) -> Result<()> {
     println!("Starting navigation client...");
 
-    let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("navigation_client").build()?;
     let zcli = node.create_client::<NavigateTo>("/navigate_to").build()?;
 

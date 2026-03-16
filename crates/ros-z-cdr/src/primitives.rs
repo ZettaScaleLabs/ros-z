@@ -488,3 +488,48 @@ mod tests {
         assert_eq!(reader.read_string().unwrap(), "test string");
     }
 }
+
+// ---------------------------------------------------------------------------
+// Kani formal proof harnesses
+// ---------------------------------------------------------------------------
+
+#[cfg(kani)]
+mod kani_proofs {
+    use super::*;
+    use byteorder::LittleEndian;
+
+    /// For any u32 value, writing then reading it back via CdrWriter/CdrReader
+    /// recovers the original value exactly.
+    #[kani::proof]
+    fn u32_serialize_deserialize_identity() {
+        let value: u32 = kani::any();
+
+        let mut buffer: Vec<u8> = Vec::new();
+        {
+            let mut writer = CdrWriter::<LittleEndian, _>::new(&mut buffer);
+            writer.write_u32(value);
+        }
+
+        let mut reader = CdrReader::<LittleEndian>::new(&buffer);
+        let recovered = reader.read_u32().expect("read_u32");
+
+        kani::assert(recovered == value, "u32 roundtrip identity");
+    }
+
+    /// For any i32 value, writing then reading back recovers the original.
+    #[kani::proof]
+    fn i32_serialize_deserialize_identity() {
+        let value: i32 = kani::any();
+
+        let mut buffer: Vec<u8> = Vec::new();
+        {
+            let mut writer = CdrWriter::<LittleEndian, _>::new(&mut buffer);
+            writer.write_i32(value);
+        }
+
+        let mut reader = CdrReader::<LittleEndian>::new(&buffer);
+        let recovered = reader.read_i32().expect("read_i32");
+
+        kani::assert(recovered == value, "i32 roundtrip identity");
+    }
+}

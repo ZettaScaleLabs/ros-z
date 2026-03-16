@@ -1,6 +1,6 @@
+#[cfg(not(test))]
+use std::{fs::File, path::PathBuf};
 use std::{
-    fs::File,
-    path::PathBuf,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering::SeqCst},
@@ -8,24 +8,42 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[cfg(not(test))]
 use clap::Parser;
+#[cfg(not(test))]
 use csv::Writer;
 use ros_z::{Builder, Result, ZBuf, context::ZContextBuilder};
 use ros_z_msgs::std_msgs::ByteMultiArray;
 use zenoh_buffers::buffer::{Buffer, SplitBuffer};
 
-#[derive(Debug, Parser)]
-struct Args {
-    #[arg(short, long, default_value = "ping", help = "Mode: ping or pong")]
-    mode: String,
-    #[arg(short, long, default_value = "64", help = "Payload size in bytes")]
-    payload: usize,
-    #[arg(short, long, default_value = "10", help = "Frequency in Hz")]
-    frequency: usize,
-    #[arg(short, long, default_value = "100", help = "Number of samples")]
-    sample: usize,
-    #[arg(short, long, default_value = "", help = "Log file path")]
-    log: String,
+#[cfg_attr(not(test), derive(Parser))]
+#[derive(Debug)]
+pub struct Args {
+    #[cfg_attr(
+        not(test),
+        arg(short, long, default_value = "ping", help = "Mode: ping or pong")
+    )]
+    pub mode: String,
+    #[cfg_attr(
+        not(test),
+        arg(short, long, default_value = "64", help = "Payload size in bytes")
+    )]
+    pub payload: usize,
+    #[cfg_attr(
+        not(test),
+        arg(short, long, default_value = "10", help = "Frequency in Hz")
+    )]
+    pub frequency: usize,
+    #[cfg_attr(
+        not(test),
+        arg(short, long, default_value = "100", help = "Number of samples")
+    )]
+    pub sample: usize,
+    #[cfg_attr(
+        not(test),
+        arg(short, long, default_value = "", help = "Log file path")
+    )]
+    pub log: String,
 }
 
 fn get_percentile(data: &[u64], percentile: f64) -> u64 {
@@ -48,6 +66,7 @@ fn print_statistics(mut rtts: Vec<u64>) {
     println!("Max : {}", rtts.last().unwrap());
 }
 
+#[cfg(not(test))]
 #[derive(Debug)]
 struct DataLogger {
     payload: usize,
@@ -55,6 +74,7 @@ struct DataLogger {
     path: PathBuf,
 }
 
+#[cfg(not(test))]
 impl DataLogger {
     fn write(&self, data: Vec<u64>) -> Result<()> {
         let file = File::create(&self.path)?;
@@ -77,8 +97,7 @@ impl DataLogger {
     }
 }
 
-fn run_ping(args: &Args) -> Result<()> {
-    let ctx = ZContextBuilder::default().with_logging_enabled().build()?;
+pub fn run_ping(ctx: ros_z::context::ZContext, args: &Args) -> Result<()> {
     let node = ctx.create_node("ping_node").build()?;
     let zpub = node.create_pub::<ByteMultiArray>("ping").build()?;
     let zsub = node.create_sub::<ByteMultiArray>("pong").build()?;
@@ -91,6 +110,7 @@ fn run_ping(args: &Args) -> Result<()> {
         &args.frequency, &args.payload, &args.sample
     );
 
+    #[cfg(not(test))]
     let logger = if args.log.is_empty() {
         None
     } else {
@@ -113,6 +133,7 @@ fn run_ping(args: &Args) -> Result<()> {
                 rtts.push(rtt);
             }
         }
+        #[cfg(not(test))]
         if let Some(logger) = logger {
             logger.write(rtts.clone()).expect("Failed to write the log");
         }
@@ -137,8 +158,7 @@ fn run_ping(args: &Args) -> Result<()> {
     Ok(())
 }
 
-fn run_pong() -> Result<()> {
-    let ctx = ZContextBuilder::default().with_logging_enabled().build()?;
+pub fn run_pong(ctx: ros_z::context::ZContext) -> Result<()> {
     let node = ctx.create_node("pong_node").build()?;
     let zsub = node.create_sub::<ByteMultiArray>("ping").build()?;
     let zpub = node.create_pub::<ByteMultiArray>("pong").build()?;
@@ -169,6 +189,7 @@ fn run_pong() -> Result<()> {
     }
 }
 
+#[cfg(not(test))]
 fn main() -> Result<()> {
     let args = Args::parse();
 
@@ -177,9 +198,10 @@ fn main() -> Result<()> {
         std::process::exit(1);
     }
 
+    let ctx = ZContextBuilder::default().with_logging_enabled().build()?;
     match args.mode.as_str() {
-        "ping" => run_ping(&args),
-        "pong" => run_pong(),
+        "ping" => run_ping(ctx, &args),
+        "pong" => run_pong(ctx),
         _ => unreachable!(),
     }
 }
