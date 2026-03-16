@@ -19,6 +19,7 @@ use crate::{
         TypeDescriptionService,
     },
     entity::*,
+    extended_schema::{ExtendedTypeDescriptionClient, ExtendedTypeDescriptionService},
     msg::{ZMessage, ZService},
     parameter::{
         Parameter, ParameterDescriptor, ParameterValue, SetParametersResult,
@@ -52,6 +53,9 @@ pub struct ZNode {
     /// Enabled via `ZNodeBuilder::with_type_description_service()`.
     /// The service uses callback mode and requires no background task.
     type_desc_service: Option<TypeDescriptionService>,
+    /// Optional ros-z-specific extended type description service.
+    /// Enabled via `ZNodeBuilder::with_extended_type_description_service()`.
+    extended_type_desc_service: Option<ExtendedTypeDescriptionService>,
     /// Parameter service providing ROS 2-compatible parameter management.
     /// Enabled by default; disable via `ZNodeBuilder::without_parameters()`.
     parameter_service: Option<ParameterService>,
@@ -78,6 +82,8 @@ pub struct ZNodeBuilder {
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
     /// Whether to enable the type description service for this node.
     pub enable_type_desc_service: bool,
+    /// Whether to enable the extended type description service for this node.
+    pub enable_extended_type_desc_service: bool,
     /// Whether to enable parameter services for this node (default: true).
     pub enable_parameters: bool,
     /// Initial parameter overrides applied at declaration time.
@@ -144,6 +150,15 @@ impl ZNodeBuilder {
     /// ```
     pub fn with_type_description_service(mut self) -> Self {
         self.enable_type_desc_service = true;
+        self
+    }
+
+    /// Enable the ros-z-specific extended type description service for this node.
+    ///
+    /// When enabled, the node exposes `~get_extended_type_description` for
+    /// extended-only schemas such as enums and `Option<T>` fields.
+    pub fn with_extended_type_description_service(mut self) -> Self {
+        self.enable_extended_type_desc_service = true;
         self
     }
 
@@ -248,6 +263,21 @@ impl Builder for ZNodeBuilder {
             None
         };
 
+        let extended_type_desc_service = if self.enable_extended_type_desc_service {
+            debug!("[NOD] Creating extended type description service");
+            let service = ExtendedTypeDescriptionService::new(
+                self.session.clone(),
+                &self.name,
+                &self.namespace,
+                id,
+                &self.counter,
+            )?;
+            info!("[NOD] ExtendedTypeDescriptionService created");
+            Some(service)
+        } else {
+            None
+        };
+
         // Create parameter service if enabled (default)
         let parameter_service = if self.enable_parameters {
             debug!("[NOD] Creating parameter service");
@@ -278,6 +308,7 @@ impl Builder for ZNodeBuilder {
             shm_config: self.shm_config,
             keyexpr_format: self.keyexpr_format,
             type_desc_service,
+            extended_type_desc_service,
             parameter_service,
         })
     }
@@ -326,6 +357,14 @@ impl ZNode {
                     );
                 }
             }
+        }
+
+        if let Err(e) = T::register_type_extensions(self) {
+            warn!(
+                "[NOD] Failed to register non-standard schema extensions for {}: {}",
+                std::any::type_name::<T>(),
+                e
+            );
         }
 
         builder
@@ -686,6 +725,23 @@ impl ZNode {
         self.type_desc_service.is_some()
     }
 
+    /// Get a reference to this node's extended type description service, if enabled.
+    pub fn extended_type_description_service(&self) -> Option<&ExtendedTypeDescriptionService> {
+        self.extended_type_desc_service.as_ref()
+    }
+
+    /// Get a mutable reference to this node's extended type description service, if enabled.
+    pub fn extended_type_description_service_mut(
+        &mut self,
+    ) -> Option<&mut ExtendedTypeDescriptionService> {
+        self.extended_type_desc_service.as_mut()
+    }
+
+    /// Check if this node has an extended type description service.
+    pub fn has_extended_type_description_service(&self) -> bool {
+        self.extended_type_desc_service.is_some()
+    }
+
     /// Get access to the global counter for entity ID generation.
     pub fn counter(&self) -> &Arc<GlobalCounter> {
         &self.counter
@@ -895,22 +951,103 @@ impl ZNode {
             topic
         );
 
-        // Create a TypeDescriptionClient to discover the schema.
-        // Use a short per-attempt timeout (3 s) so that transient Zenoh routing
-        // delays can be recovered by the retry loop inside get_type_description_for_topic
-        // rather than burning the entire discovery_timeout on a single query.
-        let client = TypeDescriptionClient::with_graph(
-            self.session.clone(),
-            self.counter.clone(),
-            self.graph.clone(),
-        )
-        .with_timeout(Duration::from_secs(3));
+        let per_attempt_timeout = std::cmp::min(discovery_timeout, Duration::from_secs(1));
+        let standard_client =
+            TypeDescriptionClient::new(self.session.clone(), self.counter.clone())
+                .with_timeout(per_attempt_timeout);
+        let extended_client =
+            ExtendedTypeDescriptionClient::new(self.session.clone(), self.counter.clone())
+                .with_timeout(per_attempt_timeout);
 
-        // Discover schema from topic publishers
-        let (schema, type_hash) = client
-            .get_type_description_for_topic(topic, discovery_timeout)
-            .await
-            .map_err(|e| zenoh::Error::from(format!("Schema discovery failed: {}", e)))?;
+        let start = tokio::time::Instant::now();
+        let mut last_standard_error = None;
+        let mut last_extended_error = None;
+
+        let (schema, type_hash) = loop {
+            if start.elapsed() >= discovery_timeout {
+                break Err(zenoh::Error::from(format!(
+                    "Schema discovery failed. Standard: {}. Extended: {}",
+                    last_standard_error.unwrap_or_else(|| "no standard schema found".to_string()),
+                    last_extended_error.unwrap_or_else(|| "no extended schema found".to_string()),
+                )));
+            }
+
+            let publishers = self
+                .graph
+                .get_entities_by_topic(EntityKind::Publisher, topic);
+            if publishers.is_empty() {
+                tokio::time::sleep(Duration::from_millis(250)).await;
+                continue;
+            }
+
+            let mut discovered = None;
+            for publisher in &publishers {
+                let Entity::Endpoint(endpoint) = &**publisher else {
+                    continue;
+                };
+
+                let type_info = match &endpoint.type_info {
+                    Some(info) => info,
+                    None => continue,
+                };
+
+                let type_name = type_info
+                    .name
+                    .replace("::msg::dds_::", "/msg/")
+                    .replace("::srv::dds_::", "/srv/")
+                    .replace("::action::dds_::", "/action/")
+                    .trim_end_matches('_')
+                    .to_string();
+                let expected_hash = type_info.hash.to_rihs_string();
+
+                match standard_client
+                    .get_type_description(
+                        &endpoint.node.name,
+                        &endpoint.node.namespace,
+                        &type_name,
+                        &expected_hash,
+                        false,
+                    )
+                    .await
+                {
+                    Ok(response) => match TypeDescriptionClient::response_to_schema(&response) {
+                        Ok(schema) => {
+                            discovered = Some((schema, expected_hash.clone()));
+                            break;
+                        }
+                        Err(err) => last_standard_error = Some(err.to_string()),
+                    },
+                    Err(err) => last_standard_error = Some(err.to_string()),
+                }
+
+                match extended_client
+                    .get_type_description(
+                        &endpoint.node.name,
+                        &endpoint.node.namespace,
+                        &type_name,
+                        &expected_hash,
+                    )
+                    .await
+                {
+                    Ok(response) => {
+                        match ExtendedTypeDescriptionClient::response_to_schema(&response) {
+                            Ok(schema) => {
+                                discovered = Some((schema, response.type_hash.clone()));
+                                break;
+                            }
+                            Err(err) => last_extended_error = Some(err.to_string()),
+                        }
+                    }
+                    Err(err) => last_extended_error = Some(err.to_string()),
+                }
+            }
+
+            if let Some(result) = discovered {
+                break Ok(result);
+            }
+
+            tokio::time::sleep(Duration::from_millis(250)).await;
+        }?;
 
         info!(
             "[NOD] Discovered schema for topic {}: {} (hash: {})",

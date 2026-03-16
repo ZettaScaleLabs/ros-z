@@ -48,6 +48,7 @@ paste = "1.0"
 ros-z-msgs = { path = "../ros-z-msgs" }
 ros-z-codegen = { path = "../ros-z-codegen" }
 serial_test = "3.0"
+trybuild = "1.0"
 
 [build-dependencies]
 serde = { workspace = true, features = ["serde_derive"] }

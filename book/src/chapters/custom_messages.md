@@ -21,10 +21,10 @@ flowchart TD
 
 ## Rust-Native Messages
 
-**Define messages directly in Rust and derive their schema metadata.** This approach is fast for prototyping but only works between ros-z nodes.
+**Define messages directly in Rust and derive their schema metadata.** This approach is fast for prototyping, and plain named structs can still participate in the standard ROS 2 type description service.
 
 ```admonish warning
-Rust-Native messages use `TypeHash::zero()` and won't interoperate with ROS 2 C++/Python nodes.
+Rust-native messages defined with `#[derive(MessageTypeInfo)]` are limited to ROS 2 schema-compatible shapes. If you need `Option<T>`, enums, or other ros-z-only schema extensions, use `#[derive(ExtendedMessageTypeInfo)]` plus the parallel extended type description service instead of the standard ROS 2 type description service.
 ```
 
 ### Workflow of Rust-Native Messages
@@ -65,9 +65,15 @@ impl ros_z::msg::ZMessage for RobotStatus {
 }
 ```
 
-`MessageTypeInfo` derive currently supports named structs with deterministic ROS field mappings:
-primitive numeric/bool types, `String`, `Vec<T>`, fixed arrays `[T; N]`, and nested message structs.
-Tuple structs, unit structs, enums, `Option`, maps, and other richer Rust-only shapes are not yet supported.
+`MessageTypeInfo` derive in core `ros-z` intentionally supports only ROS 2 schema-compatible named
+structs: primitive numeric/bool types, `String`, `Vec<T>`, fixed arrays `[T; N]`, and nested
+message types. Tuple structs, unit structs, enums, `Option<T>`, maps, `usize`, `isize`, and other
+Rust-only shapes are rejected at compile time.
+
+For richer serde shapes such as `Option<T>` or enums, use `ros_z::ExtendedMessageTypeInfo`.
+It keeps normal `message_schema()` support for types that are still ROS 2 compatible, and uses a
+separate `~get_extended_type_description` service for extended-only schemas when the publisher node
+is created with `.with_extended_type_description_service()`.
 
 ### Service Example
 
