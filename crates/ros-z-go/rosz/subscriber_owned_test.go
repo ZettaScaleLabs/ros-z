@@ -37,13 +37,11 @@ func TestNodeOwnedSubsField(t *testing.T) {
 	t.Log("Node.ownedSubs ownership pattern verified")
 }
 
-// TestCallbackSubscriberLifetimePattern documents the expected behavior:
-// a subscriber created with BuildWithCallback must remain active even
-// when the caller does not store the returned *Subscriber.
-//
-// The node keeps the subscription alive via ownedSubs until Node.Close().
-// This matches rmw_zenoh_cpp's NodeData::subs_ pattern.
-func TestCallbackSubscriberLifetimePattern(t *testing.T) {
+// TestClosureCallAndDrop verifies the closure infrastructure used by
+// BuildWithCallback: that a closure can be called and dropped cleanly.
+// Full end-to-end lifetime test (subscriber active without assignment)
+// requires a live Zenoh session and is covered by CI integration tests.
+func TestClosureCallAndDrop(t *testing.T) {
 	// Demonstrate the pattern using the mock closure infrastructure.
 	var callCount int
 	handler := func(data []byte) {

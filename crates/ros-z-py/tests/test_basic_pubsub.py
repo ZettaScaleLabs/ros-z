@@ -123,6 +123,7 @@ def main():
     test_publish_receive(pub, sub)
     test_qos_configuration(node)
     test_error_handling(node)
+    test_callback_subscriber_no_assign(node, pub)
 
     print("=" * 60)
     print("All tests passed! ✓")
