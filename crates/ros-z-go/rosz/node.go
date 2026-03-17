@@ -108,13 +108,27 @@ func (n *Node) CreateSubscriber(topic string) *SubscriberBuilder {
 	}
 }
 
-// Close destroys the node
+// Close destroys the node.
+// Owned callback subscribers are closed first so their Zenoh subscriptions
+// are undeclared before the node handle is destroyed, preventing callbacks
+// from firing on the Zenoh/CGo thread after Close returns.
 func (n *Node) Close() error {
 	var err error
 	n.closeOnce.Do(func() {
 		if n.handle == nil {
 			return
 		}
+		// Drain owned subscribers before destroying the node handle.
+		n.subsMu.Lock()
+		subs := n.ownedSubs
+		n.ownedSubs = nil
+		n.subsMu.Unlock()
+		for _, s := range subs {
+			if sub, ok := s.(*Subscriber); ok {
+				sub.Close()
+			}
+		}
+
 		result := C.ros_z_node_destroy(n.handle)
 		n.handle = nil
 		if result != 0 {
