@@ -230,7 +230,7 @@ impl PyZNode {
             // matching rmw_zenoh_cpp's NodeData::subs_ pattern. The caller does not
             // need to assign the returned PyZSubscriber to keep the subscription active.
             let type_name = msg_type_str.clone();
-            let _zsub = sub_builder
+            let zsub = sub_builder
                 .build_with_callback(move |raw_msg: RawBytesMessage| {
                     let payload = raw_msg.0;
                     Python::with_gil(|py| {
