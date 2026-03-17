@@ -92,6 +92,34 @@ func (b *NodeBuilder) Build() (*Node, error) {
 	return node, nil
 }
 
+// DestroySubscriber removes a callback-based subscriber from node ownership and closes it,
+// undeclaring its Zenoh subscription immediately.
+//
+// Matches rclpy's Node.destroy_subscription(). After this call the subscriber is closed
+// and must not be used again. Returns nil if sub was not found (already closed or not owned).
+func (n *Node) DestroySubscriber(sub *Subscriber) error {
+	n.subsMu.Lock()
+	idx := -1
+	for i, s := range n.ownedSubs {
+		if s == sub {
+			idx = i
+			break
+		}
+	}
+	if idx >= 0 {
+		last := len(n.ownedSubs) - 1
+		n.ownedSubs[idx] = n.ownedSubs[last]
+		n.ownedSubs[last] = nil
+		n.ownedSubs = n.ownedSubs[:last]
+	}
+	n.subsMu.Unlock()
+
+	if idx >= 0 {
+		return sub.Close()
+	}
+	return nil
+}
+
 // CreatePublisher creates a new publisher builder
 func (n *Node) CreatePublisher(topic string) *PublisherBuilder {
 	return &PublisherBuilder{

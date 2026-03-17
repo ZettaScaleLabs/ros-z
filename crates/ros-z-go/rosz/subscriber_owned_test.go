@@ -37,6 +37,45 @@ func TestNodeOwnedSubsField(t *testing.T) {
 	t.Log("Node.ownedSubs ownership pattern verified")
 }
 
+// TestDestroySubscriberRemovesFromOwned verifies that DestroySubscriber removes
+// the subscriber from ownedSubs and closes it without requiring a live Zenoh session.
+func TestDestroySubscriberRemovesFromOwned(t *testing.T) {
+	node := &Node{}
+
+	// Simulate a subscriber stored by BuildWithCallback.
+	sub := &Subscriber{}
+	node.subsMu.Lock()
+	node.ownedSubs = append(node.ownedSubs, sub)
+	node.subsMu.Unlock()
+
+	if len(node.ownedSubs) != 1 {
+		t.Fatalf("Expected 1 owned sub before destroy, got %d", len(node.ownedSubs))
+	}
+
+	// DestroySubscriber should remove sub from ownedSubs.
+	// Close() on a nil-handle subscriber is a no-op.
+	_ = node.DestroySubscriber(sub)
+
+	node.subsMu.Lock()
+	remaining := len(node.ownedSubs)
+	node.subsMu.Unlock()
+
+	if remaining != 0 {
+		t.Errorf("Expected 0 owned subs after destroy, got %d", remaining)
+	}
+}
+
+// TestDestroySubscriberUnknownIsNoOp verifies that DestroySubscriber with a
+// subscriber not in ownedSubs returns nil and does not panic.
+func TestDestroySubscriberUnknownIsNoOp(t *testing.T) {
+	node := &Node{}
+	unknown := &Subscriber{}
+	err := node.DestroySubscriber(unknown)
+	if err != nil {
+		t.Errorf("Expected nil error for unknown subscriber, got %v", err)
+	}
+}
+
 // TestClosureCallAndDrop verifies the closure infrastructure used by
 // BuildWithCallback: that a closure can be called and dropped cleanly.
 // Full end-to-end lifetime test (subscriber active without assignment)

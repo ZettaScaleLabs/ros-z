@@ -51,6 +51,9 @@ pub struct PyZSubscriber {
     /// None for callback-based subscriptions (no queue)
     inner: Option<Box<dyn RawSubscriber>>,
     type_name: String,
+    /// ID used to locate this subscriber in the node's owned_subs for destroy_subscriber.
+    /// None for queue-based subscribers (caller owns the handle directly).
+    pub(crate) owned_id: Option<u64>,
 }
 
 impl PyZSubscriber {
@@ -58,15 +61,17 @@ impl PyZSubscriber {
         Self {
             inner: Some(inner),
             type_name,
+            owned_id: None,
         }
     }
 
     /// Create a callback-based subscriber (no queue).
-    /// The subscriber handle is owned by the node — not stored here.
-    pub fn new_callback(type_name: String) -> Self {
+    /// The subscriber handle is owned by the node under `id`.
+    pub fn new_callback(type_name: String, id: u64) -> Self {
         Self {
             inner: None,
             type_name,
+            owned_id: Some(id),
         }
     }
 

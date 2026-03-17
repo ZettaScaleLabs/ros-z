@@ -141,6 +141,7 @@ impl PyZNodeBuilder {
             name: self.name.clone(),
             namespace: self.namespace.clone().unwrap_or_else(|| "/".to_string()),
             owned_subs: Vec::new(),
+            next_sub_id: 0,
         })
     }
 }
@@ -151,8 +152,10 @@ pub struct PyZNode {
     name: String,
     namespace: String,
     /// Keeps callback-based subscribers alive for the node's lifetime.
-    /// Matches rmw_zenoh_cpp's NodeData::subs_ ownership pattern.
-    owned_subs: Vec<Box<dyn Any + Send>>,
+    /// Matches rmw_zenoh_cpp's NodeData::subs_ and rclpy's _subscriptions ownership patterns.
+    /// Keyed by a monotonic ID so destroy_subscriber can remove a specific entry.
+    owned_subs: Vec<(u64, Box<dyn Any + Send>)>,
+    next_sub_id: u64,
 }
 
 #[allow(unsafe_op_in_unsafe_fn)]
@@ -248,8 +251,10 @@ impl PyZNode {
                 })
                 .map_err(|e| e.into_pyerr())?;
 
-            self.owned_subs.push(Box::new(zsub));
-            Ok(PyZSubscriber::new_callback(msg_type_str))
+            let id = self.next_sub_id;
+            self.next_sub_id += 1;
+            self.owned_subs.push((id, Box::new(zsub)));
+            Ok(PyZSubscriber::new_callback(msg_type_str, id))
         } else {
             let zsub = sub_builder.build().map_err(|e| e.into_pyerr())?;
             let wrapper = GenericSubWrapper::new(zsub);
@@ -399,6 +404,22 @@ impl PyZNode {
             result_type.clone().unbind(),
             feedback_type.clone().unbind(),
         ))
+    }
+
+    /// Destroy a callback-based subscriber early, undeclaring its Zenoh subscription.
+    ///
+    /// Matches rclpy's `Node.destroy_subscription()`. Has no effect on queue-based
+    /// subscribers (those are owned by the caller and dropped when they go out of scope).
+    fn destroy_subscriber(&mut self, sub: &PyZSubscriber) -> PyResult<()> {
+        let Some(id) = sub.owned_id else {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "destroy_subscriber only applies to callback-based subscribers",
+            ));
+        };
+        if let Some(pos) = self.owned_subs.iter().position(|(sid, _)| *sid == id) {
+            self.owned_subs.swap_remove(pos);
+        }
+        Ok(())
     }
 
     /// Create a service server
