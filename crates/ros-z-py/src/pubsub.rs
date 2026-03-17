@@ -61,7 +61,8 @@ impl PyZSubscriber {
         }
     }
 
-    /// Create a callback-based subscriber (no queue, no recv methods)
+    /// Create a callback-based subscriber (no queue).
+    /// The subscriber handle is owned by the node — not stored here.
     pub fn new_callback(type_name: String) -> Self {
         Self {
             inner: None,
