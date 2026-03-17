@@ -19,7 +19,7 @@ use crate::{
     msg::{ZMessage, ZService},
     parameter::{
         Parameter, ParameterDescriptor, ParameterValue, SetParametersResult,
-        service::ParameterService,
+        client::ParameterClientBuilder, service::ParameterService,
     },
     pubsub::{ZPub, ZPubBuilder, ZSub, ZSubBuilder},
     service::{ZClientBuilder, ZServerBuilder},
@@ -520,6 +520,14 @@ impl ZNode {
             keyexpr_format: self.keyexpr_format,
             _phantom_data: Default::default(),
         }
+    }
+
+    /// Create a high-level remote parameter client for the given target node.
+    pub fn create_parameter_client(
+        &self,
+        target: crate::parameter::ParameterTarget,
+    ) -> ParameterClientBuilder<'_> {
+        ParameterClientBuilder::new(self, target)
     }
 
     /// Create a raw publisher for FFI (no type safety)

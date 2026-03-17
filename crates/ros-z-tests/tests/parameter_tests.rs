@@ -5,14 +5,14 @@
 
 mod common;
 
-use std::{sync::Arc, thread, time::Duration};
+use std::{thread, time::Duration};
 
 use common::*;
 use ros_z::{
     Builder,
     parameter::{
-        Parameter, ParameterClient, ParameterDescriptor, ParameterTarget, ParameterType,
-        ParameterValue, SetParametersResult,
+        Parameter, ParameterDescriptor, ParameterTarget, ParameterType, ParameterValue,
+        SetParametersResult,
         wire_types::{WireParameterEvent, parameter_event_type_info},
     },
 };
@@ -345,15 +345,16 @@ fn test_parameter_client_high_level_api() {
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
         let ctx = create_ros_z_context_with_router(&router).expect("ctx");
-        let client_node = Arc::new(
-            ctx.create_node("high_level_param_client")
-                .build()
-                .expect("node"),
-        );
-        let client = ParameterClient::new(
-            client_node,
-            ParameterTarget::from_fqn("/high_level_param_server").expect("target"),
-        );
+        let client_node = ctx
+            .create_node("high_level_param_client")
+            .build()
+            .expect("node");
+        let client = client_node
+            .create_parameter_client(
+                ParameterTarget::from_fqn("/high_level_param_server").expect("target"),
+            )
+            .build()
+            .expect("client");
 
         tokio::time::sleep(Duration::from_millis(500)).await;
 
@@ -402,6 +403,24 @@ fn test_parameter_client_high_level_api() {
             vec![ParameterValue::Integer(9), ParameterValue::Integer(3)]
         );
     });
+}
+
+#[test]
+fn test_parameter_client_builder_fails_early_for_invalid_target() {
+    let router = TestRouter::new();
+    let ctx = create_ros_z_context_with_router(&router).expect("context");
+    let node = ctx
+        .create_node("invalid_param_client")
+        .build()
+        .expect("node");
+
+    let result = node
+        .create_parameter_client(ParameterTarget::new("/", "bad name"))
+        .build();
+    assert!(
+        result.is_err(),
+        "builder should fail before returning a client"
+    );
 }
 
 /// Test parameter events for declare, set, and undeclare operations.

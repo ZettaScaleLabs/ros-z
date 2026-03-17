@@ -146,14 +146,13 @@ Each node with parameters enabled exposes 6 standard services:
 Use `ParameterClient` when you want a typed client for another node's parameter services:
 
 ```rust,ignore
-use std::sync::Arc;
-use ros_z::parameter::{Parameter, ParameterClient, ParameterTarget, ParameterType, ParameterValue};
+use ros_z::Builder;
+use ros_z::parameter::{Parameter, ParameterTarget, ParameterType, ParameterValue};
 
-let client_node = Arc::new(ctx.create_node("param_client").build()?);
-let client = ParameterClient::new(
-    client_node,
-    ParameterTarget::from_fqn("/my_node").expect("valid node name"),
-);
+let client_node = ctx.create_node("param_client").build()?;
+let client = client_node
+    .create_parameter_client(ParameterTarget::from_fqn("/my_node").expect("valid node name"))
+    .build()?;
 
 let values = client.get(&["max_speed"]).await?;
 let types = client.get_types(&["max_speed"]).await?;

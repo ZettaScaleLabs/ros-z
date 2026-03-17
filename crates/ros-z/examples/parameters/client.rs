@@ -1,13 +1,10 @@
 mod common;
 
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
 use ros_z::{
     Builder, Result,
-    parameter::{
-        Parameter, ParameterClient, ParameterDescriptor, ParameterTarget, ParameterType,
-        ParameterValue,
-    },
+    parameter::{Parameter, ParameterDescriptor, ParameterTarget, ParameterType, ParameterValue},
 };
 
 #[tokio::main]
@@ -23,11 +20,12 @@ async fn main() -> Result<()> {
         .declare_parameter("max_speed", ParameterValue::Integer(50), desc)
         .expect("declare max_speed");
 
-    let client_node = Arc::new(ctx.create_node("client_demo").build()?);
-    let client = ParameterClient::new(
-        client_node,
-        ParameterTarget::from_fqn("/client_demo_server").expect("valid node name"),
-    );
+    let client_node = ctx.create_node("client_demo").build()?;
+    let client = client_node
+        .create_parameter_client(
+            ParameterTarget::from_fqn("/client_demo_server").expect("valid node name"),
+        )
+        .build()?;
 
     tokio::time::sleep(Duration::from_millis(500)).await;
 
