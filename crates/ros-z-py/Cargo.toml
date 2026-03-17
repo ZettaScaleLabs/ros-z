@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [lib]
-name = "ros_z_py"
+name = "_native"
 crate-type = ["cdylib"]
 
 [dependencies]

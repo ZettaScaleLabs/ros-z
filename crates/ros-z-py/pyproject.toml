@@ -20,6 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Rust",
+    "Typing :: Typed",
 ]
 dependencies = [
     "msgspec>=0.18.0",
@@ -28,3 +29,9 @@ dependencies = [
 [tool.maturin]
 features = ["pyo3/extension-module"]
 python-source = "python"
+module-name = "ros_z_py._native"
+include = [
+    { path = "python/ros_z_py/py.typed", format = "wheel" },
+    { path = "python/ros_z_py/_native.pyi", format = "wheel" },
+    { path = "python/ros_z_py/__init__.pyi", format = "wheel" },
+]
