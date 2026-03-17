@@ -192,7 +192,7 @@ async fn handle_cancel_request<A: ZAction>(
 
     // Send response
     let response = CancelGoalServiceResponse {
-        return_code: if cancelled { 1 } else { 0 },
+        return_code: if cancelled { 0 } else { 1 },
         goals_canceling: if cancelled {
             vec![request.goal_info]
         } else {

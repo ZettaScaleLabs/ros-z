@@ -165,6 +165,8 @@ fn test_bytemultiarray_pubsub_with_zbuf() {
                 ..Default::default()
             };
 
+            // Give the subscriber time to declare before publishing
+            thread::sleep(Duration::from_millis(500));
             publisher.publish(&msg).expect("Failed to publish");
             thread::sleep(Duration::from_millis(100));
         }

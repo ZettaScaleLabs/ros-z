@@ -8,7 +8,7 @@
 
 use ros_z::dynamic::{DynamicMessage, FieldType, MessageSchema};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Dynamic Message Basic Example ===\n");
 
     // Create a simple Point schema
@@ -103,4 +103,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n=== Example Complete ===");
     Ok(())
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    run()
 }

@@ -19,14 +19,7 @@ def run-tests [] {
     $env.RUSTFLAGS = "-D warnings"
 
     log-step "Run tests"
-    let result = (do -i { run-cmd "cargo nextest run" | complete })
-
-    # If tests failed, retry with debug logging for better diagnostics
-    if $result.exit_code != 0 {
-        print "\n⚠️  Some tests failed. Retrying failed tests with debug logging..."
-        $env.RUST_LOG = "ros_z=debug,warn"
-        run-cmd "cargo nextest run"
-    }
+    run-cmd "cargo nextest run --no-fail-fast"
 }
 
 def check-bundled-msgs [] {

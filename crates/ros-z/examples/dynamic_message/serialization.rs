@@ -8,7 +8,7 @@
 
 use ros_z::dynamic::{DynamicMessage, DynamicValue, FieldType, MessageSchema};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Dynamic Message Serialization Example ===\n");
 
     // Example 1: Simple message serialization
@@ -207,4 +207,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n=== Example Complete ===");
     Ok(())
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    run()
 }

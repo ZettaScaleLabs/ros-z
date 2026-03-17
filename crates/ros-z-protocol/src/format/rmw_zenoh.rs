@@ -1440,3 +1440,62 @@ mod tests {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// Kani formal proof harnesses
+// ---------------------------------------------------------------------------
+
+#[cfg(kani)]
+mod kani_proofs {
+    use super::*;
+    use crate::{
+        entity::{EndpointEntity, EntityKind, NodeEntity, TypeHash, TypeInfo},
+        qos::{QosDurability, QosHistory, QosProfile, QosReliability},
+    };
+    use zenoh::session::ZenohId;
+
+    /// For any domain_id in 0..=255, formatting then parsing a publisher
+    /// liveliness key expression recovers the original domain_id and entity kind.
+    #[kani::proof]
+    #[kani::unwind(8)]
+    fn liveliness_roundtrip_domain_id() {
+        // Bound the domain_id to a u8 range so Kani can enumerate all values
+        let raw_domain_id: u8 = kani::any();
+        let domain_id = raw_domain_id as usize;
+
+        let node = NodeEntity {
+            domain_id,
+            z_id: ZenohId::default(),
+            id: 1,
+            name: "kani_node".to_string(),
+            namespace: "/".to_string(),
+            enclave: "/".to_string(),
+        };
+        let entity = EndpointEntity {
+            id: 1,
+            node,
+            kind: EntityKind::Publisher,
+            topic: "/kani_topic".to_string(),
+            type_info: Some(TypeInfo {
+                name: "std_msgs/msg/String".to_string(),
+                hash: TypeHash::zero(),
+            }),
+            qos: QosProfile {
+                reliability: QosReliability::Reliable,
+                durability: QosDurability::Volatile,
+                history: QosHistory::KeepLast(10),
+            },
+        };
+
+        let ke = RmwZenohFormatter::liveliness_key_expr(&entity, &ZenohId::default())
+            .expect("liveliness_key_expr");
+        let parsed = RmwZenohFormatter::parse_liveliness(&ke).expect("parse_liveliness");
+
+        if let crate::entity::Entity::Endpoint(ep) = parsed {
+            kani::assert(ep.node.domain_id == domain_id, "domain_id preserved");
+            kani::assert(ep.kind == EntityKind::Publisher, "entity kind preserved");
+        } else {
+            kani::assert(false, "expected Endpoint entity");
+        }
+    }
+}

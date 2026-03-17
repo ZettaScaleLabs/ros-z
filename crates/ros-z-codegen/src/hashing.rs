@@ -390,6 +390,7 @@ pub fn is_primitive_type(base_type: &str) -> bool {
             | "float32"
             | "float64"
             | "string"
+            | "wstring"
     )
 }
 
