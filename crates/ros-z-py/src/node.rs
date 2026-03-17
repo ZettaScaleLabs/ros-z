@@ -14,6 +14,7 @@ use ros_z::Builder;
 use ros_z::context::ZContext;
 use ros_z::entity::{TypeHash, TypeInfo};
 use ros_z::node::ZNode;
+use std::any::Any;
 use std::sync::Arc;
 
 /// Try to extract type info from a message class.
@@ -139,6 +140,7 @@ impl PyZNodeBuilder {
             inner: Arc::new(node),
             name: self.name.clone(),
             namespace: self.namespace.clone().unwrap_or_else(|| "/".to_string()),
+            owned_subs: Vec::new(),
         })
     }
 }
@@ -148,6 +150,9 @@ pub struct PyZNode {
     pub(crate) inner: Arc<ZNode>,
     name: String,
     namespace: String,
+    /// Keeps callback-based subscribers alive for the node's lifetime.
+    /// Matches rmw_zenoh_cpp's NodeData::subs_ ownership pattern.
+    owned_subs: Vec<Box<dyn Any + Send>>,
 }
 
 #[allow(unsafe_op_in_unsafe_fn)]
@@ -203,7 +208,7 @@ impl PyZNode {
     /// Works with any registered message type — no factory limitations.
     #[pyo3(signature = (topic, msg_type, qos=None, callback=None))]
     fn create_subscriber(
-        &self,
+        &mut self,
         _py: Python,
         topic: String,
         msg_type: &Bound<'_, PyAny>,
@@ -220,7 +225,10 @@ impl PyZNode {
             .with_qos(qos_profile);
 
         if let Some(py_callback) = callback {
-            // Callback-based subscription: no queue, callback fires on each message
+            // Callback-based subscription: no queue, callback fires on each message.
+            // The ZSub handle is stored in owned_subs so it lives as long as the node,
+            // matching rmw_zenoh_cpp's NodeData::subs_ pattern. The caller does not
+            // need to assign the returned PyZSubscriber to keep the subscription active.
             let type_name = msg_type_str.clone();
             let _zsub = sub_builder
                 .build_with_callback(move |raw_msg: RawBytesMessage| {
@@ -240,7 +248,7 @@ impl PyZNode {
                 })
                 .map_err(|e| e.into_pyerr())?;
 
-            // Callback subs don't have a queue, wrap with a stub
+            self.owned_subs.push(Box::new(zsub));
             Ok(PyZSubscriber::new_callback(msg_type_str))
         } else {
             let zsub = sub_builder.build().map_err(|e| e.into_pyerr())?;
