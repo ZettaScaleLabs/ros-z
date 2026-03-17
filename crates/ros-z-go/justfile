@@ -141,9 +141,10 @@ test-go-pure:
 
 # Go FFI unit tests: requires libros_z.a
 # Covers: rosz package (types, callback registry, pub/sub interfaces)
-test-go-ffi: build-rust
+# Optional filter: just test-go-ffi TestCallbackSubscriber
+test-go-ffi filter=".": build-rust
     @echo "=== Go FFI unit tests ==="
-    CGO_LDFLAGS="{{cgo_ldflags}}" go test -v ./rosz/...
+    CGO_LDFLAGS="{{cgo_ldflags}}" go test -v -run "{{filter}}" ./rosz/...
 
 # All Go tests: pure + FFI + examples build check
 test-go: test-go-pure test-go-ffi build-go-examples

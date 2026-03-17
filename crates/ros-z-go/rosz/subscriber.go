@@ -93,6 +93,12 @@ func (b *SubscriberBuilder) BuildWithCallback(msg Message, handler MessageHandle
 	}
 	runtime.SetFinalizer(sub, (*Subscriber).Close)
 
+	// Store in node so the subscription lives until the node is closed,
+	// even if the caller discards the returned *Subscriber.
+	b.node.subsMu.Lock()
+	b.node.ownedSubs = append(b.node.ownedSubs, sub)
+	b.node.subsMu.Unlock()
+
 	return sub, nil
 }
 

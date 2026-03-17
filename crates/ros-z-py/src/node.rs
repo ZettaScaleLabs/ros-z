@@ -14,6 +14,7 @@ use ros_z::Builder;
 use ros_z::context::ZContext;
 use ros_z::entity::{TypeHash, TypeInfo};
 use ros_z::node::ZNode;
+use std::any::Any;
 use std::sync::Arc;
 
 /// Try to extract type info from a message class.
@@ -139,6 +140,8 @@ impl PyZNodeBuilder {
             inner: Arc::new(node),
             name: self.name.clone(),
             namespace: self.namespace.clone().unwrap_or_else(|| "/".to_string()),
+            owned_subs: Vec::new(),
+            next_sub_id: 0,
         })
     }
 }
@@ -148,6 +151,11 @@ pub struct PyZNode {
     pub(crate) inner: Arc<ZNode>,
     name: String,
     namespace: String,
+    /// Keeps callback-based subscribers alive for the node's lifetime.
+    /// Matches rmw_zenoh_cpp's NodeData::subs_ and rclpy's _subscriptions ownership patterns.
+    /// Keyed by a monotonic ID so destroy_subscriber can remove a specific entry.
+    owned_subs: Vec<(u64, Box<dyn Any + Send>)>,
+    next_sub_id: u64,
 }
 
 #[allow(unsafe_op_in_unsafe_fn)]
@@ -203,7 +211,7 @@ impl PyZNode {
     /// Works with any registered message type — no factory limitations.
     #[pyo3(signature = (topic, msg_type, qos=None, callback=None))]
     fn create_subscriber(
-        &self,
+        &mut self,
         _py: Python,
         topic: String,
         msg_type: &Bound<'_, PyAny>,
@@ -220,9 +228,12 @@ impl PyZNode {
             .with_qos(qos_profile);
 
         if let Some(py_callback) = callback {
-            // Callback-based subscription: no queue, callback fires on each message
+            // Callback-based subscription: no queue, callback fires on each message.
+            // The ZSub handle is stored in owned_subs so it lives as long as the node,
+            // matching rmw_zenoh_cpp's NodeData::subs_ pattern. The caller does not
+            // need to assign the returned PyZSubscriber to keep the subscription active.
             let type_name = msg_type_str.clone();
-            let _zsub = sub_builder
+            let zsub = sub_builder
                 .build_with_callback(move |raw_msg: RawBytesMessage| {
                     let payload = raw_msg.0;
                     Python::with_gil(|py| {
@@ -240,8 +251,10 @@ impl PyZNode {
                 })
                 .map_err(|e| e.into_pyerr())?;
 
-            // Callback subs don't have a queue, wrap with a stub
-            Ok(PyZSubscriber::new_callback(msg_type_str))
+            let id = self.next_sub_id;
+            self.next_sub_id += 1;
+            self.owned_subs.push((id, Box::new(zsub)));
+            Ok(PyZSubscriber::new_callback(msg_type_str, id))
         } else {
             let zsub = sub_builder.build().map_err(|e| e.into_pyerr())?;
             let wrapper = GenericSubWrapper::new(zsub);
@@ -391,6 +404,22 @@ impl PyZNode {
             result_type.clone().unbind(),
             feedback_type.clone().unbind(),
         ))
+    }
+
+    /// Destroy a callback-based subscriber early, undeclaring its Zenoh subscription.
+    ///
+    /// Matches rclpy's `Node.destroy_subscription()`. Has no effect on queue-based
+    /// subscribers (those are owned by the caller and dropped when they go out of scope).
+    fn destroy_subscriber(&mut self, sub: &PyZSubscriber) -> PyResult<()> {
+        let Some(id) = sub.owned_id else {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "destroy_subscriber only applies to callback-based subscribers",
+            ));
+        };
+        if let Some(pos) = self.owned_subs.iter().position(|(sid, _)| *sid == id) {
+            self.owned_subs.swap_remove(pos);
+        }
+        Ok(())
     }
 
     /// Create a service server
