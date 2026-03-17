@@ -1,7 +1,6 @@
-mod common;
-
 use ros_z::{
     Builder, Result,
+    context::ZContextBuilder,
     parameter::{
         FloatingPointRange, Parameter, ParameterDescriptor, ParameterType, ParameterValue,
         SetParametersResult,
@@ -12,7 +11,7 @@ use ros_z::{
 fn run() -> Result<()> {
     println!("\n=== Validation Callback Demo ===\n");
 
-    let ctx = common::create_context()?;
+    let ctx = ZContextBuilder::default().build()?;
     let node = ctx.create_node("callback_demo").build()?;
 
     let mut desc = ParameterDescriptor::new("temperature", ParameterType::Double);
@@ -58,6 +57,6 @@ fn run() -> Result<()> {
 // ANCHOR_END: callback_snippet
 
 fn main() -> Result<()> {
-    common::init();
+    zenoh::init_log_from_env_or("error");
     run()
 }

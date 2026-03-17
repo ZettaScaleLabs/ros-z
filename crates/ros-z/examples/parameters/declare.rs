@@ -1,15 +1,14 @@
-mod common;
-
 use ros_z::{
     Builder, Result,
+    context::ZContextBuilder,
     parameter::{Parameter, ParameterDescriptor, ParameterType, ParameterValue},
 };
 
 // ANCHOR: full_example
 #[tokio::main]
 async fn main() -> Result<()> {
-    common::init();
-    let ctx = common::create_context()?;
+    zenoh::init_log_from_env_or("error");
+    let ctx = ZContextBuilder::default().build()?;
 
     println!("\n=== Parameter Declaration Demo ===\n");
 

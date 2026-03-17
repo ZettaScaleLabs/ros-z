@@ -1,16 +1,15 @@
-mod common;
-
 use std::time::Duration;
 
 use ros_z::{
     Builder, Result,
+    context::ZContextBuilder,
     parameter::{Parameter, ParameterDescriptor, ParameterTarget, ParameterType, ParameterValue},
 };
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    common::init();
-    let ctx = common::create_context()?;
+    zenoh::init_log_from_env_or("error");
+    let ctx = ZContextBuilder::default().build()?;
 
     println!("\n=== Remote Parameter Client Demo ===\n");
 

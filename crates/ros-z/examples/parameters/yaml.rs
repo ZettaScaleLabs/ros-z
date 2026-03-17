@@ -1,15 +1,14 @@
-mod common;
-
 use std::collections::HashMap;
 
 use ros_z::{
     Builder, Result,
+    context::ZContextBuilder,
     parameter::{ParameterDescriptor, ParameterType, ParameterValue},
 };
 
 fn main() -> Result<()> {
-    common::init();
-    let ctx = common::create_context()?;
+    zenoh::init_log_from_env_or("error");
+    let ctx = ZContextBuilder::default().build()?;
 
     println!("\n=== YAML Parameter Loading Demo ===\n");
 
