@@ -2,10 +2,10 @@
 
 ros-z supports two approaches for defining custom message types:
 
-| Approach | Definition | Best For |
-|----------|------------|----------|
-| **Rust-Native** | Write Rust structs directly | Prototyping, ros-z-only systems |
-| **Schema-Generated** | Write `.msg`/`.srv` files, generate Rust | Production, ROS 2 interop |
+| Approach             | Definition                               | Best For                        |
+| -------------------- | ---------------------------------------- | ------------------------------- |
+| **Rust-Native**      | Write Rust structs directly              | Prototyping, ros-z-only systems |
+| **Schema-Generated** | Write `.msg`/`.srv` files, generate Rust | Production, ROS 2 interop       |
 
 ```mermaid
 flowchart TD
@@ -21,38 +21,38 @@ flowchart TD
 
 ## Rust-Native Messages
 
-**Define messages directly in Rust by implementing required traits.** This approach is fast for prototyping but only works between ros-z nodes.
+**Define messages directly in Rust and derive their schema metadata.** This approach is fast for prototyping, and plain named structs can still participate in the standard ROS 2 type description service.
 
 ```admonish warning
-Rust-Native messages use `TypeHash::zero()` and won't interoperate with ROS 2 C++/Python nodes.
+Rust-native messages defined with `#[derive(MessageTypeInfo)]` are limited to ROS 2 schema-compatible shapes. If you need `Option<T>`, enums, or other ros-z-only schema extensions, use `#[derive(ExtendedMessageTypeInfo)]` plus the parallel extended type description service instead of the standard ROS 2 type description service.
 ```
 
 ### Workflow of Rust-Native Messages
 
 ```mermaid
 graph LR
-    A[Define Struct] --> B[Impl MessageTypeInfo]
+    A[Define Struct] --> B[Derive MessageTypeInfo]
     B --> C[Add Serde Traits]
-    C --> D[Impl WithTypeInfo]
+    C --> D[Impl ZMessage]
     D --> E[Use in Pub/Sub]
 ```
 
 ### Required Traits
 
-| Trait | Purpose | Key Method |
-|-------|---------|------------|
-| **MessageTypeInfo** | Type identification | `type_name()`, `type_hash()` |
-| **WithTypeInfo** | ros-z integration | `type_info()` |
-| **Serialize/Deserialize** | Data encoding | From `serde` |
+| Trait                     | Purpose                              | Key Method                                       |
+| ------------------------- | ------------------------------------ | ------------------------------------------------ |
+| **MessageTypeInfo**       | Type identification + runtime schema | `type_name()`, `type_hash()`, `message_schema()` |
+| **Serialize/Deserialize** | Data encoding                        | From `serde`                                     |
+| **ZMessage**              | ros-z serialization path             | `type Serdes = SerdeCdrSerdes<Self>`             |
 
 ### Message Example
 
 ```rust,ignore
-use ros_z::{MessageTypeInfo, entity::TypeHash};
-use ros_z::ros_msg::WithTypeInfo;
+use ros_z::MessageTypeInfo;
 use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, MessageTypeInfo)]
+#[ros_msg(type_name = "my_msgs/msg/RobotStatus")]
 struct RobotStatus {
     battery_level: f32,
     position_x: f32,
@@ -60,18 +60,20 @@ struct RobotStatus {
     is_moving: bool,
 }
 
-impl MessageTypeInfo for RobotStatus {
-    fn type_name() -> &'static str {
-        "my_msgs::msg::dds_::RobotStatus_"
-    }
-
-    fn type_hash() -> TypeHash {
-        TypeHash::zero()  // ros-z-to-ros-z only
-    }
+impl ros_z::msg::ZMessage for RobotStatus {
+    type Serdes = ros_z::msg::SerdeCdrSerdes<Self>;
 }
-
-impl WithTypeInfo for RobotStatus {}
 ```
+
+`MessageTypeInfo` derive in core `ros-z` intentionally supports only ROS 2 schema-compatible named
+structs: primitive numeric/bool types, `String`, `Vec<T>`, fixed arrays `[T; N]`, and nested
+message types. Tuple structs, unit structs, enums, `Option<T>`, maps, `usize`, `isize`, and other
+Rust-only shapes are rejected at compile time.
+
+For richer serde shapes such as `Option<T>` or enums, use `ros_z::ExtendedMessageTypeInfo`.
+It keeps normal `message_schema()` support for types that are still ROS 2 compatible, and uses a
+separate `~get_extended_type_description` service for extended-only schemas when the publisher node
+is created with `.with_extended_type_description_service()`.
 
 ### Service Example
 
@@ -104,6 +106,9 @@ impl ZService for NavigateTo {
 ```
 
 See the `z_custom_message` example:
+
+When a publisher node enables the type description service, derived custom message types
+automatically register their runtime schema so dynamic subscribers can discover them.
 
 ```bash
 # Terminal 1: Router
@@ -272,14 +277,14 @@ ROS_Z_MSG_PATH="./my_robot_msgs" cargo build
 
 ## Comparison
 
-| Feature | Rust-Native | Schema-Generated |
-|---------|-------------|------------------|
-| **Definition** | Rust structs | `.msg`/`.srv` files |
-| **Type Hashes** | `TypeHash::zero()` | Proper RIHS01 hashes |
-| **Standard Type Refs** | Manual | Automatic (`geometry_msgs`, etc.) |
-| **ROS 2 Interop** | No | Partial (messages yes, services limited) |
-| **Setup Complexity** | Low | Medium (build.rs required) |
-| **Best For** | Prototyping | Production |
+| Feature                | Rust-Native        | Schema-Generated                         |
+| ---------------------- | ------------------ | ---------------------------------------- |
+| **Definition**         | Rust structs       | `.msg`/`.srv` files                      |
+| **Type Hashes**        | `TypeHash::zero()` | Proper RIHS01 hashes                     |
+| **Standard Type Refs** | Manual             | Automatic (`geometry_msgs`, etc.)        |
+| **ROS 2 Interop**      | No                 | Partial (messages yes, services limited) |
+| **Setup Complexity**   | Low                | Medium (build.rs required)               |
+| **Best For**           | Prototyping        | Production                               |
 
 ---
 
