@@ -16,6 +16,7 @@ use ros_z::{
         wire_types::{WireParameterEvent, parameter_event_type_info},
     },
 };
+use serial_test::serial;
 
 // ── Local API tests (no ros-z-msgs required) ─────────────────────────────────
 
@@ -306,6 +307,7 @@ fn test_parameter_event_published_on_set() {
 
 /// Test the high-level parameter client, including get_types and atomic set.
 #[test]
+#[serial]
 fn test_parameter_client_high_level_api() {
     let router = TestRouter::new();
 
@@ -507,6 +509,7 @@ mod service_tests {
 
     /// Test parameter services via ros-z client: get/set/list/describe.
     #[test]
+    #[serial]
     fn test_parameter_services_get_and_set() {
         let router = TestRouter::new();
 
@@ -578,9 +581,11 @@ mod service_tests {
                 .build()
                 .expect("set client");
 
-            let mut wire_value = rcl_interfaces::ParameterValue::default();
-            wire_value.r#type = 2;
-            wire_value.integer_value = 42;
+            let wire_value = rcl_interfaces::ParameterValue {
+                r#type: 2,
+                integer_value: 42,
+                ..Default::default()
+            };
 
             set_client
                 .send_request(&SetParametersRequest {
@@ -656,6 +661,7 @@ mod service_tests {
     /// original values. This exercises validate_and_apply(atomic=true) with a
     /// user callback veto — a branch not covered by any other test.
     #[test]
+    #[serial]
     fn test_set_parameters_atomically_rollback_on_callback_rejection() {
         let router = TestRouter::new();
 
@@ -666,7 +672,7 @@ mod service_tests {
 
             for (name, val) in &[("a", 1i64), ("b", 2i64)] {
                 let desc = ParameterDescriptor::new(*name, ParameterType::Integer);
-                node.declare_parameter(*name, ParameterValue::Integer(*val), desc)
+                node.declare_parameter(name, ParameterValue::Integer(*val), desc)
                     .expect("declare");
             }
 
@@ -690,9 +696,11 @@ mod service_tests {
             tokio::time::sleep(Duration::from_millis(500)).await;
 
             let make_int = |name: &str, v: i64| {
-                let mut wire = rcl_interfaces::ParameterValue::default();
-                wire.r#type = 2;
-                wire.integer_value = v;
+                let wire = rcl_interfaces::ParameterValue {
+                    r#type: 2,
+                    integer_value: v,
+                    ..Default::default()
+                };
                 rcl_interfaces::Parameter {
                     name: name.to_string(),
                     value: wire,
@@ -753,6 +761,7 @@ mod service_tests {
 
     /// Test set_parameters_atomically.
     #[test]
+    #[serial]
     fn test_set_parameters_atomically() {
         let router = TestRouter::new();
 
@@ -763,7 +772,7 @@ mod service_tests {
 
             for (name, val) in &[("a", 1i64), ("b", 2i64)] {
                 let desc = ParameterDescriptor::new(*name, ParameterType::Integer);
-                node.declare_parameter(*name, ParameterValue::Integer(*val), desc)
+                node.declare_parameter(name, ParameterValue::Integer(*val), desc)
                     .expect("declare");
             }
 
@@ -786,9 +795,11 @@ mod service_tests {
                 .expect("atomic client");
 
             let make_int = |name: &str, v: i64| {
-                let mut wire = rcl_interfaces::ParameterValue::default();
-                wire.r#type = 2;
-                wire.integer_value = v;
+                let wire = rcl_interfaces::ParameterValue {
+                    r#type: 2,
+                    integer_value: v,
+                    ..Default::default()
+                };
                 rcl_interfaces::Parameter {
                     name: name.to_string(),
                     value: wire,
