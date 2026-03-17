@@ -17,6 +17,11 @@ type Node struct {
 	handle    *C.ros_z_node_t
 	ctx       *Context
 	closeOnce sync.Once
+	// ownedSubs keeps callback-based subscribers alive for the node's lifetime.
+	// Matches rmw_zenoh_cpp's NodeData::subs_ ownership pattern: the node is the
+	// source of truth for subscription lifetime, not the caller's variable.
+	ownedSubs []interface{}
+	subsMu    sync.Mutex
 }
 
 // NodeBuilder builds a Node
