@@ -80,6 +80,24 @@ def test_qos_configuration(node):
     print("✓ QoS configuration accepted")
 
 
+def test_callback_subscriber_no_assign(node, pub):
+    """Regression test: callback subscriber must work even when result is not stored.
+
+    Previously, the ZSub handle was dropped immediately if the caller did not assign
+    the return value of create_subscriber(), causing the Zenoh subscription to be
+    undeclared before any messages arrived. The node now owns callback subscribers
+    internally (matching rmw_zenoh_cpp's NodeData::subs_ pattern).
+    """
+    received = []
+    # Intentionally NOT assigned — this was the bug
+    node.create_subscriber("/chatter", std_msgs.String, callback=received.append)
+    time.sleep(0.3)
+    pub.publish(std_msgs.String(data="background_test"))
+    time.sleep(0.3)
+    assert len(received) == 1, f"Expected 1 message, got {len(received)}"
+    assert received[0].data == "background_test"
+
+
 def test_error_handling(node):
     """Test error handling for invalid message types."""
     print("Testing error handling...")
