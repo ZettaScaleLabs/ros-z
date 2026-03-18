@@ -143,6 +143,6 @@ jobs:
           source /opt/ros/${{ matrix.distro }}/setup.bash
           export RMW_IMPLEMENTATION=rmw_zenoh_cpp
           cd crates/ros-z-go
-          CGO_LDFLAGS="-L$(git rev-parse --show-toplevel)/target/release" \
+          CGO_LDFLAGS="-L${GITHUB_WORKSPACE}/target/release" \
             go test -v -tags integration -timeout 120s \
             ./interop_tests/...
