@@ -616,6 +616,7 @@ impl Default for SessionConfigBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Builder;
 
     #[test]
     fn test_common_overrides_shared() {
