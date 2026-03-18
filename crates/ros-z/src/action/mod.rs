@@ -488,3 +488,26 @@ impl CdrSerializedSize for GoalInfo {
         self.stamp.cdr_serialized_size(p)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_goal_id_display_is_hyphenated_uuid() {
+        let bytes = [
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+            0x0e, 0x0f,
+        ];
+        let id = GoalId(bytes);
+        let s = format!("{}", id);
+        assert_eq!(s, "00010203-0405-0607-0809-0a0b0c0d0e0f");
+    }
+
+    #[test]
+    fn test_goal_status_variants_are_distinct() {
+        assert_ne!(GoalStatus::Unknown, GoalStatus::Accepted);
+        assert_ne!(GoalStatus::Executing, GoalStatus::Succeeded);
+        assert_ne!(GoalStatus::Canceled, GoalStatus::Aborted);
+    }
+}

@@ -581,4 +581,20 @@ mod tests {
         let h = QosHistory::from_depth(3);
         assert_eq!(h, QosHistory::KeepLast(NonZeroUsize::new(3).unwrap()));
     }
+
+    #[test]
+    fn test_qos_duration_from_std_duration() {
+        let d = std::time::Duration::new(3, 500_000_000);
+        let qd = QosDuration::from(d);
+        assert_eq!(qd.sec, 3);
+        assert_eq!(qd.nsec, 500_000_000);
+    }
+
+    #[test]
+    fn test_qos_duration_from_std_duration_zero() {
+        let d = std::time::Duration::ZERO;
+        let qd = QosDuration::from(d);
+        assert_eq!(qd.sec, 0);
+        assert_eq!(qd.nsec, 0);
+    }
 }

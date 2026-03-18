@@ -1262,4 +1262,13 @@ mod tests {
         let proto = qos.to_protocol_qos();
         assert_eq!(proto.history, ros_z_protocol::qos::QosHistory::KeepLast(5));
     }
+
+    #[test]
+    fn test_endpoint_entity_topic_field() {
+        let entity = ros_z_protocol::entity::EndpointEntity {
+            topic: "/my_topic".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(entity.topic, "/my_topic");
+    }
 }

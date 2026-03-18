@@ -729,4 +729,36 @@ mod tests {
             ros_z_protocol::qos::QosDurability::Volatile
         );
     }
+
+    #[test]
+    fn test_zclient_rx_initially_empty() {
+        let (tx, rx) = flume::bounded::<zenoh::sample::Sample>(8);
+        drop(tx);
+        assert!(rx.is_empty());
+    }
+
+    #[test]
+    fn test_query_key_clone_and_eq() {
+        let key = crate::service::QueryKey {
+            gid: [1u8; 16],
+            sn: 42,
+        };
+        let key2 = key.clone();
+        assert_eq!(key.sn, key2.sn);
+        assert_eq!(key.gid, key2.gid);
+    }
+
+    #[test]
+    fn test_zclientbuilder_with_qos_sets_reliability() {
+        use crate::qos::{QosProfile, QosReliability};
+        let qos = QosProfile {
+            reliability: QosReliability::BestEffort,
+            ..Default::default()
+        };
+        let proto = qos.to_protocol_qos();
+        assert_eq!(
+            proto.reliability,
+            ros_z_protocol::qos::QosReliability::BestEffort
+        );
+    }
 }

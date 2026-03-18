@@ -1037,3 +1037,25 @@ impl ZNode {
             .build()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_node_entity_name_namespace() {
+        let entity = NodeEntity {
+            name: "my_node".to_string(),
+            namespace: "/my_ns".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(entity.name, "my_node");
+        assert_eq!(entity.namespace, "/my_ns");
+    }
+
+    #[test]
+    fn test_remap_rules_identity_when_empty() {
+        let rules = RemapRules::default();
+        assert_eq!(rules.apply("/foo"), "/foo");
+    }
+}
