@@ -1,7 +1,33 @@
 """ros-z-py: Python bindings for ros-z, a native Rust ROS 2 implementation using Zenoh."""
 
-# Import all from the Rust extension module
-from .ros_z_py import *  # noqa: F403
+from ros_z_py._native import (
+    ZContextBuilder,
+    ZContext,
+    ZNodeBuilder,
+    ZNode,
+    ZPublisher,
+    ZSubscriber,
+    ZClient,
+    ZServer,
+    ZActionClient,
+    ActionGoalHandle,
+    ZActionServer,
+    ServerGoalRequest,
+    ServerGoalHandle,
+    ZPayloadView,
+    ZBufView,
+    QosProfile,
+    GoalStatus,
+    RosZError,
+    TimeoutError,
+    SerializationError,
+    TypeMismatchError,
+    QOS_DEFAULT,
+    QOS_SENSOR_DATA,
+    QOS_PARAMETERS,
+    QOS_SERVICES,
+    list_registered_types,
+)
 
 # Re-export message types from ros_z_msgs_py.types
 from ros_z_msgs_py import types
@@ -18,16 +44,33 @@ from ros_z_msgs_py.types import (
     example_interfaces,
 )
 
-# service_msgs was introduced in ROS 2 Iron (May 2023) as part of the service
-# introspection feature. It contains types like ServiceEventInfo for monitoring
-# service calls. This package doesn't exist in Humble (May 2022).
-try:
-    from ros_z_msgs_py.types import service_msgs
-except ImportError:
-    service_msgs = None  # type: ignore[assignment]
-
-# Update __all__ to include message types
-__all__ = list(ros_z_py.__all__ if hasattr(ros_z_py, "__all__") else []) + [  # noqa: F405
+__all__ = [
+    "ZContextBuilder",
+    "ZContext",
+    "ZNodeBuilder",
+    "ZNode",
+    "ZPublisher",
+    "ZSubscriber",
+    "ZClient",
+    "ZServer",
+    "ZActionClient",
+    "ActionGoalHandle",
+    "ZActionServer",
+    "ServerGoalRequest",
+    "ServerGoalHandle",
+    "ZPayloadView",
+    "ZBufView",
+    "QosProfile",
+    "GoalStatus",
+    "RosZError",
+    "TimeoutError",
+    "SerializationError",
+    "TypeMismatchError",
+    "QOS_DEFAULT",
+    "QOS_SENSOR_DATA",
+    "QOS_PARAMETERS",
+    "QOS_SERVICES",
+    "list_registered_types",
     "types",
     "std_msgs",
     "geometry_msgs",
@@ -39,10 +82,12 @@ __all__ = list(ros_z_py.__all__ if hasattr(ros_z_py, "__all__") else []) + [  # 
     "example_interfaces",
 ]
 
-# Add service_msgs to __all__ if available (Jazzy+)
-if service_msgs is not None:
-    __all__.append("service_msgs")
+# service_msgs was introduced in ROS 2 Iron (May 2023) as part of the service
+# introspection feature. It contains types like ServiceEventInfo for monitoring
+# service calls. This package doesn't exist in Humble (May 2022).
+try:
+    from ros_z_msgs_py.types import service_msgs
 
-# Copy docstring from the Rust module if available
-if hasattr(ros_z_py, "__doc__") and ros_z_py.__doc__:  # noqa: F405
-    __doc__ = ros_z_py.__doc__  # noqa: F405
+    __all__ = [*__all__, "service_msgs"]
+except ImportError:
+    pass
