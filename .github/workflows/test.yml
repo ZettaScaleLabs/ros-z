@@ -131,7 +131,7 @@ jobs:
           cargo run -p ros-z-codegen --bin export_json -- \
             --assets crates/ros-z-codegen/assets/jazzy \
             --output _tmp/go-manifest.json \
-            --packages builtin_interfaces,service_msgs,std_msgs,example_interfaces
+            --packages builtin_interfaces,service_msgs,action_msgs,unique_identifier_msgs,std_msgs,example_interfaces
           cd crates/ros-z-codegen-go && go run . \
             -input ../../_tmp/go-manifest.json \
             -output ../ros-z-go/generated \
