@@ -543,6 +543,11 @@ where
     pub fn events_mgr(&self) -> &Arc<Mutex<EventsManager>> {
         &self.events_mgr
     }
+
+    /// Get a reference to the endpoint entity for this publisher.
+    pub fn entity(&self) -> &EndpointEntity {
+        &self.entity
+    }
 }
 
 // Specialized implementation for DynamicMessage publisher
@@ -979,6 +984,11 @@ where
 
     pub fn events_mgr(&self) -> &Arc<Mutex<EventsManager>> {
         &self.events_mgr
+    }
+
+    /// Get a reference to the endpoint entity for this subscriber.
+    pub fn entity(&self) -> &EndpointEntity {
+        &self.entity
     }
 
     /// Check if there are messages available in the queue

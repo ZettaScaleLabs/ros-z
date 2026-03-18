@@ -716,6 +716,11 @@ impl ZNode {
         self.remap_rules.apply(name)
     }
 
+    /// Get a reference to the underlying Zenoh session.
+    pub fn session(&self) -> &Arc<Session> {
+        &self.session
+    }
+
     // ========================================================================
     // Parameter API
     // ========================================================================

@@ -180,9 +180,9 @@ pub extern "C" fn rmw_create_publisher(
         }
     };
 
-    let qualified_topic = zpub.entity.topic.clone();
-    let entity = zpub.entity.clone();
-    let entity_gid = ros_z::entity::endpoint_gid(&zpub.entity);
+    let qualified_topic = zpub.entity().topic.clone();
+    let entity = zpub.entity().clone();
+    let entity_gid = ros_z::entity::endpoint_gid(zpub.entity());
 
     // Get context to access the shared notifier
     let context = unsafe { (*node).context };
@@ -570,9 +570,9 @@ pub extern "C" fn rmw_create_subscription(
         Err(_) => return std::ptr::null_mut(),
     };
 
-    let entity = zsub.entity.clone();
-    let entity_gid = ros_z::entity::endpoint_gid(&zsub.entity);
-    let sub_topic = zsub.entity.topic.clone();
+    let entity = zsub.entity().clone();
+    let entity_gid = ros_z::entity::endpoint_gid(zsub.entity());
+    let sub_topic = zsub.entity().topic.clone();
 
     // Register matched event callback with graph
     let events_mgr = zsub.events_mgr().clone();
@@ -1678,7 +1678,7 @@ pub extern "C" fn rmw_count_publishers(
     // Query graph for publisher count on this topic
     let publisher_count = node_impl
         .inner
-        .graph
+        .graph()
         .count(ros_z::entity::EntityKind::Publisher, topic_str);
 
     unsafe {
@@ -1728,7 +1728,7 @@ pub extern "C" fn rmw_count_subscribers(
     // Query graph for subscriber count on this topic
     let subscriber_count = node_impl
         .inner
-        .graph
+        .graph()
         .count(ros_z::entity::EntityKind::Subscription, topic_str);
 
     unsafe {
@@ -1800,7 +1800,7 @@ pub extern "C" fn rmw_count_clients(
     // Query graph for client count on this service
     let client_count = node_impl
         .inner
-        .graph
+        .graph()
         .count_by_service(ros_z::entity::EntityKind::Client, service_str);
 
     unsafe {
@@ -1850,7 +1850,7 @@ pub extern "C" fn rmw_count_services(
     // Query graph for service count on this service
     let service_count = node_impl
         .inner
-        .graph
+        .graph()
         .count_by_service(ros_z::entity::EntityKind::Service, service_str);
 
     unsafe {
@@ -1901,7 +1901,7 @@ pub extern "C" fn rmw_get_publishers_info_by_topic(
     // Get publishers for this topic
     let publishers = node_impl
         .inner
-        .graph
+        .graph()
         .get_entities_by_topic(ros_z::entity::EntityKind::Publisher, topic_str);
 
     let count = publishers.len();
@@ -2096,7 +2096,7 @@ pub extern "C" fn rmw_get_subscriber_names_and_types_by_node(
     // Get entities for this node
     let entities_and_types = node_impl
         .inner
-        .graph
+        .graph()
         .get_names_and_types_by_node(node_key, ros_z::entity::EntityKind::Subscription);
 
     // Group by entity name
@@ -2746,7 +2746,7 @@ pub extern "C" fn rmw_service_server_is_available(
     // Count servers for this service (namespace is included in service_name)
     let server_count = node_impl
         .inner
-        .graph
+        .graph()
         .count(ros_z::entity::EntityKind::Service, service_name);
 
     unsafe {
@@ -2936,7 +2936,7 @@ pub extern "C" fn rmw_get_client_names_and_types_by_node(
 
     let entities_and_types = node_impl
         .inner
-        .graph
+        .graph()
         .get_names_and_types_by_node(node_key, ros_z::entity::EntityKind::Client);
 
     let mut entity_map: std::collections::BTreeMap<String, Vec<String>> =
@@ -3098,7 +3098,7 @@ pub extern "C" fn rmw_get_publisher_names_and_types_by_node(
 
     let entities_and_types = node_impl
         .inner
-        .graph
+        .graph()
         .get_names_and_types_by_node(node_key, ros_z::entity::EntityKind::Publisher);
 
     let mut entity_map: std::collections::BTreeMap<String, Vec<String>> =
@@ -3280,7 +3280,7 @@ pub extern "C" fn rmw_get_service_names_and_types_by_node(
 
     let entities_and_types = node_impl
         .inner
-        .graph
+        .graph()
         .get_names_and_types_by_node(node_key, ros_z::entity::EntityKind::Service);
 
     let mut entity_map: std::collections::BTreeMap<String, Vec<String>> =
@@ -3405,7 +3405,7 @@ pub extern "C" fn rmw_get_subscriptions_info_by_topic(
     // Get subscriptions for this topic
     let subscriptions = node_impl
         .inner
-        .graph
+        .graph()
         .get_entities_by_topic(ros_z::entity::EntityKind::Subscription, topic_str);
 
     let count = subscriptions.len();
