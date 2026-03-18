@@ -123,7 +123,7 @@ jobs:
           cache: false
 
       - name: Build Rust FFI library + example binaries
-        run: cargo build --release --features ffi --lib --example z_pubsub --example z_srvcli
+        run: cargo build --release --features ffi --lib --example z_pubsub --example z_srvcli --example zenoh_router
 
       - name: Generate Go message types (bundled IDL)
         run: |
