@@ -36,7 +36,7 @@ pub fn run_add_two_ints_client(ctx: ZContext, a: i64, b: i64, async_mode: bool) 
     let resp = if async_mode {
         tokio::runtime::Runtime::new().unwrap().block_on(async {
             client.send_request(&req).await?;
-            client.take_response_async().await
+            client.async_take_response().await
         })?
     } else {
         tokio::runtime::Runtime::new()

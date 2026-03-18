@@ -1,6 +1,7 @@
 use std::fmt;
 use std::num::NonZeroUsize;
 
+#[non_exhaustive]
 #[derive(Debug, Default, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum QosReliability {
     #[default]
@@ -58,6 +59,7 @@ impl fmt::Display for QosHistory {
     }
 }
 
+#[non_exhaustive]
 #[derive(Debug, Default, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum QosDurability {
     TransientLocal,
@@ -74,6 +76,7 @@ impl fmt::Display for QosDurability {
     }
 }
 
+#[non_exhaustive]
 #[derive(Debug, Default, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum QosLiveliness {
     #[default]
@@ -113,6 +116,15 @@ impl QosDuration {
 impl Default for QosDuration {
     fn default() -> Self {
         Self::INFINITE
+    }
+}
+
+impl From<std::time::Duration> for QosDuration {
+    fn from(d: std::time::Duration) -> Self {
+        Self {
+            sec: d.as_secs(),
+            nsec: d.subsec_nanos() as u64,
+        }
     }
 }
 
@@ -568,5 +580,21 @@ mod tests {
     fn test_from_depth_nonzero_preserved() {
         let h = QosHistory::from_depth(3);
         assert_eq!(h, QosHistory::KeepLast(NonZeroUsize::new(3).unwrap()));
+    }
+
+    #[test]
+    fn test_qos_duration_from_std_duration() {
+        let d = std::time::Duration::new(3, 500_000_000);
+        let qd = QosDuration::from(d);
+        assert_eq!(qd.sec, 3);
+        assert_eq!(qd.nsec, 500_000_000);
+    }
+
+    #[test]
+    fn test_qos_duration_from_std_duration_zero() {
+        let d = std::time::Duration::ZERO;
+        let qd = QosDuration::from(d);
+        assert_eq!(qd.sec, 0);
+        assert_eq!(qd.nsec, 0);
     }
 }

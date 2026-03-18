@@ -125,3 +125,17 @@ pub trait Builder {
     /// initialization fails (e.g. Zenoh session could not be opened).
     fn build(self) -> Result<Self::Output>;
 }
+
+impl Builder for config::RouterConfigBuilder {
+    type Output = zenoh::Config;
+    fn build(self) -> Result<zenoh::Config> {
+        self.build_config()
+    }
+}
+
+impl Builder for config::SessionConfigBuilder {
+    type Output = zenoh::Config;
+    fn build(self) -> Result<zenoh::Config> {
+        self.build_config()
+    }
+}

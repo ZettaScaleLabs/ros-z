@@ -164,7 +164,7 @@ let mut service = node
     .build()?;
 
 loop {
-    let (key, request) = service.take_request_async().await?;
+    let (key, request) = service.async_take_request().await?;
     let response = async_process_request(&request).await;
     service.send_response(&response, &key)?;
 }
@@ -186,7 +186,7 @@ Service clients send requests to servers and receive responses. `send_request` i
 ```admonish note
 `send_request` is an `async fn` — it must be called with `.await` in an async context. Calling it without `.await` will not compile.
 
-`take_response()` returns **immediately** with `Err` if no response has arrived yet. Use `take_response_timeout(duration)` to wait up to a deadline or `take_response_async().await` in fully async code.
+`take_response()` returns **immediately** with `Err` if no response has arrived yet. Use `take_response_timeout(duration)` to wait up to a deadline or `async_take_response().await` in fully async code.
 ```
 
 ### Pattern 1: Async Client with Timeout
@@ -219,7 +219,7 @@ let client = node
 
 let request = create_request();
 client.send_request(&request).await?;
-let response = client.take_response_async().await?;
+let response = client.async_take_response().await?;
 ```
 
 ```admonish tip
@@ -277,7 +277,7 @@ match client.take_response_timeout(Duration::from_secs(5)) {
 |--------|----------|
 | `take_response()` | Returns immediately; `Err` if no response yet |
 | `take_response_timeout(duration)` | Waits up to `duration`; `Err` on timeout |
-| `take_response_async().await` | Waits indefinitely in async context |
+| `async_take_response().await` | Waits indefinitely in async context |
 
 ## Resources
 

@@ -279,29 +279,29 @@ impl PyZNode {
     /// Get all topic names and their types.
     /// Returns list of (topic_name, type_name) tuples.
     fn get_topic_names_and_types(&self) -> Vec<(String, String)> {
-        GraphQueries::get_topic_names_and_types(&self.inner.graph)
+        GraphQueries::get_topic_names_and_types(self.inner.graph())
     }
 
     /// Get all node names.
     /// Returns list of (name, namespace) tuples.
     fn get_node_names(&self) -> Vec<(String, String)> {
-        GraphQueries::get_node_names(&self.inner.graph)
+        GraphQueries::get_node_names(self.inner.graph())
     }
 
     /// Get all service names and their types.
     /// Returns list of (service_name, type_name) tuples.
     fn get_service_names_and_types(&self) -> Vec<(String, String)> {
-        GraphQueries::get_service_names_and_types(&self.inner.graph)
+        GraphQueries::get_service_names_and_types(self.inner.graph())
     }
 
     /// Count publishers for a topic.
     fn count_publishers(&self, topic: String) -> usize {
-        GraphQueries::count_publishers(&self.inner.graph, &topic)
+        GraphQueries::count_publishers(self.inner.graph(), &topic)
     }
 
     /// Count subscribers for a topic.
     fn count_subscribers(&self, topic: String) -> usize {
-        GraphQueries::count_subscribers(&self.inner.graph, &topic)
+        GraphQueries::count_subscribers(self.inner.graph(), &topic)
     }
 
     /// Create an action client.
