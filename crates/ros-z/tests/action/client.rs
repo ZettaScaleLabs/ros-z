@@ -100,7 +100,7 @@ mod tests {
 
         // Verify server is discoverable through graph
         let server_names_types = node
-            .graph
+            .graph()
             .get_action_server_names_and_types_by_node(ros_z::entity::node_key(node.node_entity()));
         assert!(!server_names_types.is_empty());
 
@@ -113,7 +113,7 @@ mod tests {
 
         // Verify action name through graph introspection
         let client_names_types = node
-            .graph
+            .graph()
             .get_action_client_names_and_types_by_node(ros_z::entity::node_key(node.node_entity()));
 
         // Should find the action client with the expected name

@@ -133,7 +133,7 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
 
         // Check if node2's graph can see it
-        let topics = node2.graph.get_topic_names_and_types();
+        let topics = node2.graph().get_topic_names_and_types();
         eprintln!("Node2 discovered {} topics:", topics.len());
         for (name, typ) in &topics {
             eprintln!("  - {} ({})", name, typ);
@@ -155,7 +155,7 @@ mod tests {
         // Test getting action clients by node
         let client_node_key = ros_z::entity::node_key(_client_node.node_entity());
         let client_names_types = _client_node
-            .graph
+            .graph()
             .get_action_client_names_and_types_by_node(client_node_key);
 
         // Should find the action client we created
@@ -169,7 +169,7 @@ mod tests {
         // Test getting action servers by node
         let server_node_key = ros_z::entity::node_key(_server_node.node_entity());
         let server_names_types = _server_node
-            .graph
+            .graph()
             .get_action_server_names_and_types_by_node(server_node_key);
 
         // Should find the action server we created

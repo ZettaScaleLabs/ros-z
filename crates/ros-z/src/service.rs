@@ -152,6 +152,11 @@ where
         Attachment::new(self.sn.fetch_add(1, Ordering::AcqRel) as _, self.gid)
     }
 
+    /// Access the raw response receiver channel.
+    pub fn rx(&self) -> &flume::Receiver<Sample> {
+        &self.rx
+    }
+
     pub fn take_sample(&self) -> Result<Sample> {
         match self.rx.try_recv() {
             Ok(sample) => Ok(sample),
@@ -376,6 +381,21 @@ where
         self.queue
             .as_ref()
             .expect("Server was built with callback mode, no queue available")
+    }
+
+    /// Access the receiver queue if present (returns `None` in callback mode).
+    pub fn try_queue(&self) -> Option<&Arc<BoundedQueue<Q>>> {
+        self.queue.as_ref()
+    }
+
+    /// Number of pending queries stored in the response map.
+    pub fn map_len(&self) -> usize {
+        self.map.len()
+    }
+
+    /// Insert a query into the response map, returning any previously stored query for that key.
+    pub fn map_insert(&mut self, key: QueryKey, query: Query) -> Option<Query> {
+        self.map.insert(key, query)
     }
 }
 

@@ -474,7 +474,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(800)).await;
 
         // Check from node1's perspective
-        let graph1 = node1.graph;
+        let graph1 = node1.graph();
         let count = graph1.count(EntityKind::Publisher, topic_name);
         // Should see at least one publisher (itself), ideally both
         assert!(
@@ -484,7 +484,7 @@ mod tests {
         );
 
         // Check from node2's perspective
-        let graph2 = node2.graph;
+        let graph2 = node2.graph();
         let count = graph2.count(EntityKind::Publisher, topic_name);
         assert!(
             count >= 1,
@@ -511,7 +511,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(800)).await;
 
         // Check from node1's perspective
-        let graph1 = node1.graph;
+        let graph1 = node1.graph();
         let count = graph1.count(EntityKind::Subscription, topic_name);
         // Should see at least one subscriber (itself), ideally both
         assert!(
@@ -521,7 +521,7 @@ mod tests {
         );
 
         // Check from node2's perspective
-        let graph2 = node2.graph;
+        let graph2 = node2.graph();
         let count = graph2.count(EntityKind::Subscription, topic_name);
         assert!(
             count >= 1,
@@ -550,7 +550,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(300)).await;
 
         // Check service discovery from node1's perspective
-        let graph1 = node1.graph;
+        let graph1 = node1.graph();
         let services = graph1.get_service_names_and_types();
 
         // Should see both services
@@ -584,7 +584,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(300)).await;
 
         // Check from graph
-        let graph1 = node1.graph;
+        let graph1 = node1.graph();
         let count = graph1.count(EntityKind::Client, service_name);
         assert!(count >= 2, "Expected at least 2 clients");
 
