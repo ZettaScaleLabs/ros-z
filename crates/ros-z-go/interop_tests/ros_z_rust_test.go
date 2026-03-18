@@ -267,11 +267,13 @@ func TestGoServiceClientToRustServer(t *testing.T) {
 	}
 
 	router := startZenohRouter(t)
-	time.Sleep(500 * time.Millisecond)
 
-	// Start Rust service server
-	rustCmd := exec.Command(bin, "--mode", "server")
-	rustCmd.Env = rustEnv(router)
+	// Start Rust service server, connected to the test router via --endpoint
+	rustCmd := exec.Command(bin,
+		"--mode", "server",
+		"--zenoh-mode", "client",
+		"--endpoint", router.Endpoint(),
+	)
 	rustCmd.Stdout = os.Stderr
 	rustCmd.Stderr = os.Stderr
 
@@ -282,8 +284,6 @@ func TestGoServiceClientToRustServer(t *testing.T) {
 		rustCmd.Process.Kill()
 		rustCmd.Wait()
 	}()
-
-	time.Sleep(2 * time.Second) // wait for server + discovery
 
 	// Create Go client context pointing at the test router
 	goCtx, err := rosz.NewContext().
@@ -307,12 +307,19 @@ func TestGoServiceClientToRustServer(t *testing.T) {
 	}
 	defer client.Close()
 
-	time.Sleep(500 * time.Millisecond) // discovery
-
+	// Retry until Rust server is reachable (deterministic readiness check)
 	req := &example_interfaces.AddTwoIntsRequest{A: 12, B: 30}
-	respBytes, err := client.Call(req)
-	if err != nil {
-		t.Fatalf("Service call failed: %v", err)
+	deadline := time.Now().Add(30 * time.Second)
+	var respBytes []byte
+	for {
+		respBytes, err = client.Call(req)
+		if err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("Service call failed after 30s: %v", err)
+		}
+		time.Sleep(200 * time.Millisecond)
 	}
 
 	var resp example_interfaces.AddTwoIntsResponse
@@ -368,11 +375,32 @@ func TestRustServiceClientToGoServer(t *testing.T) {
 	}
 	defer server.Close()
 
-	time.Sleep(500 * time.Millisecond) // server ready
+	// Verify server is ready with a Go self-call before invoking Rust binary
+	selfClient, err := goNode.CreateServiceClient("add_two_ints").Build(svc)
+	if err != nil {
+		t.Fatalf("Failed to create self-check client: %v", err)
+	}
+	defer selfClient.Close()
 
-	// Run Rust client with --a 7 --b 8
-	rustCmd := exec.Command(bin, "--mode", "client", "--a", "7", "--b", "8")
-	rustCmd.Env = rustEnv(router)
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		_, err := selfClient.Call(&example_interfaces.AddTwoIntsRequest{A: 1, B: 1})
+		if err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("Go service server not ready after 15s: %v", err)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	// Run Rust client with --a 7 --b 8, connected to the test router via --endpoint
+	rustCmd := exec.Command(bin,
+		"--mode", "client",
+		"--zenoh-mode", "client",
+		"--endpoint", router.Endpoint(),
+		"--a", "7", "--b", "8",
+	)
 	out, err := rustCmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("Rust client failed: %v\nOutput: %s", err, out)
