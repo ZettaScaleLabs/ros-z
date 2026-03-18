@@ -65,7 +65,7 @@ pub struct CActionServer {
     /// Cancel flags per goal, shared with the dedicated cancel-polling thread.
     cancel_flags: Arc<Mutex<HashMap<[u8; 16], bool>>>,
     thread: Option<std::thread::JoinHandle<()>>,
-    cancel_thread: Option<std::thread::JoinHandle<()>>,
+    _cancel_thread: Option<std::thread::JoinHandle<()>>,
     shutdown: Arc<AtomicBool>,
 }
 
@@ -616,7 +616,7 @@ pub unsafe extern "C" fn ros_z_action_server_create(
             server: server_mutex,
             cancel_flags,
             thread: Some(thread),
-            cancel_thread: Some(cancel_thread),
+            _cancel_thread: Some(cancel_thread),
             shutdown,
         }))
     }
@@ -670,7 +670,7 @@ pub unsafe extern "C" fn ros_z_action_server_succeed(
     result_data: *const u8,
     result_len: usize,
 ) -> i32 {
-    store_result(server_handle, goal_id, result_data, result_len)
+    unsafe { store_result(server_handle, goal_id, result_data, result_len) }
 }
 
 /// Mark a goal as aborted
@@ -681,7 +681,7 @@ pub unsafe extern "C" fn ros_z_action_server_abort(
     result_data: *const u8,
     result_len: usize,
 ) -> i32 {
-    store_result(server_handle, goal_id, result_data, result_len)
+    unsafe { store_result(server_handle, goal_id, result_data, result_len) }
 }
 
 /// Mark a goal as canceled
@@ -692,7 +692,7 @@ pub unsafe extern "C" fn ros_z_action_server_canceled(
     result_data: *const u8,
     result_len: usize,
 ) -> i32 {
-    store_result(server_handle, goal_id, result_data, result_len)
+    unsafe { store_result(server_handle, goal_id, result_data, result_len) }
 }
 
 unsafe fn store_result(
