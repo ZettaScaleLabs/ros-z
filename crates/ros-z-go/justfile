@@ -96,13 +96,22 @@ codegen-bundled:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "Generating common message types from bundled IDL..."
-    cd "{{workspace_root}}/crates/ros-z-codegen-go"
 
-    # Use bundled messages from ros-z-codegen/assets/jazzy/
-    ROS_Z_MSG_PATH="{{workspace_root}}/crates/ros-z-codegen/assets/jazzy" \
-    go run cmd/generate.go \
+    mkdir -p "{{workspace_root}}/_tmp" "{{workspace_root}}/crates/ros-z-go/generated"
+
+    # Step 1: Export JSON manifest from bundled assets via Rust CLI
+    cd "{{workspace_root}}"
+    cargo run -p ros-z-codegen --bin export_json -- \
+        --assets crates/ros-z-codegen/assets/jazzy \
+        --output _tmp/go-manifest.json \
+        --packages builtin_interfaces,service_msgs,std_msgs,example_interfaces
+
+    # Step 2: Generate Go packages from the manifest
+    cd "{{workspace_root}}/crates/ros-z-codegen-go"
+    go run . \
+        -input "{{workspace_root}}/_tmp/go-manifest.json" \
         -output "{{workspace_root}}/crates/ros-z-go/generated" \
-        -packages "std_msgs,geometry_msgs,example_interfaces"
+        -prefix "github.com/ZettaScaleLabs/ros-z/crates/ros-z-go"
 
     echo "Generated messages in crates/ros-z-go/generated/"
 
