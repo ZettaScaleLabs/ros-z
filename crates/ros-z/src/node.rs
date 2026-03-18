@@ -711,6 +711,11 @@ impl ZNode {
         &self.entity
     }
 
+    /// Apply remapping rules to a topic or action name.
+    pub fn apply_remap(&self, name: &str) -> String {
+        self.remap_rules.apply(name)
+    }
+
     // ========================================================================
     // Parameter API
     // ========================================================================

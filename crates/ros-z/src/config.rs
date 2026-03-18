@@ -613,24 +613,9 @@ impl Default for SessionConfigBuilder {
     }
 }
 
-impl crate::Builder for RouterConfigBuilder {
-    type Output = zenoh::Config;
-    fn build(self) -> zenoh::Result<zenoh::Config> {
-        self.build_config()
-    }
-}
-
-impl crate::Builder for SessionConfigBuilder {
-    type Output = zenoh::Config;
-    fn build(self) -> zenoh::Result<zenoh::Config> {
-        self.build_config()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Builder;
 
     #[test]
     fn test_common_overrides_shared() {
