@@ -79,8 +79,38 @@ func TestGoActionServerToROS2Client(t *testing.T) {
 	}
 	defer server.Close()
 
-	// Wait for action server to be ready
-	time.Sleep(2 * time.Second)
+	// Verify action server is ready with a Go self-call before invoking ROS2 CLI
+	selfClientCtx, err := rosz.NewContext().
+		WithConnectEndpoints(router.Endpoint()).DisableMulticastScouting().
+		Build()
+	if err != nil {
+		t.Fatalf("Failed to create self-check context: %v", err)
+	}
+	defer selfClientCtx.Close()
+	selfClientNode, err := selfClientCtx.CreateNode("go_action_server_readiness_check").Build()
+	if err != nil {
+		t.Fatalf("Failed to create self-check node: %v", err)
+	}
+	defer selfClientNode.Close()
+	selfClient, err := selfClientNode.CreateActionClient("fibonacci").Build(action)
+	if err != nil {
+		t.Fatalf("Failed to create self-check action client: %v", err)
+	}
+	defer selfClient.Close()
+
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		h, sendErr := selfClient.SendGoal(&example_interfaces.FibonacciGoal{Order: 3})
+		if sendErr == nil {
+			_, _ = h.GetResult()
+			h.Close()
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("Action server not ready after 30s: %v", sendErr)
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
 
 	// Send goal from ROS2
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -138,9 +168,6 @@ func TestROS2ActionServerToGoClient(t *testing.T) {
 		serverCmd.Wait()
 	}()
 
-	// Wait for ROS2 action server to be ready (Python startup is slower in CI)
-	time.Sleep(5 * time.Second)
-
 	// Create ros-z-go action client connected to the test router
 	roszCtx, err := rosz.NewContext().
 		WithConnectEndpoints(router.Endpoint()).DisableMulticastScouting().
@@ -164,14 +191,19 @@ func TestROS2ActionServerToGoClient(t *testing.T) {
 	}
 	defer client.Close()
 
-	// Wait for discovery
-	time.Sleep(500 * time.Millisecond)
-
-	// Send goal
+	// Retry SendGoal until the Python server is ready (replaces fixed sleep)
 	goal := &example_interfaces.FibonacciGoal{Order: 10}
-	goalHandle, err := client.SendGoal(goal)
-	if err != nil {
-		t.Fatalf("Failed to send goal: %v", err)
+	deadline := time.Now().Add(60 * time.Second)
+	var goalHandle *rosz.GoalHandle
+	for {
+		goalHandle, err = client.SendGoal(goal)
+		if err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("Failed to send goal after 60s: %v", err)
+		}
+		time.Sleep(200 * time.Millisecond)
 	}
 
 	// Wait for result (with timeout)
