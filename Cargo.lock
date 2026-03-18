@@ -2958,7 +2958,6 @@ dependencies = [
  "anyhow",
  "flume",
  "once_cell",
- "parking_lot",
  "pyo3",
  "ros-z",
  "ros-z-cdr",
