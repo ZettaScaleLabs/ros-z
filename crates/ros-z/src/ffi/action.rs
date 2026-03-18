@@ -521,10 +521,9 @@ pub unsafe extern "C" fn ros_z_action_server_create(
                             );
 
                             if exec_result == 0 && !result_ptr.is_null() && result_len > 0 {
-                                let result_cdr = unsafe {
-                                    std::slice::from_raw_parts(result_ptr, result_len).to_vec()
-                                };
-                                unsafe { free(result_ptr as *mut std::ffi::c_void) };
+                                let result_cdr =
+                                    std::slice::from_raw_parts(result_ptr, result_len).to_vec();
+                                free(result_ptr as *mut std::ffi::c_void);
                                 // Build CDR-encoded GetResult_Response_:
                                 // [CDR header 4B][status=SUCCEEDED 1B][3 padding][result raw]
                                 let result_raw = if result_cdr.len() >= 4 {
@@ -555,7 +554,7 @@ pub unsafe extern "C" fn ros_z_action_server_create(
                                 let mut server = server_for_exec.lock().unwrap();
                                 server.pending_results.insert(goal_id, vec![]);
                                 if !result_ptr.is_null() {
-                                    unsafe { free(result_ptr as *mut std::ffi::c_void) };
+                                    free(result_ptr as *mut std::ffi::c_void);
                                 }
                             }
                         });
@@ -671,7 +670,7 @@ pub unsafe extern "C" fn ros_z_action_server_succeed(
     result_data: *const u8,
     result_len: usize,
 ) -> i32 {
-    unsafe { store_result(server_handle, goal_id, result_data, result_len) }
+    store_result(server_handle, goal_id, result_data, result_len)
 }
 
 /// Mark a goal as aborted
@@ -682,7 +681,7 @@ pub unsafe extern "C" fn ros_z_action_server_abort(
     result_data: *const u8,
     result_len: usize,
 ) -> i32 {
-    unsafe { store_result(server_handle, goal_id, result_data, result_len) }
+    store_result(server_handle, goal_id, result_data, result_len)
 }
 
 /// Mark a goal as canceled
@@ -693,7 +692,7 @@ pub unsafe extern "C" fn ros_z_action_server_canceled(
     result_data: *const u8,
     result_len: usize,
 ) -> i32 {
-    unsafe { store_result(server_handle, goal_id, result_data, result_len) }
+    store_result(server_handle, goal_id, result_data, result_len)
 }
 
 unsafe fn store_result(
