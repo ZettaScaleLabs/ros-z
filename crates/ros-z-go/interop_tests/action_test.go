@@ -80,10 +80,10 @@ func TestGoActionServerToROS2Client(t *testing.T) {
 	defer server.Close()
 
 	// Wait for action server to be ready
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(2 * time.Second)
 
 	// Send goal from ROS2
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "ros2", "action", "send_goal",
 		"/fibonacci",
@@ -138,8 +138,8 @@ func TestROS2ActionServerToGoClient(t *testing.T) {
 		serverCmd.Wait()
 	}()
 
-	// Wait for ROS2 action server to be ready
-	time.Sleep(2 * time.Second)
+	// Wait for ROS2 action server to be ready (Python startup is slower in CI)
+	time.Sleep(5 * time.Second)
 
 	// Create ros-z-go action client connected to the test router
 	roszCtx, err := rosz.NewContext().
