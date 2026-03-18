@@ -127,6 +127,18 @@ jobs:
       - name: Build Rust FFI library + example binaries
         run: cargo build --release --features ffi --example z_pubsub --example z_srvcli
 
+      - name: Generate Go message types (bundled IDL)
+        run: |
+          mkdir -p _tmp crates/ros-z-go/generated
+          cargo run -p ros-z-codegen --bin export_json -- \
+            --assets crates/ros-z-codegen/assets/jazzy \
+            --output _tmp/go-manifest.json \
+            --packages builtin_interfaces,service_msgs,std_msgs,example_interfaces
+          cd crates/ros-z-codegen-go && go run . \
+            -input ../../_tmp/go-manifest.json \
+            -output ../ros-z-go/generated \
+            -prefix github.com/ZettaScaleLabs/ros-z/crates/ros-z-go
+
       - name: Run Go integration tests (Go↔Go + Go↔Rust + Go↔ROS2)
         shell: bash
         run: |
