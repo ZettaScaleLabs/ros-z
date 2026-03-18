@@ -196,7 +196,7 @@ pub extern "C" fn rmw_create_publisher(
 
     // Register matched event callback with graph
     let events_mgr = zpub.events_mgr().clone();
-    let graph = node_impl.inner.graph.clone();
+    let graph = node_impl.inner.graph().clone();
     let notifier_clone_for_init = notifier.clone();
     let notifier_clone_for_matched = notifier.clone();
     let notifier_clone_for_incompatible = notifier.clone();
@@ -576,7 +576,7 @@ pub extern "C" fn rmw_create_subscription(
 
     // Register matched event callback with graph
     let events_mgr = zsub.events_mgr().clone();
-    let graph = node_impl.inner.graph.clone();
+    let graph = node_impl.inner.graph().clone();
     let notifier_clone_for_init = notifier.clone();
     let notifier_clone_for_matched = notifier.clone();
     let notifier_clone_for_incompatible = notifier.clone();
@@ -1001,8 +1001,8 @@ pub extern "C" fn rmw_create_client(
     let qos = crate::qos::rmw_qos_to_ros_z_qos(unsafe { &*qos_policies });
     let qualified_service = match ros_z::topic_name::qualify_service_name(
         service_str,
-        &node_impl.inner.entity.namespace,
-        &node_impl.inner.entity.name,
+        node_impl.inner.namespace(),
+        node_impl.inner.name(),
     ) {
         Ok(s) => s,
         Err(e) => {
@@ -1020,12 +1020,12 @@ pub extern "C" fn rmw_create_client(
             }
         };
 
-    let mut zclient_builder = node_impl
+    let zclient_builder = node_impl
         .inner
         .create_client::<crate::msg::RosService>(&qualified_service)
-        .with_type_info(service_type_support.get_type_info());
-    zclient_builder.entity.qos = qos.to_protocol_qos();
-    let entity = zclient_builder.entity.clone();
+        .with_type_info(service_type_support.get_type_info())
+        .with_qos(qos);
+    let entity = zclient_builder.entity().clone();
 
     // Create shared callback and user_data holders
     let callback_holder: std::sync::Arc<
@@ -1060,7 +1060,7 @@ pub extern "C" fn rmw_create_client(
         notifier,
         sequence_counter: std::sync::atomic::AtomicI64::new(1), // Start at 1 for ROS compatibility
         unread_count: std::sync::Arc::new(std::sync::Mutex::new(0)), // Track unread responses
-        graph: node_impl.inner.graph.clone(),
+        graph: node_impl.inner.graph().clone(),
         entity: entity.clone(),
     };
 
@@ -1198,8 +1198,8 @@ pub extern "C" fn rmw_create_service(
     let qos = crate::qos::rmw_qos_to_ros_z_qos(unsafe { &*qos_profile });
     let qualified_service = match ros_z::topic_name::qualify_service_name(
         service_str,
-        &node_impl.inner.entity.namespace,
-        &node_impl.inner.entity.name,
+        node_impl.inner.namespace(),
+        node_impl.inner.name(),
     ) {
         Ok(s) => s,
         Err(e) => {
@@ -1217,12 +1217,12 @@ pub extern "C" fn rmw_create_service(
             }
         };
 
-    let mut zserver_builder = node_impl
+    let zserver_builder = node_impl
         .inner
         .create_service::<crate::msg::RosService>(&qualified_service)
-        .with_type_info(service_type_support.get_type_info());
-    zserver_builder.entity.qos = qos.to_protocol_qos();
-    let entity = zserver_builder.entity.clone();
+        .with_type_info(service_type_support.get_type_info())
+        .with_qos(qos);
+    let entity = zserver_builder.entity().clone();
 
     // Create shared callback and user_data holders that will be populated after ServiceImpl is created
     let callback_holder: std::sync::Arc<
@@ -1278,7 +1278,7 @@ pub extern "C" fn rmw_create_service(
         callback: callback_holder,
         callback_user_data: user_data_holder,
         unread_count: unread_count_holder, // Use the same Arc created earlier for notify_callback
-        graph: node_impl.inner.graph.clone(),
+        graph: node_impl.inner.graph().clone(),
         entity: entity.clone(),
     };
 
@@ -1429,7 +1429,7 @@ pub extern "C" fn rmw_get_topic_names_and_types(
     };
 
     // Get topic names and types from graph
-    let topics_and_types = node_impl.inner.graph.get_topic_names_and_types();
+    let topics_and_types = node_impl.inner.graph().get_topic_names_and_types();
 
     // Group by topic name
     let mut topic_map: std::collections::BTreeMap<String, Vec<String>> =
@@ -1550,7 +1550,7 @@ pub extern "C" fn rmw_get_service_names_and_types(
     };
 
     // Get service names and types from graph
-    let services_and_types = node_impl.inner.graph.get_service_names_and_types();
+    let services_and_types = node_impl.inner.graph().get_service_names_and_types();
 
     // Group by service name
     let mut service_map: std::collections::BTreeMap<String, Vec<String>> =
@@ -2089,7 +2089,7 @@ pub extern "C" fn rmw_get_subscriber_names_and_types_by_node(
     );
 
     // Check if the node exists in the graph
-    if !node_impl.inner.graph.node_exists(node_key.clone()) {
+    if !node_impl.inner.graph().node_exists(node_key.clone()) {
         return RMW_RET_NODE_NAME_NON_EXISTENT as _;
     }
 
@@ -2930,7 +2930,7 @@ pub extern "C" fn rmw_get_client_names_and_types_by_node(
     );
 
     // Check if the node exists in the graph
-    if !node_impl.inner.graph.node_exists(node_key.clone()) {
+    if !node_impl.inner.graph().node_exists(node_key.clone()) {
         return RMW_RET_NODE_NAME_NON_EXISTENT as _;
     }
 
@@ -3092,7 +3092,7 @@ pub extern "C" fn rmw_get_publisher_names_and_types_by_node(
     );
 
     // Check if the node exists in the graph
-    if !node_impl.inner.graph.node_exists(node_key.clone()) {
+    if !node_impl.inner.graph().node_exists(node_key.clone()) {
         return RMW_RET_NODE_NAME_NON_EXISTENT as _;
     }
 
@@ -3274,7 +3274,7 @@ pub extern "C" fn rmw_get_service_names_and_types_by_node(
     );
 
     // Check if the node exists in the graph
-    if !node_impl.inner.graph.node_exists(node_key.clone()) {
+    if !node_impl.inner.graph().node_exists(node_key.clone()) {
         return RMW_RET_NODE_NAME_NON_EXISTENT as _;
     }
 

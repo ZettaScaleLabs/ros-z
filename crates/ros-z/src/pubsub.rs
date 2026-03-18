@@ -55,19 +55,19 @@ impl<T: ZMessage, S: ZSerializer> std::fmt::Debug for ZPub<T, S> {
 
 #[derive(Debug)]
 pub struct ZPubBuilder<T, S = SerdeCdrSerdes<T>> {
-    pub entity: EndpointEntity,
-    pub session: Arc<Session>,
-    pub graph: Arc<Graph>,
-    pub with_attachment: bool,
+    pub(crate) entity: EndpointEntity,
+    pub(crate) session: Arc<Session>,
+    pub(crate) graph: Arc<Graph>,
+    pub(crate) with_attachment: bool,
     pub(crate) shm_config: Option<Arc<crate::shm::ShmConfig>>,
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
     /// Schema for dynamic message publishing.
     /// When set, the schema will be registered with the type description service.
-    pub dyn_schema: Option<Arc<crate::dynamic::schema::MessageSchema>>,
+    pub(crate) dyn_schema: Option<Arc<crate::dynamic::schema::MessageSchema>>,
     /// Encoding format for this publisher.
     /// If set, all published messages will use this encoding.
-    pub encoding: Option<crate::encoding::Encoding>,
-    pub _phantom_data: PhantomData<(T, S)>,
+    pub(crate) encoding: Option<crate::encoding::Encoding>,
+    pub(crate) _phantom_data: PhantomData<(T, S)>,
 }
 
 impl_with_type_info!(ZPubBuilder<T, S>);
@@ -556,16 +556,16 @@ impl ZPub<crate::dynamic::DynamicMessage, crate::dynamic::DynamicSerdeCdrSerdes>
 }
 
 pub struct ZSubBuilder<T, S = SerdeCdrSerdes<T>> {
-    pub entity: EndpointEntity,
-    pub session: Arc<Session>,
-    pub graph: Arc<Graph>,
+    pub(crate) entity: EndpointEntity,
+    pub(crate) session: Arc<Session>,
+    pub(crate) graph: Arc<Graph>,
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
-    pub dyn_schema: Option<Arc<crate::dynamic::schema::MessageSchema>>,
-    pub locality: Option<zenoh::sample::Locality>,
+    pub(crate) dyn_schema: Option<Arc<crate::dynamic::schema::MessageSchema>>,
+    pub(crate) locality: Option<zenoh::sample::Locality>,
     /// Expected encoding for received messages.
     /// If set, the subscriber will validate that received samples match this encoding.
-    pub expected_encoding: Option<crate::encoding::Encoding>,
-    pub _phantom_data: PhantomData<(T, S)>,
+    pub(crate) expected_encoding: Option<crate::encoding::Encoding>,
+    pub(crate) _phantom_data: PhantomData<(T, S)>,
 }
 
 impl<T, S> ZSubBuilder<T, S>

@@ -1,6 +1,7 @@
 use std::fmt;
 use std::num::NonZeroUsize;
 
+#[non_exhaustive]
 #[derive(Debug, Default, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum QosReliability {
     #[default]
@@ -58,6 +59,7 @@ impl fmt::Display for QosHistory {
     }
 }
 
+#[non_exhaustive]
 #[derive(Debug, Default, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum QosDurability {
     TransientLocal,
@@ -74,6 +76,7 @@ impl fmt::Display for QosDurability {
     }
 }
 
+#[non_exhaustive]
 #[derive(Debug, Default, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum QosLiveliness {
     #[default]
@@ -113,6 +116,15 @@ impl QosDuration {
 impl Default for QosDuration {
     fn default() -> Self {
         Self::INFINITE
+    }
+}
+
+impl From<std::time::Duration> for QosDuration {
+    fn from(d: std::time::Duration) -> Self {
+        Self {
+            sec: d.as_secs(),
+            nsec: d.subsec_nanos() as u64,
+        }
     }
 }
 

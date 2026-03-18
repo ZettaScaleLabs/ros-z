@@ -56,7 +56,9 @@ fn main() {
             }
         }
 
-        builder.build().expect("Failed to build router config")
+        builder
+            .build_config()
+            .expect("Failed to build router config")
     };
 
     // Apply connect endpoints if provided

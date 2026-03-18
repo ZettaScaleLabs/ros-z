@@ -35,10 +35,10 @@ use crate::{
 
 #[derive(Debug)]
 pub struct ZClientBuilder<T> {
-    pub entity: EndpointEntity,
-    pub session: Arc<Session>,
+    pub(crate) entity: EndpointEntity,
+    pub(crate) session: Arc<Session>,
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
-    pub _phantom_data: PhantomData<T>,
+    pub(crate) _phantom_data: PhantomData<T>,
 }
 
 impl_with_type_info!(ZClientBuilder<T>);
@@ -50,7 +50,7 @@ impl_with_type_info!(ZServerBuilder<T>);
 /// Send a request with [`send_request`](ZClient::send_request) (async), then retrieve
 /// the response with [`take_response`](ZClient::take_response) (non-blocking),
 /// [`take_response_timeout`](ZClient::take_response_timeout) (waits up to a deadline),
-/// or [`take_response_async`](ZClient::take_response_async) (async wait).
+/// or [`async_take_response`](ZClient::async_take_response) (async wait).
 ///
 /// # Example
 ///
@@ -70,7 +70,7 @@ pub struct ZClient<T: ZService> {
     inner: zenoh::query::Querier<'static>,
     lv_token: LivelinessToken,
     tx: flume::Sender<Sample>,
-    pub rx: flume::Receiver<Sample>,
+    pub(crate) rx: flume::Receiver<Sample>,
     topic: String,
     _phantom_data: PhantomData<T>,
 }
@@ -168,7 +168,7 @@ where
     ///
     /// Returns `Err` immediately if no response has arrived yet. Use
     /// [`take_response_timeout`](ZClient::take_response_timeout) to wait up to a
-    /// deadline, or [`take_response_async`](ZClient::take_response_async) to await
+    /// deadline, or [`async_take_response`](ZClient::async_take_response) to await
     /// indefinitely in an async context.
     // For ROS-Z
     pub fn take_response(&self) -> Result<T::Response>
@@ -199,7 +199,7 @@ where
     }
     /// Asynchronously wait for the next response. Awaits indefinitely until a
     /// response arrives or the channel is disconnected.
-    pub async fn take_response_async(&self) -> Result<T::Response>
+    pub async fn async_take_response(&self) -> Result<T::Response>
     where
         T::Response: ZMessage,
         for<'a> <T::Response as ZMessage>::Serdes:
@@ -223,7 +223,7 @@ where
     /// Zenoh query is dispatched; it does **not** wait for a response. Retrieve the
     /// response separately with [`take_response`](ZClient::take_response),
     /// [`take_response_timeout`](ZClient::take_response_timeout), or
-    /// [`take_response_async`](ZClient::take_response_async).
+    /// [`async_take_response`](ZClient::async_take_response).
     ///
     /// Succeeds even when no server is running (fire-and-forget dispatch).
     #[tracing::instrument(name = "send_request", skip(self, msg), fields(
@@ -308,10 +308,36 @@ where
 
 #[derive(Debug)]
 pub struct ZServerBuilder<T> {
-    pub entity: EndpointEntity,
-    pub session: Arc<Session>,
+    pub(crate) entity: EndpointEntity,
+    pub(crate) session: Arc<Session>,
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
-    pub _phantom_data: PhantomData<T>,
+    pub(crate) _phantom_data: PhantomData<T>,
+}
+
+impl<T> ZClientBuilder<T> {
+    /// Set the QoS profile for this client.
+    pub fn with_qos(mut self, qos: crate::qos::QosProfile) -> Self {
+        self.entity.qos = qos.to_protocol_qos();
+        self
+    }
+
+    /// Get a reference to the entity (for internal and rmw use).
+    pub fn entity(&self) -> &EndpointEntity {
+        &self.entity
+    }
+}
+
+impl<T> ZServerBuilder<T> {
+    /// Set the QoS profile for this server.
+    pub fn with_qos(mut self, qos: crate::qos::QosProfile) -> Self {
+        self.entity.qos = qos.to_protocol_qos();
+        self
+    }
+
+    /// Get a reference to the entity (for internal and rmw use).
+    pub fn entity(&self) -> &EndpointEntity {
+        &self.entity
+    }
 }
 
 pub struct ZServer<T: ZService, Q = Query> {
@@ -323,8 +349,8 @@ pub struct ZServer<T: ZService, Q = Query> {
     gid: GidArray,
     inner: zenoh::query::Queryable<()>,
     lv_token: LivelinessToken,
-    pub queue: Option<Arc<BoundedQueue<Q>>>,
-    pub map: HashMap<QueryKey, Query>,
+    pub(crate) queue: Option<Arc<BoundedQueue<Q>>>,
+    pub(crate) map: HashMap<QueryKey, Query>,
     _phantom_data: PhantomData<T>,
 }
 
@@ -550,7 +576,7 @@ where
     /// Awaits the next request on the service and then deserializes the payload.
     ///
     /// This method may fail if the message does not deserialize as the requested type.
-    pub async fn take_request_async(&mut self) -> Result<(QueryKey, T::Request)>
+    pub async fn async_take_request(&mut self) -> Result<(QueryKey, T::Request)>
     where
         T::Request: ZMessage + Send + Sync + 'static,
         for<'a> <T::Request as ZMessage>::Serdes:
@@ -576,7 +602,7 @@ where
     /// Blocks sending the response to a service request.
     ///
     /// - `msg` is the response message to send.
-    /// - `key` is the query key of the request to reply to and is obtained from [take_request](Self::take_request) or [take_request_async](Self::take_request_async)
+    /// - `key` is the query key of the request to reply to and is obtained from [take_request](Self::take_request) or [async_take_request](Self::async_take_request)
     #[tracing::instrument(name = "send_response", skip(self, msg), fields(
         service = %self.key_expr,
         sn = %key.sn,
@@ -611,8 +637,8 @@ where
     /// Awaits sending the response to a service request.
     ///
     /// - `msg` is the response message to send.
-    /// - `key` is the query key of the request to reply to and is obtained from [take_request](Self::take_request) or [take_request_async](Self::take_request_async)
-    pub async fn send_response_async(&mut self, msg: &T::Response, key: &QueryKey) -> Result<()> {
+    /// - `key` is the query key of the request to reply to and is obtained from [take_request](Self::take_request) or [async_take_request](Self::async_take_request)
+    pub async fn async_send_response(&mut self, msg: &T::Response, key: &QueryKey) -> Result<()> {
         match self.map.remove(key) {
             Some(query) => {
                 // Use the sequence number and GID from the request

@@ -22,7 +22,7 @@
 //! // Customize router port
 //! let custom_router = RouterConfigBuilder::new()
 //!     .with_listen_port(7448)
-//!     .build()?;
+//!     .build_config()?;
 //! ```
 
 use serde::{Deserialize, Serialize};
@@ -472,7 +472,7 @@ impl RouterConfigBuilder {
     /// ```rust
     /// let config = RouterConfigBuilder::new()
     ///     .with_listen_port(7448)
-    ///     .build()?;
+    ///     .build_config()?;
     /// ```
     pub fn with_listen_port(mut self, port: u16) -> Self {
         if let Some(listen) = self
@@ -491,7 +491,7 @@ impl RouterConfigBuilder {
     /// ```rust
     /// let config = RouterConfigBuilder::new()
     ///     .with_listen_endpoint("tcp/0.0.0.0:7447")
-    ///     .build()?;
+    ///     .build_config()?;
     /// ```
     pub fn with_listen_endpoint(mut self, endpoint: &str) -> Self {
         if let Some(listen) = self
@@ -516,7 +516,7 @@ impl RouterConfigBuilder {
     ///         serde_json::json!(20000),
     ///         "Custom increased sessions"
     ///     )
-    ///     .build()?;
+    ///     .build_config()?;
     /// ```
     pub fn with_override(mut self, key: &'static str, value: Value, reason: &'static str) -> Self {
         if let Some(existing) = self.overrides.iter_mut().find(|o| o.key == key) {
@@ -528,8 +528,10 @@ impl RouterConfigBuilder {
         self
     }
 
-    /// Build the Zenoh config
-    pub fn build(self) -> zenoh::Result<zenoh::Config> {
+    /// Build the Zenoh config.
+    ///
+    /// Also available via the [`Builder`](crate::Builder) trait.
+    pub fn build_config(self) -> zenoh::Result<zenoh::Config> {
         build_config(&self.overrides)
     }
 }
@@ -560,7 +562,7 @@ impl SessionConfigBuilder {
     /// ```rust
     /// let config = SessionConfigBuilder::new()
     ///     .with_router_endpoint("tcp/192.168.1.100:7447")
-    ///     .build()?;
+    ///     .build_config()?;
     /// ```
     pub fn with_router_endpoint(mut self, endpoint: &str) -> Self {
         if let Some(connect) = self
@@ -585,7 +587,7 @@ impl SessionConfigBuilder {
     ///         serde_json::json!(120000),
     ///         "Increased timeout for slow network"
     ///     )
-    ///     .build()?;
+    ///     .build_config()?;
     /// ```
     pub fn with_override(mut self, key: &'static str, value: Value, reason: &'static str) -> Self {
         if let Some(existing) = self.overrides.iter_mut().find(|o| o.key == key) {
@@ -597,8 +599,10 @@ impl SessionConfigBuilder {
         self
     }
 
-    /// Build the Zenoh config
-    pub fn build(self) -> zenoh::Result<zenoh::Config> {
+    /// Build the Zenoh config.
+    ///
+    /// Also available via the [`Builder`](crate::Builder) trait.
+    pub fn build_config(self) -> zenoh::Result<zenoh::Config> {
         build_config(&self.overrides)
     }
 }
@@ -609,9 +613,24 @@ impl Default for SessionConfigBuilder {
     }
 }
 
+impl crate::Builder for RouterConfigBuilder {
+    type Output = zenoh::Config;
+    fn build(self) -> zenoh::Result<zenoh::Config> {
+        self.build_config()
+    }
+}
+
+impl crate::Builder for SessionConfigBuilder {
+    type Output = zenoh::Config;
+    fn build(self) -> zenoh::Result<zenoh::Config> {
+        self.build_config()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Builder;
 
     #[test]
     fn test_common_overrides_shared() {

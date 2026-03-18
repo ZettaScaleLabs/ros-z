@@ -1,6 +1,7 @@
 use crate::msg::ZMessage;
 use ros_z_cdr::{CdrBuffer, CdrDeserialize, CdrReader, CdrSerialize, CdrSerializedSize, CdrWriter};
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::time::SystemTime;
 
 pub mod client;
@@ -159,6 +160,13 @@ impl Default for GoalId {
     }
 }
 
+impl fmt::Display for GoalId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let uuid = uuid::Uuid::from_bytes(self.0);
+        write!(f, "{}", uuid.hyphenated())
+    }
+}
+
 /// Status of an action goal.
 ///
 /// The `GoalStatus` enum represents the current state of an action goal
@@ -172,6 +180,7 @@ impl Default for GoalId {
 /// assert!(status.is_active());
 /// assert!(!status.is_terminal());
 /// ```
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(i8)]
 #[serde(try_from = "i8", into = "i8")]
@@ -313,6 +322,7 @@ impl GoalInfo {
 ///
 /// `GoalEvent` represents the different events that can cause an action goal
 /// to transition from one state to another in the ROS 2 action state machine.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GoalEvent {
     /// Start executing an accepted goal.
