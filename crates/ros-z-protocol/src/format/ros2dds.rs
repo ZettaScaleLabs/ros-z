@@ -8,7 +8,7 @@
 //!
 //! Reference: zenoh-plugin-ros2dds/src/liveliness_mgt.rs
 
-use zenoh::{key_expr::KeyExpr, session::ZenohId, Result};
+use zenoh::{Result, key_expr::KeyExpr, session::ZenohId};
 
 use crate::{
     entity::{
@@ -132,7 +132,11 @@ impl KeyExprFormatter for Ros2DdsFormatter {
 
         // Topic key expression (escaped)
         let topic_escaped = iter.next().ok_or(MissingTopicName)?;
-        let topic = Self::demangle_name(topic_escaped);
+        let topic = match Self::demangle_name(topic_escaped) {
+            topic if topic.is_empty() => "/".to_string(),
+            topic if topic.starts_with('/') => topic,
+            topic => format!("/{}", topic),
+        };
 
         // Type name (escaped)
         let type_escaped = iter.next().ok_or(MissingTopicType)?;
@@ -521,6 +525,36 @@ mod tests {
             "Should contain '/MS/' for Subscription, got: {}",
             ke_str
         );
+    }
+
+    #[test]
+    fn test_parse_liveliness_restores_absolute_topic_name() {
+        let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
+        let node = NodeEntity::new(
+            0,
+            zid,
+            1,
+            "test_node".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
+
+        let entity = EndpointEntity {
+            id: 1,
+            node,
+            kind: EntityKind::Publisher,
+            topic: "/chatter".to_string(),
+            type_info: Some(TypeInfo::new("std_msgs/msg/String", TypeHash::zero())),
+            qos: QosProfile::default(),
+        };
+
+        let liveliness_ke = Ros2DdsFormatter::liveliness_key_expr(&entity, &zid).unwrap();
+        let parsed = Ros2DdsFormatter::parse_liveliness(&liveliness_ke).unwrap();
+
+        match parsed {
+            Entity::Endpoint(endpoint) => assert_eq!(endpoint.topic, "/chatter"),
+            other => panic!("expected endpoint entity, got {:?}", other),
+        }
     }
 
     /// Test service server liveliness key expression

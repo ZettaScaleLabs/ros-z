@@ -89,7 +89,7 @@ impl ZContextBuilder {
         self
     }
 
-    /// Set the key expression format for ROS 2 entity mapping.
+    /// Set the key expression format for ROS 2 entity mapping and graph discovery.
     ///
     /// # Example
     /// ```
@@ -488,7 +488,7 @@ impl Builder for ZContextBuilder {
         }
 
         let domain_id = builder.domain_id;
-        let graph = Arc::new(Graph::new(&session, domain_id)?);
+        let graph = Arc::new(Graph::new(&session, domain_id, builder.keyexpr_format)?);
 
         Ok(ZContext {
             session: Arc::new(session),

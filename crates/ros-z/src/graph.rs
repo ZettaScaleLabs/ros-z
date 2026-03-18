@@ -337,15 +337,31 @@ impl std::fmt::Debug for Graph {
 }
 
 impl Graph {
-    pub fn new(session: &Session, domain_id: usize) -> Result<Self> {
-        // Default to RmwZenoh format
-        let format = ros_z_protocol::KeyExprFormat::default();
-        Self::new_with_pattern(
-            session,
-            domain_id,
-            format!("{ADMIN_SPACE}/{domain_id}/**"),
-            move |ke| format.parse_liveliness(ke),
-        )
+    /// Create a new Graph using an explicit key expression format.
+    ///
+    /// The format determines both the liveliness subscription pattern and the
+    /// parser used to turn liveliness keys back into ROS entities.
+    pub fn new(
+        session: &Session,
+        domain_id: usize,
+        format: ros_z_protocol::KeyExprFormat,
+    ) -> Result<Self> {
+        let liveliness_pattern = match format {
+            ros_z_protocol::KeyExprFormat::RmwZenoh => {
+                format!("{ADMIN_SPACE}/{domain_id}/**")
+            }
+            ros_z_protocol::KeyExprFormat::Ros2Dds => "@/*/@ros2_lv/**".to_string(),
+            _ => {
+                return Err(zenoh::Error::from(format!(
+                    "unsupported key expression format for graph construction: {:?}",
+                    format
+                )));
+            }
+        };
+
+        Self::new_with_pattern(session, domain_id, liveliness_pattern, move |ke| {
+            format.parse_liveliness(ke)
+        })
     }
 
     /// Create a new Graph with a custom liveliness subscription pattern and parser
