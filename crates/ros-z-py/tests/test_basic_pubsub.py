@@ -80,6 +80,45 @@ def test_qos_configuration(node):
     print("✓ QoS configuration accepted")
 
 
+def test_callback_subscriber_no_assign(node, pub):
+    """Regression test: callback subscriber must work even when result is not stored.
+
+    Previously, the ZSub handle was dropped immediately if the caller did not assign
+    the return value of create_subscriber(), causing the Zenoh subscription to be
+    undeclared before any messages arrived. The node now owns callback subscribers
+    internally (matching rmw_zenoh_cpp's NodeData::subs_ pattern).
+    """
+    received = []
+    # Intentionally NOT assigned — this was the bug
+    node.create_subscriber("/chatter", std_msgs.String, callback=received.append)
+    time.sleep(0.3)
+    pub.publish(std_msgs.String(data="background_test"))
+    time.sleep(0.3)
+    assert len(received) == 1, f"Expected 1 message, got {len(received)}"
+    assert received[0].data == "background_test"
+
+
+def test_destroy_subscriber(node, pub):
+    """destroy_subscriber must undeclare the subscription early.
+
+    After destroy_subscriber(), messages published to the topic must not
+    reach the callback anymore.
+    """
+    received = []
+    sub = node.create_subscriber("/chatter", std_msgs.String, callback=received.append)
+    time.sleep(0.3)
+    pub.publish(std_msgs.String(data="before_destroy"))
+    time.sleep(0.3)
+    assert len(received) == 1, f"Expected 1 message before destroy, got {len(received)}"
+
+    node.destroy_subscriber(sub)
+    pub.publish(std_msgs.String(data="after_destroy"))
+    time.sleep(0.3)
+    assert len(received) == 1, (
+        f"Expected no new messages after destroy, got {len(received)}"
+    )
+
+
 def test_error_handling(node):
     """Test error handling for invalid message types."""
     print("Testing error handling...")
@@ -105,6 +144,8 @@ def main():
     test_publish_receive(pub, sub)
     test_qos_configuration(node)
     test_error_handling(node)
+    test_callback_subscriber_no_assign(node, pub)
+    test_destroy_subscriber(node, pub)
 
     print("=" * 60)
     print("All tests passed! ✓")

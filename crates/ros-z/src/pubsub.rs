@@ -830,6 +830,17 @@ where
     /// deserialized message directly. Liveliness tokens and event management are
     /// preserved.
     ///
+    /// # Ownership
+    ///
+    /// The returned [`ZSub`] **must be kept alive** for as long as the subscription
+    /// should remain active. Dropping it undeclares the Zenoh subscriber and the
+    /// liveliness token (removing the node from the ROS graph).
+    ///
+    /// **Binding layers handle this automatically**: `ros-z-py` and `ros-z-go` store
+    /// the handle inside the node (matching `rmw_zenoh_cpp`'s `NodeData::subs_`
+    /// pattern), so Python/Go callers do not need to assign the return value.
+    /// Rust callers must store the `ZSub` in their node or context.
+    ///
     /// # Arguments
     ///
     /// * `callback` - A function that will be called with each deserialized message

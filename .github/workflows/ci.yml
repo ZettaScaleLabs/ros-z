@@ -199,7 +199,7 @@ jobs:
   coverage:
     name: Code Coverage (ubuntu-latest)
     runs-on: ubuntu-latest
-    continue-on-error: true
+    continue-on-error: false
     permissions:
       id-token: write
       contents: read
@@ -247,7 +247,7 @@ jobs:
         run: |
           source /tmp/nix-dev-env.sh
           cargo llvm-cov \
-            -p ros-z-codegen -p ros-z-cdr -p ros-z-protocol -p ros-z-schema \
+            -p ros-z -p ros-z-codegen -p ros-z-cdr -p ros-z-protocol -p ros-z-schema \
             -j4 \
             --lcov --output-path lcov.info
         shell: bash
@@ -257,7 +257,7 @@ jobs:
         with:
           files: lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false
+          fail_ci_if_error: true
 
   no-ros-checks:
     name: ROS-independent Checks (${{ matrix.os }})
