@@ -22,7 +22,7 @@ use crate::{
     msg::{ZMessage, ZService},
     parameter::{
         Parameter, ParameterDescriptor, ParameterValue, SetParametersResult,
-        service::ParameterService,
+        service::{ParameterService, ParameterServiceConfig},
     },
     pubsub::{ZPub, ZPubBuilder, ZSub, ZSubBuilder},
     service::{ZClientBuilder, ZServerBuilder},
@@ -46,6 +46,7 @@ pub struct ZNode {
     pub graph: Arc<Graph>,
     pub remap_rules: RemapRules,
     _lv_token: LivelinessToken,
+    pub(crate) clock: crate::time::ZClock,
     pub(crate) shm_config: Option<Arc<crate::shm::ShmConfig>>,
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
     /// Optional type description service for this node.
@@ -74,6 +75,7 @@ pub struct ZNodeBuilder {
     pub counter: Arc<GlobalCounter>,
     pub graph: Arc<Graph>,
     pub remap_rules: RemapRules,
+    pub(crate) clock: crate::time::ZClock,
     pub(crate) shm_config: Option<Arc<crate::shm::ShmConfig>>,
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
     /// Whether to enable the type description service for this node.
@@ -239,6 +241,7 @@ impl Builder for ZNodeBuilder {
                 &self.namespace,
                 id,
                 &self.counter,
+                &self.clock,
             )?;
 
             info!("[NOD] TypeDescriptionService created (callback mode)");
@@ -251,15 +254,16 @@ impl Builder for ZNodeBuilder {
         // Create parameter service if enabled (default)
         let parameter_service = if self.enable_parameters {
             debug!("[NOD] Creating parameter service");
-            let service = ParameterService::new(
-                self.session.clone(),
-                self.graph.clone(),
-                &self.name,
-                &self.namespace,
-                id,
-                &self.counter,
-                self.parameter_overrides,
-            )?;
+            let service = ParameterService::new(ParameterServiceConfig {
+                session: self.session.clone(),
+                graph: self.graph.clone(),
+                node_name: &self.name,
+                namespace: &self.namespace,
+                node_id: id,
+                counter: &self.counter,
+                clock: &self.clock,
+                overrides: self.parameter_overrides,
+            })?;
             info!("[NOD] ParameterService created");
             Some(service)
         } else {
@@ -275,6 +279,7 @@ impl Builder for ZNodeBuilder {
             _lv_token: lv_token,
             graph: self.graph,
             remap_rules: self.remap_rules,
+            clock: self.clock,
             shm_config: self.shm_config,
             keyexpr_format: self.keyexpr_format,
             type_desc_service,
@@ -354,6 +359,7 @@ impl ZNode {
             entity,
             session: self.session.clone(),
             graph: self.graph.clone(),
+            clock: self.clock.clone(),
             with_attachment: true,
             shm_config: self.shm_config.clone(),
             keyexpr_format: self.keyexpr_format,
@@ -481,6 +487,7 @@ impl ZNode {
         ZServerBuilder {
             entity,
             session: self.session.clone(),
+            clock: self.clock.clone(),
             keyexpr_format: self.keyexpr_format,
             _phantom_data: Default::default(),
         }
@@ -520,6 +527,7 @@ impl ZNode {
         ZClientBuilder {
             entity,
             session: self.session.clone(),
+            clock: self.clock.clone(),
             keyexpr_format: self.keyexpr_format,
             _phantom_data: Default::default(),
         }
@@ -689,6 +697,11 @@ impl ZNode {
     /// Get access to the global counter for entity ID generation.
     pub fn counter(&self) -> &Arc<GlobalCounter> {
         &self.counter
+    }
+
+    /// Access this node's clock.
+    pub fn clock(&self) -> &crate::time::ZClock {
+        &self.clock
     }
 
     // ========================================================================

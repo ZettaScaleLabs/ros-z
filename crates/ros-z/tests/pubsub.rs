@@ -1,6 +1,12 @@
 use std::{thread, time::Duration};
 
-use ros_z::{Builder, TypeHash, ZBuf, context::ZContextBuilder, ros_msg::MessageTypeInfo};
+use ros_z::{
+    Builder, TypeHash, ZBuf,
+    attachment::Attachment,
+    context::ZContextBuilder,
+    ros_msg::MessageTypeInfo,
+    time::{ZClock, ZDuration, ZTime},
+};
 use ros_z_msgs::std_msgs::ByteMultiArray;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -134,6 +140,49 @@ async fn test_large_payload() {
     assert_eq!(received_msg.counter, 999);
     assert_eq!(received_msg.data.len(), 1024 * 1024);
     assert_eq!(received_msg.data[0], 0xAB);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_simulated_clock_is_used_for_attachment_timestamps() {
+    let clock = ZClock::simulated(ZTime::zero());
+    clock.advance(ZDuration::from_secs(5)).unwrap();
+
+    let ctx = ZContextBuilder::default()
+        .with_clock(clock.clone())
+        .build()
+        .expect("Failed to create context");
+    let node = ctx
+        .create_node("sim_clock_node")
+        .build()
+        .expect("Failed to create node");
+
+    let publisher = node
+        .create_pub::<TestMessage>("/sim_clock")
+        .build()
+        .unwrap();
+    let subscriber = node
+        .create_sub::<TestMessage>("/sim_clock")
+        .build()
+        .unwrap();
+
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    publisher
+        .publish(&TestMessage {
+            data: vec![1],
+            counter: 1,
+        })
+        .unwrap();
+
+    let sample = subscriber
+        .recv_serialized_timeout(Duration::from_secs(1))
+        .expect("Failed to receive sample");
+    let attachment = sample
+        .attachment()
+        .and_then(|att| Attachment::try_from(att).ok())
+        .expect("Missing attachment");
+
+    assert_eq!(attachment.source_time(), clock.now());
 }
 
 #[test]

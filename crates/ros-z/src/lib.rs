@@ -83,6 +83,8 @@ pub mod ros_msg;
 pub mod service;
 /// Shared-memory transport helpers.
 pub mod shm;
+/// Time and clock primitives for runtime and replay integration.
+pub mod time;
 /// ROS 2 topic name validation and manipulation.
 pub mod topic_name;
 /// Owned Zenoh buffer type.

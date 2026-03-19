@@ -34,6 +34,7 @@ pub struct ZPub<T: ZMessage, S: ZSerializer> {
     inner: zenoh::pubsub::Publisher<'static>,
     _lv_token: LivelinessToken,
     with_attachment: bool,
+    clock: crate::time::ZClock,
     events_mgr: Arc<Mutex<EventsManager>>,
     shm_config: Option<Arc<crate::shm::ShmConfig>>,
     /// Schema for dynamic message publishing.
@@ -58,6 +59,7 @@ pub struct ZPubBuilder<T, S = SerdeCdrSerdes<T>> {
     pub entity: EndpointEntity,
     pub session: Arc<Session>,
     pub graph: Arc<Graph>,
+    pub clock: crate::time::ZClock,
     pub with_attachment: bool,
     pub(crate) shm_config: Option<Arc<crate::shm::ShmConfig>>,
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
@@ -140,6 +142,7 @@ impl<T, S> ZPubBuilder<T, S> {
             entity: self.entity,
             session: self.session,
             graph: self.graph,
+            clock: self.clock,
             with_attachment: self.with_attachment,
             shm_config: self.shm_config,
             keyexpr_format: self.keyexpr_format,
@@ -313,6 +316,7 @@ where
             inner,
             _lv_token: lv_token,
             gid,
+            clock: self.clock,
             events_mgr: Arc::new(Mutex::new(EventsManager::new(gid))),
             with_attachment: self.with_attachment,
             shm_config: self.shm_config,
@@ -388,7 +392,7 @@ where
             sn,
             &self.gid[..4]
         );
-        Attachment::new(sn as _, self.gid)
+        Attachment::with_clock(sn as _, self.gid, &self.clock)
     }
 
     /// Serialize and publish `msg` on the topic. Blocks until the put completes.
