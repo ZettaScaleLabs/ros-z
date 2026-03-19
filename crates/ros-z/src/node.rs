@@ -406,6 +406,7 @@ impl ZNode {
         ZSubBuilder {
             entity,
             session: self.session.clone(),
+            graph: self.graph.clone(),
             keyexpr_format: self.keyexpr_format,
             dyn_schema: None,
             locality: None,

@@ -562,6 +562,7 @@ impl ZPub<crate::dynamic::DynamicMessage, crate::dynamic::DynamicSerdeCdrSerdes>
 pub struct ZSubBuilder<T, S = SerdeCdrSerdes<T>> {
     pub entity: EndpointEntity,
     pub session: Arc<Session>,
+    pub graph: Arc<Graph>,
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
     pub dyn_schema: Option<Arc<crate::dynamic::schema::MessageSchema>>,
     pub locality: Option<zenoh::sample::Locality>,
@@ -584,6 +585,7 @@ where
         ZSubBuilder {
             entity: self.entity,
             session: self.session,
+            graph: self.graph,
             keyexpr_format: self.keyexpr_format,
             dyn_schema: self.dyn_schema,
             locality: self.locality,
@@ -818,6 +820,7 @@ where
             _lv_token: lv_token,
             queue,
             events_mgr: Arc::new(Mutex::new(EventsManager::new(gid))),
+            graph: self.graph,
             dyn_schema: self.dyn_schema,
             expected_encoding: self.expected_encoding,
             _phantom_data: Default::default(),
@@ -830,6 +833,17 @@ where
     /// received message, bypassing the internal queue. The callback receives the
     /// deserialized message directly. Liveliness tokens and event management are
     /// preserved.
+    ///
+    /// # Ownership
+    ///
+    /// The returned [`ZSub`] **must be kept alive** for as long as the subscription
+    /// should remain active. Dropping it undeclares the Zenoh subscriber and the
+    /// liveliness token (removing the node from the ROS graph).
+    ///
+    /// **Binding layers handle this automatically**: `ros-z-py` and `ros-z-go` store
+    /// the handle inside the node (matching `rmw_zenoh_cpp`'s `NodeData::subs_`
+    /// pattern), so Python/Go callers do not need to assign the return value.
+    /// Rust callers must store the `ZSub` in their node or context.
     ///
     /// # Arguments
     ///
@@ -919,6 +933,7 @@ pub struct ZSub<T: ZMessage, Q, S: ZDeserializer> {
     _inner: zenoh::pubsub::Subscriber<()>,
     _lv_token: LivelinessToken,
     events_mgr: Arc<Mutex<EventsManager>>,
+    graph: Arc<Graph>,
     /// Schema for dynamic message deserialization.
     /// Required when using `DynamicMessage` with `DynamicSerdeCdrSerdes`.
     pub dyn_schema: Option<Arc<crate::dynamic::schema::MessageSchema>>,
@@ -973,6 +988,52 @@ where
     /// Check if there are messages available in the queue
     pub fn is_ready(&self) -> bool {
         self.queue.as_ref().map(|q| !q.is_empty()).unwrap_or(false)
+    }
+
+    /// Wait until at least `count` publishers are matched on this subscriber's topic,
+    /// or until `timeout` elapses.
+    ///
+    /// Returns `true` if the required number of publishers appeared within the
+    /// timeout, `false` otherwise.
+    ///
+    /// This mirrors `ZPub::wait_for_subscription` but from the subscriber side.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// // Ensure at least one publisher is ready before receiving.
+    /// assert!(subscriber.wait_for_publisher(1, Duration::from_secs(5)).await);
+    /// ```
+    pub async fn wait_for_publisher(&self, count: usize, timeout: Duration) -> bool {
+        let deadline = tokio::time::Instant::now() + timeout;
+        loop {
+            let notified = self.graph.change_notify.notified();
+            tokio::pin!(notified);
+
+            let n = self
+                .graph
+                .get_entities_by_topic(EntityKind::Publisher, &self.entity.topic)
+                .len();
+            if n >= count {
+                return true;
+            }
+
+            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+            if remaining.is_zero() {
+                return false;
+            }
+
+            if tokio::time::timeout(remaining, &mut notified)
+                .await
+                .is_err()
+            {
+                return self
+                    .graph
+                    .get_entities_by_topic(EntityKind::Publisher, &self.entity.topic)
+                    .len()
+                    >= count;
+            }
+        }
     }
 }
 
@@ -1118,5 +1179,81 @@ impl ZSub<crate::dynamic::DynamicMessage, Sample, crate::dynamic::DynamicSerdeCd
     /// Get the dynamic schema.
     pub fn schema(&self) -> Option<&crate::dynamic::schema::MessageSchema> {
         self.dyn_schema.as_ref().map(|s| s.as_ref())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // -----------------------------------------------------------------------
+    // Topic name qualification (leading '/' is added when missing)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_qualify_absolute_topic_unchanged() {
+        let result = crate::topic_name::qualify_topic_name("/chatter", "/", "node").unwrap();
+        assert_eq!(result, "/chatter");
+    }
+
+    #[test]
+    fn test_qualify_relative_topic_adds_leading_slash() {
+        let result = crate::topic_name::qualify_topic_name("chatter", "/", "node").unwrap();
+        assert_eq!(result, "/chatter");
+    }
+
+    #[test]
+    fn test_qualify_topic_with_namespace() {
+        let result = crate::topic_name::qualify_topic_name("chatter", "/ns", "node").unwrap();
+        assert_eq!(result, "/ns/chatter");
+    }
+
+    #[test]
+    fn test_qualify_topic_nested_ns() {
+        let result = crate::topic_name::qualify_topic_name("/ns/sub/topic", "/", "node").unwrap();
+        assert_eq!(result, "/ns/sub/topic");
+    }
+
+    // -----------------------------------------------------------------------
+    // QoS override is stored in builder entity.qos
+    // QoS defaults: Reliable, Volatile, KeepLast(10)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_qos_reliability_encoding() {
+        // Reliable is the default, BestEffort maps to protocol value
+        let best_effort = QosProfile {
+            reliability: crate::qos::QosReliability::BestEffort,
+            ..Default::default()
+        };
+        let proto = best_effort.to_protocol_qos();
+        assert_eq!(
+            proto.reliability,
+            ros_z_protocol::qos::QosReliability::BestEffort
+        );
+    }
+
+    #[test]
+    fn test_qos_durability_encoding() {
+        let transient = QosProfile {
+            durability: crate::qos::QosDurability::TransientLocal,
+            ..Default::default()
+        };
+        let proto = transient.to_protocol_qos();
+        assert_eq!(
+            proto.durability,
+            ros_z_protocol::qos::QosDurability::TransientLocal
+        );
+    }
+
+    #[test]
+    fn test_qos_keep_last_depth_preserved_in_protocol() {
+        use std::num::NonZeroUsize;
+        let qos = QosProfile {
+            history: crate::qos::QosHistory::KeepLast(NonZeroUsize::new(5).unwrap()),
+            ..Default::default()
+        };
+        let proto = qos.to_protocol_qos();
+        assert_eq!(proto.history, ros_z_protocol::qos::QosHistory::KeepLast(5));
     }
 }

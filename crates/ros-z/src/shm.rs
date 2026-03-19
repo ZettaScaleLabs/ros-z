@@ -438,6 +438,7 @@ impl ros_z_cdr::CdrBuffer for ShmWriter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
     fn test_shm_config_creation() {
@@ -475,7 +476,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Skip in parallel tests due to env var race conditions
+    #[serial]
     fn test_shm_config_from_env_none() {
         // Ensure env vars are not set
         unsafe {
@@ -488,10 +489,10 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Skip in parallel tests due to env var race conditions
+    #[serial]
     fn test_shm_config_from_env_with_size() {
         unsafe {
-            std::env::set_var("ZENOH_SHM_ALLOC_SIZE", "5242880"); // 5MB
+            std::env::set_var("ZENOH_SHM_ALLOC_SIZE", "1048576"); // 1MB — keep small for CI runners
             std::env::remove_var("ZENOH_SHM_MESSAGE_SIZE_THRESHOLD");
         }
 
@@ -507,10 +508,10 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Skip in parallel tests due to env var race conditions
+    #[serial]
     fn test_shm_config_from_env_full() {
         unsafe {
-            std::env::set_var("ZENOH_SHM_ALLOC_SIZE", "10485760"); // 10MB
+            std::env::set_var("ZENOH_SHM_ALLOC_SIZE", "1048576"); // 1MB — keep small for CI runners
             std::env::set_var("ZENOH_SHM_MESSAGE_SIZE_THRESHOLD", "2048");
         }
 

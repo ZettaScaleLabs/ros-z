@@ -196,6 +196,69 @@ jobs:
           nu scripts/test-pure-rust.nu test-shm
         shell: bash
 
+  coverage:
+    name: Code Coverage (ubuntu-latest)
+    runs-on: ubuntu-latest
+    continue-on-error: false
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          large-packages: true
+          tool-cache: false
+          android: false
+          dotnet: false
+          haskell: false
+          docker-images: false
+          swap-storage: false
+
+      - name: Install Determinate Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
+
+      - name: FlakeHub cache
+        uses: DeterminateSystems/flakehub-cache-action@main
+
+      - name: Install Nushell
+        run: nix profile install nixpkgs#nushell
+
+      - name: Setup nix environment
+        run: |
+          nix print-dev-env '.#pureRust-ci' --accept-flake-config > /tmp/nix-dev-env.sh
+          echo "export CI=true" >> /tmp/nix-dev-env.sh
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ubuntu-latest-coverage
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+
+      - name: Run coverage
+        run: |
+          source /tmp/nix-dev-env.sh
+          cargo llvm-cov \
+            -p ros-z -p ros-z-codegen -p ros-z-cdr -p ros-z-protocol -p ros-z-schema \
+            -j4 \
+            --lcov --output-path lcov.info
+        shell: bash
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
+
   no-ros-checks:
     name: ROS-independent Checks (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
