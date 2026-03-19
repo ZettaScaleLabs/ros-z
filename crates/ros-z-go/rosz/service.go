@@ -12,13 +12,20 @@ import (
 	"runtime"
 	"runtime/cgo"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unsafe"
 )
 
+// CGO opaque types are incomplete and cannot be used as type parameters.
+// These thin wrappers make atomic.Pointer usable with CGO handles.
+type cServiceClientHandle struct{ p *C.ros_z_service_client_t }
+type cServiceServerHandle struct{ p *C.ros_z_service_server_t }
+
 // Service represents a ROS 2 service (request/response pattern)
 type Service interface {
-	Message
+	TypeName() string
+	TypeHash() string
 	// GetRequest returns the request message type
 	GetRequest() Message
 	// GetResponse returns the response message type
@@ -27,7 +34,7 @@ type Service interface {
 
 // ServiceClient calls ROS 2 services
 type ServiceClient struct {
-	handle    *C.ros_z_service_client_t
+	handle    atomic.Pointer[cServiceClientHandle]
 	node      *Node
 	service   string
 	closeOnce sync.Once
@@ -35,7 +42,7 @@ type ServiceClient struct {
 
 // ServiceServer responds to ROS 2 service requests
 type ServiceServer struct {
-	handle    *C.ros_z_service_server_t
+	handle    atomic.Pointer[cServiceServerHandle]
 	node      *Node
 	service   string
 	closure   *serviceClosure
@@ -95,21 +102,26 @@ func (b *ServiceClientBuilder) Build(svc Service) (*ServiceClient, error) {
 	}
 
 	client := &ServiceClient{
-		handle:  handle,
 		node:    b.node,
 		service: b.service,
 	}
+	client.handle.Store(&cServiceClientHandle{p: handle})
 	runtime.SetFinalizer(client, (*ServiceClient).Close)
 
 	return client, nil
 }
 
-// CallRaw makes a synchronous service call with raw CDR bytes.
+// DefaultServiceTimeout is the default timeout used by Call.
+const DefaultServiceTimeout = 5 * time.Second
+
+// callRaw makes a synchronous service call with raw CDR bytes.
 // Returns the raw CDR response bytes.
-func (c *ServiceClient) CallRaw(requestBytes []byte, timeoutMs uint64) ([]byte, error) {
-	if c.handle == nil {
+func (c *ServiceClient) callRaw(requestBytes []byte, timeoutMs uint64) ([]byte, error) {
+	hw := c.handle.Load()
+	if hw == nil {
 		return nil, fmt.Errorf("service client is closed")
 	}
+	h := hw.p
 
 	if len(requestBytes) == 0 {
 		return nil, fmt.Errorf("empty request")
@@ -124,7 +136,7 @@ func (c *ServiceClient) CallRaw(requestBytes []byte, timeoutMs uint64) ([]byte, 
 	var respLen C.uintptr_t
 
 	result := C.ros_z_service_client_call(
-		c.handle,
+		h,
 		(*C.uint8_t)(unsafe.Pointer(&requestBytes[0])),
 		C.uintptr_t(len(requestBytes)),
 		&respPtr,
@@ -139,10 +151,10 @@ func (c *ServiceClient) CallRaw(requestBytes []byte, timeoutMs uint64) ([]byte, 
 	if result != 0 {
 		code := ErrorCode(result)
 		if code == ErrorCodeServiceTimeout {
-			return nil, NewRoszError(ErrorCodeServiceTimeout,
+			return nil, newRoszError(ErrorCodeServiceTimeout,
 				fmt.Sprintf("service[%s] call timed out", c.service))
 		}
-		return nil, NewRoszError(ErrorCodeServiceCallFailed,
+		return nil, newRoszError(ErrorCodeServiceCallFailed,
 			fmt.Sprintf("service[%s] call failed (rc=%d)", c.service, result))
 	}
 
@@ -152,20 +164,21 @@ func (c *ServiceClient) CallRaw(requestBytes []byte, timeoutMs uint64) ([]byte, 
 	return respBytes, nil
 }
 
-// Call makes a synchronous service call with a default 5 second timeout.
+// call makes a synchronous service call with a default timeout of DefaultServiceTimeout.
 // The request is serialized via CDR, sent, and the raw response bytes are returned.
-func (c *ServiceClient) Call(request Message) ([]byte, error) {
+// For typed responses use rosz.CallTyped(client, req, &resp).
+func (c *ServiceClient) call(request Message) ([]byte, error) {
 	reqBytes, err := request.SerializeCDR()
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize request: %w", err)
 	}
 
-	return c.CallRaw(reqBytes, 5000)
+	return c.callRaw(reqBytes, uint64(DefaultServiceTimeout.Milliseconds()))
 }
 
-// CallWithTimeout makes a synchronous service call with a custom timeout.
+// callWithTimeout makes a synchronous service call with a custom timeout.
 // The request is serialized via CDR, sent, and the raw response bytes are returned.
-func (c *ServiceClient) CallWithTimeout(request Message, timeout time.Duration) ([]byte, error) {
+func (c *ServiceClient) callWithTimeout(request Message, timeout time.Duration) ([]byte, error) {
 	reqBytes, err := request.SerializeCDR()
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize request: %w", err)
@@ -175,20 +188,21 @@ func (c *ServiceClient) CallWithTimeout(request Message, timeout time.Duration) 
 	if timeoutMs == 0 {
 		timeoutMs = 1
 	}
-	return c.CallRaw(reqBytes, timeoutMs)
+	return c.callRaw(reqBytes, timeoutMs)
 }
 
 // Close destroys the service client
 func (c *ServiceClient) Close() error {
 	var err error
 	c.closeOnce.Do(func() {
-		if c.handle == nil {
+		hw := c.handle.Load()
+		if hw == nil {
 			return
 		}
-		result := C.ros_z_service_client_destroy(c.handle)
-		c.handle = nil
+		c.handle.Store(nil)
+		result := C.ros_z_service_client_destroy(hw.p)
 		if result != 0 {
-			err = fmt.Errorf("service client close failed with code %d", result)
+			err = fmt.Errorf("service client close failed (rc=%d): %w", result, ErrCloseFailed)
 		}
 	})
 	return err
@@ -196,10 +210,11 @@ func (c *ServiceClient) Close() error {
 
 // serviceClosure wraps a service callback with pinning for safe C access
 type serviceClosure struct {
-	name     string // service name, for logging
-	callback func([]byte) ([]byte, error)
-	handle   cgo.Handle
-	pinner   *runtime.Pinner
+	name       string // service name, for logging
+	callback   func([]byte) ([]byte, error)
+	handle     cgo.Handle
+	selfHandle cgo.Handle // passed as userData to C; recover via cgo.Handle(userData).Value()
+	pinner     *runtime.Pinner
 }
 
 // newServiceClosure creates a pinned service closure
@@ -211,12 +226,14 @@ func newServiceClosure(name string, callback func([]byte) ([]byte, error)) *serv
 	}
 	sc.pinner = &runtime.Pinner{}
 	sc.pinner.Pin(sc)
+	sc.selfHandle = cgo.NewHandle(sc)
 	return sc
 }
 
 // drop cleans up the service closure
 func (sc *serviceClosure) drop() {
 	sc.handle.Delete()
+	sc.selfHandle.Delete()
 	sc.pinner.Unpin()
 }
 
@@ -246,7 +263,7 @@ func (b *ServiceServerBuilder) Build(svc Service, callback func([]byte) ([]byte,
 		C.getServiceCallback(),
 		// closure.pinner.Pin(closure) guarantees the struct address is stable,
 		// making this uintptr cast safe. Do not remove the Pin call above.
-		C.uintptr_t(uintptr(unsafe.Pointer(closure))),
+		C.uintptr_t(closure.selfHandle),
 	)
 
 	if handle == nil {
@@ -255,11 +272,11 @@ func (b *ServiceServerBuilder) Build(svc Service, callback func([]byte) ([]byte,
 	}
 
 	server := &ServiceServer{
-		handle:  handle,
 		node:    b.node,
 		service: b.service,
 		closure: closure,
 	}
+	server.handle.Store(&cServiceServerHandle{p: handle})
 	runtime.SetFinalizer(server, (*ServiceServer).Close)
 
 	return server, nil
@@ -269,17 +286,18 @@ func (b *ServiceServerBuilder) Build(svc Service, callback func([]byte) ([]byte,
 func (s *ServiceServer) Close() error {
 	var err error
 	s.closeOnce.Do(func() {
-		if s.handle == nil {
+		hw := s.handle.Load()
+		if hw == nil {
 			return
 		}
-		result := C.ros_z_service_server_destroy(s.handle)
-		s.handle = nil
+		s.handle.Store(nil)
+		result := C.ros_z_service_server_destroy(hw.p)
 		if s.closure != nil {
 			s.closure.drop()
 			s.closure = nil
 		}
 		if result != 0 {
-			err = fmt.Errorf("service server close failed with code %d", result)
+			err = fmt.Errorf("service server close failed (rc=%d): %w", result, ErrCloseFailed)
 		}
 	})
 	return err
@@ -288,7 +306,7 @@ func (s *ServiceServer) Close() error {
 //export goServiceCallback
 func goServiceCallback(userData C.uintptr_t, reqData *C.uint8_t, reqLen C.size_t, respData **C.uint8_t, respLen *C.size_t) (rc C.int32_t) {
 	// Cast userData back to serviceClosure pointer
-	closure := (*serviceClosure)(unsafe.Pointer(uintptr(userData)))
+	closure := cgo.Handle(userData).Value().(*serviceClosure)
 
 	// Copy request data to Go before entering safeCall.
 	goReqData := C.GoBytes(unsafe.Pointer(reqData), C.int(reqLen))
