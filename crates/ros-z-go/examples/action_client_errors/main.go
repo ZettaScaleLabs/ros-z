@@ -15,6 +15,7 @@ package main
 
 import (
 	"encoding/binary"
+	"errors"
 	"log"
 
 	"github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/generated/example_interfaces"
@@ -59,7 +60,7 @@ func main() {
 		if roszErr, ok := err.(rosz.RoszError); ok {
 			log.Printf("Goal failed with code %d: %s", roszErr.Code(), roszErr.Message())
 
-			if roszErr.IsRejected() {
+			if errors.Is(roszErr, rosz.ErrGoalRejected) {
 				log.Println("✗ Goal was rejected by the action server")
 				log.Println()
 				log.Println("Possible reasons for rejection:")
@@ -87,8 +88,8 @@ func main() {
 		log.Fatalf("Failed to send goal: %v", err)
 	}
 
-	log.Printf("✓ Goal accepted, ID: %x", goalHandle.GetGoalID())
-	log.Printf("  Status: %v", goalHandle.GetStatus())
+	log.Printf("✓ Goal accepted, ID: %x", goalHandle.GoalID())
+	log.Printf("  Status: %v", goalHandle.Status())
 	log.Printf("  IsActive: %v", goalHandle.IsActive())
 
 	// Get the result
@@ -136,7 +137,7 @@ func main() {
 
 	log.Println()
 	log.Println("Error handling patterns demonstrated:")
-	log.Println("  ✓ Goal rejection detection with IsRejected()")
+	log.Println("  ✓ Goal rejection detection with errors.Is(err, rosz.ErrGoalRejected)")
 	log.Println("  ✓ Result retrieval error handling")
 	log.Println("  ✓ Action-specific error codes")
 	log.Println("  ✓ Timeout detection")

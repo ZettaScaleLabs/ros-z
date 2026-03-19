@@ -53,7 +53,16 @@ type QosDuration struct {
 	Nsec uint64
 }
 
-// QosDurationInfinite returns an infinite duration (the default for QoS time constraints)
+// QosDurationInfinite returns an infinite duration (the default for QoS time constraints).
+//
+// The encoding follows the ROS 2 / DDS convention for "infinite" durations:
+// INT64_MAX nanoseconds split into seconds and nanoseconds components.
+//
+//	INT64_MAX = 9_223_372_036_854_775_807 ns
+//	         = 9_223_372_036 s  +  854_775_807 ns
+//
+// Both rmw_zenoh_cpp and rclcpp treat this specific value as "no deadline" /
+// "no lifespan" / "infinite lease". Do not substitute arbitrary large values.
 func QosDurationInfinite() QosDuration {
 	return QosDuration{Sec: 9223372036, Nsec: 854775807}
 }

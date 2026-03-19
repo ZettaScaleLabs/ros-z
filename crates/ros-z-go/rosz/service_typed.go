@@ -15,12 +15,12 @@ import (
 //	err := rosz.CallTyped(client, &example_interfaces.AddTwoIntsRequest{A: 1, B: 2}, resp)
 //	fmt.Println(resp.Sum)
 func CallTyped[Resp Message](client *ServiceClient, request Message, response Resp) error {
-	respBytes, err := client.Call(request)
+	respBytes, err := client.call(request)
 	if err != nil {
 		return err
 	}
 	if err := response.DeserializeCDR(respBytes); err != nil {
-		return NewRoszError(ErrorCodeDeserializationFailed, fmt.Sprintf("failed to deserialize response: %v", err))
+		return newRoszError(ErrorCodeDeserializationFailed, fmt.Sprintf("failed to deserialize response: %v", err))
 	}
 	return nil
 }
@@ -32,12 +32,12 @@ func CallTyped[Resp Message](client *ServiceClient, request Message, response Re
 //	resp := &example_interfaces.AddTwoIntsResponse{}
 //	err := rosz.CallTypedWithTimeout(client, req, resp, 10*time.Second)
 func CallTypedWithTimeout[Resp Message](client *ServiceClient, request Message, response Resp, timeout time.Duration) error {
-	respBytes, err := client.CallWithTimeout(request, timeout)
+	respBytes, err := client.callWithTimeout(request, timeout)
 	if err != nil {
 		return err
 	}
 	if err := response.DeserializeCDR(respBytes); err != nil {
-		return NewRoszError(ErrorCodeDeserializationFailed, fmt.Sprintf("failed to deserialize response: %v", err))
+		return newRoszError(ErrorCodeDeserializationFailed, fmt.Sprintf("failed to deserialize response: %v", err))
 	}
 	return nil
 }
