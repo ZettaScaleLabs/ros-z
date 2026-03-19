@@ -56,7 +56,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to send goal: %v", err)
 	}
-	log.Printf("Goal accepted, ID: %x", goalHandle.GetGoalID())
+	log.Printf("Goal accepted, ID: %x", goalHandle.GoalID())
 
 	// Get the result
 	resultBytes, err := goalHandle.GetResult()

@@ -104,10 +104,7 @@ func TestServiceInterface(t *testing.T) {
 
 type mockAction struct{}
 
-func (a *mockAction) TypeName() string                 { return "test/action/Mock" }
-func (a *mockAction) TypeHash() string                 { return "RIHS01_mock_action" }
-func (a *mockAction) SerializeCDR() ([]byte, error)    { return nil, nil }
-func (a *mockAction) DeserializeCDR(data []byte) error { return nil }
+func (a *mockAction) TypeName() string { return "test/action/Mock" }
 func (a *mockAction) GetGoal() Message {
 	return &MockMessage{typeName: "test/action/Mock_Goal", typeHash: "RIHS01_mock_goal"}
 }
@@ -117,6 +114,11 @@ func (a *mockAction) GetResult() Message {
 func (a *mockAction) GetFeedback() Message {
 	return &MockMessage{typeName: "test/action/Mock_Feedback", typeHash: "RIHS01_mock_feedback"}
 }
+func (a *mockAction) SendGoalHash() string        { return "RIHS01_mock_send_goal" }
+func (a *mockAction) GetResultHash() string       { return "RIHS01_mock_get_result" }
+func (a *mockAction) CancelGoalHash() string      { return "RIHS01_mock_cancel_goal" }
+func (a *mockAction) FeedbackMessageHash() string { return "RIHS01_mock_feedback_msg" }
+func (a *mockAction) StatusHash() string          { return "RIHS01_mock_status" }
 
 func TestActionInterface(t *testing.T) {
 	var _ Action = (*mockAction)(nil)
