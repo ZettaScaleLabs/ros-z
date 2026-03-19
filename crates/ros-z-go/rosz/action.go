@@ -18,32 +18,34 @@ import (
 	"unsafe"
 )
 
-// Action represents a ROS 2 action (goal/result/feedback pattern)
+// Action represents a ROS 2 action (goal/result/feedback pattern).
+// Implementations must provide sub-service hashes that match the compound RIHS01
+// values used by rmw_zenoh_cpp for its queryables and subscribers.
 type Action interface {
-	Message
+	TypeName() string
 	// GetGoal returns the goal message type
 	GetGoal() Message
 	// GetResult returns the result message type
 	GetResult() Message
 	// GetFeedback returns the feedback message type
 	GetFeedback() Message
-}
-
-// ActionSubServiceHashes provides compound RIHS01 type hashes for action sub-services.
-// Generated action types implement this interface so the client/server builders can
-// register Zenoh queryables and subscribers with hashes that match rmw_zenoh_cpp.
-type ActionSubServiceHashes interface {
-	// SendGoalHash is the compound hash for the SendGoal service (UUID + Goal).
+	// SendGoalHash returns the compound RIHS01 hash for the SendGoal service.
 	SendGoalHash() string
-	// GetResultHash is the compound hash for the GetResult service (UUID + Result).
+	// GetResultHash returns the compound RIHS01 hash for the GetResult service.
 	GetResultHash() string
-	// CancelGoalHash is the compound hash for the CancelGoal service.
+	// CancelGoalHash returns the compound RIHS01 hash for the CancelGoal service.
 	CancelGoalHash() string
-	// FeedbackMessageHash is the compound hash for the FeedbackMessage topic.
+	// FeedbackMessageHash returns the compound RIHS01 hash for the FeedbackMessage topic.
 	FeedbackMessageHash() string
-	// StatusHash is the compound hash for the GoalStatusArray topic.
+	// StatusHash returns the compound RIHS01 hash for the GoalStatusArray topic.
 	StatusHash() string
 }
+
+// CGO opaque types are incomplete and cannot be used as type parameters.
+// These thin wrappers make atomic.Pointer usable with CGO handles.
+type cGoalHandle struct{ p *C.ros_z_goal_handle_t }
+type cActionClientHandle struct{ p *C.ros_z_action_client_t }
+type cActionServerHandle struct{ p *C.ros_z_action_server_t }
 
 // GoalStatus represents the status of an action goal
 type GoalStatus int8
@@ -95,15 +97,15 @@ type GoalID [16]byte
 
 // GoalHandle represents a client-side handle to an active goal
 type GoalHandle struct {
-	handle    *C.ros_z_goal_handle_t
+	handle    atomic.Pointer[cGoalHandle]
 	client    *ActionClient
 	goalID    GoalID
 	status    atomic.Int32 // stores GoalStatus as int32
 	closeOnce sync.Once
 }
 
-// GetStatus returns the current status of the goal
-func (h *GoalHandle) GetStatus() GoalStatus {
+// Status returns the current status of the goal
+func (h *GoalHandle) Status() GoalStatus {
 	return GoalStatus(h.status.Load())
 }
 
@@ -112,30 +114,31 @@ func (h *GoalHandle) setStatus(s GoalStatus) {
 	h.status.Store(int32(s))
 }
 
-// GetGoalID returns the goal ID
-func (h *GoalHandle) GetGoalID() GoalID {
+// GoalID returns the goal ID
+func (h *GoalHandle) GoalID() GoalID {
 	return h.goalID
 }
 
 // IsActive returns true if the goal is in an active state
 func (h *GoalHandle) IsActive() bool {
-	return h.GetStatus().IsActive()
+	return h.Status().IsActive()
 }
 
 // IsTerminal returns true if the goal is in a terminal state
 func (h *GoalHandle) IsTerminal() bool {
-	return h.GetStatus().IsTerminal()
+	return h.Status().IsTerminal()
 }
 
 // Cancel requests cancellation of the goal
 func (h *GoalHandle) Cancel() error {
-	if h.handle == nil {
+	hw := h.handle.Load()
+	if hw == nil {
 		return fmt.Errorf("goal handle is closed")
 	}
 
-	result := C.ros_z_action_client_cancel_goal(h.handle)
+	result := C.ros_z_action_client_cancel_goal(hw.p)
 	if result != 0 {
-		return NewRoszError(ErrorCodeActionCancelFailed, fmt.Sprintf("failed to cancel goal with code %d", result))
+		return newRoszError(ErrorCodeActionCancelFailed, fmt.Sprintf("failed to cancel goal with code %d", result))
 	}
 	h.setStatus(GoalStatusCanceling)
 	return nil
@@ -149,12 +152,17 @@ func (h *GoalHandle) GetResult() ([]byte, error) {
 
 // GetResultWithContext waits for and returns the goal result as raw bytes.
 // The context can be used to set a deadline or cancel the wait.
-// Cancelling ctx causes this function to return ctx.Err() immediately,
-// but the underlying Rust call continues running in the background until
-// the action server responds or the action client is closed. Do not rely
-// on context cancellation to abort the server-side execution.
+//
+// Cancelling ctx causes this function to return ctx.Err() immediately, but
+// the underlying Rust call continues running until the action server responds
+// or the action client is closed. Do not rely on context cancellation to abort
+// server-side execution.
+//
+// Close() on the ActionClient blocks until all in-flight GetResultWithContext
+// goroutines have returned, preventing use-after-free of the C handle.
 func (h *GoalHandle) GetResultWithContext(ctx context.Context) ([]byte, error) {
-	if h.handle == nil {
+	hw := h.handle.Load()
+	if hw == nil {
 		return nil, fmt.Errorf("goal handle is closed")
 	}
 
@@ -164,18 +172,22 @@ func (h *GoalHandle) GetResultWithContext(ctx context.Context) ([]byte, error) {
 	}
 
 	ch := make(chan ffiResult, 1)
+	h.client.inflight.Add(1)
+	goalHandle := hw.p // capture before goroutine to avoid race with Close
 	go func() {
+		defer h.client.inflight.Done()
+
 		var resultPtr *C.uint8_t
 		var resultLen C.uintptr_t
 
 		result := C.ros_z_action_client_get_result(
-			h.handle,
+			goalHandle,
 			&resultPtr,
 			&resultLen,
 		)
 
 		if result != 0 {
-			ch <- ffiResult{nil, NewRoszError(ErrorCodeActionResultFailed, fmt.Sprintf("failed to get result with code %d", result))}
+			ch <- ffiResult{nil, newRoszError(ErrorCodeActionResultFailed, fmt.Sprintf("failed to get result with code %d", result))}
 			return
 		}
 
@@ -199,13 +211,13 @@ func (h *GoalHandle) GetResultWithContext(ctx context.Context) ([]byte, error) {
 func (h *GoalHandle) Close() error {
 	var err error
 	h.closeOnce.Do(func() {
-		if h.handle == nil {
+		hw := h.handle.Swap(nil)
+		if hw == nil {
 			return
 		}
-		result := C.ros_z_goal_handle_destroy(h.handle)
-		h.handle = nil
+		result := C.ros_z_goal_handle_destroy(hw.p)
 		if result != 0 {
-			err = fmt.Errorf("goal handle close failed with code %d", result)
+			err = fmt.Errorf("goal handle close failed (rc=%d): %w", result, ErrCloseFailed)
 		}
 	})
 	return err
@@ -213,15 +225,16 @@ func (h *GoalHandle) Close() error {
 
 // ActionClient sends goals to ROS 2 action servers
 type ActionClient struct {
-	handle    *C.ros_z_action_client_t
+	handle    atomic.Pointer[cActionClientHandle]
 	node      *Node
 	action    string
+	inflight  sync.WaitGroup // tracks goroutines blocked inside GetResultWithContext
 	closeOnce sync.Once
 }
 
 // ActionServer executes ROS 2 action goals and provides feedback
 type ActionServer struct {
-	handle    *C.ros_z_action_server_t
+	handle    atomic.Pointer[cActionServerHandle]
 	node      *Node
 	action    string
 	closure   *actionClosure
@@ -273,23 +286,13 @@ func (b *ActionClientBuilder) Build(action Action) (*ActionClient, error) {
 	feedbackTypeC := C.CString(action.GetFeedback().TypeName())
 	defer C.free(unsafe.Pointer(feedbackTypeC))
 
-	// Use compound sub-service hashes when available (generated types implement ActionSubServiceHashes).
+	// Use compound sub-service hashes from the Action interface.
 	// These match the RIHS01 hashes rmw_zenoh_cpp uses for its queryables/subscribers.
-	var sendGoalHash, getResultHash, feedbackMsgHash string
-	if hs, ok := action.(ActionSubServiceHashes); ok {
-		sendGoalHash = hs.SendGoalHash()
-		getResultHash = hs.GetResultHash()
-		feedbackMsgHash = hs.FeedbackMessageHash()
-	} else {
-		sendGoalHash = action.GetGoal().TypeHash()
-		getResultHash = action.GetResult().TypeHash()
-		feedbackMsgHash = action.GetFeedback().TypeHash()
-	}
-	goalHashC := C.CString(sendGoalHash)
+	goalHashC := C.CString(action.SendGoalHash())
 	defer C.free(unsafe.Pointer(goalHashC))
-	resultHashC := C.CString(getResultHash)
+	resultHashC := C.CString(action.GetResultHash())
 	defer C.free(unsafe.Pointer(resultHashC))
-	feedbackHashC := C.CString(feedbackMsgHash)
+	feedbackHashC := C.CString(action.FeedbackMessageHash())
 	defer C.free(unsafe.Pointer(feedbackHashC))
 
 	handle := C.ros_z_action_client_create(
@@ -306,10 +309,10 @@ func (b *ActionClientBuilder) Build(action Action) (*ActionClient, error) {
 	}
 
 	client := &ActionClient{
-		handle: handle,
 		node:   b.node,
 		action: b.action,
 	}
+	client.handle.Store(&cActionClientHandle{p: handle})
 	runtime.SetFinalizer(client, (*ActionClient).Close)
 
 	return client, nil
@@ -317,9 +320,11 @@ func (b *ActionClientBuilder) Build(action Action) (*ActionClient, error) {
 
 // SendGoal sends a goal to the action server and returns a goal handle
 func (c *ActionClient) SendGoal(goal Message) (*GoalHandle, error) {
-	if c.handle == nil {
+	hw := c.handle.Load()
+	if hw == nil {
 		return nil, fmt.Errorf("action client is closed")
 	}
+	h := hw.p
 
 	goalBytes, err := goal.SerializeCDR()
 	if err != nil {
@@ -339,7 +344,7 @@ func (c *ActionClient) SendGoal(goal Message) (*GoalHandle, error) {
 	var handlePtr *C.ros_z_goal_handle_t
 
 	result := C.ros_z_action_client_send_goal(
-		c.handle,
+		h,
 		(*C.uint8_t)(unsafe.Pointer(&goalBytes[0])),
 		C.uintptr_t(len(goalBytes)),
 		(*[16]C.uint8_t)(unsafe.Pointer(&goalID[0])),
@@ -348,9 +353,9 @@ func (c *ActionClient) SendGoal(goal Message) (*GoalHandle, error) {
 
 	if result != 0 {
 		if ErrorCode(result) == ErrorCodeActionGoalRejected {
-			return nil, NewRoszError(ErrorCodeActionGoalRejected, "goal was rejected by action server")
+			return nil, newRoszError(ErrorCodeActionGoalRejected, "goal was rejected by action server")
 		}
-		return nil, NewRoszError(ErrorCode(result), fmt.Sprintf("send goal failed with code %d", result))
+		return nil, newRoszError(ErrorCode(result), fmt.Sprintf("send goal failed with code %d", result))
 	}
 
 	var id GoalID
@@ -359,27 +364,31 @@ func (c *ActionClient) SendGoal(goal Message) (*GoalHandle, error) {
 	}
 
 	handle := &GoalHandle{
-		handle: handlePtr,
 		client: c,
 		goalID: id,
 	}
+	handle.handle.Store(&cGoalHandle{p: handlePtr})
 	handle.setStatus(GoalStatusAccepted)
 	runtime.SetFinalizer(handle, (*GoalHandle).Close)
 
 	return handle, nil
 }
 
-// Close destroys the action client
+// Close destroys the action client.
+// Blocks until all in-flight GetResultWithContext goroutines have returned
+// so that the C handle is never freed while a goroutine still holds it.
 func (c *ActionClient) Close() error {
 	var err error
 	c.closeOnce.Do(func() {
-		if c.handle == nil {
+		c.inflight.Wait() // drain goroutines before freeing handle
+		hw := c.handle.Load()
+		if hw == nil {
 			return
 		}
-		result := C.ros_z_action_client_destroy(c.handle)
-		c.handle = nil
+		c.handle.Store(nil)
+		result := C.ros_z_action_client_destroy(hw.p)
 		if result != 0 {
-			err = fmt.Errorf("action client close failed with code %d", result)
+			err = fmt.Errorf("action client close failed (rc=%d): %w", result, ErrCloseFailed)
 		}
 	})
 	return err
@@ -394,15 +403,17 @@ type ServerGoalHandle struct {
 // IsCancelRequested returns true if the client has requested cancellation of this goal.
 // Poll this in long-running execute callbacks to support cooperative cancellation.
 func (h *ServerGoalHandle) IsCancelRequested() bool {
-	if h.server.handle == nil {
+	sw := h.server.handle.Load()
+	if sw == nil {
 		return false
 	}
+	srv := sw.p
 	goalIDBytes := h.goalID
 	pinner := &runtime.Pinner{}
 	defer pinner.Unpin()
 	pinner.Pin(&goalIDBytes[0])
 	result := C.ros_z_action_server_is_cancel_requested(
-		h.server.handle,
+		srv,
 		(*[16]C.uint8_t)(unsafe.Pointer(&goalIDBytes[0])),
 	)
 	return result != 0
@@ -410,9 +421,11 @@ func (h *ServerGoalHandle) IsCancelRequested() bool {
 
 // PublishFeedback publishes feedback for the goal
 func (h *ServerGoalHandle) PublishFeedback(feedback Message) error {
-	if h.server.handle == nil {
+	sw := h.server.handle.Load()
+	if sw == nil {
 		return fmt.Errorf("action server is closed")
 	}
+	srv := sw.p
 
 	feedbackBytes, err := feedback.SerializeCDR()
 	if err != nil {
@@ -432,14 +445,14 @@ func (h *ServerGoalHandle) PublishFeedback(feedback Message) error {
 	pinner.Pin(&goalIDBytes[0])
 
 	result := C.ros_z_action_server_publish_feedback(
-		h.server.handle,
+		srv,
 		(*[16]C.uint8_t)(unsafe.Pointer(&goalIDBytes[0])),
 		(*C.uint8_t)(unsafe.Pointer(&feedbackBytes[0])),
 		C.uintptr_t(len(feedbackBytes)),
 	)
 
 	if result != 0 {
-		return NewRoszError(ErrorCodeActionFeedbackFailed, fmt.Sprintf("publish feedback failed with code %d", result))
+		return newRoszError(ErrorCodeActionFeedbackFailed, fmt.Sprintf("publish feedback failed with code %d", result))
 	}
 
 	return nil
@@ -461,9 +474,11 @@ func (h *ServerGoalHandle) Canceled(result Message) error {
 }
 
 func (h *ServerGoalHandle) storeResult(result Message, op int) error {
-	if h.server.handle == nil {
+	sw := h.server.handle.Load()
+	if sw == nil {
 		return fmt.Errorf("action server is closed")
 	}
+	srv := sw.p
 
 	resultBytes, err := result.SerializeCDR()
 	if err != nil {
@@ -490,11 +505,11 @@ func (h *ServerGoalHandle) storeResult(result Message, op int) error {
 	var res C.int32_t
 	switch op {
 	case 0:
-		res = C.ros_z_action_server_succeed(h.server.handle, goalIDPtr, dataPtr, dataLen)
+		res = C.ros_z_action_server_succeed(srv, goalIDPtr, dataPtr, dataLen)
 	case 1:
-		res = C.ros_z_action_server_abort(h.server.handle, goalIDPtr, dataPtr, dataLen)
+		res = C.ros_z_action_server_abort(srv, goalIDPtr, dataPtr, dataLen)
 	case 2:
-		res = C.ros_z_action_server_canceled(h.server.handle, goalIDPtr, dataPtr, dataLen)
+		res = C.ros_z_action_server_canceled(srv, goalIDPtr, dataPtr, dataLen)
 	}
 
 	if res != 0 {
@@ -511,6 +526,7 @@ type actionClosure struct {
 	executeCallback func(handle *ServerGoalHandle, goalData []byte) ([]byte, error)
 	goalHandle      cgo.Handle
 	executeHandle   cgo.Handle
+	selfHandle      cgo.Handle // passed as userData to C; recover via cgo.Handle(userData).Value()
 	pinner          *runtime.Pinner
 	server          *ActionServer // set after Build(), before any callbacks fire
 }
@@ -530,6 +546,7 @@ func newActionClosure(
 	}
 	ac.pinner = &runtime.Pinner{}
 	ac.pinner.Pin(ac)
+	ac.selfHandle = cgo.NewHandle(ac)
 	return ac
 }
 
@@ -537,6 +554,7 @@ func newActionClosure(
 func (ac *actionClosure) drop() {
 	ac.goalHandle.Delete()
 	ac.executeHandle.Delete()
+	ac.selfHandle.Delete()
 	ac.pinner.Unpin()
 }
 
@@ -564,23 +582,13 @@ func (b *ActionServerBuilder) Build(
 	feedbackTypeC := C.CString(action.GetFeedback().TypeName())
 	defer C.free(unsafe.Pointer(feedbackTypeC))
 
-	// Use compound sub-service hashes when available (generated types implement ActionSubServiceHashes).
+	// Use compound sub-service hashes from the Action interface.
 	// These match the RIHS01 hashes rmw_zenoh_cpp uses for its queryables/subscribers.
-	var sendGoalHash, getResultHash, feedbackMsgHash string
-	if hs, ok := action.(ActionSubServiceHashes); ok {
-		sendGoalHash = hs.SendGoalHash()
-		getResultHash = hs.GetResultHash()
-		feedbackMsgHash = hs.FeedbackMessageHash()
-	} else {
-		sendGoalHash = action.GetGoal().TypeHash()
-		getResultHash = action.GetResult().TypeHash()
-		feedbackMsgHash = action.GetFeedback().TypeHash()
-	}
-	goalHashC := C.CString(sendGoalHash)
+	goalHashC := C.CString(action.SendGoalHash())
 	defer C.free(unsafe.Pointer(goalHashC))
-	resultHashC := C.CString(getResultHash)
+	resultHashC := C.CString(action.GetResultHash())
 	defer C.free(unsafe.Pointer(resultHashC))
-	feedbackHashC := C.CString(feedbackMsgHash)
+	feedbackHashC := C.CString(action.FeedbackMessageHash())
 	defer C.free(unsafe.Pointer(feedbackHashC))
 
 	// Create pinned closure with both callbacks
@@ -610,7 +618,7 @@ func (b *ActionServerBuilder) Build(
 		C.getActionExecuteCallback(),
 		// closure.pinner.Pin(closure) guarantees the struct address is stable,
 		// making this uintptr cast safe. Do not remove the Pin call above.
-		C.uintptr_t(uintptr(unsafe.Pointer(closure))),
+		C.uintptr_t(closure.selfHandle),
 	)
 
 	if handle == nil {
@@ -618,7 +626,7 @@ func (b *ActionServerBuilder) Build(
 		return nil, fmt.Errorf("%w: action server for %s", ErrBuildFailed, b.action)
 	}
 
-	server.handle = handle
+	server.handle.Store(&cActionServerHandle{p: handle})
 	runtime.SetFinalizer(server, (*ActionServer).Close)
 
 	return server, nil
@@ -628,17 +636,18 @@ func (b *ActionServerBuilder) Build(
 func (s *ActionServer) Close() error {
 	var err error
 	s.closeOnce.Do(func() {
-		if s.handle == nil {
+		hw := s.handle.Load()
+		if hw == nil {
 			return
 		}
-		result := C.ros_z_action_server_destroy(s.handle)
-		s.handle = nil
+		s.handle.Store(nil)
+		result := C.ros_z_action_server_destroy(hw.p)
 		if s.closure != nil {
 			s.closure.drop()
 			s.closure = nil
 		}
 		if result != 0 {
-			err = fmt.Errorf("action server close failed with code %d", result)
+			err = fmt.Errorf("action server close failed (rc=%d): %w", result, ErrCloseFailed)
 		}
 	})
 	return err
@@ -647,7 +656,7 @@ func (s *ActionServer) Close() error {
 //export goActionGoalCallback
 func goActionGoalCallback(userData C.uintptr_t, goalData *C.uint8_t, goalLen C.size_t) (rc C.int32_t) {
 	// Cast userData back to actionClosure pointer
-	closure := (*actionClosure)(unsafe.Pointer(uintptr(userData)))
+	closure := cgo.Handle(userData).Value().(*actionClosure)
 
 	// Copy goal data to Go before entering safeCall.
 	goGoalData := C.GoBytes(unsafe.Pointer(goalData), C.int(goalLen))
@@ -679,7 +688,7 @@ func goActionExecuteCallback(
 	resultLen *C.size_t,
 ) (rc C.int32_t) {
 	// Cast userData back to actionClosure pointer
-	closure := (*actionClosure)(unsafe.Pointer(uintptr(userData)))
+	closure := cgo.Handle(userData).Value().(*actionClosure)
 
 	// Extract goal ID (16 bytes) and copy goal data before entering safeCall.
 	goalIDSlice := C.GoBytes(unsafe.Pointer(goalIDPtr), 16)
