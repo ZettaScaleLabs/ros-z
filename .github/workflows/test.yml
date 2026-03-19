@@ -61,7 +61,14 @@ jobs:
           key: apt-${{ matrix.distro }}-v3-${{ hashFiles('.github/workflows/test.yml') }}
 
       - name: Install system dependencies
-        run: apt-get update && apt-get install -y nodejs nushell
+        run: apt-get update && apt-get install -y nodejs
+
+      - name: Install Nushell
+        run: |
+          NU_VERSION=0.102.0
+          ARCH=$(uname -m | sed 's/x86_64/x86_64/;s/aarch64/aarch64/')
+          curl -fsSL "https://github.com/nushell/nushell/releases/download/${NU_VERSION}/nu-${NU_VERSION}-${ARCH}-unknown-linux-gnu.tar.gz" \
+            | tar -xz -C /usr/local/bin --strip-components=1 "nu-${NU_VERSION}-${ARCH}-unknown-linux-gnu/nu"
 
       - name: Install ROS dependencies
         run: |
