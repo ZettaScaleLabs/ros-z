@@ -5,13 +5,18 @@
 
 mod common;
 
+use std::{thread, time::Duration};
+
 use common::*;
 use ros_z::{
     Builder,
     parameter::{
-        Parameter, ParameterDescriptor, ParameterType, ParameterValue, SetParametersResult,
+        Parameter, ParameterDescriptor, ParameterTarget, ParameterType, ParameterValue,
+        SetParametersResult,
+        wire_types::{WireParameterEvent, parameter_event_type_info},
     },
 };
+use serial_test::serial;
 
 // ── Local API tests (no ros-z-msgs required) ─────────────────────────────────
 
@@ -300,6 +305,188 @@ fn test_parameter_event_published_on_set() {
     assert!(event.deleted_parameters.is_empty());
 }
 
+/// Test the high-level parameter client, including get_types and atomic set.
+#[test]
+#[serial]
+fn test_parameter_client_high_level_api() {
+    let router = TestRouter::new();
+
+    let endpoint = router.endpoint().to_string();
+    thread::spawn(move || {
+        let ctx = create_ros_z_context_with_endpoint(&endpoint).expect("ctx");
+        let node = ctx
+            .create_node("high_level_param_server")
+            .build()
+            .expect("node");
+
+        for (name, value) in [("count", 7_i64), ("limit", 3_i64)] {
+            let desc = ParameterDescriptor::new(name, ParameterType::Integer);
+            node.declare_parameter(name, ParameterValue::Integer(value), desc)
+                .expect("declare");
+        }
+
+        node.on_set_parameters(|params| {
+            for param in params {
+                if let ParameterValue::Integer(value) = param.value
+                    && value > 10
+                {
+                    return SetParametersResult::failure(format!(
+                        "{} exceeds maximum 10",
+                        param.name
+                    ));
+                }
+            }
+            SetParametersResult::success()
+        });
+
+        thread::sleep(Duration::from_secs(30));
+    });
+
+    wait_for_ready(Duration::from_secs(2));
+
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        let ctx = create_ros_z_context_with_router(&router).expect("ctx");
+        let client_node = ctx
+            .create_node("high_level_param_client")
+            .build()
+            .expect("node");
+        let client = client_node
+            .create_parameter_client(
+                ParameterTarget::from_fqn("/high_level_param_server").expect("target"),
+            )
+            .build()
+            .expect("client");
+
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        assert_eq!(
+            client.get(&["count"]).await.expect("get"),
+            vec![ParameterValue::Integer(7)]
+        );
+        assert_eq!(
+            client
+                .get_types(&["count", "missing"])
+                .await
+                .expect("types"),
+            vec![ParameterType::Integer, ParameterType::NotSet]
+        );
+
+        let listed = client.list(&[""], None).await.expect("list");
+        assert!(listed.names.contains(&"count".to_string()));
+        assert!(listed.names.contains(&"limit".to_string()));
+
+        let described = client.describe(&["count"]).await.expect("describe");
+        assert_eq!(described.len(), 1);
+        assert_eq!(described[0].name, "count");
+        assert_eq!(described[0].type_, ParameterType::Integer);
+
+        let set_results = client
+            .set(&[Parameter::new("count", ParameterValue::Integer(9))])
+            .await
+            .expect("set");
+        assert_eq!(set_results, vec![SetParametersResult::success()]);
+        assert_eq!(
+            client.get(&["count"]).await.expect("get"),
+            vec![ParameterValue::Integer(9)]
+        );
+
+        let atomic = client
+            .set_atomically(&[
+                Parameter::new("count", ParameterValue::Integer(11)),
+                Parameter::new("limit", ParameterValue::Integer(4)),
+            ])
+            .await
+            .expect("atomic set");
+        assert!(!atomic.successful);
+        assert!(atomic.reason.contains("maximum"));
+        assert_eq!(
+            client.get(&["count", "limit"]).await.expect("get"),
+            vec![ParameterValue::Integer(9), ParameterValue::Integer(3)]
+        );
+    });
+}
+
+#[test]
+fn test_parameter_client_builder_fails_early_for_invalid_target() {
+    let router = TestRouter::new();
+    let ctx = create_ros_z_context_with_router(&router).expect("context");
+    let node = ctx
+        .create_node("invalid_param_client")
+        .build()
+        .expect("node");
+
+    let result = node
+        .create_parameter_client(ParameterTarget::new("/", "bad name"))
+        .build();
+    assert!(
+        result.is_err(),
+        "builder should fail before returning a client"
+    );
+}
+
+/// Test parameter events for declare, set, and undeclare operations.
+#[test]
+fn test_parameter_events_cover_lifecycle() {
+    let router = TestRouter::new();
+    let ctx = create_ros_z_context_with_router(&router).expect("context");
+    let server = ctx
+        .create_node("param_event_server")
+        .build()
+        .expect("server");
+    let observer = ctx
+        .create_node("param_event_observer")
+        .build()
+        .expect("observer");
+
+    let events = observer
+        .create_sub_impl::<WireParameterEvent>(
+            "/parameter_events",
+            Some(parameter_event_type_info()),
+        )
+        .build()
+        .expect("event subscriber");
+
+    wait_for_ready(Duration::from_millis(500));
+
+    server
+        .declare_parameter(
+            "count",
+            ParameterValue::Integer(1),
+            ParameterDescriptor::new("count", ParameterType::Integer),
+        )
+        .expect("declare");
+    let declared = events
+        .recv_timeout(Duration::from_secs(2))
+        .expect("declare event");
+    assert_eq!(declared.node, "/param_event_server");
+    assert_eq!(declared.new_parameters.len(), 1);
+    assert_eq!(declared.new_parameters[0].name, "count");
+    assert!(declared.changed_parameters.is_empty());
+    assert!(declared.deleted_parameters.is_empty());
+
+    server
+        .set_parameter(Parameter::new("count", ParameterValue::Integer(2)))
+        .expect("set");
+    let changed = events
+        .recv_timeout(Duration::from_secs(2))
+        .expect("change event");
+    assert!(changed.new_parameters.is_empty());
+    assert_eq!(changed.changed_parameters.len(), 1);
+    assert_eq!(changed.changed_parameters[0].name, "count");
+    assert!(changed.deleted_parameters.is_empty());
+
+    server.undeclare_parameter("count").expect("undeclare");
+    let deleted = events
+        .recv_timeout(Duration::from_secs(2))
+        .expect("delete event");
+    assert!(deleted.new_parameters.is_empty());
+    assert!(deleted.changed_parameters.is_empty());
+    assert_eq!(deleted.deleted_parameters.len(), 1);
+    assert_eq!(deleted.deleted_parameters[0].name, "count");
+    assert_eq!(deleted.deleted_parameters[0].value.integer_value, 2);
+}
+
 // ── Service client tests (require ros-msgs feature) ────────────────────────
 
 #[cfg(feature = "ros-msgs")]
@@ -322,6 +509,7 @@ mod service_tests {
 
     /// Test parameter services via ros-z client: get/set/list/describe.
     #[test]
+    #[serial]
     fn test_parameter_services_get_and_set() {
         let router = TestRouter::new();
 
@@ -393,9 +581,11 @@ mod service_tests {
                 .build()
                 .expect("set client");
 
-            let mut wire_value = rcl_interfaces::ParameterValue::default();
-            wire_value.r#type = 2;
-            wire_value.integer_value = 42;
+            let wire_value = rcl_interfaces::ParameterValue {
+                r#type: 2,
+                integer_value: 42,
+                ..Default::default()
+            };
 
             set_client
                 .send_request(&SetParametersRequest {
@@ -471,6 +661,7 @@ mod service_tests {
     /// original values. This exercises validate_and_apply(atomic=true) with a
     /// user callback veto — a branch not covered by any other test.
     #[test]
+    #[serial]
     fn test_set_parameters_atomically_rollback_on_callback_rejection() {
         let router = TestRouter::new();
 
@@ -481,7 +672,7 @@ mod service_tests {
 
             for (name, val) in &[("a", 1i64), ("b", 2i64)] {
                 let desc = ParameterDescriptor::new(*name, ParameterType::Integer);
-                node.declare_parameter(*name, ParameterValue::Integer(*val), desc)
+                node.declare_parameter(name, ParameterValue::Integer(*val), desc)
                     .expect("declare");
             }
 
@@ -505,9 +696,11 @@ mod service_tests {
             tokio::time::sleep(Duration::from_millis(500)).await;
 
             let make_int = |name: &str, v: i64| {
-                let mut wire = rcl_interfaces::ParameterValue::default();
-                wire.r#type = 2;
-                wire.integer_value = v;
+                let wire = rcl_interfaces::ParameterValue {
+                    r#type: 2,
+                    integer_value: v,
+                    ..Default::default()
+                };
                 rcl_interfaces::Parameter {
                     name: name.to_string(),
                     value: wire,
@@ -568,6 +761,7 @@ mod service_tests {
 
     /// Test set_parameters_atomically.
     #[test]
+    #[serial]
     fn test_set_parameters_atomically() {
         let router = TestRouter::new();
 
@@ -578,7 +772,7 @@ mod service_tests {
 
             for (name, val) in &[("a", 1i64), ("b", 2i64)] {
                 let desc = ParameterDescriptor::new(*name, ParameterType::Integer);
-                node.declare_parameter(*name, ParameterValue::Integer(*val), desc)
+                node.declare_parameter(name, ParameterValue::Integer(*val), desc)
                     .expect("declare");
             }
 
@@ -601,9 +795,11 @@ mod service_tests {
                 .expect("atomic client");
 
             let make_int = |name: &str, v: i64| {
-                let mut wire = rcl_interfaces::ParameterValue::default();
-                wire.r#type = 2;
-                wire.integer_value = v;
+                let wire = rcl_interfaces::ParameterValue {
+                    r#type: 2,
+                    integer_value: v,
+                    ..Default::default()
+                };
                 rcl_interfaces::Parameter {
                     name: name.to_string(),
                     value: wire,

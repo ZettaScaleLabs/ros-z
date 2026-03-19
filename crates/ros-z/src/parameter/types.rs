@@ -11,6 +11,7 @@ use crate::ZBuf;
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ParameterType {
+    /// A declared parameter whose current value is unset.
     NotSet,
     Bool,
     Integer,
@@ -63,6 +64,10 @@ impl TryFrom<u8> for ParameterType {
 /// A typed parameter value.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub enum ParameterValue {
+    /// An unset value for a declared parameter.
+    ///
+    /// In ros-z this does not undeclare the parameter; use
+    /// `ZNode::undeclare_parameter` for deletion.
     #[default]
     NotSet,
     Bool(bool),
@@ -147,6 +152,7 @@ pub struct Parameter {
 }
 
 impl Parameter {
+    /// Create a parameter name/value pair for local or remote updates.
     pub fn new(name: impl Into<std::string::String>, value: ParameterValue) -> Self {
         Self {
             name: name.into(),
@@ -305,6 +311,7 @@ pub struct SetParametersResult {
 }
 
 impl SetParametersResult {
+    /// Construct a successful parameter update result.
     pub fn success() -> Self {
         Self {
             successful: true,
@@ -312,6 +319,7 @@ impl SetParametersResult {
         }
     }
 
+    /// Construct a failed parameter update result with a reason string.
     pub fn failure(reason: impl Into<std::string::String>) -> Self {
         Self {
             successful: false,

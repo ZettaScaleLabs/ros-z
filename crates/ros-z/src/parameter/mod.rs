@@ -27,12 +27,14 @@
 //! └──────────────────────────────────────────────────────────────┘
 //! ```
 
+pub mod client;
 pub mod service;
 pub mod store;
 pub mod types;
 pub mod wire_types;
 pub mod yaml;
 
+pub use client::{ParameterClient, ParameterClientBuilder, ParameterList, ParameterTarget};
 pub use service::ParameterService;
 pub use types::{
     FloatingPointRange, IntegerRange, Parameter, ParameterDescriptor, ParameterType,

@@ -1,0 +1,79 @@
+use std::collections::HashMap;
+
+use ros_z::{
+    Builder, Result,
+    context::ZContextBuilder,
+    parameter::{ParameterDescriptor, ParameterType, ParameterValue},
+};
+
+fn main() -> Result<()> {
+    zenoh::init_log_from_env_or("error");
+    let ctx = ZContextBuilder::default().build()?;
+
+    println!("\n=== YAML Parameter Loading Demo ===\n");
+
+    let yaml = r#"
+/**:
+  ros__parameters:
+    global_timeout: 5.0
+    debug: true
+
+/yaml_demo:
+  ros__parameters:
+    sensor_rate: 100
+    device_name: "lidar_front"
+"#;
+
+    let path = std::env::temp_dir().join("ros_z_param_demo.yaml");
+    std::fs::write(&path, yaml).expect("write yaml");
+    println!("YAML written to {}", path.display());
+
+    let node = ctx
+        .create_node("yaml_demo")
+        .with_parameter_file(&path)
+        .expect("parse yaml")
+        .build()?;
+
+    for (name, ty, default) in [
+        (
+            "global_timeout",
+            ParameterType::Double,
+            ParameterValue::Double(1.0),
+        ),
+        ("debug", ParameterType::Bool, ParameterValue::Bool(false)),
+        (
+            "sensor_rate",
+            ParameterType::Integer,
+            ParameterValue::Integer(10),
+        ),
+        (
+            "device_name",
+            ParameterType::String,
+            ParameterValue::String("unknown".into()),
+        ),
+    ] {
+        let desc = ParameterDescriptor::new(name, ty);
+        let value = node
+            .declare_parameter(name, default, desc)
+            .expect("declare");
+        println!("{} = {:?}", name, value);
+    }
+
+    println!("\n--- Programmatic overrides ---");
+
+    let mut overrides = HashMap::new();
+    overrides.insert("count".to_string(), ParameterValue::Integer(99));
+
+    let node2 = ctx
+        .create_node("override_demo")
+        .with_parameter_overrides(overrides)
+        .build()?;
+
+    let desc = ParameterDescriptor::new("count", ParameterType::Integer);
+    let value = node2
+        .declare_parameter("count", ParameterValue::Integer(0), desc)
+        .expect("declare");
+    println!("count = {:?} (default was 0, override is 99)", value);
+
+    Ok(())
+}

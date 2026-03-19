@@ -42,8 +42,9 @@ pub use crate::cache::{ExtractorStamp, ZCache, ZCacheBuilder, ZenohStamp};
 
 /// Parameter types for ROS 2-compatible node parameters.
 pub use crate::parameter::{
-    FloatingPointRange, IntegerRange, Parameter, ParameterDescriptor, ParameterType,
-    ParameterValue, SetParametersResult,
+    FloatingPointRange, IntegerRange, Parameter, ParameterClient, ParameterClientBuilder,
+    ParameterDescriptor, ParameterList, ParameterTarget, ParameterType, ParameterValue,
+    SetParametersResult,
 };
 
 /// The `Result` alias used throughout ros-z (equivalent to `zenoh::Result`).
