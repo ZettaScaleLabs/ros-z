@@ -68,8 +68,9 @@ jobs:
         run: |
           NU_VERSION=0.102.0
           ARCH=$(uname -m | sed 's/x86_64/x86_64/;s/aarch64/aarch64/')
-          curl -fsSL "https://github.com/nushell/nushell/releases/download/${NU_VERSION}/nu-${NU_VERSION}-${ARCH}-unknown-linux-gnu.tar.gz" \
-            | tar -xz -C /usr/local/bin --strip-components=1 "nu-${NU_VERSION}-${ARCH}-unknown-linux-gnu/nu"
+          NU_TARBALL="nu-${NU_VERSION}-${ARCH}-unknown-linux-gnu"
+          curl -fsSL "https://github.com/nushell/nushell/releases/download/${NU_VERSION}/${NU_TARBALL}.tar.gz" \
+            | tar -xz -C /usr/local/bin --strip-components=1 "${NU_TARBALL}/nu"
 
       - name: Install ROS dependencies
         run: |
