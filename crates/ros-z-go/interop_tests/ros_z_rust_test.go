@@ -310,9 +310,9 @@ func TestGoServiceClientToRustServer(t *testing.T) {
 	// Retry until Rust server is reachable (deterministic readiness check)
 	req := &example_interfaces.AddTwoIntsRequest{A: 12, B: 30}
 	deadline := time.Now().Add(30 * time.Second)
-	var respBytes []byte
+	var resp example_interfaces.AddTwoIntsResponse
 	for {
-		respBytes, err = client.Call(req)
+		err = rosz.CallTyped(client, req, &resp)
 		if err == nil {
 			break
 		}
@@ -320,11 +320,6 @@ func TestGoServiceClientToRustServer(t *testing.T) {
 			t.Fatalf("Service call failed after 30s: %v", err)
 		}
 		time.Sleep(200 * time.Millisecond)
-	}
-
-	var resp example_interfaces.AddTwoIntsResponse
-	if err := resp.DeserializeCDR(respBytes); err != nil {
-		t.Fatalf("Failed to deserialize response: %v", err)
 	}
 
 	if resp.Sum != 42 {
@@ -384,7 +379,7 @@ func TestRustServiceClientToGoServer(t *testing.T) {
 
 	deadline := time.Now().Add(15 * time.Second)
 	for {
-		_, err := selfClient.Call(&example_interfaces.AddTwoIntsRequest{A: 1, B: 1})
+		err := rosz.CallTyped(selfClient, &example_interfaces.AddTwoIntsRequest{A: 1, B: 1}, &example_interfaces.AddTwoIntsResponse{})
 		if err == nil {
 			break
 		}
