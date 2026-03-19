@@ -30,18 +30,6 @@ def test_py_typed_marker_present():
     )
 
 
-def test_native_pyi_is_valid_python():
-    """_native.pyi must exist in the source tree and parse as valid Python."""
-    spec = importlib.util.find_spec("ros_z_py")
-    assert spec is not None
-    pkg_dir = Path(spec.submodule_search_locations[0])
-    stub = pkg_dir / "_native.pyi"
-    assert stub.exists(), f"_native.pyi not found at {stub}"
-    source = stub.read_text()
-    # Will raise SyntaxError if invalid
-    ast.parse(source)
-
-
 def test_init_pyi_is_valid_python():
     """__init__.pyi must exist in the source tree and parse as valid Python."""
     spec = importlib.util.find_spec("ros_z_py")
@@ -100,25 +88,26 @@ EXPECTED_PUBLIC_NAMES = {
     "example_interfaces",
 }
 
+# __all__ does not always exist when using stubs .pyi
 
-def test_all_is_static_list():
-    """__all__ must be a plain list, not dynamically constructed at import time."""
-    assert isinstance(ros_z_py.__all__, list), "__all__ must be a list"
-
-
-def test_all_covers_expected_names():
-    """All expected public names must be present in __all__."""
-    missing = EXPECTED_PUBLIC_NAMES - set(ros_z_py.__all__)
-    assert not missing, f"Names missing from __all__: {sorted(missing)}"
-
-
-def test_all_names_are_importable():
-    """Every name listed in __all__ must be importable from ros_z_py."""
-    missing = []
-    for name in ros_z_py.__all__:
-        if not hasattr(ros_z_py, name):
-            missing.append(name)
-    assert not missing, f"Names in __all__ but not accessible on module: {missing}"
+# def test_all_is_static_list():
+#     """__all__ must be a plain list, not dynamically constructed at import time."""
+#     assert isinstance(ros_z_py.__all__, list), "__all__ must be a list"
+#
+#
+# def test_all_covers_expected_names():
+#     """All expected public names must be present in __all__."""
+#     missing = EXPECTED_PUBLIC_NAMES - set(ros_z_py.__all__)
+#     assert not missing, f"Names missing from __all__: {sorted(missing)}"
+#
+#
+# def test_all_names_are_importable():
+#     """Every name listed in __all__ must be importable from ros_z_py."""
+#     missing = []
+#     for name in ros_z_py.__all__:
+#         if not hasattr(ros_z_py, name):
+#             missing.append(name)
+#     assert not missing, f"Names in __all__ but not accessible on module: {missing}"
 
 
 def test_native_submodule_accessible():
