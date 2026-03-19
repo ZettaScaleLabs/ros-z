@@ -128,21 +128,20 @@ test-rust:
 # Pure Go tests: no FFI, no external dependencies
 # Covers: testdata serialization, codegen unit tests
 test-go-pure:
-    @echo "=== Go pure tests (no FFI) ==="
-    @echo "--- codegen tests ---"
-    cd {{workspace_root}}/crates/ros-z-codegen-go && go test -v ./...
-    @echo "--- testdata serialization tests ---"
-    cd {{justfile_directory()}}/testdata && go test -v .
+    cd {{workspace_root}} && nu scripts/test-go.nu --codegen-only
 
 # Go FFI unit tests: requires libros_z.a
 # Covers: rosz package (types, callback registry, service/action interfaces)
-# Optional filter: just test-go-ffi TestCallbackSubscriber
-test-go-ffi filter=".": build-rust
-    @echo "=== Go FFI unit tests ==="
-    CGO_LDFLAGS="{{cgo_ldflags}}" go test -v -run "{{filter}}" ./rosz/...
+test-go-ffi: build-rust
+    cd {{workspace_root}} && nu scripts/test-go.nu --ffi-only
 
-# All non-integration Go tests (pure + FFI)
-test-go: test-go-pure test-go-ffi
+# Static analysis: go vet across all Go packages
+# Does not require libros_z.a — vet parses and type-checks without linking
+vet-go:
+    cd {{workspace_root}} && nu scripts/test-go.nu --vet-only
+
+# All non-integration Go tests (pure + vet + FFI)
+test-go: test-go-pure vet-go test-go-ffi
 
 # Build Rust example binaries used by Go↔Rust interop tests
 build-rust-examples:

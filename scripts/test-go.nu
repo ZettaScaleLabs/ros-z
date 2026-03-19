@@ -120,9 +120,16 @@ def test-runtime [] {
 
     # FFI tests (requires compiled Rust library)
     if (has-ffi-library) {
+        let lib_dir = if ("target/release/libros_z.a" | path exists) {
+            $"(pwd)/target/release"
+        } else {
+            $"(pwd)/target/debug"
+        }
         log-step "Running rosz FFI tests (QoS, types, handlers, subscribers)"
         cd $RUNTIME_DIR
-        let ffi_result = (go test -v -count=1 ./rosz/ | complete)
+        let ffi_result = (with-env {CGO_LDFLAGS: $"-L($lib_dir)"} {
+            go test -v -count=1 ./rosz/ | complete
+        })
         if $ffi_result.exit_code != 0 {
             print "❌ rosz FFI tests failed:"
             print $ffi_result.stdout
@@ -161,12 +168,14 @@ def test-integration [--race] {
     }
 
     if not (has-zenohd) {
-        log-warning "Skipping integration tests (zenohd not on PATH)"
-        print "   Install: cargo install zenohd"
-        return
+        log-warning "zenohd not on PATH — tests will use compiled zenoh_router example instead"
     }
 
-    let cgo_flags = $"-L(pwd)/target/release"
+    let lib_dir = if ("target/release/libros_z.a" | path exists) {
+        $"(pwd)/target/release"
+    } else {
+        $"(pwd)/target/debug"
+    }
 
     # Report Go↔Rust test status
     if (has-rust-examples) {
@@ -178,10 +187,9 @@ def test-integration [--race] {
 
     cd $RUNTIME_DIR
     let flags = if $race { ["-race"] } else { [] }
-    let result = (
-        CGO_LDFLAGS=$cgo_flags go test -v -tags integration ...$flags -count=1 ./interop_tests/...
-        | complete
-    )
+    let result = (with-env {CGO_LDFLAGS: $"-L($lib_dir)"} {
+        go test -v -tags integration ...$flags -count=1 -timeout 300s ./interop_tests/... | complete
+    })
     cd ../..
 
     if $result.exit_code != 0 {
@@ -262,6 +270,7 @@ def test-examples [] {
 }
 
 # Run go vet for static analysis
+# go vet does not link, so no FFI library is required — even for CGO packages
 def test-vet [] {
     log-step "Running go vet (static analysis)"
 
@@ -270,57 +279,46 @@ def test-vet [] {
     cd $CODEGEN_DIR
     let vet_result = (go vet ./... | complete)
     if $vet_result.exit_code != 0 {
-        print "⚠️  Code generator has vet warnings:"
+        print "❌ Code generator failed go vet:"
         print $vet_result.stderr
-    } else {
-        log-success "Code generator passes go vet"
+        exit 1
     }
+    log-success "Code generator passes go vet"
     cd ../..
 
-    # Vet runtime library — scope depends on FFI availability
-    if (has-ffi-library) {
-        log-step "Vetting runtime library (including rosz FFI)"
-        cd $RUNTIME_DIR
-        # vet rosz separately since it needs CGO
-        let vet_rosz = (go vet ./rosz/ | complete)
-        if $vet_rosz.exit_code != 0 {
-            print "⚠️  rosz package has vet warnings:"
-            print $vet_rosz.stderr
-        } else {
-            log-success "rosz package passes go vet"
-        }
-
-        let vet_testdata = (go vet ./testdata/ | complete)
-        if $vet_testdata.exit_code != 0 {
-            print "⚠️  testdata package has vet warnings:"
-            print $vet_testdata.stderr
-        } else {
-            log-success "testdata package passes go vet"
-        }
-
-        # Vet generated message packages if they exist
-        if ("generated" | path exists) {
-            let vet_gen = (go vet ./generated/... | complete)
-            if $vet_gen.exit_code != 0 {
-                print "⚠️  generated packages have vet warnings:"
-                print $vet_gen.stderr
-            } else {
-                log-success "generated packages pass go vet"
-            }
-        }
-        cd ../..
-    } else {
-        log-step "Vetting runtime library (testdata only — no FFI library)"
-        cd $RUNTIME_DIR
-        let vet_result = (go vet ./testdata/ | complete)
-        if $vet_result.exit_code != 0 {
-            print "⚠️  Runtime library has vet warnings:"
-            print $vet_result.stderr
-        } else {
-            log-success "Runtime library passes go vet"
-        }
-        cd ../..
+    # Vet runtime library packages
+    # rosz uses CGO but go vet does not link — no libros_z.a needed
+    log-step "Vetting rosz package"
+    cd $RUNTIME_DIR
+    let vet_rosz = (go vet ./rosz/... | complete)
+    if $vet_rosz.exit_code != 0 {
+        print "❌ rosz package failed go vet:"
+        print $vet_rosz.stderr
+        exit 1
     }
+    log-success "rosz package passes go vet"
+
+    log-step "Vetting testdata package"
+    let vet_testdata = (go vet ./testdata/ | complete)
+    if $vet_testdata.exit_code != 0 {
+        print "❌ testdata package failed go vet:"
+        print $vet_testdata.stderr
+        exit 1
+    }
+    log-success "testdata package passes go vet"
+
+    # Vet generated message packages if they exist
+    if ("generated" | path exists) {
+        log-step "Vetting generated packages"
+        let vet_gen = (go vet ./generated/... | complete)
+        if $vet_gen.exit_code != 0 {
+            print "❌ generated packages failed go vet:"
+            print $vet_gen.stderr
+            exit 1
+        }
+        log-success "generated packages pass go vet"
+    }
+    cd ../..
 }
 
 # ============================================================================

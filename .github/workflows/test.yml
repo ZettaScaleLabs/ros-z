@@ -62,7 +62,7 @@ jobs:
           restore-keys: apt-${{ matrix.distro }}-
 
       - name: Install system dependencies
-        run: apt-get update && apt-get install -y nodejs
+        run: apt-get update && apt-get install -y nodejs nushell
 
       - name: Install ROS dependencies
         run: |
@@ -142,12 +142,12 @@ jobs:
             -output ../ros-z-go/generated \
             -prefix github.com/ZettaScaleLabs/ros-z/crates/ros-z-go
 
+      - name: Go vet (static analysis)
+        run: nu scripts/test-go.nu --vet-only
+
       - name: Run Go integration tests (Go↔Go + Go↔Rust + Go↔ROS2)
         shell: bash
         run: |
           source /opt/ros/${{ matrix.distro }}/setup.bash
           export RMW_IMPLEMENTATION=rmw_zenoh_cpp
-          cd crates/ros-z-go
-          CGO_LDFLAGS="-L${GITHUB_WORKSPACE}/target/release" \
-            go test -v -tags integration -timeout 300s \
-            ./interop_tests/...
+          nu scripts/test-go.nu --integration
