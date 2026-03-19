@@ -7,7 +7,7 @@ import (
 )
 
 func TestRoszError(t *testing.T) {
-	err := NewRoszError(ErrorCodeServiceTimeout, "service timed out")
+	err := newRoszError(ErrorCodeServiceTimeout, "service timed out")
 
 	if err.Code() != ErrorCodeServiceTimeout {
 		t.Errorf("Code() = %d, want %d", err.Code(), ErrorCodeServiceTimeout)
@@ -17,13 +17,13 @@ func TestRoszError(t *testing.T) {
 		t.Errorf("Message() = %q, want %q", err.Message(), "service timed out")
 	}
 
-	expected := "service timed out (code: -10)"
+	expected := "rosz error -10: service timed out"
 	if err.Error() != expected {
 		t.Errorf("Error() = %q, want %q", err.Error(), expected)
 	}
 }
 
-func TestRoszErrorIsTimeout(t *testing.T) {
+func TestRoszErrorTimeout(t *testing.T) {
 	tests := []struct {
 		code      ErrorCode
 		isTimeout bool
@@ -35,42 +35,27 @@ func TestRoszErrorIsTimeout(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		err := NewRoszError(tt.code, "test")
+		err := newRoszError(tt.code, "test")
+		if got := err.Timeout(); got != tt.isTimeout {
+			t.Errorf("Timeout() for code %d = %v, want %v", tt.code, got, tt.isTimeout)
+		}
+		// IsTimeout is a deprecated alias; must return the same result
 		if got := err.IsTimeout(); got != tt.isTimeout {
 			t.Errorf("IsTimeout() for code %d = %v, want %v", tt.code, got, tt.isTimeout)
 		}
 	}
 }
 
-func TestRoszErrorIsRejected(t *testing.T) {
-	tests := []struct {
-		code       ErrorCode
-		isRejected bool
-	}{
-		{ErrorCodeActionGoalRejected, true},
-		{ErrorCodeServiceTimeout, false},
-		{ErrorCodePublishFailed, false},
-		{ErrorCodeSuccess, false},
-	}
-
-	for _, tt := range tests {
-		err := NewRoszError(tt.code, "test")
-		if got := err.IsRejected(); got != tt.isRejected {
-			t.Errorf("IsRejected() for code %d = %v, want %v", tt.code, got, tt.isRejected)
-		}
-	}
-}
-
 func TestRoszErrorIsError(t *testing.T) {
 	// Verify RoszError implements error interface
-	var err error = NewRoszError(ErrorCodePublishFailed, "test")
+	var err error = newRoszError(ErrorCodePublishFailed, "test")
 	if err.Error() == "" {
 		t.Error("RoszError should implement error interface")
 	}
 }
 
 func TestRoszErrorTypeAssertion(t *testing.T) {
-	var err error = NewRoszError(ErrorCodeServiceTimeout, "timeout occurred")
+	var err error = newRoszError(ErrorCodeServiceTimeout, "timeout occurred")
 
 	roszErr, ok := err.(RoszError)
 	if !ok {
@@ -81,21 +66,21 @@ func TestRoszErrorTypeAssertion(t *testing.T) {
 		t.Errorf("Code() = %d, want %d", roszErr.Code(), ErrorCodeServiceTimeout)
 	}
 
-	if !roszErr.IsTimeout() {
-		t.Error("IsTimeout() should return true")
+	if !roszErr.Timeout() {
+		t.Error("Timeout() should return true")
 	}
 }
 
 func TestRoszErrorWithErrors(t *testing.T) {
-	err := NewRoszError(ErrorCodeActionGoalRejected, "goal rejected")
+	err := newRoszError(ErrorCodeActionGoalRejected, "goal rejected")
 
 	// errors.Is matches by error code (message is ignored)
-	if !errors.Is(err, NewRoszError(ErrorCodeActionGoalRejected, "different message")) {
+	if !errors.Is(err, newRoszError(ErrorCodeActionGoalRejected, "different message")) {
 		t.Error("errors.Is should match RoszError with same code")
 	}
 
 	// errors.Is should not match different codes
-	if errors.Is(err, NewRoszError(ErrorCodeServiceTimeout, "goal rejected")) {
+	if errors.Is(err, newRoszError(ErrorCodeServiceTimeout, "goal rejected")) {
 		t.Error("errors.Is should not match RoszError with different code")
 	}
 
@@ -104,7 +89,7 @@ func TestRoszErrorWithErrors(t *testing.T) {
 		t.Error("errors.Is should match sentinel ErrGoalRejected")
 	}
 
-	timeoutErr := NewRoszError(ErrorCodeServiceTimeout, "call timed out")
+	timeoutErr := newRoszError(ErrorCodeServiceTimeout, "call timed out")
 	if !errors.Is(timeoutErr, ErrTimeout) {
 		t.Error("errors.Is should match sentinel ErrTimeout")
 	}
@@ -122,7 +107,7 @@ func TestRoszErrorWithErrors(t *testing.T) {
 
 func TestRoszErrorIsNoRecursion(t *testing.T) {
 	// Wrapping a RoszError should not cause infinite recursion in Is()
-	inner := NewRoszError(ErrorCodeServiceTimeout, "inner timeout")
+	inner := newRoszError(ErrorCodeServiceTimeout, "inner timeout")
 	wrapped := fmt.Errorf("outer: %w", inner)
 
 	// errors.Is walks the chain and calls Is() — must not infinite-loop

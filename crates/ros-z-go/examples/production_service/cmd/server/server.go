@@ -83,6 +83,7 @@ type ProductionServiceServer struct {
 	rateLimiter *rate.Limiter
 	ctx         context.Context
 	cancel      context.CancelFunc
+	rosCtx      *rosz.Context
 	node        *rosz.Node
 	server      *rosz.ServiceServer
 	wg          sync.WaitGroup
@@ -114,9 +115,12 @@ func (s *ProductionServiceServer) Start() error {
 	if err != nil {
 		return fmt.Errorf("failed to create context: %w", err)
 	}
+	s.rosCtx = rosCtx // store immediately so Shutdown() can close it on any failure
 
 	node, err := rosCtx.CreateNode("production_cache_server").Build()
 	if err != nil {
+		s.rosCtx.Close()
+		s.rosCtx = nil
 		return fmt.Errorf("failed to create node: %w", err)
 	}
 	s.node = node
@@ -168,7 +172,7 @@ func (s *ProductionServiceServer) handleRequest(reqData []byte) ([]byte, error) 
 		s.logger.Warn("Request rate limited",
 			"duration_ms", time.Since(startTime).Milliseconds(),
 		)
-		return nil, rosz.NewRoszError(rosz.ErrorCodeServiceCallFailed, "rate limit exceeded")
+		return nil, fmt.Errorf("rate limit exceeded")
 	}
 
 	// Deserialize request
@@ -179,7 +183,7 @@ func (s *ProductionServiceServer) handleRequest(reqData []byte) ([]byte, error) 
 			"error", err,
 			"duration_ms", time.Since(startTime).Milliseconds(),
 		)
-		return nil, rosz.NewRoszError(rosz.ErrorCodeSerializationFailed, err.Error())
+		return nil, fmt.Errorf("failed to deserialize request: %w", err)
 	}
 
 	// Business logic: Use 'a' as cache key, 'b' as operation code
@@ -222,7 +226,7 @@ func (s *ProductionServiceServer) handleRequest(reqData []byte) ([]byte, error) 
 			"error", err,
 			"duration_ms", time.Since(startTime).Milliseconds(),
 		)
-		return nil, rosz.NewRoszError(rosz.ErrorCodeSerializationFailed, err.Error())
+		return nil, fmt.Errorf("failed to serialize response: %w", err)
 	}
 
 	s.logger.Info("Request processed",
@@ -315,6 +319,10 @@ func (s *ProductionServiceServer) Shutdown() {
 		s.node.Close()
 		s.logger.Info("Node closed")
 	}
+	if s.rosCtx != nil {
+		s.rosCtx.Close()
+		s.logger.Info("Context closed")
+	}
 
 	// Wait for goroutines with timeout
 	done := make(chan struct{})
@@ -365,16 +373,3 @@ func main() {
 	slog.Info("Server stopped")
 }
 
-func min(a, b int64) int64 {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b uint64) uint64 {
-	if a > b {
-		return a
-	}
-	return b
-}

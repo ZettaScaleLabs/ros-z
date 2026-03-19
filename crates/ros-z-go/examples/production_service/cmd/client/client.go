@@ -86,6 +86,13 @@ func NewProductionClient(ctx context.Context) (*ProductionClient, error) {
 		return nil, fmt.Errorf("failed to create context: %w", err)
 	}
 
+	success := false
+	defer func() {
+		if !success {
+			rosCtx.Close()
+		}
+	}()
+
 	node, err := rosCtx.CreateNode("production_cache_client").Build()
 	if err != nil {
 		cancel()
@@ -105,6 +112,7 @@ func NewProductionClient(ctx context.Context) (*ProductionClient, error) {
 		"retry_config", DefaultRetryConfig,
 	)
 
+	success = true
 	return &ProductionClient{
 		logger:  logger,
 		client:  client,
@@ -130,21 +138,12 @@ func (c *ProductionClient) CallWithRetry(req *messages.AddTwoIntsRequest, config
 		startTime := time.Now()
 
 		// Make the call
-		respBytes, err := c.client.Call(req)
+		var resp messages.AddTwoIntsResponse
+		err := rosz.CallTyped(c.client, req, &resp)
 		latency := time.Since(startTime)
 
 		if err == nil {
 			// Success!
-			var resp messages.AddTwoIntsResponse
-			if deserErr := resp.DeserializeCDR(respBytes); deserErr != nil {
-				c.logger.Error("Deserialization failed",
-					"error", deserErr,
-					"attempt", attempt+1,
-				)
-				c.metrics.RecordFailure()
-				return nil, fmt.Errorf("deserialization failed: %w", deserErr)
-			}
-
 			c.metrics.RecordSuccess(latency)
 			c.logger.Info("Request successful",
 				"attempt", attempt+1,

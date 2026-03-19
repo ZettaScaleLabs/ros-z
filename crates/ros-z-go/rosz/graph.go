@@ -39,12 +39,12 @@ func (c *Context) GetTopicNamesAndTypes() ([]TopicInfo, error) {
 
 	result := C.ros_z_graph_get_topic_names_and_types(c.handle, &cTopics, &count)
 	if result != 0 {
-		return nil, NewRoszError(ErrorCode(result), "failed to get topic names and types")
+		return nil, newRoszError(ErrorCode(result), "failed to get topic names and types")
 	}
 
 	n := int(count)
 	if n == 0 {
-		return nil, nil
+		return []TopicInfo{}, nil
 	}
 	defer C.ros_z_graph_free_topics(cTopics, count)
 
@@ -71,12 +71,12 @@ func (c *Context) GetNodeNames() ([]NodeInfo, error) {
 
 	result := C.ros_z_graph_get_node_names(c.handle, &cNodes, &count)
 	if result != 0 {
-		return nil, NewRoszError(ErrorCode(result), "failed to get node names")
+		return nil, newRoszError(ErrorCode(result), "failed to get node names")
 	}
 
 	n := int(count)
 	if n == 0 {
-		return nil, nil
+		return []NodeInfo{}, nil
 	}
 	defer C.ros_z_graph_free_nodes(cNodes, count)
 
@@ -103,12 +103,12 @@ func (c *Context) GetServiceNamesAndTypes() ([]ServiceInfo, error) {
 
 	result := C.ros_z_graph_get_service_names_and_types(c.handle, &cServices, &count)
 	if result != 0 {
-		return nil, NewRoszError(ErrorCode(result), "failed to get service names and types")
+		return nil, newRoszError(ErrorCode(result), "failed to get service names and types")
 	}
 
 	n := int(count)
 	if n == 0 {
-		return nil, nil
+		return []ServiceInfo{}, nil
 	}
 	defer C.ros_z_graph_free_services(cServices, count)
 
@@ -138,7 +138,7 @@ func (c *Context) NodeExists(name, namespace string) (bool, error) {
 
 	result := C.ros_z_graph_node_exists(c.handle, cName, cNamespace)
 	if result < 0 {
-		return false, NewRoszError(ErrorCode(result), "failed to check node existence")
+		return false, newRoszError(ErrorCode(result), "failed to check node existence")
 	}
 
 	return result == 1, nil

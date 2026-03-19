@@ -15,6 +15,7 @@ package main
 
 import (
 	"encoding/binary"
+	"errors"
 	"log"
 	"time"
 
@@ -56,13 +57,13 @@ func main() {
 
 	// Call the service with retry logic for timeouts
 	const maxRetries = 3
-	var respBytes []byte
+	var resp example_interfaces.AddTwoIntsResponse
 	var callErr error
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		log.Printf("Attempt %d/%d...", attempt, maxRetries)
 
-		respBytes, callErr = client.Call(req)
+		callErr = rosz.CallTyped(client, req, &resp)
 
 		if callErr == nil {
 			// Success!
@@ -101,8 +102,8 @@ func main() {
 				log.Printf("Unknown error code: %d", roszErr.Code())
 			}
 
-			// Convenience methods
-			if roszErr.IsTimeout() {
+			// Use errors.Is for idiomatic timeout check
+			if errors.Is(callErr, rosz.ErrTimeout) {
 				log.Println("(Confirmed: This is a timeout error)")
 			}
 		} else {
@@ -116,20 +117,14 @@ func main() {
 		}
 	}
 
-	// Deserialize the response
-	var resp example_interfaces.AddTwoIntsResponse
-	if err := resp.DeserializeCDR(respBytes); err != nil {
-		log.Fatalf("Failed to deserialize response: %v", err)
-	}
-
 	log.Printf("✓ Response: %d + %d = %d", req.A, req.B, resp.Sum)
 	log.Println()
 	log.Println("Error handling patterns demonstrated:")
 	log.Println("  - Type assertion to RoszError")
 	log.Println("  - Error code switching (timeout, call failed, session closed)")
 	log.Println("  - Retry logic with exponential backoff")
-	log.Println("  - Convenience methods (IsTimeout)")
+	log.Println("  - errors.Is(err, rosz.ErrTimeout) for idiomatic timeout check")
 
-	// Suppress unused import warning for binary (used by generated code)
+	// Suppress unused import warning for binary (used by generated code indirectly)
 	_ = binary.LittleEndian
 }

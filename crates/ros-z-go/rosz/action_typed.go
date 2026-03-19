@@ -51,26 +51,6 @@ func BuildTypedActionServer[Goal, Result Message](
 	return builder.Build(action, rawGoalCallback, rawExecuteCallback)
 }
 
-// BuildTypedActionClient creates an action client. (Convenience wrapper — the underlying
-// ActionClient API is already generic-friendly; this provides a typed SendGoal.)
-//
-// Example:
-//
-//	client, err := rosz.BuildTypedActionClient(node.CreateActionClient("fibonacci"), &example_interfaces.Fibonacci{})
-//	handle, err := rosz.SendTypedGoal(client, &example_interfaces.FibonacciGoal{Order: 10})
-func BuildTypedActionClient(builder *ActionClientBuilder, action Action) (*ActionClient, error) {
-	return builder.Build(action)
-}
-
-// SendTypedGoal sends a typed goal and returns a GoalHandle.
-//
-// Example:
-//
-//	handle, err := rosz.SendTypedGoal(client, &example_interfaces.FibonacciGoal{Order: 10})
-func SendTypedGoal(client *ActionClient, goal Message) (*GoalHandle, error) {
-	return client.SendGoal(goal)
-}
-
 // GetTypedResult waits for the goal result and deserializes it into the provided result template.
 //
 // Example:
@@ -83,7 +63,7 @@ func GetTypedResult[Result Message](handle *GoalHandle, result Result) error {
 		return err
 	}
 	if err := result.DeserializeCDR(resultBytes); err != nil {
-		return NewRoszError(ErrorCodeDeserializationFailed, fmt.Sprintf("failed to deserialize result: %v", err))
+		return newRoszError(ErrorCodeDeserializationFailed, fmt.Sprintf("failed to deserialize result: %v", err))
 	}
 	return nil
 }
