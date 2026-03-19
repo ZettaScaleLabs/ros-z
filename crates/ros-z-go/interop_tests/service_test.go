@@ -73,7 +73,7 @@ func TestGoServiceServerToROS2Client(t *testing.T) {
 	defer selfClient.Close()
 	deadline := time.Now().Add(20 * time.Second)
 	for {
-		_, selfErr := selfClient.Call(&example_interfaces.AddTwoIntsRequest{A: 1, B: 1})
+		selfErr := rosz.CallTyped(selfClient, &example_interfaces.AddTwoIntsRequest{A: 1, B: 1}, &example_interfaces.AddTwoIntsResponse{})
 		if selfErr == nil {
 			break
 		}
@@ -162,15 +162,9 @@ func TestROS2ServiceServerToGoClient(t *testing.T) {
 
 	// Call service
 	req := &example_interfaces.AddTwoIntsRequest{A: 10, B: 7}
-	respBytes, err := client.Call(req)
-	if err != nil {
-		t.Fatalf("Service call failed: %v", err)
-	}
-
-	// Deserialize response
 	var resp example_interfaces.AddTwoIntsResponse
-	if err := resp.DeserializeCDR(respBytes); err != nil {
-		t.Fatalf("Failed to deserialize response: %v", err)
+	if err := rosz.CallTyped(client, req, &resp); err != nil {
+		t.Fatalf("Service call failed: %v", err)
 	}
 
 	if resp.Sum != 17 {
@@ -262,15 +256,9 @@ func TestGoServiceServerToGoClient(t *testing.T) {
 
 	for _, tc := range testCases {
 		req := &example_interfaces.AddTwoIntsRequest{A: tc.a, B: tc.b}
-		respBytes, err := client.Call(req)
-		if err != nil {
-			t.Errorf("Service call failed for %d + %d: %v", tc.a, tc.b, err)
-			continue
-		}
-
 		var resp example_interfaces.AddTwoIntsResponse
-		if err := resp.DeserializeCDR(respBytes); err != nil {
-			t.Errorf("Failed to deserialize response for %d + %d: %v", tc.a, tc.b, err)
+		if err := rosz.CallTyped(client, req, &resp); err != nil {
+			t.Errorf("Service call failed for %d + %d: %v", tc.a, tc.b, err)
 			continue
 		}
 
