@@ -35,6 +35,8 @@ pub struct DiscoveryEvent {
     pub distro: Distro,
     /// Whether the entity appeared (`true`) or disappeared (`false`).
     pub appeared: bool,
+    /// The raw liveliness key expression (used for re-announcement on the other side).
+    pub raw_ke: String,
 }
 
 /// Classify a `TypeHash` as Humble or Jazzy.
@@ -109,6 +111,7 @@ pub fn start_discovery(
                     entity,
                     distro,
                     appeared,
+                    raw_ke: ke.to_string(),
                 };
 
                 // Ignore send errors (receiver dropped = bridge shutting down).
