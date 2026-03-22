@@ -120,7 +120,7 @@ pub fn is_humble_hash(hash: &TypeHash) -> bool {
 mod tests {
     use super::*;
 
-    const JAZZY_KE: &str = "0/chatter/std_msgs::msg::dds_::String_/RIHS01_9c0c1c7e2bf9d65b2f5a6b62bab0ece9b4ed68c701234567890abcdef12345678";
+    const JAZZY_KE: &str = "0/chatter/std_msgs::msg::dds_::String_/RIHS01_9c0c1c7e2bf9d65b2f5a6b62bab0ece9b4ed68c701234567890abcdef1234567";
     const HUMBLE_KE: &str = "0/chatter/std_msgs::msg::dds_::String_/TypeHashNotSupported";
     const NS_KE: &str = "0/ns/sub/chatter/std_msgs::msg::dds_::String_/TypeHashNotSupported";
 
