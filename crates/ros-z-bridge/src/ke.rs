@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Key expression helpers for Humble ↔ Jazzy translation.
 //!
 //! Humble topic KE:  `{domain}/{topic}/TYPE_NAME/TypeHashNotSupported`

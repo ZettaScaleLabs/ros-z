@@ -115,7 +115,7 @@ pub fn start_discovery(
                 let _ = tx.send(event);
             }
         })
-        .wait()?;
+        .wait();
 
     // Keep the subscriber alive by leaking it into a background task.
     tokio::spawn(async move {
