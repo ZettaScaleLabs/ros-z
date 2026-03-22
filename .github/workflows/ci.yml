@@ -554,3 +554,63 @@ jobs:
         run: |
           source /tmp/nix-dev-env.sh
           nu scripts/test-ros.nu --distro ${{ matrix.distro }}
+
+  bridge-interop:
+    name: Bridge Interop (humble ↔ jazzy)
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    # Only run on push or non-draft PRs to save CI time
+    if: |
+      github.event_name == 'push' ||
+      github.event.pull_request.draft == false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Determinate Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
+        with:
+          extra-conf: |
+            extra-substituters = https://ros.cachix.org
+            extra-trusted-public-keys = ros.cachix.org-1:dSyZxI8geDCJrwgvCOHDoAfOm5sV1wCPjBkKL+38Rvo=
+
+      - name: Setup Cachix
+        uses: cachix/cachix-action@v15
+        with:
+          name: ros
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          skipPush: ${{ github.event_name == 'pull_request' }}
+
+      - name: FlakeHub cache
+        uses: DeterminateSystems/flakehub-cache-action@main
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: jazzy-bridge-interop
+
+      - name: Setup Jazzy nix environment
+        run: |
+          nix print-dev-env '.#ros-jazzy-ci' \
+            --accept-flake-config > /tmp/nix-dev-env-jazzy.sh
+          echo "export CI=true" >> /tmp/nix-dev-env-jazzy.sh
+
+      - name: Build ros-z-bridge binary
+        run: |
+          source /tmp/nix-dev-env-jazzy.sh
+          cargo build -p ros-z-bridge --features jazzy -j4
+
+      - name: Run bridge unit tests
+        run: |
+          source /tmp/nix-dev-env-jazzy.sh
+          cargo test -p ros-z-bridge --features jazzy -j4
+
+      - name: Run bridge interop tests
+        run: |
+          source /tmp/nix-dev-env-jazzy.sh
+          cargo test -p ros-z-tests --test humble_jazzy_bridge \
+            --features jazzy,humble-jazzy-bridge-tests -j4 \
+            -- --nocapture 2>&1

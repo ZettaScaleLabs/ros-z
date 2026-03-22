@@ -554,3 +554,130 @@ pub fn spawn_ros2_cyclone_add_two_ints_client(a: i64, b: i64) -> ProcessGuard {
 
     ProcessGuard::new(child, "ros2_cyclone_add_two_ints_client")
 }
+
+// ============================================================================
+// Humble ↔ Jazzy Bridge Test Helpers
+// ============================================================================
+
+#[cfg(feature = "humble-jazzy-bridge-tests")]
+#[allow(dead_code)]
+mod humble_jazzy {
+    use super::*;
+
+    /// Spawn a command in a Nix dev shell with extra environment variables.
+    ///
+    /// Uses `nix develop <shell> -c <cmd>` and sets `process_group(0)` so that
+    /// `ProcessGuard` can kill the entire process tree on drop.
+    pub fn spawn_in_nix_shell(shell: &str, cmd: &str, env: &[(&str, &str)]) -> ProcessGuard {
+        use std::os::unix::process::CommandExt;
+
+        let mut command = Command::new("nix");
+        command
+            .args(["develop", shell, "-c", "sh", "-c", cmd])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .process_group(0);
+        for (k, v) in env {
+            command.env(k, v);
+        }
+        let child = command
+            .spawn()
+            .unwrap_or_else(|e| panic!("Failed to spawn in nix shell {shell}: {e}"));
+        ProcessGuard::new(child, &format!("nix-{shell}"))
+    }
+
+    /// Build the ZENOH_CONFIG_OVERRIDE string for a rmw_zenoh node to connect to `endpoint`.
+    fn rmw_zenoh_override(endpoint: &str) -> String {
+        format!("connect/endpoints=[\"{endpoint}\"];scouting/multicast/enabled=false")
+    }
+
+    /// Spawn a ROS 2 Humble demo_nodes_cpp talker using rmw_zenoh.
+    ///
+    /// The talker publishes `std_msgs/String` on the given `topic`.
+    pub fn spawn_humble_ros2_talker(endpoint: &str, topic: &str) -> ProcessGuard {
+        let cmd =
+            format!("ros2 run demo_nodes_cpp talker --ros-args -r __ns:=/ -r chatter:={topic}");
+        spawn_in_nix_shell(
+            ".#ros-humble",
+            &cmd,
+            &[
+                ("RMW_IMPLEMENTATION", "rmw_zenoh_cpp"),
+                ("ZENOH_CONFIG_OVERRIDE", &rmw_zenoh_override(endpoint)),
+            ],
+        )
+    }
+
+    /// Spawn a ROS 2 Humble demo_nodes_cpp listener using rmw_zenoh.
+    pub fn spawn_humble_ros2_listener(endpoint: &str, topic: &str) -> ProcessGuard {
+        let cmd = format!("ros2 run demo_nodes_cpp listener --ros-args -r chatter:={topic}");
+        spawn_in_nix_shell(
+            ".#ros-humble",
+            &cmd,
+            &[
+                ("RMW_IMPLEMENTATION", "rmw_zenoh_cpp"),
+                ("ZENOH_CONFIG_OVERRIDE", &rmw_zenoh_override(endpoint)),
+            ],
+        )
+    }
+
+    /// Spawn a ROS 2 Humble add_two_ints_server using rmw_zenoh.
+    pub fn spawn_humble_ros2_service_server(endpoint: &str) -> ProcessGuard {
+        spawn_in_nix_shell(
+            ".#ros-humble",
+            "ros2 run demo_nodes_cpp add_two_ints_server",
+            &[
+                ("RMW_IMPLEMENTATION", "rmw_zenoh_cpp"),
+                ("ZENOH_CONFIG_OVERRIDE", &rmw_zenoh_override(endpoint)),
+            ],
+        )
+    }
+
+    /// Spawn a ROS 2 Humble fibonacci action server using rmw_zenoh.
+    pub fn spawn_humble_ros2_action_server(endpoint: &str) -> ProcessGuard {
+        spawn_in_nix_shell(
+            ".#ros-humble",
+            "ros2 run action_tutorials_cpp fibonacci_action_server",
+            &[
+                ("RMW_IMPLEMENTATION", "rmw_zenoh_cpp"),
+                ("ZENOH_CONFIG_OVERRIDE", &rmw_zenoh_override(endpoint)),
+            ],
+        )
+    }
+
+    /// Spawn the `ros-z-bridge` binary connecting both endpoints to the same router.
+    ///
+    /// Both `--humble-endpoint` and `--jazzy-endpoint` are set to `endpoint` since
+    /// the test router is shared between both distros.
+    pub fn spawn_bridge(endpoint: &str) -> ProcessGuard {
+        use std::os::unix::process::CommandExt;
+
+        // The bridge binary is built as part of the test workspace.
+        let bridge_bin = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent() // crates/ros-z-tests -> crates
+            .unwrap()
+            .parent() // crates -> workspace root
+            .unwrap()
+            .join("target/debug/ros-z-bridge");
+
+        let child = Command::new(&bridge_bin)
+            .args(["--humble-endpoint", endpoint])
+            .args(["--jazzy-endpoint", endpoint])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .process_group(0)
+            .spawn()
+            .unwrap_or_else(|e| {
+                panic!(
+                    "Failed to spawn ros-z-bridge ({}): {e}",
+                    bridge_bin.display()
+                )
+            });
+
+        // Give the bridge time to start discovery.
+        thread::sleep(Duration::from_millis(500));
+        ProcessGuard::new(child, "ros-z-bridge")
+    }
+}
+
+#[cfg(feature = "humble-jazzy-bridge-tests")]
+pub use humble_jazzy::*;
