@@ -18,7 +18,7 @@ mod common;
 use std::time::Duration;
 
 use ros_z::{Builder, context::ZContextBuilder};
-use ros_z_msgs::ros::{example_interfaces::AddTwoInts, std_msgs::String as RosString};
+use ros_z_msgs::ros::{example_interfaces::srv::AddTwoInts, std_msgs::String as RosString};
 use serial_test::serial;
 
 /// Convenience: build a ros-z context connected to a test router endpoint.
@@ -156,7 +156,8 @@ fn test_service_humble_server_jazzy_client() {
 #[test]
 #[serial]
 fn test_service_jazzy_server_humble_client() {
-    use ros_z::service::Builder as ServiceBuilder;
+    #[allow(unused_imports)]
+    use ros_z::Builder as ServiceBuilder;
 
     let router = common::TestRouter::new();
     let endpoint = router.endpoint();
@@ -192,6 +193,76 @@ fn test_service_jazzy_server_humble_client() {
     // (The subprocess exit code is not directly observable here without output capture.)
     println!("Jazzy service server running, Humble client will connect via bridge");
     std::thread::sleep(Duration::from_secs(5));
+}
+
+// ============================================================================
+// Graph Visibility Tests (ros2 topic list)
+// ============================================================================
+
+/// A Humble talker publishes `/chatter`.
+/// The bridge re-announces it with a Jazzy-style liveliness token (RIHS01 hash).
+/// `ros2 topic list` in the Jazzy environment should see `/chatter`.
+#[test]
+#[serial]
+fn test_graph_humble_pub_visible_in_jazzy() {
+    let router = common::TestRouter::new();
+    let endpoint = router.endpoint();
+
+    let _humble_talker = common::spawn_humble_ros2_talker(endpoint, "/chatter");
+    let _bridge = common::spawn_bridge(endpoint);
+
+    // Poll ros2 topic list until /chatter appears or timeout.
+    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    loop {
+        let topics = common::jazzy_topic_list(endpoint);
+        if topics.iter().any(|t| t == "/chatter") {
+            println!("Humble publisher visible in Jazzy topic list: {topics:?}");
+            return;
+        }
+        if std::time::Instant::now() > deadline {
+            panic!(
+                "Humble /chatter not visible in Jazzy ros2 topic list after 15s. Got: {topics:?}"
+            );
+        }
+        std::thread::sleep(Duration::from_millis(500));
+    }
+}
+
+/// A Jazzy ros-z publisher publishes `/chatter`.
+/// The bridge re-announces it with a Humble-style liveliness token (TypeHashNotSupported).
+/// `ros2 topic list` in the Humble nix shell should see `/chatter`.
+#[test]
+#[serial]
+fn test_graph_jazzy_pub_visible_in_humble() {
+    let router = common::TestRouter::new();
+    let endpoint = router.endpoint();
+
+    let _bridge = common::spawn_bridge(endpoint);
+    std::thread::sleep(Duration::from_secs(1));
+
+    // Create Jazzy ros-z publisher — its liveliness token uses the real RIHS01 hash.
+    let ctx = jazzy_ctx(endpoint);
+    let node = ctx.create_node("test_jazzy_graph_pub").build().unwrap();
+    let _pub = node
+        .create_pub::<RosString>("/chatter")
+        .build()
+        .expect("failed to create publisher");
+
+    // Poll ros2 topic list via Humble shell until /chatter appears or timeout.
+    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    loop {
+        let topics = common::humble_topic_list(endpoint);
+        if topics.iter().any(|t| t == "/chatter") {
+            println!("Jazzy publisher visible in Humble topic list: {topics:?}");
+            return;
+        }
+        if std::time::Instant::now() > deadline {
+            panic!(
+                "Jazzy /chatter not visible in Humble ros2 topic list after 15s. Got: {topics:?}"
+            );
+        }
+        std::thread::sleep(Duration::from_millis(500));
+    }
 }
 
 // ============================================================================

@@ -644,6 +644,49 @@ mod humble_jazzy {
         )
     }
 
+    /// Run `ros2 topic list` in the current (Jazzy) environment connected to `endpoint`.
+    ///
+    /// Returns the list of topic names (e.g. `["/chatter", "/rosout"]`).
+    pub fn jazzy_topic_list(endpoint: &str) -> Vec<String> {
+        let override_str = rmw_zenoh_override(endpoint);
+        let output = Command::new("ros2")
+            .args(["topic", "list"])
+            .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
+            .env("ZENOH_CONFIG_OVERRIDE", &override_str)
+            .output()
+            .expect("failed to run ros2 topic list");
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .map(|l| l.trim().to_string())
+            .filter(|l| !l.is_empty())
+            .collect()
+    }
+
+    /// Run `ros2 topic list` inside the Humble nix dev shell connected to `endpoint`.
+    ///
+    /// Returns the list of topic names.
+    pub fn humble_topic_list(endpoint: &str) -> Vec<String> {
+        let override_str = rmw_zenoh_override(endpoint);
+        let output = Command::new("nix")
+            .args([
+                "develop",
+                ".#ros-humble",
+                "-c",
+                "sh",
+                "-c",
+                "ros2 topic list",
+            ])
+            .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
+            .env("ZENOH_CONFIG_OVERRIDE", &override_str)
+            .output()
+            .expect("failed to run humble ros2 topic list");
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .map(|l| l.trim().to_string())
+            .filter(|l| !l.is_empty())
+            .collect()
+    }
+
     /// Spawn the `ros-z-bridge` binary connecting both endpoints to the same router.
     ///
     /// Both `--humble-endpoint` and `--jazzy-endpoint` are set to `endpoint` since
