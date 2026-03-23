@@ -436,10 +436,10 @@ mod tests {
 
         server.on_set_parameters(|params| {
             for p in params {
-                if let ParameterValue::Integer(v) = p.value {
-                    if v > 10 {
-                        return SetParametersResult::failure(format!("{} too large", p.name));
-                    }
+                if let ParameterValue::Integer(v) = p.value
+                    && v > 10
+                {
+                    return SetParametersResult::failure(format!("{} too large", p.name));
                 }
             }
             SetParametersResult::success()
