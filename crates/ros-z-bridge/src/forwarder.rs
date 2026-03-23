@@ -119,11 +119,15 @@ pub fn start_service_forwarder(
                         }
                     };
                     // Forward the first reply back to the original querier.
+                    // Use the query's own KE (Jazzy KE) so the reply routes
+                    // back correctly — Zenoh requires the reply KE to intersect
+                    // the original queried KE, not the target KE.
+                    let reply_ke = query.key_expr().to_string();
                     while let Ok(reply) = replies.recv_async().await {
                         match reply.result() {
                             Ok(sample) => {
                                 let payload = sample.payload().clone();
-                                if let Err(e) = query.reply(target_ke.as_ref(), payload).await {
+                                if let Err(e) = query.reply(&reply_ke, payload).await {
                                     tracing::warn!(
                                         "service forwarder reply failed: {e}"
                                     );

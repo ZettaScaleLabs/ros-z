@@ -211,6 +211,20 @@ impl Bridge {
         };
 
         if event.appeared {
+            // Skip if already bridged.  This prevents re-entrancy loops caused by
+            // the bridge's own synthetic liveliness tokens triggering new bridge_entity
+            // calls on both sessions (both subscribe to the same shared router).
+            {
+                let active = self.active.lock().unwrap();
+                if active.contains_key(&key) {
+                    tracing::debug!(
+                        "Entity already bridged, skipping: topic={} type={}",
+                        entity.topic,
+                        type_info.name
+                    );
+                    return;
+                }
+            }
             tracing::info!(
                 "Entity appeared: {:?} {:?} topic={} type={}",
                 event.distro,
