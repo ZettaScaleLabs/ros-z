@@ -649,8 +649,15 @@ mod humble_jazzy {
     /// Returns the list of topic names (e.g. `["/chatter", "/rosout"]`).
     pub fn jazzy_topic_list(endpoint: &str) -> Vec<String> {
         let override_str = rmw_zenoh_override(endpoint);
-        let output = Command::new("ros2")
-            .args(["topic", "list"])
+        let output = Command::new("nix")
+            .args([
+                "develop",
+                ".#ros-jazzy",
+                "-c",
+                "sh",
+                "-c",
+                "ros2 topic list",
+            ])
             .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
             .env("ZENOH_CONFIG_OVERRIDE", &override_str)
             .output()

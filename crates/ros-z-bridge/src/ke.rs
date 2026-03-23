@@ -39,6 +39,7 @@ pub struct ParsedTopicKe {
     pub hash: HashVariant,
 }
 
+#[allow(dead_code)]
 impl ParsedTopicKe {
     /// Parse a raw key expression string into a `ParsedTopicKe`.
     ///
@@ -99,6 +100,7 @@ impl ParsedTopicKe {
 }
 
 /// Parse the hash segment of a topic KE.
+#[allow(dead_code)]
 fn parse_hash_segment(hash_str: &str) -> Result<HashVariant> {
     if hash_str == HUMBLE_HASH_SENTINEL {
         return Ok(HashVariant::Humble);

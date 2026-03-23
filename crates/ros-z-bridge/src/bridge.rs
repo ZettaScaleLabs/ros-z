@@ -46,7 +46,7 @@ struct BridgeKey {
     kind: EntityKind,
 }
 
-/// Forwarding handles for a bridged entity — pub/sub pair or service pair.
+/// Forwarding handles for a bridged entity — pub/sub pair or service proxy.
 ///
 /// Exactly one variant is active per entity; dropping tears down the forwarders.
 enum ForwarderPair {
@@ -54,10 +54,12 @@ enum ForwarderPair {
         _h2j: ForwarderHandle,
         _j2h: ForwarderHandle,
     },
-    Service {
-        _humble: ServiceForwarderHandle,
-        _jazzy: ServiceForwarderHandle,
-    },
+    /// A single unidirectional service proxy placed on the side opposite the server.
+    ///
+    /// Only one proxy is needed per service: it intercepts calls from clients on
+    /// one side and forwards them to the actual server on the other side.
+    /// Creating bidirectional proxies would cause queries to loop infinitely.
+    Service { _proxy: ServiceForwarderHandle },
 }
 
 /// All handles for a single bridged entity.
@@ -310,10 +312,13 @@ impl Bridge {
             EntityKind::Publisher | EntityKind::Subscription => {
                 self.setup_pubsub_bridge(&humble_ke, &jazzy_ke)
             }
-            EntityKind::Service | EntityKind::Client => {
-                self.setup_service_bridge(&humble_ke, &jazzy_ke)
+            EntityKind::Service => {
+                // Bridge only when the server is discovered; place the proxy on the
+                // opposite side so clients can reach the server.  Bridging on Client
+                // discovery would create a second proxy causing an infinite query loop.
+                self.setup_service_bridge(&humble_ke, &jazzy_ke, from_distro)
             }
-            EntityKind::Node => return,
+            EntityKind::Client | EntityKind::Node => return,
         };
 
         match forwarders {
@@ -325,10 +330,7 @@ impl Bridge {
                 };
                 // Hold the lock for the entire check+insert to prevent a second
                 // discovery event from bridging the same entity concurrently.
-                let mut active = self.active.lock().unwrap();
-                if !active.contains_key(&key) {
-                    active.insert(key, entry);
-                }
+                self.active.lock().unwrap().entry(key).or_insert(entry);
             }
             Err(err) => {
                 tracing::error!("Failed to set up bridge for {}: {err}", key.topic);
@@ -359,27 +361,32 @@ impl Bridge {
         })
     }
 
-    fn setup_service_bridge(&self, humble_ke: &str, jazzy_ke: &str) -> Result<ForwarderPair> {
-        let humble = start_service_forwarder(
-            self.jazzy_session.clone(),
-            jazzy_ke.to_string(),
-            self.humble_session.clone(),
-            humble_ke.to_string(),
-        )
-        .map_err(|e| anyhow::anyhow!("jazzy→humble service: {e}"))?;
+    fn setup_service_bridge(
+        &self,
+        humble_ke: &str,
+        jazzy_ke: &str,
+        server_distro: Distro,
+    ) -> Result<ForwarderPair> {
+        // Place the proxy on the side *opposite* the server so that clients on
+        // that side can reach the server.  One proxy suffices; two would loop.
+        let proxy = match server_distro {
+            Distro::Humble => start_service_forwarder(
+                self.jazzy_session.clone(),
+                jazzy_ke.to_string(),
+                self.humble_session.clone(),
+                humble_ke.to_string(),
+            )
+            .map_err(|e| anyhow::anyhow!("jazzy→humble service proxy: {e}"))?,
+            Distro::Jazzy => start_service_forwarder(
+                self.humble_session.clone(),
+                humble_ke.to_string(),
+                self.jazzy_session.clone(),
+                jazzy_ke.to_string(),
+            )
+            .map_err(|e| anyhow::anyhow!("humble→jazzy service proxy: {e}"))?,
+        };
 
-        let jazzy = start_service_forwarder(
-            self.humble_session.clone(),
-            humble_ke.to_string(),
-            self.jazzy_session.clone(),
-            jazzy_ke.to_string(),
-        )
-        .map_err(|e| anyhow::anyhow!("humble→jazzy service: {e}"))?;
-
-        Ok(ForwarderPair::Service {
-            _humble: humble,
-            _jazzy: jazzy,
-        })
+        Ok(ForwarderPair::Service { _proxy: proxy })
     }
 }
 

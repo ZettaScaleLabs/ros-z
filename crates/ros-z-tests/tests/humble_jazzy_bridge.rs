@@ -43,16 +43,9 @@ fn test_pubsub_humble_pub_jazzy_sub() {
     let router = common::TestRouter::new();
     let endpoint = router.endpoint();
 
-    // Start Humble talker (publishes TypeHashNotSupported KE).
-    let _humble_talker = common::spawn_humble_ros2_talker(endpoint, "/chatter");
-
-    // Start bridge — rewrites humble KE → jazzy KE.
-    let _bridge = common::spawn_bridge(endpoint);
-
-    // Give nodes time to start and bridge to discover them.
-    std::thread::sleep(Duration::from_secs(3));
-
-    // Create Jazzy ros-z subscriber.
+    // Create Jazzy ros-z subscriber first so no forwarded messages are missed.
+    // Zenoh does not buffer messages; a subscriber must exist before the bridge
+    // starts forwarding or messages published in the interim are lost.
     let ctx = jazzy_ctx(endpoint);
     let node = ctx.create_node("test_jazzy_sub").build().unwrap();
     let sub = node
@@ -60,9 +53,15 @@ fn test_pubsub_humble_pub_jazzy_sub() {
         .build()
         .expect("failed to create subscriber");
 
-    // Wait for a message within 10 seconds.
+    // Start Humble talker (publishes TypeHashNotSupported KE).
+    let _humble_talker = common::spawn_humble_ros2_talker(endpoint, "/chatter");
+
+    // Start bridge — rewrites humble KE → jazzy KE.
+    let _bridge = common::spawn_bridge(endpoint);
+
+    // Wait for a message within 20 seconds (covers nix shell + bridge startup time).
     let msg = sub
-        .recv_timeout(Duration::from_secs(10))
+        .recv_timeout(Duration::from_secs(20))
         .expect("did not receive message from Humble talker within timeout");
 
     assert!(
