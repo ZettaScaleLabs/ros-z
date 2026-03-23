@@ -38,12 +38,15 @@ pub fn start_forwarder(
             .map_err(|e| anyhow::anyhow!("declare_publisher {dst_ke}: {e}"))?,
     );
 
+    // Use Arc<str> so the closure captures a reference-counted pointer rather
+    // than cloning the full String on every message.
+    let src_ke_log: Arc<str> = src_ke.as_str().into();
+    let dst_ke_log: Arc<str> = dst_ke.as_str().into();
+
     let sub = src_session
         .declare_subscriber(src_ke.clone())
         .callback({
             let publisher = publisher.clone();
-            let src_ke_log = src_ke.clone();
-            let dst_ke_log = dst_ke.clone();
             move |sample| {
                 let payload: ZBytes = sample.payload().clone();
                 let pub_clone = publisher.clone();
@@ -81,21 +84,22 @@ pub fn start_service_forwarder(
     target_session: Arc<Session>,
     target_ke: String,
 ) -> Result<ServiceForwarderHandle> {
+    let target_ke_arc: Arc<str> = target_ke.as_str().into();
+    let proxy_ke_log: Arc<str> = proxy_ke.as_str().into();
+
     let queryable = proxy_session
         .declare_queryable(proxy_ke.clone())
         .complete(true)
         .callback({
             let target_session = target_session.clone();
-            let target_ke = target_ke.clone();
-            let proxy_ke_log = proxy_ke.clone();
             move |query| {
                 let target_session = target_session.clone();
-                let target_ke = target_ke.clone();
+                let target_ke = target_ke_arc.clone();
                 let proxy_ke_log = proxy_ke_log.clone();
                 // Extract payload from the query (service request body).
                 let payload: Option<ZBytes> = query.payload().cloned();
                 tokio::spawn(async move {
-                    let mut get = target_session.get(&target_ke);
+                    let mut get = target_session.get(target_ke.as_ref());
                     if let Some(p) = payload {
                         get = get.payload(p);
                     }
@@ -113,7 +117,7 @@ pub fn start_service_forwarder(
                         match reply.result() {
                             Ok(sample) => {
                                 let payload = sample.payload().clone();
-                                if let Err(e) = query.reply(&target_ke, payload).await {
+                                if let Err(e) = query.reply(target_ke.as_ref(), payload).await {
                                     tracing::warn!(
                                         "service forwarder reply failed: {e}"
                                     );

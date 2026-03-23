@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 //! Key expression helpers for Humble ↔ Jazzy translation.
 //!
 //! Humble topic KE:  `{domain}/{topic}/TYPE_NAME/TypeHashNotSupported`
@@ -9,7 +8,11 @@
 use anyhow::{Result, bail};
 use ros_z_protocol::TypeHash;
 
+/// Humble's sentinel value for the type hash segment of a key expression.
+pub const HUMBLE_HASH_SENTINEL: &str = "TypeHashNotSupported";
+
 /// Classify how a topic key expression encodes the type hash.
+#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HashVariant {
     /// ROS 2 Humble: hash segment is `TypeHashNotSupported`
@@ -24,6 +27,7 @@ pub enum HashVariant {
 ///
 /// The `topic_path` may contain multiple `/`-separated segments (no mangling
 /// for topic KEs — only liveliness tokens use `%` mangling).
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct ParsedTopicKe {
     pub domain_id: u32,
@@ -68,8 +72,8 @@ impl ParsedTopicKe {
     /// Rewrite this KE replacing the hash with a Humble-style hash.
     pub fn as_humble_ke(&self) -> String {
         format!(
-            "{}/{}/{}/TypeHashNotSupported",
-            self.domain_id, self.topic_path, self.type_name
+            "{}/{}/{}/{}",
+            self.domain_id, self.topic_path, self.type_name, HUMBLE_HASH_SENTINEL,
         )
     }
 
@@ -80,7 +84,7 @@ impl ParsedTopicKe {
             self.domain_id,
             self.topic_path,
             self.type_name,
-            rihs_string(hash),
+            hash.to_rihs_string(),
         )
     }
 
@@ -96,7 +100,7 @@ impl ParsedTopicKe {
 
 /// Parse the hash segment of a topic KE.
 fn parse_hash_segment(hash_str: &str) -> Result<HashVariant> {
-    if hash_str == "TypeHashNotSupported" {
+    if hash_str == HUMBLE_HASH_SENTINEL {
         return Ok(HashVariant::Humble);
     }
     if let Some(hash) = TypeHash::from_rihs_string(hash_str) {
@@ -105,15 +109,9 @@ fn parse_hash_segment(hash_str: &str) -> Result<HashVariant> {
     bail!("unrecognised hash segment: {hash_str}")
 }
 
-/// Format a TypeHash as a RIHS01 string.
-pub fn rihs_string(hash: &TypeHash) -> String {
-    let hex: String = hash.value.iter().map(|b| format!("{b:02x}")).collect();
-    format!("RIHS01_{hex}")
-}
-
 /// Return `true` if `hash` represents the Humble sentinel (all-zero value).
 pub fn is_humble_hash(hash: &TypeHash) -> bool {
-    hash.value == [0u8; 32]
+    *hash == TypeHash::zero()
 }
 
 #[cfg(test)]
@@ -187,7 +185,7 @@ mod tests {
     #[test]
     fn rihs_string_format() {
         let hash = TypeHash::new(1, [0u8; 32]);
-        let s = rihs_string(&hash);
+        let s = hash.to_rihs_string();
         assert!(s.starts_with("RIHS01_"));
         assert_eq!(s.len(), 7 + 64);
     }
