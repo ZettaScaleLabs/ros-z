@@ -670,7 +670,7 @@ mod humble_jazzy {
     pub fn jazzy_topic_list(endpoint: &str) -> Vec<String> {
         let override_str = rmw_zenoh_override(endpoint);
         let output = Command::new("ros2")
-            .args(["topic", "list", "--timeout", "10"])
+            .args(["topic", "list", "--spin-time", "5", "--no-daemon"])
             .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
             .env("ZENOH_CONFIG_OVERRIDE", &override_str)
             .output()
@@ -689,7 +689,7 @@ mod humble_jazzy {
         let override_str = rmw_zenoh_override(endpoint);
         let bin = humble_ros2_bin();
         let output = Command::new(&bin)
-            .args(["topic", "list", "--timeout", "10"])
+            .args(["topic", "list", "--spin-time", "5", "--no-daemon"])
             .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
             .env("ZENOH_CONFIG_OVERRIDE", &override_str)
             .output()
