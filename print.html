@@ -1200,7 +1200,7 @@ pub fn run_add_two_ints_client(ctx: ZContext, a: i64, b: i64, async_mode: bool) 
     let resp = if async_mode {
         tokio::runtime::Runtime::new().unwrap().block_on(async {
             client.send_request(&amp;req).await?;
-            client.take_response_async().await
+            client.async_take_response().await
         })?
     } else {
         tokio::runtime::Runtime::new()
@@ -1293,7 +1293,7 @@ let mut service = node
     .build()?;
 
 loop {
-    let (key, request) = service.take_request_async().await?;
+    let (key, request) = service.async_take_request().await?;
     let response = async_process_request(&amp;request).await;
     service.send_response(&amp;response, &amp;key)?;
 }</code></pre>
@@ -1316,7 +1316,7 @@ loop {
 </div>
 <div>
 <p><code>send_request</code> is an <code>async fn</code> — it must be called with <code>.await</code> in an async context. Calling it without <code>.await</code> will not compile.</p>
-<p><code>take_response()</code> returns <strong>immediately</strong> with <code>Err</code> if no response has arrived yet. Use <code>take_response_timeout(duration)</code> to wait up to a deadline or <code>take_response_async().await</code> in fully async code.</p>
+<p><code>take_response()</code> returns <strong>immediately</strong> with <code>Err</code> if no response has arrived yet. Use <code>take_response_timeout(duration)</code> to wait up to a deadline or <code>async_take_response().await</code> in fully async code.</p>
 </div>
 </div>
 <h3 id="pattern-1-async-client-with-timeout"><a class="header" href="#pattern-1-async-client-with-timeout">Pattern 1: Async Client with Timeout</a></h3>
@@ -1341,7 +1341,7 @@ let client = node
 
 let request = create_request();
 client.send_request(&amp;request).await?;
-let response = client.take_response_async().await?;</code></pre>
+let response = client.async_take_response().await?;</code></pre>
 <div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
 <div class="admonition-title">
 <div id="admonition-tip-title">
@@ -1398,7 +1398,7 @@ match client.take_response_timeout(Duration::from_secs(5)) {
 <div class="table-wrapper"><table><thead><tr><th>Method</th><th>Behavior</th></tr></thead><tbody>
 <tr><td><code>take_response()</code></td><td>Returns immediately; <code>Err</code> if no response yet</td></tr>
 <tr><td><code>take_response_timeout(duration)</code></td><td>Waits up to <code>duration</code>; <code>Err</code> on timeout</td></tr>
-<tr><td><code>take_response_async().await</code></td><td>Waits indefinitely in async context</td></tr>
+<tr><td><code>async_take_response().await</code></td><td>Waits indefinitely in async context</td></tr>
 </tbody></table>
 </div>
 <h2 id="resources-1"><a class="header" href="#resources-1">Resources</a></h2>
