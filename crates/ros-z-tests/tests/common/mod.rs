@@ -564,16 +564,30 @@ pub fn spawn_ros2_cyclone_add_two_ints_client(a: i64, b: i64) -> ProcessGuard {
 mod humble_jazzy {
     use super::*;
 
-    /// Spawn a command in a Nix dev shell with extra environment variables.
+    /// Return the path to the `humble-ros2` wrapper binary.
     ///
-    /// Uses `nix develop <shell> -c <cmd>` and sets `process_group(0)` so that
-    /// `ProcessGuard` can kill the entire process tree on drop.
-    pub fn spawn_in_nix_shell(shell: &str, cmd: &str, env: &[(&str, &str)]) -> ProcessGuard {
+    /// The wrapper is provided by the `ros-bridge-interop` nix dev shell and its
+    /// path is exported as `HUMBLE_ROS2`.  Tests must run inside that shell.
+    fn humble_ros2_bin() -> String {
+        std::env::var("HUMBLE_ROS2").expect(
+            "HUMBLE_ROS2 env var not set — run tests inside the `ros-bridge-interop` nix shell",
+        )
+    }
+
+    /// Build the ZENOH_CONFIG_OVERRIDE string for a rmw_zenoh node to connect to `endpoint`.
+    fn rmw_zenoh_override(endpoint: &str) -> String {
+        format!("connect/endpoints=[\"{endpoint}\"];scouting/multicast/enabled=false")
+    }
+
+    /// Spawn a process using the `humble-ros2` wrapper with extra environment variables.
+    fn spawn_humble(args: &[&str], env: &[(&str, &str)]) -> ProcessGuard {
         use std::os::unix::process::CommandExt;
 
-        let mut command = Command::new("nix");
+        let bin = humble_ros2_bin();
+        let name = args.join(" ");
+        let mut command = Command::new(&bin);
         command
-            .args(["develop", shell, "-c", "sh", "-c", cmd])
+            .args(args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .process_group(0);
@@ -582,24 +596,25 @@ mod humble_jazzy {
         }
         let child = command
             .spawn()
-            .unwrap_or_else(|e| panic!("Failed to spawn in nix shell {shell}: {e}"));
-        ProcessGuard::new(child, &format!("nix-{shell}"))
-    }
-
-    /// Build the ZENOH_CONFIG_OVERRIDE string for a rmw_zenoh node to connect to `endpoint`.
-    fn rmw_zenoh_override(endpoint: &str) -> String {
-        format!("connect/endpoints=[\"{endpoint}\"];scouting/multicast/enabled=false")
+            .unwrap_or_else(|e| panic!("Failed to spawn humble-ros2 {name}: {e}"));
+        ProcessGuard::new(child, &format!("humble-ros2 {name}"))
     }
 
     /// Spawn a ROS 2 Humble demo_nodes_cpp talker using rmw_zenoh.
     ///
     /// The talker publishes `std_msgs/String` on the given `topic`.
     pub fn spawn_humble_ros2_talker(endpoint: &str, topic: &str) -> ProcessGuard {
-        let cmd =
-            format!("ros2 run demo_nodes_cpp talker --ros-args -r __ns:=/ -r chatter:={topic}");
-        spawn_in_nix_shell(
-            ".#ros-humble",
-            &cmd,
+        spawn_humble(
+            &[
+                "run",
+                "demo_nodes_cpp",
+                "talker",
+                "--ros-args",
+                "-r",
+                "__ns:=/",
+                "-r",
+                &format!("chatter:={topic}"),
+            ],
             &[
                 ("RMW_IMPLEMENTATION", "rmw_zenoh_cpp"),
                 ("ZENOH_CONFIG_OVERRIDE", &rmw_zenoh_override(endpoint)),
@@ -609,10 +624,15 @@ mod humble_jazzy {
 
     /// Spawn a ROS 2 Humble demo_nodes_cpp listener using rmw_zenoh.
     pub fn spawn_humble_ros2_listener(endpoint: &str, topic: &str) -> ProcessGuard {
-        let cmd = format!("ros2 run demo_nodes_cpp listener --ros-args -r chatter:={topic}");
-        spawn_in_nix_shell(
-            ".#ros-humble",
-            &cmd,
+        spawn_humble(
+            &[
+                "run",
+                "demo_nodes_cpp",
+                "listener",
+                "--ros-args",
+                "-r",
+                &format!("chatter:={topic}"),
+            ],
             &[
                 ("RMW_IMPLEMENTATION", "rmw_zenoh_cpp"),
                 ("ZENOH_CONFIG_OVERRIDE", &rmw_zenoh_override(endpoint)),
@@ -622,9 +642,8 @@ mod humble_jazzy {
 
     /// Spawn a ROS 2 Humble add_two_ints_server using rmw_zenoh.
     pub fn spawn_humble_ros2_service_server(endpoint: &str) -> ProcessGuard {
-        spawn_in_nix_shell(
-            ".#ros-humble",
-            "ros2 run demo_nodes_cpp add_two_ints_server",
+        spawn_humble(
+            &["run", "demo_nodes_cpp", "add_two_ints_server"],
             &[
                 ("RMW_IMPLEMENTATION", "rmw_zenoh_cpp"),
                 ("ZENOH_CONFIG_OVERRIDE", &rmw_zenoh_override(endpoint)),
@@ -634,9 +653,8 @@ mod humble_jazzy {
 
     /// Spawn a ROS 2 Humble fibonacci action server using rmw_zenoh.
     pub fn spawn_humble_ros2_action_server(endpoint: &str) -> ProcessGuard {
-        spawn_in_nix_shell(
-            ".#ros-humble",
-            "ros2 run action_tutorials_cpp fibonacci_action_server",
+        spawn_humble(
+            &["run", "action_tutorials_cpp", "fibonacci_action_server"],
             &[
                 ("RMW_IMPLEMENTATION", "rmw_zenoh_cpp"),
                 ("ZENOH_CONFIG_OVERRIDE", &rmw_zenoh_override(endpoint)),
@@ -647,24 +665,16 @@ mod humble_jazzy {
     /// Run `ros2 topic list` in the Jazzy environment connected to `endpoint`.
     ///
     /// Returns the list of topic names (e.g. `["/chatter", "/rosout"]`).
-    /// Nix shell activation noise (pre-commit messages, env banners) is stripped by
-    /// keeping only lines that look like ROS topic names: start with `/`, no spaces,
-    /// no dots (which would indicate file paths).
+    /// Lines are filtered to keep only valid ROS topic names (start with `/`,
+    /// no spaces, no dots).
     pub fn jazzy_topic_list(endpoint: &str) -> Vec<String> {
         let override_str = rmw_zenoh_override(endpoint);
-        let output = Command::new("nix")
-            .args([
-                "develop",
-                ".#ros-jazzy",
-                "-c",
-                "sh",
-                "-c",
-                "timeout 30 ros2 topic list 2>/dev/null",
-            ])
+        let output = Command::new("ros2")
+            .args(["topic", "list"])
             .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
             .env("ZENOH_CONFIG_OVERRIDE", &override_str)
             .output()
-            .expect("failed to run ros2 topic list");
+            .expect("failed to run `ros2 topic list` — is ros2cli available in PATH?");
         String::from_utf8_lossy(&output.stdout)
             .lines()
             .map(|l| l.trim().to_string())
@@ -672,24 +682,18 @@ mod humble_jazzy {
             .collect()
     }
 
-    /// Run `ros2 topic list` inside the Humble nix dev shell connected to `endpoint`.
+    /// Run `ros2 topic list` in the Humble environment connected to `endpoint`.
     ///
     /// Returns the list of topic names.
     pub fn humble_topic_list(endpoint: &str) -> Vec<String> {
         let override_str = rmw_zenoh_override(endpoint);
-        let output = Command::new("nix")
-            .args([
-                "develop",
-                ".#ros-humble",
-                "-c",
-                "sh",
-                "-c",
-                "timeout 30 ros2 topic list 2>/dev/null",
-            ])
+        let bin = humble_ros2_bin();
+        let output = Command::new(&bin)
+            .args(["topic", "list"])
             .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
             .env("ZENOH_CONFIG_OVERRIDE", &override_str)
             .output()
-            .expect("failed to run humble ros2 topic list");
+            .expect("failed to run humble `ros2 topic list`");
         String::from_utf8_lossy(&output.stdout)
             .lines()
             .map(|l| l.trim().to_string())
@@ -699,9 +703,14 @@ mod humble_jazzy {
 
     /// Call the add_two_ints service once from a Humble node via rmw_zenoh, then exit.
     pub fn spawn_humble_ros2_service_client(endpoint: &str) -> ProcessGuard {
-        spawn_in_nix_shell(
-            ".#ros-humble",
-            "ros2 service call /add_two_ints example_interfaces/srv/AddTwoInts \"{a: 3, b: 7}\"",
+        spawn_humble(
+            &[
+                "service",
+                "call",
+                "/add_two_ints",
+                "example_interfaces/srv/AddTwoInts",
+                "{a: 3, b: 7}",
+            ],
             &[
                 ("RMW_IMPLEMENTATION", "rmw_zenoh_cpp"),
                 ("ZENOH_CONFIG_OVERRIDE", &rmw_zenoh_override(endpoint)),

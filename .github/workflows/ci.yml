@@ -592,17 +592,11 @@ jobs:
         with:
           shared-key: jazzy-bridge-interop
 
-      - name: Setup Jazzy nix environment
+      - name: Setup bridge interop nix environment
         run: |
-          nix print-dev-env '.#ros-jazzy-ci' \
+          nix print-dev-env '.#ros-bridge-interop' \
             --accept-flake-config > /tmp/nix-dev-env-jazzy.sh
           echo "export CI=true" >> /tmp/nix-dev-env-jazzy.sh
-
-      - name: Pre-warm Humble nix shell
-        run: nix develop .#ros-humble --command true
-
-      - name: Pre-warm Jazzy nix shell (for topic-list calls)
-        run: nix develop .#ros-jazzy --command true
 
       - name: Build ros-z-bridge binary
         run: |
