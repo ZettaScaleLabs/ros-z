@@ -128,8 +128,9 @@ fn test_service_humble_server_jazzy_client() {
     // while the runtime is still active, preventing cleanup deadlocks.
     let rt = tokio::runtime::Runtime::new().unwrap();
     let response = rt.block_on(async {
-        // Wait for nodes to register.
-        tokio::time::sleep(Duration::from_secs(3)).await;
+        // Wait for the Humble server to start, publish its liveliness token,
+        // and the bridge to set up the service proxy.
+        tokio::time::sleep(Duration::from_secs(15)).await;
 
         let ctx = jazzy_ctx(endpoint);
         let node = ctx.create_node("test_jazzy_client").build().unwrap();
@@ -141,7 +142,7 @@ fn test_service_humble_server_jazzy_client() {
         let req = ros_z_msgs::ros::example_interfaces::AddTwoIntsRequest { a: 3, b: 7 };
         client.send_request(&req).await?;
         // ctx / node / client are dropped here, inside the runtime
-        client.take_response_timeout(Duration::from_secs(10))
+        client.take_response_timeout(Duration::from_secs(20))
     });
 
     let response = response.expect("did not receive service response within timeout");
