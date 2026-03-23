@@ -1,0 +1,17 @@
+coverage:
+  status:
+    patch:
+      default:
+        target: 68.10%
+        threshold: 5%
+        informational: false
+        if_not_found: failure
+
+ignore:
+  # C FFI bridge — exercised by Go interop tests, not Rust unit tests
+  - "crates/ros-z/src/ffi/**"
+  # Go source files (not instrumented by cargo-llvm-cov)
+  - "crates/ros-z-go/**"
+  # Test helpers and fixtures
+  - "crates/ros-z-tests/**"
+  - "crates/ros-z/tests/**"
