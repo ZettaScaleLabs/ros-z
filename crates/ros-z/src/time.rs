@@ -237,14 +237,21 @@ impl ZClock {
                 let clock = self.clone();
                 ZSleep(Box::pin(async move {
                     loop {
-                        if clock.now() >= deadline {
-                            break;
-                        }
-
+                        // Obtain and *enable* the Notified future before checking the
+                        // condition.  `enable()` registers this task as a waiter
+                        // immediately, so a concurrent `notify_waiters()` call that
+                        // fires between the condition check and the first `.await` poll
+                        // is not lost.
                         let notified = match clock.inner.as_ref() {
                             ClockInner::System => unreachable!(),
                             ClockInner::Simulated(state) => state.notify.notified(),
                         };
+                        tokio::pin!(notified);
+                        notified.as_mut().enable();
+
+                        if clock.now() >= deadline {
+                            break;
+                        }
                         notified.await;
                     }
                 }))
@@ -330,5 +337,160 @@ mod tests {
 
         clock.advance(ZDuration::from_millis(10)).unwrap();
         waiter.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn simulated_sleep_no_lost_wakeup_when_advance_before_poll() {
+        // Regression test: advance the clock past the deadline *before* the sleep
+        // future is ever polled.  Without the enable() fix this would hang forever
+        // because notify_waiters() fires before the future registers as a waiter.
+        let clock = ZClock::simulated(ZTime::zero());
+        let sleep = clock.sleep(ZDuration::from_millis(10));
+        // Advance BEFORE yielding — the future has not been polled yet.
+        clock.advance(ZDuration::from_millis(10)).unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(1), sleep)
+            .await
+            .expect("sleep should resolve without hanging");
+    }
+
+    // --- ZDuration ---
+
+    #[test]
+    fn zduration_from_secs_and_as_std() {
+        let d = ZDuration::from_secs(3);
+        assert_eq!(d.as_std(), Duration::from_secs(3));
+    }
+
+    #[test]
+    fn zduration_default_is_zero() {
+        assert_eq!(ZDuration::default().as_std(), Duration::ZERO);
+    }
+
+    #[test]
+    fn zduration_roundtrip_from_std() {
+        let std_d = Duration::from_millis(500);
+        let zd = ZDuration::from(std_d);
+        let back: Duration = zd.into();
+        assert_eq!(back, std_d);
+    }
+
+    // --- ZTime ---
+
+    #[test]
+    fn ztime_zero_and_default() {
+        assert_eq!(ZTime::zero(), ZTime::default());
+        assert_eq!(ZTime::zero().as_unix_nanos(), 0);
+    }
+
+    #[test]
+    fn ztime_from_unix_nanos_negative_clamps_to_zero() {
+        assert_eq!(ZTime::from_unix_nanos(-1).as_unix_nanos(), 0);
+    }
+
+    #[test]
+    fn ztime_from_system_time_roundtrip() {
+        let t = ZTime::from_unix_nanos(1_000_000_000);
+        let sys = t.to_system_time();
+        let back = ZTime::from_system_time(sys);
+        assert_eq!(back, t);
+    }
+
+    #[test]
+    fn ztime_saturating_add_sub() {
+        let t = ZTime::from_unix_nanos(5_000_000_000);
+        let d = ZDuration::from_secs(2);
+        assert_eq!(t.saturating_add(d).as_unix_nanos(), 7_000_000_000);
+        assert_eq!(t.saturating_sub(d).as_unix_nanos(), 3_000_000_000);
+        // sub below zero saturates
+        assert_eq!(ZTime::zero().saturating_sub(d).as_unix_nanos(), 0);
+    }
+
+    #[test]
+    fn ztime_duration_since() {
+        let a = ZTime::from_unix_nanos(5_000_000_000);
+        let b = ZTime::from_unix_nanos(3_000_000_000);
+        assert_eq!(a.duration_since(b).as_std(), Duration::from_secs(2));
+        // saturates to zero when earlier > self
+        assert_eq!(b.duration_since(a).as_std(), Duration::ZERO);
+    }
+
+    #[test]
+    fn ztime_debug_format() {
+        let t = ZTime::from_unix_nanos(1_500_000_000);
+        let s = format!("{:?}", t);
+        assert!(s.contains("secs"));
+        assert!(s.contains("nanos"));
+    }
+
+    // --- ZClock constructors & kind ---
+
+    #[test]
+    fn zclock_system_constructor_and_kind() {
+        let c = ZClock::system();
+        assert_eq!(c.kind(), ClockKind::System);
+    }
+
+    #[test]
+    fn zclock_from_kind() {
+        assert_eq!(
+            ZClock::from_kind(ClockKind::System).kind(),
+            ClockKind::System
+        );
+        assert_eq!(
+            ZClock::from_kind(ClockKind::Simulated).kind(),
+            ClockKind::Simulated
+        );
+    }
+
+    #[test]
+    fn zclock_debug_format() {
+        let s = format!("{:?}", ZClock::system());
+        assert!(s.contains("ZClock"));
+    }
+
+    #[test]
+    fn system_clock_now_is_nonzero() {
+        let t = ZClock::system().now();
+        assert!(t.as_unix_nanos() > 0);
+    }
+
+    // --- set_time ---
+
+    #[test]
+    fn set_time_advances_simulated_clock() {
+        let clock = ZClock::simulated(ZTime::zero());
+        let t = ZTime::from_unix_nanos(1_000_000_000);
+        clock.set_time(t).unwrap();
+        assert_eq!(clock.now(), t);
+    }
+
+    #[test]
+    fn set_time_rejects_backwards() {
+        let clock = ZClock::simulated(ZTime::from_unix_nanos(1_000_000_000));
+        let err = clock.set_time(ZTime::zero()).unwrap_err();
+        assert!(matches!(err, ClockError::TimeWentBackwards));
+        assert!(!err.to_string().is_empty());
+    }
+
+    #[test]
+    fn set_time_on_system_clock_errors() {
+        let err = ZClock::system().set_time(ZTime::zero()).unwrap_err();
+        assert!(matches!(err, ClockError::NotSimulated));
+        assert!(!err.to_string().is_empty());
+    }
+
+    #[test]
+    fn advance_on_system_clock_errors() {
+        let err = ZClock::system()
+            .advance(ZDuration::from_secs(1))
+            .unwrap_err();
+        assert!(matches!(err, ClockError::NotSimulated));
+    }
+
+    // --- system clock sleep (just verify it doesn't block) ---
+
+    #[tokio::test]
+    async fn system_clock_sleep_zero_completes() {
+        ZClock::system().sleep(ZDuration::default()).await;
     }
 }
