@@ -59,9 +59,9 @@ fn test_pubsub_humble_pub_jazzy_sub() {
     // Start bridge — rewrites humble KE → jazzy KE.
     let _bridge = common::spawn_bridge(endpoint);
 
-    // Wait for a message within 20 seconds (covers nix shell + bridge startup time).
+    // Wait for a message within 60 seconds (covers nix shell + bridge startup time).
     let msg = sub
-        .recv_timeout(Duration::from_secs(20))
+        .recv_timeout(Duration::from_secs(60))
         .expect("did not receive message from Humble talker within timeout");
 
     assert!(
@@ -217,7 +217,10 @@ fn test_graph_humble_pub_visible_in_jazzy() {
     let _bridge = common::spawn_bridge(endpoint);
 
     // Poll ros2 topic list until /chatter appears or timeout.
-    let deadline = std::time::Instant::now() + Duration::from_secs(30);
+    // Each jazzy_topic_list() call runs `ros2 topic list` with a 30s inner timeout
+    // (nix shell startup + rmw_zenoh discovery).  The outer deadline gives enough
+    // room for the Humble talker's nix shell to start and the bridge to re-announce.
+    let deadline = std::time::Instant::now() + Duration::from_secs(180);
     loop {
         let topics = common::jazzy_topic_list(endpoint);
         if topics.iter().any(|t| t == "/chatter") {
@@ -226,7 +229,7 @@ fn test_graph_humble_pub_visible_in_jazzy() {
         }
         if std::time::Instant::now() > deadline {
             panic!(
-                "Humble /chatter not visible in Jazzy ros2 topic list after 15s. Got: {topics:?}"
+                "Humble /chatter not visible in Jazzy ros2 topic list after 180s. Got: {topics:?}"
             );
         }
         std::thread::sleep(Duration::from_millis(500));
@@ -254,7 +257,7 @@ fn test_graph_jazzy_pub_visible_in_humble() {
         .expect("failed to create publisher");
 
     // Poll ros2 topic list via Humble shell until /chatter appears or timeout.
-    let deadline = std::time::Instant::now() + Duration::from_secs(30);
+    let deadline = std::time::Instant::now() + Duration::from_secs(180);
     loop {
         let topics = common::humble_topic_list(endpoint);
         if topics.iter().any(|t| t == "/chatter") {
@@ -263,7 +266,7 @@ fn test_graph_jazzy_pub_visible_in_humble() {
         }
         if std::time::Instant::now() > deadline {
             panic!(
-                "Jazzy /chatter not visible in Humble ros2 topic list after 15s. Got: {topics:?}"
+                "Jazzy /chatter not visible in Humble ros2 topic list after 180s. Got: {topics:?}"
             );
         }
         std::thread::sleep(Duration::from_millis(500));
