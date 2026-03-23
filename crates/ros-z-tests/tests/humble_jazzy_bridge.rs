@@ -59,9 +59,13 @@ fn test_pubsub_humble_pub_jazzy_sub() {
     // Start bridge — rewrites humble KE → jazzy KE.
     let _bridge = common::spawn_bridge(endpoint);
 
-    // Wait for a message within 60 seconds (covers nix shell + bridge startup time).
+    // Wait for a message within 120 seconds.
+    // The Humble talker starts in a nix dev shell; even with a pre-warmed store
+    // the shell activation + ros2 node startup takes 30-60s.  The bridge then
+    // needs to detect the liveliness token and set up the forwarder before the
+    // first forwarded message arrives.
     let msg = sub
-        .recv_timeout(Duration::from_secs(60))
+        .recv_timeout(Duration::from_secs(120))
         .expect("did not receive message from Humble talker within timeout");
 
     assert!(
@@ -128,9 +132,10 @@ fn test_service_humble_server_jazzy_client() {
     // while the runtime is still active, preventing cleanup deadlocks.
     let rt = tokio::runtime::Runtime::new().unwrap();
     let response = rt.block_on(async {
-        // Wait for the Humble server to start, publish its liveliness token,
-        // and the bridge to set up the service proxy.
-        tokio::time::sleep(Duration::from_secs(15)).await;
+        // Wait for the Humble server to start (nix shell activation + ros2 node
+        // startup takes 30-60s), publish its liveliness token, and the bridge to
+        // set up the service proxy.
+        tokio::time::sleep(Duration::from_secs(60)).await;
 
         let ctx = jazzy_ctx(endpoint);
         let node = ctx.create_node("test_jazzy_client").build().unwrap();
