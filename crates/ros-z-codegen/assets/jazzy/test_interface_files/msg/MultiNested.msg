@@ -1,0 +1,9 @@
+Arrays array_of_arrays
+BoundedSequences array_of_bounded_sequences
+UnboundedSequences array_of_unbounded_sequences
+Arrays[3] bounded_array_of_arrays
+BoundedSequences[3] bounded_array_of_bounded_sequences
+UnboundedSequences[3] bounded_array_of_unbounded_sequences
+Arrays[] unbounded_array_of_arrays
+BoundedSequences[] unbounded_array_of_bounded_sequences
+UnboundedSequences[] unbounded_array_of_unbounded_sequences

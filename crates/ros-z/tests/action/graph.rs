@@ -84,8 +84,8 @@ mod tests {
             setup_test_with_client_server().await?;
 
         // Verify nodes were created with correct names
-        assert_eq!(client_node.entity.name, "test_action_graph_client_node");
-        assert_eq!(server_node.entity.name, "test_action_graph_server_node");
+        assert_eq!(client_node.name(), "test_action_graph_client_node");
+        assert_eq!(server_node.name(), "test_action_graph_server_node");
 
         Ok(())
     }
@@ -133,7 +133,7 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
 
         // Check if node2's graph can see it
-        let topics = node2.graph.get_topic_names_and_types();
+        let topics = node2.graph().get_topic_names_and_types();
         eprintln!("Node2 discovered {} topics:", topics.len());
         for (name, typ) in &topics {
             eprintln!("  - {} ({})", name, typ);
@@ -153,9 +153,9 @@ mod tests {
             setup_test_with_client_server().await?;
 
         // Test getting action clients by node
-        let client_node_key = ros_z::entity::node_key(&_client_node.entity);
+        let client_node_key = ros_z::entity::node_key(_client_node.node_entity());
         let client_names_types = _client_node
-            .graph
+            .graph()
             .get_action_client_names_and_types_by_node(client_node_key);
 
         // Should find the action client we created
@@ -167,9 +167,9 @@ mod tests {
         assert!(action_found);
 
         // Test getting action servers by node
-        let server_node_key = ros_z::entity::node_key(&_server_node.entity);
+        let server_node_key = ros_z::entity::node_key(_server_node.node_entity());
         let server_names_types = _server_node
-            .graph
+            .graph()
             .get_action_server_names_and_types_by_node(server_node_key);
 
         // Should find the action server we created
@@ -188,7 +188,7 @@ mod tests {
             setup_test_with_client_server().await?;
 
         // Test getting all action names and types
-        let all_actions = _client_node.graph.get_action_names_and_types();
+        let all_actions = _client_node.graph().get_action_names_and_types();
 
         // Should find both client and server actions
         assert!(!all_actions.is_empty());

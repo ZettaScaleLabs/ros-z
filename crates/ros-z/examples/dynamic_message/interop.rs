@@ -14,7 +14,7 @@ use ros_z_msgs::{
     std_msgs::String as StdString,
 };
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Static/Dynamic Message Interop Example ===\n");
 
     // Create schemas that match the static message types
@@ -195,4 +195,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n=== Example Complete ===");
     Ok(())
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    run()
 }

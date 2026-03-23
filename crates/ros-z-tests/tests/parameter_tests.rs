@@ -407,6 +407,65 @@ fn test_parameter_events_cover_lifecycle() {
     assert_eq!(deleted.deleted_parameters[0].value.integer_value, 2);
 }
 
+/// Test that set_parameter publishes a ParameterEvent on /parameter_events.
+///
+/// Subscribes to the raw Zenoh key `rt/parameter_events` before triggering any
+/// change, then sets a parameter and asserts the event arrives with the correct
+/// node FQN and changed parameter name.
+#[test]
+fn test_parameter_event_published_on_set() {
+    use std::{sync::mpsc, time::Duration};
+
+    use ros_z::{
+        msg::{SerdeCdrSerdes, ZDeserializer},
+        parameter::wire_types::WireParameterEvent,
+    };
+    use zenoh::Wait;
+
+    let router = TestRouter::new();
+    let ctx = create_ros_z_context_with_router(&router).expect("context");
+    let node = ctx.create_node("event_test_node").build().expect("node");
+
+    // Subscribe to /parameter_events via the raw session before any change.
+    let (tx, rx) = mpsc::sync_channel::<WireParameterEvent>(8);
+    // The publisher key is: {domain_id}/parameter_events/{type_name}/{type_hash}
+    let _sub = node
+        .session()
+        .declare_subscriber("*/parameter_events/**")
+        .callback(move |sample| {
+            let bytes = sample.payload().to_bytes();
+            if let Ok(event) = SerdeCdrSerdes::<WireParameterEvent>::deserialize(&bytes) {
+                let _ = tx.send(event);
+            }
+        })
+        .wait()
+        .expect("declare subscriber");
+
+    let desc = ParameterDescriptor::new("speed", ParameterType::Double);
+    node.declare_parameter("speed", ParameterValue::Double(1.0), desc)
+        .expect("declare");
+
+    // Drain any event from declare (implementation may or may not publish one).
+    let _ = rx.recv_timeout(Duration::from_millis(100));
+
+    node.set_parameter(Parameter::new("speed", ParameterValue::Double(3.0)))
+        .expect("set");
+
+    let event = rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("parameter event must arrive after set_parameter");
+
+    assert!(
+        event.node.contains("event_test_node"),
+        "event.node should contain node name, got: {}",
+        event.node
+    );
+    assert_eq!(event.changed_parameters.len(), 1);
+    assert_eq!(event.changed_parameters[0].name, "speed");
+    assert!(event.new_parameters.is_empty());
+    assert!(event.deleted_parameters.is_empty());
+}
+
 // ── Service client tests (require ros-msgs feature) ────────────────────────
 
 #[cfg(feature = "ros-msgs")]
@@ -566,6 +625,110 @@ mod service_tests {
 
             assert_eq!(desc_resp.descriptors.len(), 1);
             assert_eq!(desc_resp.descriptors[0].name, "value");
+        });
+    }
+
+    /// Test that set_parameters_atomically rolls back all changes when the
+    /// validation callback rejects the batch.
+    ///
+    /// Declares [a=1, b=2]. Registers a callback that forbids any batch
+    /// touching "b". Calls set_parameters_atomically([a=10, b=20]) via the
+    /// service, then verifies via get_parameters that both remain at their
+    /// original values. This exercises validate_and_apply(atomic=true) with a
+    /// user callback veto — a branch not covered by any other test.
+    #[test]
+    fn test_set_parameters_atomically_rollback_on_callback_rejection() {
+        let router = TestRouter::new();
+
+        let endpoint = router.endpoint().to_string();
+        thread::spawn(move || {
+            let ctx = create_ros_z_context_with_endpoint(&endpoint).expect("ctx");
+            let node = ctx.create_node("rollback_server").build().expect("node");
+
+            for (name, val) in &[("a", 1i64), ("b", 2i64)] {
+                let desc = ParameterDescriptor::new(*name, ParameterType::Integer);
+                node.declare_parameter(*name, ParameterValue::Integer(*val), desc)
+                    .expect("declare");
+            }
+
+            // Reject any batch that contains "b".
+            node.on_set_parameters(|params| {
+                if params.iter().any(|p| p.name == "b") {
+                    return SetParametersResult::failure("b is forbidden".to_string());
+                }
+                SetParametersResult::success()
+            });
+
+            thread::sleep(Duration::from_secs(30));
+        });
+
+        wait_for_ready(Duration::from_secs(2));
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let ctx = create_ros_z_context_with_router(&router).expect("ctx");
+            let client_node = ctx.create_node("rollback_client").build().expect("node");
+            tokio::time::sleep(Duration::from_millis(500)).await;
+
+            let make_int = |name: &str, v: i64| {
+                let mut wire = rcl_interfaces::ParameterValue::default();
+                wire.r#type = 2;
+                wire.integer_value = v;
+                rcl_interfaces::Parameter {
+                    name: name.to_string(),
+                    value: wire,
+                }
+            };
+
+            // Attempt atomic set — callback veto should reject the entire batch.
+            let atomic_client = client_node
+                .create_client::<SetParametersAtomically>(
+                    "/rollback_server/set_parameters_atomically",
+                )
+                .build()
+                .expect("atomic client");
+
+            atomic_client
+                .send_request(&SetParametersAtomicallyRequest {
+                    parameters: vec![make_int("a", 10), make_int("b", 20)],
+                })
+                .await
+                .expect("send");
+
+            let atomic_resp: SetParametersAtomicallyResponse = atomic_client
+                .take_response_timeout(Duration::from_secs(5))
+                .expect("atomic response");
+
+            assert!(
+                !atomic_resp.result.successful,
+                "expected rejection, got success"
+            );
+            assert!(
+                atomic_resp.result.reason.contains("forbidden"),
+                "unexpected reason: {}",
+                atomic_resp.result.reason
+            );
+
+            // Verify both parameters are unchanged via get_parameters.
+            let get_client = client_node
+                .create_client::<GetParameters>("/rollback_server/get_parameters")
+                .build()
+                .expect("get client");
+
+            get_client
+                .send_request(&GetParametersRequest {
+                    names: vec!["a".to_string(), "b".to_string()],
+                })
+                .await
+                .expect("send");
+
+            let get_resp: GetParametersResponse = get_client
+                .take_response_timeout(Duration::from_secs(5))
+                .expect("get response");
+
+            assert_eq!(get_resp.values.len(), 2);
+            assert_eq!(get_resp.values[0].integer_value, 1, "a must be unchanged");
+            assert_eq!(get_resp.values[1].integer_value, 2, "b must be unchanged");
         });
     }
 

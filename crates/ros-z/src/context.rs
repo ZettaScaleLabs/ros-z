@@ -208,7 +208,7 @@ impl ZContextBuilder {
     pub fn with_router_endpoint<S: Into<String>>(mut self, endpoint: S) -> Result<Self> {
         let session_config = crate::config::SessionConfigBuilder::new()
             .with_router_endpoint(&endpoint.into())
-            .build()?;
+            .build_config()?;
         self.zenoh_config = Some(session_config);
         Ok(self)
     }

@@ -37,11 +37,11 @@ use crate::{
 /// let node = ctx.create_node("my_node").build()?;
 /// ```
 pub struct ZNode {
-    pub entity: NodeEntity,
-    pub session: Arc<Session>,
+    pub(crate) entity: NodeEntity,
+    pub(crate) session: Arc<Session>,
     counter: Arc<GlobalCounter>,
-    pub graph: Arc<Graph>,
-    pub remap_rules: RemapRules,
+    pub(crate) graph: Arc<Graph>,
+    pub(crate) remap_rules: RemapRules,
     _lv_token: LivelinessToken,
     pub(crate) shm_config: Option<Arc<crate::shm::ShmConfig>>,
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
@@ -63,22 +63,22 @@ impl std::fmt::Debug for ZNode {
 }
 
 pub struct ZNodeBuilder {
-    pub domain_id: usize,
-    pub name: String,
-    pub namespace: String,
-    pub enclave: String,
-    pub session: Arc<Session>,
-    pub counter: Arc<GlobalCounter>,
-    pub graph: Arc<Graph>,
-    pub remap_rules: RemapRules,
+    pub(crate) domain_id: usize,
+    pub(crate) name: String,
+    pub(crate) namespace: String,
+    pub(crate) enclave: String,
+    pub(crate) session: Arc<Session>,
+    pub(crate) counter: Arc<GlobalCounter>,
+    pub(crate) graph: Arc<Graph>,
+    pub(crate) remap_rules: RemapRules,
     pub(crate) shm_config: Option<Arc<crate::shm::ShmConfig>>,
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
     /// Whether to enable the type description service for this node.
-    pub enable_type_desc_service: bool,
+    pub(crate) enable_type_desc_service: bool,
     /// Whether to enable parameter services for this node (default: true).
-    pub enable_parameters: bool,
+    pub(crate) enable_parameters: bool,
     /// Initial parameter overrides applied at declaration time.
-    pub parameter_overrides: std::collections::HashMap<String, ParameterValue>,
+    pub(crate) parameter_overrides: std::collections::HashMap<String, ParameterValue>,
 }
 
 impl ZNodeBuilder {
@@ -397,6 +397,7 @@ impl ZNode {
         ZSubBuilder {
             entity,
             session: self.session.clone(),
+            graph: self.graph.clone(),
             keyexpr_format: self.keyexpr_format,
             dyn_schema: None,
             locality: None,
@@ -690,6 +691,36 @@ impl ZNode {
     /// Get access to the global counter for entity ID generation.
     pub fn counter(&self) -> &Arc<GlobalCounter> {
         &self.counter
+    }
+
+    /// Get the name of this node.
+    pub fn name(&self) -> &str {
+        &self.entity.name
+    }
+
+    /// Get the namespace of this node.
+    pub fn namespace(&self) -> &str {
+        &self.entity.namespace
+    }
+
+    /// Get a reference to the graph for this node.
+    pub fn graph(&self) -> &Arc<Graph> {
+        &self.graph
+    }
+
+    /// Get a reference to the node entity (for graph and liveliness operations).
+    pub fn node_entity(&self) -> &NodeEntity {
+        &self.entity
+    }
+
+    /// Apply remapping rules to a topic or action name.
+    pub fn apply_remap(&self, name: &str) -> String {
+        self.remap_rules.apply(name)
+    }
+
+    /// Get a reference to the underlying Zenoh session.
+    pub fn session(&self) -> &Arc<Session> {
+        &self.session
     }
 
     // ========================================================================
@@ -1009,5 +1040,27 @@ impl ZNode {
             .with_serdes::<DynamicSerdeCdrSerdes>()
             .with_dyn_schema(schema)
             .build()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_node_entity_name_namespace() {
+        let entity = NodeEntity {
+            name: "my_node".to_string(),
+            namespace: "/my_ns".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(entity.name, "my_node");
+        assert_eq!(entity.namespace, "/my_ns");
+    }
+
+    #[test]
+    fn test_remap_rules_identity_when_empty() {
+        let rules = RemapRules::default();
+        assert_eq!(rules.apply("/foo"), "/foo");
     }
 }

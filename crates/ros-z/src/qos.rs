@@ -1,6 +1,7 @@
 use std::fmt;
 use std::num::NonZeroUsize;
 
+#[non_exhaustive]
 #[derive(Debug, Default, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum QosReliability {
     #[default]
@@ -58,6 +59,7 @@ impl fmt::Display for QosHistory {
     }
 }
 
+#[non_exhaustive]
 #[derive(Debug, Default, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum QosDurability {
     TransientLocal,
@@ -74,6 +76,7 @@ impl fmt::Display for QosDurability {
     }
 }
 
+#[non_exhaustive]
 #[derive(Debug, Default, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum QosLiveliness {
     #[default]
@@ -113,6 +116,15 @@ impl QosDuration {
 impl Default for QosDuration {
     fn default() -> Self {
         Self::INFINITE
+    }
+}
+
+impl From<std::time::Duration> for QosDuration {
+    fn from(d: std::time::Duration) -> Self {
+        Self {
+            sec: d.as_secs(),
+            nsec: d.subsec_nanos() as u64,
+        }
     }
 }
 
@@ -412,5 +424,177 @@ impl QosProfile {
             liveliness,
             liveliness_lease_duration,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::num::NonZeroUsize;
+
+    use super::*;
+
+    // -----------------------------------------------------------------------
+    // Reliability mapping: QosReliability → protocol::QosReliability
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_reliable_maps_to_protocol_reliable() {
+        let qos = QosProfile {
+            reliability: QosReliability::Reliable,
+            ..Default::default()
+        };
+        let proto = qos.to_protocol_qos();
+        assert_eq!(
+            proto.reliability,
+            ros_z_protocol::qos::QosReliability::Reliable
+        );
+    }
+
+    #[test]
+    fn test_best_effort_maps_to_protocol_best_effort() {
+        let qos = QosProfile {
+            reliability: QosReliability::BestEffort,
+            ..Default::default()
+        };
+        let proto = qos.to_protocol_qos();
+        assert_eq!(
+            proto.reliability,
+            ros_z_protocol::qos::QosReliability::BestEffort
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Durability mapping
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_volatile_maps_to_protocol_volatile() {
+        let qos = QosProfile {
+            durability: QosDurability::Volatile,
+            ..Default::default()
+        };
+        let proto = qos.to_protocol_qos();
+        assert_eq!(
+            proto.durability,
+            ros_z_protocol::qos::QosDurability::Volatile
+        );
+    }
+
+    #[test]
+    fn test_transient_local_maps_to_protocol_transient_local() {
+        let qos = QosProfile {
+            durability: QosDurability::TransientLocal,
+            ..Default::default()
+        };
+        let proto = qos.to_protocol_qos();
+        assert_eq!(
+            proto.durability,
+            ros_z_protocol::qos::QosDurability::TransientLocal
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // History mapping: depth is preserved
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_keep_last_depth_is_preserved() {
+        let depth = NonZeroUsize::new(7).unwrap();
+        let qos = QosProfile {
+            history: QosHistory::KeepLast(depth),
+            ..Default::default()
+        };
+        let proto = qos.to_protocol_qos();
+        assert_eq!(proto.history, ros_z_protocol::qos::QosHistory::KeepLast(7));
+    }
+
+    #[test]
+    fn test_keep_all_maps_to_protocol_keep_all() {
+        let qos = QosProfile {
+            history: QosHistory::KeepAll,
+            ..Default::default()
+        };
+        let proto = qos.to_protocol_qos();
+        assert_eq!(proto.history, ros_z_protocol::qos::QosHistory::KeepAll);
+    }
+
+    #[test]
+    fn test_keep_last_depth_1_is_preserved() {
+        let depth = NonZeroUsize::new(1).unwrap();
+        let qos = QosProfile {
+            history: QosHistory::KeepLast(depth),
+            ..Default::default()
+        };
+        let proto = qos.to_protocol_qos();
+        assert_eq!(proto.history, ros_z_protocol::qos::QosHistory::KeepLast(1));
+    }
+
+    // -----------------------------------------------------------------------
+    // QoS encode/decode roundtrip (pure string logic, no Zenoh session)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_encode_decode_reliable_volatile_keep_last() {
+        let qos = QosProfile {
+            reliability: QosReliability::Reliable,
+            durability: QosDurability::Volatile,
+            history: QosHistory::KeepLast(NonZeroUsize::new(10).unwrap()),
+            ..Default::default()
+        };
+        let encoded = qos.encode();
+        let decoded = QosProfile::decode(&encoded).expect("decode");
+        assert_eq!(decoded.reliability, qos.reliability);
+        assert_eq!(decoded.durability, qos.durability);
+        assert_eq!(decoded.history, qos.history);
+    }
+
+    #[test]
+    fn test_encode_decode_best_effort_transient_keep_last() {
+        let qos = QosProfile {
+            reliability: QosReliability::BestEffort,
+            durability: QosDurability::TransientLocal,
+            history: QosHistory::KeepLast(NonZeroUsize::new(5).unwrap()),
+            ..Default::default()
+        };
+        let encoded = qos.encode();
+        let decoded = QosProfile::decode(&encoded).expect("decode");
+        assert_eq!(decoded.reliability, qos.reliability);
+        assert_eq!(decoded.durability, qos.durability);
+        assert_eq!(decoded.history, qos.history);
+    }
+
+    // -----------------------------------------------------------------------
+    // QosHistory::from_depth normalizes depth=0 to DEFAULT_HISTORY_DEPTH
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_from_depth_zero_uses_default() {
+        let h = QosHistory::from_depth(0);
+        assert_eq!(
+            h,
+            QosHistory::KeepLast(NonZeroUsize::new(DEFAULT_HISTORY_DEPTH).unwrap())
+        );
+    }
+
+    #[test]
+    fn test_from_depth_nonzero_preserved() {
+        let h = QosHistory::from_depth(3);
+        assert_eq!(h, QosHistory::KeepLast(NonZeroUsize::new(3).unwrap()));
+    }
+
+    #[test]
+    fn test_qos_duration_from_std_duration() {
+        let d = std::time::Duration::new(3, 500_000_000);
+        let qd = QosDuration::from(d);
+        assert_eq!(qd.sec, 3);
+        assert_eq!(qd.nsec, 500_000_000);
+    }
+
+    #[test]
+    fn test_qos_duration_from_std_duration_zero() {
+        let d = std::time::Duration::ZERO;
+        let qd = QosDuration::from(d);
+        assert_eq!(qd.sec, 0);
+        assert_eq!(qd.nsec, 0);
     }
 }

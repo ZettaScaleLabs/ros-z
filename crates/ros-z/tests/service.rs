@@ -158,7 +158,7 @@ async fn test_async_service_request_response() {
 
         // Wait for request asynchronously
         let (key, request) = server
-            .take_request_async()
+            .async_take_request()
             .await
             .expect("Failed to take request");
 
@@ -167,7 +167,7 @@ async fn test_async_service_request_response() {
         };
 
         server
-            .send_response_async(&response, &key)
+            .async_send_response(&response, &key)
             .await
             .expect("Failed to send response");
     });
@@ -194,7 +194,7 @@ async fn test_async_service_request_response() {
             .expect("Failed to send request");
 
         let response = client
-            .take_response_async()
+            .async_take_response()
             .await
             .expect("Failed to receive response");
 

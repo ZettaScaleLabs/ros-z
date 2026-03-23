@@ -1,6 +1,7 @@
 use crate::msg::ZMessage;
 use ros_z_cdr::{CdrBuffer, CdrDeserialize, CdrReader, CdrSerialize, CdrSerializedSize, CdrWriter};
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::time::SystemTime;
 
 pub mod client;
@@ -159,6 +160,13 @@ impl Default for GoalId {
     }
 }
 
+impl fmt::Display for GoalId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let uuid = uuid::Uuid::from_bytes(self.0);
+        write!(f, "{}", uuid.hyphenated())
+    }
+}
+
 /// Status of an action goal.
 ///
 /// The `GoalStatus` enum represents the current state of an action goal
@@ -172,6 +180,7 @@ impl Default for GoalId {
 /// assert!(status.is_active());
 /// assert!(!status.is_terminal());
 /// ```
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(i8)]
 #[serde(try_from = "i8", into = "i8")]
@@ -313,6 +322,7 @@ impl GoalInfo {
 ///
 /// `GoalEvent` represents the different events that can cause an action goal
 /// to transition from one state to another in the ROS 2 action state machine.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GoalEvent {
     /// Start executing an accepted goal.
@@ -476,5 +486,28 @@ impl CdrSerializedSize for GoalInfo {
     fn cdr_serialized_size(&self, pos: usize) -> usize {
         let p = self.goal_id.cdr_serialized_size(pos);
         self.stamp.cdr_serialized_size(p)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_goal_id_display_is_hyphenated_uuid() {
+        let bytes = [
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+            0x0e, 0x0f,
+        ];
+        let id = GoalId(bytes);
+        let s = format!("{}", id);
+        assert_eq!(s, "00010203-0405-0607-0809-0a0b0c0d0e0f");
+    }
+
+    #[test]
+    fn test_goal_status_variants_are_distinct() {
+        assert_ne!(GoalStatus::Unknown, GoalStatus::Accepted);
+        assert_ne!(GoalStatus::Executing, GoalStatus::Succeeded);
+        assert_ne!(GoalStatus::Canceled, GoalStatus::Aborted);
     }
 }

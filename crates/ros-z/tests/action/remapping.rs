@@ -273,8 +273,8 @@ mod tests {
         let node = ctx.create_node("test_node").build()?;
 
         // Verify that the remap rules are passed to the node
-        assert_eq!(node.remap_rules.apply("test_action"), "remapped_action");
-        assert_eq!(node.remap_rules.apply("other_action"), "other_action");
+        assert_eq!(node.apply_remap("test_action"), "remapped_action");
+        assert_eq!(node.apply_remap("other_action"), "other_action");
 
         Ok(())
     }

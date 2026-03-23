@@ -130,7 +130,7 @@ def main [] {
     # Coverage goal check
     if ($percentage < 70) {
         print $"⚠️  Warning: Coverage is below 70% goal \(currently ($percentage)%\)"
-        exit 0  # Don't fail, just warn
+        exit 1
     } else {
         print $"✅ Coverage goal met: ($percentage)% >= 70%"
     }

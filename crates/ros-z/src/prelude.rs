@@ -20,8 +20,15 @@
 /// The builder trait — required to call `.build()` on any builder type.
 pub use crate::Builder;
 
-/// The core entry point for creating nodes.
-pub use crate::context::ZContextBuilder;
+/// Core runtime types.
+pub use crate::context::{ZContext, ZContextBuilder};
+pub use crate::node::ZNode;
+pub use crate::pubsub::{ZPub, ZSub};
+pub use crate::service::{QueryKey, ZClient, ZServer};
+
+pub use crate::action::server::{Accepted, Executing, Requested};
+/// Action types.
+pub use crate::action::{ClientGoalHandle, GoalId, GoalStatus};
 
 /// QoS configuration types.
 pub use crate::qos::{

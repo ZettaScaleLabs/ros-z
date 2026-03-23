@@ -36,6 +36,9 @@ serde_json = { workspace = true }
 [dev-dependencies]
 tempfile = "3.0"
 serial_test = "3"
+ros-z-cdr = { path = "../ros-z-cdr" }
+serde = { workspace = true, features = ["derive"] }
+insta = "1"
 
 [features]
 default = []

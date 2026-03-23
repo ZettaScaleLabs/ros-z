@@ -17,6 +17,11 @@ type Node struct {
 	handle    *C.ros_z_node_t
 	ctx       *Context
 	closeOnce sync.Once
+	// ownedSubs keeps callback-based subscribers alive for the node's lifetime.
+	// Matches rmw_zenoh_cpp's NodeData::subs_ ownership pattern: the node is the
+	// source of truth for subscription lifetime, not the caller's variable.
+	ownedSubs []interface{}
+	subsMu    sync.Mutex
 }
 
 // NodeBuilder builds a Node
@@ -87,6 +92,34 @@ func (b *NodeBuilder) Build() (*Node, error) {
 	return node, nil
 }
 
+// DestroySubscriber removes a callback-based subscriber from node ownership and closes it,
+// undeclaring its Zenoh subscription immediately.
+//
+// Matches rclpy's Node.destroy_subscription(). After this call the subscriber is closed
+// and must not be used again. Returns nil if sub was not found (already closed or not owned).
+func (n *Node) DestroySubscriber(sub *Subscriber) error {
+	n.subsMu.Lock()
+	idx := -1
+	for i, s := range n.ownedSubs {
+		if s == sub {
+			idx = i
+			break
+		}
+	}
+	if idx >= 0 {
+		last := len(n.ownedSubs) - 1
+		n.ownedSubs[idx] = n.ownedSubs[last]
+		n.ownedSubs[last] = nil
+		n.ownedSubs = n.ownedSubs[:last]
+	}
+	n.subsMu.Unlock()
+
+	if idx >= 0 {
+		return sub.Close()
+	}
+	return nil
+}
+
 // CreatePublisher creates a new publisher builder
 func (n *Node) CreatePublisher(topic string) *PublisherBuilder {
 	return &PublisherBuilder{
@@ -103,13 +136,27 @@ func (n *Node) CreateSubscriber(topic string) *SubscriberBuilder {
 	}
 }
 
-// Close destroys the node
+// Close destroys the node.
+// Owned callback subscribers are closed first so their Zenoh subscriptions
+// are undeclared before the node handle is destroyed, preventing callbacks
+// from firing on the Zenoh/CGo thread after Close returns.
 func (n *Node) Close() error {
 	var err error
 	n.closeOnce.Do(func() {
 		if n.handle == nil {
 			return
 		}
+		// Drain owned subscribers before destroying the node handle.
+		n.subsMu.Lock()
+		subs := n.ownedSubs
+		n.ownedSubs = nil
+		n.subsMu.Unlock()
+		for _, s := range subs {
+			if sub, ok := s.(*Subscriber); ok {
+				sub.Close()
+			}
+		}
+
 		result := C.ros_z_node_destroy(n.handle)
 		n.handle = nil
 		if result != 0 {

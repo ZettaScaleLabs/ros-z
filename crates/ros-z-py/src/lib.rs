@@ -34,7 +34,7 @@ fn list_registered_types() -> Vec<String> {
 
 /// Python bindings for ros-z: Native Rust ROS 2 implementation using Zenoh
 #[pymodule]
-fn ros_z_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Register custom exceptions
     m.add("RosZError", m.py().get_type_bound::<error::RosZError>())?;
     m.add(
@@ -98,6 +98,9 @@ fn ros_z_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Register the submodule in sys.modules so it can be accessed from Rust
     let sys = m.py().import_bound("sys")?;
     let sys_modules = sys.getattr("modules")?;
+    // Register under both paths: the submodule path and the legacy top-level path.
+    // Internal Rust code looks up "ros_z_py.ros_z_msgs"; keep that working after the rename.
+    sys_modules.set_item("ros_z_py._native.ros_z_msgs", &ros_z_msgs_module)?;
     sys_modules.set_item("ros_z_py.ros_z_msgs", &ros_z_msgs_module)?;
 
     Ok(())

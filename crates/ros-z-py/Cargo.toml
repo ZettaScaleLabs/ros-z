@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [lib]
-name = "ros_z_py"
+name = "_native"
 crate-type = ["cdylib"]
 
 [dependencies]
@@ -24,7 +24,6 @@ tokio = { workspace = true, features = ["rt-multi-thread", "time"] }
 anyhow = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 flume = { workspace = true }
-parking_lot = { workspace = true }
 once_cell = "1.19"
 
 [build-dependencies]

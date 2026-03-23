@@ -155,6 +155,7 @@ impl PyQosProfile {
         match self.inner.reliability {
             QosReliability::Reliable => "reliable",
             QosReliability::BestEffort => "best_effort",
+            _ => "reliable",
         }
     }
 
@@ -163,6 +164,7 @@ impl PyQosProfile {
         match self.inner.durability {
             QosDurability::Volatile => "volatile",
             QosDurability::TransientLocal => "transient_local",
+            _ => "volatile",
         }
     }
 
@@ -263,12 +265,14 @@ pub fn qos_to_pydict(py: Python, qos: &QosProfile) -> PyResult<Py<PyDict>> {
     let reliability = match qos.reliability {
         QosReliability::Reliable => "reliable",
         QosReliability::BestEffort => "best_effort",
+        _ => "reliable",
     };
     dict.set_item("reliability", reliability)?;
 
     let durability = match qos.durability {
         QosDurability::Volatile => "volatile",
         QosDurability::TransientLocal => "transient_local",
+        _ => "volatile",
     };
     dict.set_item("durability", durability)?;
 
@@ -286,6 +290,7 @@ pub fn qos_to_pydict(py: Python, qos: &QosProfile) -> PyResult<Py<PyDict>> {
         QosLiveliness::Automatic => "automatic",
         QosLiveliness::ManualByNode => "manual_by_node",
         QosLiveliness::ManualByTopic => "manual_by_topic",
+        _ => "automatic",
     };
     dict.set_item("liveliness", liveliness)?;
 

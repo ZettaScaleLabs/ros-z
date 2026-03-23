@@ -341,7 +341,7 @@ fn test_ros_z_service_server_to_ros2_dds_client() {
             println!("ros-z service server ready");
 
             // Handle one request
-            match server.take_request_async().await {
+            match server.async_take_request().await {
                 Ok((key, req)) => {
                     println!("Received request: {} + {}", req.a, req.b);
                     let resp = AddTwoIntsResponse { sum: req.a + req.b };
