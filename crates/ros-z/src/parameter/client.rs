@@ -105,7 +105,7 @@ impl ParameterClient {
                 names: names.iter().map(|name| name.as_ref().to_string()).collect(),
             })
             .await?;
-        let response = client.take_response_async().await?;
+        let response = client.async_take_response().await?;
         Ok(response
             .descriptors
             .iter()
@@ -124,7 +124,7 @@ impl ParameterClient {
                 names: names.iter().map(|name| name.as_ref().to_string()).collect(),
             })
             .await?;
-        let response = client.take_response_async().await?;
+        let response = client.async_take_response().await?;
         Ok(response
             .values
             .iter()
@@ -143,7 +143,7 @@ impl ParameterClient {
                 names: names.iter().map(|name| name.as_ref().to_string()).collect(),
             })
             .await?;
-        let response = client.take_response_async().await?;
+        let response = client.async_take_response().await?;
         Ok(response
             .types
             .into_iter()
@@ -170,7 +170,7 @@ impl ParameterClient {
                 depth: depth.unwrap_or(DEPTH_RECURSIVE),
             })
             .await?;
-        let response = client.take_response_async().await?;
+        let response = client.async_take_response().await?;
         Ok(ParameterList {
             names: response.result.names,
             prefixes: response.result.prefixes,
@@ -188,7 +188,7 @@ impl ParameterClient {
                 parameters: parameters.iter().map(Parameter::to_wire).collect(),
             })
             .await?;
-        let response = client.take_response_async().await?;
+        let response = client.async_take_response().await?;
         Ok(response
             .results
             .into_iter()
@@ -212,7 +212,7 @@ impl ParameterClient {
                 parameters: parameters.iter().map(Parameter::to_wire).collect(),
             })
             .await?;
-        let response = client.take_response_async().await?;
+        let response = client.async_take_response().await?;
         Ok(SetParametersResult {
             successful: response.result.successful,
             reason: response.result.reason,
