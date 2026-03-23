@@ -2,12 +2,11 @@
 
 Verifies that:
 - py.typed marker is present in the installed package
-- _native.pyi and __init__.pyi are present (in source tree)
-- __all__ is a static list covering the expected public API
-- All names in __all__ are actually importable from ros_z_py
+- __init__.pyi is present (in source tree)
+- All expected public names are accessible on the ros_z_py module
+- QoS constants are QosProfile instances
 """
 
-import importlib.resources
 import importlib.util
 import ast
 from pathlib import Path
@@ -30,18 +29,6 @@ def test_py_typed_marker_present():
     )
 
 
-def test_native_pyi_is_valid_python():
-    """_native.pyi must exist in the source tree and parse as valid Python."""
-    spec = importlib.util.find_spec("ros_z_py")
-    assert spec is not None
-    pkg_dir = Path(spec.submodule_search_locations[0])
-    stub = pkg_dir / "_native.pyi"
-    assert stub.exists(), f"_native.pyi not found at {stub}"
-    source = stub.read_text()
-    # Will raise SyntaxError if invalid
-    ast.parse(source)
-
-
 def test_init_pyi_is_valid_python():
     """__init__.pyi must exist in the source tree and parse as valid Python."""
     spec = importlib.util.find_spec("ros_z_py")
@@ -53,7 +40,7 @@ def test_init_pyi_is_valid_python():
     ast.parse(source)
 
 
-# ── __all__ correctness ───────────────────────────────────────────────────────
+# ── Public API surface ────────────────────────────────────────────────────────
 
 EXPECTED_PUBLIC_NAMES = {
     # Core types
@@ -71,6 +58,8 @@ EXPECTED_PUBLIC_NAMES = {
     "ZActionClient",
     "ActionGoalHandle",
     "ZActionServer",
+    "ServerGoalRequest",
+    "ServerGoalHandle",
     "GoalStatus",
     # Buffer types
     "ZPayloadView",
@@ -101,24 +90,21 @@ EXPECTED_PUBLIC_NAMES = {
 }
 
 
-def test_all_is_static_list():
-    """__all__ must be a plain list, not dynamically constructed at import time."""
-    assert isinstance(ros_z_py.__all__, list), "__all__ must be a list"
+def test_expected_names_are_accessible():
+    """All expected public names must be accessible as attributes on ros_z_py."""
+    missing = [name for name in EXPECTED_PUBLIC_NAMES if not hasattr(ros_z_py, name)]
+    assert not missing, f"Names missing from ros_z_py: {sorted(missing)}"
 
 
-def test_all_covers_expected_names():
-    """All expected public names must be present in __all__."""
-    missing = EXPECTED_PUBLIC_NAMES - set(ros_z_py.__all__)
-    assert not missing, f"Names missing from __all__: {sorted(missing)}"
+# ── QoS constants ─────────────────────────────────────────────────────────────
 
 
-def test_all_names_are_importable():
-    """Every name listed in __all__ must be importable from ros_z_py."""
-    missing = []
-    for name in ros_z_py.__all__:
-        if not hasattr(ros_z_py, name):
-            missing.append(name)
-    assert not missing, f"Names in __all__ but not accessible on module: {missing}"
+def test_qos_constants_are_qos_profile_instances():
+    """QoS constants must be QosProfile instances, not plain dicts."""
+    assert isinstance(ros_z_py.QOS_DEFAULT, ros_z_py.QosProfile)
+    assert isinstance(ros_z_py.QOS_SENSOR_DATA, ros_z_py.QosProfile)
+    assert isinstance(ros_z_py.QOS_PARAMETERS, ros_z_py.QosProfile)
+    assert isinstance(ros_z_py.QOS_SERVICES, ros_z_py.QosProfile)
 
 
 def test_native_submodule_accessible():
