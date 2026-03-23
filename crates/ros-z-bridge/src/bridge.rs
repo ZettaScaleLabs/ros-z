@@ -219,15 +219,7 @@ impl Bridge {
                 entity.topic,
                 type_info.name
             );
-            self.bridge_entity(
-                key,
-                entity.kind,
-                &entity.topic,
-                &type_info.name,
-                &type_info.hash,
-                event.distro,
-                &event.raw_ke,
-            );
+            self.bridge_entity(key, &type_info.hash, event.distro, &event.raw_ke);
         } else {
             tracing::info!(
                 "Entity disappeared: topic={} type={}",
@@ -242,9 +234,6 @@ impl Bridge {
     fn bridge_entity(
         &self,
         key: BridgeKey,
-        kind: EntityKind,
-        topic: &str,
-        type_name: &str,
         discovered_hash: &TypeHash,
         from_distro: Distro,
         raw_lv_ke: &str,
@@ -262,11 +251,12 @@ impl Bridge {
         // the provided hash directly.
         let jazzy_hash = match from_distro {
             Distro::Jazzy => discovered_hash.clone(),
-            Distro::Humble => match hash_registry::lookup(type_name) {
+            Distro::Humble => match hash_registry::lookup(&key.type_name) {
                 Some(h) => h.clone(),
                 None => {
                     tracing::warn!(
-                        "Unknown type {type_name} — cannot bridge (no hash in registry)"
+                        "Unknown type {} — cannot bridge (no hash in registry)",
+                        key.type_name
                     );
                     return;
                 }
@@ -274,12 +264,16 @@ impl Bridge {
         };
 
         let d = self.domain_id;
-        let topic_stripped = topic.strip_prefix('/').unwrap_or(topic);
+        let topic_stripped = key.topic.strip_prefix('/').unwrap_or(&key.topic);
 
         // Build KEs for both sides.
-        let humble_ke = format!("{d}/{topic_stripped}/{type_name}/TypeHashNotSupported");
+        let humble_ke = format!(
+            "{d}/{topic_stripped}/{}/TypeHashNotSupported",
+            key.type_name
+        );
         let jazzy_ke = format!(
-            "{d}/{topic_stripped}/{type_name}/{}",
+            "{d}/{topic_stripped}/{}/{}",
+            key.type_name,
             rihs_string(&jazzy_hash)
         );
 
@@ -329,7 +323,7 @@ impl Bridge {
             }
         };
 
-        let entry = match kind {
+        let entry = match key.kind {
             EntityKind::Publisher | EntityKind::Subscription => {
                 self.setup_pubsub_bridge(&humble_ke, &jazzy_ke, jazzy_lv, humble_lv)
             }
@@ -344,7 +338,7 @@ impl Bridge {
                 self.active.lock().unwrap().insert(key, e);
             }
             Err(err) => {
-                tracing::error!("Failed to set up bridge for {topic}: {err}");
+                tracing::error!("Failed to set up bridge for {}: {err}", key.topic);
             }
         }
     }
