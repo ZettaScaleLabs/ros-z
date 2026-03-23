@@ -650,35 +650,21 @@ mod humble_jazzy {
     /// Nix shell activation noise (pre-commit messages, env banners) is stripped by
     /// keeping only lines that look like ROS topic names: start with `/`, no spaces,
     /// no dots (which would indicate file paths).
-    ///
-    /// Fast path: if `ROS_DISTRO=jazzy` is already set (e.g. CI sources the Jazzy
-    /// nix env before running tests), call `ros2` directly — avoids 30-60s nix
-    /// shell startup overhead per call.
     pub fn jazzy_topic_list(endpoint: &str) -> Vec<String> {
         let override_str = rmw_zenoh_override(endpoint);
-        let in_jazzy_env = std::env::var("ROS_DISTRO").as_deref() == Ok("jazzy");
-        let output = if in_jazzy_env {
-            Command::new("ros2")
-                .args(["topic", "list"])
-                .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
-                .env("ZENOH_CONFIG_OVERRIDE", &override_str)
-                .output()
-                .expect("failed to run ros2 topic list")
-        } else {
-            Command::new("nix")
-                .args([
-                    "develop",
-                    ".#ros-jazzy",
-                    "-c",
-                    "sh",
-                    "-c",
-                    "timeout 30 ros2 topic list 2>/dev/null",
-                ])
-                .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
-                .env("ZENOH_CONFIG_OVERRIDE", &override_str)
-                .output()
-                .expect("failed to run ros2 topic list via nix")
-        };
+        let output = Command::new("nix")
+            .args([
+                "develop",
+                ".#ros-jazzy",
+                "-c",
+                "sh",
+                "-c",
+                "timeout 30 ros2 topic list 2>/dev/null",
+            ])
+            .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
+            .env("ZENOH_CONFIG_OVERRIDE", &override_str)
+            .output()
+            .expect("failed to run ros2 topic list");
         String::from_utf8_lossy(&output.stdout)
             .lines()
             .map(|l| l.trim().to_string())
