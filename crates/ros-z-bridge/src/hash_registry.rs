@@ -13,7 +13,7 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-use ros_z::MessageTypeInfo;
+use ros_z::{MessageTypeInfo, ServiceTypeInfo};
 use ros_z_protocol::TypeHash;
 
 // ---------------------------------------------------------------------------
@@ -21,10 +21,10 @@ use ros_z_protocol::TypeHash;
 // ---------------------------------------------------------------------------
 
 /// Lazily-initialised global registry.
-static REGISTRY: OnceLock<HashMap<&'static str, TypeHash>> = OnceLock::new();
+static REGISTRY: OnceLock<HashMap<String, TypeHash>> = OnceLock::new();
 
 /// Return the global registry, initialising it on first call.
-pub fn registry() -> &'static HashMap<&'static str, TypeHash> {
+pub fn registry() -> &'static HashMap<String, TypeHash> {
     REGISTRY.get_or_init(build_registry)
 }
 
@@ -43,18 +43,26 @@ pub fn lookup(type_name: &str) -> Option<&'static TypeHash> {
 /// Helper macro: register a single `MessageTypeInfo` implementor.
 macro_rules! reg {
     ($map:expr, $T:ty) => {
-        $map.insert(<$T>::type_name(), <$T>::type_hash());
+        $map.insert(<$T>::type_name().to_string(), <$T>::type_hash());
     };
 }
 
-fn build_registry() -> HashMap<&'static str, TypeHash> {
+/// Helper macro: register a single `ServiceTypeInfo` implementor.
+macro_rules! reg_service {
+    ($map:expr, $T:ty) => {
+        let info = <$T>::service_type_info();
+        $map.insert(info.name, info.hash);
+    };
+}
+
+fn build_registry() -> HashMap<String, TypeHash> {
     // Generated types live under ros_z_msgs::ros::{package}::{TypeName}
     // (no `msg` submodule in the Rust code; `msg` only appears in the
     //  ROS type name string returned by type_name()).
     use ros_z_msgs::ros::example_interfaces;
     use ros_z_msgs::ros::std_msgs;
 
-    let mut m: HashMap<&'static str, TypeHash> = HashMap::new();
+    let mut m: HashMap<String, TypeHash> = HashMap::new();
 
     // std_msgs — always present when the std_msgs feature is enabled
     {
@@ -170,6 +178,9 @@ fn build_registry() -> HashMap<&'static str, TypeHash> {
     {
         reg!(m, example_interfaces::AddTwoIntsRequest);
         reg!(m, example_interfaces::AddTwoIntsResponse);
+        // Service type (type_name = "example_interfaces::srv::dds_::AddTwoInts_")
+        // Humble rmw_zenoh_cpp advertises the service entity under this name.
+        reg_service!(m, example_interfaces::srv::AddTwoInts);
     }
 
     m
@@ -205,6 +216,16 @@ mod tests {
         assert!(
             hash.is_some(),
             "geometry_msgs/Twist should be in the registry"
+        );
+    }
+
+    #[cfg(feature = "jazzy")]
+    #[test]
+    fn add_two_ints_service_registered() {
+        let hash = lookup("example_interfaces::srv::dds_::AddTwoInts_");
+        assert!(
+            hash.is_some(),
+            "example_interfaces/AddTwoInts service type should be in the registry"
         );
     }
 
