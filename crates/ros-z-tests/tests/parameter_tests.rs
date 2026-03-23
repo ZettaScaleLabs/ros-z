@@ -264,7 +264,7 @@ fn test_parameter_event_published_on_set() {
     let (tx, rx) = mpsc::sync_channel::<WireParameterEvent>(8);
     // The publisher key is: {domain_id}/parameter_events/{type_name}/{type_hash}
     let _sub = node
-        .session
+        .session()
         .declare_subscriber("*/parameter_events/**")
         .callback(move |sample| {
             let bytes = sample.payload().to_bytes();

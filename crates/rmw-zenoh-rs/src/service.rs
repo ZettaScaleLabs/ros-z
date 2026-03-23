@@ -89,15 +89,15 @@ impl ClientImpl {
 
         tracing::debug!(
             "[ClientImpl::take_response] Attempting to take response, rx has {} items",
-            if self.inner.rx.is_empty() {
+            if self.inner.rx().is_empty() {
                 0
             } else {
-                self.inner.rx.len()
+                self.inner.rx().len()
             }
         );
 
         // Try to receive a response
-        if let Ok(sample) = self.inner.rx.try_recv() {
+        if let Ok(sample) = self.inner.rx().try_recv() {
             tracing::debug!("[ClientImpl::take_response] Got response sample");
 
             let payload = sample.payload();
@@ -196,7 +196,7 @@ impl ServiceImpl {
         }
 
         // Try to receive a request from the raw receiver
-        if let Some(query) = self.inner.queue.as_ref().and_then(|q| q.try_recv()) {
+        if let Some(query) = self.inner.try_queue().and_then(|q| q.try_recv()) {
             // Get the payload bytes
             let bytes = if let Some(payload) = query.payload() {
                 payload.to_bytes().to_vec()
@@ -253,10 +253,10 @@ impl ServiceImpl {
                 "[ServiceImpl::take_request] Storing query with key sn:{}, inserting into map",
                 key.sn
             );
-            self.inner.map.insert(key.clone(), query);
+            self.inner.map_insert(key.clone(), query);
             tracing::debug!(
                 "[ServiceImpl::take_request] Map now has {} entries",
-                self.inner.map.len()
+                self.inner.map_len()
             );
 
             // Deserialize into the provided request buffer using request MessageTypeSupport
@@ -310,7 +310,7 @@ impl ServiceImpl {
         );
         tracing::debug!(
             "[ServiceImpl::send_response] Map has {} entries before send_response",
-            self.inner.map.len()
+            self.inner.map_len()
         );
 
         // Create RosMessage Response from the raw pointer using response MessageTypeSupport
@@ -337,7 +337,7 @@ impl Waitable for ClientImpl {
     fn is_ready(&self) -> bool {
         // Acquire fence to ensure we see the latest channel state from other threads
         std::sync::atomic::fence(std::sync::atomic::Ordering::Acquire);
-        !self.inner.rx.is_empty()
+        !self.inner.rx().is_empty()
     }
 }
 
@@ -345,7 +345,7 @@ impl Waitable for ServiceImpl {
     fn is_ready(&self) -> bool {
         // Acquire fence to ensure we see the latest channel state from other threads
         std::sync::atomic::fence(std::sync::atomic::Ordering::Acquire);
-        self.inner.queue.as_ref().is_some_and(|q| !q.is_empty())
+        self.inner.try_queue().is_some_and(|q| !q.is_empty())
     }
 }
 

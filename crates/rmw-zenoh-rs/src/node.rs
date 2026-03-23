@@ -125,15 +125,17 @@ pub extern "C" fn rmw_create_node(
     // Register the graph guard condition with the graph event manager
     node_impl
         .inner
-        .graph
+        .graph()
         .event_manager
         .register_graph_guard_condition(graph_guard_condition as *mut std::ffi::c_void);
 
     // Add node to local graph for immediate discovery
     if let Err(e) = node_impl
         .inner
-        .graph
-        .add_local_entity(ros_z::entity::Entity::Node(node_impl.inner.entity.clone()))
+        .graph()
+        .add_local_entity(ros_z::entity::Entity::Node(
+            node_impl.inner.node_entity().clone(),
+        ))
     {
         tracing::warn!("Failed to add node to local graph: {}", e);
     }
@@ -177,8 +179,10 @@ pub extern "C" fn rmw_destroy_node(node: *mut rmw_node_t) -> rmw_ret_t {
         // Remove node from local graph
         if let Err(e) = node_impl
             .inner
-            .graph
-            .remove_local_entity(&ros_z::entity::Entity::Node(node_impl.inner.entity.clone()))
+            .graph()
+            .remove_local_entity(&ros_z::entity::Entity::Node(
+                node_impl.inner.node_entity().clone(),
+            ))
         {
             tracing::warn!("Failed to remove node from local graph: {}", e);
         }
@@ -187,7 +191,7 @@ pub extern "C" fn rmw_destroy_node(node: *mut rmw_node_t) -> rmw_ret_t {
             // Unregister from graph event manager
             node_impl
                 .inner
-                .graph
+                .graph()
                 .event_manager
                 .unregister_graph_guard_condition(
                     node_impl.graph_guard_condition as *mut std::ffi::c_void,
@@ -245,7 +249,7 @@ pub extern "C" fn rmw_get_node_names(
     let allocator = unsafe { rcutils_get_default_allocator() };
 
     // Query graph for all nodes
-    let nodes = node_impl.inner.graph.get_node_names();
+    let nodes = node_impl.inner.graph().get_node_names();
     let node_count = nodes.len();
 
     // Initialize string arrays
@@ -352,7 +356,7 @@ pub extern "C" fn rmw_get_node_names_with_enclaves(
     let allocator = unsafe { rcutils_get_default_allocator() };
 
     // Query graph for all nodes with enclaves
-    let nodes = node_impl.inner.graph.get_node_names_with_enclaves();
+    let nodes = node_impl.inner.graph().get_node_names_with_enclaves();
     let node_count = nodes.len();
 
     // Initialize string arrays

@@ -184,6 +184,7 @@ pub fn ros_z_qos_to_rmw_qos(qos: &ros_z::qos::QosProfile) -> rmw_qos_profile_t {
         QosReliability::BestEffort => {
             rmw_qos_reliability_policy_e_RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT
         }
+        _ => rmw_qos_reliability_policy_e_RMW_QOS_POLICY_RELIABILITY_RELIABLE,
     };
 
     #[allow(non_upper_case_globals)]
@@ -192,6 +193,7 @@ pub fn ros_z_qos_to_rmw_qos(qos: &ros_z::qos::QosProfile) -> rmw_qos_profile_t {
             rmw_qos_durability_policy_e_RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL
         }
         QosDurability::Volatile => rmw_qos_durability_policy_e_RMW_QOS_POLICY_DURABILITY_VOLATILE,
+        _ => rmw_qos_durability_policy_e_RMW_QOS_POLICY_DURABILITY_VOLATILE,
     };
 
     #[allow(non_upper_case_globals)]
@@ -205,6 +207,7 @@ pub fn ros_z_qos_to_rmw_qos(qos: &ros_z::qos::QosProfile) -> rmw_qos_profile_t {
         QosLiveliness::ManualByTopic => {
             rmw_qos_liveliness_policy_e_RMW_QOS_POLICY_LIVELINESS_MANUAL_BY_TOPIC
         }
+        _ => rmw_qos_liveliness_policy_e_RMW_QOS_POLICY_LIVELINESS_AUTOMATIC,
     };
 
     // Convert duration: ros-z uses {0, 0} for "infinite/no limit",

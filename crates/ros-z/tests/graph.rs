@@ -39,7 +39,7 @@ async fn wait_for_publishers(
     let start = std::time::Instant::now();
     let timeout = Duration::from_millis(timeout_ms);
     loop {
-        let count = node.graph.count(EntityKind::Publisher, topic);
+        let count = node.graph().count(EntityKind::Publisher, topic);
         if count >= expected_count {
             return Ok(true);
         }
@@ -60,7 +60,7 @@ async fn wait_for_subscribers(
     let start = std::time::Instant::now();
     let timeout = Duration::from_millis(timeout_ms);
     loop {
-        let count = node.graph.count(EntityKind::Subscription, topic);
+        let count = node.graph().count(EntityKind::Subscription, topic);
         if count >= expected_count {
             return Ok(true);
         }
@@ -81,7 +81,7 @@ mod tests {
         let (_ctx, node) = setup_test_node("test_graph_node").await?;
 
         // Get topic names and types - should succeed
-        let graph = node.graph.clone();
+        let graph = node.graph().clone();
         let topics = graph.get_topic_names_and_types();
 
         // Should return a valid result (even if empty or contains only rosout)
@@ -102,7 +102,7 @@ mod tests {
         let (_ctx, node) = setup_test_node("test_graph_node").await?;
 
         // Get service names and types - should succeed
-        let graph = node.graph.clone();
+        let graph = node.graph().clone();
         let services = graph.get_service_names_and_types();
 
         // Should return a valid result (might have node-related services)
@@ -125,7 +125,7 @@ mod tests {
         let topic_name = "/test_count_publishers";
 
         // Count publishers on a topic that doesn't exist yet
-        let graph = node.graph.clone();
+        let graph = node.graph().clone();
         let count = graph.count(EntityKind::Publisher, topic_name);
 
         // Should be 0 or at least return successfully
@@ -154,7 +154,7 @@ mod tests {
         let topic_name = "/test_count_subscribers";
 
         // Count subscribers on a topic that doesn't exist yet
-        let graph = node.graph.clone();
+        let graph = node.graph().clone();
         let count = graph.count(EntityKind::Subscription, topic_name);
         assert_eq!(count, 0, "Expected 0 subscribers on non-existent topic");
 
@@ -181,7 +181,7 @@ mod tests {
         let service_name = "/test_count_clients";
 
         // Count clients on a service that doesn't exist yet
-        let graph = node.graph.clone();
+        let graph = node.graph().clone();
         let count = graph.count(EntityKind::Client, service_name);
 
         // Should be 0 or at least return successfully
@@ -207,7 +207,7 @@ mod tests {
         let service_name = "/test_count_services";
 
         // Count services on a service that doesn't exist yet
-        let graph = node.graph.clone();
+        let graph = node.graph().clone();
         let count = graph.count(EntityKind::Service, service_name);
 
         // Should be 0 or at least return successfully
@@ -240,7 +240,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(500)).await;
 
         // Get publishers by node
-        let graph = node.graph.clone();
+        let graph = node.graph().clone();
         let node_key: NodeKey = ("/".to_string(), "test_graph_node".to_string());
 
         let entities = graph.get_entities_by_node(EntityKind::Publisher, node_key);
@@ -273,7 +273,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(500)).await;
 
         // Get subscribers by node
-        let graph = node.graph.clone();
+        let graph = node.graph().clone();
         let node_key: NodeKey = ("/".to_string(), "test_graph_node".to_string());
 
         let entities = graph.get_entities_by_node(EntityKind::Subscription, node_key);
@@ -305,7 +305,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(200)).await;
 
         // Get services by node
-        let graph = node.graph.clone();
+        let graph = node.graph().clone();
         // Note: "/" namespace is normalized to "" in NodeEntity::key()
         let node_key: NodeKey = ("".to_string(), "test_graph_node".to_string());
 
@@ -336,7 +336,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(200)).await;
 
         // Get clients by node
-        let graph = node.graph.clone();
+        let graph = node.graph().clone();
         // Note: "/" namespace is normalized to "" in NodeEntity::key()
         let node_key: NodeKey = ("".to_string(), "test_graph_node".to_string());
 
@@ -366,7 +366,7 @@ mod tests {
                 .as_nanos()
         );
 
-        let graph = node.graph.clone();
+        let graph = node.graph().clone();
 
         // Initially, topic should not exist
         let count_pubs = graph.count(EntityKind::Publisher, &topic_name);
@@ -426,7 +426,7 @@ mod tests {
         let (_ctx, node) = setup_test_node("test_graph_node").await?;
 
         // Get node names
-        let graph = node.graph.clone();
+        let graph = node.graph().clone();
         let nodes = graph.get_node_names();
 
         // Should at least see our own node
@@ -445,7 +445,7 @@ mod tests {
         let (_ctx, node) = setup_test_node("test_graph_node").await?;
 
         // Get node names with enclaves
-        let graph = node.graph.clone();
+        let graph = node.graph().clone();
         let nodes = graph.get_node_names_with_enclaves();
 
         // Should at least see our own node
@@ -474,7 +474,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(800)).await;
 
         // Check from node1's perspective
-        let graph1 = node1.graph;
+        let graph1 = node1.graph();
         let count = graph1.count(EntityKind::Publisher, topic_name);
         // Should see at least one publisher (itself), ideally both
         assert!(
@@ -484,7 +484,7 @@ mod tests {
         );
 
         // Check from node2's perspective
-        let graph2 = node2.graph;
+        let graph2 = node2.graph();
         let count = graph2.count(EntityKind::Publisher, topic_name);
         assert!(
             count >= 1,
@@ -511,7 +511,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(800)).await;
 
         // Check from node1's perspective
-        let graph1 = node1.graph;
+        let graph1 = node1.graph();
         let count = graph1.count(EntityKind::Subscription, topic_name);
         // Should see at least one subscriber (itself), ideally both
         assert!(
@@ -521,7 +521,7 @@ mod tests {
         );
 
         // Check from node2's perspective
-        let graph2 = node2.graph;
+        let graph2 = node2.graph();
         let count = graph2.count(EntityKind::Subscription, topic_name);
         assert!(
             count >= 1,
@@ -550,7 +550,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(300)).await;
 
         // Check service discovery from node1's perspective
-        let graph1 = node1.graph;
+        let graph1 = node1.graph();
         let services = graph1.get_service_names_and_types();
 
         // Should see both services
@@ -584,7 +584,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(300)).await;
 
         // Check from graph
-        let graph1 = node1.graph;
+        let graph1 = node1.graph();
         let count = graph1.count(EntityKind::Client, service_name);
         assert!(count >= 2, "Expected at least 2 clients");
 
@@ -603,7 +603,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         // Service should not be available yet
-        let graph = node.graph.clone();
+        let graph = node.graph().clone();
         let count = graph.count(EntityKind::Service, service_name);
         assert_eq!(count, 0, "Expected 0 services before creating server");
 
@@ -641,7 +641,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(300)).await;
 
         // Get entities by topic
-        let graph = node.graph.clone();
+        let graph = node.graph().clone();
         let pubs = graph.get_entities_by_topic(EntityKind::Publisher, topic_name);
         let subs = graph.get_entities_by_topic(EntityKind::Subscription, topic_name);
 
@@ -684,7 +684,7 @@ mod tests {
         let (_ctx, node) = setup_test_node("test_graph_node").await?;
 
         // Get action names and types
-        let graph = node.graph.clone();
+        let graph = node.graph().clone();
         let actions = graph.get_action_names_and_types();
 
         // FIXME: Should return successfully (may be empty)
