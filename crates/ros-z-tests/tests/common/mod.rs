@@ -647,6 +647,9 @@ mod humble_jazzy {
     /// Run `ros2 topic list` in the current (Jazzy) environment connected to `endpoint`.
     ///
     /// Returns the list of topic names (e.g. `["/chatter", "/rosout"]`).
+    /// Nix shell activation noise (pre-commit messages, env banners) is stripped by
+    /// keeping only lines that look like ROS topic names: start with `/`, no spaces,
+    /// no dots (which would indicate file paths).
     pub fn jazzy_topic_list(endpoint: &str) -> Vec<String> {
         let override_str = rmw_zenoh_override(endpoint);
         let output = Command::new("nix")
@@ -656,7 +659,7 @@ mod humble_jazzy {
                 "-c",
                 "sh",
                 "-c",
-                "ros2 topic list",
+                "timeout 30 ros2 topic list 2>/dev/null",
             ])
             .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
             .env("ZENOH_CONFIG_OVERRIDE", &override_str)
@@ -665,7 +668,7 @@ mod humble_jazzy {
         String::from_utf8_lossy(&output.stdout)
             .lines()
             .map(|l| l.trim().to_string())
-            .filter(|l| !l.is_empty())
+            .filter(|l| l.starts_with('/') && !l.contains(' ') && !l.contains('.'))
             .collect()
     }
 
@@ -681,7 +684,7 @@ mod humble_jazzy {
                 "-c",
                 "sh",
                 "-c",
-                "ros2 topic list",
+                "timeout 30 ros2 topic list 2>/dev/null",
             ])
             .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
             .env("ZENOH_CONFIG_OVERRIDE", &override_str)
@@ -690,8 +693,20 @@ mod humble_jazzy {
         String::from_utf8_lossy(&output.stdout)
             .lines()
             .map(|l| l.trim().to_string())
-            .filter(|l| !l.is_empty())
+            .filter(|l| l.starts_with('/') && !l.contains(' ') && !l.contains('.'))
             .collect()
+    }
+
+    /// Call the add_two_ints service once from a Humble node via rmw_zenoh, then exit.
+    pub fn spawn_humble_ros2_service_client(endpoint: &str) -> ProcessGuard {
+        spawn_in_nix_shell(
+            ".#ros-humble",
+            "ros2 service call /add_two_ints example_interfaces/srv/AddTwoInts \"{a: 3, b: 7}\"",
+            &[
+                ("RMW_IMPLEMENTATION", "rmw_zenoh_cpp"),
+                ("ZENOH_CONFIG_OVERRIDE", &rmw_zenoh_override(endpoint)),
+            ],
+        )
     }
 
     /// Spawn the `ros-z-bridge` binary connecting both endpoints to the same router.

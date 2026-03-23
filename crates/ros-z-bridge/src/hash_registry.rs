@@ -51,6 +51,7 @@ fn build_registry() -> HashMap<&'static str, TypeHash> {
     // Generated types live under ros_z_msgs::ros::{package}::{TypeName}
     // (no `msg` submodule in the Rust code; `msg` only appears in the
     //  ROS type name string returned by type_name()).
+    use ros_z_msgs::ros::example_interfaces;
     use ros_z_msgs::ros::std_msgs;
 
     let mut m: HashMap<&'static str, TypeHash> = HashMap::new();
@@ -163,6 +164,12 @@ fn build_registry() -> HashMap<&'static str, TypeHash> {
         reg!(m, nm::OccupancyGrid);
         reg!(m, nm::Odometry);
         reg!(m, nm::Path);
+    }
+
+    // example_interfaces — used in tests and common demo nodes
+    {
+        reg!(m, example_interfaces::AddTwoIntsRequest);
+        reg!(m, example_interfaces::AddTwoIntsResponse);
     }
 
     m

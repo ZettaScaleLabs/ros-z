@@ -121,27 +121,26 @@ fn test_service_humble_server_jazzy_client() {
     let router = common::TestRouter::new();
     let endpoint = router.endpoint();
 
-    // Start the Humble service server.
     let _humble_server = common::spawn_humble_ros2_service_server(endpoint);
-
-    // Start bridge.
     let _bridge = common::spawn_bridge(endpoint);
 
-    // Give nodes time to register.
-    std::thread::sleep(Duration::from_secs(3));
-
-    // Create Jazzy ros-z client.
-    let ctx = jazzy_ctx(endpoint);
-    let node = ctx.create_node("test_jazzy_client").build().unwrap();
-    let client = node
-        .create_client::<AddTwoInts>("/add_two_ints")
-        .build()
-        .expect("failed to create client");
-
+    // Create the Zenoh context INSIDE block_on so that all Zenoh objects drop
+    // while the runtime is still active, preventing cleanup deadlocks.
     let rt = tokio::runtime::Runtime::new().unwrap();
     let response = rt.block_on(async {
+        // Wait for nodes to register.
+        tokio::time::sleep(Duration::from_secs(3)).await;
+
+        let ctx = jazzy_ctx(endpoint);
+        let node = ctx.create_node("test_jazzy_client").build().unwrap();
+        let client = node
+            .create_client::<AddTwoInts>("/add_two_ints")
+            .build()
+            .expect("failed to create client");
+
         let req = ros_z_msgs::ros::example_interfaces::AddTwoIntsRequest { a: 3, b: 7 };
         client.send_request(&req).await?;
+        // ctx / node / client are dropped here, inside the runtime
         client.take_response_timeout(Duration::from_secs(10))
     });
 
@@ -151,47 +150,54 @@ fn test_service_humble_server_jazzy_client() {
 }
 
 /// A Jazzy ros-z service server handles add_two_ints requests.
-/// A Humble add_two_ints_client (demo_nodes_cpp) sends a request through the bridge.
+/// A Humble add_two_ints_client (ros2 service call) sends a request through the bridge.
 #[test]
 #[serial]
 fn test_service_jazzy_server_humble_client() {
-    #[allow(unused_imports)]
-    use ros_z::Builder as ServiceBuilder;
-
     let router = common::TestRouter::new();
     let endpoint = router.endpoint();
 
-    // Start bridge first.
     let _bridge = common::spawn_bridge(endpoint);
-    std::thread::sleep(Duration::from_secs(1));
 
-    // Create Jazzy ros-z service server.
-    let ctx = jazzy_ctx(endpoint);
-    let node = ctx.create_node("test_jazzy_server").build().unwrap();
-    let mut server = node
-        .create_service::<AddTwoInts>("/add_two_ints")
-        .build()
-        .expect("failed to create service server");
+    // Create all Zenoh objects INSIDE block_on so they drop while the runtime
+    // is still live (avoids cleanup deadlocks during runtime shutdown).
+    tokio::runtime::Runtime::new().unwrap().block_on(async {
+        tokio::time::sleep(Duration::from_secs(1)).await;
 
-    // Spawn server handler in background.
-    let rt = tokio::runtime::Runtime::new().unwrap();
-    rt.spawn(async move {
-        // Handle one request.
+        let ctx = jazzy_ctx(endpoint);
+        let node = ctx.create_node("test_jazzy_server").build().unwrap();
+        let mut server = node
+            .create_service::<AddTwoInts>("/add_two_ints")
+            .build()
+            .expect("failed to create service server");
+
+        println!("Jazzy service server running, launching Humble client via bridge");
+        // Give the bridge time to discover the Jazzy server and set up the proxy.
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
+        // Spawn the Humble client (`ros2 service call` exits after one reply).
+        let _humble_client = common::spawn_humble_ros2_service_client(endpoint);
+
+        // Handle one request or give up after 10 s.
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
         loop {
             if let Ok((key, req)) = server.take_request() {
                 let resp =
                     ros_z_msgs::ros::example_interfaces::AddTwoIntsResponse { sum: req.a + req.b };
                 let _ = server.send_response(&resp, &key);
+                println!(
+                    "Handled Humble→Jazzy service call: {} + {} = {}",
+                    req.a, req.b, resp.sum
+                );
                 break;
+            }
+            if tokio::time::Instant::now() > deadline {
+                panic!("Jazzy server did not receive request from Humble client within 10s");
             }
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
+        // ctx / node / server / _humble_client drop here, inside the runtime
     });
-
-    // The Humble client calls the service — we just verify the bridge forwarded it.
-    // (The subprocess exit code is not directly observable here without output capture.)
-    println!("Jazzy service server running, Humble client will connect via bridge");
-    std::thread::sleep(Duration::from_secs(5));
 }
 
 // ============================================================================
@@ -211,7 +217,7 @@ fn test_graph_humble_pub_visible_in_jazzy() {
     let _bridge = common::spawn_bridge(endpoint);
 
     // Poll ros2 topic list until /chatter appears or timeout.
-    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    let deadline = std::time::Instant::now() + Duration::from_secs(30);
     loop {
         let topics = common::jazzy_topic_list(endpoint);
         if topics.iter().any(|t| t == "/chatter") {
@@ -248,7 +254,7 @@ fn test_graph_jazzy_pub_visible_in_humble() {
         .expect("failed to create publisher");
 
     // Poll ros2 topic list via Humble shell until /chatter appears or timeout.
-    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    let deadline = std::time::Instant::now() + Duration::from_secs(30);
     loop {
         let topics = common::humble_topic_list(endpoint);
         if topics.iter().any(|t| t == "/chatter") {
