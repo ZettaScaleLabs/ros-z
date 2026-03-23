@@ -242,7 +242,6 @@ jobs:
           cargo llvm-cov \
             -p ros-z -p ros-z-codegen -p ros-z-cdr -p ros-z-protocol -p ros-z-schema \
             -p ros-z-tests \
-            --features ros-z/ffi \
             -j4 \
             --lcov --output-path lcov.info
         shell: bash
