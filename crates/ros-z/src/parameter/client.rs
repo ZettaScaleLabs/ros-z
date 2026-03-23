@@ -222,7 +222,20 @@ impl ParameterClient {
 
 #[cfg(test)]
 mod tests {
-    use super::ParameterTarget;
+    use std::{sync::Arc, time::Duration};
+
+    use serial_test::serial;
+
+    use super::{ParameterClient, ParameterTarget};
+    use crate::{
+        Builder,
+        parameter::{
+            Parameter, ParameterDescriptor, ParameterType, ParameterValue, SetParametersResult,
+        },
+        prelude::ZContextBuilder,
+    };
+
+    // ── ParameterTarget unit tests (no Zenoh needed) ─────────────────────────
 
     #[test]
     fn target_normalizes_namespace() {
@@ -236,9 +249,215 @@ mod tests {
     }
 
     #[test]
+    fn target_root_namespace() {
+        let target = ParameterTarget::new("/", "node");
+        assert_eq!(target.namespace, "/");
+        assert_eq!(target.fully_qualified_name(), "/node");
+    }
+
+    #[test]
+    fn target_empty_namespace() {
+        let target = ParameterTarget::new("", "node");
+        assert_eq!(target.namespace, "/");
+        assert_eq!(target.fully_qualified_name(), "/node");
+    }
+
+    #[test]
     fn target_from_fqn() {
         let target = ParameterTarget::from_fqn("/demo/controller").unwrap();
         assert_eq!(target.namespace, "/demo");
         assert_eq!(target.name, "controller");
+    }
+
+    #[test]
+    fn target_from_fqn_root() {
+        let target = ParameterTarget::from_fqn("/my_node").unwrap();
+        assert_eq!(target.namespace, "/");
+        assert_eq!(target.name, "my_node");
+        assert_eq!(target.fully_qualified_name(), "/my_node");
+    }
+
+    #[test]
+    fn target_from_fqn_rejects_relative() {
+        assert!(ParameterTarget::from_fqn("no_slash").is_none());
+    }
+
+    #[test]
+    fn target_accessor() {
+        let target = ParameterTarget::new("ns", "n");
+        let client_node = Arc::new(
+            ZContextBuilder::default()
+                .build()
+                .unwrap()
+                .create_node("accessor_test")
+                .build()
+                .unwrap(),
+        );
+        let client = ParameterClient::new(client_node, target.clone());
+        assert_eq!(client.target(), &target);
+    }
+
+    // ── ParameterClient integration tests (require Zenoh session) ────────────
+
+    fn make_server_and_client(
+        server_name: &str,
+        client_name: &str,
+    ) -> (
+        Arc<crate::node::ZNode>,
+        ParameterClient,
+        Arc<crate::node::ZNode>,
+    ) {
+        let ctx = ZContextBuilder::default().build().unwrap();
+        let server = Arc::new(ctx.create_node(server_name).build().unwrap());
+        let client_node = Arc::new(ctx.create_node(client_name).build().unwrap());
+        let target = ParameterTarget::from_fqn(&format!("/{server_name}")).expect("valid fqn");
+        let client = ParameterClient::new(Arc::clone(&client_node), target);
+        (server, client, client_node)
+    }
+
+    #[test]
+    #[serial]
+    fn client_get_and_set() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let (server, client, _client_node) =
+            make_server_and_client("param_client_get_set_srv", "param_client_get_set_cli");
+
+        let desc = ParameterDescriptor::new("speed", ParameterType::Double);
+        server
+            .declare_parameter("speed", ParameterValue::Double(1.5), desc)
+            .unwrap();
+
+        rt.block_on(async {
+            tokio::time::sleep(Duration::from_millis(300)).await;
+
+            let values = client.get(&["speed"]).await.unwrap();
+            assert_eq!(values, vec![ParameterValue::Double(1.5)]);
+
+            let results = client
+                .set(&[Parameter::new("speed", ParameterValue::Double(3.0))])
+                .await
+                .unwrap();
+            assert_eq!(results, vec![SetParametersResult::success()]);
+
+            let values = client.get(&["speed"]).await.unwrap();
+            assert_eq!(values, vec![ParameterValue::Double(3.0)]);
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn client_get_types() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let (server, client, _client_node) =
+            make_server_and_client("param_client_types_srv", "param_client_types_cli");
+
+        server
+            .declare_parameter(
+                "flag",
+                ParameterValue::Bool(true),
+                ParameterDescriptor::new("flag", ParameterType::Bool),
+            )
+            .unwrap();
+
+        rt.block_on(async {
+            tokio::time::sleep(Duration::from_millis(300)).await;
+
+            let types = client.get_types(&["flag", "missing"]).await.unwrap();
+            assert_eq!(types, vec![ParameterType::Bool, ParameterType::NotSet]);
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn client_describe() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let (server, client, _client_node) =
+            make_server_and_client("param_client_desc_srv", "param_client_desc_cli");
+
+        server
+            .declare_parameter(
+                "count",
+                ParameterValue::Integer(0),
+                ParameterDescriptor::new("count", ParameterType::Integer),
+            )
+            .unwrap();
+
+        rt.block_on(async {
+            tokio::time::sleep(Duration::from_millis(300)).await;
+
+            let descs = client.describe(&["count"]).await.unwrap();
+            assert_eq!(descs.len(), 1);
+            assert_eq!(descs[0].name, "count");
+            assert_eq!(descs[0].type_, ParameterType::Integer);
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn client_list() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let (server, client, _client_node) =
+            make_server_and_client("param_client_list_srv", "param_client_list_cli");
+
+        for name in ["a", "b", "c"] {
+            server
+                .declare_parameter(
+                    name,
+                    ParameterValue::Integer(1),
+                    ParameterDescriptor::new(name, ParameterType::Integer),
+                )
+                .unwrap();
+        }
+
+        rt.block_on(async {
+            tokio::time::sleep(Duration::from_millis(300)).await;
+
+            let list = client.list(&[""], None).await.unwrap();
+            assert!(list.names.contains(&"a".to_string()));
+            assert!(list.names.contains(&"b".to_string()));
+            assert!(list.names.contains(&"c".to_string()));
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn client_set_atomically_rejected() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let (server, client, _client_node) =
+            make_server_and_client("param_client_atomic_srv", "param_client_atomic_cli");
+
+        server
+            .declare_parameter(
+                "val",
+                ParameterValue::Integer(5),
+                ParameterDescriptor::new("val", ParameterType::Integer),
+            )
+            .unwrap();
+
+        server.on_set_parameters(|params| {
+            for p in params {
+                if let ParameterValue::Integer(v) = p.value {
+                    if v > 10 {
+                        return SetParametersResult::failure(format!("{} too large", p.name));
+                    }
+                }
+            }
+            SetParametersResult::success()
+        });
+
+        rt.block_on(async {
+            tokio::time::sleep(Duration::from_millis(300)).await;
+
+            let result = client
+                .set_atomically(&[Parameter::new("val", ParameterValue::Integer(99))])
+                .await
+                .unwrap();
+            assert!(!result.successful);
+            assert!(result.reason.contains("too large"));
+
+            // Value unchanged
+            let values = client.get(&["val"]).await.unwrap();
+            assert_eq!(values, vec![ParameterValue::Integer(5)]);
+        });
     }
 }
