@@ -2,6 +2,7 @@ mod common;
 
 use std::{sync::Arc, time::Duration};
 
+use clap::Parser;
 use ros_z::{
     Builder, Result,
     parameter::{
@@ -10,10 +11,19 @@ use ros_z::{
     },
 };
 
+#[derive(Parser)]
+#[command(about = "Remote parameter client demo")]
+struct Args {
+    /// Zenoh router endpoint (e.g., tcp/localhost:7447)
+    #[arg(short, long)]
+    endpoint: Option<String>,
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     common::init();
-    let ctx = common::create_context()?;
+    let args = Args::parse();
+    let ctx = common::create_context(args.endpoint)?;
 
     println!("\n=== Remote Parameter Client Demo ===\n");
 

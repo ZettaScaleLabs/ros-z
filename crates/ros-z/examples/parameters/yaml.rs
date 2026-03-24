@@ -2,14 +2,24 @@ mod common;
 
 use std::collections::HashMap;
 
+use clap::Parser;
 use ros_z::{
     Builder, Result,
     parameter::{ParameterDescriptor, ParameterType, ParameterValue},
 };
 
+#[derive(Parser)]
+#[command(about = "YAML parameter file loading demo")]
+struct Args {
+    /// Zenoh router endpoint (e.g., tcp/localhost:7447)
+    #[arg(short, long)]
+    endpoint: Option<String>,
+}
+
 fn main() -> Result<()> {
     common::init();
-    let ctx = common::create_context()?;
+    let args = Args::parse();
+    let ctx = common::create_context(args.endpoint)?;
 
     println!("\n=== YAML Parameter Loading Demo ===\n");
 

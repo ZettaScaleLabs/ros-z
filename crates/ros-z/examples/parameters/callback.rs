@@ -1,18 +1,27 @@
 mod common;
 
+use clap::Parser;
 use ros_z::{
     Builder, Result,
+    context::ZContext,
     parameter::{
         FloatingPointRange, Parameter, ParameterDescriptor, ParameterType, ParameterValue,
         SetParametersResult,
     },
 };
 
+#[derive(Parser)]
+#[command(about = "Parameter validation callback demo")]
+struct Args {
+    /// Zenoh router endpoint (e.g., tcp/localhost:7447)
+    #[arg(short, long)]
+    endpoint: Option<String>,
+}
+
 // ANCHOR: callback_snippet
-fn run() -> Result<()> {
+fn run(ctx: ZContext) -> Result<()> {
     println!("\n=== Validation Callback Demo ===\n");
 
-    let ctx = common::create_context()?;
     let node = ctx.create_node("callback_demo").build()?;
 
     let mut desc = ParameterDescriptor::new("temperature", ParameterType::Double);
@@ -59,5 +68,7 @@ fn run() -> Result<()> {
 
 fn main() -> Result<()> {
     common::init();
-    run()
+    let args = Args::parse();
+    let ctx = common::create_context(args.endpoint)?;
+    run(ctx)
 }

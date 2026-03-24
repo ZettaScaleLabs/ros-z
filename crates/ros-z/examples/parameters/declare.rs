@@ -1,15 +1,25 @@
 mod common;
 
+use clap::Parser;
 use ros_z::{
     Builder, Result,
     parameter::{Parameter, ParameterDescriptor, ParameterType, ParameterValue},
 };
 
+#[derive(Parser)]
+#[command(about = "Parameter declaration and lifecycle demo")]
+struct Args {
+    /// Zenoh router endpoint (e.g., tcp/localhost:7447)
+    #[arg(short, long)]
+    endpoint: Option<String>,
+}
+
 // ANCHOR: full_example
 #[tokio::main]
 async fn main() -> Result<()> {
     common::init();
-    let ctx = common::create_context()?;
+    let args = Args::parse();
+    let ctx = common::create_context(args.endpoint)?;
 
     println!("\n=== Parameter Declaration Demo ===\n");
 
