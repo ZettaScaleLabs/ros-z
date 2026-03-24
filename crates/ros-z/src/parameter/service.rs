@@ -172,15 +172,31 @@ impl ParameterState {
             }
         }
 
-        if results.iter().all(|result| result.successful)
-            && let Ok(cb_guard) = self.on_set_callback.read()
-            && let Some(cb_result) = cb_guard.as_ref().map(|cb| cb(params))
-            && !cb_result.successful
+        if let Ok(cb_guard) = self.on_set_callback.read()
+            && let Some(cb) = cb_guard.as_ref()
         {
-            return params
-                .iter()
-                .map(|_| SetParametersResult::failure(cb_result.reason.clone()))
-                .collect();
+            if atomic {
+                // Atomic: call callback once with all params; on rejection fail all.
+                if results.iter().all(|r| r.successful) {
+                    let cb_result = cb(params);
+                    if !cb_result.successful {
+                        return params
+                            .iter()
+                            .map(|_| SetParametersResult::failure(cb_result.reason.clone()))
+                            .collect();
+                    }
+                }
+            } else {
+                // Non-atomic (ROS 2 spec): call callback once per parameter independently.
+                for (i, param) in params.iter().enumerate() {
+                    if results[i].successful {
+                        let cb_result = cb(std::slice::from_ref(param));
+                        if !cb_result.successful {
+                            results[i] = SetParametersResult::failure(cb_result.reason);
+                        }
+                    }
+                }
+            }
         }
 
         if atomic && !results.iter().all(|result| result.successful) {

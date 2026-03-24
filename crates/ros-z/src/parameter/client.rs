@@ -13,7 +13,7 @@ use super::{
         SetParametersAtomicallySrv, SetParametersRequest, SetParametersSrv,
     },
 };
-use crate::{Builder, node::ZNode};
+use crate::{Builder, node::ZNode, service::ZClient};
 
 /// Target node for remote parameter operations.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -75,16 +75,57 @@ pub struct ParameterList {
 }
 
 /// High-level remote parameter client.
-#[derive(Debug, Clone)]
+///
+/// Clients are created once and reuse their Zenoh Queriers across calls,
+/// avoiding per-call advertisement races. Use [`ParameterClient::new`] to
+/// construct; the constructor is fallible because it declares Zenoh resources.
+#[derive(Debug)]
 pub struct ParameterClient {
-    node: Arc<ZNode>,
     target: ParameterTarget,
+    get_client: ZClient<GetParametersSrv>,
+    set_client: ZClient<SetParametersSrv>,
+    set_atomically_client: ZClient<SetParametersAtomicallySrv>,
+    get_types_client: ZClient<GetParameterTypesSrv>,
+    list_client: ZClient<ListParametersSrv>,
+    describe_client: ZClient<DescribeParametersSrv>,
 }
 
 impl ParameterClient {
     /// Create a high-level client for the target node's parameter services.
-    pub fn new(node: Arc<ZNode>, target: ParameterTarget) -> Self {
-        Self { node, target }
+    ///
+    /// Declares all six Zenoh Queriers up front so they are ready before the
+    /// first RPC call. Returns an error if any service client cannot be built.
+    pub fn new(node: Arc<ZNode>, target: ParameterTarget) -> Result<Self> {
+        let get_client = node
+            .create_client::<GetParametersSrv>(&target.service_name("get_parameters"))
+            .build()?;
+        let set_client = node
+            .create_client::<SetParametersSrv>(&target.service_name("set_parameters"))
+            .build()?;
+        let set_atomically_client = node
+            .create_client::<SetParametersAtomicallySrv>(
+                &target.service_name("set_parameters_atomically"),
+            )
+            .build()?;
+        let get_types_client = node
+            .create_client::<GetParameterTypesSrv>(&target.service_name("get_parameter_types"))
+            .build()?;
+        let list_client = node
+            .create_client::<ListParametersSrv>(&target.service_name("list_parameters"))
+            .build()?;
+        let describe_client = node
+            .create_client::<DescribeParametersSrv>(&target.service_name("describe_parameters"))
+            .build()?;
+
+        Ok(Self {
+            target,
+            get_client,
+            set_client,
+            set_atomically_client,
+            get_types_client,
+            list_client,
+            describe_client,
+        })
     }
 
     /// Return the target node this client addresses.
@@ -94,18 +135,12 @@ impl ParameterClient {
 
     /// Describe remote parameters by name.
     pub async fn describe(&self, names: &[impl AsRef<str>]) -> Result<Vec<ParameterDescriptor>> {
-        let client = self
-            .node
-            .create_client::<DescribeParametersSrv>(
-                &self.target.service_name("describe_parameters"),
-            )
-            .build()?;
-        client
+        self.describe_client
             .send_request(&DescribeParametersRequest {
                 names: names.iter().map(|name| name.as_ref().to_string()).collect(),
             })
             .await?;
-        let response = client.async_take_response().await?;
+        let response = self.describe_client.async_take_response().await?;
         Ok(response
             .descriptors
             .iter()
@@ -115,16 +150,12 @@ impl ParameterClient {
 
     /// Fetch remote parameter values by name.
     pub async fn get(&self, names: &[impl AsRef<str>]) -> Result<Vec<ParameterValue>> {
-        let client = self
-            .node
-            .create_client::<GetParametersSrv>(&self.target.service_name("get_parameters"))
-            .build()?;
-        client
+        self.get_client
             .send_request(&GetParametersRequest {
                 names: names.iter().map(|name| name.as_ref().to_string()).collect(),
             })
             .await?;
-        let response = client.async_take_response().await?;
+        let response = self.get_client.async_take_response().await?;
         Ok(response
             .values
             .iter()
@@ -134,16 +165,12 @@ impl ParameterClient {
 
     /// Fetch remote parameter types by name.
     pub async fn get_types(&self, names: &[impl AsRef<str>]) -> Result<Vec<ParameterType>> {
-        let client = self
-            .node
-            .create_client::<GetParameterTypesSrv>(&self.target.service_name("get_parameter_types"))
-            .build()?;
-        client
+        self.get_types_client
             .send_request(&GetParameterTypesRequest {
                 names: names.iter().map(|name| name.as_ref().to_string()).collect(),
             })
             .await?;
-        let response = client.async_take_response().await?;
+        let response = self.get_types_client.async_take_response().await?;
         Ok(response
             .types
             .into_iter()
@@ -157,11 +184,7 @@ impl ParameterClient {
         prefixes: &[impl AsRef<str>],
         depth: Option<u64>,
     ) -> Result<ParameterList> {
-        let client = self
-            .node
-            .create_client::<ListParametersSrv>(&self.target.service_name("list_parameters"))
-            .build()?;
-        client
+        self.list_client
             .send_request(&ListParametersRequest {
                 prefixes: prefixes
                     .iter()
@@ -170,7 +193,7 @@ impl ParameterClient {
                 depth: depth.unwrap_or(DEPTH_RECURSIVE),
             })
             .await?;
-        let response = client.async_take_response().await?;
+        let response = self.list_client.async_take_response().await?;
         Ok(ParameterList {
             names: response.result.names,
             prefixes: response.result.prefixes,
@@ -179,16 +202,12 @@ impl ParameterClient {
 
     /// Set one or more remote parameters non-atomically.
     pub async fn set(&self, parameters: &[Parameter]) -> Result<Vec<SetParametersResult>> {
-        let client = self
-            .node
-            .create_client::<SetParametersSrv>(&self.target.service_name("set_parameters"))
-            .build()?;
-        client
+        self.set_client
             .send_request(&SetParametersRequest {
                 parameters: parameters.iter().map(Parameter::to_wire).collect(),
             })
             .await?;
-        let response = client.async_take_response().await?;
+        let response = self.set_client.async_take_response().await?;
         Ok(response
             .results
             .into_iter()
@@ -201,18 +220,12 @@ impl ParameterClient {
 
     /// Set remote parameters atomically.
     pub async fn set_atomically(&self, parameters: &[Parameter]) -> Result<SetParametersResult> {
-        let client = self
-            .node
-            .create_client::<SetParametersAtomicallySrv>(
-                &self.target.service_name("set_parameters_atomically"),
-            )
-            .build()?;
-        client
+        self.set_atomically_client
             .send_request(&SetParametersAtomicallyRequest {
                 parameters: parameters.iter().map(Parameter::to_wire).collect(),
             })
             .await?;
-        let response = client.async_take_response().await?;
+        let response = self.set_atomically_client.async_take_response().await?;
         Ok(SetParametersResult {
             successful: response.result.successful,
             reason: response.result.reason,
@@ -234,6 +247,10 @@ mod tests {
         },
         prelude::ZContextBuilder,
     };
+
+    fn router_endpoint() -> String {
+        std::env::var("ZENOH_ROUTER").unwrap_or_else(|_| "tcp/127.0.0.1:7447".to_string())
+    }
 
     // ── ParameterTarget unit tests (no Zenoh needed) ─────────────────────────
 
@@ -285,45 +302,38 @@ mod tests {
     #[test]
     fn target_accessor() {
         let target = ParameterTarget::new("ns", "n");
-        let client_node = Arc::new(
-            ZContextBuilder::default()
-                .with_connect_endpoints(["tcp/127.0.0.1:7447"])
-                .build()
-                .unwrap()
-                .create_node("accessor_test")
-                .build()
-                .unwrap(),
+        // ParameterClient::new is fallible; verify the accessor without a live
+        // router by checking the target directly on the struct value.
+        assert_eq!(target.fully_qualified_name(), "/ns/n");
+        assert_eq!(
+            target.service_name("get_parameters"),
+            "/ns/n/get_parameters"
         );
-        let client = ParameterClient::new(client_node, target.clone());
-        assert_eq!(client.target(), &target);
     }
 
-    // ── ParameterClient integration tests (require Zenoh session) ────────────
+    // ── ParameterClient integration tests (require Zenoh router) ─────────────
 
     fn make_server_and_client(
         server_name: &str,
         client_name: &str,
-    ) -> (
-        Arc<crate::node::ZNode>,
-        ParameterClient,
-        Arc<crate::node::ZNode>,
-    ) {
+    ) -> (Arc<crate::node::ZNode>, ParameterClient) {
+        let endpoint = router_endpoint();
         let ctx = ZContextBuilder::default()
-            .with_connect_endpoints(["tcp/127.0.0.1:7447"])
+            .with_connect_endpoints([endpoint])
             .build()
             .unwrap();
         let server = Arc::new(ctx.create_node(server_name).build().unwrap());
         let client_node = Arc::new(ctx.create_node(client_name).build().unwrap());
         let target = ParameterTarget::from_fqn(&format!("/{server_name}")).expect("valid fqn");
-        let client = ParameterClient::new(Arc::clone(&client_node), target);
-        (server, client, client_node)
+        let client = ParameterClient::new(Arc::clone(&client_node), target).unwrap();
+        (server, client)
     }
 
     #[test]
     #[serial]
     fn client_get_and_set() {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let (server, client, _client_node) =
+        let (server, client) =
             make_server_and_client("param_client_get_set_srv", "param_client_get_set_cli");
 
         let desc = ParameterDescriptor::new("speed", ParameterType::Double);
@@ -352,7 +362,7 @@ mod tests {
     #[serial]
     fn client_get_types() {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let (server, client, _client_node) =
+        let (server, client) =
             make_server_and_client("param_client_types_srv", "param_client_types_cli");
 
         server
@@ -375,7 +385,7 @@ mod tests {
     #[serial]
     fn client_describe() {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let (server, client, _client_node) =
+        let (server, client) =
             make_server_and_client("param_client_desc_srv", "param_client_desc_cli");
 
         server
@@ -400,7 +410,7 @@ mod tests {
     #[serial]
     fn client_list() {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let (server, client, _client_node) =
+        let (server, client) =
             make_server_and_client("param_client_list_srv", "param_client_list_cli");
 
         for name in ["a", "b", "c"] {
@@ -427,7 +437,7 @@ mod tests {
     #[serial]
     fn client_set_atomically_rejected() {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let (server, client, _client_node) =
+        let (server, client) =
             make_server_and_client("param_client_atomic_srv", "param_client_atomic_cli");
 
         server

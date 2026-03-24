@@ -173,7 +173,7 @@ fn infer_sequence_type(seq: &[Value]) -> Option<ParameterValue> {
             let ints: Option<Vec<i64>> = seq.iter().map(|v| v.as_i64()).collect();
             let ints = ints?;
             let is_byte_array = ints.iter().all(|&i| (0..=255).contains(&i));
-            if is_byte_array && seq.len() > 1 {
+            if is_byte_array {
                 Some(ParameterValue::ByteArray(
                     ints.iter().map(|&i| i as u8).collect(),
                 ))

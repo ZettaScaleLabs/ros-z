@@ -294,7 +294,8 @@ fn test_parameter_client_high_level_api() {
         let client = ParameterClient::new(
             client_node,
             ParameterTarget::from_fqn("/high_level_param_server").expect("target"),
-        );
+        )
+        .expect("client");
 
         tokio::time::sleep(Duration::from_millis(500)).await;
 

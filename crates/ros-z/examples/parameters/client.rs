@@ -27,7 +27,7 @@ async fn main() -> Result<()> {
     let client = ParameterClient::new(
         client_node,
         ParameterTarget::from_fqn("/client_demo_server").expect("valid node name"),
-    );
+    )?;
 
     tokio::time::sleep(Duration::from_millis(500)).await;
 

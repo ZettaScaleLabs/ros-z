@@ -192,7 +192,7 @@ impl FloatingPointRange {
         }
     }
 
-    pub fn from_wire(wire: &wire_types::WireFloatingPointRange) -> Self {
+    pub(crate) fn from_wire(wire: &wire_types::WireFloatingPointRange) -> Self {
         Self {
             from_value: wire.from_value,
             to_value: wire.to_value,
@@ -218,7 +218,7 @@ impl IntegerRange {
         }
     }
 
-    pub fn from_wire(wire: &wire_types::WireIntegerRange) -> Self {
+    pub(crate) fn from_wire(wire: &wire_types::WireIntegerRange) -> Self {
         Self {
             from_value: wire.from_value,
             to_value: wire.to_value,
@@ -286,7 +286,7 @@ impl ParameterDescriptor {
         }
     }
 
-    pub fn from_wire(wire: &wire_types::WireParameterDescriptor) -> Self {
+    pub(crate) fn from_wire(wire: &wire_types::WireParameterDescriptor) -> Self {
         Self {
             name: wire.name.clone(),
             type_: ParameterType::try_from(wire.r#type).unwrap_or(ParameterType::NotSet),

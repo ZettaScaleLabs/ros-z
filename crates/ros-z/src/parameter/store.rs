@@ -167,17 +167,21 @@ impl ParameterStore {
 
         let use_all = prefixes.is_empty();
 
+        // Pre-compute "prefix." strings once to avoid O(N×K) allocations.
+        let prefixes_with_dot: Vec<String> = prefixes.iter().map(|p| format!("{}.", p)).collect();
+
         for param_name in self.parameters.keys() {
             let matches = if use_all {
                 true
             } else {
-                prefixes.iter().any(|prefix| {
-                    if prefix.is_empty() {
-                        true
-                    } else {
-                        param_name == prefix || param_name.starts_with(&format!("{}.", prefix))
-                    }
-                })
+                prefixes
+                    .iter()
+                    .zip(prefixes_with_dot.iter())
+                    .any(|(prefix, dot)| {
+                        prefix.is_empty()
+                            || param_name == prefix
+                            || param_name.starts_with(dot.as_str())
+                    })
             };
 
             if !matches {
@@ -191,12 +195,13 @@ impl ParameterStore {
                 } else {
                     prefixes
                         .iter()
-                        .find(|p| {
+                        .zip(prefixes_with_dot.iter())
+                        .find(|(p, dot)| {
                             p.is_empty()
                                 || param_name == p.as_str()
-                                || param_name.starts_with(&format!("{}.", p))
+                                || param_name.starts_with(dot.as_str())
                         })
-                        .map(|s| s.as_str())
+                        .map(|(p, _)| p.as_str())
                         .unwrap_or("")
                 };
 
