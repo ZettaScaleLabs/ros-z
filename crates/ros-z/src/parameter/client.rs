@@ -287,6 +287,7 @@ mod tests {
         let target = ParameterTarget::new("ns", "n");
         let client_node = Arc::new(
             ZContextBuilder::default()
+                .with_connect_endpoints(["tcp/127.0.0.1:7447"])
                 .build()
                 .unwrap()
                 .create_node("accessor_test")
@@ -307,7 +308,10 @@ mod tests {
         ParameterClient,
         Arc<crate::node::ZNode>,
     ) {
-        let ctx = ZContextBuilder::default().build().unwrap();
+        let ctx = ZContextBuilder::default()
+            .with_connect_endpoints(["tcp/127.0.0.1:7447"])
+            .build()
+            .unwrap();
         let server = Arc::new(ctx.create_node(server_name).build().unwrap());
         let client_node = Arc::new(ctx.create_node(client_name).build().unwrap());
         let target = ParameterTarget::from_fqn(&format!("/{server_name}")).expect("valid fqn");
