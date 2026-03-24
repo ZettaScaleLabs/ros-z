@@ -446,11 +446,11 @@ jobs:
         with:
           path: crates/ros-z-py/.venv
           key: >-
-            ${{ runner.os }}-${{ matrix.distro }}-venv-${{
+            v2-${{ runner.os }}-${{ matrix.distro }}-venv-${{
             hashFiles('Cargo.lock', 'crates/ros-z-py/src/**',
             'crates/ros-z-py/Cargo.toml', 'crates/ros-z-msgs/python/**') }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.distro }}-venv-
+            v2-${{ runner.os }}-${{ matrix.distro }}-venv-
 
       - name: Setup venv
         if: steps.venv-cache.outputs.cache-hit != 'true'
