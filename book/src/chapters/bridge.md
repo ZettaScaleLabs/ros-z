@@ -102,6 +102,35 @@ cargo run --example demo_nodes_listener -- --endpoint tcp/127.0.0.1:7448
 
 You should see the modern listener printing messages published by the Humble talker.
 
+### 4 — Verify graph visibility with `ros2 topic list`
+
+The bridge re-announces synthetic liveliness tokens on each side so that `ros2 topic list`
+shows cross-distro topics correctly. Use `--spin-time` (not `--timeout`) and `--no-daemon`
+to avoid interference from any running ros2cli daemon:
+
+```bash
+# On the Humble side — should show the Jazzy publisher's topic
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+export ZENOH_CONFIG_OVERRIDE="connect/endpoints=[\"tcp/127.0.0.1:7447\"];scouting/multicast/enabled=false"
+ros2 topic list --spin-time 5 --no-daemon
+```
+
+```bash
+# On the Jazzy/Kilted side — should show the Humble publisher's topic
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+export ZENOH_CONFIG_OVERRIDE="connect/endpoints=[\"tcp/127.0.0.1:7448\"];scouting/multicast/enabled=false"
+ros2 topic list --spin-time 5 --no-daemon
+```
+
+Both sides should list `/chatter` (or whichever topic your nodes publish on). If a topic is
+missing, the bridge has not yet re-announced the entity — wait a second and retry.
+
+```admonish note
+`--spin-time N` sets how long the CLI spins waiting for discovery. `--no-daemon` bypasses
+the ros2cli daemon, which can cache stale state and return incomplete results. Always use
+both flags when diagnosing bridge connectivity.
+```
+
 ## CLI Reference
 
 ```text
