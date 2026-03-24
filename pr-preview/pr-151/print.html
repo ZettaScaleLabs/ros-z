@@ -3775,6 +3775,35 @@ ros2 run demo_nodes_cpp talker
 cargo run --example demo_nodes_listener -- --endpoint tcp/127.0.0.1:7448
 </code></pre>
 <p>You should see the modern listener printing messages published by the Humble talker.</p>
+<h3 id="4--verify-graph-visibility-with-ros2-topic-list"><a class="header" href="#4--verify-graph-visibility-with-ros2-topic-list">4 — Verify graph visibility with <code>ros2 topic list</code></a></h3>
+<p>The bridge re-announces synthetic liveliness tokens on each side so that <code>ros2 topic list</code>
+shows cross-distro topics correctly. Use <code>--spin-time</code> (not <code>--timeout</code>) and <code>--no-daemon</code>
+to avoid interference from any running ros2cli daemon:</p>
+<pre><code class="language-bash"># On the Humble side — should show the Jazzy publisher's topic
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+export ZENOH_CONFIG_OVERRIDE="connect/endpoints=[\"tcp/127.0.0.1:7447\"];scouting/multicast/enabled=false"
+ros2 topic list --spin-time 5 --no-daemon
+</code></pre>
+<pre><code class="language-bash"># On the Jazzy/Kilted side — should show the Humble publisher's topic
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+export ZENOH_CONFIG_OVERRIDE="connect/endpoints=[\"tcp/127.0.0.1:7448\"];scouting/multicast/enabled=false"
+ros2 topic list --spin-time 5 --no-daemon
+</code></pre>
+<p>Both sides should list <code>/chatter</code> (or whichever topic your nodes publish on). If a topic is
+missing, the bridge has not yet re-announced the entity — wait a second and retry.</p>
+<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+<div class="admonition-title">
+<div id="admonition-note-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/bridge.html#admonition-note"></a>
+</div>
+<div>
+<p><code>--spin-time N</code> sets how long the CLI spins waiting for discovery. <code>--no-daemon</code> bypasses
+the ros2cli daemon, which can cache stale state and return incomplete results. Always use
+both flags when diagnosing bridge connectivity.</p>
+</div>
+</div>
 <h2 id="cli-reference"><a class="header" href="#cli-reference">CLI Reference</a></h2>
 <pre><code class="language-text">USAGE:
     ros-z-bridge [OPTIONS]
@@ -3794,12 +3823,12 @@ OPTIONS:
 <tr><td>Actions</td><td>✅</td><td>Each sub-entity (goal, result, feedback, status) bridged individually</td></tr>
 <tr><td>Nodes (graph)</td><td>✅</td><td>Synthetic liveliness tokens re-announced so <code>ros2 topic list</code> works on both sides</td></tr>
 </tbody></table>
-</div><div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+</div><div id="admonition-note-1" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-1-title">
 <div class="admonition-title">
-<div id="admonition-note-title">
+<div id="admonition-note-1-title">
 <p>Note</p>
 </div>
-<a class="admonition-anchor-link" href="chapters/bridge.html#admonition-note"></a>
+<a class="admonition-anchor-link" href="chapters/bridge.html#admonition-note-1"></a>
 </div>
 <div>
 <p>Only types compiled into the bridge binary are supported. The bridge ships with all
