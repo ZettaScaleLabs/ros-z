@@ -1,0 +1,343 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Interop Tests - ros-z Documentation</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Native Rust ROS 2 implementation using Zenoh">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../mdbook-admonish.css">
+        <link rel="stylesheet" href="../book/mdbook-admonish.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">ros-z Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/ZettaScaleLabs/ros-z" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/ZettaScaleLabs/ros-z/edit/main/src/chapters/go_interop_tests.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="go-interop-tests"><a class="header" href="#go-interop-tests">Go Interop Tests</a></h1>
+<p>The Go binding test suite is tiered by dependency level.  Each tier is independent — you can run pure tests without any system dependencies and add heavier tiers as the environment allows.</p>
+<h2 id="test-tiers"><a class="header" href="#test-tiers">Test Tiers</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Tier</th><th>Build tag</th><th>What it tests</th><th>Requires</th></tr></thead><tbody>
+<tr><td><strong>pure</strong></td><td>(none)</td><td>CDR serialization correctness, codegen output</td><td>Nothing</td></tr>
+<tr><td><strong>ffi</strong></td><td>(none)</td><td><code>rosz</code> package: context, pub/sub, service, action APIs</td><td><code>libros_z.a</code></td></tr>
+<tr><td><strong>integration</strong></td><td><code>integration</code></td><td>Full end-to-end with live Zenoh sessions</td><td><code>zenohd</code>, <code>libros_z.a</code></td></tr>
+</tbody></table>
+</div>
+<h2 id="running-tests"><a class="header" href="#running-tests">Running Tests</a></h2>
+<pre><code class="language-bash"># Pure tests — no external dependencies
+just -f crates/ros-z-go/justfile test-go-pure
+
+# FFI unit tests — requires libros_z.a
+just -f crates/ros-z-go/justfile build-rust
+just -f crates/ros-z-go/justfile test-go-ffi
+
+# Integration tests — requires zenohd running on PATH
+just -f crates/ros-z-go/justfile build-rust
+just -f crates/ros-z-go/justfile test-integration
+
+# Go↔Rust interop tests — also requires compiled Rust example binaries
+just -f crates/ros-z-go/justfile build-rust-examples
+just -f crates/ros-z-go/justfile test-integration
+
+# Run with race detector
+cd crates/ros-z-go
+CGO_LDFLAGS="-L../../target/release" go test -race -tags integration ./interop_tests/...
+
+# Everything
+just -f crates/ros-z-go/justfile test-all
+</code></pre>
+<h2 id="integration-test-structure"><a class="header" href="#integration-test-structure">Integration Test Structure</a></h2>
+<p>Integration tests live in <code>crates/ros-z-go/interop_tests/</code> and use the Go <code>integration</code> build tag so they are excluded from normal <code>go test ./...</code> runs.</p>
+<h3 id="common-infrastructure-common_testgo"><a class="header" href="#common-infrastructure-common_testgo">Common Infrastructure (<code>common_test.go</code>)</a></h3>
+<p><strong><code>ZenohRouter</code></strong> manages a per-test isolated Zenoh router:</p>
+<ul>
+<li>Starts <code>zenohd</code> on a PID-derived port (<code>7447 + pid % 1000</code>) to avoid conflicts when tests run in parallel</li>
+<li>Stops the process via <code>t.Cleanup</code> — no manual teardown needed</li>
+<li><code>router.Config()</code> returns the <code>ZENOH_CONFIG_OVERRIDE</code>-format string for Go contexts</li>
+<li><code>getROS2Env(router)</code> returns env vars for ROS 2 processes: <code>RMW_IMPLEMENTATION=rmw_zenoh_cpp</code> and the matching <code>ZENOH_CONFIG_OVERRIDE</code></li>
+<li><code>rustEnv(router)</code> returns env vars for Rust ros-z processes: <code>ROSZ_CONFIG_OVERRIDE</code> pointing at the test router</li>
+</ul>
+<p><strong>Availability checks</strong> run before tests that need external tools:</p>
+<ul>
+<li><code>checkROS2Available()</code> — verifies <code>ros2</code> CLI is on PATH</li>
+<li><code>rustExampleBinary(name)</code> — returns the binary path if <code>target/release/examples/&lt;name&gt;</code> exists, or <code>("", false)</code> to skip gracefully</li>
+</ul>
+<h3 id="go--ros-2-tests-pubsub_testgo-service_testgo-action_testgo"><a class="header" href="#go--ros-2-tests-pubsub_testgo-service_testgo-action_testgo">Go ↔ ROS 2 Tests (<code>pubsub_test.go</code>, <code>service_test.go</code>, <code>action_test.go</code>)</a></h3>
+<p>These tests verify that Go nodes communicate with standard ROS 2 nodes running via <code>rmw_zenoh_cpp</code>.</p>
+<div class="table-wrapper"><table><thead><tr><th>Test</th><th>Direction</th><th>Status</th></tr></thead><tbody>
+<tr><td><code>TestGoPublisherToROS2Subscriber</code></td><td>Go pub → ROS 2 sub</td><td>Pass</td></tr>
+<tr><td><code>TestROS2PublisherToGoSubscriber</code></td><td>ROS 2 pub → Go sub</td><td>Pass</td></tr>
+<tr><td><code>TestGoPublisherToGoSubscriber</code></td><td>Go pub → Go sub</td><td>Pass</td></tr>
+<tr><td><code>TestGoServiceServerToROS2Client</code></td><td>Go server ← ROS 2 client</td><td>Pass</td></tr>
+<tr><td><code>TestROS2ServiceServerToGoClient</code></td><td>ROS 2 server → Go client</td><td>Pass</td></tr>
+<tr><td><code>TestGoServiceServerToGoClient</code></td><td>Go server ↔ Go client</td><td>Pass</td></tr>
+<tr><td><code>TestGoActionServerToROS2Client</code></td><td>Go server ← ROS 2 client</td><td>Pass</td></tr>
+<tr><td><code>TestROS2ActionServerToGoClient</code></td><td>ROS 2 server → Go client</td><td>Pass</td></tr>
+<tr><td><code>TestGoActionServerToGoClient</code></td><td>Go server ↔ Go client</td><td>Pass</td></tr>
+<tr><td><code>TestActionFeedbackMonitoring</code></td><td>Server publishes feedback</td><td>Pass</td></tr>
+<tr><td><code>TestActionGoalCancellation</code></td><td>Cooperative cancel stops execution early</td><td>Pass</td></tr>
+<tr><td><code>TestActionWithCustomTypes</code></td><td>Custom action types</td><td>Skipped — needs fixture</td></tr>
+</tbody></table>
+</div>
+<p>Tests that require ROS 2 skip automatically when <code>ros2</code> is not on PATH.</p>
+<h3 id="go--rust-ros-z-tests-ros_z_rust_testgo"><a class="header" href="#go--rust-ros-z-tests-ros_z_rust_testgo">Go ↔ Rust ros-z Tests (<code>ros_z_rust_test.go</code>)</a></h3>
+<p>These tests spawn compiled Rust ros-z example binaries and verify that the Go binding interoperates correctly with the native Rust implementation — without going through the ROS 2 rmw layer.</p>
+<p>This matters because Go↔Go tests use the same FFI library on both sides; a bug that affects both paths symmetrically could go undetected.  Go↔Rust tests exercise the full serialization and protocol stack between two independent implementations.</p>
+<div class="table-wrapper"><table><thead><tr><th>Test</th><th>Direction</th><th>Binary</th></tr></thead><tbody>
+<tr><td><code>TestGoPublisherToRustSubscriber</code></td><td>Go pub → Rust sub</td><td><code>z_pubsub --role listener</code></td></tr>
+<tr><td><code>TestRustPublisherToGoSubscriber</code></td><td>Rust pub → Go sub</td><td><code>z_pubsub --role talker</code></td></tr>
+<tr><td><code>TestGoServiceClientToRustServer</code></td><td>Go client → Rust server</td><td><code>z_srvcli --mode server</code></td></tr>
+<tr><td><code>TestRustServiceClientToGoServer</code></td><td>Rust client → Go server</td><td><code>z_srvcli --mode client</code></td></tr>
+</tbody></table>
+</div>
+<p>Tests skip gracefully when the Rust example binary is missing — build it first:</p>
+<pre><code class="language-bash">just -f crates/ros-z-go/justfile build-rust-examples
+</code></pre>
+<p><strong>How Rust processes are configured:</strong> <code>ZContextBuilder</code> in the Rust examples reads <code>ROSZ_CONFIG_OVERRIDE</code> (same <code>key=value;key=value</code> format as <code>ZENOH_CONFIG_OVERRIDE</code> for rmw) and applies those keys on top of the default ROS session config.  The test injects this variable to point the Rust process at the per-test router.</p>
+<h2 id="adding-a-new-integration-test"><a class="header" href="#adding-a-new-integration-test">Adding a New Integration Test</a></h2>
+<p>Create or add to a <code>_test.go</code> file in <code>crates/ros-z-go/interop_tests/</code>. Add the build tag at the top:</p>
+<pre><code class="language-go">//go:build integration
+// +build integration
+</code></pre>
+<p>Start a per-test router:</p>
+<pre><code class="language-go">router := startZenohRouter(t)
+os.Setenv("ZENOH_CONFIG_OVERRIDE", router.Config())
+defer os.Unsetenv("ZENOH_CONFIG_OVERRIDE")
+</code></pre>
+<p>If your test needs ROS 2:</p>
+<pre><code class="language-go">if !checkROS2Available() {
+    t.Skip("ROS2 not available")
+}
+// Pass getROS2Env(router) to exec.Command env
+</code></pre>
+<p>If your test needs a Rust binary:</p>
+<pre><code class="language-go">bin, ok := rustExampleBinary("z_pubsub")
+if !ok {
+    t.Skip("z_pubsub not built — run: cargo build --release --example z_pubsub")
+}
+// Pass rustEnv(router) to exec.Command env
+</code></pre>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../chapters/go_quick_start.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../chapters/shm.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../chapters/go_quick_start.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../chapters/shm.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../mermaid.min.js"></script>
+        <script src="../mermaid-init.js"></script>
+
+
+
+    </div>
+    </body>
+</html>
