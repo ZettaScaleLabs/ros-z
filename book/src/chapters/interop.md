@@ -2,6 +2,11 @@
 
 ros-z nodes — whether written in Rust, Python, or Go — speak the same Zenoh wire protocol as `rmw_zenoh_cpp`, the official ROS 2 middleware plugin for Zenoh. This means they interoperate transparently: a Go subscriber can receive messages from a ROS 2 C++ talker, a Python publisher can send to a Rust listener, and so on.
 
+```admonish tip title="Mixing Humble with Jazzy or Kilted?"
+If you need to bridge a **Humble** (legacy) network and a **Jazzy / Kilted** (modern) network,
+see the [Cross-Distro Bridge](./bridge.md) chapter.
+```
+
 ## Prerequisites
 
 - A ROS 2 installation with `rmw_zenoh_cpp` and `demo_nodes_cpp`
