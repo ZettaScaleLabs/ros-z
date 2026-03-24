@@ -33,11 +33,11 @@ The bridge fixes this by:
 
 ```mermaid
 graph TD
-    H_node["Humble node\n(TypeHashNotSupported)"]
-    J_node["Jazzy / Kilted node\n(RIHS01_abcd…)"]
+    H_node["Humble node<br>(TypeHashNotSupported)"]
+    J_node["Jazzy / Kilted node<br>(RIHS01_abcd…)"]
 
-    H_router(["Legacy router\n127.0.0.1:7447"])
-    J_router(["Modern router\n127.0.0.1:7448"])
+    H_router(["Legacy router<br>127.0.0.1:7447"])
+    J_router(["Modern router<br>127.0.0.1:7448"])
 
     bridge["ros-z-bridge"]
 
