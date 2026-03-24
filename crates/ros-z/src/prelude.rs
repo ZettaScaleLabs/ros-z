@@ -61,3 +61,6 @@ pub use crate::lifecycle::{
     CallbackReturn, LifecycleState, ManagedEntity, ZLifecycleClient, ZLifecycleNode,
     ZLifecyclePublisher,
 };
+
+/// Time and clock support.
+pub use crate::time::{ClockKind, ZClock, ZDuration, ZInterval, ZSleep, ZTime};

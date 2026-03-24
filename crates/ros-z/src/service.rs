@@ -37,6 +37,7 @@ use crate::{
 pub struct ZClientBuilder<T> {
     pub(crate) entity: EndpointEntity,
     pub(crate) session: Arc<Session>,
+    pub(crate) clock: crate::time::ZClock,
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
     pub(crate) _phantom_data: PhantomData<T>,
 }
@@ -72,6 +73,7 @@ pub struct ZClient<T: ZService> {
     tx: flume::Sender<Sample>,
     pub(crate) rx: flume::Receiver<Sample>,
     topic: String,
+    clock: crate::time::ZClock,
     _phantom_data: PhantomData<T>,
 }
 
@@ -139,6 +141,7 @@ where
             tx,
             rx,
             topic: self.entity.topic.clone(),
+            clock: self.clock,
             _phantom_data: Default::default(),
         })
     }
@@ -149,7 +152,11 @@ where
     T: ZService,
 {
     fn new_attachment(&self) -> Attachment {
-        Attachment::new(self.sn.fetch_add(1, Ordering::AcqRel) as _, self.gid)
+        Attachment::with_clock(
+            self.sn.fetch_add(1, Ordering::AcqRel) as _,
+            self.gid,
+            &self.clock,
+        )
     }
 
     /// Access the raw response receiver channel.
@@ -315,6 +322,7 @@ where
 pub struct ZServerBuilder<T> {
     pub(crate) entity: EndpointEntity,
     pub(crate) session: Arc<Session>,
+    pub(crate) clock: crate::time::ZClock,
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
     pub(crate) _phantom_data: PhantomData<T>,
 }
@@ -354,6 +362,7 @@ pub struct ZServer<T: ZService, Q = Query> {
     gid: GidArray,
     inner: zenoh::query::Queryable<()>,
     lv_token: LivelinessToken,
+    clock: crate::time::ZClock,
     pub(crate) queue: Option<Arc<BoundedQueue<Q>>>,
     pub(crate) map: HashMap<QueryKey, Query>,
     _phantom_data: PhantomData<T>,
@@ -466,6 +475,7 @@ where
             sn: AtomicUsize::new(1), // Start at 1 for ROS compatibility
             inner,
             lv_token,
+            clock: self.clock,
             gid: crate::entity::endpoint_gid(&self.entity),
             queue,
             map: HashMap::new(),
@@ -536,7 +546,11 @@ where
     T: ZService,
 {
     fn new_attachment(&self) -> Attachment {
-        Attachment::new(self.sn.fetch_add(1, Ordering::AcqRel) as _, self.gid)
+        Attachment::with_clock(
+            self.sn.fetch_add(1, Ordering::AcqRel) as _,
+            self.gid,
+            &self.clock,
+        )
     }
 
     /// Retrieve the next query on the service without deserializing the payload.
@@ -641,7 +655,7 @@ where
                 debug!("[SRV] Sending response");
 
                 // Use the sequence number and GID from the request
-                let attachment = Attachment::new(key.sn, key.gid);
+                let attachment = Attachment::with_clock(key.sn, key.gid, &self.clock);
                 query
                     .reply(&self.key_expr, payload)
                     .attachment(attachment)
@@ -662,7 +676,7 @@ where
         match self.map.remove(key) {
             Some(query) => {
                 // Use the sequence number and GID from the request
-                let attachment = Attachment::new(key.sn, key.gid);
+                let attachment = Attachment::with_clock(key.sn, key.gid, &self.clock);
                 query
                     .reply(&self.key_expr, msg.serialize())
                     .attachment(attachment)
