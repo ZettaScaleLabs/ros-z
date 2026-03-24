@@ -5,10 +5,13 @@
 
 use std::collections::HashMap;
 
-use super::types::{
-    FloatingPointRange, IntegerRange, Parameter, ParameterDescriptor, ParameterType, ParameterValue,
+use super::{
+    types::{
+        FloatingPointRange, IntegerRange, Parameter, ParameterDescriptor, ParameterType,
+        ParameterValue,
+    },
+    wire_types::{self, WireListParametersResult},
 };
-use super::wire_types::{self, WireListParametersResult};
 
 /// Internal storage entry for a single parameter.
 #[derive(Debug, Clone)]
@@ -148,10 +151,10 @@ impl ParameterStore {
         }
     }
 
-    /// Undeclare a parameter.
-    pub fn undeclare(&mut self, name: &str) -> Result<(), String> {
-        if self.parameters.remove(name).is_some() {
-            Ok(())
+    /// Undeclare a parameter and return the removed value.
+    pub fn undeclare(&mut self, name: &str) -> Result<Parameter, String> {
+        if let Some((removed_name, entry)) = self.parameters.remove_entry(name) {
+            Ok(Parameter::new(removed_name, entry.value))
         } else {
             Err(format!("Parameter '{}' not declared", name))
         }
@@ -164,17 +167,21 @@ impl ParameterStore {
 
         let use_all = prefixes.is_empty();
 
+        // Pre-compute "prefix." strings once to avoid O(N×K) allocations.
+        let prefixes_with_dot: Vec<String> = prefixes.iter().map(|p| format!("{}.", p)).collect();
+
         for param_name in self.parameters.keys() {
             let matches = if use_all {
                 true
             } else {
-                prefixes.iter().any(|prefix| {
-                    if prefix.is_empty() {
-                        true
-                    } else {
-                        param_name == prefix || param_name.starts_with(&format!("{}.", prefix))
-                    }
-                })
+                prefixes
+                    .iter()
+                    .zip(prefixes_with_dot.iter())
+                    .any(|(prefix, dot)| {
+                        prefix.is_empty()
+                            || param_name == prefix
+                            || param_name.starts_with(dot.as_str())
+                    })
             };
 
             if !matches {
@@ -188,12 +195,13 @@ impl ParameterStore {
                 } else {
                     prefixes
                         .iter()
-                        .find(|p| {
+                        .zip(prefixes_with_dot.iter())
+                        .find(|(p, dot)| {
                             p.is_empty()
                                 || param_name == p.as_str()
-                                || param_name.starts_with(&format!("{}.", p))
+                                || param_name.starts_with(dot.as_str())
                         })
-                        .map(|s| s.as_str())
+                        .map(|(p, _)| p.as_str())
                         .unwrap_or("")
                 };
 
@@ -267,11 +275,6 @@ impl ParameterStore {
     /// Get types for the given parameter names.
     pub fn get_types(&self, names: &[String]) -> Vec<u8> {
         names.iter().map(|name| self.get_type(name)).collect()
-    }
-
-    /// Check if a parameter is declared.
-    pub fn has(&self, name: &str) -> bool {
-        self.parameters.contains_key(name)
     }
 }
 
@@ -509,9 +512,32 @@ mod tests {
         store
             .declare("p", ParameterValue::Bool(true), desc)
             .unwrap();
-        assert!(store.undeclare("p").is_ok());
+        assert_eq!(
+            store.undeclare("p").unwrap(),
+            Parameter::new("p", ParameterValue::Bool(true))
+        );
         assert!(store.get("p").is_none());
         assert!(store.undeclare("p").is_err());
+    }
+
+    #[test]
+    fn test_not_set_remains_declared() {
+        let mut store = ParameterStore::new();
+        let desc = ParameterDescriptor::new("p", ParameterType::Integer);
+        store
+            .declare("p", ParameterValue::Integer(1), desc)
+            .unwrap();
+
+        assert!(
+            store
+                .validate_set(&Parameter::new("p", ParameterValue::NotSet))
+                .is_ok()
+        );
+
+        let old = store.set(&Parameter::new("p", ParameterValue::NotSet));
+        assert_eq!(old, Some(ParameterValue::Integer(1)));
+        assert!(store.get("p").is_some());
+        assert_eq!(store.get("p"), Some(ParameterValue::NotSet));
     }
 
     #[test]

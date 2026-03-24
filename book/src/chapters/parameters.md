@@ -34,7 +34,7 @@ graph TD
 | **Overrides** | Programmatic overrides applied at declaration time |
 | **Validation callbacks** | Accept or reject changes with a reason string |
 | **Standard services** | 6 parameter services compatible with `ros2 param` CLI |
-| **Parameter events** | `/parameter_events` topic published on every change |
+| **Parameter events** | Global `/parameter_events` topic published on declare, set, and undeclare |
 
 ## Quick Start
 
@@ -93,6 +93,8 @@ desc.read_only = true;
 node.declare_parameter("version", ParameterValue::String("1.0".into()), desc)?;
 ```
 
+Set `desc.dynamic_typing = true` when a parameter should accept later type changes instead of enforcing a fixed `ParameterType`.
+
 ## Getting and Setting
 
 ```rust,ignore
@@ -107,6 +109,9 @@ node.set_parameter(Parameter::new("timeout", ParameterValue::Double(10.0)))?;
 let err = node.set_parameter(Parameter::new("timeout", ParameterValue::Bool(true)));
 assert!(err.is_err());
 
+// Setting NotSet keeps the parameter declared
+node.set_parameter(Parameter::new("timeout", ParameterValue::NotSet))?;
+
 // Undeclare removes the parameter
 node.undeclare_parameter("timeout")?;
 ```
@@ -116,10 +121,12 @@ node.undeclare_parameter("timeout")?;
 Register a callback to accept or reject parameter changes before they take effect:
 
 ```rust,ignore
-{{#include ../../../crates/ros-z/examples/z_parameters.rs:callback_snippet}}
+{{#include ../../../crates/ros-z/examples/parameters/callback.rs:callback_snippet}}
 ```
 
 The callback receives all parameters being changed in a single batch. Return `SetParametersResult::success()` to accept or `SetParametersResult::failure("reason")` to reject the entire batch.
+
+`ParameterValue::NotSet` is treated as an unset value for a still-declared parameter. It does **not** delete the parameter; call `undeclare_parameter` for that.
 
 ## Parameter Services
 
@@ -133,6 +140,29 @@ Each node with parameters enabled exposes 6 standard services:
 | `/<node>/describe_parameters` | Get parameter descriptors | `ros2 param describe` |
 | `/<node>/get_parameter_types` | Get type IDs for parameters | — |
 | `/<node>/set_parameters_atomically` | All-or-nothing batch update | — |
+
+## Remote Parameter Client
+
+Use `ParameterClient` when you want a typed client for another node's parameter services:
+
+```rust,ignore
+use std::sync::Arc;
+use ros_z::parameter::{Parameter, ParameterClient, ParameterTarget, ParameterType, ParameterValue};
+
+let client_node = Arc::new(ctx.create_node("param_client").build()?);
+let client = ParameterClient::new(
+    client_node,
+    ParameterTarget::from_fqn("/my_node").expect("valid node name"),
+);
+
+let values = client.get(&["max_speed"]).await?;
+let types = client.get_types(&["max_speed"]).await?;
+let result = client
+    .set_atomically(&[Parameter::new("max_speed", ParameterValue::Double(2.5))])
+    .await?;
+```
+
+`ParameterClient` currently supports `describe`, `get`, `get_types`, `list`, `set`, and `set_atomically`.
 
 ## Loading from YAML
 
@@ -164,6 +194,8 @@ let node = ctx.create_node("my_node")
 
 Parameters from the file become overrides — they replace the default value when `declare_parameter` is called.
 
+If both wildcard (`/**`) and node-specific entries match, node-specific values win. If you also call `.with_parameter_overrides(map)`, the last builder call wins.
+
 ## Node Builder Options
 
 | Method | Effect |
@@ -176,13 +208,20 @@ If both a file and programmatic overrides are used, the last call wins.
 
 ## /parameter_events
 
-Every successful parameter change publishes a `ParameterEvent` message to `/<node>/parameter_events` with QoS:
+Every successful parameter change publishes a `ParameterEvent` message to `/parameter_events` with QoS:
 
+- **Topic**: `/parameter_events` (global, shared by all nodes)
 - **Reliability**: Reliable
 - **Durability**: Transient Local
 - **History**: Keep Last (1000)
 
-This matches the ROS 2 default for parameter events. Tools like `ros2 param` and `rqt_reconfigure` subscribe to this topic.
+Events are classified as:
+
+- `new_parameters` on declaration
+- `changed_parameters` on successful set, including `ParameterValue::NotSet`
+- `deleted_parameters` on `undeclare_parameter`
+
+This matches the ROS 2 default topic/QoS shape. Tools like `ros2 param` and `rqt_reconfigure` subscribe to this topic when the surrounding RMW/router setup supports it.
 
 ## ROS 2 Comparison
 
@@ -197,6 +236,7 @@ This matches the ROS 2 default for parameter events. Tools like `ros2 param` and
 | Overrides | `--ros-args -p name:=value` | `.with_parameter_overrides(map)` |
 | Disable | not possible | `.without_parameters()` |
 | Range | `FloatingPointRange` / `IntegerRange` | same types in `ParameterDescriptor` |
+| Dynamic typing | `dynamic_typing` descriptor flag | same flag in `ParameterDescriptor` |
 | CLI tools | `ros2 param list/get/set/dump` | same (interop via standard services) |
 
 **Key differences:**
@@ -204,11 +244,12 @@ This matches the ROS 2 default for parameter events. Tools like `ros2 param` and
 - **Error handling**: ros-z returns `Result<(), String>` on set failures; rclcpp throws exceptions
 - **Callbacks**: ros-z callbacks receive `&[Parameter]` (slice) and return `SetParametersResult`; rclcpp receives `std::vector<rclcpp::Parameter>`
 - **Opt-out**: ros-z can disable parameter services with `.without_parameters()`; rclcpp always enables them
+- **Unset values**: ros-z keeps `ParameterValue::NotSet` declared; deletion is explicit via `undeclare_parameter`
 - **No `declare_parameter_if_not_declared`**: check `node.get_parameter("name").is_some()` first
 
 ## ROS 2 Interoperability
 
-ros-z parameter services use the same CDR wire format and RIHS01 type hashes as rclcpp. When connected to the same Zenoh router, `ros2 param` commands work against ros-z nodes:
+ros-z parameter services use the same CDR wire format and RIHS01 type hashes as rclcpp. In an environment where ROS 2 is using `rmw_zenoh_cpp` and both sides are connected to the same Zenoh router, `ros2 param` commands work against ros-z nodes:
 
 ```bash
 # List parameters on a ros-z node
@@ -225,28 +266,28 @@ ros2 param dump /my_node
 ```
 
 ```admonish warning
-ROS 2 nodes must use `rmw_zenoh_cpp` (`export RMW_IMPLEMENTATION=rmw_zenoh_cpp`) and connect to the same Zenoh router.
+CLI interoperability depends on your local ROS 2 environment. Use `rmw_zenoh_cpp` (`export RMW_IMPLEMENTATION=rmw_zenoh_cpp`) and connect both sides to the same Zenoh router.
 ```
 
-## Full Example
+## Focused Examples
 
-```rust,ignore
-{{#include ../../../crates/ros-z/examples/z_parameters.rs:full_example}}
-```
-
-**Running the example:**
+The parameter examples are now split into focused binaries:
 
 ```bash
 # Start a Zenoh router first
 cargo run --example zenoh_router
 
-# Run all parameter demos
-cargo run --example z_parameters
+# Local declare/get/set/undeclare flow
+cargo run --example z_parameter_declare
 
-# Run a specific demo
-cargo run --example z_parameters -- --mode declare
-cargo run --example z_parameters -- --mode callback
-cargo run --example z_parameters -- --mode yaml
+# Validation callback flow
+cargo run --example z_parameter_callback
+
+# YAML loading and overrides
+cargo run --example z_parameter_yaml
+
+# Remote ParameterClient flow
+cargo run --example z_parameter_client
 ```
 
 ## Resources

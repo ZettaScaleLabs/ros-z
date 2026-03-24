@@ -3,29 +3,32 @@
 //! Creates the 6 parameter service servers and the /parameter_events publisher
 //! for a node. Follows the same pattern as TypeDescriptionService.
 
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
 
 use tracing::{debug, info, warn};
-use zenoh::query::Query;
-use zenoh::{Result as ZResult, Session};
+use zenoh::{Result as ZResult, Session, query::Query};
 
-use crate::Builder;
-use crate::ServiceTypeInfo;
-use crate::attachment::Attachment;
-use crate::context::GlobalCounter;
-use crate::entity::{EndpointEntity, EntityKind, NodeEntity, TypeInfo};
-use crate::msg::{SerdeCdrSerdes, ZDeserializer, ZSerializer};
-use crate::pubsub::{ZPub, ZPubBuilder};
-use crate::qos::{QosDurability, QosHistory, QosProfile, QosReliability};
-use crate::service::ZServerBuilder;
-
-use super::store::ParameterStore;
-use super::types::{Parameter, ParameterDescriptor, ParameterValue, SetParametersResult};
-use super::wire_types::{
-    self, DescribeParametersSrv, GetParameterTypesSrv, GetParametersSrv, ListParametersSrv,
-    SetParametersAtomicallySrv, SetParametersSrv, WireParameter, WireParameterEvent,
-    WireSetParametersResult, WireTime, parameter_event_type_info,
+use super::{
+    store::ParameterStore,
+    types::{Parameter, ParameterDescriptor, ParameterValue, SetParametersResult},
+    wire_types::{
+        self, DescribeParametersSrv, GetParameterTypesSrv, GetParametersSrv, ListParametersSrv,
+        SetParametersAtomicallySrv, SetParametersSrv, WireParameter, WireParameterEvent,
+        WireSetParametersResult, WireTime, parameter_event_type_info,
+    },
+};
+use crate::{
+    Builder, ServiceTypeInfo,
+    attachment::Attachment,
+    context::GlobalCounter,
+    entity::{EndpointEntity, EntityKind, NodeEntity, TypeInfo},
+    msg::{SerdeCdrSerdes, ZDeserializer, ZSerializer},
+    pubsub::{ZPub, ZPubBuilder},
+    qos::{QosDurability, QosHistory, QosProfile, QosReliability},
+    service::ZServerBuilder,
 };
 
 type SetCallback = Arc<dyn Fn(&[Parameter]) -> SetParametersResult + Send + Sync>;
@@ -33,15 +36,206 @@ type SetCallback = Arc<dyn Fn(&[Parameter]) -> SetParametersResult + Send + Sync
 /// Holds a type-erased ZServer to keep it alive without naming the full type.
 type BoxedServer = Arc<dyn std::any::Any + Send + Sync>;
 
+struct ParameterState {
+    store: RwLock<ParameterStore>,
+    on_set_callback: RwLock<Option<SetCallback>>,
+    event_publisher: ZPub<WireParameterEvent, SerdeCdrSerdes<WireParameterEvent>>,
+    node_fqn: String,
+}
+
+#[derive(Debug, Default)]
+struct ParameterEventChanges {
+    new_parameters: Vec<WireParameter>,
+    changed_parameters: Vec<WireParameter>,
+    deleted_parameters: Vec<WireParameter>,
+}
+
+impl ParameterEventChanges {
+    fn record_declared(&mut self, parameter: &Parameter) {
+        self.new_parameters.push(parameter.to_wire());
+    }
+
+    fn record_changed(&mut self, parameter: &Parameter) {
+        self.changed_parameters.push(parameter.to_wire());
+    }
+
+    fn record_deleted(&mut self, parameter: &Parameter) {
+        self.deleted_parameters.push(parameter.to_wire());
+    }
+
+    fn is_empty(&self) -> bool {
+        self.new_parameters.is_empty()
+            && self.changed_parameters.is_empty()
+            && self.deleted_parameters.is_empty()
+    }
+}
+
+impl ParameterState {
+    fn publish_changes(&self, changes: ParameterEventChanges) {
+        if changes.is_empty() {
+            return;
+        }
+
+        let event = WireParameterEvent {
+            stamp: WireTime::default(),
+            node: self.node_fqn.clone(),
+            new_parameters: changes.new_parameters,
+            changed_parameters: changes.changed_parameters,
+            deleted_parameters: changes.deleted_parameters,
+        };
+
+        if let Err(e) = self.event_publisher.publish(&event) {
+            warn!("[PARAMS] Failed to publish parameter event: {}", e);
+        }
+    }
+
+    fn declare_parameter(
+        &self,
+        name: &str,
+        default: ParameterValue,
+        descriptor: ParameterDescriptor,
+    ) -> Result<ParameterValue, String> {
+        let initial = self
+            .store
+            .write()
+            .map_err(|_| "parameter store lock poisoned".to_string())?
+            .declare(name, default, descriptor)?;
+
+        let mut changes = ParameterEventChanges::default();
+        changes.record_declared(&Parameter::new(name, initial.clone()));
+        self.publish_changes(changes);
+
+        Ok(initial)
+    }
+
+    fn get_parameter(&self, name: &str) -> Option<ParameterValue> {
+        self.store.read().ok()?.get(name)
+    }
+
+    fn describe_parameter(&self, name: &str) -> Option<ParameterDescriptor> {
+        self.store.read().ok()?.describe(name)
+    }
+
+    fn list_parameters(
+        &self,
+        prefixes: &[String],
+        depth: u64,
+    ) -> wire_types::WireListParametersResult {
+        self.store
+            .read()
+            .map(|store| store.list(prefixes, depth))
+            .unwrap_or_default()
+    }
+
+    fn on_set_parameters<F>(&self, callback: F)
+    where
+        F: Fn(&[Parameter]) -> SetParametersResult + Send + Sync + 'static,
+    {
+        if let Ok(mut cb) = self.on_set_callback.write() {
+            *cb = Some(Arc::new(callback));
+        }
+    }
+
+    fn undeclare_parameter(&self, name: &str) -> Result<(), String> {
+        let removed = self
+            .store
+            .write()
+            .map_err(|_| "parameter store lock poisoned".to_string())?
+            .undeclare(name)?;
+
+        let mut changes = ParameterEventChanges::default();
+        changes.record_deleted(&removed);
+        self.publish_changes(changes);
+
+        Ok(())
+    }
+
+    fn validate_and_apply(&self, params: &[Parameter], atomic: bool) -> Vec<SetParametersResult> {
+        let mut results = Vec::with_capacity(params.len());
+
+        {
+            let store = match self.store.read() {
+                Ok(store) => store,
+                Err(_) => {
+                    return params
+                        .iter()
+                        .map(|_| SetParametersResult::failure("store lock poisoned"))
+                        .collect();
+                }
+            };
+
+            for param in params {
+                match store.validate_set(param) {
+                    Ok(_) => results.push(SetParametersResult::success()),
+                    Err(reason) => results.push(SetParametersResult::failure(reason)),
+                }
+            }
+        }
+
+        if let Ok(cb_guard) = self.on_set_callback.read()
+            && let Some(cb) = cb_guard.as_ref()
+        {
+            if atomic {
+                // Atomic: call callback once with all params; on rejection fail all.
+                if results.iter().all(|r| r.successful) {
+                    let cb_result = cb(params);
+                    if !cb_result.successful {
+                        return params
+                            .iter()
+                            .map(|_| SetParametersResult::failure(cb_result.reason.clone()))
+                            .collect();
+                    }
+                }
+            } else {
+                // Non-atomic (ROS 2 spec): call callback once per parameter independently.
+                for (i, param) in params.iter().enumerate() {
+                    if results[i].successful {
+                        let cb_result = cb(std::slice::from_ref(param));
+                        if !cb_result.successful {
+                            results[i] = SetParametersResult::failure(cb_result.reason);
+                        }
+                    }
+                }
+            }
+        }
+
+        if atomic && !results.iter().all(|result| result.successful) {
+            return results;
+        }
+
+        let mut changes = ParameterEventChanges::default();
+
+        match self.store.write() {
+            Ok(mut store) => {
+                for (index, param) in params.iter().enumerate() {
+                    if !results[index].successful {
+                        continue;
+                    }
+
+                    if store.set(param).is_some() {
+                        changes.record_changed(param);
+                    }
+                }
+            }
+            Err(_) => {
+                return params
+                    .iter()
+                    .map(|_| SetParametersResult::failure("store lock poisoned"))
+                    .collect();
+            }
+        }
+
+        self.publish_changes(changes);
+        results
+    }
+}
+
 /// Manages ROS 2 parameter services and event publication for a node.
 #[derive(Clone)]
 pub struct ParameterService {
-    store: Arc<RwLock<ParameterStore>>,
-    on_set_callback: Arc<RwLock<Option<SetCallback>>>,
-    event_publisher: Arc<ZPub<WireParameterEvent, SerdeCdrSerdes<WireParameterEvent>>>,
+    state: Arc<ParameterState>,
     /// Keeps all service servers alive.
     _servers: Arc<[BoxedServer]>,
-    node_fqn: String,
 }
 
 impl ParameterService {
@@ -57,13 +251,6 @@ impl ParameterService {
         counter: &GlobalCounter,
         overrides: HashMap<String, ParameterValue>,
     ) -> ZResult<Self> {
-        let store: Arc<RwLock<ParameterStore>> = Arc::new(RwLock::new(if overrides.is_empty() {
-            ParameterStore::new()
-        } else {
-            ParameterStore::with_overrides(overrides)
-        }));
-        let on_set_callback: Arc<RwLock<Option<SetCallback>>> = Arc::new(RwLock::new(None));
-
         let node_entity = NodeEntity::new(
             0,
             session.zid(),
@@ -93,139 +280,10 @@ impl ParameterService {
 
         let ke_format = ros_z_protocol::KeyExprFormat::default();
 
-        // ── describe_parameters ───────────────────────────────────────────────
-        let describe_store = store.clone();
-        let describe_server = {
-            let entity = make_entity(
-                counter,
-                "~describe_parameters",
-                DescribeParametersSrv::service_type_info(),
-            );
-            let builder: ZServerBuilder<DescribeParametersSrv> = ZServerBuilder {
-                entity,
-                session: session.clone(),
-                keyexpr_format: ke_format,
-                _phantom_data: Default::default(),
-            };
-            builder.build_with_callback(move |query| {
-                handle_describe_parameters(&describe_store, query);
-            })?
-        };
-
-        // ── get_parameters ───────────────────────────────────────────────────
-        let get_store = store.clone();
-        let get_server = {
-            let entity = make_entity(
-                counter,
-                "~get_parameters",
-                GetParametersSrv::service_type_info(),
-            );
-            let builder: ZServerBuilder<GetParametersSrv> = ZServerBuilder {
-                entity,
-                session: session.clone(),
-                keyexpr_format: ke_format,
-                _phantom_data: Default::default(),
-            };
-            builder.build_with_callback(move |query| {
-                handle_get_parameters(&get_store, query);
-            })?
-        };
-
-        // ── get_parameter_types ───────────────────────────────────────────────
-        let types_store = store.clone();
-        let types_server = {
-            let entity = make_entity(
-                counter,
-                "~get_parameter_types",
-                GetParameterTypesSrv::service_type_info(),
-            );
-            let builder: ZServerBuilder<GetParameterTypesSrv> = ZServerBuilder {
-                entity,
-                session: session.clone(),
-                keyexpr_format: ke_format,
-                _phantom_data: Default::default(),
-            };
-            builder.build_with_callback(move |query| {
-                handle_get_parameter_types(&types_store, query);
-            })?
-        };
-
-        // ── list_parameters ───────────────────────────────────────────────────
-        let list_store = store.clone();
-        let list_server = {
-            let entity = make_entity(
-                counter,
-                "~list_parameters",
-                ListParametersSrv::service_type_info(),
-            );
-            let builder: ZServerBuilder<ListParametersSrv> = ZServerBuilder {
-                entity,
-                session: session.clone(),
-                keyexpr_format: ke_format,
-                _phantom_data: Default::default(),
-            };
-            builder.build_with_callback(move |query| {
-                handle_list_parameters(&list_store, query);
-            })?
-        };
-
-        // ── set_parameters ────────────────────────────────────────────────────
-        // set_parameters gets both store and callback so it can publish events too;
-        // we pass the publisher indirectly via a channel approach — but to keep it
-        // simple, we'll clone the session for event publishing inside the callback.
-        let set_store = store.clone();
-        let set_callback = on_set_callback.clone();
-        let set_session = session.clone();
-        let set_fqn = node_fqn.clone();
-        let set_server = {
-            let entity = make_entity(
-                counter,
-                "~set_parameters",
-                SetParametersSrv::service_type_info(),
-            );
-            let builder: ZServerBuilder<SetParametersSrv> = ZServerBuilder {
-                entity,
-                session: session.clone(),
-                keyexpr_format: ke_format,
-                _phantom_data: Default::default(),
-            };
-            builder.build_with_callback(move |query| {
-                handle_set_parameters(&set_store, &set_callback, &set_session, &set_fqn, query);
-            })?
-        };
-
-        // ── set_parameters_atomically ─────────────────────────────────────────
-        let atomic_store = store.clone();
-        let atomic_callback = on_set_callback.clone();
-        let atomic_session = session.clone();
-        let atomic_fqn = node_fqn.clone();
-        let atomic_server = {
-            let entity = make_entity(
-                counter,
-                "~set_parameters_atomically",
-                SetParametersAtomicallySrv::service_type_info(),
-            );
-            let builder: ZServerBuilder<SetParametersAtomicallySrv> = ZServerBuilder {
-                entity,
-                session: session.clone(),
-                keyexpr_format: ke_format,
-                _phantom_data: Default::default(),
-            };
-            builder.build_with_callback(move |query| {
-                handle_set_parameters_atomically(
-                    &atomic_store,
-                    &atomic_callback,
-                    &atomic_session,
-                    &atomic_fqn,
-                    query,
-                );
-            })?
-        };
-
         // ── /parameter_events publisher ───────────────────────────────────────
         let pub_entity = EndpointEntity {
             id: counter.increment(),
-            node: node_entity,
+            node: node_entity.clone(),
             kind: EntityKind::Publisher,
             topic: "/parameter_events".to_string(),
             type_info: Some(parameter_event_type_info()),
@@ -253,7 +311,130 @@ impl ParameterService {
                 _phantom_data: Default::default(),
             };
 
-        let event_publisher = Arc::new(pub_builder.build()?);
+        let state = Arc::new(ParameterState {
+            store: RwLock::new(if overrides.is_empty() {
+                ParameterStore::new()
+            } else {
+                ParameterStore::with_overrides(overrides)
+            }),
+            on_set_callback: RwLock::new(None),
+            event_publisher: pub_builder.build()?,
+            node_fqn,
+        });
+
+        // ── describe_parameters ───────────────────────────────────────────────
+        let describe_state = state.clone();
+        let describe_server = {
+            let entity = make_entity(
+                counter,
+                "~describe_parameters",
+                DescribeParametersSrv::service_type_info(),
+            );
+            let builder: ZServerBuilder<DescribeParametersSrv> = ZServerBuilder {
+                entity,
+                session: session.clone(),
+                keyexpr_format: ke_format,
+                _phantom_data: Default::default(),
+            };
+            builder.build_with_callback(move |query| {
+                handle_describe_parameters(describe_state.as_ref(), query);
+            })?
+        };
+
+        // ── get_parameters ───────────────────────────────────────────────────
+        let get_state = state.clone();
+        let get_server = {
+            let entity = make_entity(
+                counter,
+                "~get_parameters",
+                GetParametersSrv::service_type_info(),
+            );
+            let builder: ZServerBuilder<GetParametersSrv> = ZServerBuilder {
+                entity,
+                session: session.clone(),
+                keyexpr_format: ke_format,
+                _phantom_data: Default::default(),
+            };
+            builder.build_with_callback(move |query| {
+                handle_get_parameters(get_state.as_ref(), query);
+            })?
+        };
+
+        // ── get_parameter_types ───────────────────────────────────────────────
+        let types_state = state.clone();
+        let types_server = {
+            let entity = make_entity(
+                counter,
+                "~get_parameter_types",
+                GetParameterTypesSrv::service_type_info(),
+            );
+            let builder: ZServerBuilder<GetParameterTypesSrv> = ZServerBuilder {
+                entity,
+                session: session.clone(),
+                keyexpr_format: ke_format,
+                _phantom_data: Default::default(),
+            };
+            builder.build_with_callback(move |query| {
+                handle_get_parameter_types(types_state.as_ref(), query);
+            })?
+        };
+
+        // ── list_parameters ───────────────────────────────────────────────────
+        let list_state = state.clone();
+        let list_server = {
+            let entity = make_entity(
+                counter,
+                "~list_parameters",
+                ListParametersSrv::service_type_info(),
+            );
+            let builder: ZServerBuilder<ListParametersSrv> = ZServerBuilder {
+                entity,
+                session: session.clone(),
+                keyexpr_format: ke_format,
+                _phantom_data: Default::default(),
+            };
+            builder.build_with_callback(move |query| {
+                handle_list_parameters(list_state.as_ref(), query);
+            })?
+        };
+
+        // ── set_parameters ────────────────────────────────────────────────────
+        let set_state = state.clone();
+        let set_server = {
+            let entity = make_entity(
+                counter,
+                "~set_parameters",
+                SetParametersSrv::service_type_info(),
+            );
+            let builder: ZServerBuilder<SetParametersSrv> = ZServerBuilder {
+                entity,
+                session: session.clone(),
+                keyexpr_format: ke_format,
+                _phantom_data: Default::default(),
+            };
+            builder.build_with_callback(move |query| {
+                handle_set_parameters(set_state.as_ref(), query);
+            })?
+        };
+
+        // ── set_parameters_atomically ─────────────────────────────────────────
+        let atomic_state = state.clone();
+        let atomic_server = {
+            let entity = make_entity(
+                counter,
+                "~set_parameters_atomically",
+                SetParametersAtomicallySrv::service_type_info(),
+            );
+            let builder: ZServerBuilder<SetParametersAtomicallySrv> = ZServerBuilder {
+                entity,
+                session: session.clone(),
+                keyexpr_format: ke_format,
+                _phantom_data: Default::default(),
+            };
+            builder.build_with_callback(move |query| {
+                handle_set_parameters_atomically(atomic_state.as_ref(), query);
+            })?
+        };
 
         info!(
             "[PARAMS] ParameterService created for node: {}/{}",
@@ -270,11 +451,8 @@ impl ParameterService {
         ]);
 
         Ok(Self {
-            store,
-            on_set_callback,
-            event_publisher,
+            state,
             _servers: servers,
-            node_fqn,
         })
     }
 
@@ -286,18 +464,16 @@ impl ParameterService {
         default: ParameterValue,
         descriptor: ParameterDescriptor,
     ) -> Result<ParameterValue, String> {
-        self.store
-            .write()
-            .map_err(|_| "parameter store lock poisoned".to_string())?
-            .declare(name, default, descriptor)
+        self.state.declare_parameter(name, default, descriptor)
     }
 
     pub fn get_parameter(&self, name: &str) -> Option<ParameterValue> {
-        self.store.read().ok()?.get(name)
+        self.state.get_parameter(name)
     }
 
     pub fn set_parameter(&self, param: Parameter) -> std::result::Result<(), String> {
         let result = self
+            .state
             .validate_and_apply(std::slice::from_ref(&param), false)
             .into_iter()
             .next()
@@ -310,14 +486,11 @@ impl ParameterService {
     }
 
     pub fn undeclare_parameter(&self, name: &str) -> Result<(), String> {
-        self.store
-            .write()
-            .map_err(|_| "parameter store lock poisoned".to_string())?
-            .undeclare(name)
+        self.state.undeclare_parameter(name)
     }
 
     pub fn describe_parameter(&self, name: &str) -> Option<ParameterDescriptor> {
-        self.store.read().ok()?.describe(name)
+        self.state.describe_parameter(name)
     }
 
     pub fn list_parameters(
@@ -325,108 +498,14 @@ impl ParameterService {
         prefixes: &[String],
         depth: u64,
     ) -> wire_types::WireListParametersResult {
-        self.store
-            .read()
-            .map(|s| s.list(prefixes, depth))
-            .unwrap_or_default()
+        self.state.list_parameters(prefixes, depth)
     }
 
     pub fn on_set_parameters<F>(&self, callback: F)
     where
         F: Fn(&[Parameter]) -> SetParametersResult + Send + Sync + 'static,
     {
-        if let Ok(mut cb) = self.on_set_callback.write() {
-            *cb = Some(Arc::new(callback));
-        }
-    }
-
-    // ── Internal helpers ─────────────────────────────────────────────────────
-
-    /// Validate and apply a set of parameters. Returns one result per parameter.
-    /// If `atomic` is true, either all succeed or none are committed.
-    pub(crate) fn validate_and_apply(
-        &self,
-        params: &[Parameter],
-        atomic: bool,
-    ) -> Vec<SetParametersResult> {
-        let mut results = Vec::with_capacity(params.len());
-
-        // Phase 1: built-in validation
-        {
-            let store = match self.store.read() {
-                Ok(s) => s,
-                Err(_) => {
-                    return params
-                        .iter()
-                        .map(|_| SetParametersResult::failure("store lock poisoned"))
-                        .collect();
-                }
-            };
-
-            for param in params {
-                match store.validate_set(param) {
-                    Ok(_) => results.push(SetParametersResult::success()),
-                    Err(reason) => results.push(SetParametersResult::failure(reason)),
-                }
-            }
-        }
-
-        // Phase 2: user callback validation
-        let all_passed = results.iter().all(|r| r.successful);
-        if all_passed
-            && let Ok(cb_guard) = self.on_set_callback.read()
-            && let Some(cb_results) = cb_guard.as_ref().map(|cb| cb(params))
-            && !cb_results.successful
-        {
-            return params
-                .iter()
-                .map(|_| SetParametersResult::failure(cb_results.reason.clone()))
-                .collect();
-        }
-
-        // Phase 3: commit (only if all passed, or not atomic)
-        let mut new_params = Vec::new();
-        let mut changed_params = Vec::new();
-        let mut deleted_params = Vec::new();
-
-        if atomic && !results.iter().all(|r| r.successful) {
-            return results;
-        }
-
-        if let Ok(mut store) = self.store.write() {
-            for (i, param) in params.iter().enumerate() {
-                if results[i].successful {
-                    let is_new = !store.has(&param.name);
-                    let old = store.set(param);
-
-                    if is_new {
-                        new_params.push(param.to_wire());
-                    } else if old.is_some() {
-                        if param.value == super::types::ParameterValue::NotSet {
-                            deleted_params.push(param.to_wire());
-                        } else {
-                            changed_params.push(param.to_wire());
-                        }
-                    }
-                }
-            }
-        }
-
-        // Phase 4: publish parameter event
-        if !new_params.is_empty() || !changed_params.is_empty() || !deleted_params.is_empty() {
-            let event = WireParameterEvent {
-                stamp: WireTime::default(),
-                node: self.node_fqn.clone(),
-                new_parameters: new_params,
-                changed_parameters: changed_params,
-                deleted_parameters: deleted_params,
-            };
-            if let Err(e) = self.event_publisher.publish(&event) {
-                warn!("[PARAMS] Failed to publish parameter event: {}", e);
-            }
-        }
-
-        results
+        self.state.on_set_parameters(callback);
     }
 }
 
@@ -458,46 +537,46 @@ fn deserialize_request<T: for<'de> serde::Deserialize<'de>>(query: &Query) -> Op
     }
 }
 
-fn handle_describe_parameters(store: &Arc<RwLock<ParameterStore>>, query: Query) {
+fn handle_describe_parameters(state: &ParameterState, query: Query) {
     let Some(req) = deserialize_request::<wire_types::DescribeParametersRequest>(&query) else {
         return;
     };
     debug!("[PARAMS] describe_parameters: {:?}", req.names);
-    let descriptors = match store.read() {
-        Ok(s) => s.describe_many(&req.names),
+    let descriptors = match state.store.read() {
+        Ok(store) => store.describe_many(&req.names),
         Err(_) => return,
     };
     let response = wire_types::DescribeParametersResponse { descriptors };
     reply_with(query, &response);
 }
 
-fn handle_get_parameters(store: &Arc<RwLock<ParameterStore>>, query: Query) {
+fn handle_get_parameters(state: &ParameterState, query: Query) {
     let Some(req) = deserialize_request::<wire_types::GetParametersRequest>(&query) else {
         return;
     };
     debug!("[PARAMS] get_parameters: {:?}", req.names);
-    let values = match store.read() {
-        Ok(s) => s.get_many(&req.names),
+    let values = match state.store.read() {
+        Ok(store) => store.get_many(&req.names),
         Err(_) => return,
     };
     let response = wire_types::GetParametersResponse { values };
     reply_with(query, &response);
 }
 
-fn handle_get_parameter_types(store: &Arc<RwLock<ParameterStore>>, query: Query) {
+fn handle_get_parameter_types(state: &ParameterState, query: Query) {
     let Some(req) = deserialize_request::<wire_types::GetParameterTypesRequest>(&query) else {
         return;
     };
     debug!("[PARAMS] get_parameter_types: {:?}", req.names);
-    let types = match store.read() {
-        Ok(s) => s.get_types(&req.names),
+    let types = match state.store.read() {
+        Ok(store) => store.get_types(&req.names),
         Err(_) => return,
     };
     let response = wire_types::GetParameterTypesResponse { types };
     reply_with(query, &response);
 }
 
-fn handle_list_parameters(store: &Arc<RwLock<ParameterStore>>, query: Query) {
+fn handle_list_parameters(state: &ParameterState, query: Query) {
     let Some(req) = deserialize_request::<wire_types::ListParametersRequest>(&query) else {
         return;
     };
@@ -505,28 +584,22 @@ fn handle_list_parameters(store: &Arc<RwLock<ParameterStore>>, query: Query) {
         "[PARAMS] list_parameters: prefixes={:?}, depth={}",
         req.prefixes, req.depth
     );
-    let result = match store.read() {
-        Ok(s) => s.list(&req.prefixes, req.depth),
+    let result = match state.store.read() {
+        Ok(store) => store.list(&req.prefixes, req.depth),
         Err(_) => return,
     };
     let response = wire_types::ListParametersResponse { result };
     reply_with(query, &response);
 }
 
-fn handle_set_parameters(
-    store: &Arc<RwLock<ParameterStore>>,
-    callback: &Arc<RwLock<Option<SetCallback>>>,
-    session: &Arc<Session>,
-    node_fqn: &str,
-    query: Query,
-) {
+fn handle_set_parameters(state: &ParameterState, query: Query) {
     let Some(req) = deserialize_request::<wire_types::SetParametersRequest>(&query) else {
         return;
     };
     debug!("[PARAMS] set_parameters: {} params", req.parameters.len());
 
     let params: Vec<Parameter> = req.parameters.iter().map(Parameter::from_wire).collect();
-    let results = apply_parameters(store, callback, session, node_fqn, &params, false);
+    let results = state.validate_and_apply(&params, false);
 
     let wire_results: Vec<WireSetParametersResult> = results.iter().map(|r| r.to_wire()).collect();
     let response = wire_types::SetParametersResponse {
@@ -535,13 +608,7 @@ fn handle_set_parameters(
     reply_with(query, &response);
 }
 
-fn handle_set_parameters_atomically(
-    store: &Arc<RwLock<ParameterStore>>,
-    callback: &Arc<RwLock<Option<SetCallback>>>,
-    session: &Arc<Session>,
-    node_fqn: &str,
-    query: Query,
-) {
+fn handle_set_parameters_atomically(state: &ParameterState, query: Query) {
     let Some(req) = deserialize_request::<wire_types::SetParametersAtomicallyRequest>(&query)
     else {
         return;
@@ -552,7 +619,7 @@ fn handle_set_parameters_atomically(
     );
 
     let params: Vec<Parameter> = req.parameters.iter().map(Parameter::from_wire).collect();
-    let results = apply_parameters(store, callback, session, node_fqn, &params, true);
+    let results = state.validate_and_apply(&params, true);
 
     // Atomically: overall success only if all succeeded
     let successful = results.iter().all(|r| r.successful);
@@ -571,112 +638,29 @@ fn handle_set_parameters_atomically(
     reply_with(query, &response);
 }
 
-/// Shared apply logic used by both set_parameters handlers.
-fn apply_parameters(
-    store: &Arc<RwLock<ParameterStore>>,
-    callback: &Arc<RwLock<Option<SetCallback>>>,
-    session: &Arc<Session>,
-    node_fqn: &str,
-    params: &[Parameter],
-    atomic: bool,
-) -> Vec<SetParametersResult> {
-    let mut results = Vec::with_capacity(params.len());
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    // Phase 1: built-in validation
-    {
-        let Ok(s) = store.read() else {
-            return params
-                .iter()
-                .map(|_| SetParametersResult::failure("store lock poisoned"))
-                .collect();
-        };
-        for param in params {
-            match s.validate_set(param) {
-                Ok(_) => results.push(SetParametersResult::success()),
-                Err(reason) => results.push(SetParametersResult::failure(reason)),
-            }
-        }
-    }
+    #[test]
+    fn event_changes_classify_declare_change_delete() {
+        let mut changes = ParameterEventChanges::default();
 
-    // Phase 2: user callback
-    let all_passed = results.iter().all(|r| r.successful);
-    if all_passed
-        && let Ok(cb_guard) = callback.read()
-        && let Some(cb_result) = cb_guard.as_ref().map(|cb| cb(params))
-        && !cb_result.successful
-    {
-        return params
-            .iter()
-            .map(|_| SetParametersResult::failure(cb_result.reason.clone()))
-            .collect();
-    }
+        changes.record_declared(&Parameter::new("declared", ParameterValue::Integer(1)));
+        changes.record_changed(&Parameter::new("changed", ParameterValue::NotSet));
+        changes.record_deleted(&Parameter::new(
+            "deleted",
+            ParameterValue::String("gone".into()),
+        ));
 
-    // Bail early for atomic if any failed
-    if atomic && !results.iter().all(|r| r.successful) {
-        return results;
-    }
-
-    // Phase 3: commit
-    let mut new_params: Vec<WireParameter> = Vec::new();
-    let mut changed_params: Vec<WireParameter> = Vec::new();
-    let mut deleted_params: Vec<WireParameter> = Vec::new();
-
-    if let Ok(mut s) = store.write() {
-        for (i, param) in params.iter().enumerate() {
-            if results[i].successful {
-                let is_new = !s.has(&param.name);
-                let old = s.set(param);
-                if is_new {
-                    new_params.push(param.to_wire());
-                } else if old.is_some() {
-                    if param.value == ParameterValue::NotSet {
-                        deleted_params.push(param.to_wire());
-                    } else {
-                        changed_params.push(param.to_wire());
-                    }
-                }
-            }
-        }
-    }
-
-    // Phase 4: publish parameter event via Zenoh directly
-    if !new_params.is_empty() || !changed_params.is_empty() || !deleted_params.is_empty() {
-        publish_parameter_event(
-            session,
-            node_fqn,
-            new_params,
-            changed_params,
-            deleted_params,
+        assert_eq!(changes.new_parameters.len(), 1);
+        assert_eq!(changes.changed_parameters.len(), 1);
+        assert_eq!(changes.deleted_parameters.len(), 1);
+        assert_eq!(changes.changed_parameters[0].name, "changed");
+        assert_eq!(
+            changes.changed_parameters[0].value.r#type,
+            wire_types::parameter_type::NOT_SET
         );
-    }
-
-    results
-}
-
-/// Publish a ParameterEvent directly via the session (used from service callbacks).
-fn publish_parameter_event(
-    session: &Arc<Session>,
-    node_fqn: &str,
-    new_parameters: Vec<WireParameter>,
-    changed_parameters: Vec<WireParameter>,
-    deleted_parameters: Vec<WireParameter>,
-) {
-    let event = WireParameterEvent {
-        stamp: WireTime::default(),
-        node: node_fqn.to_string(),
-        new_parameters,
-        changed_parameters,
-        deleted_parameters,
-    };
-
-    let bytes = SerdeCdrSerdes::<WireParameterEvent>::serialize(&event);
-
-    // Publish to the Zenoh key for /parameter_events
-    // We use a simplified key without QoS suffix since this is a well-known topic.
-    // The topic key format for a publisher is: rt/parameter_events
-    let key = "rt/parameter_events";
-    use zenoh::Wait;
-    if let Err(e) = session.put(key, bytes).wait() {
-        warn!("[PARAMS] Failed to publish parameter event: {}", e);
+        assert_eq!(changes.deleted_parameters[0].name, "deleted");
     }
 }

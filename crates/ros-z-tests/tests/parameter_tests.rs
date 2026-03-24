@@ -5,11 +5,15 @@
 
 mod common;
 
+use std::{sync::Arc, thread, time::Duration};
+
 use common::*;
 use ros_z::{
     Builder,
     parameter::{
-        Parameter, ParameterDescriptor, ParameterType, ParameterValue, SetParametersResult,
+        Parameter, ParameterClient, ParameterDescriptor, ParameterTarget, ParameterType,
+        ParameterValue, SetParametersResult,
+        wire_types::{WireParameterEvent, parameter_event_type_info},
     },
 };
 
@@ -239,6 +243,169 @@ fn test_yaml_parameter_loading() {
     let other_params = load_parameter_string(yaml, "/other_node").unwrap();
     assert!(!other_params.contains_key("max_speed"));
     assert!(other_params.contains_key("timeout")); // wildcard still applies
+}
+
+/// Test the high-level parameter client, including get_types and atomic set.
+#[test]
+fn test_parameter_client_high_level_api() {
+    let router = TestRouter::new();
+
+    let endpoint = router.endpoint().to_string();
+    thread::spawn(move || {
+        let ctx = create_ros_z_context_with_endpoint(&endpoint).expect("ctx");
+        let node = ctx
+            .create_node("high_level_param_server")
+            .build()
+            .expect("node");
+
+        for (name, value) in [("count", 7_i64), ("limit", 3_i64)] {
+            let desc = ParameterDescriptor::new(name, ParameterType::Integer);
+            node.declare_parameter(name, ParameterValue::Integer(value), desc)
+                .expect("declare");
+        }
+
+        node.on_set_parameters(|params| {
+            for param in params {
+                if let ParameterValue::Integer(value) = param.value
+                    && value > 10
+                {
+                    return SetParametersResult::failure(format!(
+                        "{} exceeds maximum 10",
+                        param.name
+                    ));
+                }
+            }
+            SetParametersResult::success()
+        });
+
+        thread::sleep(Duration::from_secs(30));
+    });
+
+    wait_for_ready(Duration::from_secs(2));
+
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        let ctx = create_ros_z_context_with_router(&router).expect("ctx");
+        let client_node = Arc::new(
+            ctx.create_node("high_level_param_client")
+                .build()
+                .expect("node"),
+        );
+        let client = ParameterClient::new(
+            client_node,
+            ParameterTarget::from_fqn("/high_level_param_server").expect("target"),
+        )
+        .expect("client");
+
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        assert_eq!(
+            client.get(&["count"]).await.expect("get"),
+            vec![ParameterValue::Integer(7)]
+        );
+        assert_eq!(
+            client
+                .get_types(&["count", "missing"])
+                .await
+                .expect("types"),
+            vec![ParameterType::Integer, ParameterType::NotSet]
+        );
+
+        let listed = client.list(&[""], None).await.expect("list");
+        assert!(listed.names.contains(&"count".to_string()));
+        assert!(listed.names.contains(&"limit".to_string()));
+
+        let described = client.describe(&["count"]).await.expect("describe");
+        assert_eq!(described.len(), 1);
+        assert_eq!(described[0].name, "count");
+        assert_eq!(described[0].type_, ParameterType::Integer);
+
+        let set_results = client
+            .set(&[Parameter::new("count", ParameterValue::Integer(9))])
+            .await
+            .expect("set");
+        assert_eq!(set_results, vec![SetParametersResult::success()]);
+        assert_eq!(
+            client.get(&["count"]).await.expect("get"),
+            vec![ParameterValue::Integer(9)]
+        );
+
+        let atomic = client
+            .set_atomically(&[
+                Parameter::new("count", ParameterValue::Integer(11)),
+                Parameter::new("limit", ParameterValue::Integer(4)),
+            ])
+            .await
+            .expect("atomic set");
+        assert!(!atomic.successful);
+        assert!(atomic.reason.contains("maximum"));
+        assert_eq!(
+            client.get(&["count", "limit"]).await.expect("get"),
+            vec![ParameterValue::Integer(9), ParameterValue::Integer(3)]
+        );
+    });
+}
+
+/// Test parameter events for declare, set, and undeclare operations.
+#[test]
+fn test_parameter_events_cover_lifecycle() {
+    let router = TestRouter::new();
+    let ctx = create_ros_z_context_with_router(&router).expect("context");
+    let server = ctx
+        .create_node("param_event_server")
+        .build()
+        .expect("server");
+    let observer = ctx
+        .create_node("param_event_observer")
+        .build()
+        .expect("observer");
+
+    let events = observer
+        .create_sub_impl::<WireParameterEvent>(
+            "/parameter_events",
+            Some(parameter_event_type_info()),
+        )
+        .build()
+        .expect("event subscriber");
+
+    wait_for_ready(Duration::from_millis(500));
+
+    server
+        .declare_parameter(
+            "count",
+            ParameterValue::Integer(1),
+            ParameterDescriptor::new("count", ParameterType::Integer),
+        )
+        .expect("declare");
+    let declared = events
+        .recv_timeout(Duration::from_secs(2))
+        .expect("declare event");
+    assert_eq!(declared.node, "/param_event_server");
+    assert_eq!(declared.new_parameters.len(), 1);
+    assert_eq!(declared.new_parameters[0].name, "count");
+    assert!(declared.changed_parameters.is_empty());
+    assert!(declared.deleted_parameters.is_empty());
+
+    server
+        .set_parameter(Parameter::new("count", ParameterValue::Integer(2)))
+        .expect("set");
+    let changed = events
+        .recv_timeout(Duration::from_secs(2))
+        .expect("change event");
+    assert!(changed.new_parameters.is_empty());
+    assert_eq!(changed.changed_parameters.len(), 1);
+    assert_eq!(changed.changed_parameters[0].name, "count");
+    assert!(changed.deleted_parameters.is_empty());
+
+    server.undeclare_parameter("count").expect("undeclare");
+    let deleted = events
+        .recv_timeout(Duration::from_secs(2))
+        .expect("delete event");
+    assert!(deleted.new_parameters.is_empty());
+    assert!(deleted.changed_parameters.is_empty());
+    assert_eq!(deleted.deleted_parameters.len(), 1);
+    assert_eq!(deleted.deleted_parameters[0].name, "count");
+    assert_eq!(deleted.deleted_parameters[0].value.integer_value, 2);
 }
 
 /// Test that set_parameter publishes a ParameterEvent on /parameter_events.
