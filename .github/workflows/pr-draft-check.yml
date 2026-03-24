@@ -4,6 +4,8 @@ on:
   pull_request:
     types: [opened, reopened, ready_for_review, synchronize]
     branches: [main]
+  pull_request_review:
+    types: [submitted]
 
 jobs:
   check-pr-status:
