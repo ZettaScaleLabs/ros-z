@@ -422,7 +422,7 @@ jobs:
         uses: DeterminateSystems/determinate-nix-action@v3
         with:
           extra-conf: |
-            extra-substituters = https://ros.cachix.org https://ros-z.cachix.org
+            extra-substituters = https://ros-z.cachix.org https://ros.cachix.org
             extra-trusted-public-keys = ros.cachix.org-1:dSyZxI8geDCJrwgvCOHDoAfOm5sV1wCPjBkKL+38Rvo=
             extra-trusted-public-keys = ros-z.cachix.org-1:5ts10DbY/BUWnBGqAW+gLn9AvlBNezUM+ITDrb9S8Pw=
 
@@ -531,7 +531,7 @@ jobs:
         uses: DeterminateSystems/determinate-nix-action@v3
         with:
           extra-conf: |
-            extra-substituters = https://ros.cachix.org https://ros-z.cachix.org
+            extra-substituters = https://ros-z.cachix.org https://ros.cachix.org
             extra-trusted-public-keys = ros.cachix.org-1:dSyZxI8geDCJrwgvCOHDoAfOm5sV1wCPjBkKL+38Rvo=
             extra-trusted-public-keys = ros-z.cachix.org-1:5ts10DbY/BUWnBGqAW+gLn9AvlBNezUM+ITDrb9S8Pw=
 
@@ -585,7 +585,7 @@ jobs:
         uses: DeterminateSystems/determinate-nix-action@v3
         with:
           extra-conf: |
-            extra-substituters = https://ros.cachix.org https://ros-z.cachix.org
+            extra-substituters = https://ros-z.cachix.org https://ros.cachix.org
             extra-trusted-public-keys = ros.cachix.org-1:dSyZxI8geDCJrwgvCOHDoAfOm5sV1wCPjBkKL+38Rvo=
             extra-trusted-public-keys = ros-z.cachix.org-1:5ts10DbY/BUWnBGqAW+gLn9AvlBNezUM+ITDrb9S8Pw=
 
