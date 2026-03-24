@@ -44,8 +44,6 @@ jobs:
       - name: Install Determinate Nix
         uses: DeterminateSystems/determinate-nix-action@v3
 
-      - name: FlakeHub cache
-        uses: DeterminateSystems/flakehub-cache-action@main
 
       - name: Check formatting
         run: nix build .#checks.x86_64-linux.pre-commit-check -L
@@ -82,9 +80,6 @@ jobs:
         if: runner.os == 'Linux'
         uses: DeterminateSystems/determinate-nix-action@v3
 
-      - name: FlakeHub cache (Linux)
-        if: runner.os == 'Linux'
-        uses: DeterminateSystems/flakehub-cache-action@main
 
       - name: Install Nushell (Linux via Nix)
         if: runner.os == 'Linux'
@@ -171,8 +166,6 @@ jobs:
       - name: Install Determinate Nix (Linux)
         uses: DeterminateSystems/determinate-nix-action@v3
 
-      - name: FlakeHub cache (Linux)
-        uses: DeterminateSystems/flakehub-cache-action@main
 
       - name: Install Nushell (Linux via Nix)
         run: |
@@ -222,8 +215,6 @@ jobs:
       - name: Install Determinate Nix
         uses: DeterminateSystems/determinate-nix-action@v3
 
-      - name: FlakeHub cache
-        uses: DeterminateSystems/flakehub-cache-action@main
 
       - name: Install Nushell
         run: nix profile install nixpkgs#nushell
@@ -291,9 +282,6 @@ jobs:
         if: runner.os == 'Linux'
         uses: DeterminateSystems/determinate-nix-action@v3
 
-      - name: FlakeHub cache (Linux)
-        if: runner.os == 'Linux'
-        uses: DeterminateSystems/flakehub-cache-action@main
 
       - name: Install Nushell (Linux via Nix)
         if: runner.os == 'Linux'
@@ -437,9 +425,6 @@ jobs:
           # ros.cachix.org is read-only for upstream ROS packages.
           skipPush: ${{ github.event_name == 'pull_request' }}
 
-      - name: FlakeHub cache
-        uses: DeterminateSystems/flakehub-cache-action@main
-
       - name: Install Nushell
         run: |
           nix profile install nixpkgs#nushell
@@ -460,7 +445,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: crates/ros-z-py/.venv
-          key: ${{ runner.os }}-${{ matrix.distro }}-venv-${{ hashFiles('Cargo.lock', 'crates/ros-z-py/**') }}
+          key: >-
+            ${{ runner.os }}-${{ matrix.distro }}-venv-${{
+            hashFiles('Cargo.lock', 'crates/ros-z-py/src/**',
+            'crates/ros-z-py/Cargo.toml', 'crates/ros-z-msgs/python/**') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.distro }}-venv-
 
       - name: Setup venv
         if: steps.venv-cache.outputs.cache-hit != 'true'
@@ -543,8 +533,6 @@ jobs:
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
           skipPush: ${{ github.event_name == 'pull_request' }}
 
-      - name: FlakeHub cache
-        uses: DeterminateSystems/flakehub-cache-action@main
 
       - name: Install Nushell
         run: |
