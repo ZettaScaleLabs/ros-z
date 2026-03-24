@@ -96,39 +96,49 @@ impl TestRouter {
     /// then drops the listener before handing the port to Zenoh. This avoids
     /// PID-derived port collisions when multiple test binaries run in parallel.
     pub fn new() -> Self {
-        // Ask the OS for a free port, then release it for Zenoh to bind.
-        let port = {
-            let listener =
-                std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind port 0");
-            listener.local_addr().unwrap().port()
-        };
+        // Ask the OS for a free port, release it, then let Zenoh bind it.
+        // There is an inherent TOCTOU race between dropping the listener and
+        // Zenoh binding the same port. We retry up to 5 times to handle the
+        // rare case where another process wins the race.
+        for attempt in 0..5u32 {
+            let port = {
+                let listener =
+                    std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind port 0");
+                listener.local_addr().unwrap().port()
+            };
 
-        let endpoint = format!("tcp/127.0.0.1:{}", port);
-        println!("Starting Zenoh router on port {}...", port);
+            let endpoint = format!("tcp/127.0.0.1:{}", port);
+            println!(
+                "Starting Zenoh router on port {} (attempt {})...",
+                port,
+                attempt + 1
+            );
 
-        // Create Zenoh router session programmatically
-        let mut config = zenoh::Config::default();
-        config.set_mode(Some(WhatAmI::Router)).unwrap();
-        config
-            .insert_json5("listen/endpoints", &format!("[\"{}\"]", endpoint))
-            .unwrap();
-        config
-            .insert_json5("scouting/multicast/enabled", "false")
-            .unwrap();
+            let mut config = zenoh::Config::default();
+            config.set_mode(Some(WhatAmI::Router)).unwrap();
+            config
+                .insert_json5("listen/endpoints", &format!("[\"{}\"]", endpoint))
+                .unwrap();
+            config
+                .insert_json5("scouting/multicast/enabled", "false")
+                .unwrap();
 
-        let session = zenoh::open(config)
-            .wait()
-            .expect("Failed to open Zenoh router session");
-
-        // Wait for router to be ready
-        thread::sleep(Duration::from_millis(500));
-        println!("Zenoh router ready on {}", endpoint);
-
-        Self {
-            port,
-            endpoint: endpoint.clone(),
-            _session: session,
+            match zenoh::open(config).wait() {
+                Ok(session) => {
+                    thread::sleep(Duration::from_millis(500));
+                    println!("Zenoh router ready on {}", endpoint);
+                    return Self {
+                        port,
+                        endpoint,
+                        _session: session,
+                    };
+                }
+                Err(e) => {
+                    println!("Port {} unavailable ({}), retrying...", port, e);
+                }
+            }
         }
+        panic!("Failed to open Zenoh router session after 5 attempts");
     }
 
     /// Get the endpoint string for this router
