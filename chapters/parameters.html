@@ -219,7 +219,7 @@
 <tr><td><strong>Overrides</strong></td><td>Programmatic overrides applied at declaration time</td></tr>
 <tr><td><strong>Validation callbacks</strong></td><td>Accept or reject changes with a reason string</td></tr>
 <tr><td><strong>Standard services</strong></td><td>6 parameter services compatible with <code>ros2 param</code> CLI</td></tr>
-<tr><td><strong>Parameter events</strong></td><td><code>/parameter_events</code> topic published on every change</td></tr>
+<tr><td><strong>Parameter events</strong></td><td>Global <code>/parameter_events</code> topic published on declare, set, and undeclare</td></tr>
 </tbody></table>
 </div>
 <h2 id="quick-start"><a class="header" href="#quick-start">Quick Start</a></h2>
@@ -269,6 +269,7 @@ node.declare_parameter("speed", ParameterValue::Integer(50), desc)?;
 let mut desc = ParameterDescriptor::new("version", ParameterType::String);
 desc.read_only = true;
 node.declare_parameter("version", ParameterValue::String("1.0".into()), desc)?;</code></pre>
+<p>Set <code>desc.dynamic_typing = true</code> when a parameter should accept later type changes instead of enforcing a fixed <code>ParameterType</code>.</p>
 <h2 id="getting-and-setting"><a class="header" href="#getting-and-setting">Getting and Setting</a></h2>
 <pre><code class="language-rust ignore">// Get returns Option&lt;ParameterValue&gt;
 let value = node.get_parameter("timeout"); // Some(Double(5.0))
@@ -281,12 +282,14 @@ node.set_parameter(Parameter::new("timeout", ParameterValue::Double(10.0)))?;
 let err = node.set_parameter(Parameter::new("timeout", ParameterValue::Bool(true)));
 assert!(err.is_err());
 
+// Setting NotSet keeps the parameter declared
+node.set_parameter(Parameter::new("timeout", ParameterValue::NotSet))?;
+
 // Undeclare removes the parameter
 node.undeclare_parameter("timeout")?;</code></pre>
 <h2 id="validation-callbacks"><a class="header" href="#validation-callbacks">Validation Callbacks</a></h2>
 <p>Register a callback to accept or reject parameter changes before they take effect:</p>
-<pre><code class="language-rust ignore">/// Register a validation callback that rejects values outside a range.
-fn demo_callback(ctx: &amp;ros_z::context::ZContext) -&gt; Result&lt;()&gt; {
+<pre><code class="language-rust ignore">fn run(ctx: ZContext) -&gt; Result&lt;()&gt; {
     println!("\n=== Validation Callback Demo ===\n");
 
     let node = ctx.create_node("callback_demo").build()?;
@@ -301,7 +304,6 @@ fn demo_callback(ctx: &amp;ros_z::context::ZContext) -&gt; Result&lt;()&gt; {
     node.declare_parameter("temperature", ParameterValue::Double(20.0), desc)
         .expect("declare temperature");
 
-    // Reject temperatures above 50.0 with a custom callback
     node.on_set_parameters(|params| {
         for p in params {
             if let ParameterValue::Double(v) = &amp;p.value
@@ -316,18 +318,15 @@ fn demo_callback(ctx: &amp;ros_z::context::ZContext) -&gt; Result&lt;()&gt; {
         SetParametersResult::success()
     });
 
-    // Valid change
     node.set_parameter(Parameter::new("temperature", ParameterValue::Double(25.0)))
         .expect("set to 25.0");
     println!("temperature = {:?}", node.get_parameter("temperature"));
 
-    // Rejected by callback
     let err = node
         .set_parameter(Parameter::new("temperature", ParameterValue::Double(60.0)))
         .unwrap_err();
     println!("Callback rejected: {}", err);
 
-    // Value unchanged
     println!(
         "temperature unchanged = {:?}",
         node.get_parameter("temperature")
@@ -336,6 +335,7 @@ fn demo_callback(ctx: &amp;ros_z::context::ZContext) -&gt; Result&lt;()&gt; {
     Ok(())
 }</code></pre>
 <p>The callback receives all parameters being changed in a single batch. Return <code>SetParametersResult::success()</code> to accept or <code>SetParametersResult::failure("reason")</code> to reject the entire batch.</p>
+<p><code>ParameterValue::NotSet</code> is treated as an unset value for a still-declared parameter. It does <strong>not</strong> delete the parameter; call <code>undeclare_parameter</code> for that.</p>
 <h2 id="parameter-services"><a class="header" href="#parameter-services">Parameter Services</a></h2>
 <p>Each node with parameters enabled exposes 6 standard services:</p>
 <div class="table-wrapper"><table><thead><tr><th>Service</th><th>Purpose</th><th>CLI equivalent</th></tr></thead><tbody>
@@ -347,6 +347,23 @@ fn demo_callback(ctx: &amp;ros_z::context::ZContext) -&gt; Result&lt;()&gt; {
 <tr><td><code>/&lt;node&gt;/set_parameters_atomically</code></td><td>All-or-nothing batch update</td><td>—</td></tr>
 </tbody></table>
 </div>
+<h2 id="remote-parameter-client"><a class="header" href="#remote-parameter-client">Remote Parameter Client</a></h2>
+<p>Use <code>ParameterClient</code> when you want a typed client for another node's parameter services:</p>
+<pre><code class="language-rust ignore">use std::sync::Arc;
+use ros_z::parameter::{Parameter, ParameterClient, ParameterTarget, ParameterType, ParameterValue};
+
+let client_node = Arc::new(ctx.create_node("param_client").build()?);
+let client = ParameterClient::new(
+    client_node,
+    ParameterTarget::from_fqn("/my_node").expect("valid node name"),
+);
+
+let values = client.get(&amp;["max_speed"]).await?;
+let types = client.get_types(&amp;["max_speed"]).await?;
+let result = client
+    .set_atomically(&amp;[Parameter::new("max_speed", ParameterValue::Double(2.5))])
+    .await?;</code></pre>
+<p><code>ParameterClient</code> currently supports <code>describe</code>, <code>get</code>, <code>get_types</code>, <code>list</code>, <code>set</code>, and <code>set_atomically</code>.</p>
 <h2 id="loading-from-yaml"><a class="header" href="#loading-from-yaml">Loading from YAML</a></h2>
 <p>ros-z supports the standard ROS 2 parameter YAML format:</p>
 <pre><code class="language-yaml">/**:
@@ -369,6 +386,7 @@ fn demo_callback(ctx: &amp;ros_z::context::ZContext) -&gt; Result&lt;()&gt; {
     .with_parameter_file(Path::new("params.yaml"))?
     .build()?;</code></pre>
 <p>Parameters from the file become overrides — they replace the default value when <code>declare_parameter</code> is called.</p>
+<p>If both wildcard (<code>/**</code>) and node-specific entries match, node-specific values win. If you also call <code>.with_parameter_overrides(map)</code>, the last builder call wins.</p>
 <h2 id="node-builder-options"><a class="header" href="#node-builder-options">Node Builder Options</a></h2>
 <div class="table-wrapper"><table><thead><tr><th>Method</th><th>Effect</th></tr></thead><tbody>
 <tr><td><code>.without_parameters()</code></td><td>Disable parameter services entirely</td></tr>
@@ -378,13 +396,20 @@ fn demo_callback(ctx: &amp;ros_z::context::ZContext) -&gt; Result&lt;()&gt; {
 </div>
 <p>If both a file and programmatic overrides are used, the last call wins.</p>
 <h2 id="parameter_events"><a class="header" href="#parameter_events">/parameter_events</a></h2>
-<p>Every successful parameter change publishes a <code>ParameterEvent</code> message to <code>/&lt;node&gt;/parameter_events</code> with QoS:</p>
+<p>Every successful parameter change publishes a <code>ParameterEvent</code> message to <code>/parameter_events</code> with QoS:</p>
 <ul>
+<li><strong>Topic</strong>: <code>/parameter_events</code> (global, shared by all nodes)</li>
 <li><strong>Reliability</strong>: Reliable</li>
 <li><strong>Durability</strong>: Transient Local</li>
 <li><strong>History</strong>: Keep Last (1000)</li>
 </ul>
-<p>This matches the ROS 2 default for parameter events. Tools like <code>ros2 param</code> and <code>rqt_reconfigure</code> subscribe to this topic.</p>
+<p>Events are classified as:</p>
+<ul>
+<li><code>new_parameters</code> on declaration</li>
+<li><code>changed_parameters</code> on successful set, including <code>ParameterValue::NotSet</code></li>
+<li><code>deleted_parameters</code> on <code>undeclare_parameter</code></li>
+</ul>
+<p>This matches the ROS 2 default topic/QoS shape. Tools like <code>ros2 param</code> and <code>rqt_reconfigure</code> subscribe to this topic when the surrounding RMW/router setup supports it.</p>
 <h2 id="ros-2-comparison"><a class="header" href="#ros-2-comparison">ROS 2 Comparison</a></h2>
 <div class="table-wrapper"><table><thead><tr><th>Operation</th><th>rclcpp (C++)</th><th>ros-z (Rust)</th></tr></thead><tbody>
 <tr><td>Declare</td><td><code>node-&gt;declare_parameter&lt;T&gt;("name", default)</code></td><td><code>node.declare_parameter("name", value, desc)</code></td></tr>
@@ -396,6 +421,7 @@ fn demo_callback(ctx: &amp;ros_z::context::ZContext) -&gt; Result&lt;()&gt; {
 <tr><td>Overrides</td><td><code>--ros-args -p name:=value</code></td><td><code>.with_parameter_overrides(map)</code></td></tr>
 <tr><td>Disable</td><td>not possible</td><td><code>.without_parameters()</code></td></tr>
 <tr><td>Range</td><td><code>FloatingPointRange</code> / <code>IntegerRange</code></td><td>same types in <code>ParameterDescriptor</code></td></tr>
+<tr><td>Dynamic typing</td><td><code>dynamic_typing</code> descriptor flag</td><td>same flag in <code>ParameterDescriptor</code></td></tr>
 <tr><td>CLI tools</td><td><code>ros2 param list/get/set/dump</code></td><td>same (interop via standard services)</td></tr>
 </tbody></table>
 </div>
@@ -404,10 +430,11 @@ fn demo_callback(ctx: &amp;ros_z::context::ZContext) -&gt; Result&lt;()&gt; {
 <li><strong>Error handling</strong>: ros-z returns <code>Result&lt;(), String&gt;</code> on set failures; rclcpp throws exceptions</li>
 <li><strong>Callbacks</strong>: ros-z callbacks receive <code>&amp;[Parameter]</code> (slice) and return <code>SetParametersResult</code>; rclcpp receives <code>std::vector&lt;rclcpp::Parameter&gt;</code></li>
 <li><strong>Opt-out</strong>: ros-z can disable parameter services with <code>.without_parameters()</code>; rclcpp always enables them</li>
+<li><strong>Unset values</strong>: ros-z keeps <code>ParameterValue::NotSet</code> declared; deletion is explicit via <code>undeclare_parameter</code></li>
 <li><strong>No <code>declare_parameter_if_not_declared</code></strong>: check <code>node.get_parameter("name").is_some()</code> first</li>
 </ul>
 <h2 id="ros-2-interoperability"><a class="header" href="#ros-2-interoperability">ROS 2 Interoperability</a></h2>
-<p>ros-z parameter services use the same CDR wire format and RIHS01 type hashes as rclcpp. When connected to the same Zenoh router, <code>ros2 param</code> commands work against ros-z nodes:</p>
+<p>ros-z parameter services use the same CDR wire format and RIHS01 type hashes as rclcpp. In an environment where ROS 2 is using <code>rmw_zenoh_cpp</code> and both sides are connected to the same Zenoh router, <code>ros2 param</code> commands work against ros-z nodes:</p>
 <pre><code class="language-bash"># List parameters on a ros-z node
 ros2 param list /my_node
 
@@ -428,42 +455,25 @@ ros2 param dump /my_node
 <a class="admonition-anchor-link" href="#admonition-warning"></a>
 </div>
 <div>
-<p>ROS 2 nodes must use <code>rmw_zenoh_cpp</code> (<code>export RMW_IMPLEMENTATION=rmw_zenoh_cpp</code>) and connect to the same Zenoh router.</p>
+<p>CLI interoperability depends on your local ROS 2 environment. Use <code>rmw_zenoh_cpp</code> (<code>export RMW_IMPLEMENTATION=rmw_zenoh_cpp</code>) and connect both sides to the same Zenoh router.</p>
 </div>
 </div>
-<h2 id="full-example"><a class="header" href="#full-example">Full Example</a></h2>
-<pre><code class="language-rust ignore">#[tokio::main]
-async fn main() -&gt; Result&lt;()&gt; {
-    zenoh::init_log_from_env_or("error");
-    let args = Args::parse();
-
-    let ctx = ZContextBuilder::default()
-        .with_connect_endpoints([&amp;args.endpoint])
-        .build()?;
-
-    match args.mode {
-        Mode::Declare =&gt; demo_declare(&amp;ctx)?,
-        Mode::Callback =&gt; demo_callback(&amp;ctx)?,
-        Mode::Yaml =&gt; demo_yaml(&amp;ctx)?,
-        Mode::All =&gt; {
-            demo_declare(&amp;ctx)?;
-            demo_callback(&amp;ctx)?;
-            demo_yaml(&amp;ctx)?;
-        }
-    }
-    Ok(())
-}</code></pre>
-<p><strong>Running the example:</strong></p>
+<h2 id="focused-examples"><a class="header" href="#focused-examples">Focused Examples</a></h2>
+<p>The parameter examples are now split into focused binaries:</p>
 <pre><code class="language-bash"># Start a Zenoh router first
 cargo run --example zenoh_router
 
-# Run all parameter demos
-cargo run --example z_parameters
+# Local declare/get/set/undeclare flow
+cargo run --example z_parameter_declare
 
-# Run a specific demo
-cargo run --example z_parameters -- --mode declare
-cargo run --example z_parameters -- --mode callback
-cargo run --example z_parameters -- --mode yaml
+# Validation callback flow
+cargo run --example z_parameter_callback
+
+# YAML loading and overrides
+cargo run --example z_parameter_yaml
+
+# Remote ParameterClient flow
+cargo run --example z_parameter_client
 </code></pre>
 <h2 id="resources"><a class="header" href="#resources">Resources</a></h2>
 <ul>
