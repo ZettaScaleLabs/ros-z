@@ -422,18 +422,19 @@ jobs:
         uses: DeterminateSystems/determinate-nix-action@v3
         with:
           extra-conf: |
-            extra-substituters = https://ros.cachix.org
+            extra-substituters = https://ros.cachix.org https://ros-z.cachix.org
             extra-trusted-public-keys = ros.cachix.org-1:dSyZxI8geDCJrwgvCOHDoAfOm5sV1wCPjBkKL+38Rvo=
+            extra-trusted-public-keys = ros-z.cachix.org-1:5ts10DbY/BUWnBGqAW+gLn9AvlBNezUM+ITDrb9S8Pw=
 
       - name: Setup Cachix
         uses: cachix/cachix-action@v15
         with:
-          name: ros
+          name: ros-z
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
           # Push ros-z's own built Nix derivations on main-branch runs so
           # subsequent runs (including PRs) can download them from Cachix
-          # instead of rebuilding. ROS packages are already in ros.cachix.org
-          # (maintained by nix-ros-overlay for all distros including kilted).
+          # instead of rebuilding. ros-z.cachix.org is our own cache;
+          # ros.cachix.org is read-only for upstream ROS packages.
           skipPush: ${{ github.event_name == 'pull_request' }}
 
       - name: FlakeHub cache
@@ -530,13 +531,14 @@ jobs:
         uses: DeterminateSystems/determinate-nix-action@v3
         with:
           extra-conf: |
-            extra-substituters = https://ros.cachix.org
+            extra-substituters = https://ros.cachix.org https://ros-z.cachix.org
             extra-trusted-public-keys = ros.cachix.org-1:dSyZxI8geDCJrwgvCOHDoAfOm5sV1wCPjBkKL+38Rvo=
+            extra-trusted-public-keys = ros-z.cachix.org-1:5ts10DbY/BUWnBGqAW+gLn9AvlBNezUM+ITDrb9S8Pw=
 
       - name: Setup Cachix
         uses: cachix/cachix-action@v15
         with:
-          name: ros
+          name: ros-z
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
           skipPush: ${{ github.event_name == 'pull_request' }}
 
@@ -563,3 +565,73 @@ jobs:
         run: |
           source /tmp/nix-dev-env.sh
           nu scripts/test-ros.nu --distro ${{ matrix.distro }}
+
+  bridge-interop:
+    name: Bridge Interop (humble ↔ jazzy)
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    # Only run on push or non-draft PRs to save CI time
+    if: |
+      github.event_name == 'push' ||
+      github.event.pull_request.draft == false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Determinate Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
+        with:
+          extra-conf: |
+            extra-substituters = https://ros.cachix.org https://ros-z.cachix.org
+            extra-trusted-public-keys = ros.cachix.org-1:dSyZxI8geDCJrwgvCOHDoAfOm5sV1wCPjBkKL+38Rvo=
+            extra-trusted-public-keys = ros-z.cachix.org-1:5ts10DbY/BUWnBGqAW+gLn9AvlBNezUM+ITDrb9S8Pw=
+
+      - name: Setup Cachix
+        uses: cachix/cachix-action@v15
+        with:
+          name: ros-z
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          # Push from same-repo PRs so built packages (rmw_zenoh_cpp, etc.) are
+          # cached for future runs.  Skip only for fork PRs (security boundary).
+          skipPush: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+
+      - name: FlakeHub cache
+        uses: DeterminateSystems/flakehub-cache-action@main
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: jazzy-bridge-interop
+
+      - name: Build and cache bridge interop nix environment
+        run: |
+          # Build the shell closure explicitly so cachix can push all store paths
+          # (including ros-humble-zenoh-cpp-vendor) before nix print-dev-env runs.
+          nix build '.#devShells.x86_64-linux.ros-bridge-interop' \
+            --accept-flake-config --no-link
+
+      - name: Export bridge interop nix environment
+        run: |
+          nix print-dev-env '.#ros-bridge-interop' \
+            --accept-flake-config > /tmp/nix-dev-env-jazzy.sh
+          echo "export CI=true" >> /tmp/nix-dev-env-jazzy.sh
+
+      - name: Build ros-z-bridge binary
+        run: |
+          source /tmp/nix-dev-env-jazzy.sh
+          cargo build -p ros-z-bridge --features jazzy -j4
+
+      - name: Run bridge unit tests
+        run: |
+          source /tmp/nix-dev-env-jazzy.sh
+          cargo test -p ros-z-bridge --features jazzy -j4
+
+      - name: Run bridge interop tests
+        run: |
+          source /tmp/nix-dev-env-jazzy.sh
+          cargo test -p ros-z-tests --test humble_jazzy_bridge \
+            --features jazzy,humble-jazzy-bridge-tests -j4 \
+            -- --nocapture 2>&1
