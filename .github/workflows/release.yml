@@ -171,6 +171,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Add Cargo to PATH (macOS)
+        if: matrix.os == 'macos-latest'
+        run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
       - name: Install Rust target (Linux cross-compile only)
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: rustup target add ${{ matrix.target }}
@@ -240,6 +244,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Add Cargo to PATH (macOS)
+        if: matrix.os == 'macos-latest'
+        run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Install Rust target (Linux cross-compile only)
         if: matrix.target == 'aarch64-unknown-linux-gnu' && matrix.os == 'ubuntu-latest'
