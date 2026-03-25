@@ -98,9 +98,88 @@ jobs:
           name: ros-z-py-${{ matrix.distro }}-${{ matrix.target }}
           path: crates/ros-z-py/dist/*
 
+  build-go-libs:
+    name: Build libros_z (${{ matrix.distro }}, ${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            distro: jazzy
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            distro: humble
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            distro: jazzy
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            distro: humble
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            distro: jazzy
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            distro: humble
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Install cross-compile tools (aarch64 Linux)
+        if: matrix.target == 'aarch64-unknown-linux-gnu' && matrix.os == 'ubuntu-latest'
+        run: |
+          cargo install cargo-zigbuild
+          pip install ziglang
+
+      - name: Build libros_z (native)
+        if: matrix.target != 'aarch64-unknown-linux-gnu' || matrix.os != 'ubuntu-latest'
+        run: >-
+          cargo build --release
+          --features ffi,${{ matrix.distro }}
+          --no-default-features
+          --target ${{ matrix.target }}
+          -p ros-z
+
+      - name: Build libros_z (aarch64 Linux via zigbuild)
+        if: matrix.target == 'aarch64-unknown-linux-gnu' && matrix.os == 'ubuntu-latest'
+        run: >-
+          cargo zigbuild --release
+          --features ffi,${{ matrix.distro }}
+          --no-default-features
+          --target ${{ matrix.target }}
+          -p ros-z
+
+      - name: Package library
+        shell: bash
+        run: |
+          mkdir -p go-dist
+          src="target/${{ matrix.target }}/release"
+          name="libros_z-${{ matrix.distro }}-${{ matrix.target }}"
+          if [ -f "$src/libros_z.a" ]; then
+            cp "$src/libros_z.a" "go-dist/${name}.a"
+          fi
+          if [ -f "$src/libros_z.dylib" ]; then
+            cp "$src/libros_z.dylib" "go-dist/${name}.dylib"
+          fi
+          if [ -f "$src/libros_z.so" ]; then
+            cp "$src/libros_z.so" "go-dist/${name}.so"
+          fi
+          cp crates/ros-z-go/rosz/ros_z_ffi.h "go-dist/ros_z_ffi.h" 2>/dev/null || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libros_z-${{ matrix.distro }}-${{ matrix.target }}
+          path: go-dist/*
+
   release:
     name: Create GitHub Release
-    needs: [build-msgs, build-wheels]
+    needs: [build-msgs, build-wheels, build-go-libs]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -127,6 +206,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: ros-z-py-*
+          path: dist/
+          merge-multiple: true
+
+      - name: Download libros_z artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: libros_z-*
           path: dist/
           merge-multiple: true
 
