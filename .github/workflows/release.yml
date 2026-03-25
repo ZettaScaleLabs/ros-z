@@ -171,7 +171,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust target
+      - name: Install Rust target (Linux cross-compile only)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: rustup target add ${{ matrix.target }}
 
       - name: Install cross-compile tools (aarch64 Linux)
@@ -180,19 +181,19 @@ jobs:
           cargo install cargo-zigbuild
           pip install ziglang
 
-      - name: Build binary (native)
-        if: matrix.target != 'aarch64-unknown-linux-gnu'
+      - name: Build binary (aarch64 Linux via zigbuild)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: >-
-          cargo build --release
+          cargo zigbuild --release
           --bin ${{ matrix.bin }}
           --package ${{ matrix.package }}
           ${{ matrix.features != '' && format('--features {0} --no-default-features', matrix.features) || '' }}
           --target ${{ matrix.target }}
 
-      - name: Build binary (aarch64 Linux via zigbuild)
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
+      - name: Build binary (native)
+        if: matrix.target != 'aarch64-unknown-linux-gnu'
         run: >-
-          cargo zigbuild --release
+          cargo build --release
           --bin ${{ matrix.bin }}
           --package ${{ matrix.package }}
           ${{ matrix.features != '' && format('--features {0} --no-default-features', matrix.features) || '' }}
@@ -240,7 +241,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust target
+      - name: Install Rust target (Linux cross-compile only)
+        if: matrix.target == 'aarch64-unknown-linux-gnu' && matrix.os == 'ubuntu-latest'
         run: rustup target add ${{ matrix.target }}
 
       - name: Install cross-compile tools (aarch64 Linux)
