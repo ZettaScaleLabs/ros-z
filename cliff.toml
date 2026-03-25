@@ -14,8 +14,10 @@ body = """
     ## Unreleased
 {% endif %}\
 
-{% for group, commits in commits | group_by(attribute="group") %}
-### {{ group | striptags | trim | upper_first }}
+{% for group, commits in commits | group_by(attribute="group") %}\
+<details>
+<summary><strong>{{ group | striptags | trim | upper_first }}</strong></summary>
+
 {% for commit in commits | filter(attribute="scope") | sort(attribute="scope") %}\
   - {% if commit.scope %}**({{ commit.scope }})** {% endif %}{{ commit.message | upper_first }} ([`{{ commit.id | truncate(length=7, end="") }}`](https://github.com/ZettaScaleLabs/ros-z/commit/{{ commit.id }}))
 {% endfor %}\
@@ -23,7 +25,8 @@ body = """
 {%- if not commit.scope %}\
   - {{ commit.message | upper_first }} ([`{{ commit.id | truncate(length=7, end="") }}`](https://github.com/ZettaScaleLabs/ros-z/commit/{{ commit.id }}))
 {% endif %}\
-{% endfor %}\
+{% endfor %}
+</details>
 {% endfor %}\
 {% if github.contributors | filter(attribute="is_first_time", value=true) | length != 0 %}
 ### New Contributors
