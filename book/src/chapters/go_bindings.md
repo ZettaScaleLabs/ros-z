@@ -30,7 +30,54 @@ Callbacks flow in reverse: Rust invokes C function pointers → dispatched to Go
 
 ---
 
-## Project Setup
+## Installation
+
+### Pre-built Libraries (Recommended)
+
+Download the pre-built static library for your platform from the [GitHub Releases](https://github.com/ZettaScaleLabs/ros-z/releases) page.
+Artifacts are named `libros_z-{distro}-{target}.a` (e.g. `libros_z-jazzy-x86_64-unknown-linux-gnu.a`).
+
+Each release also includes the C header `ros_z_ffi.h`.
+
+Place the library somewhere stable (e.g. `vendor/libros_z/`) and point CGO at it:
+
+```bash
+export CGO_LDFLAGS="-L/path/to/vendor/libros_z -lros_z -lm"
+export CGO_CFLAGS="-I/path/to/vendor/libros_z"
+go build ./...
+```
+
+Or set them per-command:
+
+```bash
+CGO_LDFLAGS="-L$(pwd)/vendor/libros_z -lros_z -lm" \
+CGO_CFLAGS="-I$(pwd)/vendor/libros_z" \
+go run main.go
+```
+
+Available targets:
+
+| File | Platform |
+|------|----------|
+| `libros_z-jazzy-x86_64-unknown-linux-gnu.a` | Linux x86_64, Jazzy |
+| `libros_z-humble-x86_64-unknown-linux-gnu.a` | Linux x86_64, Humble |
+| `libros_z-jazzy-aarch64-unknown-linux-gnu.a` | Linux ARM64, Jazzy |
+| `libros_z-humble-aarch64-unknown-linux-gnu.a` | Linux ARM64, Humble |
+| `libros_z-jazzy-aarch64-apple-darwin.a` | macOS Apple Silicon, Jazzy |
+| `libros_z-humble-aarch64-apple-darwin.a` | macOS Apple Silicon, Humble |
+
+### Building from Source
+
+Requires Rust (stable) and `cargo`:
+
+```bash
+cargo build --release --features ffi,jazzy --no-default-features -p ros-z
+# Output: target/release/libros_z.a
+```
+
+Then either use `${SRCDIR}`-relative `LDFLAGS` in the `go.mod` `replace` workflow (see below) or export `CGO_LDFLAGS` as shown above.
+
+## Development Setup (replace directive)
 
 Add to your `go.mod`:
 
