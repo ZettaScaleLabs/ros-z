@@ -590,9 +590,6 @@ jobs:
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
           skipPush: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
 
-      - name: FlakeHub cache
-        uses: DeterminateSystems/flakehub-cache-action@main
-
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
