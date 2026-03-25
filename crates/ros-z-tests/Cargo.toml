@@ -47,6 +47,13 @@ ros-interop = [
 ]
 python-interop = ["ros-msgs"]
 
+# Humble ↔ Jazzy bridge integration tests (requires nix + ros-humble shell)
+humble-jazzy-bridge-tests = [
+  "ros-msgs",
+  "ros-z-msgs/example_interfaces",
+  "ros-z-msgs/action_tutorials_interfaces",
+]
+
 # ros2dds backend interop (with zenoh-bridge-ros2dds)
 # This enables testing ros-z with DDS-based ROS 2 nodes via zenoh-bridge-ros2dds
 ros2dds-interop = ["ros-msgs", "ros-z/ros2dds", "ros-z/rmw-zenoh"]

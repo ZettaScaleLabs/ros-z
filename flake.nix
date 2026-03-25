@@ -250,45 +250,50 @@
             packages,
             banner ? "",
             extraShellHook ? "",
+            # Extra env vars set as mkShell attributes (exported by `nix print-dev-env`).
+            extraEnvVars ? { },
             rosEnvPath ? null,
             pythonVersion ? pkgs.python3, # To determine site-packages path
             rosDistro ? null,
           }:
-          pkgs.mkShell {
-            inherit name packages;
+          pkgs.mkShell (
+            {
+              inherit name packages;
 
-            # KEY CHANGE: Manually construct the environment using SUFFIX logic
-            # rosEnvPath is the Nix Store path. We append it to existing vars.
-            shellHook = ''
-              ${exportEnvVars}
+              # KEY CHANGE: Manually construct the environment using SUFFIX logic
+              # rosEnvPath is the Nix Store path. We append it to existing vars.
+              shellHook = ''
+                ${exportEnvVars}
 
-              ${
-                if rosEnvPath != null then
-                  ''
-                    # --suffix logic: Add Nix Store paths to the END of the lists.
-                    # This ensures your workspace (which you source via setup.bash) stays at the front.
+                ${
+                  if rosEnvPath != null then
+                    ''
+                      # --suffix logic: Add Nix Store paths to the END of the lists.
+                      # This ensures your workspace (which you source via setup.bash) stays at the front.
 
-                    export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${rosEnvPath}/lib"
-                    export PYTHONPATH="$PYTHONPATH:${rosEnvPath}/lib/${pythonVersion.libPrefix}/site-packages"
-                    export CMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH:${rosEnvPath}"
-                    export AMENT_PREFIX_PATH="$AMENT_PREFIX_PATH:${rosEnvPath}"
-                    export ROS_PACKAGE_PATH="$ROS_PACKAGE_PATH:${rosEnvPath}/share"
-                    export GZ_CONFIG_PATH="$GZ_CONFIG_PATH:${rosEnvPath}/share/gz"
+                      export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${rosEnvPath}/lib"
+                      export PYTHONPATH="$PYTHONPATH:${rosEnvPath}/lib/${pythonVersion.libPrefix}/site-packages"
+                      export CMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH:${rosEnvPath}"
+                      export AMENT_PREFIX_PATH="$AMENT_PREFIX_PATH:${rosEnvPath}"
+                      export ROS_PACKAGE_PATH="$ROS_PACKAGE_PATH:${rosEnvPath}/share"
+                      export GZ_CONFIG_PATH="$GZ_CONFIG_PATH:${rosEnvPath}/share/gz"
 
-                    # These are usually static, so simple export is fine
-                    ${if rosDistro != null then "export ROS_DISTRO=${rosDistro}" else ""}
-                    export ROS_VERSION=2
-                    export ROS_PYTHON_VERSION=3
-                  ''
-                else
-                  ""
-              }
+                      # These are usually static, so simple export is fine
+                      ${if rosDistro != null then "export ROS_DISTRO=${rosDistro}" else ""}
+                      export ROS_VERSION=2
+                      export ROS_PYTHON_VERSION=3
+                    ''
+                  else
+                    ""
+                }
 
-              ${extraShellHook}
-              ${if banner != "" then banner else ""}
-            '';
-            hardeningDisable = [ "all" ];
-          };
+                ${extraShellHook}
+                ${if banner != "" then banner else ""}
+              '';
+              hardeningDisable = [ "all" ];
+            }
+            // extraEnvVars
+          );
 
         # Helper to create shells for a specific ROS distro
         mkRosShells =
@@ -403,6 +408,48 @@
               mdbook-admonish install book/ 2>/dev/null || true
             '';
           };
+
+          # Bridge interop: Jazzy build + test environment with Humble tools accessible via
+          # the `humble-ros2` wrapper script (env var HUMBLE_ROS2).
+          # Tests call binaries directly — no `nix develop` subprocess invocations.
+          ros-bridge-interop =
+            let
+              humbleEnv = mkRosEnv "humble";
+              jazzyEnv = mkRosEnv "jazzy";
+              pythonVer = pkgs.python3;
+              # Wrapper script: invokes ros2 inside the Humble environment.
+              # Overrides AMENT_PREFIX_PATH / ROS_DISTRO so Humble packages take precedence
+              # over anything inherited from the outer Jazzy shell.
+              humbleRos2 = pkgs.writeShellScriptBin "humble-ros2" ''
+                export AMENT_PREFIX_PATH="${humbleEnv.dev}"
+                export ROS_PACKAGE_PATH="${humbleEnv.dev}/share"
+                export PYTHONPATH="${humbleEnv.dev}/lib/${pythonVer.libPrefix}/site-packages"
+                export LD_LIBRARY_PATH="${humbleEnv.dev}/lib"
+                export ROS_DISTRO="humble"
+                export ROS_VERSION="2"
+                export ROS_PYTHON_VERSION="3"
+                exec "${humbleEnv.dev}/bin/ros2" "$@"
+              '';
+            in
+            mkDevShell {
+              name = "ros-bridge-interop";
+              # Jazzy dev env gives us: build deps + ros2cli + rmw_zenoh_cpp for `ros2 topic list`
+              packages =
+                commonBuildInputs
+                ++ testTools
+                ++ [
+                  jazzyEnv.dev
+                  humbleRos2
+                ];
+              rosEnvPath = jazzyEnv.dev;
+              pythonVersion = pythonVer;
+              rosDistro = "jazzy";
+              # HUMBLE_ROS2 is set as a mkShell attribute so it is exported by
+              # `nix print-dev-env` (unlike shellHook which is not captured).
+              extraEnvVars = {
+                HUMBLE_ROS2 = "${humbleRos2}/bin/humble-ros2";
+              };
+            };
         }
         # Add per-distro dev shells (ros-jazzy, ros-rolling, ...)
         // (builtins.listToAttrs (

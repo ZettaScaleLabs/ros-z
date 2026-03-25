@@ -96,39 +96,49 @@ impl TestRouter {
     /// then drops the listener before handing the port to Zenoh. This avoids
     /// PID-derived port collisions when multiple test binaries run in parallel.
     pub fn new() -> Self {
-        // Ask the OS for a free port, then release it for Zenoh to bind.
-        let port = {
-            let listener =
-                std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind port 0");
-            listener.local_addr().unwrap().port()
-        };
+        // Ask the OS for a free port, release it, then let Zenoh bind it.
+        // There is an inherent TOCTOU race between dropping the listener and
+        // Zenoh binding the same port. We retry up to 5 times to handle the
+        // rare case where another process wins the race.
+        for attempt in 0..5u32 {
+            let port = {
+                let listener =
+                    std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind port 0");
+                listener.local_addr().unwrap().port()
+            };
 
-        let endpoint = format!("tcp/127.0.0.1:{}", port);
-        println!("Starting Zenoh router on port {}...", port);
+            let endpoint = format!("tcp/127.0.0.1:{}", port);
+            println!(
+                "Starting Zenoh router on port {} (attempt {})...",
+                port,
+                attempt + 1
+            );
 
-        // Create Zenoh router session programmatically
-        let mut config = zenoh::Config::default();
-        config.set_mode(Some(WhatAmI::Router)).unwrap();
-        config
-            .insert_json5("listen/endpoints", &format!("[\"{}\"]", endpoint))
-            .unwrap();
-        config
-            .insert_json5("scouting/multicast/enabled", "false")
-            .unwrap();
+            let mut config = zenoh::Config::default();
+            config.set_mode(Some(WhatAmI::Router)).unwrap();
+            config
+                .insert_json5("listen/endpoints", &format!("[\"{}\"]", endpoint))
+                .unwrap();
+            config
+                .insert_json5("scouting/multicast/enabled", "false")
+                .unwrap();
 
-        let session = zenoh::open(config)
-            .wait()
-            .expect("Failed to open Zenoh router session");
-
-        // Wait for router to be ready
-        thread::sleep(Duration::from_millis(500));
-        println!("Zenoh router ready on {}", endpoint);
-
-        Self {
-            port,
-            endpoint: endpoint.clone(),
-            _session: session,
+            match zenoh::open(config).wait() {
+                Ok(session) => {
+                    thread::sleep(Duration::from_millis(500));
+                    println!("Zenoh router ready on {}", endpoint);
+                    return Self {
+                        port,
+                        endpoint,
+                        _session: session,
+                    };
+                }
+                Err(e) => {
+                    println!("Port {} unavailable ({}), retrying...", port, e);
+                }
+            }
         }
+        panic!("Failed to open Zenoh router session after 5 attempts");
     }
 
     /// Get the endpoint string for this router
@@ -554,3 +564,204 @@ pub fn spawn_ros2_cyclone_add_two_ints_client(a: i64, b: i64) -> ProcessGuard {
 
     ProcessGuard::new(child, "ros2_cyclone_add_two_ints_client")
 }
+
+// ============================================================================
+// Humble ↔ Jazzy Bridge Test Helpers
+// ============================================================================
+
+#[cfg(feature = "humble-jazzy-bridge-tests")]
+#[allow(dead_code)]
+mod humble_jazzy {
+    use super::*;
+
+    /// Return the path to the `humble-ros2` wrapper binary.
+    ///
+    /// The wrapper is provided by the `ros-bridge-interop` nix dev shell and its
+    /// path is exported as `HUMBLE_ROS2`.  Tests must run inside that shell.
+    fn humble_ros2_bin() -> String {
+        std::env::var("HUMBLE_ROS2").expect(
+            "HUMBLE_ROS2 env var not set — run tests inside the `ros-bridge-interop` nix shell",
+        )
+    }
+
+    /// Build the ZENOH_CONFIG_OVERRIDE string for a rmw_zenoh node to connect to `endpoint`.
+    fn rmw_zenoh_override(endpoint: &str) -> String {
+        format!("connect/endpoints=[\"{endpoint}\"];scouting/multicast/enabled=false")
+    }
+
+    /// Spawn a process using the `humble-ros2` wrapper with extra environment variables.
+    fn spawn_humble(args: &[&str], env: &[(&str, &str)]) -> ProcessGuard {
+        use std::os::unix::process::CommandExt;
+
+        let bin = humble_ros2_bin();
+        let name = args.join(" ");
+        let mut command = Command::new(&bin);
+        command
+            .args(args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .process_group(0);
+        for (k, v) in env {
+            command.env(k, v);
+        }
+        let child = command
+            .spawn()
+            .unwrap_or_else(|e| panic!("Failed to spawn humble-ros2 {name}: {e}"));
+        ProcessGuard::new(child, &format!("humble-ros2 {name}"))
+    }
+
+    /// Spawn a ROS 2 Humble demo_nodes_cpp talker using rmw_zenoh.
+    ///
+    /// The talker publishes `std_msgs/String` on the given `topic`.
+    pub fn spawn_humble_ros2_talker(endpoint: &str, topic: &str) -> ProcessGuard {
+        spawn_humble(
+            &[
+                "run",
+                "demo_nodes_cpp",
+                "talker",
+                "--ros-args",
+                "-r",
+                "__ns:=/",
+                "-r",
+                &format!("chatter:={topic}"),
+            ],
+            &[
+                ("RMW_IMPLEMENTATION", "rmw_zenoh_cpp"),
+                ("ZENOH_CONFIG_OVERRIDE", &rmw_zenoh_override(endpoint)),
+            ],
+        )
+    }
+
+    /// Spawn a ROS 2 Humble demo_nodes_cpp listener using rmw_zenoh.
+    pub fn spawn_humble_ros2_listener(endpoint: &str, topic: &str) -> ProcessGuard {
+        spawn_humble(
+            &[
+                "run",
+                "demo_nodes_cpp",
+                "listener",
+                "--ros-args",
+                "-r",
+                &format!("chatter:={topic}"),
+            ],
+            &[
+                ("RMW_IMPLEMENTATION", "rmw_zenoh_cpp"),
+                ("ZENOH_CONFIG_OVERRIDE", &rmw_zenoh_override(endpoint)),
+            ],
+        )
+    }
+
+    /// Spawn a ROS 2 Humble add_two_ints_server using rmw_zenoh.
+    pub fn spawn_humble_ros2_service_server(endpoint: &str) -> ProcessGuard {
+        spawn_humble(
+            &["run", "demo_nodes_cpp", "add_two_ints_server"],
+            &[
+                ("RMW_IMPLEMENTATION", "rmw_zenoh_cpp"),
+                ("ZENOH_CONFIG_OVERRIDE", &rmw_zenoh_override(endpoint)),
+            ],
+        )
+    }
+
+    /// Spawn a ROS 2 Humble fibonacci action server using rmw_zenoh.
+    pub fn spawn_humble_ros2_action_server(endpoint: &str) -> ProcessGuard {
+        spawn_humble(
+            &["run", "action_tutorials_cpp", "fibonacci_action_server"],
+            &[
+                ("RMW_IMPLEMENTATION", "rmw_zenoh_cpp"),
+                ("ZENOH_CONFIG_OVERRIDE", &rmw_zenoh_override(endpoint)),
+            ],
+        )
+    }
+
+    /// Run `ros2 topic list` in the Jazzy environment connected to `endpoint`.
+    ///
+    /// Returns the list of topic names (e.g. `["/chatter", "/rosout"]`).
+    /// Lines are filtered to keep only valid ROS topic names (start with `/`,
+    /// no spaces, no dots).
+    pub fn jazzy_topic_list(endpoint: &str) -> Vec<String> {
+        let override_str = rmw_zenoh_override(endpoint);
+        let output = Command::new("ros2")
+            .args(["topic", "list", "--spin-time", "5", "--no-daemon"])
+            .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
+            .env("ZENOH_CONFIG_OVERRIDE", &override_str)
+            .output()
+            .expect("failed to run `ros2 topic list` — is ros2cli available in PATH?");
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .map(|l| l.trim().to_string())
+            .filter(|l| l.starts_with('/') && !l.contains(' ') && !l.contains('.'))
+            .collect()
+    }
+
+    /// Run `ros2 topic list` in the Humble environment connected to `endpoint`.
+    ///
+    /// Returns the list of topic names.
+    pub fn humble_topic_list(endpoint: &str) -> Vec<String> {
+        let override_str = rmw_zenoh_override(endpoint);
+        let bin = humble_ros2_bin();
+        let output = Command::new(&bin)
+            .args(["topic", "list", "--spin-time", "5", "--no-daemon"])
+            .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
+            .env("ZENOH_CONFIG_OVERRIDE", &override_str)
+            .output()
+            .expect("failed to run humble `ros2 topic list`");
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .map(|l| l.trim().to_string())
+            .filter(|l| l.starts_with('/') && !l.contains(' ') && !l.contains('.'))
+            .collect()
+    }
+
+    /// Call the add_two_ints service once from a Humble node via rmw_zenoh, then exit.
+    pub fn spawn_humble_ros2_service_client(endpoint: &str) -> ProcessGuard {
+        spawn_humble(
+            &[
+                "service",
+                "call",
+                "/add_two_ints",
+                "example_interfaces/srv/AddTwoInts",
+                "{a: 3, b: 7}",
+            ],
+            &[
+                ("RMW_IMPLEMENTATION", "rmw_zenoh_cpp"),
+                ("ZENOH_CONFIG_OVERRIDE", &rmw_zenoh_override(endpoint)),
+            ],
+        )
+    }
+
+    /// Spawn the `ros-z-bridge` binary connecting both endpoints to the same router.
+    ///
+    /// Both `--humble-endpoint` and `--jazzy-endpoint` are set to `endpoint` since
+    /// the test router is shared between both distros.
+    pub fn spawn_bridge(endpoint: &str) -> ProcessGuard {
+        use std::os::unix::process::CommandExt;
+
+        // The bridge binary is built as part of the test workspace.
+        let bridge_bin = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent() // crates/ros-z-tests -> crates
+            .unwrap()
+            .parent() // crates -> workspace root
+            .unwrap()
+            .join("target/debug/ros-z-bridge");
+
+        let child = Command::new(&bridge_bin)
+            .args(["--humble-endpoint", endpoint])
+            .args(["--jazzy-endpoint", endpoint])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .process_group(0)
+            .spawn()
+            .unwrap_or_else(|e| {
+                panic!(
+                    "Failed to spawn ros-z-bridge ({}): {e}",
+                    bridge_bin.display()
+                )
+            });
+
+        // Give the bridge time to start discovery.
+        thread::sleep(Duration::from_millis(500));
+        ProcessGuard::new(child, "ros-z-bridge")
+    }
+}
+
+#[cfg(feature = "humble-jazzy-bridge-tests")]
+pub use humble_jazzy::*;

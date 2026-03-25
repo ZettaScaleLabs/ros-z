@@ -2855,6 +2855,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "ros-z-bridge"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "parking_lot",
+ "ros-z",
+ "ros-z-msgs",
+ "ros-z-protocol",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "zenoh",
+]
+
+[[package]]
 name = "ros-z-cdr"
 version = "0.1.0"
 dependencies = [
