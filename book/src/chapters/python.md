@@ -22,7 +22,39 @@ graph TD
 
 ## Installation
 
-### Prerequisites
+### Pre-built Wheels (Recommended)
+
+Pre-built wheels are available for Linux (x86_64, aarch64) and macOS (aarch64),
+Python 3.11+. No Rust toolchain required.
+
+Replace `v0.1.0` with the desired release version from the
+[Releases page](https://github.com/ZettaScaleLabs/ros-z/releases).
+
+**Jazzy / Kilted / Rolling:**
+
+```bash
+pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/v0.1.0/ros_z_msgs_py-0.1.0-py3-none-any.whl
+pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/v0.1.0/ros_z_py-0.1.0-cp311-abi3-linux_x86_64-jazzy.whl
+```
+
+**Humble:**
+
+```bash
+pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/v0.1.0/ros_z_msgs_py-0.1.0-py3-none-any.whl
+pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/v0.1.0/ros_z_py-0.1.0-cp311-abi3-linux_x86_64-humble.whl
+```
+
+```admonish tip
+`ros-z-msgs-py` (message definitions) is a dependency of `ros-z-py` and is installed
+automatically when using `pip install`. The explicit install above is only needed when
+pinning a specific version or installing from a direct URL.
+```
+
+### Build from Source
+
+For development or platforms without pre-built wheels:
+
+#### Prerequisites
 
 - Python 3.8+
 - Rust 1.85+ — install via [rustup](https://rustup.rs): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
@@ -32,7 +64,7 @@ graph TD
 If you use Nix, run `nix develop` in the repo root. It provides Rust, maturin, and all build tools automatically — skip the manual install steps above.
 ```
 
-### Setup
+#### Setup
 
 ```bash
 # Create and activate virtual environment
