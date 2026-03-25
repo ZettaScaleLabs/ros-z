@@ -50,6 +50,25 @@ automatically when using `pip install`. The explicit install above is only neede
 pinning a specific version or installing from a direct URL.
 ```
 
+### Local Dry-Run (before releasing)
+
+To verify the wheel build locally before pushing a release tag, use the build script
+which mirrors the CI release workflow exactly:
+
+```bash
+# Build jazzy + humble wheels into crates/ros-z-py/dist/
+./scripts/build-python-wheels.nu
+
+# Build and immediately install into crates/ros-z-py/.venv
+./scripts/build-python-wheels.nu --install
+
+# Build a single distro only
+./scripts/build-python-wheels.nu --distros [jazzy]
+```
+
+The script produces the same wheel filenames as CI (with the `‑jazzy` / `‑humble` distro
+suffix) and prints ready-to-use `pip install` commands for the local files.
+
 ### Build from Source
 
 For development or platforms without pre-built wheels:
