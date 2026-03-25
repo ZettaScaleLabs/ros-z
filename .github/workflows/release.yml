@@ -188,7 +188,7 @@ jobs:
         if: matrix.target != 'aarch64-unknown-linux-gnu'
         shell: bash
         run: |
-          . "$HOME/.cargo/env" 2>/dev/null || true
+          export PATH="$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
           cargo build --release \
             --bin ${{ matrix.bin }} \
             --package ${{ matrix.package }} \
@@ -251,7 +251,7 @@ jobs:
         if: matrix.target != 'aarch64-unknown-linux-gnu' || matrix.os != 'ubuntu-latest'
         shell: bash
         run: |
-          . "$HOME/.cargo/env" 2>/dev/null || true
+          export PATH="$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
           cargo build --release \
             --features ffi,${{ matrix.distro }} \
             --no-default-features \
