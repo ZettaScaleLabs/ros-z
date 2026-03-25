@@ -185,6 +185,18 @@
                     <main>
                         <h1 id="ros-2-interoperability"><a class="header" href="#ros-2-interoperability">ROS 2 Interoperability</a></h1>
 <p>ros-z nodes — whether written in Rust, Python, or Go — speak the same Zenoh wire protocol as <code>rmw_zenoh_cpp</code>, the official ROS 2 middleware plugin for Zenoh. This means they interoperate transparently: a Go subscriber can receive messages from a ROS 2 C++ talker, a Python publisher can send to a Rust listener, and so on.</p>
+<div id="admonition-mixing-humble-with-jazzy-or-kilted" class="admonition admonish-tip" role="note" aria-labelledby="admonition-mixing-humble-with-jazzy-or-kilted-title">
+<div class="admonition-title">
+<div id="admonition-mixing-humble-with-jazzy-or-kilted-title">
+<p>Mixing Humble with Jazzy or Kilted?</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-mixing-humble-with-jazzy-or-kilted"></a>
+</div>
+<div>
+<p>If you need to bridge a <strong>Humble</strong> (legacy) network and a <strong>Jazzy / Kilted</strong> (modern) network,
+see the <a href="./bridge.html">Cross-Distro Bridge</a> chapter.</p>
+</div>
+</div>
 <h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
 <ul>
 <li>A ROS 2 installation with <code>rmw_zenoh_cpp</code> and <code>demo_nodes_cpp</code></li>
@@ -269,7 +281,7 @@ ros2 topic echo /chatter std_msgs/msg/String
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next prefetch" href="../chapters/message_generation.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../chapters/bridge.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -283,7 +295,7 @@ ros2 topic echo /chatter std_msgs/msg/String
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next prefetch" href="../chapters/message_generation.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../chapters/bridge.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>
