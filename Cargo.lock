@@ -2860,7 +2860,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
- "hex",
+ "parking_lot",
  "ros-z",
  "ros-z-msgs",
  "ros-z-protocol",

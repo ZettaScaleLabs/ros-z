@@ -283,11 +283,12 @@ fn test_graph_jazzy_pub_visible_in_humble() {
 // Action Tests (smoke test — full action requires more infrastructure)
 // ============================================================================
 
-/// Verify that a Humble fibonacci action server is discoverable via the bridge.
-/// Full action round-trip is covered in CI with more complete setup.
+/// Smoke test: verify that a Humble fibonacci action server and the bridge start
+/// without crashing. Full action round-trip (goal send/feedback/result) requires
+/// a complete ROS 2 action client and is covered in CI with more complete setup.
 #[test]
 #[serial]
-fn test_action_humble_server_discoverable() {
+fn test_action_humble_server_and_bridge_startup() {
     let router = common::TestRouter::new();
     let endpoint = router.endpoint();
 

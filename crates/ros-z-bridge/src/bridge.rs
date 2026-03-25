@@ -13,12 +13,10 @@
 //! Actions are independent sub-entities (send_goal, cancel_goal, get_result,
 //! feedback, status) and are bridged individually via their KEs.
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Result;
+use parking_lot::RwLock;
 use ros_z_protocol::{EntityKind, TypeHash};
 use zenoh::{Wait, liveliness::LivelinessToken};
 
@@ -84,7 +82,7 @@ pub struct Bridge {
     jazzy_session: Arc<zenoh::Session>,
     domain_id: usize,
     /// Active bridged entries, keyed by (topic, type, kind).
-    active: Arc<Mutex<HashMap<BridgeKey, BridgedEntry>>>,
+    active: Arc<RwLock<HashMap<BridgeKey, BridgedEntry>>>,
 }
 
 /// Rewrite the hash segment of a liveliness KE.
@@ -132,12 +130,12 @@ impl Bridge {
 
         let humble_session = Arc::new(
             zenoh::open(humble_cfg)
-                .wait()
+                .await
                 .map_err(|e| anyhow::anyhow!("humble session open: {e}"))?,
         );
         let jazzy_session = Arc::new(
             zenoh::open(jazzy_cfg)
-                .wait()
+                .await
                 .map_err(|e| anyhow::anyhow!("jazzy session open: {e}"))?,
         );
 
@@ -145,15 +143,16 @@ impl Bridge {
             humble_session,
             jazzy_session,
             domain_id,
-            active: Arc::new(Mutex::new(HashMap::new())),
+            active: Arc::new(RwLock::new(HashMap::new())),
         })
     }
 
     /// Run the bridge event loop until a shutdown signal is received.
     pub async fn run(&mut self) -> Result<()> {
         let mut humble_rx =
-            discovery::start_discovery(self.humble_session.clone(), self.domain_id)?;
-        let mut jazzy_rx = discovery::start_discovery(self.jazzy_session.clone(), self.domain_id)?;
+            discovery::start_discovery(Arc::clone(&self.humble_session), self.domain_id)?;
+        let mut jazzy_rx =
+            discovery::start_discovery(Arc::clone(&self.jazzy_session), self.domain_id)?;
 
         tracing::info!("Bridge running — waiting for discovery events");
 
@@ -194,52 +193,49 @@ impl Bridge {
     fn handle_event(&self, event: DiscoveryEvent) {
         use ros_z_protocol::Entity;
 
-        let entity = match &*event.entity {
+        let ep = match &*event.entity {
             Entity::Node(_) => return,
-            Entity::Endpoint(ep) => ep.clone(),
+            Entity::Endpoint(ep) => ep,
         };
 
-        let type_info = match &entity.type_info {
-            Some(ti) => ti.clone(),
+        let type_info = match &ep.type_info {
+            Some(ti) => ti,
             None => return,
         };
 
         let key = BridgeKey {
-            topic: entity.topic.clone(),
+            topic: ep.topic.clone(),
             type_name: type_info.name.clone(),
-            kind: entity.kind,
+            kind: ep.kind,
         };
 
         if event.appeared {
             // Skip if already bridged.  This prevents re-entrancy loops caused by
             // the bridge's own synthetic liveliness tokens triggering new bridge_entity
             // calls on both sessions (both subscribe to the same shared router).
-            {
-                let active = self.active.lock().unwrap();
-                if active.contains_key(&key) {
-                    tracing::debug!(
-                        "Entity already bridged, skipping: topic={} type={}",
-                        entity.topic,
-                        type_info.name
-                    );
-                    return;
-                }
+            if self.active.read().contains_key(&key) {
+                tracing::debug!(
+                    "Entity already bridged, skipping: topic={} type={}",
+                    ep.topic,
+                    type_info.name
+                );
+                return;
             }
             tracing::info!(
                 "Entity appeared: {:?} {:?} topic={} type={}",
                 event.distro,
-                entity.kind,
-                entity.topic,
+                ep.kind,
+                ep.topic,
                 type_info.name
             );
             self.bridge_entity(key, &type_info.hash, event.distro, &event.raw_ke);
         } else {
             tracing::info!(
                 "Entity disappeared: topic={} type={}",
-                entity.topic,
+                ep.topic,
                 type_info.name
             );
-            self.active.lock().unwrap().remove(&key);
+            self.active.write().remove(&key);
         }
     }
 
@@ -344,7 +340,7 @@ impl Bridge {
                 };
                 // Hold the lock for the entire check+insert to prevent a second
                 // discovery event from bridging the same entity concurrently.
-                self.active.lock().unwrap().entry(key).or_insert(entry);
+                self.active.write().entry(key).or_insert(entry);
             }
             Err(err) => {
                 tracing::error!("Failed to set up bridge for {}: {err}", key.topic);
@@ -354,17 +350,17 @@ impl Bridge {
 
     fn setup_pubsub_bridge(&self, humble_ke: &str, jazzy_ke: &str) -> Result<ForwarderPair> {
         let h2j = start_forwarder(
-            self.humble_session.clone(),
+            Arc::clone(&self.humble_session),
             humble_ke.to_string(),
-            self.jazzy_session.clone(),
+            Arc::clone(&self.jazzy_session),
             jazzy_ke.to_string(),
         )
         .map_err(|e| anyhow::anyhow!("humble→jazzy forwarder: {e}"))?;
 
         let j2h = start_forwarder(
-            self.jazzy_session.clone(),
+            Arc::clone(&self.jazzy_session),
             jazzy_ke.to_string(),
-            self.humble_session.clone(),
+            Arc::clone(&self.humble_session),
             humble_ke.to_string(),
         )
         .map_err(|e| anyhow::anyhow!("jazzy→humble forwarder: {e}"))?;
@@ -385,16 +381,16 @@ impl Bridge {
         // that side can reach the server.  One proxy suffices; two would loop.
         let proxy = match server_distro {
             Distro::Humble => start_service_forwarder(
-                self.jazzy_session.clone(),
+                Arc::clone(&self.jazzy_session),
                 jazzy_ke.to_string(),
-                self.humble_session.clone(),
+                Arc::clone(&self.humble_session),
                 humble_ke.to_string(),
             )
             .map_err(|e| anyhow::anyhow!("jazzy→humble service proxy: {e}"))?,
             Distro::Jazzy => start_service_forwarder(
-                self.humble_session.clone(),
+                Arc::clone(&self.humble_session),
                 humble_ke.to_string(),
-                self.jazzy_session.clone(),
+                Arc::clone(&self.jazzy_session),
                 jazzy_ke.to_string(),
             )
             .map_err(|e| anyhow::anyhow!("humble→jazzy service proxy: {e}"))?,

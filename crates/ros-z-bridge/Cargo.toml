@@ -27,7 +27,7 @@ anyhow = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 clap = { workspace = true, features = ["derive"] }
-hex = { workspace = true }
+parking_lot = { workspace = true }
 
 [features]
 default = ["jazzy"]

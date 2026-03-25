@@ -5,14 +5,13 @@
 //!
 //! The bridge rewrites the hash segment so each side receives what it expects.
 
-use anyhow::{Result, bail};
 use ros_z_protocol::TypeHash;
 
 /// Humble's sentinel value for the type hash segment of a key expression.
 pub const HUMBLE_HASH_SENTINEL: &str = "TypeHashNotSupported";
 
 /// Classify how a topic key expression encodes the type hash.
-#[allow(dead_code)]
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HashVariant {
     /// ROS 2 Humble: hash segment is `TypeHashNotSupported`
@@ -27,7 +26,7 @@ pub enum HashVariant {
 ///
 /// The `topic_path` may contain multiple `/`-separated segments (no mangling
 /// for topic KEs — only liveliness tokens use `%` mangling).
-#[allow(dead_code)]
+#[cfg(test)]
 #[derive(Debug, Clone)]
 pub struct ParsedTopicKe {
     pub domain_id: u32,
@@ -39,17 +38,17 @@ pub struct ParsedTopicKe {
     pub hash: HashVariant,
 }
 
-#[allow(dead_code)]
+#[cfg(test)]
 impl ParsedTopicKe {
     /// Parse a raw key expression string into a `ParsedTopicKe`.
     ///
     /// The format is `{domain_id}/{topic...}/{type_name}/{hash}` where
     /// `{topic...}` may span multiple segments. We identify the type name
     /// and hash as the **last two** segments, domain_id as the **first**.
-    pub fn parse(ke: &str) -> Result<Self> {
+    pub fn parse(ke: &str) -> anyhow::Result<Self> {
         let segments: Vec<&str> = ke.split('/').collect();
         if segments.len() < 4 {
-            bail!("topic KE too short: {ke}");
+            anyhow::bail!("topic KE too short: {ke}");
         }
 
         let domain_id: u32 = segments[0]
@@ -100,15 +99,15 @@ impl ParsedTopicKe {
 }
 
 /// Parse the hash segment of a topic KE.
-#[allow(dead_code)]
-fn parse_hash_segment(hash_str: &str) -> Result<HashVariant> {
+#[cfg(test)]
+fn parse_hash_segment(hash_str: &str) -> anyhow::Result<HashVariant> {
     if hash_str == HUMBLE_HASH_SENTINEL {
         return Ok(HashVariant::Humble);
     }
     if let Some(hash) = TypeHash::from_rihs_string(hash_str) {
         return Ok(HashVariant::Jazzy(hash));
     }
-    bail!("unrecognised hash segment: {hash_str}")
+    anyhow::bail!("unrecognised hash segment: {hash_str}")
 }
 
 /// Return `true` if `hash` represents the Humble sentinel (all-zero value).
