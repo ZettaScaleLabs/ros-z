@@ -33,7 +33,15 @@ body = """
 {% endfor %}\
 {% endif %}\
 """
-footer = ""
+footer = """
+---
+
+## Installation
+
+**Python bindings** — see [Python Installation](https://zettascalelabs.github.io/ros-z/chapters/python.html) in the documentation.
+
+**Go bindings** — see [Go Bindings](https://zettascalelabs.github.io/ros-z/chapters/go_bindings.html) in the documentation.
+"""
 trim = true
 
 [git]
