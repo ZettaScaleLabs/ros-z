@@ -22,6 +22,8 @@ body = """
 
 ---
 
+## Changelog
+
 {% for group, commits in commits | group_by(attribute="group") %}\
 <details>
 <summary><strong>{{ group | striptags | trim | upper_first }}</strong></summary>
