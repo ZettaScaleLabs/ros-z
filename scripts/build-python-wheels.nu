@@ -18,23 +18,20 @@ use lib/common.nu *
 
 def build-msgs-wheel [] {
     log-step "Build ros-z-msgs-py wheel"
-    run-cmd "cd crates/ros-z-msgs/python && pip install build && python -m build" --shell bash
+    run-cmd "cd crates/ros-z-msgs/python && python -m build" --shell bash
 }
 
 def build-ros-z-py-wheel [distro: string] {
     log-step $"Build ros-z-py wheel for ($distro)"
-    run-cmd $"
-        cd crates/ros-z-py
-        maturin build --release --strip \
-            --features 'pyo3/extension-module,($distro)' \
-            --no-default-features \
-            --out dist
-    " --shell bash --distro $distro
+    run-cmd $"cd crates/ros-z-py && maturin build --release --strip --features 'pyo3/extension-module,($distro)' --no-default-features --out dist" --shell bash --distro $distro
 }
 
 def rename-wheel [distro: string] {
     log-step $"Rename wheel to include distro suffix: ($distro)"
-    let whl = (ls crates/ros-z-py/dist/*.whl | where name !~ $"-($distro)\.whl$" | get name)
+    # Only rename wheels that have no distro suffix yet (i.e. freshly built by maturin)
+    let whl = (ls crates/ros-z-py/dist/*.whl
+        | where { |f| not ($DISTROS | any { |d| ($f.name | str contains $"-($d)") }) }
+        | get name)
     for w in $whl {
         let dest = ($w | str replace --regex '\.whl$' $"-($distro).whl")
         mv $w $dest
@@ -58,7 +55,7 @@ def install-into-venv [] {
     let py_wheel = (ls crates/ros-z-py/dist/*.whl | first | get name)
     run-cmd $"
         source crates/ros-z-py/.venv/bin/activate
-        pip install --force-reinstall ($py_wheel)
+        pip install --force-reinstall --no-deps ($py_wheel)
     " --shell bash
 
     print ""
@@ -82,13 +79,15 @@ def print-install-hint [] {
 # Build ros-z-py and ros-z-msgs-py wheels locally (mirrors the release CI workflow).
 #
 # Examples:
-#   ./scripts/build-python-wheels.nu
-#   ./scripts/build-python-wheels.nu --distros [jazzy]
-#   ./scripts/build-python-wheels.nu --install
+#   ./scripts/build-python-wheels.nu                  # jazzy + humble
+#   ./scripts/build-python-wheels.nu jazzy            # jazzy only
+#   ./scripts/build-python-wheels.nu jazzy humble     # explicit list
+#   ./scripts/build-python-wheels.nu --install jazzy  # build + pip install
 def main [
-    --distros: list<string> = ["jazzy", "humble"]  # Distros to build wheels for
-    --install                                       # Install built wheels into crates/ros-z-py/.venv
+    --install           # Install built wheels into crates/ros-z-py/.venv
+    ...distros: string  # Distros to build (default: jazzy humble)
 ] {
+    let distros = if ($distros | is-empty) { ["jazzy", "humble"] } else { $distros }
     for d in $distros { validate-distro $d }
 
     log-header "Building Python wheels" ($distros | str join ", ")
@@ -98,14 +97,19 @@ def main [
 
     build-msgs-wheel
 
+    # Build each distro wheel, install before renaming (rename makes filename invalid for pip)
+    let primary = ($distros | first)
     for distro in $distros {
         build-ros-z-py-wheel $distro
+        # Install only the first (primary) distro into venv
+        if $install and ($distro == $primary) {
+            install-into-venv
+        }
+        # Rename immediately so next distro build doesn't conflict
         rename-wheel $distro
     }
 
-    if $install {
-        install-into-venv
-    } else {
+    if not $install {
         print-install-hint
     }
 

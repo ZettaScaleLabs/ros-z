@@ -7,9 +7,16 @@ edition.workspace = true
 name = "_native"
 crate-type = ["cdylib"]
 
+[features]
+default = ["jazzy"]
+jazzy = ["ros-z/jazzy"]
+humble = ["ros-z/humble"]
+kilted = ["ros-z/kilted"]
+rolling = ["ros-z/rolling"]
+
 [dependencies]
 pyo3 = { workspace = true }
-ros-z = { path = "../ros-z" }
+ros-z = { path = "../ros-z", default-features = false }
 ros-z-cdr = { workspace = true }
 ros-z-msgs = { path = "../ros-z-msgs", features = [
   "python_registry",
