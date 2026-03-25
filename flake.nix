@@ -219,6 +219,7 @@
           mdbook-admonish
           mdbook-mermaid
           mdbook-linkcheck # internal + external link checker for the book
+          git-cliff # conventional-commit changelog generation
         ];
 
         # Test tools
