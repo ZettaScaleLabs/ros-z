@@ -3615,6 +3615,18 @@ let ctx = ZContextBuilder::default()
 </div>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="ros-2-interoperability-3"><a class="header" href="#ros-2-interoperability-3">ROS 2 Interoperability</a></h1>
 <p>ros-z nodes — whether written in Rust, Python, or Go — speak the same Zenoh wire protocol as <code>rmw_zenoh_cpp</code>, the official ROS 2 middleware plugin for Zenoh. This means they interoperate transparently: a Go subscriber can receive messages from a ROS 2 C++ talker, a Python publisher can send to a Rust listener, and so on.</p>
+<div id="admonition-mixing-humble-with-jazzy-or-kilted" class="admonition admonish-tip" role="note" aria-labelledby="admonition-mixing-humble-with-jazzy-or-kilted-title">
+<div class="admonition-title">
+<div id="admonition-mixing-humble-with-jazzy-or-kilted-title">
+<p>Mixing Humble with Jazzy or Kilted?</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/interop.html#admonition-mixing-humble-with-jazzy-or-kilted"></a>
+</div>
+<div>
+<p>If you need to bridge a <strong>Humble</strong> (legacy) network and a <strong>Jazzy / Kilted</strong> (modern) network,
+see the <a href="chapters/./bridge.html">Cross-Distro Bridge</a> chapter.</p>
+</div>
+</div>
 <h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
 <ul>
 <li>A ROS 2 installation with <code>rmw_zenoh_cpp</code> and <code>demo_nodes_cpp</code></li>
@@ -3690,6 +3702,193 @@ ros2 topic echo /chatter std_msgs/msg/String
 <pre><code class="language-bash">just -f crates/ros-z-go/justfile run-example subscriber
 </code></pre>
 <p>For more detail see <a href="chapters/./go_quick_start.html">Go Quick Start</a>.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="cross-distro-bridge"><a class="header" href="#cross-distro-bridge">Cross-Distro Bridge</a></h1>
+<p><code>ros-z-bridge</code> is a standalone binary that transparently connects a <strong>legacy</strong> ROS 2 network
+(Humble and earlier) and a <strong>modern</strong> ROS 2 network (Jazzy, Kilted, Rolling) over a shared
+Zenoh backbone.</p>
+<p>Without the bridge, nodes from these two generations cannot talk to each other.
+With it, a Jazzy or Kilted subscriber receives messages from a Humble publisher — and
+vice versa — with no changes to either node.</p>
+<h2 id="why-are-they-incompatible"><a class="header" href="#why-are-they-incompatible">Why Are They Incompatible?</a></h2>
+<p>The only wire-level difference between legacy and modern distributions is the <strong>type hash</strong>
+embedded in Zenoh key expressions during entity discovery:</p>
+<div class="table-wrapper"><table><thead><tr><th>Distribution</th><th>Generation</th><th>Type hash format</th></tr></thead><tbody>
+<tr><td><strong>Humble</strong></td><td>Legacy</td><td><code>TypeHashNotSupported</code> (constant placeholder)</td></tr>
+<tr><td><strong>Jazzy, Kilted, Rolling</strong></td><td>Modern</td><td><code>RIHS01_&lt;64 hex chars&gt;</code> (real hash of the message definition)</td></tr>
+</tbody></table>
+</div>
+<p>Because the key expressions don't match, subscribers on one side never see publishers on the
+other side. <strong>CDR payloads are identical</strong> — only the KE differs.</p>
+<p>The bridge fixes this by:</p>
+<ol>
+<li>Subscribing to liveliness tokens on both Zenoh networks.</li>
+<li>Detecting which side each entity came from (legacy vs modern).</li>
+<li>Rewriting the hash segment of the key expression to match the opposite side.</li>
+<li>Forwarding messages (and service calls) bidirectionally using raw bytes — no
+deserialization needed.</li>
+</ol>
+<h2 id="architecture-1"><a class="header" href="#architecture-1">Architecture</a></h2>
+<pre class="mermaid">graph TD
+    H_node[&quot;Humble node&lt;br&gt;(TypeHashNotSupported)&quot;]
+    J_node[&quot;Jazzy / Kilted node&lt;br&gt;(RIHS01_abcd…)&quot;]
+
+    H_router([&quot;Legacy router&lt;br&gt;127.0.0.1:7447&quot;])
+    J_router([&quot;Modern router&lt;br&gt;127.0.0.1:7448&quot;])
+
+    bridge[&quot;ros-z-bridge&quot;]
+
+    H_node &lt;--&gt;|rmw_zenoh_cpp v0.1.x| H_router
+    J_node &lt;--&gt;|rmw_zenoh_cpp v0.2.x| J_router
+    H_router &lt;--&gt;|legacy session| bridge
+    J_router &lt;--&gt;|modern session| bridge
+</pre>
+<p>The bridge opens <strong>two independent Zenoh sessions</strong> — one per network — so the two sides
+never interfere with each other.</p>
+<h2 id="installation"><a class="header" href="#installation">Installation</a></h2>
+<p>Build from source (requires Rust ≥ 1.82):</p>
+<pre><code class="language-bash">cargo build --release -p ros-z-bridge
+</code></pre>
+<p>The binary is at <code>target/release/ros-z-bridge</code>.</p>
+<h2 id="quickstart"><a class="header" href="#quickstart">Quickstart</a></h2>
+<h3 id="1--start-two-zenoh-routers"><a class="header" href="#1--start-two-zenoh-routers">1 — Start two Zenoh routers</a></h3>
+<p>Open two terminals:</p>
+<pre><code class="language-bash"># Terminal A — legacy (Humble) router
+ros2 run rmw_zenoh_cpp rmw_zenohd
+# (or) zenohd --rest-http-port disabled
+</code></pre>
+<pre><code class="language-bash"># Terminal B — modern (Jazzy/Kilted) router on a different port
+zenohd --listen tcp/127.0.0.1:7448 --rest-http-port disabled
+</code></pre>
+<h3 id="2--start-the-bridge"><a class="header" href="#2--start-the-bridge">2 — Start the bridge</a></h3>
+<pre><code class="language-bash">ros-z-bridge \
+  --humble-endpoint tcp/127.0.0.1:7447 \
+  --jazzy-endpoint  tcp/127.0.0.1:7448 \
+  --domain-id 0
+</code></pre>
+<h3 id="3--run-nodes-on-each-side"><a class="header" href="#3--run-nodes-on-each-side">3 — Run nodes on each side</a></h3>
+<pre><code class="language-bash"># Terminal C — Humble talker
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+export ZENOH_CONFIG_OVERRIDE="connect/endpoints=[\"tcp/127.0.0.1:7447\"];scouting/multicast/enabled=false"
+ros2 run demo_nodes_cpp talker
+</code></pre>
+<pre><code class="language-bash"># Terminal D — Jazzy/Kilted listener (ros-z)
+cargo run --example demo_nodes_listener -- --endpoint tcp/127.0.0.1:7448
+</code></pre>
+<p>You should see the modern listener printing messages published by the Humble talker.</p>
+<h3 id="4--verify-graph-visibility-with-ros2-topic-list"><a class="header" href="#4--verify-graph-visibility-with-ros2-topic-list">4 — Verify graph visibility with <code>ros2 topic list</code></a></h3>
+<p>The bridge re-announces synthetic liveliness tokens on each side so that <code>ros2 topic list</code>
+shows cross-distro topics correctly. Use <code>--spin-time</code> (not <code>--timeout</code>) and <code>--no-daemon</code>
+to avoid interference from any running ros2cli daemon:</p>
+<pre><code class="language-bash"># On the Humble side — should show the Jazzy publisher's topic
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+export ZENOH_CONFIG_OVERRIDE="connect/endpoints=[\"tcp/127.0.0.1:7447\"];scouting/multicast/enabled=false"
+ros2 topic list --spin-time 5 --no-daemon
+</code></pre>
+<pre><code class="language-bash"># On the Jazzy/Kilted side — should show the Humble publisher's topic
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+export ZENOH_CONFIG_OVERRIDE="connect/endpoints=[\"tcp/127.0.0.1:7448\"];scouting/multicast/enabled=false"
+ros2 topic list --spin-time 5 --no-daemon
+</code></pre>
+<p>Both sides should list <code>/chatter</code> (or whichever topic your nodes publish on). If a topic is
+missing, the bridge has not yet re-announced the entity — wait a second and retry.</p>
+<div id="admonition-note" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-title">
+<div class="admonition-title">
+<div id="admonition-note-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/bridge.html#admonition-note"></a>
+</div>
+<div>
+<p><code>--spin-time N</code> sets how long the CLI spins waiting for discovery. <code>--no-daemon</code> bypasses
+the ros2cli daemon, which can cache stale state and return incomplete results. Always use
+both flags when diagnosing bridge connectivity.</p>
+</div>
+</div>
+<h2 id="cli-reference"><a class="header" href="#cli-reference">CLI Reference</a></h2>
+<pre><code class="language-text">USAGE:
+    ros-z-bridge [OPTIONS]
+
+OPTIONS:
+    --humble-endpoint &lt;LOCATOR&gt;    Zenoh locator for the legacy (Humble) network
+                                   [default: tcp/127.0.0.1:7447]
+    --jazzy-endpoint &lt;LOCATOR&gt;     Zenoh locator for the modern (Jazzy/Kilted) network
+                                   [default: tcp/127.0.0.1:7448]
+    --domain-id &lt;ID&gt;               ROS domain ID  [default: 0]
+    -h, --help                     Print help
+</code></pre>
+<h2 id="what-gets-bridged"><a class="header" href="#what-gets-bridged">What Gets Bridged</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Entity</th><th>Bridged</th><th>Notes</th></tr></thead><tbody>
+<tr><td>Topics (pub/sub)</td><td>✅</td><td>Bidirectional, raw CDR bytes forwarded</td></tr>
+<tr><td>Services</td><td>✅</td><td>Proxy placed on the client side</td></tr>
+<tr><td>Actions</td><td>✅</td><td>Each sub-entity (goal, result, feedback, status) bridged individually</td></tr>
+<tr><td>Nodes (graph)</td><td>✅</td><td>Synthetic liveliness tokens re-announced so <code>ros2 topic list</code> works on both sides</td></tr>
+</tbody></table>
+</div><div id="admonition-note-1" class="admonition admonish-note" role="note" aria-labelledby="admonition-note-1-title">
+<div class="admonition-title">
+<div id="admonition-note-1-title">
+<p>Note</p>
+</div>
+<a class="admonition-anchor-link" href="chapters/bridge.html#admonition-note-1"></a>
+</div>
+<div>
+<p>Only types compiled into the bridge binary are supported. The bridge ships with all
+standard ROS 2 message packages (<code>std_msgs</code>, <code>geometry_msgs</code>, <code>sensor_msgs</code>, …).
+If you use <strong>custom messages</strong>, you need to rebuild the bridge with your message crate
+added as a dependency (see <a href="chapters/bridge.html#custom-messages">Custom Messages</a>).</p>
+</div>
+</div>
+<h2 id="supported-message-packages"><a class="header" href="#supported-message-packages">Supported Message Packages</a></h2>
+<p>The bridge includes the following packages out of the box:</p>
+<ul>
+<li><code>std_msgs</code>, <code>builtin_interfaces</code>, <code>rcl_interfaces</code></li>
+<li><code>geometry_msgs</code>, <code>nav_msgs</code>, <code>sensor_msgs</code></li>
+<li><code>action_msgs</code>, <code>lifecycle_msgs</code>, <code>diagnostic_msgs</code></li>
+<li><code>example_interfaces</code>, <code>test_msgs</code>, <code>unique_identifier_msgs</code></li>
+<li><code>tf2_msgs</code>, <code>visualization_msgs</code>, <code>shape_msgs</code>, <code>trajectory_msgs</code></li>
+<li><code>stereo_msgs</code>, <code>rosgraph_msgs</code>, <code>statistics_msgs</code></li>
+<li><code>pendulum_msgs</code>, <code>composition_interfaces</code>, <code>type_description_interfaces</code></li>
+</ul>
+<h2 id="custom-messages"><a class="header" href="#custom-messages">Custom Messages</a></h2>
+<p>Add your message crate to <code>crates/ros-z-bridge/Cargo.toml</code>:</p>
+<pre><code class="language-toml">[dependencies]
+my_msgs = { path = "../../crates/my_msgs" }
+</code></pre>
+<p>Then register the types in <code>crates/ros-z-bridge/src/hash_registry.rs</code>:</p>
+<pre><code class="language-rust ignore">// In build_registry():
+reg!(map, my_msgs::ros::my_package::MyMessage);</code></pre>
+<p>Rebuild the bridge:</p>
+<pre><code class="language-bash">cargo build --release -p ros-z-bridge
+</code></pre>
+<h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
+<h3 id="ros2-topic-list-doesnt-show-the-remote-topic"><a class="header" href="#ros2-topic-list-doesnt-show-the-remote-topic"><code>ros2 topic list</code> doesn't show the remote topic</a></h3>
+<p>The bridge re-announces liveliness tokens on the opposite side, but <code>ros2 topic list</code>
+may take a few seconds to reflect them. Wait ~5 s after both nodes are running.</p>
+<p>Enable debug logging to watch the re-announcement:</p>
+<pre><code class="language-bash">RUST_LOG=ros_z_bridge=debug ros-z-bridge ...
+</code></pre>
+<p>Look for lines like:</p>
+<pre><code class="language-text">Declared synthetic modern lv token: @ros2_lv/0/…/RIHS01_…
+</code></pre>
+<h3 id="unknown-type--cannot-bridge"><a class="header" href="#unknown-type--cannot-bridge"><code>Unknown type — cannot bridge</code></a></h3>
+<p>The message type is not in the bridge's hash registry. See <a href="chapters/bridge.html#custom-messages">Custom Messages</a>.</p>
+<h3 id="messages-are-forwarded-but-deserialization-fails-on-the-receiving-side"><a class="header" href="#messages-are-forwarded-but-deserialization-fails-on-the-receiving-side">Messages are forwarded but deserialization fails on the receiving side</a></h3>
+<p>Verify the message definition is identical on both sides. Humble and Jazzy/Kilted ship the
+same built-in message definitions, but third-party packages may differ. Check that both
+<code>rmw_zenoh_cpp</code> versions agree on the CDR layout.</p>
+<h3 id="service-calls-time-out"><a class="header" href="#service-calls-time-out">Service calls time out</a></h3>
+<p>Services use a queryable-based proxy. If the server is slow to start, the first call
+may time out. Retry after the server has had a chance to register on the bridge.</p>
+<p>Enable debug logging to verify the proxy was set up:</p>
+<pre><code class="language-text">INFO  ros_z_bridge::bridge: Entity appeared: Humble Service topic=/add_two_ints type=…
+</code></pre>
+<h2 id="limitations"><a class="header" href="#limitations">Limitations</a></h2>
+<ul>
+<li><strong>Same domain ID only</strong>: both networks must use the same <code>ROS_DOMAIN_ID</code>.</li>
+<li><strong>One bridge instance per domain</strong>: running two bridge instances for the same domain
+will cause duplicate forwarding.</li>
+<li><strong>No QoS translation</strong>: QoS policies (reliability, durability) are not translated between
+sides. Both sides must use compatible QoS settings.</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="message-generation"><a class="header" href="#message-generation">Message Generation</a></h1>
 <p><strong>Automatic Rust type generation from ROS 2 message definitions at build time.</strong> The code generation system converts <code>.msg</code>, <code>.srv</code>, and <code>.action</code> files into type-safe Rust structs with full serialization support and ROS 2 compatibility.</p>
 <div id="admonition-success" class="admonition admonish-success" role="note" aria-labelledby="admonition-success-title">
@@ -4095,7 +4294,7 @@ let config = GeneratorConfig {
 
 let generator = MessageGenerator::new(config);
 generator.generate_from_msg_files(&amp;package_paths)?;</code></pre>
-<h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
+<h2 id="troubleshooting-1"><a class="header" href="#troubleshooting-1">Troubleshooting</a></h2>
 <h3 id="package-not-found"><a class="header" href="#package-not-found">Package Not Found</a></h3>
 <pre><code class="language-bash"># Check ROS 2 is sourced
 echo $AMENT_PREFIX_PATH
@@ -4125,7 +4324,7 @@ cargo build -p ros-z-msgs --features bundled_msgs
 <li><strong><a href="chapters/./protobuf.html">Protobuf Serialization</a></strong> - Alternative serialization format</li>
 </ul>
 <p><strong>Message generation is transparent. Focus on writing ROS 2 message definitions and let ros-z handle the Rust code generation.</strong></p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="custom-messages"><a class="header" href="#custom-messages">Custom Messages</a></h1>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="custom-messages-1"><a class="header" href="#custom-messages-1">Custom Messages</a></h1>
 <p>ros-z supports two approaches for defining custom message types:</p>
 <div class="table-wrapper"><table><thead><tr><th>Approach</th><th>Definition</th><th>Best For</th></tr></thead><tbody>
 <tr><td><strong>Rust-Native</strong></td><td>Write Rust structs directly</td><td>Prototyping, ros-z-only systems</td></tr>
@@ -4825,7 +5024,7 @@ fn main() -&gt; Result&lt;()&gt; {
 
     Ok(())
 }</code></pre>
-<h2 id="troubleshooting-1"><a class="header" href="#troubleshooting-1">Troubleshooting</a></h2>
+<h2 id="troubleshooting-2"><a class="header" href="#troubleshooting-2">Troubleshooting</a></h2>
 <details id="admonition-error-protobuf-feature-not-enabled" class="admonition admonish-question" role="note" aria-labelledby="admonition-error-protobuf-feature-not-enabled-title">
 <summary class="admonition-title">
 <div id="admonition-error-protobuf-feature-not-enabled-title">
@@ -5323,7 +5522,7 @@ ros-z-console --headless --echo /chatter
 </ul>
 <h4 id="custom-timeout"><a class="header" href="#custom-timeout">Custom Timeout</a></h4>
 <p>If schema discovery is slow, you can adjust timeouts in the code (default: 5 seconds).</p>
-<h3 id="troubleshooting-2"><a class="header" href="#troubleshooting-2">Troubleshooting</a></h3>
+<h3 id="troubleshooting-3"><a class="header" href="#troubleshooting-3">Troubleshooting</a></h3>
 <p><strong>No publishers found:</strong></p>
 <pre><code class="language-text">Failed to subscribe to /my_topic: Schema discovery failed: No publishers found for topic: /my_topic
 </code></pre>
@@ -5512,7 +5711,7 @@ sqlite3 ros-z-metrics.db "SELECT topic, AVG(msgs_sec) FROM metrics GROUP BY topi
     G --&gt;|serialize| H[CDR Bytes]
     H --&gt;|deserialize| I[Rust Struct]
 </pre>
-<h2 id="installation"><a class="header" href="#installation">Installation</a></h2>
+<h2 id="installation-1"><a class="header" href="#installation-1">Installation</a></h2>
 <h3 id="prerequisites-1"><a class="header" href="#prerequisites-1">Prerequisites</a></h3>
 <ul>
 <li>Python 3.8+</li>
@@ -5919,7 +6118,7 @@ python -m pytest tests/ -v
 # Python-Rust interop tests
 cargo test --features python-interop -p ros-z-tests --test python_interop -- --test-threads=1
 </code></pre>
-<h2 id="troubleshooting-3"><a class="header" href="#troubleshooting-3">Troubleshooting</a></h2>
+<h2 id="troubleshooting-4"><a class="header" href="#troubleshooting-4">Troubleshooting</a></h2>
 <details id="admonition-import-errors-when-using-ros_z_py" class="admonition admonish-question" role="note" aria-labelledby="admonition-import-errors-when-using-ros_z_py-title">
 <summary class="admonition-title">
 <div id="admonition-import-errors-when-using-ros_z_py-title">
@@ -6244,7 +6443,7 @@ include!(concat!(env!("OUT_DIR"), "/python_bindings.rs"));</code></pre>
 </div>
 </div>
 <hr />
-<h2 id="architecture-1"><a class="header" href="#architecture-1">Architecture</a></h2>
+<h2 id="architecture-2"><a class="header" href="#architecture-2">Architecture</a></h2>
 <pre class="mermaid">graph TD
     A[Go Code] --&gt;|CGO| B[C FFI Layer]
     B --&gt; C[Rust ros-z]
@@ -7016,7 +7215,7 @@ fn main() -&gt; zenoh::Result&lt;()&gt; {
 </tbody></table>
 </div>
 <h2 id="how-it-works-3"><a class="header" href="#how-it-works-3">How It Works</a></h2>
-<h3 id="architecture-2"><a class="header" href="#architecture-2">Architecture</a></h3>
+<h3 id="architecture-3"><a class="header" href="#architecture-3">Architecture</a></h3>
 <pre><code class="language-text">Message with dynamic fields
     ↓
 estimated_serialized_size() [auto-generated by codegen]
@@ -7394,7 +7593,7 @@ cargo test -p ros-z-msgs --test size_estimation_performance
 </ul>
 </li>
 </ul>
-<h2 id="troubleshooting-4"><a class="header" href="#troubleshooting-4">Troubleshooting</a></h2>
+<h2 id="troubleshooting-5"><a class="header" href="#troubleshooting-5">Troubleshooting</a></h2>
 <h3 id="buffer-overflow-panic"><a class="header" href="#buffer-overflow-panic">Buffer Overflow Panic</a></h3>
 <p><strong>Symptom</strong>: <code>SHM buffer overflow</code> panic during serialization</p>
 <p><strong>Cause</strong>: Message's <code>estimated_serialized_size()</code> is inaccurate</p>
@@ -7771,7 +7970,7 @@ let lv_ke = format.liveliness_key_expr(&amp;entity, &amp;zid)?;
 // Parse liveliness token back to entity
 let parsed_entity = format.parse_liveliness(&amp;lv_ke)?;</code></pre>
 <p>See the <a href="https://docs.rs/ros-z-protocol">ros-z-protocol documentation</a> for details.</p>
-<h2 id="troubleshooting-5"><a class="header" href="#troubleshooting-5">Troubleshooting</a></h2>
+<h2 id="troubleshooting-6"><a class="header" href="#troubleshooting-6">Troubleshooting</a></h2>
 <h3 id="multi-segment-topics-not-working"><a class="header" href="#multi-segment-topics-not-working">Multi-Segment Topics Not Working?</a></h3>
 <p><strong>Symptom:</strong> Publisher publishes to <code>/robot/sensors/camera</code> but subscriber never receives messages.</p>
 <p><strong>Cause:</strong> Old versions of ros-z (before 0.1.0) incorrectly mangled slashes in topic key expressions.</p>
@@ -8435,7 +8634,7 @@ cargo run --example battery_state_sub # sensor_msgs
 cargo run --example z_pingpong        # std_msgs
 cargo run --example z_srvcli          # example_interfaces (now bundled)
 </code></pre>
-<h3 id="custom-messages-1"><a class="header" href="#custom-messages-1">Custom Messages</a></h3>
+<h3 id="custom-messages-2"><a class="header" href="#custom-messages-2">Custom Messages</a></h3>
 <pre><code class="language-bash">cargo run --example z_custom_message  # No features needed
 </code></pre>
 <h2 id="resources-9"><a class="header" href="#resources-9">Resources</a></h2>
@@ -8445,7 +8644,7 @@ cargo run --example z_srvcli          # example_interfaces (now bundled)
 <li><strong><a href="chapters/./message_generation.html">Message Generation</a></strong> - How messages are generated</li>
 </ul>
 <p><strong>Start with default features and add more as your project evolves. Feature flags provide flexibility without forcing early architectural decisions.</strong></p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="troubleshooting-6"><a class="header" href="#troubleshooting-6">Troubleshooting</a></h1>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="troubleshooting-7"><a class="header" href="#troubleshooting-7">Troubleshooting</a></h1>
 <p><strong>Quick solutions to common ros-z build and runtime issues.</strong> Click on any question to expand the answer.</p>
 <div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
 <div class="admonition-title">
