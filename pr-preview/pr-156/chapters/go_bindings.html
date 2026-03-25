@@ -213,7 +213,38 @@
 </div>
 <p>Callbacks flow in reverse: Rust invokes C function pointers → dispatched to Go via <code>//export</code> functions.</p>
 <hr />
-<h2 id="project-setup"><a class="header" href="#project-setup">Project Setup</a></h2>
+<h2 id="installation"><a class="header" href="#installation">Installation</a></h2>
+<h3 id="pre-built-libraries-recommended"><a class="header" href="#pre-built-libraries-recommended">Pre-built Libraries (Recommended)</a></h3>
+<p>Download the pre-built static library for your platform from the <a href="https://github.com/ZettaScaleLabs/ros-z/releases">GitHub Releases</a> page.
+Artifacts are named <code>libros_z-{distro}-{target}.a</code> (e.g. <code>libros_z-jazzy-x86_64-unknown-linux-gnu.a</code>).</p>
+<p>Each release also includes the C header <code>ros_z_ffi.h</code>.</p>
+<p>Place the library somewhere stable (e.g. <code>vendor/libros_z/</code>) and point CGO at it:</p>
+<pre><code class="language-bash">export CGO_LDFLAGS="-L/path/to/vendor/libros_z -lros_z -lm"
+export CGO_CFLAGS="-I/path/to/vendor/libros_z"
+go build ./...
+</code></pre>
+<p>Or set them per-command:</p>
+<pre><code class="language-bash">CGO_LDFLAGS="-L$(pwd)/vendor/libros_z -lros_z -lm" \
+CGO_CFLAGS="-I$(pwd)/vendor/libros_z" \
+go run main.go
+</code></pre>
+<p>Available targets:</p>
+<div class="table-wrapper"><table><thead><tr><th>File</th><th>Platform</th></tr></thead><tbody>
+<tr><td><code>libros_z-jazzy-x86_64-unknown-linux-gnu.a</code></td><td>Linux x86_64, Jazzy</td></tr>
+<tr><td><code>libros_z-humble-x86_64-unknown-linux-gnu.a</code></td><td>Linux x86_64, Humble</td></tr>
+<tr><td><code>libros_z-jazzy-aarch64-unknown-linux-gnu.a</code></td><td>Linux ARM64, Jazzy</td></tr>
+<tr><td><code>libros_z-humble-aarch64-unknown-linux-gnu.a</code></td><td>Linux ARM64, Humble</td></tr>
+<tr><td><code>libros_z-jazzy-aarch64-apple-darwin.a</code></td><td>macOS Apple Silicon, Jazzy</td></tr>
+<tr><td><code>libros_z-humble-aarch64-apple-darwin.a</code></td><td>macOS Apple Silicon, Humble</td></tr>
+</tbody></table>
+</div>
+<h3 id="building-from-source"><a class="header" href="#building-from-source">Building from Source</a></h3>
+<p>Requires Rust (stable) and <code>cargo</code>:</p>
+<pre><code class="language-bash">cargo build --release --features ffi,jazzy --no-default-features -p ros-z
+# Output: target/release/libros_z.a
+</code></pre>
+<p>Then either use <code>${SRCDIR}</code>-relative <code>LDFLAGS</code> in the <code>go.mod</code> <code>replace</code> workflow (see below) or export <code>CGO_LDFLAGS</code> as shown above.</p>
+<h2 id="development-setup-replace-directive"><a class="header" href="#development-setup-replace-directive">Development Setup (replace directive)</a></h2>
 <p>Add to your <code>go.mod</code>:</p>
 <pre><code class="language-text">require github.com/ZettaScaleLabs/ros-z/crates/ros-z-go v0.0.0
 replace github.com/ZettaScaleLabs/ros-z/crates/ros-z-go =&gt; /path/to/ros-z/crates/ros-z-go
