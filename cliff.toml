@@ -8,6 +8,14 @@ repo = "ros-z"
 [changelog]
 header = ""
 body = """
+## Installation
+
+**Python bindings** — see [Python Installation](https://zettascalelabs.github.io/ros-z/chapters/python.html) in the documentation.
+
+**Go bindings** — see [Go Bindings](https://zettascalelabs.github.io/ros-z/chapters/go_bindings.html) in the documentation.
+
+---
+
 {% if version %}\
     ## {{ version | trim_start_matches(pat="v") }} — {{ timestamp | date(format="%Y-%m-%d") }}
 {% else %}\
@@ -36,15 +44,7 @@ body = """
 {% endfor %}\
 {% endif %}\
 """
-footer = """
----
-
-## Installation
-
-**Python bindings** — see [Python Installation](https://zettascalelabs.github.io/ros-z/chapters/python.html) in the documentation.
-
-**Go bindings** — see [Go Bindings](https://zettascalelabs.github.io/ros-z/chapters/go_bindings.html) in the documentation.
-"""
+footer = ""
 trim = true
 
 [git]
