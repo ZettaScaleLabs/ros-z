@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD046 -->
 # Protobuf Serialization
 
 **Use Protocol Buffers as an alternative serialization format for ros-z messages.** While CDR is the default ROS 2-compatible format, protobuf offers schema evolution, cross-language compatibility, and familiar tooling for teams already using the protobuf ecosystem.
@@ -471,26 +472,22 @@ use std::io::Result;
 fn main() -> Result<()> {
     let mut config = prost_build::Config::new();
 
+    // Enable serde for ros-z compatibility
+    config.type_attribute(".", "#[derive(serde::Serialize, serde::Deserialize)]");
 
+    // Compile all proto files
+    config.compile_protos(
+        &[
+            "proto/sensor_data.proto",
+            "proto/robot_status.proto",
+        ],
+        &["proto/"]
+    )?;
 
-// Enable serde for ros-z compatibility
-config.type_attribute(".", "#[derive(serde::Serialize, serde::Deserialize)]");
+    // Rebuild if proto files change
+    println!("cargo:rerun-if-changed=proto/");
 
-// Compile all proto files
-config.compile_protos(
-    &[
-        "proto/sensor_data.proto",
-        "proto/robot_status.proto",
-    ],
-    &["proto/"]
-)?;
-
-// Rebuild if proto files change
-println!("cargo:rerun-if-changed=proto/");
-
-Ok(())
-
-```rust
+    Ok(())
 }
 ```
 
@@ -498,148 +495,114 @@ Ok(())
 
 ??? question "Error: protobuf feature not enabled"
     This error occurs when you try to use protobuf serialization without enabling the feature flag.
+    **Solution:** Enable the protobuf feature in your `Cargo.toml`:
 
-```text
-**Solution:**
+    ```toml
+    [dependencies]
+    ros-z = { version = "0.1", features = ["protobuf"] }
+    ros-z-msgs = { version = "0.1", features = ["geometry_msgs", "protobuf"] }
 
-Enable the protobuf feature in your `Cargo.toml`:
-
-
-
-[dependencies]
-ros-z = { version = "0.1", features = ["protobuf"] }
-ros-z-msgs = { version = "0.1", features = ["geometry_msgs", "protobuf"] }
-
-```text
+    ```
 
 ??? question "Error: MessageTypeInfo not implemented"
     Custom protobuf messages need to implement required ros-z traits.
+    **Solution:** Implement the required traits for your custom message:
 
-```text
-**Solution:**
+    ```rust,ignore
+    use ros_z::{MessageTypeInfo, WithTypeInfo, entity::TypeHash};
 
-Implement the required traits for your custom message:
+    impl MessageTypeInfo for MyMessage {
+        fn type_name() -> &'static str {
+            "package::msg::dds_::MyMessage_"
+        }
 
-
-
-use ros_z::{MessageTypeInfo, WithTypeInfo, entity::TypeHash};
-
-impl MessageTypeInfo for MyMessage {
-    fn type_name() -> &'static str {
-        "package::msg::dds_::MyMessage_"
+        fn type_hash() -> TypeHash {
+            TypeHash::zero()
+        }
     }
 
-```rust
-fn type_hash() -> TypeHash {
-    TypeHash::zero()
-}
-}
+    impl WithTypeInfo for MyMessage {}
 
-impl WithTypeInfo for MyMessage {}
-
-```text
-
+    ```
 
 ??? question "Build fails with prost errors"
     Version mismatches between prost dependencies can cause build failures.
+    **Solution:** Ensure prost versions match in your `Cargo.toml`:
 
-```text
-**Solution:**
+    ```toml
+    [dependencies]
+    prost = "0.13"
 
-Ensure prost versions match in your `Cargo.toml`:
+    [build-dependencies]
+    prost-build = "0.13"
 
+    ```
 
+    If issues persist, try:
 
-[dependencies]
-prost = "0.13"
+    ```bash
+    cargo clean
+    cargo build
 
-[build-dependencies]
-prost-build = "0.13"
-
-```text
-If issues persist, try:
-
-
-
-cargo clean
-cargo build
-
-```text
+    ```
 
 ??? question "Messages not receiving"
     Publisher and subscriber must use the same serialization format.
+    **Solution:** Verify both sides use protobuf serialization:
 
-```text
-**Solution:**
+    ```rust,ignore
+    // Publisher
+    let pub_handle = node
+        .create_pub::<MyMessage>("/topic")
+        .with_serdes::<ProtobufSerdes<MyMessage>>()
+        .build()?;
 
-Verify both sides use protobuf serialization:
+    // Subscriber
+    let sub = node
+        .create_sub::<MyMessage>("/topic")
+        .with_serdes::<ProtobufSerdes<MyMessage>>()
+        .build()?;
 
+    ```
 
-
-// Publisher
-let pub = node
-    .create_pub::`<MyMessage>`("/topic")
-    .with_serdes::<ProtobufSerdes`<MyMessage>`>()
-    .build()?;
-
-// Subscriber
-let sub = node
-    .create_sub::`<MyMessage>`("/topic")
-    .with_serdes::<ProtobufSerdes`<MyMessage>`>()
-    .build()?;
-
-```text
-**Note:** A protobuf publisher cannot communicate with a CDR subscriber and vice versa.
-```
+    **Note:** A protobuf publisher cannot communicate with a CDR subscriber and vice versa.
 
 ??? question "Proto file not found during build"
     The build script cannot locate your `.proto` files.
+    **Solution:** Verify the path in your `build.rs`:
 
-```text
-**Solution:**
+    ```rust,ignore
+    config.compile_protos(
+        &["proto/sensor_data.proto"],  // Check this path
+        &["proto/"]                     // Check include directory
+    )?;
 
-Verify the path in your `build.rs`:
+    ```
 
+    Ensure the proto directory exists:
 
+    ```bash
+    ls proto/sensor_data.proto
 
-config.compile_protos(
-    &["proto/sensor_data.proto"],  // Check this path
-    &["proto/"]                     // Check include directory
-)?;
-
-```text
-Ensure the proto directory exists:
-
-
-
-ls proto/sensor_data.proto
-
-```text
-```
+    ```
 
 ??? question "Generated code not found"
     The build script generated code but you can't import it.
+    **Solution:** Ensure you're including from the correct location:
 
-```text
-**Solution:**
+    ```rust,ignore
+    pub mod sensor_data {
+        include!(concat!(env!("OUT_DIR"), "/examples.rs"));
+    }
 
-Ensure you're including from the correct location:
+    ```
 
+    The filename after `OUT_DIR` should match your package name in the `.proto` file:
 
+    ```protobuf
+    package examples;  // Generates examples.rs
 
-pub mod sensor_data {
-    include!(concat!(env!("OUT_DIR"), "/examples.rs"));
-}
-
-```text
-The filename after `OUT_DIR` should match your package name in the `.proto` file:
-
-
-
-package examples;  // Generates examples.rs
-
-```text
-```
+    ```
 
 ## Resources
 

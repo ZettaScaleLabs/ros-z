@@ -2,21 +2,17 @@
 
 **Configure ros-z's Zenoh transport layer for optimal performance in your deployment environment.** ros-z uses router-based architecture by default, matching ROS 2's official `rmw_zenoh_cpp` middleware for production-ready scalability.
 
-<div align="center">
-
 ```mermaid
 graph TB
-    Router["zenohd <br> (router)"]
+    Router["zenohd (router)"]
 
-    Talker["Talker node <br> (peer)"]
-    Listener["Listener node <br> (peer)"]
+    Talker["Talker node (peer)"]
+    Listener["Listener node (peer)"]
 
     Router <-->|Discovery| Talker
     Router <-->|Discovery| Listener
     Talker <-.->|P2P Communication| Listener
 ```
-
-</div>
 
 ## Router-Based Architecture
 
@@ -33,7 +29,7 @@ ros-z uses a centralized Zenoh router for node discovery and communication, prov
 
 The default ros-z configuration connects to a Zenoh router on `tcp/localhost:7447`:
 
-```rust,ignore
+```rust
 use ros_z::context::ZContextBuilder;
 use ros_z::Builder;
 
