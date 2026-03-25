@@ -3,18 +3,20 @@ name: Docs
 on:
   push:
     paths:
-      - 'book/**'
+      - 'docs/**'
+      - 'mkdocs.yml'
       - '**.md'
       - '.github/workflows/docs.yml'
   pull_request:
     paths:
-      - 'book/**'
+      - 'docs/**'
+      - 'mkdocs.yml'
       - '**.md'
       - '.github/workflows/docs.yml'
 
 jobs:
-  test_doc:
-    name: Test documentation
+  build_doc:
+    name: Build documentation
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -27,16 +29,9 @@ jobs:
       - name: Install Determinate Nix
         uses: DeterminateSystems/determinate-nix-action@v3
 
-
-      - name: Build ros-z library (required for mdbook test link path)
+      - name: Build MkDocs
         run: |
-          nix develop '.#pureRust-ci' -c cargo build --lib -p ros-z
-        env:
-          NIX_ACCEPT_FLAKE_CONFIG: 1
-
-      - name: Test mdbook in flake shell
-        run: |
-          nix develop '.#pureRust-ci' -c mdbook test book -L ./target/debug/deps
+          nix develop '.#pureRust-ci' -c mkdocs build --strict
         env:
           NIX_ACCEPT_FLAKE_CONFIG: 1
 
@@ -49,7 +44,7 @@ jobs:
   publish_doc:
     name: Publish to GitHub Pages
     if: github.ref == 'refs/heads/main'
-    needs: test_doc
+    needs: build_doc
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -62,10 +57,9 @@ jobs:
       - name: Install Determinate Nix
         uses: DeterminateSystems/determinate-nix-action@v3
 
-
-      - name: Build mdbook in flake shell
+      - name: Build MkDocs
         run: |
-          nix develop '.#pureRust-ci' -c mdbook build book
+          nix develop '.#pureRust-ci' -c mkdocs build --strict
         env:
           NIX_ACCEPT_FLAKE_CONFIG: 1
 
@@ -73,6 +67,6 @@ jobs:
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./book/book
+          publish_dir: ./site
           clean_exclude: pr-preview/
           force_orphan: false
