@@ -165,6 +165,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Ensure Rust is installed (macOS)
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          if ! command -v cargo &>/dev/null; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+              | sh -s -- -y --no-modify-path
+          fi
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
       - name: Install Rust target (Linux cross-compile only)
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: rustup target add ${{ matrix.target }}
@@ -188,7 +198,6 @@ jobs:
         if: matrix.target != 'aarch64-unknown-linux-gnu'
         shell: bash
         run: |
-          export PATH="$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
           cargo build --release \
             --bin ${{ matrix.bin }} \
             --package ${{ matrix.package }} \
@@ -237,6 +246,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Ensure Rust is installed (macOS)
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          if ! command -v cargo &>/dev/null; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+              | sh -s -- -y --no-modify-path
+          fi
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
       - name: Install Rust target (Linux cross-compile only)
         if: matrix.target == 'aarch64-unknown-linux-gnu' && matrix.os == 'ubuntu-latest'
         run: rustup target add ${{ matrix.target }}
@@ -251,7 +270,6 @@ jobs:
         if: matrix.target != 'aarch64-unknown-linux-gnu' || matrix.os != 'ubuntu-latest'
         shell: bash
         run: |
-          export PATH="$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
           cargo build --release \
             --features ffi,${{ matrix.distro }} \
             --no-default-features \
