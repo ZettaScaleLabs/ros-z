@@ -60,10 +60,10 @@ which mirrors the CI release workflow exactly:
 ./scripts/build-python-wheels.nu
 
 # Build and immediately install into crates/ros-z-py/.venv
-./scripts/build-python-wheels.nu --install
+./scripts/build-python-wheels.nu --install jazzy
 
 # Build a single distro only
-./scripts/build-python-wheels.nu --distros [jazzy]
+./scripts/build-python-wheels.nu jazzy
 ```
 
 The script produces the same wheel filenames as CI (with the `‑jazzy` / `‑humble` distro
