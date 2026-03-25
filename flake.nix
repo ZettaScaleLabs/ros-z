@@ -215,10 +215,14 @@
 
         # Documentation tools
         docTools = with pkgs; [
-          mdbook
-          mdbook-admonish
-          mdbook-mermaid
-          mdbook-linkcheck # internal + external link checker for the book
+          (python3.withPackages (
+            ps: with ps; [
+              mkdocs
+              mkdocs-material
+              mkdocs-material-extensions
+              pymdown-extensions
+            ]
+          ))
           git-cliff # conventional-commit changelog generation
         ];
 
@@ -323,8 +327,6 @@
               rosDistro = rosDistro;
               extraShellHook = ''
                 ${pre-commit-check.shellHook}
-                mdbook-mermaid install book/ 2>/dev/null || true
-                mdbook-admonish install book/ 2>/dev/null || true
               '';
               banner = ''
                 echo "🦀 ros-z development environment (with ROS)"
@@ -340,10 +342,7 @@
               rosEnvPath = rosEnv.testFull;
               pythonVersion = pythonVer;
               rosDistro = rosDistro;
-              extraShellHook = ''
-                mdbook-mermaid install book/ 2>/dev/null || true
-                mdbook-admonish install book/ 2>/dev/null || true
-              '';
+              extraShellHook = '''';
             };
           };
 
@@ -391,8 +390,6 @@
             ++ pre-commit-check.enabledPackages;
             extraShellHook = ''
               ${pre-commit-check.shellHook}
-              mdbook-mermaid install book/ 2>/dev/null || true
-              mdbook-admonish install book/ 2>/dev/null || true
             '';
             banner = ''
               echo "🦀 ros-z development environment (pure Rust)"
@@ -404,10 +401,7 @@
           pureRust-ci = mkDevShell {
             name = "ros-z-ci-pure-rust";
             packages = commonBuildInputs ++ pythonTools ++ docTools ++ testTools;
-            extraShellHook = ''
-              mdbook-mermaid install book/ 2>/dev/null || true
-              mdbook-admonish install book/ 2>/dev/null || true
-            '';
+            extraShellHook = '''';
           };
 
           # Bridge interop: Jazzy build + test environment with Humble tools accessible via
