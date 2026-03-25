@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD046 -->
 # Python Bindings
 
 **ros-z provides Python bindings via `ros-z-py`, enabling Python applications to communicate with Rust and ROS 2 nodes using the same Zenoh transport.** The bindings use PyO3 for Rust-Python interop and msgspec for efficient message serialization.
@@ -13,14 +14,9 @@ graph TD
     B -->|PyO3| C[Rust ros-z]
     C -->|Zenoh| D[Network]
     D -->|Zenoh| E[ROS 2 / Rust Nodes]
-
-
-
-F[Python Message] -->|msgspec| G[Struct]
-G -->|serialize| H[CDR Bytes]
-H -->|deserialize| I[Rust Struct]
-
-```text
+    F[Python Message] -->|msgspec| G[Struct]
+    G -->|serialize| H[CDR Bytes]
+    H -->|deserialize| I[Rust Struct]
 ```
 
 ## Installation
@@ -114,22 +110,19 @@ def run_talker(ctx, topic: str, count: int, interval: float):
     node = ctx.create_node("talker").build()
     pub = node.create_publisher(topic, std_msgs.String)
 
+    print(f"Talker started. Publishing to {topic}...")
 
+    i = 0
+    while count == 0 or i < count:
+        message = f"Hello from Python {i}"
+        msg = std_msgs.String(data=message)
+        pub.publish(msg)
+        print(f"PUB:{i}", flush=True)
+        i += 1
+        time.sleep(interval)
 
-print(f"Talker started. Publishing to {topic}...")
-
-i = 0
-while count == 0 or i < count:
-    message = f"Hello from Python {i}"
-    msg = std_msgs.String(data=message)
-    pub.publish(msg)
-    print(f"PUB:{i}", flush=True)
-    i += 1
-    time.sleep(interval)
-
-print("PUB:DONE", flush=True)
-
-```text
+    print("PUB:DONE", flush=True)
+```
 
 ### Subscriber (Listener)
 
@@ -139,22 +132,19 @@ def run_listener(ctx, topic: str, timeout: float):
     node = ctx.create_node("listener").build()
     sub = node.create_subscriber(topic, std_msgs.String)
 
+    print("SUB:READY", flush=True)
 
+    start = time.time()
+    received = 0
 
-print("SUB:READY", flush=True)
+    while timeout == 0 or (time.time() - start) < timeout:
+        msg = sub.recv(timeout=1.0)
+        if msg is not None:
+            print(f"SUB:{msg.data}", flush=True)
+            received += 1
 
-start = time.time()
-received = 0
-
-while timeout == 0 or (time.time() - start) < timeout:
-    msg = sub.recv(timeout=1.0)
-    if msg is not None:
-        print(f"SUB:{msg.data}", flush=True)
-        received += 1
-
-print(f"SUB:TOTAL:{received}", flush=True)
-
-```text
+    print(f"SUB:TOTAL:{received}", flush=True)
+```
 
 ## Key Components
 
@@ -181,25 +171,19 @@ def run_server(ctx, service: str, max_requests: int):
     node = ctx.create_node("add_two_ints_server").build()
     server = node.create_server(service, example_interfaces.AddTwoIntsRequest)
 
+    print("SERVER:READY", flush=True)
 
+    handled = 0
+    while max_requests == 0 or handled < max_requests:
+        request_id, req = server.take_request()
+        result = req.a + req.b
+        print(f"SERVER:{req.a}+{req.b}={result}", flush=True)
+        resp = example_interfaces.AddTwoIntsResponse(sum=result)
+        server.send_response(resp, request_id)
+        handled += 1
 
-print("SERVER:READY", flush=True)
-
-handled = 0
-while max_requests == 0 or handled < max_requests:
-    request_id, req = server.take_request()
-    result = req.a + req.b
-    print(f"SERVER:{req.a}+{req.b}={result}", flush=True)
-
-```text
-resp = example_interfaces.AddTwoIntsResponse(sum=result)
-server.send_response(resp, request_id)
-handled += 1
-
-
-print("SERVER:DONE", flush=True)
-
-```text
+    print("SERVER:DONE", flush=True)
+```
 
 ### Service Client
 
@@ -209,25 +193,21 @@ def run_client(ctx, service: str, a: int, b: int, timeout: float):
     node = ctx.create_node("add_two_ints_client").build()
     client = node.create_client(service, example_interfaces.AddTwoIntsRequest)
 
+    # Wait for service discovery
+    time.sleep(1.0)
 
+    print(f"CLIENT:REQUEST:{a}+{b}", flush=True)
 
-# Wait for service discovery
-time.sleep(1.0)
+    req = example_interfaces.AddTwoIntsRequest(a=a, b=b)
+    client.send_request(req)
 
-print(f"CLIENT:REQUEST:{a}+{b}", flush=True)
+    resp = client.take_response(timeout=timeout)
 
-req = example_interfaces.AddTwoIntsRequest(a=a, b=b)
-client.send_request(req)
-
-resp = client.take_response(timeout=timeout)
-
-if resp is not None:
-    print(f"CLIENT:RESPONSE:{resp.sum}", flush=True)
-else:
-    print("CLIENT:ERROR:no response", flush=True)
-    sys.exit(1)
-
-```text
+    if resp is not None:
+        print(f"CLIENT:RESPONSE:{resp.sum}", flush=True)
+    else:
+        print("CLIENT:ERROR:no response", flush=True)
+        sys.exit(1)
 ```
 
 !!! tip
@@ -276,37 +256,32 @@ def run_server(ctx, action: str):
         action, CountToGoal, CountToResult, CountToFeedback
     )
 
+    print("SERVER:READY", flush=True)
 
+    while True:
+        request = server.recv_goal(timeout=1.0)
+        if request is None:
+            continue
 
-print("SERVER:READY", flush=True)
+        goal = request.goal()
+        print(f"SERVER:GOAL:{goal.target}", flush=True)
+        executing = request.accept_and_execute()
 
-while True:
-    request = server.recv_goal(timeout=1.0)
-    if request is None:
-        continue
+        count = 0
+        while count < goal.target:
+            time.sleep(0.2)
+            count += 1
+            executing.publish_feedback(CountToFeedback(current=count))
+            print(f"SERVER:FEEDBACK:{count}", flush=True)
 
-```text
-goal = request.goal()
-print(f"SERVER:GOAL:{goal.target}", flush=True)
-executing = request.accept_and_execute()
-
-count = 0
-while count < goal.target:
-    time.sleep(0.2)
-    count += 1
-    executing.publish_feedback(CountToFeedback(current=count))
-    print(f"SERVER:FEEDBACK:{count}", flush=True)
-
-    if executing.is_cancel_requested:
-        print(f"SERVER:CANCELED:{count}", flush=True)
-        executing.canceled(CountToResult(final_count=count))
-        break
-else:
-    print(f"SERVER:SUCCEEDED:{count}", flush=True)
-    executing.succeed(CountToResult(final_count=count))
+            if executing.is_cancel_requested:
+                print(f"SERVER:CANCELED:{count}", flush=True)
+                executing.canceled(CountToResult(final_count=count))
+                break
+        else:
+            print(f"SERVER:SUCCEEDED:{count}", flush=True)
+            executing.succeed(CountToResult(final_count=count))
 ```
-
-```text
 
 
 #### Server Lifecycle
@@ -327,41 +302,35 @@ def run_client(ctx, action: str, target: int, cancel_after: float | None):
         action, CountToGoal, CountToResult, CountToFeedback
     )
 
+    # Give server time to advertise
+    time.sleep(1.0)
 
+    print(f"CLIENT:SEND_GOAL:{target}", flush=True)
+    handle = client.send_goal(CountToGoal(target=target))
 
-# Give server time to advertise
-time.sleep(1.0)
+    # Schedule cancellation if requested
+    if cancel_after is not None:
+        def _cancel():
+            time.sleep(cancel_after)
+            print("CLIENT:CANCEL", flush=True)
+            handle.cancel()
 
-print(f"CLIENT:SEND_GOAL:{target}", flush=True)
-handle = client.send_goal(CountToGoal(target=target))
+        threading.Thread(target=_cancel, daemon=True).start()
 
-# Schedule cancellation if requested
-if cancel_after is not None:
+    # Drain feedback
+    while True:
+        fb = handle.recv_feedback(timeout=0.5)
+        if fb is None:
+            break
+        print(f"CLIENT:FEEDBACK:{fb.current}", flush=True)
 
-```python
-def _cancel():
-    time.sleep(cancel_after)
-    print("CLIENT:CANCEL", flush=True)
-    handle.cancel()
-
-threading.Thread(target=_cancel, daemon=True).start()
-
-
-# Drain feedback
-while True:
-    fb = handle.recv_feedback(timeout=0.5)
-    if fb is None:
-        break
-    print(f"CLIENT:FEEDBACK:{fb.current}", flush=True)
-
-result = handle.get_result(timeout=5.0)
-if result is not None:
-    print(f"CLIENT:RESULT:{result.final_count}", flush=True)
-else:
-    print("CLIENT:ERROR:no result", flush=True)
-    sys.exit(1)
-
-```text
+    result = handle.get_result(timeout=5.0)
+    if result is not None:
+        print(f"CLIENT:RESULT:{result.final_count}", flush=True)
+    else:
+        print("CLIENT:ERROR:no result", flush=True)
+        sys.exit(1)
+```
 
 #### Client Lifecycle
 
@@ -387,7 +356,7 @@ else:
 status = ros_z_py.GoalStatus(handle.status)
 if status.is_terminal():
     print("Done:", status)
-
+```
 
 !!! warning
     Python actions use a byte-wrapping wire format that is **not compatible** with
@@ -408,7 +377,7 @@ twist = geometry_msgs.Twist(
 
 pub = node.create_publisher("/cmd_vel", geometry_msgs.Twist)
 pub.publish(twist)
-
+```
 
 ## Context Configuration
 
@@ -420,7 +389,7 @@ ctx = (
     .with_connect_endpoints(["tcp/192.168.1.100:7447"])
     .build()
 )
-
+```
 
 ### Disable Multicast Scouting
 
@@ -431,7 +400,7 @@ ctx = (
     .disable_multicast_scouting()
     .build()
 )
-
+```
 
 ### Custom Namespace
 
@@ -515,46 +484,32 @@ cargo test --features python-interop -p ros-z-tests --test python_interop -- --t
 
 ??? question "Import errors when using ros_z_py"
     This error occurs when the package hasn't been built or installed correctly.
+    **Solution:** Rebuild and install the package:
 
-```text
-**Solution:**
+    ```bash
+    cd crates/ros-z-py
+    source .venv/bin/activate
+    pip install -e ../ros-z-msgs/python/
+    maturin develop
 
-Rebuild and install the package:
-
-
-
-cd crates/ros-z-py
-source .venv/bin/activate
-pip install -e ../ros-z-msgs/python/
-maturin develop
-
-```text
-```
+    ```
 
 ??? question "Message type not found"
     This error occurs when trying to use a message type that isn't supported by the Python bindings.
+    **Solution:** Check the supported message types by looking at the match arms in `crates/ros-z-py/src/node.rs`.
+    Currently supported: `std_msgs/String`, `std_msgs/ByteMultiArray`, `geometry_msgs/Vector3`,
+    `geometry_msgs/Twist`, `sensor_msgs/LaserScan`, and `example_interfaces/AddTwoInts`.
 
-```text
-**Solution:**
-
-Check the supported message types by looking at the match arms in `crates/ros-z-py/src/node.rs`.
-Currently supported: `std_msgs/String`, `std_msgs/ByteMultiArray`, `geometry_msgs/Vector3`,
-`geometry_msgs/Twist`, `sensor_msgs/LaserScan`, and `example_interfaces/AddTwoInts`.
-
-Ensure you are passing a message class object (e.g., `std_msgs.String`), not a string.
-```
+    Ensure you are passing a message class object (e.g., `std_msgs.String`), not a string.
 
 ??? question "recv() always returns None"
     This happens when no messages are being received within the timeout period.
+    **Solution:**
 
-```text
-**Solution:**
-
-- Check the topic name matches exactly (including leading `/`)
-- Verify the publisher is running and connected to the same Zenoh network
-- Increase the timeout value
-- Use `--nocapture` with pytest to see debug output: `python -m pytest tests/ -v --capture=no`
-```
+    - Check the topic name matches exactly (including leading `/`)
+    - Verify the publisher is running and connected to the same Zenoh network
+    - Increase the timeout value
+    - Use `--nocapture` with pytest to see debug output: `python -m pytest tests/ -v --capture=no`
 
 ## Resources
 

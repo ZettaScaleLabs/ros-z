@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD046 -->
 # Quick Start
 
 **Get ros-z running in under 5 minutes with this hands-on tutorial.** Build a complete publisher-subscriber system to understand the core concepts through working code.
@@ -16,7 +17,7 @@
 There are two ways to get started with ros-z:
 
 1. **Try the Examples** — Clone the ros-z repository and run pre-built examples (fastest way to see it in action)
-2. **Create Your Own Project** — Start a new Rust project with ros-z as a dependency
+2. **Option 2: Create Your Own Project** — Start a new Rust project with ros-z as a dependency
 
 ---
 
@@ -29,7 +30,7 @@ The quickest way to experience ros-z is to run the included examples from the re
 ```bash
 git clone https://github.com/ZettaScaleLabs/ros-z.git
 cd ros-z
-
+```
 
 ### Start the Zenoh Router
 
@@ -39,7 +40,7 @@ ros-z uses a router-based architecture (matching ROS 2's `rmw_zenoh` — the ROS
 
 ```bash
 cargo run --example zenoh_router
-
+```
 
 ### Run the Pub/Sub Example
 
@@ -50,7 +51,7 @@ Open two more terminals and navigate to the same `ros-z` directory:
 ```bash
 cd ros-z
 cargo run --example z_pubsub -- --role listener
-
+```
 
 **Terminal 3 - Start the Talker:**
 
@@ -66,7 +67,7 @@ cargo run --example z_pubsub -- --role talker
 
 Here's the complete example you just ran:
 
-```rust,ignore
+```rust
 use std::time::Duration;
 
 use clap::{Parser, ValueEnum};
@@ -79,23 +80,16 @@ use ros_z_msgs::std_msgs::String as RosString;
 /// Subscriber function that continuously receives messages from a topic
 async fn run_subscriber(ctx: ZContext, topic: String) -> Result<()> {
     // Create a ROS 2 node - the fundamental unit of computation
-    // Nodes are logical groupings of publishers, subscribers, services, etc.
     let node = ctx.create_node("Sub").build()?;
 
+    // Create a subscriber for the specified topic
+    let zsub = node.create_sub::<RosString>(&topic).build()?;
 
-
-// Create a subscriber for the specified topic
-// The type parameter RosString determines what message type we'll receive
-let zsub = node.create_sub::`<RosString>`(&topic).build()?;
-
-// Continuously receive messages asynchronously
-// This loop will block waiting for messages on the topic
-while let Ok(msg) = zsub.async_recv().await {
-    println!("Hearing:>> {}", msg.data);
-}
-Ok(())
-
-```rust
+    // Continuously receive messages asynchronously
+    while let Ok(msg) = zsub.async_recv().await {
+        println!("Hearing:>> {}", msg.data);
+    }
+    Ok(())
 }
 
 /// Publisher function that continuously publishes messages to a topic
@@ -105,93 +99,63 @@ async fn run_publisher(
     period: Duration,
     payload: String,
 ) -> Result<()> {
-    // Create a ROS 2 node for publishing
     let node = ctx.create_node("Pub").build()?;
+    let zpub = node.create_pub::<RosString>(&topic).build()?;
 
-
-
-// Create a publisher for the specified topic
-// The type parameter RosString determines what message type we'll send
-let zpub = node.create_pub::`<RosString>`(&topic).build()?;
-
-let mut count = 0;
-loop {
-    // Create a new message with incrementing counter
-    let str = RosString {
-        data: format!("{payload} - #{count}"),
-    };
-    println!("Telling:>> {}", str.data);
-
-```rust
-// Publish the message asynchronously to all subscribers on this topic
-zpub.async_publish(&str).await?;
-
-// Wait for the specified period before publishing again
-let _ = tokio::time::sleep(period).await;
-count += 1;
+    let mut count = 0;
+    loop {
+        let str = RosString {
+            data: format!("{payload} - #{count}"),
+        };
+        println!("Telling:>> {}", str.data);
+        zpub.async_publish(&str).await?;
+        let _ = tokio::time::sleep(period).await;
+        count += 1;
+    }
 }
 
-```rust
-}
-
-// The #[tokio::main] attribute sets up the async runtime
-// ros-z requires an async runtime (Tokio is the most common choice)
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
 
+    let format = match args.backend {
+        Backend::RmwZenoh => ros_z_protocol::KeyExprFormat::RmwZenoh,
+        #[cfg(feature = "ros2dds")]
+        Backend::Ros2Dds => ros_z_protocol::KeyExprFormat::Ros2Dds,
+    };
 
+    // Create a ZContext - the entry point for ros-z applications
+    let ctx = if let Some(e) = args.endpoint {
+        ZContextBuilder::default()
+            .with_mode(args.mode)
+            .with_connect_endpoints([e])
+            .keyexpr_format(format)
+            .build()?
+    } else {
+        ZContextBuilder::default()
+            .with_mode(args.mode)
+            .keyexpr_format(format)
+            .build()?
+    };
 
-// Convert backend enum to KeyExprFormat
-let format = match args.backend {
-    Backend::RmwZenoh => ros_z_protocol::KeyExprFormat::RmwZenoh,
-    #[cfg(feature = "ros2dds")]
-    Backend::Ros2Dds => ros_z_protocol::KeyExprFormat::Ros2Dds,
-};
+    let period = std::time::Duration::from_secs_f64(args.period);
+    zenoh::init_log_from_env_or("error");
 
-// Create a ZContext - the entry point for ros-z applications
-// ZContext manages the connection to the Zenoh network and coordinates
-// communication between nodes. It can be configured with different modes:
-// - "peer" mode: nodes discover each other via multicast scouting
-// - "client" mode: nodes connect to a Zenoh router
-let ctx = if let Some(e) = args.endpoint {
-    ZContextBuilder::default()
-        .with_mode(args.mode)
-        .with_connect_endpoints([e])
-        .keyexpr_format(format)
-        .build()?
-} else {
-    ZContextBuilder::default()
-        .with_mode(args.mode)
-        .keyexpr_format(format)
-        .build()?
-};
-
-let period = std::time::Duration::from_secs_f64(args.period);
-zenoh::init_log_from_env_or("error");
-
-// Run as either a publisher (talker) or subscriber (listener)
-// Both share the same ZContext but perform different roles
-match args.role.as_str() {
-    "listener" => run_subscriber(ctx, args.topic).await?,
-    "talker" => run_publisher(ctx, args.topic, period, args.data).await?,
-    role => println!(
-        "Please use \"talker\" or \"listener\" as role, {} is not supported.",
-        role
-    ),
-}
-Ok(())
-
-```rust
+    match args.role.as_str() {
+        "listener" => run_subscriber(ctx, args.topic).await?,
+        "talker" => run_publisher(ctx, args.topic, period, args.data).await?,
+        role => println!(
+            "Please use \"talker\" or \"listener\" as role, {} is not supported.",
+            role
+        ),
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum Backend {
     /// RmwZenoh backend (default) - compatible with rmw_zenoh nodes
-    /// Uses key expressions with domain prefix: <domain_id>/<topic>/**
     RmwZenoh,
-    /// Ros2Dds backend - compatible with zenoh-bridge-ros2dds
-    /// Uses key expressions without domain prefix: <topic>/**
     #[cfg(feature = "ros2dds")]
     Ros2Dds,
 }
@@ -210,11 +174,10 @@ struct Args {
     mode: String,
     #[arg(short, long)]
     endpoint: Option<String>,
-    /// Backend selection: rmw-zenoh (default) or ros2-dds
     #[arg(short, long, value_enum, default_value = "rmw-zenoh")]
     backend: Backend,
 }
-
+```
 
 ---
 
@@ -230,7 +193,7 @@ Since you won't have access to the `zenoh_router` example outside the ros-z repo
 
 ```bash
 cargo install zenohd
-
+```
 
 **Option B: Using pre-built binary (no Rust needed):**
 
@@ -243,13 +206,13 @@ Then extract and run:
 unzip zenoh-*.zip
 chmod +x zenohd
 ./zenohd
-
+```
 
 **Option C: Using Docker:**
 
 ```bash
 docker run --init --net host eclipse/zenoh:latest
-
+```
 
 **Start the router:**
 
@@ -268,7 +231,7 @@ zenohd
 ```bash
 cargo new my_ros_z_project
 cd my_ros_z_project
-
+```
 
 ### 3. Add Dependencies
 
@@ -291,7 +254,7 @@ Replace the contents of `src/main.rs` with this simple publisher example:
 !!! tip "Simpler imports with prelude"
     Instead of importing `Builder`, `Result`, and `ZContextBuilder` separately, use `use ros_z::prelude::*;` to bring all common ros-z types into scope at once.
 
-```rust,ignore
+```rust
 use std::time::Duration;
 use ros_z::{Builder, Result, context::ZContextBuilder};
 use ros_z_msgs::std_msgs::String as RosString;
@@ -299,32 +262,29 @@ use ros_z_msgs::std_msgs::String as RosString;
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize ros-z context (connects to router on localhost:7447)
-    let ctx = ZContextBuilder::default().build()?;
+    let ctx = ZContextBuilder::default()
+        .with_connect_endpoints(["tcp/127.0.0.1:7447"])
+        .build()?;
 
+    // Create a ROS 2 node
+    let node = ctx.create_node("my_talker").build()?;
 
+    // Create a publisher for the /chatter topic
+    let pub_handle = node.create_pub::<RosString>("/chatter").build()?;
 
-// Create a ROS 2 node
-let node = ctx.create_node("my_talker").build()?;
-
-// Create a publisher for the /chatter topic
-let pub_handle = node.create_pub::`<RosString>`("/chatter").build()?;
-
-// Publish messages every second
-let mut count = 0;
-loop {
-    let msg = RosString {
-        data: format!("Hello from ros-z #{}", count),
-    };
-    println!("Publishing: {}", msg.data);
-    pub_handle.async_publish(&msg).await?;
-
-count += 1;
-tokio::time::sleep(Duration::from_secs(1)).await;
+    // Publish messages every second
+    let mut count = 0;
+    loop {
+        let msg = RosString {
+            data: format!("Hello from ros-z #{}", count),
+        };
+        println!("Publishing: {}", msg.data);
+        pub_handle.async_publish(&msg).await?;
+        count += 1;
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
 }
-
-```rust
-}
-
+```
 
 ### 5. Run Your Application
 
@@ -343,27 +303,25 @@ Open another terminal and create a simple listener to verify communication:
 
 **Create `src/bin/listener.rs`:**
 
-```rust,ignore
+```rust
 use ros_z::{Builder, Result, context::ZContextBuilder};
 use ros_z_msgs::std_msgs::String as RosString;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let ctx = ZContextBuilder::default().build()?;
+    let ctx = ZContextBuilder::default()
+        .with_connect_endpoints(["tcp/127.0.0.1:7447"])
+        .build()?;
     let node = ctx.create_node("my_listener").build()?;
     let sub = node.create_sub::<RosString>("/chatter").build()?;
 
-
-
-println!("Listening on /chatter...");
-while let Ok(msg) = sub.async_recv().await {
-    println!("Received: {}", msg.data);
+    println!("Listening on /chatter...");
+    while let Ok(msg) = sub.async_recv().await {
+        println!("Received: {}", msg.data);
+    }
+    Ok(())
 }
-Ok(())
-
-```rust
-}
-
+```
 
 **Run both:**
 
@@ -376,7 +334,7 @@ cargo run
 
 # Terminal 3: Listener
 cargo run --bin listener
-
+```
 
 ---
 
@@ -396,39 +354,29 @@ cargo run --bin listener
     - **Lower network overhead** compared to multicast discovery
     - **Production-ready** architecture used in real ROS 2 systems
 
-```text
-See the [Networking](../user-guide/networking.md) chapter for customization options, including how to revert to multicast scouting mode if needed.
-
+    See the [Networking](../user-guide/networking.md) chapter for customization options.
 
 !!! info "Key Terms"
     **key expression** — Zenoh's topic addressing scheme. A string like `0/chatter/std_msgs::msg::dds_::String_/RIHS01_<hash>` that identifies where messages flow. ros-z maps ROS 2 topic names to key expressions automatically.
-
-```text
-**CDR** — Common Data Representation, the binary serialization format used by all ROS 2 middleware. ros-z serializes message structs to CDR bytes before publishing.
-
-**RIHS01** — ROS Interface Hash Scheme 01, a hash of the message definition that ensures publisher and subscriber agree on the exact message fields. If the hash differs, messages are silently dropped.
-
-**RMW** — ROS MiddleWare interface, the plugin layer that connects ROS 2 nodes to an underlying transport (DDS, Zenoh, etc.). `rmw_zenoh_cpp` is the RMW that lets standard ROS 2 C++/Python nodes speak Zenoh.
-
+    **CDR** — Common Data Representation, the binary serialization format used by all ROS 2 middleware. ros-z serializes message structs to CDR bytes before publishing.
+    **RIHS01** — ROS Interface Hash Scheme 01, a hash of the message definition that ensures publisher and subscriber agree on the exact message fields. If the hash differs, messages are silently dropped.
+    **RMW** — ROS MiddleWare interface, the plugin layer that connects ROS 2 nodes to an underlying transport (DDS, Zenoh, etc.). `rmw_zenoh_cpp` is the RMW that lets standard ROS 2 C++/Python nodes speak Zenoh.
 
 ## What's Happening?
 
-```mermaidsequenceDiagram
+```mermaid
+sequenceDiagram
     participant T as Talker
     participant Z as Zenoh Network
     participant L as Listener
 
-
-
-T->>Z: Publish "Hello 0"
-Z->>L: Deliver message
-L->>L: Print to console
-Note over T: Wait 1 second
-T->>Z: Publish "Hello 1"
-Z->>L: Deliver message
-L->>L: Print to console
-
-```text
+    T->>Z: Publish "Hello 0"
+    Z->>L: Deliver message
+    L->>L: Print to console
+    Note over T: Wait 1 second
+    T->>Z: Publish "Hello 1"
+    Z->>L: Deliver message
+    L->>L: Print to console
 ```
 
 The talker publishes messages every second to the `/chatter` topic. The listener subscribes to the same topic and prints each received message. Zenoh handles the network transport transparently.
