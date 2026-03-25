@@ -171,6 +171,31 @@ impl ZContextBuilder {
         self.with_json("connect/endpoints", json!(endpoints))
     }
 
+    /// Convenience method: listen on specific endpoints
+    ///
+    /// By default, `ZContextBuilder` will build a context that only listens for
+    /// connections from localhost. To change this so that it, for example, listens
+    /// on all interfaces, use this method as in the example below.
+    ///
+    /// # Example
+    /// ```
+    /// use ros_z::context::ZContextBuilder;
+    /// use ros_z::Builder;
+    ///
+    /// let ctx = ZContextBuilder::default()
+    ///     .with_listen_endpoints(["tcp/[::]:0"])
+    ///     .build()
+    ///     .expect("Failed to build context");
+    /// ```
+    pub fn with_listen_endpoints<I, S>(self, endpoints: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        let endpoints: Vec<String> = endpoints.into_iter().map(|s| s.into()).collect();
+        self.with_json("listen/endpoints", json!(endpoints))
+    }
+
     /// Convenience method: connect to localhost zenohd
     pub fn connect_to_local_zenohd(self) -> Self {
         self.with_connect_endpoints(["tcp/127.0.0.1:7447"])
