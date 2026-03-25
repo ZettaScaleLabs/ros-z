@@ -103,6 +103,20 @@ jobs:
     needs: [build-msgs, build-wheels]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        uses: orhun/git-cliff-action@v4
+        id: git-cliff
+        with:
+          config: cliff.toml
+          args: --verbose --latest --strip header
+        env:
+          OUTPUT: CHANGELOG.md
+          GITHUB_REPO: ${{ github.repository }}
+
       - name: Download ros-z-msgs-py artifacts
         uses: actions/download-artifact@v4
         with:
@@ -120,5 +134,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: ${{ github.ref_name }}
+          body_path: CHANGELOG.md
           files: dist/**
-          generate_release_notes: true
