@@ -74,13 +74,19 @@ jobs:
             --out dist
           working-directory: crates/ros-z-py
           manylinux: auto
+        env:
+          # Required for ring cross-compilation in manylinux containers
+          CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
+          CXX_aarch64_unknown_linux_gnu: aarch64-linux-gnu-g++
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
 
       - name: Rename wheel to include distro suffix
         shell: bash
         run: |
           for whl in crates/ros-z-py/dist/*.whl; do
             base="${whl%.whl}"
-            mv "$whl" "${base}-${{ matrix.distro }}.whl"
+            # sudo needed: manylinux container builds as root, wheel is root-owned
+            sudo mv "$whl" "${base}-${{ matrix.distro }}.whl"
           done
 
       - name: Upload artifact
