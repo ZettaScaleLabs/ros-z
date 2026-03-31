@@ -102,7 +102,7 @@ For each ROS 2 message, ros-z generates:
 
 ### Message Struct
 
-```rust,ignore
+```rust
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct String {
     pub data: std::string::String,
@@ -111,7 +111,7 @@ pub struct String {
 
 ### Type Information Traits
 
-```rust,ignore
+```rust
 impl MessageTypeInfo for std_msgs::String {
     fn type_name() -> &'static str {
         "std_msgs::msg::dds_::String_"
@@ -161,7 +161,7 @@ flowchart TD
 
 **Configuration:**
 
-```rust,ignore
+```rust
 let config = GeneratorConfig {
     generate_cdr: true,        // CDR-compatible types
     generate_protobuf: false,  // Optional protobuf
@@ -195,7 +195,7 @@ This fallback enables development without ROS 2 installation.
 
 ### Import Pattern
 
-```rust,ignore
+```rust
 use ros_z_msgs::ros::std_msgs::String as RosString;
 use ros_z_msgs::ros::geometry_msgs::Twist;
 use ros_z_msgs::ros::sensor_msgs::LaserScan;
@@ -217,7 +217,7 @@ ros_z_msgs::ros::{package}::{MessageName}
 
 Services generate three types:
 
-```rust,ignore
+```rust
 // Service definition
 use ros_z_msgs::ros::example_interfaces::AddTwoInts;
 
@@ -270,7 +270,7 @@ For rapid prototyping without `.msg` files:
 
 ### Define the Struct
 
-```rust,ignore
+```rust
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -284,7 +284,7 @@ pub struct RobotStatus {
 
 ### Implement Required Traits
 
-```rust,ignore
+```rust
 use ros_z::{MessageTypeInfo, WithTypeInfo, entity::TypeHash};
 
 impl MessageTypeInfo for RobotStatus {
@@ -333,7 +333,7 @@ Common Data Representation - ROS 2 standard:
 - Used by all ROS 2 implementations
 - Automatic via serde
 
-```rust,ignore
+```rust
 // Generated with CDR support
 #[derive(Serialize, Deserialize)]
 pub struct String {
@@ -384,7 +384,7 @@ your_package = []
 
 Edit `ros-z-msgs/build.rs`:
 
-```rust,ignore
+```rust
 fn get_bundled_packages() -> Vec<&'static str> {
     let mut names = vec!["builtin_interfaces"];
 
@@ -440,7 +440,7 @@ flowchart LR
 
 **In generated code:**
 
-```rust,ignore
+```rust
 TypeHash::from_rihs_string("RIHS01_1234567890abcdef...")
     .expect("Invalid RIHS hash string")
 ```
@@ -449,7 +449,7 @@ TypeHash::from_rihs_string("RIHS01_1234567890abcdef...")
 
 For custom build scripts:
 
-```rust,ignore
+```rust
 use ros_z_codegen::{MessageGenerator, GeneratorConfig};
 
 let config = GeneratorConfig {

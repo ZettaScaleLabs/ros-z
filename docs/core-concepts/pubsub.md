@@ -34,7 +34,7 @@ graph TD
 
 This example demonstrates publishing "Hello World" messages to a topic. The publisher sends messages periodically, showcasing the fundamental publishing pattern.
 
-```rust,ignore
+```rust
 /// Talker node that publishes "Hello World" messages to a topic
 ///
 /// # Arguments
@@ -110,7 +110,7 @@ cargo run --example demo_nodes_talker -- --topic /my_topic --period 0.5
 
 This example demonstrates subscribing to messages from a topic. The subscriber receives and displays messages, showing both timeout-based and async reception patterns.
 
-```rust,ignore
+```rust
 /// Listener node that subscribes to a topic
 ///
 /// # Arguments
@@ -238,7 +238,7 @@ ros-z provides three patterns for receiving messages, each suited for different 
 
 Best for: Simple sequential processing, scripting
 
-```rust,ignore
+```rust
 use ros_z::Builder; // required to call .build()
 
 let subscriber = node
@@ -254,7 +254,7 @@ while let Ok(msg) = subscriber.recv() {
 
 Best for: Integration with async codebases, handling multiple streams
 
-```rust,ignore
+```rust
 use ros_z::Builder; // required to call .build()
 
 let subscriber = node
@@ -270,7 +270,7 @@ while let Ok(msg) = subscriber.async_recv().await {
 
 Best for: Event-driven architectures, low-latency response
 
-```rust,ignore
+```rust
 use ros_z::Builder; // required to call .build_with_callback()
 
 let subscriber = node
@@ -302,7 +302,7 @@ QoS profiles control message delivery behavior. Both publishers and subscribers 
 
 **Publisher QoS:**
 
-```rust,ignore
+```rust
 use std::num::NonZeroUsize;
 use ros_z::Builder;
 use ros_z::qos::{QosProfile, QosHistory, QosReliability};
@@ -321,7 +321,7 @@ let publisher = node
 
 **Subscriber QoS:**
 
-```rust,ignore
+```rust
 use std::num::NonZeroUsize;
 use ros_z::Builder;
 use ros_z::qos::{QosProfile, QosHistory, QosReliability};
@@ -345,7 +345,7 @@ let subscriber = node
 
 ros-z supports ROS 2-style topic remapping via `ZContextBuilder::with_remap_rule()`. Remapping rules apply to all nodes created from the same context and redirect topic/service names at the context level.
 
-```rust,ignore
+```rust
 # fn main() -> zenoh::Result<()> {
 use ros_z::context::ZContextBuilder;
 use ros_z::Builder;
@@ -360,7 +360,7 @@ let ctx = ZContextBuilder::default()
 
 Multiple rules can be added with `.with_remap_rules()`:
 
-```rust,ignore
+```rust
 # fn main() -> zenoh::Result<()> {
 use ros_z::context::ZContextBuilder;
 use ros_z::Builder;

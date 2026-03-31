@@ -183,7 +183,7 @@ my_msgs = { path = "../../crates/my_msgs" }
 
 Then register the types in `crates/ros-z-bridge/src/hash_registry.rs`:
 
-```rust,ignore
+```rust
 // In build_registry():
 reg!(map, my_msgs::ros::my_package::MyMessage);
 ```

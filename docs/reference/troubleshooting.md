@@ -97,7 +97,7 @@
        ```
 
     2. **Verify endpoint matches in your code:**
-       ```rust,ignore
+       ```rust
        let ctx = ZContextBuilder::default()
            .with_router_endpoint("tcp/localhost:7447")?  // Must match router
            .build()?;
@@ -118,7 +118,7 @@
        ```
 
        Then connect your sessions to that port:
-       ```rust,ignore
+       ```rust
        let ctx = ZContextBuilder::default()
            .with_router_endpoint("tcp/localhost:7448")?
            .build()?;
@@ -127,7 +127,7 @@
 ??? question "Don"
     **Solution:** Use peer mode with multicast discovery:
 
-    ```rust,ignore
+    ```rust
     let ctx = ZContextBuilder::default()
         .with_mode("peer")
         .build()?;

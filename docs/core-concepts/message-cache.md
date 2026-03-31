@@ -7,7 +7,7 @@
 
 ## Quick Start
 
-```rust,ignore
+```rust
 use ros_z::prelude::*;
 use ros_z_msgs::sensor_msgs::Imu;
 use std::time::{Duration, SystemTime};
@@ -40,7 +40,7 @@ Two indexing strategies are available and selected at **compile time** via the t
 
 No configuration needed. The cache reads the `uhlc::Timestamp` that the Zenoh transport attaches to every published sample and converts it to `SystemTime`. If timestamping is disabled on the peer, the cache falls back to `SystemTime::now()` at receive time and logs a one-time warning.
 
-```rust,ignore
+```rust
 use ros_z::prelude::*;
 use ros_z_msgs::sensor_msgs::LaserScan;
 
@@ -51,7 +51,7 @@ let cache = node.create_cache::<LaserScan>("/scan", 100).build()?;
 
 Supply a closure that extracts a `SystemTime` from the deserialized message. Use this when you need messages aligned by their logical capture time rather than network arrival time — the classic sensor fusion use case.
 
-```rust,ignore
+```rust
 use ros_z::prelude::*;
 use ros_z_msgs::sensor_msgs::Imu;
 use std::time::{Duration, SystemTime};
@@ -74,7 +74,7 @@ All query methods take and return `SystemTime` values and return clones of the s
 
 Returns all messages with timestamp in `[t_start, t_end]`, inclusive, ordered by timestamp ascending. If `t_start > t_end` the result is empty (no panic).
 
-```rust,ignore
+```rust
 let msgs = cache.get_interval(
     SystemTime::now() - Duration::from_millis(500),
     SystemTime::now(),
@@ -85,7 +85,7 @@ let msgs = cache.get_interval(
 
 The most recent message with timestamp ≤ `t`. Returns `None` if the cache is empty or all messages are strictly after `t`.
 
-```rust,ignore
+```rust
 let latest = cache.get_before(SystemTime::now());
 ```
 
@@ -93,7 +93,7 @@ let latest = cache.get_before(SystemTime::now());
 
 The earliest message with timestamp ≥ `t`. Returns `None` if the cache is empty or all messages are strictly before `t`.
 
-```rust,ignore
+```rust
 let next = cache.get_after(camera_stamp);
 ```
 
@@ -101,14 +101,14 @@ let next = cache.get_after(camera_stamp);
 
 The message whose timestamp is nearest to `t` (either side). When two messages are equidistant, the one with the earlier timestamp is returned. Returns `None` if the cache is empty.
 
-```rust,ignore
+```rust
 // Align an IMU sample to a camera frame timestamp.
 let imu = imu_cache.get_nearest(camera_stamp);
 ```
 
 ### Introspection
 
-```rust,ignore
+```rust
 cache.oldest_stamp()   // Option<SystemTime> — timestamp of the oldest entry
 cache.newest_stamp()   // Option<SystemTime> — timestamp of the newest entry
 cache.len()            // usize — number of messages currently stored
@@ -120,7 +120,7 @@ cache.clear()          // remove all messages
 
 The cache holds at most `capacity` messages. When a new message arrives and the cache is full, the oldest message (smallest timestamp) is evicted first, regardless of insertion order. Capacity can be changed at build time:
 
-```rust,ignore
+```rust
 let cache = node
     .create_cache::<RosString>("/topic", 10)  // initial capacity
     .with_capacity(50)                         // override

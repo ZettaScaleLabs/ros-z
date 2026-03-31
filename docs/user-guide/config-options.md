@@ -6,7 +6,7 @@ ros-z provides multiple ways to configure Zenoh, from simple to advanced.
 
 Use the built-in ROS session config for standard deployments:
 
-```rust,ignore
+```rust
 let ctx = ZContextBuilder::default().build()?;
 ```
 
@@ -20,7 +20,7 @@ let ctx = ZContextBuilder::default().build()?;
 
 Connect to a router on a different host or port:
 
-```rust,ignore
+```rust
 let ctx = ZContextBuilder::default()
     .with_router_endpoint("tcp/192.168.1.100:7447")
     .build()?;
@@ -40,7 +40,7 @@ Point to a JSON5 config file without changing code, using the same variable as `
 export ZENOH_SESSION_CONFIG_URI=/path/to/session_config.json5
 ```
 
-```rust,ignore
+```rust
 // No code changes needed - the config file is loaded automatically
 let ctx = ZContextBuilder::default().build()?;
 ```
@@ -57,7 +57,7 @@ export ZENOH_CONFIG_OVERRIDE='mode="client";connect/endpoints=["tcp/192.168.1.10
 cargo run --example z_pubsub
 ```
 
-```rust,ignore
+```rust
 // No code changes needed - overrides are applied automatically
 let ctx = ZContextBuilder::default().build()?;
 ```
@@ -88,7 +88,7 @@ export ZENOH_CONFIG_OVERRIDE='mode="client";connect/timeout_ms=5000;scouting/mul
 
 Fine-tune session or router settings programmatically:
 
-```rust,ignore
+```rust
 use ros_z::config::{SessionConfigBuilder, RouterConfigBuilder};
 
 // Customize session config
@@ -119,7 +119,7 @@ zenoh::open(router_config).await?;
 
 Revert to multicast peer discovery for simple setups:
 
-```rust,ignore
+```rust
 // Use vanilla Zenoh config (peer mode with multicast)
 let ctx = ZContextBuilder::default()
     .with_zenoh_config(zenoh::Config::default())
@@ -133,7 +133,7 @@ let ctx = ZContextBuilder::default()
 
 Use JSON5 config files for complex deployments:
 
-```rust,ignore
+```rust
 let ctx = ZContextBuilder::default()
     .with_config_file("/etc/zenoh/session_config.json5")
     .build()?;

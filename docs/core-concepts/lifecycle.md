@@ -52,7 +52,7 @@ stateDiagram-v2
 
 ## Creating a Lifecycle Node
 
-```rust,ignore
+```rust
 use ros_z::lifecycle::{ZLifecycleNode, CallbackReturn, LifecycleState};
 use ros_z::prelude::*;
 
@@ -65,7 +65,7 @@ let mut node = ctx.create_lifecycle_node("my_node").build()?;
 
 ### With a Namespace
 
-```rust,ignore
+```rust
 use ros_z::prelude::*;
 
 # fn main() -> zenoh::Result<()> {
@@ -82,7 +82,7 @@ let mut node = ctx
 
 Set callbacks on the node before triggering any transitions. Each callback receives the previous state and returns a `CallbackReturn`.
 
-```rust,ignore
+```rust
 use ros_z::lifecycle::{ZLifecycleNode, CallbackReturn};
 use ros_z::prelude::*;
 
@@ -131,7 +131,7 @@ node.on_shutdown = Box::new(|_prev| {
 
 The default `on_error` returns `Failure`, which drives the node to **Finalized**. Override it to recover to **Unconfigured** instead:
 
-```rust,ignore
+```rust
 # use ros_z::lifecycle::{CallbackReturn};
 # use ros_z::prelude::*;
 # fn main() -> zenoh::Result<()> {
@@ -147,7 +147,7 @@ node.on_error = Box::new(|_prev| CallbackReturn::Success);
 
 A lifecycle publisher wraps a regular publisher and **silently drops** publish calls while the node is not Active. This makes publishing code clean — no manual state checks needed.
 
-```rust,ignore
+```rust
 use ros_z::lifecycle::ZLifecycleNode;
 use ros_z::prelude::*;
 use ros_z_msgs::ros::std_msgs::String as RosString;
@@ -181,7 +181,7 @@ Transitions can be triggered programmatically or via the lifecycle management se
 
 ### Programmatic
 
-```rust,ignore
+```rust
 # use ros_z::prelude::*;
 # fn main() -> zenoh::Result<()> {
 # let ctx = ZContextBuilder::default().build()?;
@@ -227,7 +227,7 @@ The `~/transition_event` topic publishes a `TransitionEvent` message on every st
 
 `ZLifecycleClient` lets you drive a remote lifecycle node's state machine from Rust code — the building block for bringup managers and system orchestrators.
 
-```rust,ignore
+```rust
 use std::time::Duration;
 use ros_z::prelude::*;
 use ros_z::lifecycle::ZLifecycleClient;
@@ -259,7 +259,7 @@ client.shutdown(timeout).await?;
 
 ## Full Example: Managed Talker
 
-```rust,ignore
+```rust
 use ros_z::{Builder, Result, context::ZContextBuilder, lifecycle::CallbackReturn};
 use ros_z_msgs::std_msgs::String as RosString;
 
@@ -338,7 +338,7 @@ fn main() -> Result<()> {
 
 ## Full Example: Bringup Orchestrator
 
-```rust,ignore
+```rust
 use std::time::Duration;
 
 use ros_z::{

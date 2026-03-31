@@ -71,7 +71,7 @@ sequenceDiagram
 
 The simplest way to enable SHM is at the context level:
 
-```rust,ignore
+```rust
 use ros_z::context::ZContextBuilder;
 use ros_z::Builder;
 use ros_z_msgs::sensor_msgs::PointCloud2;
@@ -96,7 +96,7 @@ fn main() -> zenoh::Result<()> {
 
 Adjust pool size and threshold based on your needs:
 
-```rust,ignore
+```rust
 use ros_z::context::ZContextBuilder;
 use ros_z::Builder;
 
@@ -113,7 +113,7 @@ fn main() -> zenoh::Result<()> {
 
 Override SHM settings for specific publishers:
 
-```rust,ignore
+```rust
 use ros_z::context::ZContextBuilder;
 use ros_z::shm::{ShmConfig, ShmProviderBuilder};
 use ros_z::Builder;
@@ -163,7 +163,7 @@ SHM configuration follows a three-level hierarchy:
 2. **Node level**: Override for node's publishers (inherits from context if not set)
 3. **Publisher level**: Most specific override (can disable even if context has SHM)
 
-```rust,ignore
+```rust
 use ros_z::context::ZContextBuilder;
 use ros_z::shm::{ShmConfig, ShmProviderBuilder};
 use ros_z::Builder;
@@ -210,7 +210,7 @@ export ZENOH_SHM_MESSAGE_SIZE_THRESHOLD=10000  # Set 10KB threshold
 
 To use environment variables in your code:
 
-```rust,ignore
+```rust
 use ros_z::shm::ShmConfig;
 use ros_z::context::ZContextBuilder;
 use ros_z::Builder;
@@ -262,7 +262,7 @@ Zenoh publish
 
 ROS-Z automatically generates accurate size estimation for all message types during code generation:
 
-```rust,ignore
+```rust
 // Auto-generated implementation for PointCloud2
 impl SizeEstimation for PointCloud2 {
     fn estimated_serialized_size(&self) -> usize {
@@ -290,7 +290,7 @@ This ensures:
 
 The following complete example demonstrates three patterns for using SHM with PointCloud2 messages. This code is from `ros-z/examples/shm_pointcloud2.rs`:
 
-```rust,ignore
+```rust
 //! PointCloud2 example demonstrating user-managed SHM for zero-copy point clouds.
 //!
 //! This example shows how to create large sensor messages with data stored directly
@@ -688,7 +688,7 @@ let ctx = ZContextBuilder::default()
 
 **Diagnosis**:
 
-```rust,ignore
+```rust
 // Check if message uses SHM
 println!("Message size: {}", msg.estimated_serialized_size());
 println!("SHM threshold: {}", ctx.shm_threshold());
@@ -751,7 +751,7 @@ sudo sysctl -w kernel.shmall=32768       # 128MB in pages
 
 For custom message types, implement `SizeEstimation`:
 
-```rust,ignore
+```rust
 use ros_z_msgs::size_estimation::SizeEstimation;
 
 impl SizeEstimation for MyCustomMessage {
@@ -768,7 +768,7 @@ impl SizeEstimation for MyCustomMessage {
 
 Zenoh SHM supports different allocation policies:
 
-```rust,ignore
+```rust
 use zenoh::shm::{BlockOn, GarbageCollect};
 
 // Block until memory available (default)

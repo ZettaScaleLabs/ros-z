@@ -218,7 +218,7 @@ If you need ROS 2 Humble support, you have two options:
 
 The **ros-z core library** has full Humble support:
 
-```rust,ignore
+```rust
 use ros_z::{Builder, ZContext};
 
 let ctx = ZContext::default();
