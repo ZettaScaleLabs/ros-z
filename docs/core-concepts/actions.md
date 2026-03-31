@@ -84,7 +84,7 @@ Before reading the full examples, here is the skeleton every action client and s
 
 **Client:**
 
-```rust,ignore
+```rust
 use ros_z::Builder;
 use ros_z::context::ZContextBuilder;
 
@@ -115,7 +115,7 @@ println!("Done: {:?}", result);
 
 **Server:**
 
-```rust,ignore
+```rust
 use ros_z::Builder;
 use ros_z::action::server::ExecutingGoal;
 use ros_z::context::ZContextBuilder;
@@ -147,7 +147,7 @@ The key constraint: **one `GoalHandle` per goal**. `feedback()` and `status_watc
 
 This example demonstrates an action server that computes Fibonacci sequences. The server accepts goals, publishes periodic feedback with partial results, and supports cancellation.
 
-```rust,ignore
+```rust
 /// Fibonacci action server node that computes Fibonacci sequences
 ///
 /// # Arguments
@@ -247,7 +247,7 @@ cargo run --example demo_nodes_fibonacci_action_server
 
 This example demonstrates an action client that sends goals and monitors execution progress with feedback updates.
 
-```rust,ignore
+```rust
 /// Fibonacci action client node that sends goals to compute Fibonacci sequences
 ///
 /// # Arguments
@@ -365,7 +365,7 @@ You'll see:
 
 The `GoalHandle` returned by `send_goal()` has a `cancel()` method for requesting cancellation:
 
-```rust,ignore
+```rust
 let goal_handle = client.send_goal(goal).await?;
 
 // ... later, if you need to stop the action:
@@ -375,13 +375,13 @@ println!("Cancel accepted: {}", cancel_response.goals_canceling.len() > 0);
 
 To cancel a specific goal by ID without a handle:
 
-```rust,ignore
+```rust
 client.cancel_goal(goal_id).await?;
 ```
 
 To cancel every in-progress goal at once:
 
-```rust,ignore
+```rust
 client.cancel_all_goals().await?;
 ```
 
@@ -401,7 +401,7 @@ The server checks cancellation with `is_cancel_requested()` and calls `.canceled
 
 **Receiving feedback:**
 
-```rust,ignore
+```rust
 // Take the feedback receiver — this works exactly once per GoalHandle
 if let Some(mut rx) = goal_handle.feedback() {
     while let Some(fb) = rx.recv().await {
@@ -413,7 +413,7 @@ if let Some(mut rx) = goal_handle.feedback() {
 
 **Watching status transitions:**
 
-```rust,ignore
+```rust
 if let Some(mut status_rx) = goal_handle.status_watch() {
     while status_rx.changed().await.is_ok() {
         println!("Status: {:?}", *status_rx.borrow());
@@ -423,7 +423,7 @@ if let Some(mut status_rx) = goal_handle.status_watch() {
 
 **Waiting for the result:**
 
-```rust,ignore
+```rust
 // Blocks until the goal reaches a terminal state (Succeeded, Canceled, or Aborted)
 // then fetches and returns the final result
 let result = goal_handle.result().await?;
@@ -436,7 +436,7 @@ let result = goal_handle.result().await?;
 
 The examples above use the pre-built `Fibonacci` action from `ros-z-msgs`. To define your own action type, implement the `ZAction` trait:
 
-```rust,ignore
+```rust
 use serde::{Deserialize, Serialize};
 use ros_z::action::ZAction;
 

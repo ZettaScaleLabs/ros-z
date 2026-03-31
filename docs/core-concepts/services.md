@@ -38,7 +38,7 @@ graph TD
 
 This example demonstrates a service server that adds two integers. The server waits for requests, processes them, and sends responses back to clients.
 
-```rust,ignore
+```rust
 /// AddTwoInts server node that provides a service to add two integers
 ///
 /// # Arguments
@@ -115,7 +115,7 @@ cargo run --example demo_nodes_add_two_ints_server -- --endpoint tcp/localhost:7
 
 This example demonstrates a service client that sends addition requests to the server and displays the results.
 
-```rust,ignore
+```rust
 /// AddTwoInts client node that calls the service to add two integers
 ///
 /// # Arguments
@@ -224,7 +224,7 @@ Service servers in ros-z follow a **pull model** pattern, similar to subscribers
 
 Best for: Simple synchronous service implementations
 
-```rust,ignore
+```rust
 use ros_z::Builder;
 
 let mut service = node
@@ -244,7 +244,7 @@ Note: `take_request()` blocks until a request arrives. The server variable must 
 
 Best for: Services that need to await other operations
 
-```rust,ignore
+```rust
 use ros_z::Builder;
 
 let mut service = node
@@ -282,7 +282,7 @@ Service clients send requests to servers and receive responses. `send_request` i
 
 Best for: Simple request-response where you want to wait up to a fixed deadline
 
-```rust,ignore
+```rust
 use ros_z::Builder;
 use std::time::Duration;
 
@@ -299,7 +299,7 @@ let response = client.take_response_timeout(Duration::from_secs(5))?;
 
 Best for: Integration with async codebases or when using `tokio::select!`
 
-```rust,ignore
+```rust
 use ros_z::Builder;
 
 let client = node
@@ -350,7 +350,7 @@ ros2 service info /add_two_ints
 
 Use `take_response_timeout(duration)` to wait for a bounded time:
 
-```rust,ignore
+```rust
 client.send_request(&request).await?;
 match client.take_response_timeout(Duration::from_secs(5)) {
     Ok(response) => println!("Got response: {:?}", response),

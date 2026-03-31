@@ -70,7 +70,7 @@ Tuple structs, unit structs, enums, `Option`, maps, and other richer Rust-only s
 
 ### Service Example
 
-```rust,ignore
+```rust
 use ros_z::{ServiceTypeInfo, TypeInfo, TypeHash, msg::ZService};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -201,7 +201,7 @@ anyhow = "1"
 
 **build.rs:**
 
-```rust,ignore
+```rust
 use std::path::PathBuf;
 use std::env;
 
@@ -215,7 +215,7 @@ fn main() -> anyhow::Result<()> {
 
 **src/lib.rs:**
 
-```rust,ignore
+```rust
 // Re-export standard types from ros-z-msgs
 pub use ros_z_msgs::*;
 
@@ -239,7 +239,7 @@ ROS_Z_MSG_PATH="./my_msgs:./other_msgs" cargo build
 
 ### Step 5: Use Generated Types
 
-```rust,ignore
+```rust
 use my_robot_msgs::ros::my_robot_msgs::{RobotStatus, SensorReading};
 use my_robot_msgs::ros::my_robot_msgs::srv::NavigateTo;
 use ros_z_msgs::ros::geometry_msgs::Point;

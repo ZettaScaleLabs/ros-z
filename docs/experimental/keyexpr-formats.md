@@ -130,7 +130,7 @@ This is **intentional design** in `rmw_zenoh_cpp`, not an inconsistency:
 
 ### Specifying Format at Context Creation
 
-```rust,ignore
+```rust
 use ros_z::context::ZContextBuilder;
 use ros_z_protocol::KeyExprFormat;
 
@@ -159,7 +159,7 @@ let ctx = ZContextBuilder::default()
 
 Once the context is created with a format, all entities inherit it:
 
-```rust,ignore
+```rust
 use ros_z_msgs::std_msgs::String as RosString;
 use ros_z::Builder;
 
@@ -182,7 +182,7 @@ let sub_rmw = node
 
 To communicate with both RmwZenoh and Ros2Dds systems, create separate contexts:
 
-```rust,ignore
+```rust
 // Context for rmw_zenoh_cpp nodes
 let ctx_rmw = ZContextBuilder::default()
     .keyexpr_format(KeyExprFormat::RmwZenoh)
@@ -296,7 +296,7 @@ ros-z-protocol = { version = "0.1", features = ["rmw-zenoh", "ros2dds"] }
 
 **Using ros-z-protocol directly:**
 
-```rust,ignore
+```rust
 use ros_z_protocol::{KeyExprFormat, entity::*};
 
 let format = KeyExprFormat::default(); // RmwZenoh
@@ -356,7 +356,7 @@ Type hashes must match between ros-z and rmw_zenoh_cpp. If they don't, you may h
 
 **Check format:** Ensure ros-z uses `KeyExprFormat::Ros2Dds`:
 
-```rust,ignore
+```rust
 let ctx = ZContextBuilder::default()
     .keyexpr_format(KeyExprFormat::Ros2Dds)
     .build()?;

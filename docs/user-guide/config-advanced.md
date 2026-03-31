@@ -45,7 +45,7 @@ ROS_Z_CONFIG_OUTPUT_DIR=$PWD/config cargo build -p ros-z --features generate-con
 
 ### Using Generated Files
 
-```rust,ignore
+```rust
 let ctx = ZContextBuilder::default()
     .with_config_file("./config/DEFAULT_ROSZ_SESSION_CONFIG.json5")
     .build()?;

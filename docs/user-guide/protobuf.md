@@ -41,7 +41,7 @@ prost-build = "0.13"
 
 For custom `.proto` files, add a `build.rs`:
 
-```rust,ignore
+```rust
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut config = prost_build::Config::new();
     // Enable serde support for ros-z compatibility
@@ -56,7 +56,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 Use auto-generated ROS message types with protobuf serialization:
 
-```rust,ignore
+```rust
 use ros_z::msg::ProtobufSerdes;
 use ros_z_msgs::proto::geometry_msgs::Vector3 as Vector3Proto;
 
@@ -111,7 +111,7 @@ Configure `build.rs` as shown above. The build script generates Rust structs at 
 
 ### Step 3: Include Generated Code
 
-```rust,ignore
+```rust
 pub mod sensor_data {
     include!(concat!(env!("OUT_DIR"), "/examples.rs"));
 }
@@ -121,7 +121,7 @@ use sensor_data::SensorData;
 
 ### Step 4: Implement Required Traits
 
-```rust,ignore
+```rust
 use ros_z::{MessageTypeInfo, WithTypeInfo, entity::TypeHash};
 
 impl MessageTypeInfo for SensorData {
@@ -143,7 +143,7 @@ impl WithTypeInfo for SensorData {}
 
 ### Step 5: Use in ros-z
 
-```rust,ignore
+```rust
 let pub = node
     .create_pub::<SensorData>("/sensor_data")
     .with_serdes::<ProtobufSerdes<SensorData>>()
@@ -163,7 +163,7 @@ pub.publish(&msg)?;
 
 The `protobuf_demo` example demonstrates both approaches:
 
-```rust,ignore
+```rust
 use clap::Parser;
 use protobuf_demo::{run_pubsub_demo, run_service_client, run_service_server};
 use ros_z::{Builder, Result, context::ZContextBuilder};
@@ -285,7 +285,7 @@ fn main() -> Result<()> {
 
 Receive protobuf-encoded messages:
 
-```rust,ignore
+```rust
 use ros_z::msg::ProtobufSerdes;
 
 let sub = node
@@ -308,7 +308,7 @@ Both request and response use protobuf encoding:
 
 ### Server
 
-```rust,ignore
+```rust
 let service = node
     .create_service::<MyService>("/my_service")
     .with_serdes::<ProtobufSerdes<MyServiceRequest>, ProtobufSerdes<MyServiceResponse>>()
@@ -323,7 +323,7 @@ loop {
 
 ### Client
 
-```rust,ignore
+```rust
 let client = node
     .create_client::<MyService>("/my_service")
     .with_serdes::<ProtobufSerdes<MyServiceRequest>, ProtobufSerdes<MyServiceResponse>>()
@@ -337,7 +337,7 @@ let response = client.take_response()?;
 
 When ros-z-msgs is built with `protobuf` feature, it generates protobuf versions of ROS messages:
 
-```rust,ignore
+```rust
 // Import from proto namespace
 use ros_z_msgs::proto::std_msgs::String as StringProto;
 use ros_z_msgs::proto::geometry_msgs::{Point, Pose, Twist};
@@ -357,7 +357,7 @@ use ros_z_msgs::proto::sensor_msgs::{LaserScan, Image};
 
 Auto-generated messages from ros-z-msgs include `MessageTypeInfo`:
 
-```rust,ignore
+```rust
 // No manual implementation needed
 use ros_z_msgs::proto::geometry_msgs::Vector3;
 // Vector3 already implements MessageTypeInfo
@@ -367,7 +367,7 @@ use ros_z_msgs::proto::geometry_msgs::Vector3;
 
 Manual implementation required:
 
-```rust,ignore
+```rust
 impl MessageTypeInfo for MyProtoMessage {
     fn type_name() -> &'static str {
         // Follow ROS naming convention
@@ -408,7 +408,7 @@ impl WithTypeInfo for MyProtoMessage {}
 
 Different topics can use different formats:
 
-```rust,ignore
+```rust
 // CDR for ROS 2 compatibility
 let ros_pub = node
     .create_pub::<RosString>("/ros_topic")
@@ -466,7 +466,7 @@ prost-build = "0.13"
 
 ### build.rs
 
-```rust,ignore
+```rust
 use std::io::Result;
 
 fn main() -> Result<()> {
@@ -508,7 +508,7 @@ fn main() -> Result<()> {
     Custom protobuf messages need to implement required ros-z traits.
     **Solution:** Implement the required traits for your custom message:
 
-    ```rust,ignore
+    ```rust
     use ros_z::{MessageTypeInfo, WithTypeInfo, entity::TypeHash};
 
     impl MessageTypeInfo for MyMessage {
@@ -550,7 +550,7 @@ fn main() -> Result<()> {
     Publisher and subscriber must use the same serialization format.
     **Solution:** Verify both sides use protobuf serialization:
 
-    ```rust,ignore
+    ```rust
     // Publisher
     let pub_handle = node
         .create_pub::<MyMessage>("/topic")
@@ -571,7 +571,7 @@ fn main() -> Result<()> {
     The build script cannot locate your `.proto` files.
     **Solution:** Verify the path in your `build.rs`:
 
-    ```rust,ignore
+    ```rust
     config.compile_protos(
         &["proto/sensor_data.proto"],  // Check this path
         &["proto/"]                     // Check include directory
@@ -590,7 +590,7 @@ fn main() -> Result<()> {
     The build script generated code but you can't import it.
     **Solution:** Ensure you're including from the correct location:
 
-    ```rust,ignore
+    ```rust
     pub mod sensor_data {
         include!(concat!(env!("OUT_DIR"), "/examples.rs"));
     }

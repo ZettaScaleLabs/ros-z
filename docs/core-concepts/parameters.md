@@ -37,7 +37,7 @@ graph TD
 
 ## Quick Start
 
-```rust,ignore
+```rust
 use ros_z::{Builder, parameter::*};
 
 let node = ctx.create_node("my_node").build()?;
@@ -70,7 +70,7 @@ node.set_parameter(Parameter::new("max_speed", ParameterValue::Double(2.5)))?;
 
 Parameters must be declared before use. A `ParameterDescriptor` specifies the name, expected type, and optional constraints:
 
-```rust,ignore
+```rust
 use ros_z::parameter::*;
 
 // Basic declaration
@@ -96,7 +96,7 @@ Set `desc.dynamic_typing = true` when a parameter should accept later type chang
 
 ## Getting and Setting
 
-```rust,ignore
+```rust
 // Get returns Option<ParameterValue>
 let value = node.get_parameter("timeout"); // Some(Double(5.0))
 let missing = node.get_parameter("nonexistent"); // None
@@ -119,7 +119,7 @@ node.undeclare_parameter("timeout")?;
 
 Register a callback to accept or reject parameter changes before they take effect:
 
-```rust,ignore
+```rust
 fn run(ctx: ZContext) -> Result<()> {
     println!("\n=== Validation Callback Demo ===\n");
 
@@ -188,7 +188,7 @@ Each node with parameters enabled exposes 6 standard services:
 
 Use `ParameterClient` when you want a typed client for another node's parameter services:
 
-```rust,ignore
+```rust
 use std::sync::Arc;
 use ros_z::parameter::{Parameter, ParameterClient, ParameterTarget, ParameterType, ParameterValue};
 
@@ -229,7 +229,7 @@ ros-z supports the standard ROS 2 parameter YAML format:
 
 Load via the builder:
 
-```rust,ignore
+```rust
 let node = ctx.create_node("my_node")
     .with_parameter_file(Path::new("params.yaml"))?
     .build()?;
