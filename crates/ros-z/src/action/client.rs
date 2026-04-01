@@ -383,7 +383,7 @@ impl<A: ZAction> ZActionClient<A> {
     /// Wait until the action server is fully available.
     pub async fn wait_for_server(&self, timeout: std::time::Duration) -> bool {
         self.graph
-            .wait_for_action_server(self.action_name.clone(), timeout)
+            .wait_for_action_server(self.action_name.as_str(), timeout)
             .await
     }
 

@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use ros_z::{Builder, Result, context::ZContextBuilder, define_action};
 use serde::{Deserialize, Serialize};
+use serial_test::serial;
 
 // Define test action messages (similar to Fibonacci)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -148,6 +149,7 @@ mod tests {
         Ok(())
     }
 
+    #[serial]
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_action_client_wait_for_server() -> Result<()> {
         let ctx = ZContextBuilder::default().build()?;

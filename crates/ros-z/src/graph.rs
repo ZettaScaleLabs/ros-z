@@ -1086,43 +1086,12 @@ impl Graph {
         res
     }
 
-    /// Wait for a node to appear in the graph.
-    pub async fn wait_for_node(&self, node_key: NodeKey, timeout: Duration) -> bool {
-        self.wait_until(timeout, move |graph| graph.node_exists(node_key.clone()))
-            .await
-    }
-
-    /// Wait until at least `count` entities of `kind` exist on `topic`.
-    pub async fn wait_for_topic(
-        &self,
-        kind: EntityKind,
-        topic: impl Into<String>,
-        count: usize,
-        timeout: Duration,
-    ) -> bool {
-        let topic = topic.into();
-        self.wait_until(timeout, move |graph| {
-            graph.get_entities_by_topic(kind, &topic).len() >= count
-        })
-        .await
-    }
-
-    /// Wait until at least `count` services are available on `service_name`.
-    pub async fn wait_for_service(
-        &self,
-        service_name: impl Into<String>,
-        count: usize,
-        timeout: Duration,
-    ) -> bool {
-        let service_name = service_name.into();
-        self.wait_until(timeout, move |graph| {
-            graph.count_by_service(EntityKind::Service, &service_name) >= count
-        })
-        .await
-    }
-
     /// Wait for a full ROS 2 action server (services + publishers) to appear.
-    pub async fn wait_for_action_server(
+    ///
+    /// Waits for exactly one server to be ready. Multiple servers sharing the same
+    /// action name is not a standard ROS 2 pattern, so a fixed threshold of 1 is
+    /// intentional here (unlike `wait_for_service` which accepts an explicit `count`).
+    pub(crate) async fn wait_for_action_server(
         &self,
         action_name: impl Into<String>,
         timeout: Duration,
