@@ -76,7 +76,7 @@ let msg = Vector3Proto {
     z: 3.0,
 };
 pub.publish(&msg)?;
-
+```
 
 **Key points:**
 
@@ -377,8 +377,6 @@ fn type_hash() -> TypeHash {
     // Use zero for custom protobuf messages
     TypeHash::zero()
 }
-
-```rust
 }
 
 impl WithTypeInfo for MyProtoMessage {}
@@ -416,7 +414,7 @@ let proto_pub = node
     .create_pub::<ProtoString>("/proto_topic")
     .with_serdes::<ProtobufSerdes<ProtoString>>()
     .build()?;
-
+```
 
 ### Migration Strategy
 
@@ -441,7 +439,7 @@ my_ros_project/
 │   └── main.rs
 ├── build.rs
 └── Cargo.toml
-
+```
 
 ### Cargo.toml
 

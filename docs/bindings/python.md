@@ -240,7 +240,7 @@ class CountToResult(msgspec.Struct):
 class CountToFeedback(msgspec.Struct):
     __msgtype__: ClassVar[str] = "action_demo/msg/CountToFeedback"
     current: int = 0
-
+```
 
 !!! tip
     Types from `ros_z_msgs_py` already have `__msgtype__` and a ROS 2 type hash. Inline

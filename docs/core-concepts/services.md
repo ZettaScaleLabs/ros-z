@@ -216,8 +216,7 @@ loop {
     let (key, req) = service.take_request()?;
     println!("Incoming request\na: {} b: {}", req.a, req.b);
 
-```rust
-// Compute the sum
+    // Compute the sum
 let sum = req.a + req.b;
 
 // Create the response
@@ -239,11 +238,8 @@ if let Some(max) = max_requests
 }
 
 Ok(())
-```
-
-```rust
 }
-
+```
 
 **Key points:**
 
@@ -311,10 +307,8 @@ let resp = if async_mode {
 println!("Received response: {}", resp.sum);
 
 Ok(resp.sum)
-
-```rust
 }
-
+```
 
 **Key points:**
 
@@ -344,13 +338,13 @@ To see services in action, you'll need to start a Zenoh router first:
 
 ```bash
 cargo run --example zenoh_router
-
+```
 
 **Terminal 2 - Start Server:**
 
 ```bash
 cargo run --example demo_nodes_add_two_ints_server
-
+```
 
 **Terminal 3 - Send Client Requests:**
 
@@ -410,7 +404,7 @@ loop {
     let response = async_process_request(&request).await;
     service.send_response(&response, &key)?;
 }
-
+```
 
 ### Why Pull Model?
 
@@ -428,9 +422,8 @@ Service clients send requests to servers and receive responses. `send_request` i
 !!! note
     `send_request` is an `async fn` — it must be called with `.await` in an async context. Calling it without `.await` will not compile.
 
-```rust
-`take_response()` returns **immediately** with `Err` if no response has arrived yet. Use `take_response_timeout(duration)` to wait up to a deadline or `async_take_response().await` in fully async code.
-```
+!!! note
+    `take_response()` returns **immediately** with `Err` if no response has arrived yet. Use `take_response_timeout(duration)` to wait up to a deadline or `async_take_response().await` in fully async code.
 
 ### Pattern 1: Async Client with Timeout
 
@@ -463,7 +456,7 @@ let client = node
 let request = create_request();
 client.send_request(&request).await?;
 let response = client.async_take_response().await?;
-
+```
 
 !!! tip
     `use ros_z::Builder;` must be in scope to call `.build()`. Both patterns require an async runtime such as `tokio`. For logging, call `zenoh::init_log_from_env_or("error")` before building the context.
