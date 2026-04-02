@@ -209,8 +209,9 @@ pub fn wait_for_service_ready(
 
             let rt = tokio::runtime::Runtime::new()?;
             let result = rt.block_on(async {
-                client.send_request(&test_request).await?;
-                client.take_response_timeout(Duration::from_millis(500))
+                client
+                    .call_or_timeout(&test_request, Duration::from_millis(500))
+                    .await
             });
 
             if result.is_ok() {

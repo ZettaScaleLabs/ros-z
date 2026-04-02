@@ -45,6 +45,7 @@ use zenoh::query::Query;
 use zenoh::{Result as ZResult, Session};
 
 use crate::ServiceTypeInfo;
+use crate::attachment::Attachment;
 use crate::entity::{TypeHash, TypeInfo};
 use crate::msg::ZService;
 use crate::service::{ZServer, ZServerBuilder};
@@ -631,7 +632,13 @@ impl TypeDescriptionService {
         // Serialize and send the response
         let bytes = SerdeCdrSerdes::serialize(&response);
         use zenoh::Wait;
-        if let Err(e) = query.reply(query.key_expr().clone(), bytes).wait() {
+        let mut reply = query.reply(query.key_expr().clone(), bytes);
+        if let Some(att_bytes) = query.attachment()
+            && let Ok(att) = Attachment::try_from(att_bytes)
+        {
+            reply = reply.attachment(att);
+        }
+        if let Err(e) = reply.wait() {
             warn!("[TDS] Failed to send response: {}", e);
         }
     }

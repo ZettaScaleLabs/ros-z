@@ -1,19 +1,15 @@
 #![allow(unused)]
 
 use std::{
-    collections::HashMap,
     marker::PhantomData,
-    sync::{Arc, atomic::AtomicUsize},
+    sync::{Arc, Mutex, atomic::AtomicUsize},
     time::Duration,
 };
 
 use serde::Deserialize;
 use tracing::{debug, error, info, trace, warn};
 use zenoh::{
-    Result, Session, Wait, bytes,
-    key_expr::KeyExpr,
-    liveliness::LivelinessToken,
-    query::{Query, Reply},
+    Result, Session, Wait, bytes, key_expr::KeyExpr, liveliness::LivelinessToken, query::Query,
     sample::Sample,
 };
 
@@ -45,13 +41,10 @@ pub struct ZClientBuilder<T> {
 impl_with_type_info!(ZClientBuilder<T>);
 impl_with_type_info!(ZServerBuilder<T>);
 
-/// A ROS 2-style service client that sends typed requests and receives typed responses.
+/// A ROS 2-style reusable service handle for typed request/response calls.
 ///
 /// Create a client via [`ZNode::create_client`](crate::node::ZNode::create_client).
-/// Send a request with [`send_request`](ZClient::send_request) (async), then retrieve
-/// the response with [`take_response`](ZClient::take_response) (non-blocking),
-/// [`take_response_timeout`](ZClient::take_response_timeout) (waits up to a deadline),
-/// or [`async_take_response`](ZClient::async_take_response) (async wait).
+/// Invoke the service with [`call`](ZClient::call) or [`call_or_timeout`](ZClient::call_or_timeout).
 ///
 /// # Example
 ///
@@ -60,8 +53,7 @@ impl_with_type_info!(ZServerBuilder<T>);
 /// use std::time::Duration;
 ///
 /// // client: ZClient<MyService>
-/// client.send_request(&request).await?;
-/// let response = client.take_response_timeout(Duration::from_secs(5))?;
+/// let response = client.call_or_timeout(&request, Duration::from_secs(5)).await?;
 /// ```
 pub struct ZClient<T: ZService> {
     // TODO: replace this with the sample sn
@@ -70,10 +62,12 @@ pub struct ZClient<T: ZService> {
     gid: GidArray,
     inner: zenoh::query::Querier<'static>,
     lv_token: LivelinessToken,
-    tx: flume::Sender<Sample>,
-    pub(crate) rx: flume::Receiver<Sample>,
     topic: String,
     clock: crate::time::ZClock,
+    #[cfg(feature = "rmw")]
+    completed_tx: flume::Sender<Sample>,
+    #[cfg(feature = "rmw")]
+    completed_rx: flume::Receiver<Sample>,
     _phantom_data: PhantomData<T>,
 }
 
@@ -125,12 +119,14 @@ where
             .liveliness()
             .declare_token((*lv_ke).clone())
             .wait()?;
-        // Use bounded channel based on QoS depth
-        let depth = match self.entity.qos.history {
-            ros_z_protocol::qos::QosHistory::KeepLast(n) => n,
-            ros_z_protocol::qos::QosHistory::KeepAll => 1000, // Default reasonable limit for KeepAll
+        #[cfg(feature = "rmw")]
+        let (completed_tx, completed_rx) = {
+            let depth = match self.entity.qos.history {
+                ros_z_protocol::qos::QosHistory::KeepLast(n) => n,
+                ros_z_protocol::qos::QosHistory::KeepAll => 1000,
+            };
+            flume::bounded(depth)
         };
-        let (tx, rx) = flume::bounded(depth);
         debug!("[CLN] Client ready: service={}", self.entity.topic);
 
         Ok(ZClient {
@@ -138,10 +134,12 @@ where
             inner,
             lv_token,
             gid: crate::entity::endpoint_gid(&self.entity),
-            tx,
-            rx,
             topic: self.entity.topic.clone(),
             clock: self.clock,
+            #[cfg(feature = "rmw")]
+            completed_tx,
+            #[cfg(feature = "rmw")]
+            completed_rx,
             _phantom_data: Default::default(),
         })
     }
@@ -159,69 +157,73 @@ where
         )
     }
 
-    /// Access the raw response receiver channel.
-    pub fn rx(&self) -> &flume::Receiver<Sample> {
-        &self.rx
+    async fn call_sample(&self, payload: impl Into<bytes::ZBytes>) -> Result<Sample> {
+        let attachment = self.new_attachment();
+        let (response_tx, response_rx) = tokio::sync::oneshot::channel();
+        let response_tx = Arc::new(Mutex::new(Some(response_tx)));
+
+        self.inner
+            .get()
+            .payload(payload)
+            .attachment(attachment)
+            .callback(move |reply| match reply.into_result() {
+                Ok(sample) => {
+                    let sender = response_tx
+                        .lock()
+                        .expect("service reply sender mutex poisoned")
+                        .take();
+                    match sender {
+                        Some(sender) => {
+                            if sender.send(sample).is_err() {
+                                tracing::warn!(
+                                    "Service call receiver dropped before reply delivery"
+                                );
+                            }
+                        }
+                        None => {
+                            tracing::warn!("Service call received extra reply after completion");
+                        }
+                    }
+                }
+                Err(error) => {
+                    tracing::debug!("Service reply error: {error:?}");
+                }
+            })
+            .await?;
+
+        let sample = response_rx.await.map_err(|_| {
+            zenoh::Error::from("Service call ended before any response was received")
+        })?;
+
+        Ok(sample)
     }
 
-    pub fn take_sample(&self) -> Result<Sample> {
-        match self.rx.try_recv() {
-            Ok(sample) => Ok(sample),
-            Err(flume::TryRecvError::Empty) => Err("No sample available".into()),
-            Err(flume::TryRecvError::Disconnected) => Err("Channel disconnected".into()),
-        }
-    }
-
-    pub fn take_sample_timeout(&self, timeout: Duration) -> Result<Sample> {
-        Ok(self.rx.recv_timeout(timeout)?)
-    }
-
-    /// Retrieve the next response without blocking.
-    ///
-    /// Returns `Err` immediately if no response has arrived yet. Use
-    /// [`take_response_timeout`](ZClient::take_response_timeout) to wait up to a
-    /// deadline, or [`async_take_response`](ZClient::async_take_response) to await
-    /// indefinitely in an async context.
-    // For ROS-Z
-    pub fn take_response(&self) -> Result<T::Response>
+    /// Call the service and wait indefinitely for the first reply.
+    pub async fn call(&self, msg: &T::Request) -> Result<T::Response>
     where
+        T::Request: ZMessage,
         T::Response: ZMessage,
         for<'a> <T::Response as ZMessage>::Serdes:
             ZDeserializer<Output = T::Response, Input<'a> = &'a [u8]>,
     {
-        let sample = self.take_sample()?;
-        let msg = <T::Response as ZMessage>::deserialize(&sample.payload().to_bytes())
-            .map_err(|e| zenoh::Error::from(e.to_string()))?;
-        Ok(msg)
-    }
-
-    /// Wait for the next response, up to `timeout`. Returns `Err` if no response
-    /// arrives within the deadline.
-    pub fn take_response_timeout(&self, timeout: Duration) -> Result<T::Response>
-    where
-        T::Response: ZMessage,
-        for<'a> <T::Response as ZMessage>::Serdes:
-            ZDeserializer<Output = T::Response, Input<'a> = &'a [u8]>,
-    {
-        let sample = self.take_sample_timeout(timeout)?;
+        let sample = self.call_sample(msg.serialize()).await?;
         let payload_bytes = sample.payload().to_bytes();
         let msg = <T::Response as ZMessage>::deserialize(&payload_bytes[..])
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
         Ok(msg)
     }
-    /// Asynchronously wait for the next response. Awaits indefinitely until a
-    /// response arrives or the channel is disconnected.
-    pub async fn async_take_response(&self) -> Result<T::Response>
+
+    /// Call the service and fail if no reply arrives before `timeout` elapses.
+    pub async fn call_or_timeout(&self, msg: &T::Request, timeout: Duration) -> Result<T::Response>
     where
+        T::Request: ZMessage,
         T::Response: ZMessage,
         for<'a> <T::Response as ZMessage>::Serdes:
             ZDeserializer<Output = T::Response, Input<'a> = &'a [u8]>,
     {
-        let sample = self.rx.recv_async().await?;
-        let payload_bytes = sample.payload().to_bytes();
-        let msg = <T::Response as ZMessage>::deserialize(&payload_bytes[..])
-            .map_err(|e| zenoh::Error::from(e.to_string()))?;
-        Ok(msg)
+        tokio::time::timeout(timeout, self.call(msg))
+            .await
+            .map_err(|_| zenoh::Error::from(format!("Service call timed out after {timeout:?}")))?
     }
 }
 
@@ -229,66 +231,17 @@ impl<T> ZClient<T>
 where
     T: ZService,
 {
-    /// Send a typed request to the service server.
-    ///
-    /// This is an `async fn` — it must be `.await`ed. The call resolves once the
-    /// Zenoh query is dispatched; it does **not** wait for a response. Retrieve the
-    /// response separately with [`take_response`](ZClient::take_response),
-    /// [`take_response_timeout`](ZClient::take_response_timeout), or
-    /// [`async_take_response`](ZClient::async_take_response).
-    ///
-    /// Succeeds even when no server is running (fire-and-forget dispatch).
-    #[tracing::instrument(name = "send_request", skip(self, msg), fields(
+    #[cfg(feature = "rmw")]
+    #[tracing::instrument(name = "rmw_send_request", skip(self, msg, notify), fields(
         service = %self.topic,
         sn = self.sn.load(Ordering::Acquire),
         payload_len = tracing::field::Empty
     ))]
-    pub async fn send_request(&self, msg: &T::Request) -> Result<()> {
-        let payload = msg.serialize();
-        tracing::Span::current().record("payload_len", payload.len());
-
-        // Log the key expression being queried
-        let query_ke = self.inner.key_expr();
-        info!("[CLN] Sending request to key expression: {}", query_ke);
-        debug!("[CLN] Sending request");
-
-        let tx = self.tx.clone();
-        self.inner
-            .get()
-            .payload(payload)
-            .attachment(self.new_attachment())
-            .callback(move |reply| {
-                match reply.into_result() {
-                    Ok(sample) => {
-                        info!(
-                            "[CLN] Reply received: len={}, kind={:?}",
-                            sample.payload().len(),
-                            sample.kind()
-                        );
-                        debug!("[CLN] Reply received: len={}", sample.payload().len());
-                        // Use try_send for bounded channel - if full, drop the response (QoS depth enforcement)
-                        if tx.try_send(sample).is_err() {
-                            tracing::warn!(
-                                "Client response queue full, dropping response (QoS depth enforced)"
-                            );
-                        }
-                    }
-                    Err(e) => {
-                        warn!("[CLN] Reply error: {:?}", e);
-                    }
-                }
-            })
-            .await?;
-
-        Ok(())
-    }
-
-    #[cfg(feature = "rmw")]
     pub fn rmw_send_request<F>(&self, msg: &T::Request, notify: F) -> Result<i64>
     where
         F: Fn() + Send + Sync + 'static,
     {
-        let tx = self.tx.clone();
+        let completed_tx = self.completed_tx.clone();
         let attachment = self.new_attachment();
         let sn = attachment.sequence_number;
         self.inner
@@ -298,8 +251,7 @@ where
             .callback(move |reply| {
                 match reply.into_result() {
                     Ok(sample) => {
-                        // Use try_send for bounded channel - if full, drop the response (QoS depth enforcement)
-                        if tx.try_send(sample).is_err() {
+                        if completed_tx.try_send(sample).is_err() {
                             tracing::warn!(
                                 "Client response queue full, dropping response (QoS depth enforced)"
                             );
@@ -315,6 +267,22 @@ where
             })
             .wait()?;
         Ok(sn)
+    }
+
+    #[cfg(feature = "rmw")]
+    pub fn rmw_try_take_response_sample(&self) -> Result<Option<Sample>> {
+        match self.completed_rx.try_recv() {
+            Ok(sample) => Ok(Some(sample)),
+            Err(flume::TryRecvError::Empty) => Ok(None),
+            Err(flume::TryRecvError::Disconnected) => {
+                Err(zenoh::Error::from("Client response channel disconnected"))
+            }
+        }
+    }
+
+    #[cfg(feature = "rmw")]
+    pub fn rmw_has_responses(&self) -> bool {
+        !self.completed_rx.is_empty()
     }
 }
 
@@ -354,17 +322,11 @@ impl<T> ZServerBuilder<T> {
 }
 
 pub struct ZServer<T: ZService, Q = Query> {
-    // NOTE: This is biased toward RMW
     key_expr: KeyExpr<'static>,
-    // TODO: replace this with the sample sn
-    sn: AtomicUsize,
-    // TODO: replace this with zenoh's global entity id
-    gid: GidArray,
     inner: zenoh::query::Queryable<()>,
     lv_token: LivelinessToken,
     clock: crate::time::ZClock,
     pub(crate) queue: Option<Arc<BoundedQueue<Q>>>,
-    pub(crate) map: HashMap<QueryKey, Query>,
     _phantom_data: PhantomData<T>,
 }
 
@@ -395,16 +357,6 @@ where
     /// Access the receiver queue if present (returns `None` in callback mode).
     pub fn try_queue(&self) -> Option<&Arc<BoundedQueue<Q>>> {
         self.queue.as_ref()
-    }
-
-    /// Number of pending queries stored in the response map.
-    pub fn map_len(&self) -> usize {
-        self.map.len()
-    }
-
-    /// Insert a query into the response map, returning any previously stored query for that key.
-    pub fn map_insert(&mut self, key: QueryKey, query: Query) -> Option<Query> {
-        self.map.insert(key, query)
     }
 }
 
@@ -472,13 +424,10 @@ where
 
         Ok(ZServer {
             key_expr,
-            sn: AtomicUsize::new(1), // Start at 1 for ROS compatibility
             inner,
             lv_token,
             clock: self.clock,
-            gid: crate::entity::endpoint_gid(&self.entity),
             queue,
-            map: HashMap::new(),
             _phantom_data: Default::default(),
         })
     }
@@ -527,17 +476,86 @@ where
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub struct QueryKey {
-    pub sn: i64,
-    pub gid: GidArray,
+pub struct RequestId {
+    pub sequence_number: i64,
+    pub writer_guid: GidArray,
 }
 
-impl From<Attachment> for QueryKey {
+impl From<Attachment> for RequestId {
     fn from(value: Attachment) -> Self {
         Self {
-            sn: value.sequence_number,
-            gid: value.source_gid,
+            sequence_number: value.sequence_number,
+            writer_guid: value.source_gid,
         }
+    }
+}
+
+pub struct ServiceReply<T: ZService> {
+    request_id: RequestId,
+    key_expr: KeyExpr<'static>,
+    query: Query,
+    clock: crate::time::ZClock,
+    _phantom_data: PhantomData<T>,
+}
+
+impl<T: ZService> ServiceReply<T> {
+    pub fn id(&self) -> &RequestId {
+        &self.request_id
+    }
+
+    pub fn reply_blocking(self, msg: &T::Response) -> Result<()> {
+        let attachment = Attachment::with_clock(
+            self.request_id.sequence_number,
+            self.request_id.writer_guid,
+            &self.clock,
+        );
+        self.query
+            .reply(&self.key_expr, msg.serialize())
+            .attachment(attachment)
+            .wait()
+    }
+
+    pub async fn reply(self, msg: &T::Response) -> Result<()> {
+        let attachment = Attachment::with_clock(
+            self.request_id.sequence_number,
+            self.request_id.writer_guid,
+            &self.clock,
+        );
+        self.query
+            .reply(&self.key_expr, msg.serialize())
+            .attachment(attachment)
+            .await
+    }
+}
+
+pub struct ServiceRequest<T: ZService> {
+    message: T::Request,
+    reply: ServiceReply<T>,
+}
+
+impl<T: ZService> ServiceRequest<T> {
+    pub fn id(&self) -> &RequestId {
+        self.reply.id()
+    }
+
+    pub fn message(&self) -> &T::Request {
+        &self.message
+    }
+
+    pub fn into_message(self) -> T::Request {
+        self.message
+    }
+
+    pub fn into_parts(self) -> (T::Request, ServiceReply<T>) {
+        (self.message, self.reply)
+    }
+
+    pub fn reply_blocking(self, response: &T::Response) -> Result<()> {
+        self.reply.reply_blocking(response)
+    }
+
+    pub async fn reply(self, response: &T::Response) -> Result<()> {
+        self.reply.reply(response).await
     }
 }
 
@@ -545,24 +563,59 @@ impl<T> ZServer<T, Query>
 where
     T: ZService,
 {
-    fn new_attachment(&self) -> Attachment {
-        Attachment::with_clock(
-            self.sn.fetch_add(1, Ordering::AcqRel) as _,
-            self.gid,
-            &self.clock,
-        )
-    }
-
-    /// Retrieve the next query on the service without deserializing the payload.
-    ///
-    /// This method is useful when custom deserialization logic is needed.
-    pub fn take_query(&self) -> Result<Query> {
+    fn take_query(&self) -> Result<Query> {
         let queue = self.queue.as_ref().ok_or_else(|| {
             zenoh::Error::from("Server was built with callback, no queue available")
         })?;
         queue
             .try_recv()
             .ok_or_else(|| zenoh::Error::from("No query available"))
+    }
+
+    fn decode_request(&self, query: Query) -> Result<ServiceRequest<T>>
+    where
+        T::Request: ZMessage + Send + Sync + 'static,
+        for<'a> <T::Request as ZMessage>::Serdes:
+            ZDeserializer<Output = T::Request, Input<'a> = &'a [u8]>,
+    {
+        let attachment_bytes = query
+            .attachment()
+            .ok_or_else(|| zenoh::Error::from("Service request missing attachment"))?;
+        let attachment: Attachment = attachment_bytes.try_into()?;
+        let request_id: RequestId = attachment.into();
+
+        let payload_bytes = query
+            .payload()
+            .map(|payload| payload.to_bytes())
+            .unwrap_or_default();
+        let message = <T::Request as ZMessage>::deserialize(&payload_bytes[..])
+            .map_err(|e| zenoh::Error::from(e.to_string()))?;
+
+        Ok(ServiceRequest {
+            message,
+            reply: ServiceReply {
+                request_id,
+                key_expr: self.key_expr.clone(),
+                query,
+                clock: self.clock.clone(),
+                _phantom_data: PhantomData,
+            },
+        })
+    }
+
+    pub fn try_take_request(&mut self) -> Result<Option<ServiceRequest<T>>>
+    where
+        T::Request: ZMessage + Send + Sync + 'static,
+        for<'a> <T::Request as ZMessage>::Serdes:
+            ZDeserializer<Output = T::Request, Input<'a> = &'a [u8]>,
+    {
+        let queue = self.queue.as_ref().ok_or_else(|| {
+            zenoh::Error::from("Server was built with callback, no queue available")
+        })?;
+        match queue.try_recv() {
+            Some(query) => self.decode_request(query).map(Some),
+            None => Ok(None),
+        }
     }
 
     /// Blocks waiting to receive the next request on the service and then deserializes the payload.
@@ -573,7 +626,7 @@ where
         sn = tracing::field::Empty,
         payload_len = tracing::field::Empty
     ))]
-    pub fn take_request(&mut self) -> Result<(QueryKey, T::Request)>
+    pub fn take_request(&mut self) -> Result<ServiceRequest<T>>
     where
         T::Request: ZMessage + Send + Sync + 'static,
         for<'a> <T::Request as ZMessage>::Serdes:
@@ -585,32 +638,13 @@ where
             zenoh::Error::from("Server was built with callback, no queue available")
         })?;
         let query = queue.recv();
-        let attachment: Attachment = query.attachment().unwrap().try_into()?;
-        let key: QueryKey = attachment.into();
-
-        tracing::Span::current().record("sn", key.sn);
-
-        let payload_bytes = query.payload().unwrap().to_bytes();
-        tracing::Span::current().record("payload_len", payload_bytes.len());
-
-        if self.map.contains_key(&key) {
-            warn!("[SRV] Duplicate request: sn={}", key.sn);
-            return Err("Existing query detected".into());
-        }
-
-        debug!("[SRV] Processing request");
-
-        let msg = <T::Request as ZMessage>::deserialize(&payload_bytes[..])
-            .map_err(|e| zenoh::Error::from(e.to_string()))?;
-        self.map.insert(key.clone(), query);
-
-        Ok((key, msg))
+        self.decode_request(query)
     }
 
     /// Awaits the next request on the service and then deserializes the payload.
     ///
     /// This method may fail if the message does not deserialize as the requested type.
-    pub async fn async_take_request(&mut self) -> Result<(QueryKey, T::Request)>
+    pub async fn async_take_request(&mut self) -> Result<ServiceRequest<T>>
     where
         T::Request: ZMessage + Send + Sync + 'static,
         for<'a> <T::Request as ZMessage>::Serdes:
@@ -620,70 +654,7 @@ where
             zenoh::Error::from("Server was built with callback, no queue available")
         })?;
         let query = queue.recv_async().await;
-        let attachment: Attachment = query.attachment().unwrap().try_into()?;
-        let key: QueryKey = attachment.into();
-        if self.map.contains_key(&key) {
-            return Err("Existing query detected".into());
-        }
-        let payload_bytes = query.payload().unwrap().to_bytes();
-        let msg = <T::Request as ZMessage>::deserialize(&payload_bytes[..])
-            .map_err(|e| zenoh::Error::from(e.to_string()))?;
-        self.map.insert(key.clone(), query);
-
-        Ok((key, msg))
-    }
-
-    /// Blocks sending the response to a service request.
-    ///
-    /// - `msg` is the response message to send.
-    /// - `key` is the query key of the request to reply to and is obtained from [take_request](Self::take_request) or [async_take_request](Self::async_take_request)
-    #[tracing::instrument(name = "send_response", skip(self, msg), fields(
-        service = %self.key_expr,
-        sn = %key.sn,
-        payload_len = tracing::field::Empty
-    ))]
-    pub fn send_response(&mut self, msg: &T::Response, key: &QueryKey) -> Result<()> {
-        debug!(
-            "[SRV] Looking for query with key sn:{}, gid:{:?}",
-            key.sn, key.gid
-        );
-        match self.map.remove(key) {
-            Some(query) => {
-                let payload = msg.serialize();
-                tracing::Span::current().record("payload_len", payload.len());
-
-                debug!("[SRV] Sending response");
-
-                // Use the sequence number and GID from the request
-                let attachment = Attachment::with_clock(key.sn, key.gid, &self.clock);
-                query
-                    .reply(&self.key_expr, payload)
-                    .attachment(attachment)
-                    .wait()
-            }
-            None => {
-                error!("[SRV] No query found for sn={}", key.sn);
-                Err("Query map doesn't contain key".into())
-            }
-        }
-    }
-
-    /// Awaits sending the response to a service request.
-    ///
-    /// - `msg` is the response message to send.
-    /// - `key` is the query key of the request to reply to and is obtained from [take_request](Self::take_request) or [async_take_request](Self::async_take_request)
-    pub async fn async_send_response(&mut self, msg: &T::Response, key: &QueryKey) -> Result<()> {
-        match self.map.remove(key) {
-            Some(query) => {
-                // Use the sequence number and GID from the request
-                let attachment = Attachment::with_clock(key.sn, key.gid, &self.clock);
-                query
-                    .reply(&self.key_expr, msg.serialize())
-                    .attachment(attachment)
-                    .await
-            }
-            None => Err("Quey map doesn't contains {key}".into()),
-        }
+        self.decode_request(query)
     }
 }
 
@@ -752,14 +723,14 @@ mod tests {
     }
 
     #[test]
-    fn test_query_key_clone_and_eq() {
-        let key = crate::service::QueryKey {
-            gid: [1u8; 16],
-            sn: 42,
+    fn test_request_id_clone_and_eq() {
+        let key = crate::service::RequestId {
+            writer_guid: [1u8; 16],
+            sequence_number: 42,
         };
         let key2 = key.clone();
-        assert_eq!(key.sn, key2.sn);
-        assert_eq!(key.gid, key2.gid);
+        assert_eq!(key.sequence_number, key2.sequence_number);
+        assert_eq!(key.writer_guid, key2.writer_guid);
     }
 
     #[test]

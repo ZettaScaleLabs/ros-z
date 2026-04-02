@@ -135,12 +135,12 @@ impl ParameterClient {
 
     /// Describe remote parameters by name.
     pub async fn describe(&self, names: &[impl AsRef<str>]) -> Result<Vec<ParameterDescriptor>> {
-        self.describe_client
-            .send_request(&DescribeParametersRequest {
+        let response = self
+            .describe_client
+            .call(&DescribeParametersRequest {
                 names: names.iter().map(|name| name.as_ref().to_string()).collect(),
             })
             .await?;
-        let response = self.describe_client.async_take_response().await?;
         Ok(response
             .descriptors
             .iter()
@@ -150,12 +150,12 @@ impl ParameterClient {
 
     /// Fetch remote parameter values by name.
     pub async fn get(&self, names: &[impl AsRef<str>]) -> Result<Vec<ParameterValue>> {
-        self.get_client
-            .send_request(&GetParametersRequest {
+        let response = self
+            .get_client
+            .call(&GetParametersRequest {
                 names: names.iter().map(|name| name.as_ref().to_string()).collect(),
             })
             .await?;
-        let response = self.get_client.async_take_response().await?;
         Ok(response
             .values
             .iter()
@@ -165,12 +165,12 @@ impl ParameterClient {
 
     /// Fetch remote parameter types by name.
     pub async fn get_types(&self, names: &[impl AsRef<str>]) -> Result<Vec<ParameterType>> {
-        self.get_types_client
-            .send_request(&GetParameterTypesRequest {
+        let response = self
+            .get_types_client
+            .call(&GetParameterTypesRequest {
                 names: names.iter().map(|name| name.as_ref().to_string()).collect(),
             })
             .await?;
-        let response = self.get_types_client.async_take_response().await?;
         Ok(response
             .types
             .into_iter()
@@ -184,8 +184,9 @@ impl ParameterClient {
         prefixes: &[impl AsRef<str>],
         depth: Option<u64>,
     ) -> Result<ParameterList> {
-        self.list_client
-            .send_request(&ListParametersRequest {
+        let response = self
+            .list_client
+            .call(&ListParametersRequest {
                 prefixes: prefixes
                     .iter()
                     .map(|prefix| prefix.as_ref().to_string())
@@ -193,7 +194,6 @@ impl ParameterClient {
                 depth: depth.unwrap_or(DEPTH_RECURSIVE),
             })
             .await?;
-        let response = self.list_client.async_take_response().await?;
         Ok(ParameterList {
             names: response.result.names,
             prefixes: response.result.prefixes,
@@ -202,12 +202,12 @@ impl ParameterClient {
 
     /// Set one or more remote parameters non-atomically.
     pub async fn set(&self, parameters: &[Parameter]) -> Result<Vec<SetParametersResult>> {
-        self.set_client
-            .send_request(&SetParametersRequest {
+        let response = self
+            .set_client
+            .call(&SetParametersRequest {
                 parameters: parameters.iter().map(Parameter::to_wire).collect(),
             })
             .await?;
-        let response = self.set_client.async_take_response().await?;
         Ok(response
             .results
             .into_iter()
@@ -220,12 +220,12 @@ impl ParameterClient {
 
     /// Set remote parameters atomically.
     pub async fn set_atomically(&self, parameters: &[Parameter]) -> Result<SetParametersResult> {
-        self.set_atomically_client
-            .send_request(&SetParametersAtomicallyRequest {
+        let response = self
+            .set_atomically_client
+            .call(&SetParametersAtomicallyRequest {
                 parameters: parameters.iter().map(Parameter::to_wire).collect(),
             })
             .await?;
-        let response = self.set_atomically_client.async_take_response().await?;
         Ok(SetParametersResult {
             successful: response.result.successful,
             reason: response.result.reason,
