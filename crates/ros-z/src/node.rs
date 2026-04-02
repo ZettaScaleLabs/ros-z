@@ -14,7 +14,7 @@ use crate::{
         DynamicMessage, DynamicSerdeCdrSerdes, MessageSchema, TypeDescriptionClient,
         TypeDescriptionService,
     },
-    entity::{EntityKind, *},
+    entity::*,
     graph::Graph,
     msg::{ZMessage, ZService},
     parameter::{
@@ -346,11 +346,11 @@ impl ZNode {
         // to allow error handling in the Result type
         let entity = EndpointEntity {
             id: self.counter.increment(),
-            node: self.entity.clone(),
+            node: Some(self.entity.clone()),
+            kind: EndpointKind::Publisher,
             topic: topic.to_string(),
-            kind: EntityKind::Publisher,
             type_info,
-            ..Default::default()
+            qos: Default::default(),
         };
         ZPubBuilder {
             entity,
@@ -394,11 +394,11 @@ impl ZNode {
         // to allow error handling in the Result type
         let entity = EndpointEntity {
             id: self.counter.increment(),
-            node: self.entity.clone(),
+            node: Some(self.entity.clone()),
+            kind: EndpointKind::Subscription,
             topic: topic.to_string(),
-            kind: EntityKind::Subscription,
             type_info,
-            ..Default::default()
+            qos: Default::default(),
         };
         ZSubBuilder {
             entity,
@@ -475,11 +475,11 @@ impl ZNode {
         // to allow error handling in the Result type
         let entity = EndpointEntity {
             id: self.counter.increment(),
-            node: self.entity.clone(),
+            node: Some(self.entity.clone()),
+            kind: EndpointKind::Service,
             topic: name.to_string(),
-            kind: EntityKind::Service,
             type_info,
-            ..Default::default()
+            qos: Default::default(),
         };
         ZServerBuilder {
             entity,
@@ -515,11 +515,11 @@ impl ZNode {
         // to allow error handling in the Result type
         let entity = EndpointEntity {
             id: self.counter.increment(),
-            node: self.entity.clone(),
+            node: Some(self.entity.clone()),
+            kind: EndpointKind::Client,
             topic: name.to_string(),
-            kind: EntityKind::Client,
             type_info,
-            ..Default::default()
+            qos: Default::default(),
         };
         ZClientBuilder {
             entity,
@@ -553,7 +553,7 @@ impl ZNode {
         use zenoh::qos::CongestionControl;
 
         use crate::{
-            entity::{EndpointEntity, EntityKind},
+            entity::{EndpointEntity, EndpointKind},
             topic_name,
         };
 
@@ -565,9 +565,9 @@ impl ZNode {
 
         let entity = EndpointEntity {
             id: self.counter.increment(),
-            node: self.entity.clone(),
+            node: Some(self.entity.clone()),
+            kind: EndpointKind::Publisher,
             topic: qualified_topic.clone(),
-            kind: EntityKind::Publisher,
             type_info: Some(TypeInfo {
                 name: type_name.to_string(),
                 hash: TypeHash::from_rihs_string(type_hash).unwrap_or(TypeHash::zero()),
@@ -626,7 +626,7 @@ impl ZNode {
         F: Fn(&[u8]) + Send + Sync + 'static,
     {
         use crate::{
-            entity::{EndpointEntity, EntityKind},
+            entity::{EndpointEntity, EndpointKind},
             topic_name,
         };
 
@@ -638,9 +638,9 @@ impl ZNode {
 
         let entity = EndpointEntity {
             id: self.counter.increment(),
-            node: self.entity.clone(),
+            node: Some(self.entity.clone()),
+            kind: EndpointKind::Subscription,
             topic: qualified_topic.clone(),
-            kind: EntityKind::Subscription,
             type_info: Some(TypeInfo {
                 name: type_name.to_string(),
                 hash: TypeHash::from_rihs_string(type_hash).unwrap_or(TypeHash::zero()),
@@ -1062,11 +1062,14 @@ mod tests {
 
     #[test]
     fn test_node_entity_name_namespace() {
-        let entity = NodeEntity {
-            name: "my_node".to_string(),
-            namespace: "/my_ns".to_string(),
-            ..Default::default()
-        };
+        let entity = NodeEntity::new(
+            0,
+            "1234567890abcdef1234567890abcdef".parse().unwrap(),
+            0,
+            "my_node".to_string(),
+            "/my_ns".to_string(),
+            String::new(),
+        );
         assert_eq!(entity.name, "my_node");
         assert_eq!(entity.namespace, "/my_ns");
     }

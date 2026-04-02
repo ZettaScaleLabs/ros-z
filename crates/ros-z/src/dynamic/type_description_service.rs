@@ -466,11 +466,11 @@ impl TypeDescriptionService {
 
         let entity = crate::entity::EndpointEntity {
             id: counter.increment(),
-            node: node_entity,
-            kind: crate::entity::EntityKind::Service,
+            node: Some(node_entity),
+            kind: crate::entity::EndpointKind::Service,
             topic: service_name.to_string(),
             type_info: Some(GetTypeDescription::service_type_info()),
-            ..Default::default()
+            qos: Default::default(),
         };
 
         // Build the service server with callback mode to avoid blocking tasks

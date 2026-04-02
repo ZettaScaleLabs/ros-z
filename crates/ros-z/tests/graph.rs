@@ -15,7 +15,6 @@ use ros_z::{
     entity::{EntityKind, NodeKey},
 };
 use ros_z_msgs::{example_interfaces::srv::AddTwoInts, std_msgs::String as RosString};
-
 /// Helper to create a test context and node
 async fn setup_test_node(
     node_name: &str,
