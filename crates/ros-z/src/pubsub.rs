@@ -199,35 +199,10 @@ impl<T, S> ZPubBuilder<T, S> {
     ///     .build()?;
     /// ```
     pub fn with_dyn_schema(mut self, schema: Arc<crate::dynamic::schema::MessageSchema>) -> Self {
-        use crate::dynamic::MessageSchemaTypeDescription;
-
         // Only compute and set type_info if it hasn't been set already
         // (e.g., from create_dyn_sub_auto which provides the publisher's hash)
         if self.entity.type_info.is_none() {
-            // Compute TypeInfo from schema for proper key expression matching with ROS 2
-            // Convert ROS 2 canonical name to DDS name
-            // "std_msgs/msg/String" → "std_msgs::msg::dds_::String_"
-            let dds_name = schema
-                .type_name
-                .replace("/msg/", "::msg::dds_::")
-                .replace("/srv/", "::srv::dds_::")
-                .replace("/action/", "::action::dds_::")
-                + "_";
-
-            // Convert schema TypeHash to entity TypeHash via RIHS string
-            let type_hash = match schema.compute_type_hash() {
-                Ok(hash) => {
-                    let rihs_string = hash.to_rihs_string();
-                    crate::entity::TypeHash::from_rihs_string(&rihs_string)
-                        .unwrap_or_else(crate::entity::TypeHash::zero)
-                }
-                Err(_) => crate::entity::TypeHash::zero(),
-            };
-
-            self.entity.type_info = Some(crate::entity::TypeInfo {
-                name: dds_name,
-                hash: type_hash,
-            });
+            self.entity.type_info = Some(crate::dynamic::schema_type_info(&schema));
         }
 
         self.dyn_schema = Some(schema);
@@ -661,35 +636,10 @@ where
     ///     .build()?;
     /// ```
     pub fn with_dyn_schema(mut self, schema: Arc<crate::dynamic::schema::MessageSchema>) -> Self {
-        use crate::dynamic::MessageSchemaTypeDescription;
-
         // Only compute and set type_info if it hasn't been set already
         // (e.g., from create_dyn_sub_auto which provides the publisher's hash)
         if self.entity.type_info.is_none() {
-            // Compute TypeInfo from schema for proper key expression matching with ROS 2
-            // Convert ROS 2 canonical name to DDS name
-            // "std_msgs/msg/String" → "std_msgs::msg::dds_::String_"
-            let dds_name = schema
-                .type_name
-                .replace("/msg/", "::msg::dds_::")
-                .replace("/srv/", "::srv::dds_::")
-                .replace("/action/", "::action::dds_::")
-                + "_";
-
-            // Convert schema TypeHash to entity TypeHash via RIHS string
-            let type_hash = match schema.compute_type_hash() {
-                Ok(hash) => {
-                    let rihs_string = hash.to_rihs_string();
-                    crate::entity::TypeHash::from_rihs_string(&rihs_string)
-                        .unwrap_or_else(crate::entity::TypeHash::zero)
-                }
-                Err(_) => crate::entity::TypeHash::zero(),
-            };
-
-            self.entity.type_info = Some(crate::entity::TypeInfo {
-                name: dds_name,
-                hash: type_hash,
-            });
+            self.entity.type_info = Some(crate::dynamic::schema_type_info(&schema));
         }
 
         self.dyn_schema = Some(schema);

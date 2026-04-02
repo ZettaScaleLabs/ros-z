@@ -8,12 +8,10 @@ use std::{
 };
 
 use parking_lot::Mutex;
-use ros_z::{Builder, context::ZContext, graph::Graph, node::ZNode};
+use ros_z::{Builder, context::ZContext, dynamic::DynSubBuilder, graph::Graph, node::ZNode};
 use tokio::sync::broadcast;
 
-use super::{
-    dynamic_subscriber::DynamicTopicSubscriber, events::SystemEvent, metrics::MetricsCollector,
-};
+use super::{events::SystemEvent, metrics::MetricsCollector};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Backend {
@@ -137,12 +135,14 @@ impl CoreEngine {
     /// # Errors
     ///
     /// Returns error if schema discovery fails or subscriber creation fails
-    pub async fn create_dynamic_subscriber(
+    pub async fn create_dynamic_subscriber_builder(
         &self,
         topic: &str,
         discovery_timeout: Duration,
-    ) -> Result<DynamicTopicSubscriber, Box<dyn std::error::Error + Send + Sync>> {
-        DynamicTopicSubscriber::new(&self.node, topic, discovery_timeout).await
+    ) -> Result<DynSubBuilder, Box<dyn std::error::Error + Send + Sync>> {
+        self.node
+            .create_dyn_sub_auto(topic, discovery_timeout)
+            .await
     }
 
     pub async fn start_monitoring(&self) {
