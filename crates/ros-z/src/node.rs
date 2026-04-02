@@ -16,7 +16,7 @@ use crate::{
         schema_type_info,
     },
     entity::*,
-    extended_schema::ExtendedTypeDescriptionService,
+    extended_type_description_service::ExtendedTypeDescriptionService,
     graph::Graph,
     msg::{ZMessage, ZService},
     parameter::{

@@ -62,7 +62,7 @@ pub mod schema;
 pub mod serdes;
 pub mod serialization;
 pub mod type_description;
-pub mod type_description_client;
+pub mod type_description_query;
 pub mod type_description_service;
 pub(crate) mod type_info;
 pub mod value;
@@ -82,7 +82,7 @@ pub use schema::{
 pub use serdes::DynamicSerdeCdrSerdes;
 pub use serialization::SerializationFormat;
 pub use type_description::{MessageSchemaTypeDescription, type_description_msg_to_schema};
-pub use type_description_client::schema_from_type_description_response;
+pub use type_description_query::schema_from_type_description_response;
 pub use type_description_service::{
     GetTypeDescription, GetTypeDescriptionRequest, GetTypeDescriptionResponse, RegisteredSchema,
     TypeDescriptionService, TypeSource, WireField, WireFieldType, WireIndividualTypeDescription,
