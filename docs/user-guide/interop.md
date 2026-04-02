@@ -1,6 +1,6 @@
 # ROS 2 Interoperability
 
-ros-z nodes — whether written in Rust, Python, or Go — speak the same Eclipse Zenoh wire protocol as `rmw_zenoh_cpp`, the official ROS 2 middleware plugin for Zenoh. This means they interoperate transparently: a Go subscriber can receive messages from a ROS 2 C++ talker, a Python publisher can send to a Rust listener, and so on.
+ros-z nodes — whether written in Rust, Python, or Go — speak the same Eclipse Zenoh wire protocol as [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh), the official ROS 2 middleware plugin for Zenoh. This means they interoperate transparently: a Go subscriber can receive messages from a ROS 2 C++ talker, a Python publisher can send to a Rust listener, and so on.
 
 !!! tip "Mixing Humble with Jazzy or Kilted?"
     If you need to bridge a **Humble** (legacy) network and a **Jazzy / Kilted** (modern) network,
@@ -8,7 +8,7 @@ ros-z nodes — whether written in Rust, Python, or Go — speak the same Eclips
 
 ## Prerequisites
 
-- A ROS 2 installation with `rmw_zenoh_cpp` and `demo_nodes_cpp`
+- A ROS 2 installation with [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) and `demo_nodes_cpp`
 - A Zenoh router running on `localhost:7447` (see [Networking](./networking.md))
 
 ## How It Works
@@ -24,13 +24,13 @@ graph LR
 ```
 
 !!! note
-    The Zenoh router can be `rmw_zenohd`, `zenohd`, `cargo run --example zenoh_router`, or Docker.
+    The Zenoh router can be [`rmw_zenohd`](https://github.com/ros2/rmw_zenoh), `zenohd`, `cargo run --example zenoh_router`, or Docker.
     See [Networking](./networking.md) for all options.
 
 **Requirements for successful message exchange:**
 
 - Both sides must use the same message type with matching RIHS01 type hashes
-- ROS 2 nodes must use `rmw_zenoh_cpp` (`export RMW_IMPLEMENTATION=rmw_zenoh_cpp`)
+- ROS 2 nodes must use [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) (`export RMW_IMPLEMENTATION=rmw_zenoh_cpp`)
 
 !!! warning
     If type hashes differ (e.g. mismatched message definitions), nodes silently drop messages.

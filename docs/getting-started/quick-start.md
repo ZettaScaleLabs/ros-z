@@ -34,7 +34,7 @@ cd ros-z
 
 ### Start the Eclipse Zenoh Router
 
-ros-z uses a router-based architecture (matching ROS 2's `rmw_zenoh` — the ROS 2 middleware plugin for Zenoh), so you'll need to start a Zenoh router first. The router acts as a rendezvous point for all nodes: publishers and subscribers discover each other through it instead of via multicast.
+ros-z uses a router-based architecture (matching ROS 2's [`rmw_zenoh`](https://github.com/ros2/rmw_zenoh) — the ROS 2 middleware plugin for Zenoh), so you'll need to start a Zenoh router first. The router acts as a rendezvous point for all nodes: publishers and subscribers discover each other through it instead of via multicast.
 
 **Terminal 1 - Start the Router:**
 
@@ -349,7 +349,7 @@ cargo run --bin listener
 | **Subscriber** | Receives messages from topics | `node.create_sub::<Type>("topic")` |
 
 !!! tip "Why a Zenoh router?"
-    ros-z uses router-based discovery by default, aligning with ROS 2's official Zenoh middleware (`rmw_zenoh_cpp`). This provides:
+    ros-z uses router-based discovery by default, aligning with ROS 2's official Zenoh middleware ([`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh)). This provides:
     - **Better scalability** for large deployments with many nodes
     - **Lower network overhead** compared to multicast discovery
     - **Production-ready** architecture used in real ROS 2 systems
@@ -360,7 +360,7 @@ cargo run --bin listener
     **key expression** — Zenoh's topic addressing scheme. A string like `0/chatter/std_msgs::msg::dds_::String_/RIHS01_<hash>` that identifies where messages flow. ros-z maps ROS 2 topic names to key expressions automatically.
     **CDR** — Common Data Representation, the binary serialization format used by all ROS 2 middleware. ros-z serializes message structs to CDR bytes before publishing.
     **RIHS01** — ROS Interface Hash Scheme 01, a hash of the message definition that ensures publisher and subscriber agree on the exact message fields. If the hash differs, messages are silently dropped.
-    **RMW** — ROS MiddleWare interface, the plugin layer that connects ROS 2 nodes to an underlying transport (DDS, Zenoh, etc.). `rmw_zenoh_cpp` is the RMW that lets standard ROS 2 C++/Python nodes speak Zenoh.
+    **RMW** — ROS MiddleWare interface, the plugin layer that connects ROS 2 nodes to an underlying transport (DDS, Zenoh, etc.). [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) is the RMW that lets standard ROS 2 C++/Python nodes speak Zenoh.
 
 ## What's Happening?
 

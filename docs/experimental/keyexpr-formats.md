@@ -11,12 +11,12 @@ ros-z supports multiple key expression formats for interoperability with differe
 
 | Format | Compatibility | Use Case |
 |--------|--------------|----------|
-| **RmwZenoh** (default) | `rmw_zenoh_cpp` | Standard ROS 2 Zenoh middleware |
+| **RmwZenoh** (default) | [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) | Standard ROS 2 Zenoh middleware |
 | **Ros2Dds** | `zenoh-bridge-ros2dds` | DDS bridge compatibility |
 
 ### RmwZenoh Format (Default)
 
-The RmwZenoh format targets compatibility with ROS 2's official Zenoh middleware implementation (`rmw_zenoh_cpp`).
+The RmwZenoh format targets compatibility with ROS 2's official Zenoh middleware implementation ([`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh)).
 
 **Key Expression Patterns:**
 
@@ -34,7 +34,7 @@ Liveliness:      @ros2_lv/<domain_id>/<entity_kind>/<namespace>/<name>/...
 
 **Use this format when:**
 
-- Using `rmw_zenoh_cpp` as your ROS 2 middleware
+- Using [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) as your ROS 2 middleware
 - Running pure ros-z deployments
 - Requiring domain isolation via Zenoh
 
@@ -118,7 +118,7 @@ Understanding how ros-z converts topic names to key expressions is critical for 
 
 ### Why Two Different Behaviors?
 
-This is **intentional design** in `rmw_zenoh_cpp`, not an inconsistency:
+This is **intentional design** in [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh), not an inconsistency:
 
 - **Topic keys**: Human-readable, hierarchical (optimized for Zenoh routing)
 - **Liveliness**: Machine-parsable, unambiguous (optimized for discovery protocol)
@@ -371,7 +371,7 @@ let ctx = ZContextBuilder::default()
 ✅ **Use RmwZenoh when:**
 
 - Building pure Zenoh-based ROS 2 systems
-- Using `rmw_zenoh_cpp` middleware
+- Using [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) middleware
 - Requiring domain isolation
 - Deploying new systems with native Zenoh support
 - Maximizing Zenoh performance benefits

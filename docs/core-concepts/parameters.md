@@ -452,7 +452,7 @@ This matches the ROS 2 default topic/QoS shape. Tools like `ros2 param` and `rqt
 
 ## ROS 2 Interoperability
 
-ros-z parameter services use the same CDR wire format and RIHS01 type hashes as rclcpp. In an environment where ROS 2 is using `rmw_zenoh_cpp` and both sides connect to the same Eclipse Zenoh router, `ros2 param` commands work against ros-z nodes:
+ros-z parameter services use the same CDR wire format and RIHS01 type hashes as rclcpp. In an environment where ROS 2 is using [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) and both sides connect to the same Eclipse Zenoh router, `ros2 param` commands work against ros-z nodes:
 
 ```bash
 # List parameters on a ros-z node
@@ -469,7 +469,7 @@ ros2 param dump /my_node
 ```
 
 !!! warning
-    CLI interoperability depends on your local ROS 2 environment. Use `rmw_zenoh_cpp` (`export RMW_IMPLEMENTATION=rmw_zenoh_cpp`) and connect both sides to the same Zenoh router.
+    CLI interoperability depends on your local ROS 2 environment. Use [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) (`export RMW_IMPLEMENTATION=rmw_zenoh_cpp`) and connect both sides to the same Zenoh router.
 
 ## Focused Examples
 

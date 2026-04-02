@@ -245,7 +245,7 @@ class CountToFeedback(msgspec.Struct):
 !!! tip
     Types from `ros_z_msgs_py` already have `__msgtype__` and a ROS 2 type hash. Inline
     `msgspec.Struct` types (as above) use a zero hash and are **Python-to-Python only** —
-    they are not compatible with `rmw_zenoh_cpp` typed actions.
+    they are not compatible with [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) typed actions.
 
 ### Action Server
 
@@ -360,7 +360,7 @@ if status.is_terminal():
 
 !!! warning
     Python actions use a byte-wrapping wire format that is **not compatible** with
-    `rmw_zenoh_cpp` typed actions. Use the Rust `ZAction` trait for ROS 2 interop.
+    [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) typed actions. Use the Rust `ZAction` trait for ROS 2 interop.
 
 ## Complex Messages
 

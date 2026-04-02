@@ -133,7 +133,7 @@
         .build()?;
     ```
 
-    **Warning:** Peer mode won't interoperate with ROS 2 nodes using `rmw_zenoh_cpp` in router mode.
+    **Warning:** Peer mode won't interoperate with ROS 2 nodes using [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) in router mode.
 
 ??? question "Multi-segment topics like /robot/sensors/camera don't work"
     **Symptom:** Publisher publishes to `/robot/sensors/camera` but subscriber never receives messages.
@@ -160,7 +160,7 @@
 
     - **Topic key expressions** should use `strip_slashes()`: removes leading/trailing slashes, preserves internal slashes
     - **Liveliness tokens** should use `mangle_name()`: replaces all `/` with `%`
-    - This matches the behavior of `rmw_zenoh_cpp`
+    - This matches the behavior of [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh)
 
     See [Key Expression Formats](../experimental/keyexpr-formats.md#key-expression-behavior-important) for details.
 

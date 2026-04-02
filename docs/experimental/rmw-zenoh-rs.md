@@ -1,6 +1,6 @@
 # rmw_zenoh_rs
 
-`rmw_zenoh_rs` is a Rust-based ROS Middleware (RMW) implementation that enables standard ROS 2 C++/Python nodes to communicate via Eclipse Zenoh. It allows you to use Zenoh as the transport layer for your existing ROS 2 applications without modifying your code. It is **fully interoperable** with `rmw_zenoh_cpp`, allowing seamless communication between nodes using either implementation.
+[`rmw_zenoh_rs`](https://github.com/ros2/rmw_zenoh) is a Rust-based ROS Middleware (RMW) implementation that enables standard ROS 2 C++/Python nodes to communicate via Eclipse Zenoh. It allows you to use Zenoh as the transport layer for your existing ROS 2 applications without modifying your code. It is **fully interoperable** with [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh), allowing seamless communication between nodes using either implementation.
 
 ## What is an RMW?
 
@@ -249,7 +249,7 @@ ros2 run demo_nodes_cpp talker
 
 ## rmw_zenoh_rs vs rmw_zenoh_cpp
 
-Both `rmw_zenoh_rs` and `rmw_zenoh_cpp` are RMW implementations using Zenoh, but with different design goals:
+Both [`rmw_zenoh_rs`](https://github.com/ros2/rmw_zenoh) and [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) are RMW implementations using Zenoh, but with different design goals:
 
 | Feature | rmw_zenoh_rs | rmw_zenoh_cpp |
 |---------|--------------|---------------|

@@ -12,7 +12,7 @@ When publishing large messages (e.g., point clouds, images), copying data multip
 - **Automatic activation**: Configurable threshold-based switching
 - **Accurate buffer sizing**: Auto-generated size estimation prevents waste
 - **High performance**: Sub-millisecond serialization for 1MB messages
-- **Full compatibility**: Works seamlessly with `rmw_zenoh_cpp`
+- **Full compatibility**: Works seamlessly with [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh)
 
 ## How SHM Works in ROS 2
 
@@ -199,7 +199,7 @@ fn main() -> zenoh::Result<()> {
 
 ### Environment Variables
 
-For compatibility with `rmw_zenoh_cpp`, you can enable and configure SHM via environment variables:
+For compatibility with [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh), you can enable and configure SHM via environment variables:
 
 ```bash
 export ZENOH_SHM_ALLOC_SIZE=52428800        # Enable SHM with 50MB pool
@@ -618,7 +618,7 @@ ctx = rz.ZContextBuilder().with_shm_enabled().with_shm_threshold(4096).build()
 
 The same environment variables apply: `ZENOH_SHM_ALLOC_SIZE` and
 `ZENOH_SHM_MESSAGE_SIZE_THRESHOLD` are read automatically inside
-`with_shm_enabled()` and `with_shm_pool_size()`, matching `rmw_zenoh_cpp` behavior.
+`with_shm_enabled()` and `with_shm_pool_size()`, matching [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) behavior.
 
 ## Testing
 
@@ -780,7 +780,7 @@ let policy = BlockOn::<GarbageCollect>;
 
 ### Integration with rmw_zenoh_cpp
 
-ros-z's SHM implementation is fully compatible with `rmw_zenoh_cpp`. C++/Python nodes using `rmw_zenoh_cpp` can receive zero-copy the messages ros-z publishes via SHM, and vice versa.
+ros-z's SHM implementation is fully compatible with [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh). C++/Python nodes using [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) can receive zero-copy the messages ros-z publishes via SHM, and vice versa.
 
 ```bash
 # ros-z publisher (Rust)

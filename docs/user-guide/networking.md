@@ -1,6 +1,6 @@
 # Networking
 
-**Configure ros-z's Eclipse Zenoh transport layer for optimal performance in your deployment environment.** ros-z uses router-based architecture by default, matching ROS 2's official `rmw_zenoh_cpp` middleware for production-ready scalability.
+**Configure ros-z's Eclipse Zenoh transport layer for optimal performance in your deployment environment.** ros-z uses router-based architecture by default, matching ROS 2's official [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) middleware for production-ready scalability.
 
 ```mermaid
 graph TB
@@ -33,7 +33,7 @@ Standard DDS multicast discovery has known limitations:
 - Discovery traffic grows quadratically with node count in large systems
 - Configuration (tuning QoS, domain separation) is complex
 
-ros-z and `rmw_zenoh_cpp` use **router-based discovery** instead. All nodes connect to a `zenohd` router via TCP. The router acts as the rendezvous point — nodes announce themselves to the router, which propagates the information to interested peers. This works across subnets, containers, and cloud environments without multicast, and scales linearly: adding more nodes does not increase per-node discovery traffic.
+ros-z and [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) use **router-based discovery** instead. All nodes connect to a `zenohd` router via TCP. The router acts as the rendezvous point — nodes announce themselves to the router, which propagates the information to interested peers. This works across subnets, containers, and cloud environments without multicast, and scales linearly: adding more nodes does not increase per-node discovery traffic.
 
 ```mermaid
 sequenceDiagram
@@ -61,7 +61,7 @@ ros-z uses a centralized Zenoh router for node discovery and communication, prov
 |---------|-------------|
 | **Scalability** | Centralized discovery handles large deployments efficiently |
 | **Lower Network Overhead** | TCP-based discovery instead of multicast broadcasts |
-| **ROS 2 Compatibility** | Matches `rmw_zenoh_cpp` behavior for seamless interoperability |
+| **ROS 2 Compatibility** | Matches [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) behavior for seamless interoperability |
 | **Production Ready** | Battle-tested configuration used in real robotics systems |
 
 ## Quick Start

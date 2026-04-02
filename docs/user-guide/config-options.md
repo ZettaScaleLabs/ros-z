@@ -34,7 +34,7 @@ let ctx = ZContextBuilder::default()
 
 ## Option 3: Config File via Environment Variable
 
-Point to a JSON5 config file without changing code, using the same variable as `rmw_zenoh_cpp`:
+Point to a JSON5 config file without changing code, using the same variable as [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh):
 
 ```bash
 export ZENOH_SESSION_CONFIG_URI=/path/to/session_config.json5
@@ -47,7 +47,7 @@ let ctx = ZContextBuilder::default().build()?;
 
 ## Option 4: Environment Variable Overrides
 
-Override individual Zenoh configuration settings using the `ZENOH_CONFIG_OVERRIDE` environment variable, using the same variable as `rmw_zenoh_cpp`:
+Override individual Zenoh configuration settings using the `ZENOH_CONFIG_OVERRIDE` environment variable, using the same variable as [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh):
 
 ```bash
 # Override mode and endpoint
@@ -127,7 +127,7 @@ let ctx = ZContextBuilder::default()
 ```
 
 !!! warning
-    Multicast scouting discovery is convenient for quick testing but doesn't scale well and won't work with ROS 2 nodes using `rmw_zenoh_cpp` (which expects a zenoh router).
+    Multicast scouting discovery is convenient for quick testing but doesn't scale well and won't work with ROS 2 nodes using [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) (which expects a zenoh router).
 
 ## Option 7: Load from Config File (Programmatic)
 

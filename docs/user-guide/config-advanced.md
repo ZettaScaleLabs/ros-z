@@ -2,7 +2,7 @@
 
 ## Generating Config Files
 
-ros-z can generate JSON5 config files matching `rmw_zenoh_cpp` defaults. This is opt-in via the `generate-configs` feature flag.
+ros-z can generate JSON5 config files matching [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) defaults. This is opt-in via the `generate-configs` feature flag.
 
 ### Basic Generation
 
@@ -67,7 +67,7 @@ let ctx = ZContextBuilder::default()
 | **Keep-Alive** | 2s | 2s | Optimized for loopback |
 
 !!! note
-    These defaults target ROS 2 deployments and match `rmw_zenoh_cpp` exactly. Only modify them if you have specific performance requirements.
+    These defaults target ROS 2 deployments and match [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) exactly. Only modify them if you have specific performance requirements.
 
 ## Example: Full Session Config
 

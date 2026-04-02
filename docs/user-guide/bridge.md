@@ -221,7 +221,7 @@ The message type is not in the bridge's hash registry. See [Custom Messages](#cu
 
 Verify the message definition is identical on both sides. Humble and Jazzy/Kilted ship the
 same built-in message definitions, but third-party packages may differ. Check that both
-`rmw_zenoh_cpp` versions agree on the CDR layout.
+[`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) versions agree on the CDR layout.
 
 ### Service calls time out
 

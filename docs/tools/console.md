@@ -12,7 +12,7 @@ and a headless JSON streaming mode.
 ## Network Topology
 
 ros-z-console connects to the ROS 2 graph via a Zenoh router. All ROS 2 nodes
-using `rmw_zenoh_cpp` communicate through the same router, enabling
+using [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) communicate through the same router, enabling
 ros-z-console to observe the entire system.
 
 ```mermaid
@@ -44,7 +44,7 @@ ros2 run rmw_zenoh_cpp rmw_zenohd
 ```
 
 !!! note
-    `rmw_zenohd` is the Zenoh router that ships with the `rmw_zenoh_cpp` package — it is functionally equivalent to running the standalone `zenohd` binary. Both listen on `tcp/127.0.0.1:7447` by default.
+    [`rmw_zenohd`](https://github.com/ros2/rmw_zenoh) is the Zenoh router that ships with the [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) package — it is functionally equivalent to running the standalone `zenohd` binary. Both listen on `tcp/127.0.0.1:7447` by default.
 
 **Terminal 2 - Start the talker:**
 
@@ -130,7 +130,7 @@ ros-z-console supports two discovery backends:
 
 | Backend | Use when... |
 |---------|-------------|
-| `rmw-zenoh` (default) | Nodes use `rmw_zenoh_cpp` directly |
+| `rmw-zenoh` (default) | Nodes use [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) directly |
 | `ros2dds` | Nodes are bridged via `zenoh-bridge-ros2dds` |
 
 ```bash

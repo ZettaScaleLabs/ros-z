@@ -467,7 +467,7 @@ ros-z services interoperate with ROS 2 C++ and Python nodes when both sides shar
 
 **Requirements:**
 
-- ROS 2 nodes must use `rmw_zenoh_cpp` (`export RMW_IMPLEMENTATION=rmw_zenoh_cpp`)
+- ROS 2 nodes must use [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) (`export RMW_IMPLEMENTATION=rmw_zenoh_cpp`)
 - Both sides must use matching service types with identical RIHS01 type hashes
 - All nodes must connect to the same Zenoh router
 
@@ -486,7 +486,7 @@ ros2 service info /add_two_ints
 ```
 
 !!! warning
-    Service interop requires `rmw_zenoh_cpp` on the ROS 2 side. The `zenoh-bridge-ros2dds` approach
+    Service interop requires [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) on the ROS 2 side. The `zenoh-bridge-ros2dds` approach
     works for pub/sub but does not fully support services.
 
 ## Error Handling
