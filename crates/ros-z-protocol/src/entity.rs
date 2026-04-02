@@ -54,7 +54,7 @@ impl Display for TopicKE {
 }
 
 /// ROS 2 node entity.
-#[derive(Default, Debug, Hash, Clone, PartialEq, Eq)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub struct NodeEntity {
     pub domain_id: usize,
     pub z_id: ZenohId,
@@ -85,9 +85,8 @@ impl NodeEntity {
 }
 
 /// ROS 2 entity kind (node, publisher, subscription, service, client).
-#[derive(Default, Debug, Hash, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Hash, Clone, Copy, PartialEq, Eq)]
 pub enum EntityKind {
-    #[default]
     Node,
     Publisher,
     Subscription,
@@ -118,6 +117,65 @@ impl core::str::FromStr for EntityKind {
             "SS" => Ok(EntityKind::Service),
             "SC" => Ok(EntityKind::Client),
             _ => Err("Invalid entity kind"),
+        }
+    }
+}
+
+/// ROS 2 endpoint kind (publisher, subscription, service, client).
+#[derive(Debug, Hash, Clone, Copy, PartialEq, Eq)]
+pub enum EndpointKind {
+    Publisher,
+    Subscription,
+    Service,
+    Client,
+}
+
+impl Display for EndpointKind {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            EndpointKind::Publisher => write!(f, "MP"),
+            EndpointKind::Subscription => write!(f, "MS"),
+            EndpointKind::Service => write!(f, "SS"),
+            EndpointKind::Client => write!(f, "SC"),
+        }
+    }
+}
+
+impl core::str::FromStr for EndpointKind {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "MP" => Ok(EndpointKind::Publisher),
+            "MS" => Ok(EndpointKind::Subscription),
+            "SS" => Ok(EndpointKind::Service),
+            "SC" => Ok(EndpointKind::Client),
+            _ => Err("Invalid endpoint kind"),
+        }
+    }
+}
+
+impl From<EndpointKind> for EntityKind {
+    fn from(kind: EndpointKind) -> Self {
+        match kind {
+            EndpointKind::Publisher => EntityKind::Publisher,
+            EndpointKind::Subscription => EntityKind::Subscription,
+            EndpointKind::Service => EntityKind::Service,
+            EndpointKind::Client => EntityKind::Client,
+        }
+    }
+}
+
+impl TryFrom<EntityKind> for EndpointKind {
+    type Error = &'static str;
+
+    fn try_from(kind: EntityKind) -> Result<Self, Self::Error> {
+        match kind {
+            EntityKind::Node => Err("Node is not a valid endpoint kind"),
+            EntityKind::Publisher => Ok(EndpointKind::Publisher),
+            EntityKind::Subscription => Ok(EndpointKind::Subscription),
+            EntityKind::Service => Ok(EndpointKind::Service),
+            EntityKind::Client => Ok(EndpointKind::Client),
         }
     }
 }
@@ -224,14 +282,20 @@ impl TypeInfo {
 }
 
 /// ROS 2 endpoint entity (publisher, subscription, service, client).
-#[derive(Default, Debug, Hash, PartialEq, Eq, Clone)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub struct EndpointEntity {
     pub id: usize,
-    pub node: NodeEntity,
-    pub kind: EntityKind,
+    pub node: Option<NodeEntity>,
+    pub kind: EndpointKind,
     pub topic: String,
     pub type_info: Option<TypeInfo>,
     pub qos: QosProfile,
+}
+
+impl EndpointEntity {
+    pub fn entity_kind(&self) -> EntityKind {
+        self.kind.into()
+    }
 }
 
 /// Generic ROS 2 entity (node or endpoint).

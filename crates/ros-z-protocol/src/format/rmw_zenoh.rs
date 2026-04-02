@@ -10,8 +10,8 @@ use zenoh::{key_expr::KeyExpr, session::ZenohId, Result};
 
 use crate::{
     entity::{
-        EndpointEntity, Entity, EntityConversionError, EntityKind, LivelinessKE, NodeEntity,
-        TopicKE, TypeHash, TypeInfo,
+        EndpointEntity, EndpointKind, Entity, EntityConversionError, EntityKind, LivelinessKE,
+        NodeEntity, TopicKE, TypeHash, TypeInfo,
     },
     qos::QosProfile,
 };
@@ -33,9 +33,20 @@ impl KeyExprFormatter for RmwZenohFormatter {
     const ADMIN_SPACE: &'static str = "@ros2_lv";
 
     fn topic_key_expr(entity: &EndpointEntity) -> Result<TopicKE> {
-        let domain_id = entity.node.domain_id;
+        let EndpointEntity {
+            node: Some(node),
+            topic,
+            type_info,
+            ..
+        } = entity
+        else {
+            return Err(zenoh::Error::from(
+                "rmw-zenoh endpoint keys require node identity",
+            ));
+        };
+        let domain_id = node.domain_id;
         let topic = {
-            let s = &entity.topic;
+            let s = topic.as_str();
             let s = s.strip_prefix('/').unwrap_or(s);
             let s = s.strip_suffix('/').unwrap_or(s);
 
@@ -50,14 +61,14 @@ impl KeyExprFormatter for RmwZenohFormatter {
             s.to_string()
         };
 
-        let type_info = entity.type_info.as_ref().map_or(
-            format!("{EMPTY_TOPIC_TYPE}/{EMPTY_TOPIC_HASH}"),
-            |x| {
-                let type_name = Self::demangle_name(&x.name);
-                let type_hash = Self::demangle_name(&x.hash.to_string());
-                format!("{type_name}/{type_hash}")
-            },
-        );
+        let type_info =
+            type_info
+                .as_ref()
+                .map_or(format!("{EMPTY_TOPIC_TYPE}/{EMPTY_TOPIC_HASH}"), |x| {
+                    let type_name = Self::demangle_name(&x.name);
+                    let type_hash = Self::demangle_name(&x.hash.to_string());
+                    format!("{type_name}/{type_hash}")
+                });
 
         Ok(TopicKE::new(
             format!("{domain_id}/{topic}/{type_info}").try_into()?,
@@ -68,19 +79,24 @@ impl KeyExprFormatter for RmwZenohFormatter {
         let EndpointEntity {
             id,
             node:
-                NodeEntity {
+                Some(NodeEntity {
                     domain_id,
                     z_id,
                     id: node_id,
                     name: node_name,
                     namespace: node_namespace,
                     enclave: _,
-                },
+                }),
             kind,
             topic: topic_name,
             type_info,
             qos,
-        } = entity;
+        } = entity
+        else {
+            return Err(zenoh::Error::from(
+                "rmw-zenoh liveliness requires node identity",
+            ));
+        };
 
         let node_namespace = if node_namespace.is_empty() {
             EMPTY_PLACEHOLDER.to_string()
@@ -220,8 +236,8 @@ impl KeyExprFormatter for RmwZenohFormatter {
 
                 Entity::Endpoint(EndpointEntity {
                     id: entity_id,
-                    node,
-                    kind: entity_kind,
+                    node: Some(node),
+                    kind: EndpointKind::try_from(entity_kind).map_err(|_| ParsingError)?,
                     topic: topic_name,
                     type_info,
                     qos,
@@ -244,7 +260,7 @@ impl KeyExprFormatter for RmwZenohFormatter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::entity::{EndpointEntity, EntityKind, NodeEntity, TypeInfo};
+    use crate::entity::{EndpointEntity, EndpointKind, NodeEntity, TypeInfo};
     use crate::qos::{QosDurability, QosHistory, QosProfile, QosReliability};
 
     #[test]
@@ -303,8 +319,8 @@ mod tests {
 
         let entity = EndpointEntity {
             id: 1,
-            node,
-            kind: EntityKind::Publisher,
+            node: Some(node),
+            kind: EndpointKind::Publisher,
             topic: "chatter".to_string(),
             type_info: Some(TypeInfo::new("std_msgs/msg/String", TypeHash::zero())),
             qos: QosProfile::default(),
@@ -349,8 +365,8 @@ mod tests {
 
         let entity = EndpointEntity {
             id: 1,
-            node,
-            kind: EntityKind::Publisher,
+            node: Some(node),
+            kind: EndpointKind::Publisher,
             topic: "chatter".to_string(),
             type_info: Some(TypeInfo::new("std_msgs/msg/String", TypeHash::zero())),
             qos: QosProfile::default(),
@@ -417,8 +433,8 @@ mod tests {
 
         let entity = EndpointEntity {
             id: 1,
-            node,
-            kind: EntityKind::Subscription,
+            node: Some(node),
+            kind: EndpointKind::Subscription,
             topic: "chatter".to_string(),
             type_info: Some(TypeInfo::new("std_msgs/msg/String", TypeHash::zero())),
             qos: QosProfile::default(),
@@ -450,8 +466,8 @@ mod tests {
 
         let entity = EndpointEntity {
             id: 1,
-            node,
-            kind: EntityKind::Service,
+            node: Some(node),
+            kind: EndpointKind::Service,
             topic: "add_two_ints".to_string(),
             type_info: Some(TypeInfo::new(
                 "example_interfaces/srv/AddTwoInts",
@@ -486,8 +502,8 @@ mod tests {
 
         let entity = EndpointEntity {
             id: 1,
-            node,
-            kind: EntityKind::Client,
+            node: Some(node),
+            kind: EndpointKind::Client,
             topic: "add_two_ints".to_string(),
             type_info: Some(TypeInfo::new(
                 "example_interfaces/srv/AddTwoInts",
@@ -570,8 +586,8 @@ mod tests {
         // Service with slashes in name (common pattern: /node_name/service_name)
         let entity = EndpointEntity {
             id: 10,
-            node,
-            kind: EntityKind::Service,
+            node: Some(node),
+            kind: EndpointKind::Service,
             topic: "/talker/get_type_description".to_string(),
             type_info: Some(TypeInfo::new(
                 "type_description_interfaces::srv::dds_::GetTypeDescription_",
@@ -612,8 +628,8 @@ mod tests {
 
         let entity = EndpointEntity {
             id: 11,
-            node,
-            kind: EntityKind::Client,
+            node: Some(node),
+            kind: EndpointKind::Client,
             topic: "/my_service/sub_service/action".to_string(),
             type_info: Some(TypeInfo::new(
                 "example_interfaces/srv/AddTwoInts",
@@ -650,8 +666,8 @@ mod tests {
 
         let entity = EndpointEntity {
             id: 1,
-            node,
-            kind: EntityKind::Publisher,
+            node: Some(node),
+            kind: EndpointKind::Publisher,
             topic: "/ns/topic".to_string(),
             type_info: Some(TypeInfo::new("std_msgs/msg/String", TypeHash::zero())),
             qos: QosProfile::default(),
@@ -691,8 +707,8 @@ mod tests {
 
         let entity = EndpointEntity {
             id: 2,
-            node,
-            kind: EntityKind::Subscription,
+            node: Some(node),
+            kind: EndpointKind::Subscription,
             topic: "/robot/sensor/data".to_string(),
             type_info: Some(TypeInfo::new("sensor_msgs/msg/Image", TypeHash::zero())),
             qos: QosProfile::default(),
@@ -732,8 +748,8 @@ mod tests {
 
         let entity = EndpointEntity {
             id: 3,
-            node,
-            kind: EntityKind::Publisher, // Actions use pub/sub for feedback/status
+            node: Some(node),
+            kind: EndpointKind::Publisher, // Actions use pub/sub for feedback/status
             topic: "/fibonacci/_action/send_goal".to_string(),
             type_info: Some(TypeInfo::new(
                 "action_tutorials_interfaces::action::dds_::Fibonacci_SendGoal_",
@@ -774,8 +790,8 @@ mod tests {
         // Service with leading and trailing slashes
         let entity = EndpointEntity {
             id: 4,
-            node,
-            kind: EntityKind::Service,
+            node: Some(node),
+            kind: EndpointKind::Service,
             topic: "/my_service/".to_string(),
             type_info: Some(TypeInfo::new(
                 "example_interfaces/srv/Trigger",
@@ -815,8 +831,8 @@ mod tests {
 
         let entity = EndpointEntity {
             id: 5,
-            node,
-            kind: EntityKind::Publisher,
+            node: Some(node),
+            kind: EndpointKind::Publisher,
             topic: "chatter".to_string(),
             type_info: None, // No type info
             qos: QosProfile::default(),
@@ -853,8 +869,8 @@ mod tests {
 
         let entity = EndpointEntity {
             id: 6,
-            node,
-            kind: EntityKind::Publisher,
+            node: Some(node),
+            kind: EndpointKind::Publisher,
             topic: "chatter".to_string(),
             // Type name with mangled slashes (as stored internally)
             type_info: Some(TypeInfo::new("std_msgs%msg%String", TypeHash::zero())),
@@ -892,8 +908,8 @@ mod tests {
 
         let entity = EndpointEntity {
             id: 10,
-            node,
-            kind: EntityKind::Service,
+            node: Some(node),
+            kind: EndpointKind::Service,
             topic: "/talker/get_type_description".to_string(),
             type_info: Some(TypeInfo::new(
                 "type_description_interfaces::srv::dds_::GetTypeDescription_",
@@ -928,8 +944,8 @@ mod tests {
 
         let entity = EndpointEntity {
             id: 7,
-            node,
-            kind: EntityKind::Publisher,
+            node: Some(node),
+            kind: EndpointKind::Publisher,
             topic: "/data/temperature".to_string(),
             type_info: Some(TypeInfo::new(
                 "sensor_msgs/msg/Temperature",
@@ -976,8 +992,8 @@ mod tests {
 
         let entity = EndpointEntity {
             id: 8,
-            node,
-            kind: EntityKind::Subscription,
+            node: Some(node),
+            kind: EndpointKind::Subscription,
             topic: "chatter".to_string(),
             type_info: Some(TypeInfo::new("std_msgs/msg/String", TypeHash::zero())),
             qos: QosProfile::default(),
@@ -1015,8 +1031,8 @@ mod tests {
 
         let entity = EndpointEntity {
             id: 9,
-            node,
-            kind: EntityKind::Publisher,
+            node: Some(node),
+            kind: EndpointKind::Publisher,
             topic: "chatter".to_string(),
             type_info: Some(TypeInfo::new("std_msgs/msg/String", TypeHash::zero())),
             qos: QosProfile::default(),
@@ -1049,8 +1065,8 @@ mod tests {
 
         let entity = EndpointEntity {
             id: 10,
-            node,
-            kind: EntityKind::Publisher,
+            node: Some(node),
+            kind: EndpointKind::Publisher,
             topic: "image".to_string(),
             type_info: Some(TypeInfo::new(
                 "sensor_msgs/msg/Image",
@@ -1097,8 +1113,8 @@ mod tests {
 
         let entity = EndpointEntity {
             id: 11,
-            node,
-            kind: EntityKind::Publisher,
+            node: Some(node),
+            kind: EndpointKind::Publisher,
             topic: "chatter".to_string(),
             type_info: Some(TypeInfo::new("std_msgs/msg/String", TypeHash::zero())),
             qos,
@@ -1141,8 +1157,8 @@ mod tests {
 
         let original = EndpointEntity {
             id: 12,
-            node,
-            kind: EntityKind::Publisher,
+            node: Some(node),
+            kind: EndpointKind::Publisher,
             topic: "/topic/name".to_string(),
             type_info: Some(TypeInfo::new("std_msgs/msg/String", TypeHash::zero())),
             qos: QosProfile::default(),
@@ -1154,8 +1170,14 @@ mod tests {
         if let Entity::Endpoint(parsed_entity) = parsed {
             assert_eq!(parsed_entity.id, original.id);
             assert_eq!(parsed_entity.kind, original.kind);
-            assert_eq!(parsed_entity.node.name, original.node.name);
-            assert_eq!(parsed_entity.node.namespace, original.node.namespace);
+            assert_eq!(
+                parsed_entity.node.as_ref().unwrap().name,
+                original.node.as_ref().unwrap().name
+            );
+            assert_eq!(
+                parsed_entity.node.as_ref().unwrap().namespace,
+                original.node.as_ref().unwrap().namespace
+            );
             // Topic name should be reconstructed (slashes demangled)
             assert_eq!(parsed_entity.topic, "/topic/name");
         } else {
@@ -1178,8 +1200,8 @@ mod tests {
 
         let original = EndpointEntity {
             id: 13,
-            node,
-            kind: EntityKind::Service,
+            node: Some(node),
+            kind: EndpointKind::Service,
             topic: "/my/service".to_string(),
             type_info: Some(TypeInfo::new(
                 "example_interfaces::srv::dds_::AddTwoInts_",
@@ -1193,7 +1215,7 @@ mod tests {
 
         if let Entity::Endpoint(parsed_entity) = parsed {
             assert_eq!(parsed_entity.id, original.id);
-            assert_eq!(parsed_entity.kind, EntityKind::Service);
+            assert_eq!(parsed_entity.kind, EndpointKind::Service);
             assert_eq!(parsed_entity.topic, "/my/service");
             assert_eq!(
                 parsed_entity.type_info.as_ref().unwrap().name,
@@ -1219,8 +1241,8 @@ mod tests {
 
         let original = EndpointEntity {
             id: 14,
-            node,
-            kind: EntityKind::Publisher,
+            node: Some(node),
+            kind: EndpointKind::Publisher,
             topic: "test".to_string(),
             type_info: None,
             qos: QosProfile::default(),
@@ -1282,8 +1304,8 @@ mod tests {
 
         let entity = EndpointEntity {
             id: 16,
-            node,
-            kind: EntityKind::Publisher,
+            node: Some(node),
+            kind: EndpointKind::Publisher,
             topic: "simple_topic".to_string(),
             type_info: Some(TypeInfo::new("std_msgs/msg/String", TypeHash::zero())),
             qos: QosProfile::default(),
@@ -1318,8 +1340,8 @@ mod tests {
 
         let entity = EndpointEntity {
             id: 17,
-            node,
-            kind: EntityKind::Service,
+            node: Some(node),
+            kind: EndpointKind::Service,
             topic: "/a//b".to_string(), // Consecutive slashes
             type_info: Some(TypeInfo::new("std_srvs/srv/Trigger", TypeHash::zero())),
             qos: QosProfile::default(),
@@ -1348,8 +1370,8 @@ mod tests {
 
         let entity = EndpointEntity {
             id: 18,
-            node,
-            kind: EntityKind::Publisher,
+            node: Some(node),
+            kind: EndpointKind::Publisher,
             topic: "chatter".to_string(),
             // DDS type name with ::dds_:: namespace
             type_info: Some(TypeInfo::new(
@@ -1386,8 +1408,8 @@ mod tests {
         let long_topic = "/very/long/topic/name/with/many/segments/for/testing/purposes";
         let entity = EndpointEntity {
             id: 19,
-            node,
-            kind: EntityKind::Service,
+            node: Some(node),
+            kind: EndpointKind::Service,
             topic: long_topic.to_string(),
             type_info: Some(TypeInfo::new("std_srvs/srv/Trigger", TypeHash::zero())),
             qos: QosProfile::default(),
@@ -1473,8 +1495,8 @@ mod kani_proofs {
         };
         let entity = EndpointEntity {
             id: 1,
-            node,
-            kind: EntityKind::Publisher,
+            node: Some(node),
+            kind: EndpointKind::Publisher,
             topic: "/kani_topic".to_string(),
             type_info: Some(TypeInfo {
                 name: "std_msgs/msg/String".to_string(),
@@ -1492,8 +1514,11 @@ mod kani_proofs {
         let parsed = RmwZenohFormatter::parse_liveliness(&ke).expect("parse_liveliness");
 
         if let crate::entity::Entity::Endpoint(ep) = parsed {
-            kani::assert(ep.node.domain_id == domain_id, "domain_id preserved");
-            kani::assert(ep.kind == EntityKind::Publisher, "entity kind preserved");
+            kani::assert(
+                ep.node.as_ref().unwrap().domain_id == domain_id,
+                "domain_id preserved",
+            );
+            kani::assert(ep.kind == EndpointKind::Publisher, "entity kind preserved");
         } else {
             kani::assert(false, "expected Endpoint entity");
         }

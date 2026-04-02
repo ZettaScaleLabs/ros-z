@@ -15,7 +15,6 @@ use ros_z::{
     entity::{EntityKind, NodeKey},
 };
 use ros_z_msgs::{example_interfaces::srv::AddTwoInts, std_msgs::String as RosString};
-
 /// Helper to create a test context and node
 async fn setup_test_node(
     node_name: &str,
@@ -674,6 +673,44 @@ mod tests {
         // Valid call (expect timeout since there are no subscribers)
         let success = wait_for_subscribers(&node, topic_name, 1, 100).await?;
         assert!(!success, "Expected timeout since no subscribers");
+
+        Ok(())
+    }
+
+    /// Tests that a Ros2Dds context uses a Ros2Dds graph for introspection and matching.
+    #[cfg(feature = "ros2dds")]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_ros2dds_context_graph_tracks_local_entities() -> Result<()> {
+        let ctx = ZContextBuilder::default()
+            .keyexpr_format(ros_z_protocol::KeyExprFormat::Ros2Dds)
+            .build()?;
+        let pub_node = ctx.create_node("test_graph_pub_dds").build()?;
+        let sub_node = ctx.create_node("test_graph_sub_dds").build()?;
+        let topic_name = "/test_ros2dds_context_graph";
+
+        let publisher = pub_node.create_pub::<RosString>(topic_name).build()?;
+        let subscriber = sub_node.create_sub::<RosString>(topic_name).build()?;
+
+        assert!(
+            publisher
+                .wait_for_subscription(1, Duration::from_secs(2))
+                .await
+        );
+        assert!(
+            subscriber
+                .wait_for_publisher(1, Duration::from_secs(2))
+                .await
+        );
+
+        let graph = ctx.graph();
+        assert!(
+            graph.count(EntityKind::Publisher, topic_name) >= 1,
+            "Expected Ros2Dds graph to discover local publisher"
+        );
+        assert!(
+            graph.count(EntityKind::Subscription, topic_name) >= 1,
+            "Expected Ros2Dds graph to discover local subscriber"
+        );
 
         Ok(())
     }
