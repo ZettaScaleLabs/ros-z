@@ -167,3 +167,7 @@ heartbeat
 rendezvous
 queryables
 queryable
+flashcard
+misconfiguration
+atomically
+set_parameters_atomically

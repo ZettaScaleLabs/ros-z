@@ -59,6 +59,89 @@ The three sections separated by `---` define the goal, result, and feedback mess
 
 **In ros-z**, actions use a type-state pattern: `RequestedGoal → AcceptedGoal → ExecutingGoal`. The `.with_handler(|executing: ExecutingGoal<A>| async { ... })` closure runs in a Tokio task per goal. Within the handler, call `executing.publish_feedback(fb)` to send progress and return the result at the end. The examples below show this in full.
 
+### Key Concepts at a Glance
+
+<div class="flashcard-grid">
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">Pattern</div>
+        <div class="flashcard-term">What are the three action channels?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        <div>• <strong>Goal</strong>: what the client wants done.</div>
+        <div>• <strong>Feedback</strong>: progress updates during execution.</div>
+        <div>• <strong>Result</strong>: final outcome when done (or cancelled).</div>
+      </div>
+    </div>
+  </div>
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">States</div>
+        <div class="flashcard-term">What are the four terminal states of a goal?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        <div>• <strong>Succeeded</strong>: completed normally.</div>
+        <div>• <strong>Canceled</strong>: client requested cancel, server honored it.</div>
+        <div>• <strong>Aborted</strong>: server encountered an error.</div>
+        <div>• <strong>Rejected</strong>: server refused the goal before starting.</div>
+      </div>
+    </div>
+  </div>
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">Cancellation</div>
+        <div class="flashcard-term">Does a cancel request immediately stop the action?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        No. The server receives the cancel signal and decides how to handle it. It must still send a result to close the goal. Incomplete cancellation leaves the goal in Executing state.
+      </div>
+    </div>
+  </div>
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">vs Service</div>
+        <div class="flashcard-term">Why not use a service for navigation?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        Services block until done. A 30-second navigation blocks the client for 30 seconds with no updates and no way to cancel. Actions keep the client free and provide progress.
+      </div>
+    </div>
+  </div>
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">ros-z API</div>
+        <div class="flashcard-term">What is the type-state pattern in ros-z actions?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        <strong>RequestedGoal → AcceptedGoal → ExecutingGoal</strong>
+        Each type carries only the methods valid at that stage. The compiler prevents calling <strong>publish_feedback</strong> before accepting the goal.
+      </div>
+    </div>
+  </div>
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">Feedback</div>
+        <div class="flashcard-term">Is feedback required during action execution?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        No. Feedback is optional — only send it when the client benefits from progress updates. Short actions (under a second) often skip feedback entirely.
+      </div>
+    </div>
+  </div>
+</div>
+
 ## Action Lifecycle
 
 ```mermaid
@@ -103,6 +186,33 @@ sequenceDiagram
         S->>C: Result (Canceled)
     else Error
         S->>C: Result (Aborted)
+    end
+```
+
+### Execution Timeline
+
+```mermaid
+sequenceDiagram
+    participant C as Action Client
+    participant S as Action Server
+
+    C->>S: SendGoal(target_x=3.0, target_y=4.0)
+    S-->>C: GoalResponse(accepted=true, goal_id=abc123)
+
+    loop Every 500ms during execution
+        S-->>C: Feedback(percent_complete=25%)
+        S-->>C: Feedback(percent_complete=50%)
+        S-->>C: Feedback(percent_complete=75%)
+    end
+
+    alt Normal completion
+        S-->>C: Result(status=Succeeded, elapsed=12.3s)
+    else Client cancels
+        C->>S: CancelGoal(goal_id=abc123)
+        S-->>C: CancelResponse(accepted=true)
+        S-->>C: Result(status=Canceled)
+    else Server error
+        S-->>C: Result(status=Aborted, message="obstacle detected")
     end
 ```
 

@@ -35,6 +35,84 @@ ros-z processes each parameter change request in three ordered stages:
 
 Every ros-z node automatically exposes `get_parameters`, `set_parameters`, `set_parameters_atomically`, `list_parameters`, `describe_parameters`, and `get_parameter_types`. These are compatible with the `ros2 param` CLI and any ROS 2 tool that queries parameters — see the [Parameter Services](#parameter-services) section below.
 
+### Key Concepts at a Glance
+
+<div class="flashcard-grid">
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">Scope</div>
+        <div class="flashcard-term">Who owns a parameter?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        One node. Parameters are not global — <strong>/robot/max_speed</strong> lives in the <strong>robot</strong> node. To share config across nodes, each node declares its own copy or uses a config file loaded at startup.
+      </div>
+    </div>
+  </div>
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">Types</div>
+        <div class="flashcard-term">What are the 9 parameter types?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        bool, integer (i64), double (f64), string — and array variants of each: bool[], integer[], double[], string[] — plus byte[].
+      </div>
+    </div>
+  </div>
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">Declaration</div>
+        <div class="flashcard-term">What happens if you try to set an undeclared parameter?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        By default, the node rejects it. Nodes must declare parameters they accept. This prevents misconfiguration from typos in parameter names.
+      </div>
+    </div>
+  </div>
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">Callbacks</div>
+        <div class="flashcard-term">Which callback stage can safely trigger hardware changes?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        Only the <strong>post-set callback</strong>. The set callback must be side-effect-free because a later parameter in the same batch might still fail. Post-set fires only after the full batch commits.
+      </div>
+    </div>
+  </div>
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">Atomicity</div>
+        <div class="flashcard-term">What does set_parameters_atomically guarantee?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        All-or-nothing: either every parameter in the batch changes, or none do. Prevents the node from landing in a half-configured state when setting related parameters together.
+      </div>
+    </div>
+  </div>
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">Interop</div>
+        <div class="flashcard-term">How do you change a ros-z parameter from the CLI?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        <strong>ros2 param set /my_node max_speed 2.5</strong>
+        ros-z exposes standard parameter services so any ROS 2 tool works out of the box.
+      </div>
+    </div>
+  </div>
+</div>
+
 ## Visual Flow
 
 ```mermaid

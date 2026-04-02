@@ -65,6 +65,7 @@ extra_css:
 
 extra_javascript:
   - javascripts/mermaid.js
+  - javascripts/flashcards.js
 
 plugins:
   - search
