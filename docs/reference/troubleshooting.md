@@ -87,7 +87,7 @@
 ## Runtime Issues
 
 ??? question "Publishers and subscribers on different processes don"
-    **Root Cause:** Zenoh router not running or nodes not configured correctly.
+    **Root Cause:** Eclipse Zenoh router not running or nodes not configured correctly.
 
     **Solution:**
 

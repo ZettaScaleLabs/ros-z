@@ -8,7 +8,7 @@ git clone https://github.com/ZettaScaleLabs/ros-z.git
 cd ros-z
 ```
 
-## Start the Zenoh Router
+## Start the Eclipse Zenoh Router
 
 All examples require a Zenoh router to be running first (see [Networking](./networking.md) for why ros-z uses router-based architecture by default).
 

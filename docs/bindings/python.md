@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD046 -->
 # Python Bindings
 
-**ros-z provides Python bindings via `ros-z-py`, enabling Python applications to communicate with Rust and ROS 2 nodes using the same Zenoh transport.** The bindings use PyO3 for Rust-Python interop and msgspec for efficient message serialization.
+**ros-z provides Python bindings via `ros-z-py`, enabling Python applications to communicate with Rust and ROS 2 nodes using the same Eclipse Zenoh transport.** The bindings use PyO3 for Rust-Python interop and msgspec for efficient message serialization.
 
 !!! note
     Python bindings provide the same pub/sub and service patterns as Rust, with Pythonic APIs. Messages are automatically serialized/deserialized between Python objects and CDR format for ROS 2 compatibility.

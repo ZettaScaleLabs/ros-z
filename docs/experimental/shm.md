@@ -4,7 +4,7 @@ Shared Memory (SHM) enables zero-copy publishing of large messages by serializin
 
 ## Overview
 
-When publishing large messages (e.g., point clouds, images), copying data multiple times can significantly impact performance. ROS-Z's SHM support leverages Zenoh's shared memory capabilities to achieve true zero-copy publishing.
+When publishing large messages (e.g., point clouds, images), copying data multiple times can significantly impact performance. ros-z's SHM support leverages Eclipse Zenoh's shared memory capabilities to achieve true zero-copy publishing.
 
 ### Key Benefits
 
@@ -16,15 +16,15 @@ When publishing large messages (e.g., point clouds, images), copying data multip
 
 ## How SHM Works in ROS 2
 
-The following diagram illustrates how a PointCloud2 message is published using shared memory in ROS-Z:
+The following diagram illustrates how a PointCloud2 message is published using shared memory in ros-z:
 
 ```mermaid
 sequenceDiagram
     participant App as Application
-    participant Pub as ROS-Z Publisher
+    participant Pub as ros-z Publisher
     participant SHM as SHM Provider
     participant Zenoh as Zenoh Network
-    participant Sub as ROS-Z Subscriber
+    participant Sub as ros-z Subscriber
     participant RemoteApp as Remote Application
 
     Note over App,RemoteApp: Publishing Large PointCloud2 (1MB)
@@ -260,7 +260,7 @@ Zenoh publish
 
 ### Size Estimation
 
-ROS-Z automatically generates accurate size estimation for all message types during code generation:
+ros-z automatically generates accurate size estimation for all message types during code generation:
 
 ```rust
 // Auto-generated implementation for PointCloud2
@@ -780,10 +780,10 @@ let policy = BlockOn::<GarbageCollect>;
 
 ### Integration with rmw_zenoh_cpp
 
-ROS-Z's SHM implementation is fully compatible with `rmw_zenoh_cpp`. Messages published from ROS-Z using SHM can be received zero-copy by C++/Python nodes using `rmw_zenoh_cpp`, and vice versa.
+ros-z's SHM implementation is fully compatible with `rmw_zenoh_cpp`. Messages published from ros-z using SHM can be received zero-copy by C++/Python nodes using `rmw_zenoh_cpp`, and vice versa.
 
 ```bash
-# ROS-Z publisher (Rust)
+# ros-z publisher (Rust)
 cargo run --example shm_pointcloud2
 
 # Standard ROS 2 subscriber (C++ with rmw_zenoh_cpp)

@@ -1,6 +1,6 @@
 # Configuration Options
 
-ros-z provides multiple ways to configure Zenoh, from simple to advanced.
+ros-z provides multiple ways to configure Eclipse Zenoh, from simple to advanced.
 
 ## Option 1: Default Configuration (Recommended)
 

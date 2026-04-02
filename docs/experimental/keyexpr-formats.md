@@ -1,6 +1,6 @@
 # Key Expression Formats
 
-**ros-z uses key expression formats to map ROS 2 entities (topics, services, actions) to Zenoh key expressions.** The format is provided by the independent `ros-z-protocol` crate and determines how ROS 2 names are translated for Zenoh routing and discovery.
+**ros-z uses key expression formats to map ROS 2 entities (topics, services, actions) to Eclipse Zenoh key expressions.** The format is provided by the independent `ros-z-protocol` crate and determines how ROS 2 names are translated for Zenoh routing and discovery.
 
 !!! note
     Key expression format is a runtime choice that affects how ros-z maps ROS 2 entities to Zenoh key expressions. Choose the format that matches your infrastructure for proper message routing.

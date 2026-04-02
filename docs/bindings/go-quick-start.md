@@ -8,7 +8,7 @@ Get a Go publisher and subscriber running in five minutes.
 - Rust toolchain (`rustup`)
 - `cbindgen` — `cargo install cbindgen`
 - `just` — `cargo install just`
-- A Zenoh router — see [Networking](../user-guide/networking.md)
+- An Eclipse Zenoh router — see [Networking](../user-guide/networking.md)
 
 ## 1. Set up
 

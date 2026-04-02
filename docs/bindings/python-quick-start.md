@@ -8,7 +8,7 @@ Get a Python publisher and subscriber running in five minutes.
 - Python 3.8+
 - Rust 1.85+ — install via [rustup](https://rustup.rs)
 - `maturin` — `pip install maturin`
-- A Zenoh router — see [Networking](../user-guide/networking.md)
+- An Eclipse Zenoh router — see [Networking](../user-guide/networking.md)
 
 !!! tip "Using Nix"
     Run `nix develop` in the repo root to get Rust, maturin, and all build tools automatically — skip the manual install steps above.

@@ -3,7 +3,7 @@
 **`ZCache<T>` is a timestamp-indexed, capacity-bounded sliding-window cache of received messages.** It mirrors the ROS 2 `message_filters::Cache<T>` API, letting you query a time-ordered history of messages without a background thread or executor.
 
 !!! note
-    `ZCache<T>` wraps a Zenoh subscriber and retains the N most recent messages in a `BTreeMap` keyed by timestamp. Queries run in O(log n) using Rust's range API.
+    `ZCache<T>` wraps an Eclipse Zenoh subscriber and retains the N most recent messages in a `BTreeMap` keyed by timestamp. Queries run in O(log n) using Rust's range API.
 
 ## Quick Start
 

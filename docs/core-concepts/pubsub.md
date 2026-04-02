@@ -3,7 +3,7 @@
 !!! note "Go users"
     The code examples in this chapter are **Rust**. For Go pub/sub patterns, QoS presets, and the typed subscriber API, see the [Go Bindings](../bindings/go.md) chapter.
 
-**ros-z implements ROS 2's publish-subscribe pattern with type-safe, zero-copy messaging over Zenoh.** This enables efficient, decoupled communication between nodes with minimal overhead.
+**ros-z implements ROS 2's publish-subscribe pattern with type-safe, zero-copy messaging over Eclipse Zenoh.** This enables efficient, decoupled communication between nodes with minimal overhead.
 
 !!! note
     The pub-sub pattern forms the foundation of ROS 2 communication, allowing nodes to exchange data without direct coupling. ros-z leverages Zenoh's efficient transport layer for optimal performance.
@@ -38,7 +38,7 @@ This example demonstrates publishing "Hello World" messages to a topic. The publ
 /// Talker node that publishes "Hello World" messages to a topic
 ///
 /// # Arguments
-/// * `ctx` - The ROS-Z context
+/// * `ctx` - The ros-z context
 /// * `topic` - The topic name to publish to
 /// * `period` - Duration between messages
 /// * `max_count` - Optional maximum number of messages to publish. If None, publishes indefinitely.
@@ -114,7 +114,7 @@ This example demonstrates subscribing to messages from a topic. The subscriber r
 /// Listener node that subscribes to a topic
 ///
 /// # Arguments
-/// * `ctx` - The ROS-Z context
+/// * `ctx` - The ros-z context
 /// * `topic` - The topic name to subscribe to
 /// * `max_count` - Optional maximum number of messages to receive. If None, listens indefinitely.
 /// * `timeout` - Optional timeout duration. If None, waits indefinitely.

@@ -151,7 +151,7 @@ This example demonstrates an action server that computes Fibonacci sequences. Th
 /// Fibonacci action server node that computes Fibonacci sequences
 ///
 /// # Arguments
-/// * `ctx` - The ROS-Z context
+/// * `ctx` - The ros-z context
 /// * `timeout` - Optional timeout duration. If None, runs until ctrl+c.
 pub async fn run_fibonacci_action_server(ctx: ZContext, timeout: Option<Duration>) -> Result<()> {
     // Create a node named "fibonacci_action_server"
@@ -236,7 +236,7 @@ pub async fn run_fibonacci_action_server(ctx: ZContext, timeout: Option<Duration
 **Running the server:**
 
 ```bash
-# Start Zenoh router first
+# Start Eclipse Zenoh router first
 cargo run --example zenoh_router
 
 # Run the server (runs until Ctrl+C)
@@ -251,7 +251,7 @@ This example demonstrates an action client that sends goals and monitors executi
 /// Fibonacci action client node that sends goals to compute Fibonacci sequences
 ///
 /// # Arguments
-/// * `ctx` - The ROS-Z context
+/// * `ctx` - The ros-z context
 /// * `order` - The order of the Fibonacci sequence to compute
 pub async fn run_fibonacci_action_client(ctx: ZContext, order: i32) -> Result<Vec<i32>> {
     // Create a node named "fibonacci_action_client"

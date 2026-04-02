@@ -186,7 +186,7 @@ struct Args {
     #[arg(short = 'n', long, default_value = "3")]
     count: usize,
 
-    /// Zenoh session mode (peer, client, router)
+    /// Eclipse Zenoh session mode (peer, client, router)
     #[arg(long, default_value = "peer")]
     zenoh_mode: String,
 
@@ -201,7 +201,7 @@ fn main() -> Result<()> {
     // Initialize logging
     zenoh::init_log_from_env_or("info");
 
-    // Create the ROS-Z context
+    // Create the ros-z context
     let ctx = if let Some(ref e) = args.endpoint {
         ZContextBuilder::default()
             .with_mode(&args.zenoh_mode)
