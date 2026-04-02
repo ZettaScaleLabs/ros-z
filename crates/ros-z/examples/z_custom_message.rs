@@ -233,19 +233,23 @@ pub fn run_navigation_server(ctx: ros_z::context::ZContext) -> Result<()> {
     println!("Navigation server ready, waiting for requests...");
 
     loop {
-        if let Ok((request_id, request)) = zsrv.take_request() {
+        if let Ok(request) = zsrv.take_request() {
             println!(
                 "Received navigation request: target=({:.1}, {:.1}), max_speed={:.1}",
-                request.target_x, request.target_y, request.max_speed
+                request.message().target_x,
+                request.message().target_y,
+                request.message().max_speed
             );
 
             // Simulate path planning
             std::thread::sleep(Duration::from_millis(500));
 
-            let distance = (request.target_x.powi(2) + request.target_y.powi(2)).sqrt();
-            let duration = distance / request.max_speed;
+            let distance =
+                (request.message().target_x.powi(2) + request.message().target_y.powi(2)).sqrt();
+            let duration = distance / request.message().max_speed;
 
-            let response = if request.max_speed > 0.0 && request.max_speed < 5.0 {
+            let response = if request.message().max_speed > 0.0 && request.message().max_speed < 5.0
+            {
                 NavigateToResponse {
                     success: true,
                     estimated_duration: duration,
@@ -263,7 +267,7 @@ pub fn run_navigation_server(ctx: ros_z::context::ZContext) -> Result<()> {
             };
 
             println!("Sending response: {:?}", response);
-            zsrv.send_response(&response, &request_id)?;
+            request.reply_blocking(&response)?;
         }
 
         std::thread::sleep(Duration::from_millis(100));
@@ -292,22 +296,14 @@ pub fn run_navigation_client(
         request.target_x, request.target_y, request.max_speed
     );
 
-    tokio::runtime::Runtime::new()
+    let response = tokio::runtime::Runtime::new()
         .unwrap()
-        .block_on(async { zcli.send_request(&request).await })?;
+        .block_on(async { zcli.call(&request).await })?;
 
-    println!("Waiting for response...");
-
-    loop {
-        if let Ok(response) = zcli.take_response() {
-            println!("Received response:");
-            println!("Success: {}", response.success);
-            println!("Duration: {:.2}s", response.estimated_duration);
-            println!("Message: {}", response.message);
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(100));
-    }
+    println!("Received response:");
+    println!("Success: {}", response.success);
+    println!("Duration: {:.2}s", response.estimated_duration);
+    println!("Message: {}", response.message);
 
     Ok(())
 }

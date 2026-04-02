@@ -25,11 +25,15 @@ pub fn run_add_two_ints_server(ctx: ZContext, max_requests: Option<usize>) -> Re
     // ANCHOR: request_loop
     loop {
         // Wait for a request
-        let (key, req) = service.take_request()?;
-        println!("Incoming request\na: {} b: {}", req.a, req.b);
+        let req = service.take_request()?;
+        println!(
+            "Incoming request\na: {} b: {}",
+            req.message().a,
+            req.message().b
+        );
 
         // Compute the sum
-        let sum = req.a + req.b;
+        let sum = req.message().a + req.message().b;
 
         // Create the response
         let resp = AddTwoIntsResponse { sum };
@@ -37,7 +41,7 @@ pub fn run_add_two_ints_server(ctx: ZContext, max_requests: Option<usize>) -> Re
         println!("Sending response: {}", resp.sum);
 
         // Send the response
-        service.send_response(&resp, &key)?;
+        req.reply_blocking(&resp)?;
 
         request_count += 1;
 
