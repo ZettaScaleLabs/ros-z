@@ -10,7 +10,22 @@
 
 ## What is an Action?
 
-<iframe src="action-lifecycle.html" style="width:100%;height:320px;border:none;border-radius:8px;" title="Action lifecycle animation"></iframe>
+```mermaid
+sequenceDiagram
+    participant C as Action Client
+    participant S as Action Server
+
+    C->>S: Goal (target_x, target_y)
+    S-->>C: Accepted
+
+    loop Executing
+        S-->>C: Feedback (30%)
+        S-->>C: Feedback (65%)
+        S-->>C: Feedback (100%)
+    end
+
+    S-->>C: Result: Succeeded
+```
 
 **A long-running task with three channels: goal → feedback stream → result. Plus cancellation.**
 
