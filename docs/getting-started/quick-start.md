@@ -32,7 +32,7 @@ git clone https://github.com/ZettaScaleLabs/ros-z.git
 cd ros-z
 ```
 
-### Start the Zenoh Router
+### Start the Eclipse Zenoh Router
 
 ros-z uses a router-based architecture (matching ROS 2's `rmw_zenoh` — the ROS 2 middleware plugin for Zenoh), so you'll need to start a Zenoh router first. The router acts as a rendezvous point for all nodes: publishers and subscribers discover each other through it rather than via multicast.
 
@@ -162,7 +162,7 @@ enum Backend {
 
 #[derive(Debug, Parser)]
 struct Args {
-    #[arg(short, long, default_value = "Hello ROS-Z")]
+    #[arg(short, long, default_value = "Hello ros-z")]
     data: String,
     #[arg(short, long, default_value = "/chatter")]
     topic: String,

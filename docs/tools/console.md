@@ -1,6 +1,6 @@
 # ros-z-console
 
-**ros-z-console** is a monitoring tool for ROS 2 systems built on Zenoh.
+**ros-z-console** is a monitoring tool for ROS 2 systems built on Eclipse Zenoh.
 It provides real-time graph inspection, dataflow monitoring, and metrics
 collection through two interfaces: an interactive TUI (Terminal User Interface)
 and a headless JSON streaming mode.

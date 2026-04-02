@@ -28,7 +28,7 @@ graph TB
         PyFiles --> PyObj["Python Object"]
         PyObj -->|"FromPyMessage::from_py()"| RsStruct["Rust Struct"]
         RsStruct -->|"ros-z-cdr::to_vec()"| CDR["CDR Bytes"]
-        CDR -->|"Zenoh"| Network["Network"]
+        CDR -->|"Eclipse Zenoh"| Network["Network"]
     end
 ```
 

@@ -119,7 +119,7 @@ The ros-z repository is organized as a Cargo workspace with multiple packages:
 
 | Package | Default Build | Purpose | Dependencies |
 |---------|---------------|---------|--------------|
-| **ros-z** | Yes | Core Zenoh-native ROS 2 library | None |
+| **ros-z** | Yes | Core Eclipse Zenoh-native ROS 2 library | None |
 | **ros-z-codegen** | Yes | Message generation utilities | None |
 | **ros-z-msgs** | No | Pre-generated message types | None (all vendored) |
 | **ros-z-tests** | No | Integration tests | ros-z-msgs |

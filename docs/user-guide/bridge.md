@@ -2,7 +2,7 @@
 
 `ros-z-bridge` is a standalone binary that transparently connects a **legacy** ROS 2 network
 (Humble and earlier) and a **modern** ROS 2 network (Jazzy, Kilted, Rolling) over a shared
-Zenoh backbone.
+Eclipse Zenoh backbone.
 
 Without the bridge, nodes from these two generations cannot talk to each other.
 With it, a Jazzy or Kilted subscriber receives messages from a Humble publisher — and

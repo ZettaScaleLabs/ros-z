@@ -1,6 +1,6 @@
 # Go Bindings
 
-`ros-z-go` lets Go applications communicate with ROS 2 and Rust nodes over the same Zenoh transport. It uses CGO to call the Rust FFI layer and exposes an idiomatic builder-pattern API.
+`ros-z-go` lets Go applications communicate with ROS 2 and Rust nodes over the same Eclipse Zenoh transport. It uses CGO to call the Rust FFI layer and exposes an idiomatic builder-pattern API.
 
 !!! tip
     New here? Start with **[Quick Start](./go-quick-start.md)** to get a publisher and subscriber running in five minutes.

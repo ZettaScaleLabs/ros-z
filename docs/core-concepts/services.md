@@ -3,7 +3,7 @@
 !!! note "Go users"
     The code examples in this chapter are **Rust**. The Go service API is callback-based, not pull-based — there is no `take_request()`. For Go service patterns and the typed service API, see the [Go Bindings](../bindings/go.md) chapter.
 
-**ros-z implements ROS 2's service pattern with type-safe request-response communication over Zenoh.** This enables synchronous, point-to-point interactions between nodes using a pull-based model for full control over request processing.
+**ros-z implements ROS 2's service pattern with type-safe request-response communication over Eclipse Zenoh.** This enables synchronous, point-to-point interactions between nodes using a pull-based model for full control over request processing.
 
 !!! note
     Services provide request-response communication for operations that need immediate feedback. Unlike topics, services are bidirectional and ensure a response for each request. ros-z uses a pull model that gives you explicit control over when to process requests.
@@ -42,7 +42,7 @@ This example demonstrates a service server that adds two integers. The server wa
 /// AddTwoInts server node that provides a service to add two integers
 ///
 /// # Arguments
-/// * `ctx` - The ROS-Z context
+/// * `ctx` - The ros-z context
 /// * `max_requests` - Optional maximum number of requests to handle. If None, handles requests indefinitely.
 pub fn run_add_two_ints_server(ctx: ZContext, max_requests: Option<usize>) -> Result<()> {
     // Create a node named "add_two_ints_server"
@@ -119,7 +119,7 @@ This example demonstrates a service client that sends addition requests to the s
 /// AddTwoInts client node that calls the service to add two integers
 ///
 /// # Arguments
-/// * `ctx` - The ROS-Z context
+/// * `ctx` - The ros-z context
 /// * `a` - First number to add
 /// * `b` - Second number to add
 /// * `async_mode` - Whether to use async response waiting

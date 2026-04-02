@@ -264,7 +264,7 @@ use ros_z::{Builder, Result, context::ZContextBuilder, lifecycle::CallbackReturn
 use ros_z_msgs::std_msgs::String as RosString;
 
 fn main() -> Result<()> {
-    // Build a Zenoh context and create a lifecycle node.
+    // Build an Eclipse Zenoh context and create a lifecycle node.
     // The node starts in the Unconfigured state.
     let ctx = ZContextBuilder::default().build()?;
     let mut node = ctx.create_lifecycle_node("lifecycle_talker").build()?;
