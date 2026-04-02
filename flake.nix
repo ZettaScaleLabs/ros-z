@@ -215,6 +215,7 @@
 
         # Documentation tools
         docTools = with pkgs; [
+          vale
           (python3.withPackages (
             ps: with ps; [
               mkdocs
