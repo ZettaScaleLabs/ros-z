@@ -2156,7 +2156,7 @@
 <p>Service servers in ros-z follow a <strong>pull model</strong> pattern, similar to subscribers. You explicitly receive requests when ready to process them, giving you full control over request handling timing and concurrency.</p>
 <div class="admonition info">
 <p class="admonition-title">Info</p>
-<p>This pull-based approach is consistent with subscriber's <code>recv()</code> pattern, allowing you to control when work happens rather than having callbacks interrupt your flow.</p>
+<p>This pull-based approach is consistent with subscriber's <code>recv()</code> pattern, allowing you to control when work happens without callbacks interrupting your flow.</p>
 </div>
 <h3 id="pattern-1-blocking-request-handling">Pattern 1: Blocking Request Handling<a class="headerlink" href="#pattern-1-blocking-request-handling" title="Permanent link">&para;</a></h3>
 <p>Best for: Simple synchronous service implementations</p>
