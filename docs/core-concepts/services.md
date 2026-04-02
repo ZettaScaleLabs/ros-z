@@ -54,6 +54,84 @@ Services use a fixed "services" QoS profile: reliable delivery with volatile dur
 
 ros-z implements services over Zenoh queryables using a pull model. The pull-based design lets you process requests at your own pace with full control over concurrency — `take_request()` returns the next pending request only when you are ready for it.
 
+### Key Concepts at a Glance
+
+<div class="flashcard-grid">
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">Pattern</div>
+        <div class="flashcard-term">What is a Service?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        A named request-response channel. A client sends a typed request; the server processes it and returns a typed response. Like a remote function call.
+      </div>
+    </div>
+  </div>
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">Constraint</div>
+        <div class="flashcard-term">How many servers can a service have?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        One. Multiple servers on the same service name is undefined behavior. Multiple clients are fine — any number can call the same service.
+      </div>
+    </div>
+  </div>
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">vs Action</div>
+        <div class="flashcard-term">Service vs Action — when to pick which?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        <div>• <strong>Service</strong>: result in milliseconds, no progress needed.</div>
+        <div>• <strong>Action</strong>: takes seconds/minutes, need feedback or cancellation.</div>
+      </div>
+    </div>
+  </div>
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">Timeout</div>
+        <div class="flashcard-term">What happens if no server is running?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        The call blocks until the server comes online or a timeout fires. ros-z uses Zenoh's query timeout (default: 10 minutes — configure with <strong>queries_default_timeout</strong>).
+      </div>
+    </div>
+  </div>
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">Pull Model</div>
+        <div class="flashcard-term">What is the pull model in ros-z?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        Call <strong>take_request()</strong> when you are ready — you control timing. Requests queue up until you retrieve them. Contrast with a callback model where the framework calls you.
+      </div>
+    </div>
+  </div>
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">QoS</div>
+        <div class="flashcard-term">Why do services use volatile durability?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        If a server restarts, old requests should not be replayed — stale requests could cause incorrect state. Volatile discards requests that no running server received.
+      </div>
+    </div>
+  </div>
+</div>
+
 ## Visual Flow
 
 ```mermaid

@@ -52,6 +52,84 @@ The default profile — reliable delivery, keep-last-10, volatile durability —
 
 ros-z maps ROS 2 topics directly onto Eclipse Zenoh key expressions, giving you the full ROS 2 pub/sub interface with Zenoh's efficient transport. The examples below show the complete API.
 
+### Key Concepts at a Glance
+
+<div class="flashcard-grid">
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">Pattern</div>
+        <div class="flashcard-term">What is a Topic?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        A named channel carrying a single message type. Publishers write to it; subscribers read from it. Neither knows the other exists.
+      </div>
+    </div>
+  </div>
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">Multiplicity</div>
+        <div class="flashcard-term">How many publishers and subscribers can share a topic?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        Any number of both. Zero publishers is valid (subscribers wait). Zero subscribers is valid (publishers drop into the void). All subscribers receive every message.
+      </div>
+    </div>
+  </div>
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">Type Safety</div>
+        <div class="flashcard-term">What happens if publisher and subscriber use different message types?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        No messages flow. ros-z checks type compatibility at connection time and rejects mismatches. This is a compile-time guarantee in Rust — the wrong type won't compile.
+      </div>
+    </div>
+  </div>
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">QoS</div>
+        <div class="flashcard-term">What happens when QoS is incompatible?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        No messages flow — silently. Example: a best-effort publisher and a reliable subscriber are incompatible. Check QoS events or use matching presets to avoid this.
+      </div>
+    </div>
+  </div>
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">vs Service</div>
+        <div class="flashcard-term">Topic vs Service — when to pick which?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        <div>• <strong>Topic</strong>: continuous data, many consumers, fire-and-forget.</div>
+        <div>• <strong>Service</strong>: one-time computation, need a result, short duration.</div>
+      </div>
+    </div>
+  </div>
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">Latching</div>
+        <div class="flashcard-term">How does a late subscriber get the last message?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        Set durability to <strong>TransientLocal</strong> on both publisher and subscriber. The publisher retains the last N messages and replays them to late joiners.
+      </div>
+    </div>
+  </div>
+</div>
+
 ## Visual Flow
 
 ```mermaid
@@ -63,6 +141,27 @@ graph TD
     D -->|publish| F[Topic]
     F -->|deliver| E
     E -->|callback| G[Message Handler]
+```
+
+### Message Flow
+
+```mermaid
+sequenceDiagram
+    participant P as Publisher (Talker)
+    participant Z as Eclipse Zenoh
+    participant S1 as Subscriber 1 (Listener)
+    participant S2 as Subscriber 2 (Logger)
+
+    P->>Z: publish("Hello World #1")
+    Z->>S1: deliver message
+    Z->>S2: deliver message
+    S1-->>P: (no reply — fire and forget)
+
+    P->>Z: publish("Hello World #2")
+    Z->>S1: deliver message
+    Z->>S2: deliver message
+
+    Note over P,S2: Any number of subscribers receive every message.<br/>Publisher never knows who is listening.
 ```
 
 ## Key Features
