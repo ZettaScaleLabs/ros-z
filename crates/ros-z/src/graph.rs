@@ -603,7 +603,6 @@ impl Graph {
         // ignore_from_current_session=true for query replies.
         // Ros2Dds endpoints (node: None) carry no z_id and are never filtered.
         let mut reply_count = 0;
-        let mut filtered_count = 0;
         while let Ok(reply) = replies.recv() {
             reply_count += 1;
             if let Ok(sample) = reply.into_result() {
@@ -628,11 +627,7 @@ impl Graph {
                 graph_data.lock().insert(ke);
             }
         }
-        tracing::debug!(
-            "Graph: Liveliness query received {} replies, filtered {} local entities",
-            reply_count,
-            filtered_count
-        );
+        tracing::debug!("Graph: Liveliness query received {} replies", reply_count);
 
         Ok(Self {
             _subscriber: sub,
@@ -994,7 +989,7 @@ impl Graph {
 
         data.visit_by_node(node_key, |ent| {
             if let Some(enp) = crate::entity::entity_get_endpoint(&ent)
-                && enp.kind == kind
+                && enp.entity_kind() == kind
                 && let Some(type_info) = &enp.type_info
             {
                 // Insert into set for automatic deduplication

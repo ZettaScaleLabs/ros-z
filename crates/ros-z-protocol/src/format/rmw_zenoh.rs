@@ -10,8 +10,8 @@ use zenoh::{key_expr::KeyExpr, session::ZenohId, Result};
 
 use crate::{
     entity::{
-        EndpointEntity, Entity, EntityConversionError, EntityKind, LivelinessKE, NodeEntity,
-        TopicKE, TypeHash, TypeInfo,
+        EndpointEntity, EndpointKind, Entity, EntityConversionError, EntityKind, LivelinessKE,
+        NodeEntity, TopicKE, TypeHash, TypeInfo,
     },
     qos::QosProfile,
 };

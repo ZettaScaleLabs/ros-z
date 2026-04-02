@@ -30,7 +30,7 @@ pub mod goal_state {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```ignore
 /// # use ros_z::action::*;
 /// # use ros_z::qos::QosProfile;
 /// # use ros_z_msgs::action_tutorials_interfaces::action::Fibonacci;
@@ -288,7 +288,7 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
 ///
 /// # Simple Goal Send/Receive
 ///
-/// ```no_run
+/// ```ignore
 /// # use ros_z::action::*;
 /// # use ros_z_msgs::action_tutorials_interfaces::{FibonacciGoal, action::Fibonacci};
 /// # #[tokio::main]
@@ -304,7 +304,7 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
 ///
 /// # Feedback Streaming
 ///
-/// ```no_run
+/// ```ignore
 /// # use ros_z::action::*;
 /// # use ros_z_msgs::action_tutorials_interfaces::action::Fibonacci;
 /// # #[tokio::main]
@@ -322,7 +322,7 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
 ///
 /// # Cancellation
 ///
-/// ```no_run
+/// ```ignore
 /// # use ros_z::action::*;
 /// # use ros_z_msgs::action_tutorials_interfaces::action::Fibonacci;
 /// # #[tokio::main]
@@ -394,7 +394,7 @@ impl<A: ZAction> ZActionClient<A> {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```ignore
     /// # use ros_z::action::*;
     /// # use ros_z_msgs::action_tutorials_interfaces::{FibonacciGoal, action::Fibonacci};
     /// # #[tokio::main]
@@ -602,7 +602,7 @@ struct GoalChannels<A: ZAction> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```ignore
 /// # use ros_z::action::*;
 /// # use ros_z_msgs::action_tutorials_interfaces::action::Fibonacci;
 /// # #[tokio::main]
