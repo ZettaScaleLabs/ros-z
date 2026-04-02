@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use ros_z::{Builder, Result, context::ZContextBuilder, define_action};
 use serde::{Deserialize, Serialize};
+use serial_test::serial;
 
 // Define test action messages (similar to Fibonacci)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -145,6 +146,36 @@ mod tests {
             .build()?;
 
         // Verify client creation with custom options succeeded
+        Ok(())
+    }
+
+    #[serial]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn test_action_client_wait_for_server() -> Result<()> {
+        let ctx = ZContextBuilder::default().build()?;
+        let client_node = ctx.create_node("action_wait_client").build()?;
+        let client = client_node
+            .create_action_client::<TestAction>("/wait_for_action")
+            .build()?;
+
+        let server_ctx = ctx.clone();
+        let server_task = tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+            let server_node = server_ctx.create_node("action_wait_server").build()?;
+            let _server = server_node
+                .create_action_server::<TestAction>("/wait_for_action")
+                .build()?;
+
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            Result::<()>::Ok(())
+        });
+
+        assert!(
+            client
+                .wait_for_server(std::time::Duration::from_secs(3))
+                .await
+        );
+        server_task.await??;
         Ok(())
     }
 
