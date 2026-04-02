@@ -34,6 +34,7 @@ prost = { workspace = true, optional = true }
 pyo3 = { workspace = true, optional = true }
 ros-z-cdr = { workspace = true }
 ros-z-codegen = { workspace = true, optional = true }
+ros-z-derive = { path = "../ros-z-derive" }
 ros-z-protocol = { path = "../ros-z-protocol", default-features = false, features = [
   "std",
 ] }
