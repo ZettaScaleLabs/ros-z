@@ -73,7 +73,6 @@ async fn wait_for_subscribers(
 #[cfg(test)]
 mod tests {
     use super::*;
-
     /// Tests getting topic names and types from the graph
     #[tokio::test(flavor = "multi_thread")]
     async fn test_get_topic_names_and_types() -> Result<()> {
