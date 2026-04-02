@@ -1741,6 +1741,15 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      Prerequisites
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#available-environments" class="md-nav__link">
     <span class="md-ellipsis">
       Available Environments
@@ -1750,9 +1759,60 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#step-by-step-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      Step-by-Step Usage
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Step-by-Step Usage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-enter-a-development-shell" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. Enter a Development Shell
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-build-and-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. Build and Test
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-exit-the-shell" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. Exit the Shell
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#use-cases" class="md-nav__link">
     <span class="md-ellipsis">
       Use Cases
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      Troubleshooting
     </span>
   </a>
   
@@ -1830,6 +1890,7 @@
   
 
 
+<!-- markdownlint-disable MD046 -->
 <h1 id="reproducible-development-with-nix">Reproducible Development with Nix<a class="headerlink" href="#reproducible-development-with-nix" title="Permanent link">&para;</a></h1>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
@@ -1837,20 +1898,63 @@
 </div>
 <p>ros-z provides Nix flakes for reproducible development environments with all dependencies pre-configured.</p>
 <h2 id="why-use-nix">Why Use Nix?<a class="headerlink" href="#why-use-nix" title="Permanent link">&para;</a></h2>
-<p><strong>Reproducible Builds:</strong> Nix ensures every developer and CI system uses the exact same dependencies, eliminating "works on my machine" issues. All dependencies—from compilers to ROS 2 packages—are pinned to specific versions and cached immutably.</p>
-<p><strong>Uniform CI/CD:</strong> The same Nix configuration that runs locally is used in continuous integration, ensuring build consistency across development, testing, and deployment environments. No more divergence between local builds and CI failures.</p>
-<p><strong>Zero Setup:</strong> New team members can start developing with a single <code>nix develop</code> command—no manual ROS installation, no dependency hunting, no environment configuration.</p>
-<h2 id="available-environments">Available Environments<a class="headerlink" href="#available-environments" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Default: ROS 2 Jazzy with full tooling</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>nix<span class="w"> </span>develop
+<p><strong>Reproducible Builds:</strong> Nix ensures every developer and CI system uses the exact same dependencies, eliminating "works on my machine" issues. All dependencies — from compilers to ROS 2 packages — are pinned to specific versions and cached immutably.</p>
+<p><strong>Uniform CI/CD:</strong> The same Nix configuration that runs locally is used in continuous integration, ensuring build consistency across development, testing, and deployment environments.</p>
+<p><strong>Zero Setup:</strong> New team members can start developing with a single <code>nix develop</code> command — no manual ROS installation, no dependency hunting, no environment configuration.</p>
+<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
+<p>Install Nix with flakes enabled:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Install Nix (Determinate Systems installer — recommended)</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>curl<span class="w"> </span>--proto<span class="w"> </span><span class="s1">&#39;=https&#39;</span><span class="w"> </span>--tlsv1.2<span class="w"> </span>-sSf<span class="w"> </span>-L<span class="w"> </span>https://install.determinate.systems/nix<span class="w"> </span><span class="p">|</span><span class="w"> </span>sh<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>install
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Specific ROS distros</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>nix<span class="w"> </span>develop<span class="w"> </span>.#ros-jazzy<span class="w">      </span><span class="c1"># ROS 2 Jazzy</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>nix<span class="w"> </span>develop<span class="w"> </span>.#ros-rolling<span class="w">    </span><span class="c1"># ROS 2 Rolling</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c1"># Pure Rust (no ROS)</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>nix<span class="w"> </span>develop<span class="w"> </span>.#pureRust<span class="w">       </span><span class="c1"># Minimal Rust toolchain only</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Verify</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>nix<span class="w"> </span>--version
 </span></code></pre></div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>The Determinate Systems installer enables flakes by default. If using the official Nix installer, add <code>experimental-features = nix-command flakes</code> to <code>/etc/nix/nix.conf</code>.</p>
+</div>
+<h2 id="available-environments">Available Environments<a class="headerlink" href="#available-environments" title="Permanent link">&para;</a></h2>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Default: ROS 2 Jazzy with full tooling</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>nix<span class="w"> </span>develop
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># Specific ROS distros</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>nix<span class="w"> </span>develop<span class="w"> </span>.#ros-jazzy<span class="w">      </span><span class="c1"># ROS 2 Jazzy</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>nix<span class="w"> </span>develop<span class="w"> </span>.#ros-rolling<span class="w">    </span><span class="c1"># ROS 2 Rolling</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="c1"># Pure Rust (no ROS 2 — fastest to enter)</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>nix<span class="w"> </span>develop<span class="w"> </span>.#pureRust
+</span></code></pre></div>
+<h2 id="step-by-step-usage">Step-by-Step Usage<a class="headerlink" href="#step-by-step-usage" title="Permanent link">&para;</a></h2>
+<h3 id="1-enter-a-development-shell">1. Enter a Development Shell<a class="headerlink" href="#1-enter-a-development-shell" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">cd</span><span class="w"> </span>/path/to/ros-z
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>nix<span class="w"> </span>develop<span class="w">        </span><span class="c1"># enters .#ros-jazzy by default</span>
+</span></code></pre></div>
+<p>The first run downloads and builds all dependencies. This takes 5–15 minutes. Subsequent runs are instant (cached).</p>
+<p>Once inside, your shell has:</p>
+<ul>
+<li>Rust toolchain (stable + nightly)</li>
+<li>ROS 2 Jazzy (or the distro you selected)</li>
+<li>All system libraries (<code>libclang</code>, <code>mold</code>, etc.)</li>
+<li><code>cargo</code>, <code>colcon</code>, <code>ros2</code> CLI</li>
+</ul>
+<h3 id="2-build-and-test">2. Build and Test<a class="headerlink" href="#2-build-and-test" title="Permanent link">&para;</a></h3>
+<p>All standard commands work inside the shell:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Build everything</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>cargo<span class="w"> </span>build
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Build with ROS 2 messages</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>cargo<span class="w"> </span>build<span class="w"> </span>-p<span class="w"> </span>ros-z-msgs
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># Run tests</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>cargo<span class="w"> </span><span class="nb">test</span><span class="w"> </span>-p<span class="w"> </span>ros-z
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="c1"># Run an example</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>cargo<span class="w"> </span>run<span class="w"> </span>--example<span class="w"> </span>z_pubsub
+</span></code></pre></div>
+<h3 id="3-exit-the-shell">3. Exit the Shell<a class="headerlink" href="#3-exit-the-shell" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">exit</span><span class="w">   </span><span class="c1"># or Ctrl-D</span>
+</span></code></pre></div>
+<p>Your system environment is unchanged — nothing was installed globally.</p>
 <h2 id="use-cases">Use Cases<a class="headerlink" href="#use-cases" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1862,36 +1966,59 @@
 </thead>
 <tbody>
 <tr>
-<td><strong>Team Development</strong></td>
-<td>All developers</td>
-<td>Everyone has identical toolchains and dependencies</td>
+<td><strong>Core Rust development</strong></td>
+<td><code>.#pureRust</code></td>
+<td>Fast entry, no ROS 2 needed</td>
+</tr>
+<tr>
+<td><strong>Full ROS 2 development</strong></td>
+<td><code>.#ros-jazzy</code></td>
+<td>All ROS 2 tools available</td>
+</tr>
+<tr>
+<td><strong>Multi-distro testing</strong></td>
+<td><code>.#ros-jazzy</code> + <code>.#ros-rolling</code></td>
+<td>Test against different distros</td>
 </tr>
 <tr>
 <td><strong>CI/CD Pipelines</strong></td>
-<td>GitHub Actions, GitLab CI</td>
-<td>Same environment locally and in automation</td>
-</tr>
-<tr>
-<td><strong>Cross-Platform</strong></td>
-<td>Linux, macOS, WSL</td>
-<td>Consistent builds regardless of host OS</td>
-</tr>
-<tr>
-<td><strong>Multiple ROS Versions</strong></td>
-<td>Switch environments easily</td>
-<td>Test against different ROS distros without conflicts</td>
+<td><code>.#pureRust-ci</code></td>
+<td>Same environment as GitHub Actions</td>
 </tr>
 </tbody>
 </table>
-<div class="admonition tip">
-<p class="admonition-title">Tip</p>
-<p>Use Nix for consistent development environments across team members and CI/CD pipelines. The reproducibility guarantees catch integration issues early.</p>
-</div>
+<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
+<details class="question">
+<summary>nix develop hangs or is very slow</summary>
+<p>The first run must download and compile dependencies. Check progress with:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>nix<span class="w"> </span>develop<span class="w"> </span>--print-build-logs
+</span></code></pre></div>
+<p>If it hangs completely, check available disk space (Nix needs ~10 GB in <code>/nix/store</code>):</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>df<span class="w"> </span>-h<span class="w"> </span>/nix
+</span></code></pre></div>
+</details>
+<details class="question">
+<summary>Error: experimental feature 'flakes' is not enabled</summary>
+<p>Add to <code>/etc/nix/nix.conf</code>:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>experimental-features = nix-command flakes
+</span></code></pre></div>
+<p>Then restart the Nix daemon:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span>restart<span class="w"> </span>nix-daemon
+</span></code></pre></div>
+</details>
+<details class="question">
+<summary>cargo: command not found inside nix develop</summary>
+<p>The shell hook sets up the environment. If <code>cargo</code> is missing, ensure you are
+inside the Nix shell (your prompt should change) and try:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>nix<span class="w"> </span>develop<span class="w"> </span>--command<span class="w"> </span>bash
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>which<span class="w"> </span>cargo
+</span></code></pre></div>
+</details>
 <h2 id="learning-more">Learning More<a class="headerlink" href="#learning-more" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong><a href="https://nixos.org/manual/nix/stable/">Nix Official Guide</a></strong> - Introduction to Nix</li>
-<li><strong><a href="https://nixos.wiki/wiki/Flakes">Nix Flakes</a></strong> - Understanding flakes</li>
-<li><strong><a href="https://github.com/ZettaScaleLabs/ros-z/blob/main/flake.nix">ros-z flake.nix</a></strong> - Our Nix configuration</li>
+<li><strong><a href="https://nixos.org/manual/nix/stable/">Nix Official Guide</a></strong> — Introduction to Nix</li>
+<li><strong><a href="https://nixos.wiki/wiki/Flakes">Nix Flakes</a></strong> — Understanding flakes</li>
+<li><strong><a href="https://github.com/ZettaScaleLabs/ros-z/blob/main/flake.nix">ros-z flake.nix</a></strong> — Our Nix configuration</li>
 </ul>
 
 

@@ -1827,7 +1827,7 @@
 </div>
 <h2 id="build-issues">Build Issues<a class="headerlink" href="#build-issues" title="Permanent link">&para;</a></h2>
 <details class="question">
-<summary>Build fails with </summary>
+<summary>Build fails with 'package not found' or missing ROS 2 packages</summary>
 <p><strong>Root Cause:</strong> ROS 2 environment not sourced or packages not installed.</p>
 <p><strong>Solutions:</strong></p>
 <ol>
@@ -1916,7 +1916,7 @@
 </details>
 <h2 id="runtime-issues">Runtime Issues<a class="headerlink" href="#runtime-issues" title="Permanent link">&para;</a></h2>
 <details class="question">
-<summary>Publishers and subscribers on different processes don</summary>
+<summary>Publishers and subscribers on different processes don't communicate</summary>
 <p><strong>Root Cause:</strong> Eclipse Zenoh router not running or nodes not configured correctly.</p>
 <p><strong>Solution:</strong></p>
 <ol>
@@ -1935,7 +1935,7 @@
 </ol>
 </details>
 <details class="question">
-<summary>Router fails to start with </summary>
+<summary>Router fails to start with 'address already in use'</summary>
 <p><strong>Root Cause:</strong> Another process is using port 7447.</p>
 <p><strong>Solutions:</strong></p>
 <ol>
@@ -1956,7 +1956,7 @@
 </span></code></pre></div></p>
 </details>
 <details class="question">
-<summary>Don</summary>
+<summary>Don't want to run a router — can I use peer-to-peer mode?</summary>
 <p><strong>Solution:</strong> Use peer mode with multicast discovery:</p>
 <div class="language-rust highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kd">let</span><span class="w"> </span><span class="n">ctx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ZContextBuilder</span><span class="p">::</span><span class="n">default</span><span class="p">()</span>
 </span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">    </span><span class="p">.</span><span class="n">with_mode</span><span class="p">(</span><span class="s">&quot;peer&quot;</span><span class="p">)</span>
@@ -1965,7 +1965,7 @@
 <p><strong>Warning:</strong> Peer mode won't interoperate with ROS 2 nodes using <code>rmw_zenoh_cpp</code> in router mode.</p>
 </details>
 <details class="question">
-<summary>Multi-segment topics like /robot/sensors/camera don</summary>
+<summary>Multi-segment topics like /robot/sensors/camera don't work</summary>
 <p><strong>Symptom:</strong> Publisher publishes to <code>/robot/sensors/camera</code> but subscriber never receives messages.</p>
 <p><strong>Root Cause:</strong> Old versions of ros-z (before 0.1.0) incorrectly mangled slashes in topic key expressions, breaking multi-segment topic routing.</p>
 <p><strong>Solution:</strong> Update to ros-z 0.1.0+ which correctly preserves internal slashes in topic key expressions.</p>
@@ -2001,7 +2001,7 @@
 <p>See <a href="../../experimental/keyexpr-formats/#key-expression-behavior-important">Key Expression Formats</a> for details.</p>
 </details>
 <details class="question">
-<summary>ROS 2 nodes don</summary>
+<summary>ROS 2 nodes don't receive messages from ros-z (type hash mismatch)</summary>
 <p><strong>Root Cause:</strong> Type hash mismatch — ros-z and the ROS 2 node disagree on the message definition's RIHS01 hash.</p>
 <p><strong>Diagnosis:</strong></p>
 <p>Enable debug logging to see the key expressions being advertised:</p>
