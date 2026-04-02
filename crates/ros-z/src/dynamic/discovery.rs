@@ -4,7 +4,6 @@ use std::{collections::BTreeSet, sync::Arc};
 use crate::{
     dynamic::{DynamicError, MessageSchema},
     entity::{Entity, EntityKind},
-    extended_schema::ExtendedTypeDescriptionClient,
     graph::Graph,
     node::ZNode,
     topic_name::qualify_topic_name,
@@ -142,7 +141,7 @@ impl<'a> SchemaDiscovery<'a> {
         let mut last_error = None;
 
         for candidate in candidates {
-            match super::type_description_client::query_type_description(
+            match super::type_description_query::query_type_description(
                 self.node,
                 candidate,
                 self.timeout,
@@ -164,29 +163,17 @@ impl<'a> SchemaDiscovery<'a> {
         &self,
         candidates: &[TopicSchemaCandidate],
     ) -> Result<(Arc<MessageSchema>, String), DynamicError> {
-        let client = ExtendedTypeDescriptionClient::new(
-            self.node.session().clone(),
-            self.node.counter().clone(),
-        )
-        .with_timeout(self.timeout);
         let mut last_error = None;
 
         for candidate in candidates {
-            match client
-                .get_type_description(
-                    &candidate.node_name,
-                    &candidate.namespace,
-                    &candidate.type_name,
-                    &candidate.type_hash,
-                )
-                .await
+            match crate::extended_type_description_query::query_extended_type_description(
+                self.node,
+                candidate,
+                self.timeout,
+            )
+            .await
             {
-                Ok(response) => {
-                    match ExtendedTypeDescriptionClient::response_to_schema(&response) {
-                        Ok(schema) => return Ok((schema, response.type_hash.clone())),
-                        Err(error) => last_error = Some(error),
-                    }
-                }
+                Ok(result) => return Ok(result),
                 Err(error) => last_error = Some(error),
             }
         }

@@ -8,13 +8,12 @@ use crate::{Builder, node::ZNode};
 
 #[cfg(test)]
 use super::discovery::collect_topic_schema_candidates_from_publishers;
-use super::{discovery::TopicSchemaCandidate, error::DynamicError, schema::MessageSchema};
-
 use super::type_description::type_description_msg_to_schema;
 use super::type_description_service::{
     GetTypeDescription, GetTypeDescriptionRequest, GetTypeDescriptionResponse,
     wire_to_schema_type_description,
 };
+use super::{discovery::TopicSchemaCandidate, error::DynamicError, schema::MessageSchema};
 
 pub(crate) async fn query_type_description(
     node: &ZNode,
@@ -117,7 +116,6 @@ mod tests {
 
     #[test]
     fn test_response_to_schema_success() {
-        // Build a schema and convert to wire format
         let original = MessageSchema::builder("std_msgs/msg/String")
             .field("data", FieldType::String)
             .build()
@@ -155,7 +153,6 @@ mod tests {
 
     #[test]
     fn test_response_to_schema_nested() {
-        // Build a nested schema
         let vector3 = MessageSchema::builder("geometry_msgs/msg/Vector3")
             .field("x", FieldType::Float64)
             .field("y", FieldType::Float64)
@@ -183,7 +180,6 @@ mod tests {
         assert_eq!(schema.type_name, "geometry_msgs/msg/Twist");
         assert_eq!(schema.fields.len(), 2);
 
-        // Verify nested types are resolved
         if let FieldType::Message(nested) = &schema.fields[0].field_type {
             assert_eq!(nested.type_name, "geometry_msgs/msg/Vector3");
             assert_eq!(nested.fields.len(), 3);

@@ -59,6 +59,8 @@ pub mod entity;
 pub mod event;
 /// ros-z-specific extended schema discovery for enums, options, and other non-ROS shapes.
 pub mod extended_schema;
+pub(crate) mod extended_type_description_query;
+pub(crate) mod extended_type_description_service;
 #[cfg(feature = "ffi")]
 pub mod ffi;
 /// ROS 2 graph introspection (node/topic/service discovery).
