@@ -29,6 +29,16 @@ type TokenStream2 = proc_macro2::TokenStream;
 #[proc_macro_derive(MessageTypeInfo, attributes(ros_msg))]
 pub fn derive_message_type_info(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
+    match impl_standard_message_type_info(&input) {
+        Ok(tokens) => tokens.into(),
+        Err(err) => err.to_compile_error().into(),
+    }
+}
+
+/// Derive macro for implementing ros-z extended message schema generation.
+#[proc_macro_derive(ExtendedMessageTypeInfo, attributes(ros_msg))]
+pub fn derive_extended_message_type_info(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
     match impl_message_type_info(&input) {
         Ok(tokens) => tokens.into(),
         Err(err) => err.to_compile_error().into(),
@@ -79,6 +89,54 @@ fn impl_message_type_info(input: &DeriveInput) -> syn::Result<TokenStream2> {
     if !input.generics.params.is_empty() {
         return Err(syn::Error::new_spanned(
             &input.generics,
+            "ExtendedMessageTypeInfo derive does not support generic types in v1",
+        ));
+    }
+
+    let attrs = parse_ros_msg_args(&input.attrs)?;
+    let canonical_type_name = attrs.type_name.ok_or_else(|| {
+        syn::Error::new_spanned(
+            input,
+            "ExtendedMessageTypeInfo derive requires #[ros_msg(type_name = \"my_pkg/msg/MyType\")]",
+        )
+    })?;
+    let type_name_lit = LitStr::new(&canonical_type_name, proc_macro2::Span::call_site());
+    let (package, _kind, message_name) = parse_canonical_type_name(&canonical_type_name)?;
+    let dds_type_name = canonical_to_dds_name(&canonical_type_name)?;
+    let package_lit = LitStr::new(&package, proc_macro2::Span::call_site());
+    let message_name_lit = LitStr::new(&message_name, proc_macro2::Span::call_site());
+    let dds_type_name_lit = LitStr::new(&dds_type_name, proc_macro2::Span::call_site());
+
+    match &input.data {
+        Data::Struct(data) => impl_message_type_info_for_struct(
+            name,
+            data,
+            &type_name_lit,
+            &package_lit,
+            &message_name_lit,
+            &dds_type_name_lit,
+        ),
+        Data::Enum(data) => impl_message_type_info_for_enum(
+            name,
+            data,
+            &type_name_lit,
+            &package_lit,
+            &message_name_lit,
+            &dds_type_name_lit,
+        ),
+        Data::Union(_) => Err(syn::Error::new_spanned(
+            input,
+            "ExtendedMessageTypeInfo derive does not support unions",
+        )),
+    }
+}
+
+fn impl_standard_message_type_info(input: &DeriveInput) -> syn::Result<TokenStream2> {
+    let name = &input.ident;
+
+    if !input.generics.params.is_empty() {
+        return Err(syn::Error::new_spanned(
+            &input.generics,
             "MessageTypeInfo derive does not support generic types in v1",
         ));
     }
@@ -93,6 +151,9 @@ fn impl_message_type_info(input: &DeriveInput) -> syn::Result<TokenStream2> {
     let type_name_lit = LitStr::new(&canonical_type_name, proc_macro2::Span::call_site());
     let (package, _kind, message_name) = parse_canonical_type_name(&canonical_type_name)?;
     let dds_type_name = canonical_to_dds_name(&canonical_type_name)?;
+    let package_lit = LitStr::new(&package, proc_macro2::Span::call_site());
+    let message_name_lit = LitStr::new(&message_name, proc_macro2::Span::call_site());
+    let dds_type_name_lit = LitStr::new(&dds_type_name, proc_macro2::Span::call_site());
 
     let Data::Struct(data) = &input.data else {
         return Err(syn::Error::new_spanned(
@@ -113,12 +174,10 @@ fn impl_message_type_info(input: &DeriveInput) -> syn::Result<TokenStream2> {
     let schema_fields = fields
         .named
         .iter()
-        .map(generate_message_field_schema_tokens)
+        .map(generate_standard_message_field_schema_tokens)
         .collect::<syn::Result<Vec<_>>>()?;
 
-    let package_lit = LitStr::new(&package, proc_macro2::Span::call_site());
-    let message_name_lit = LitStr::new(&message_name, proc_macro2::Span::call_site());
-    let dds_type_name_lit = LitStr::new(&dds_type_name, proc_macro2::Span::call_site());
+    let message_type_hash_impl = standard_message_type_hash_impl_tokens();
 
     Ok(quote! {
         impl ::ros_z::MessageTypeInfo for #name {
@@ -126,31 +185,7 @@ fn impl_message_type_info(input: &DeriveInput) -> syn::Result<TokenStream2> {
                 #dds_type_name_lit
             }
 
-            fn type_hash() -> ::ros_z::entity::TypeHash {
-                let zero = ::ros_z::entity::TypeHash::zero();
-                if zero.to_rihs_string() == "TypeHashNotSupported" {
-                    return zero;
-                }
-
-                static TYPE_HASH: ::std::sync::OnceLock<::ros_z::entity::TypeHash> =
-                    ::std::sync::OnceLock::new();
-
-                TYPE_HASH
-                    .get_or_init(|| {
-                        use ::ros_z::dynamic::MessageSchemaTypeDescription;
-
-                        let schema = Self::message_schema()
-                            .expect("derived message schema must be available");
-                        let rihs = schema
-                            .compute_type_hash()
-                            .expect("derived message schema must produce a type hash")
-                            .to_rihs_string();
-
-                        ::ros_z::entity::TypeHash::from_rihs_string(&rihs)
-                            .expect("derived message hash must be a valid RIHS01 string")
-                    })
-                    .clone()
-            }
+            #message_type_hash_impl
 
             fn message_schema() -> Option<::std::sync::Arc<::ros_z::dynamic::MessageSchema>> {
                 static SCHEMA: ::std::sync::OnceLock<::std::sync::Arc<::ros_z::dynamic::MessageSchema>> =
@@ -174,6 +209,236 @@ fn impl_message_type_info(input: &DeriveInput) -> syn::Result<TokenStream2> {
 
         impl ::ros_z::WithTypeInfo for #name {}
     })
+}
+
+fn impl_message_type_info_for_struct(
+    name: &Ident,
+    data: &syn::DataStruct,
+    type_name_lit: &LitStr,
+    package_lit: &LitStr,
+    message_name_lit: &LitStr,
+    dds_type_name_lit: &LitStr,
+) -> syn::Result<TokenStream2> {
+    let message_type_hash_impl = extended_message_type_hash_impl_tokens();
+
+    let Fields::Named(fields) = &data.fields else {
+        let message = match &data.fields {
+            Fields::Unnamed(_) => {
+                "ExtendedMessageTypeInfo derive does not support tuple structs in v1"
+            }
+            Fields::Unit => "ExtendedMessageTypeInfo derive does not support unit structs in v1",
+            Fields::Named(_) => unreachable!(),
+        };
+        return Err(syn::Error::new_spanned(name, message));
+    };
+
+    let schema_fields = fields
+        .named
+        .iter()
+        .map(generate_message_field_schema_tokens)
+        .collect::<syn::Result<Vec<_>>>()?;
+
+    Ok(quote! {
+        impl ::ros_z::ExtendedMessageTypeInfo for #name {
+            fn extended_message_schema() -> ::std::sync::Arc<::ros_z::dynamic::MessageSchema> {
+                static SCHEMA: ::std::sync::OnceLock<::std::sync::Arc<::ros_z::dynamic::MessageSchema>> =
+                    ::std::sync::OnceLock::new();
+
+                SCHEMA
+                    .get_or_init(|| {
+                        ::std::sync::Arc::new(::ros_z::dynamic::MessageSchema {
+                            type_name: #type_name_lit.to_string(),
+                            package: #package_lit.to_string(),
+                            name: #message_name_lit.to_string(),
+                            fields: ::std::vec![#(#schema_fields),*],
+                            type_hash: None,
+                        })
+                    })
+                    .clone()
+            }
+        }
+
+        impl ::ros_z::MessageTypeInfo for #name {
+            fn type_name() -> &'static str {
+                #dds_type_name_lit
+            }
+
+            #message_type_hash_impl
+
+            fn message_schema() -> Option<::std::sync::Arc<::ros_z::dynamic::MessageSchema>> {
+                let schema = <Self as ::ros_z::ExtendedMessageTypeInfo>::extended_message_schema();
+                if schema.uses_extended_types() {
+                    None
+                } else {
+                    Some(schema)
+                }
+            }
+
+            fn register_type_extensions(node: &::ros_z::node::ZNode) -> ::std::result::Result<(), ::std::string::String> {
+                let schema = <Self as ::ros_z::ExtendedMessageTypeInfo>::extended_message_schema();
+                if schema.uses_extended_types() {
+                    ::ros_z::extended_schema::register_type::<Self>(node)
+                } else {
+                    Ok(())
+                }
+            }
+        }
+
+        impl ::ros_z::WithTypeInfo for #name {}
+    })
+}
+
+fn impl_message_type_info_for_enum(
+    name: &Ident,
+    data: &syn::DataEnum,
+    type_name_lit: &LitStr,
+    package_lit: &LitStr,
+    message_name_lit: &LitStr,
+    dds_type_name_lit: &LitStr,
+) -> syn::Result<TokenStream2> {
+    let message_type_hash_impl = extended_message_type_hash_impl_tokens();
+
+    if data.variants.is_empty() {
+        return Err(syn::Error::new_spanned(
+            name,
+            "ExtendedMessageTypeInfo derive requires enums to have at least one variant",
+        ));
+    }
+
+    let variant_tokens = data
+        .variants
+        .iter()
+        .map(generate_enum_variant_schema_tokens)
+        .collect::<syn::Result<Vec<_>>>()?;
+
+    Ok(quote! {
+        impl #name {
+            fn __ros_z_enum_schema() -> ::std::sync::Arc<::ros_z::dynamic::EnumSchema> {
+                static ENUM_SCHEMA: ::std::sync::OnceLock<::std::sync::Arc<::ros_z::dynamic::EnumSchema>> =
+                    ::std::sync::OnceLock::new();
+
+                ENUM_SCHEMA
+                    .get_or_init(|| {
+                        ::std::sync::Arc::new(::ros_z::dynamic::EnumSchema {
+                            type_name: #type_name_lit.to_string(),
+                            variants: ::std::vec![#(#variant_tokens),*],
+                        })
+                    })
+                    .clone()
+            }
+        }
+
+        impl ::ros_z::ExtendedMessageTypeInfo for #name {
+            fn extended_message_schema() -> ::std::sync::Arc<::ros_z::dynamic::MessageSchema> {
+                static SCHEMA: ::std::sync::OnceLock<::std::sync::Arc<::ros_z::dynamic::MessageSchema>> =
+                    ::std::sync::OnceLock::new();
+
+                SCHEMA
+                    .get_or_init(|| {
+                        ::std::sync::Arc::new(::ros_z::dynamic::MessageSchema {
+                            type_name: #type_name_lit.to_string(),
+                            package: #package_lit.to_string(),
+                            name: #message_name_lit.to_string(),
+                            fields: ::std::vec![
+                                ::ros_z::dynamic::FieldSchema::new(
+                                    "value",
+                                    ::ros_z::dynamic::FieldType::Enum(Self::__ros_z_enum_schema()),
+                                )
+                            ],
+                            type_hash: None,
+                        })
+                    })
+                    .clone()
+            }
+
+            fn extended_field_type() -> ::ros_z::dynamic::FieldType {
+                ::ros_z::dynamic::FieldType::Enum(Self::__ros_z_enum_schema())
+            }
+        }
+
+        impl ::ros_z::MessageTypeInfo for #name {
+            fn type_name() -> &'static str {
+                #dds_type_name_lit
+            }
+
+            #message_type_hash_impl
+
+            fn message_schema() -> Option<::std::sync::Arc<::ros_z::dynamic::MessageSchema>> {
+                None
+            }
+
+            fn register_type_extensions(node: &::ros_z::node::ZNode) -> ::std::result::Result<(), ::std::string::String> {
+                ::ros_z::extended_schema::register_type::<Self>(node)
+            }
+        }
+
+        impl ::ros_z::WithTypeInfo for #name {}
+    })
+}
+
+fn standard_message_type_hash_impl_tokens() -> TokenStream2 {
+    quote! {
+        fn type_hash() -> ::ros_z::entity::TypeHash {
+            let zero = ::ros_z::entity::TypeHash::zero();
+            if zero.to_rihs_string() == "TypeHashNotSupported" {
+                return zero;
+            }
+
+            static TYPE_HASH: ::std::sync::OnceLock<::ros_z::entity::TypeHash> =
+                ::std::sync::OnceLock::new();
+
+            TYPE_HASH
+                .get_or_init(|| {
+                    use ::ros_z::dynamic::MessageSchemaTypeDescription;
+
+                    let schema = Self::message_schema()
+                        .expect("derived message schema must be available");
+                    let rihs = schema
+                        .compute_type_hash()
+                        .expect("derived message schema must produce a type hash")
+                        .to_rihs_string();
+
+                    ::ros_z::entity::TypeHash::from_rihs_string(&rihs)
+                        .expect("derived message hash must be a valid RIHS01 string")
+                })
+                .clone()
+        }
+    }
+}
+
+fn extended_message_type_hash_impl_tokens() -> TokenStream2 {
+    quote! {
+        fn type_hash() -> ::ros_z::entity::TypeHash {
+            let zero = ::ros_z::entity::TypeHash::zero();
+            if zero.to_rihs_string() == "TypeHashNotSupported" {
+                return zero;
+            }
+
+            static TYPE_HASH: ::std::sync::OnceLock<::ros_z::entity::TypeHash> =
+                ::std::sync::OnceLock::new();
+
+            TYPE_HASH
+                .get_or_init(|| {
+                    let schema = <Self as ::ros_z::ExtendedMessageTypeInfo>::extended_message_schema();
+                    let hash = if schema.uses_extended_types() {
+                        ::ros_z::extended_schema::compute_extended_type_hash(&schema)
+                            .expect("extended message schema must produce a type hash")
+                            .to_rihs_string()
+                    } else {
+                        use ::ros_z::dynamic::MessageSchemaTypeDescription;
+
+                        schema
+                            .compute_type_hash()
+                            .expect("standard-compatible extended schema must produce a standard type hash")
+                            .to_rihs_string()
+                    };
+
+                    ::ros_z::entity::TypeHash::from_rihs_string(&hash)
+                        .expect("extended message hash must be a valid RIHS01 string")
+                })
+                .clone()
+        }
+    }
 }
 
 fn impl_from_py_message(input: &DeriveInput) -> syn::Result<TokenStream2> {
@@ -266,20 +531,20 @@ fn impl_into_py_message(input: &DeriveInput) -> syn::Result<TokenStream2> {
     })
 }
 
-fn generate_message_field_schema_tokens(field: &syn::Field) -> syn::Result<TokenStream2> {
+fn generate_standard_message_field_schema_tokens(field: &syn::Field) -> syn::Result<TokenStream2> {
     let field_name = field
         .ident
         .as_ref()
         .ok_or_else(|| syn::Error::new_spanned(field, "named fields are required"))?;
     let field_name_str = field_name_to_attr(field_name);
-    let field_type = generate_message_field_type_tokens(&field.ty)?;
+    let field_type = generate_standard_message_field_type_tokens(&field.ty)?;
 
     Ok(quote! {
         ::ros_z::dynamic::FieldSchema::new(#field_name_str, #field_type)
     })
 }
 
-fn generate_message_field_type_tokens(ty: &Type) -> syn::Result<TokenStream2> {
+fn generate_standard_message_field_type_tokens(ty: &Type) -> syn::Result<TokenStream2> {
     match ty {
         Type::Path(type_path) => {
             if type_path.qself.is_some() {
@@ -290,7 +555,10 @@ fn generate_message_field_type_tokens(ty: &Type) -> syn::Result<TokenStream2> {
             }
 
             let last_segment = type_path.path.segments.last().ok_or_else(|| {
-                syn::Error::new_spanned(ty, "unsupported field type for MessageTypeInfo derive")
+                syn::Error::new_spanned(
+                    ty,
+                    "unsupported field type for ExtendedMessageTypeInfo derive",
+                )
             })?;
             let ident_str = last_segment.ident.to_string();
 
@@ -332,7 +600,7 @@ fn generate_message_field_type_tokens(ty: &Type) -> syn::Result<TokenStream2> {
                             "Vec fields must specify an element type",
                         );
                     };
-                    let inner_tokens = generate_message_field_type_tokens(inner)?;
+                    let inner_tokens = generate_standard_message_field_type_tokens(inner)?;
                     Ok(quote! {
                         ::ros_z::dynamic::FieldType::Sequence(::std::boxed::Box::new(#inner_tokens))
                     })
@@ -364,7 +632,7 @@ fn generate_message_field_type_tokens(ty: &Type) -> syn::Result<TokenStream2> {
                 }
             };
 
-            let inner_tokens = generate_message_field_type_tokens(&array.elem)?;
+            let inner_tokens = generate_standard_message_field_type_tokens(&array.elem)?;
             Ok(quote! {
                 ::ros_z::dynamic::FieldType::Array(::std::boxed::Box::new(#inner_tokens), #len)
             })
@@ -378,6 +646,171 @@ fn generate_message_field_type_tokens(ty: &Type) -> syn::Result<TokenStream2> {
             "unsupported field type for MessageTypeInfo derive in v1",
         ),
     }
+}
+
+fn generate_message_field_schema_tokens(field: &syn::Field) -> syn::Result<TokenStream2> {
+    let field_name = field
+        .ident
+        .as_ref()
+        .ok_or_else(|| syn::Error::new_spanned(field, "named fields are required"))?;
+    let field_name_str = field_name_to_attr(field_name);
+    let field_type = generate_message_field_type_tokens(&field.ty)?;
+
+    Ok(quote! {
+        ::ros_z::dynamic::FieldSchema::new(#field_name_str, #field_type)
+    })
+}
+
+fn generate_message_field_type_tokens(ty: &Type) -> syn::Result<TokenStream2> {
+    match ty {
+        Type::Path(type_path) => {
+            if type_path.qself.is_some() {
+                return unsupported_message_type(
+                    ty,
+                    "qualified self types are not supported by ExtendedMessageTypeInfo derive in v1",
+                );
+            }
+
+            let last_segment = type_path.path.segments.last().ok_or_else(|| {
+                syn::Error::new_spanned(
+                    ty,
+                    "unsupported field type for ExtendedMessageTypeInfo derive",
+                )
+            })?;
+            let ident_str = last_segment.ident.to_string();
+
+            match ident_str.as_str() {
+                "bool" => Ok(quote! { ::ros_z::dynamic::FieldType::Bool }),
+                "i8" => Ok(quote! { ::ros_z::dynamic::FieldType::Int8 }),
+                "u8" => Ok(quote! { ::ros_z::dynamic::FieldType::Uint8 }),
+                "i16" => Ok(quote! { ::ros_z::dynamic::FieldType::Int16 }),
+                "u16" => Ok(quote! { ::ros_z::dynamic::FieldType::Uint16 }),
+                "i32" => Ok(quote! { ::ros_z::dynamic::FieldType::Int32 }),
+                "u32" => Ok(quote! { ::ros_z::dynamic::FieldType::Uint32 }),
+                "i64" => Ok(quote! { ::ros_z::dynamic::FieldType::Int64 }),
+                "u64" => Ok(quote! { ::ros_z::dynamic::FieldType::Uint64 }),
+                "f32" => Ok(quote! { ::ros_z::dynamic::FieldType::Float32 }),
+                "f64" => Ok(quote! { ::ros_z::dynamic::FieldType::Float64 }),
+                "String" => Ok(quote! { ::ros_z::dynamic::FieldType::String }),
+                "usize" | "isize" => unsupported_message_type(
+                    ty,
+                    "usize and isize are not supported by ExtendedMessageTypeInfo derive in v1",
+                ),
+                "HashMap" | "BTreeMap" => unsupported_message_type(
+                    ty,
+                    "map fields are not supported by ExtendedMessageTypeInfo derive in v1",
+                ),
+                "Option" => {
+                    let PathArguments::AngleBracketed(args) = &last_segment.arguments else {
+                        return unsupported_message_type(
+                            ty,
+                            "Option fields must specify an inner type",
+                        );
+                    };
+                    let Some(GenericArgument::Type(inner)) = args.args.first() else {
+                        return unsupported_message_type(
+                            ty,
+                            "Option fields must specify an inner type",
+                        );
+                    };
+                    let inner_tokens = generate_message_field_type_tokens(inner)?;
+                    Ok(quote! {
+                        ::ros_z::dynamic::FieldType::Optional(::std::boxed::Box::new(#inner_tokens))
+                    })
+                }
+                "Vec" => {
+                    let PathArguments::AngleBracketed(args) = &last_segment.arguments else {
+                        return unsupported_message_type(
+                            ty,
+                            "Vec fields must specify an element type",
+                        );
+                    };
+                    let Some(GenericArgument::Type(inner)) = args.args.first() else {
+                        return unsupported_message_type(
+                            ty,
+                            "Vec fields must specify an element type",
+                        );
+                    };
+                    let inner_tokens = generate_message_field_type_tokens(inner)?;
+                    Ok(quote! {
+                        ::ros_z::dynamic::FieldType::Sequence(::std::boxed::Box::new(#inner_tokens))
+                    })
+                }
+                _ => Ok(quote! {
+                    <#ty as ::ros_z::ExtendedMessageTypeInfo>::extended_field_type()
+                }),
+            }
+        }
+        Type::Array(array) => {
+            let len = match &array.len {
+                Expr::Lit(expr_lit) => match &expr_lit.lit {
+                    syn::Lit::Int(value) => value.base10_parse::<usize>()?,
+                    _ => {
+                        return unsupported_message_type(
+                            ty,
+                            "array lengths must be integer literals for MessageTypeInfo derive",
+                        );
+                    }
+                },
+                _ => {
+                    return unsupported_message_type(
+                        ty,
+                        "array lengths must be integer literals for MessageTypeInfo derive",
+                    );
+                }
+            };
+
+            let inner_tokens = generate_message_field_type_tokens(&array.elem)?;
+            Ok(quote! {
+                ::ros_z::dynamic::FieldType::Array(::std::boxed::Box::new(#inner_tokens), #len)
+            })
+        }
+        Type::Tuple(_) => unsupported_message_type(
+            ty,
+            "tuple fields are not supported by ExtendedMessageTypeInfo derive in v1",
+        ),
+        _ => unsupported_message_type(
+            ty,
+            "unsupported field type for ExtendedMessageTypeInfo derive in v1",
+        ),
+    }
+}
+
+fn generate_enum_variant_schema_tokens(variant: &syn::Variant) -> syn::Result<TokenStream2> {
+    let variant_name = variant.ident.to_string();
+    let payload = match &variant.fields {
+        Fields::Unit => quote! { ::ros_z::dynamic::EnumPayloadSchema::Unit },
+        Fields::Unnamed(fields) if fields.unnamed.len() == 1 => {
+            let field_type = generate_message_field_type_tokens(&fields.unnamed[0].ty)?;
+            quote! {
+                ::ros_z::dynamic::EnumPayloadSchema::Newtype(::std::boxed::Box::new(#field_type))
+            }
+        }
+        Fields::Unnamed(fields) => {
+            let field_types = fields
+                .unnamed
+                .iter()
+                .map(|field| generate_message_field_type_tokens(&field.ty))
+                .collect::<syn::Result<Vec<_>>>()?;
+            quote! {
+                ::ros_z::dynamic::EnumPayloadSchema::Tuple(::std::vec![#(#field_types),*])
+            }
+        }
+        Fields::Named(fields) => {
+            let field_schemas = fields
+                .named
+                .iter()
+                .map(generate_message_field_schema_tokens)
+                .collect::<syn::Result<Vec<_>>>()?;
+            quote! {
+                ::ros_z::dynamic::EnumPayloadSchema::Struct(::std::vec![#(#field_schemas),*])
+            }
+        }
+    };
+
+    Ok(quote! {
+        ::ros_z::dynamic::EnumVariantSchema::new(#variant_name, #payload)
+    })
 }
 
 fn unsupported_message_type<T>(node: &T, message: &str) -> syn::Result<TokenStream2>

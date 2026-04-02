@@ -66,6 +66,13 @@ impl MessageSchemaTypeDescription for MessageSchema {
     }
 
     fn to_type_description(&self) -> Result<TypeDescription, DynamicError> {
+        if self.uses_extended_types() {
+            return Err(DynamicError::SerializationError(
+                "optional and enum fields cannot be represented as standard ROS 2 type descriptions"
+                    .to_string(),
+            ));
+        }
+
         let fields = self
             .fields
             .iter()
@@ -120,6 +127,7 @@ fn collect_field_type_references(
         | FieldType::BoundedSequence(inner, _) => {
             collect_field_type_references(inner, referenced, visited)?;
         }
+        FieldType::Optional(_) | FieldType::Enum(_) => {}
         _ => {} // Primitives have no references
     }
     Ok(())
@@ -163,6 +171,10 @@ fn field_type_to_description(field_type: &FieldType) -> Result<FieldTypeDescript
         FieldType::Message(schema) => Ok(FieldTypeDescription::nested(
             TypeId::NESTED_TYPE,
             &schema.type_name,
+        )),
+        FieldType::Optional(_) | FieldType::Enum(_) => Err(DynamicError::SerializationError(
+            "optional and enum fields are only available through ros-z extended schema discovery"
+                .to_string(),
         )),
 
         // Fixed-size array
@@ -227,6 +239,10 @@ fn get_base_type_id(field_type: &FieldType) -> Result<u8, DynamicError> {
         FieldType::Float64 => Ok(TypeId::FLOAT64),
         FieldType::String | FieldType::BoundedString(_) => Ok(TypeId::STRING),
         FieldType::Message(_) => Ok(TypeId::NESTED_TYPE),
+        FieldType::Optional(_) | FieldType::Enum(_) => Err(DynamicError::SerializationError(
+            "optional and enum fields are only available through ros-z extended schema discovery"
+                .to_string(),
+        )),
         // For nested arrays/sequences, we get the innermost type
         FieldType::Array(inner, _)
         | FieldType::Sequence(inner)
