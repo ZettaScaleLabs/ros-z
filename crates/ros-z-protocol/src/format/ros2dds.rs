@@ -131,7 +131,11 @@ impl KeyExprFormatter for Ros2DdsFormatter {
 
         // Topic key expression (escaped)
         let topic_escaped = iter.next().ok_or(MissingTopicName)?;
-        let topic = Self::demangle_name(topic_escaped);
+        let topic = match Self::demangle_name(topic_escaped) {
+            topic if topic.is_empty() => "/".to_string(),
+            topic if topic.starts_with('/') => topic,
+            topic => format!("/{}", topic),
+        };
 
         // Type name (escaped)
         let type_escaped = iter.next().ok_or(MissingTopicType)?;
