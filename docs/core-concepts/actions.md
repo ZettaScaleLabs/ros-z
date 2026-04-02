@@ -10,7 +10,7 @@
 
 ## What is an Action?
 
-<iframe src="../action-lifecycle.html" style="width:100%;height:320px;border:none;border-radius:8px;" title="Action lifecycle animation"></iframe>
+<iframe src="action-lifecycle.html" style="width:100%;height:320px;border:none;border-radius:8px;" title="Action lifecycle animation"></iframe>
 
 **A long-running task with three channels: goal → feedback stream → result. Plus cancellation.**
 
