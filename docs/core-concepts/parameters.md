@@ -7,33 +7,85 @@
 
 ## What is a Parameter?
 
-Parameters are **node-specific configuration values** that can be read and changed at runtime without restarting or recompiling. Each parameter belongs to one node and the node owns it. Each parameter has a type — bool, integer, double, string, or an array of those — enforced from the moment of declaration.
+```mermaid
+graph TD
+    N[Node: /robot_controller] -->|owns| P1[max_speed: 2.5]
+    N -->|owns| P2[use_sim_time: false]
+    N -->|owns| P3[frame_id: 'base_link']
+    CLI["ros2 param set /robot_controller max_speed 3.0"] -->|writes| P1
+    style N fill:#3f51b5,color:#fff,stroke:#3f51b5
+```
 
-**How parameters differ from other configuration mechanisms:**
+**Node-scoped runtime configuration. Each parameter belongs to exactly one node and changes without recompilation.**
 
-| | Environment Variable | Config File | ROS 2 Parameter |
-|--|---------------------|-------------|-----------------|
-| **Scope** | Process | Application | Single node |
-| **Runtime change** | No | No (usually) | Yes |
-| **Type enforcement** | No | No | Yes |
-| **Introspection** | No | No | Yes (`ros2 param`) |
-| **Change callbacks** | No | No | Yes |
+- Typed: `bool`, `integer`, `double`, `string`, or array variants
+- Declared: nodes reject unknown parameter names by default
+- Introspectable: `ros2 param list/get/set` works on any ros-z node
 
-**Declaration and enforcement:**
+### Parameters vs other config
 
-Nodes declare the parameters they accept; the node rejects undeclared parameters by default. Declaration binds the type: once declared as `Double`, setting that parameter to an integer fails. Descriptors can add range constraints, human-readable descriptions, and read-only flags. Read-only parameters accept values at startup but reject all changes after that point.
+| | Env var | Config file | ROS 2 Parameter |
+|-|---------|------------|-----------------|
+| Scope | Process | Application | Single node |
+| Runtime change | No | No | **Yes** |
+| Type enforcement | No | No | **Yes** |
+| CLI introspection | No | No | **Yes** |
+| Change callbacks | No | No | **Yes** |
 
-**The three callback stages:**
+### The 9 parameter types
 
-ros-z processes each parameter change request in three ordered stages:
+```mermaid
+graph LR
+    P([Parameter Value]) --> B[bool]
+    P --> I[integer i64]
+    P --> D[double f64]
+    P --> S[string]
+    P --> BA[bool array]
+    P --> IA[integer array]
+    P --> DA[double array]
+    P --> SA[string array]
+    P --> BY[byte array]
+```
 
-1. **Pre-set callback** — can modify, add, or remove parameters in the batch before validation; use this to synchronize related values
-2. **Set callback** — validates each parameter and can refuse with a reason string; must be side-effect-free, because a later parameter in the same batch may still fail validation
-3. **Post-set callback** — called after the change commits; safe for side-effects such as reconfiguring hardware
+### Change validation pipeline
 
-**Standard parameter services (auto-created):**
+```mermaid
+sequenceDiagram
+    participant CLI as ros2 param set
+    participant N as Node
+    participant Pre as Pre-set callback
+    participant Set as Set callback
+    participant Post as Post-set callback
 
-Every ros-z node automatically exposes `get_parameters`, `set_parameters`, `set_parameters_atomically`, `list_parameters`, `describe_parameters`, and `get_parameter_types`. These are compatible with the `ros2 param` CLI and any ROS 2 tool that queries parameters — see the [Parameter Services](#parameter-services) section below.
+    CLI->>N: set max_speed = 3.0
+    N->>Pre: modify batch if needed
+    Pre-->>N: modified batch
+    N->>Set: validate (no side-effects!)
+    alt validation passes
+        Set-->>N: OK
+        N->>Post: apply side-effects
+        Post-->>N: done (e.g. reconfigure motor)
+    else validation fails
+        Set-->>N: Reject("exceeds hardware limit")
+        N-->>CLI: SetParametersResult(failed)
+    end
+```
+
+!!! tip
+    Only use side-effects (e.g. reconfiguring hardware) in the **post-set callback**. The set callback must be pure — a later parameter in the same batch might still fail.
+
+### Standard parameter services
+
+Every ros-z node auto-creates these services — no extra code needed:
+
+| Service | What it does |
+|---------|-------------|
+| `get_parameters` | Read one or more values |
+| `set_parameters` | Write values (each independently succeeds/fails) |
+| `set_parameters_atomically` | Write all-or-nothing |
+| `list_parameters` | List declared parameter names |
+| `describe_parameters` | Return type, range, description |
+| `get_parameter_types` | Return type IDs only |
 
 ### Key Concepts at a Glance
 

@@ -10,49 +10,79 @@
 
 ## What is a Service?
 
-A service is a synchronous **request-response** interaction: a client sends a request, a server processes it, and returns a response. Think of it as a function call across the network — `response = server.add(a, b)` — with the full ROS 2 middleware handling routing, serialization, and delivery.
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant S as Server
 
-Services are identified by a name (e.g. `/add_two_ints`) and a type that defines both the request and response structure. **Only one server should serve a given service name** — unlike topics, the behaviour is undefined when multiple servers register the same service. Any number of clients can call the same service concurrently.
+    C->>S: Request(a=3, b=5)
+    Note right of S: compute sum
+    S-->>C: Response(sum=8)
+```
+
+**A named remote function call. Client sends a typed request; server returns a typed response.**
+
+- One server per service name (multiple = undefined behavior)
+- Any number of clients can call the same service
+- Client blocks (or awaits) until the response arrives
+- Use for short operations — milliseconds, not minutes
 
 ### Service vs Topic vs Action
 
-| Pattern | Direction | Duration | Use When |
-|---------|-----------|----------|----------|
-| Topic | One-way (push) | Continuous | Streaming data, many consumers |
-| Service | Request-response | Short (milliseconds to low seconds) | Computations, queries, one-shot commands |
-| Action | Request-response + feedback | Long (seconds to minutes) | Navigate, execute trajectory, long tasks |
+```mermaid
+graph TD
+    Q{What do you need?}
+    Q -->|Continuous data stream| T[Topic]
+    Q -->|One result, fast| S[Service]
+    Q -->|Long task + progress + cancel| A[Action]
+    style S fill:#3f51b5,color:#fff,stroke:#3f51b5
+```
 
-### The .srv file
+| | Topic | Service | Action |
+|-|-------|---------|--------|
+| **Direction** | One-way push | Request → Response | Request → Feedback → Result |
+| **Duration** | Continuous | Milliseconds | Seconds to minutes |
+| **Cancellation** | N/A | No | Yes |
+| **Feedback** | N/A | No | Yes |
 
-Service types are defined in `.srv` files with two sections separated by `---`:
+### The .srv format
 
 ```text
-# Request
+# Request (above the ---)
 uint32 a
 uint32 b
 ---
-# Response
+# Response (below the ---)
 uint32 sum
 ```
 
-Fields above `---` form the request; fields below form the response. ros-z codegen reads these files and produces a Rust trait `ZService { type Request; type Response; }`, so the compiler enforces that server and client agree on both halves of the contract.
+Two sections, separated by `---`. Each is a message definition. ros-z generates a Rust trait:
 
-### How it works
+```rust
+trait AddTwoInts: ZService {
+    type Request  = AddTwoIntsRequest;   // { a: u32, b: u32 }
+    type Response = AddTwoIntsResponse;  // { sum: u32 }
+}
+```
 
-1. The client serializes a request and dispatches it to the service name.
-2. The ROS 2 middleware routes the request to whichever server has registered that name.
-3. The server receives the request, runs the computation, and sends the response back.
-4. The client receives the response — either blocking on a timeout or awaiting asynchronously.
+### What happens with no server?
 
-If no server is registered, the call blocks until the timeout expires and then returns an error. Services are **not designed for long operations** — use Actions for anything that takes more than a few seconds, especially if the caller needs progress updates or the ability to cancel.
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant Z as Zenoh Router
 
-### QoS for services
+    C->>Z: Request (no server registered)
+    Note over Z: waits for server...
+    Z-->>C: Timeout after queries_default_timeout (default: 10 min)
+```
 
-Services use a fixed "services" QoS profile: reliable delivery with volatile durability. The volatile durability is intentional — if a server restarts, old in-flight requests are not replayed to the new instance. Each new call from the client goes through the normal dispatch path.
+!!! tip
+    Set a shorter timeout in the Zenoh config for faster failure detection in production.
 
-### In ros-z
+### QoS note
 
-ros-z implements services over Zenoh queryables using a pull model. The pull-based design lets you process requests at your own pace with full control over concurrency — `take_request()` returns the next pending request only when you are ready for it.
+Services use **reliable + volatile** durability. Volatile means: if a server restarts, old in-flight requests are discarded — no stale requests reach the new server.
 
 ### Key Concepts at a Glance
 

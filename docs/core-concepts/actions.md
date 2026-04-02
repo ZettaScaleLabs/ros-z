@@ -10,54 +10,86 @@
 
 ## What is an Action?
 
-An action is a long-running task with three communication channels: a **goal** (what to do), **feedback** (progress while doing it), and a **result** (what happened when done). Think of it as a service that keeps you updated while working: "navigate to (3, 4)" → "40% there… 80% there… arrived, took 12 seconds".
+```mermaid
+graph LR
+    C([Client]) -->|1. Goal| S([Server])
+    S -->|2. Accepted/Rejected| C
+    S -->|3. Feedback ...| C
+    S -->|4. Result| C
+    C -.->|cancel anytime| S
+    style S fill:#3f51b5,color:#fff,stroke:#3f51b5
+```
 
-Actions support **cancellation**: the client can request the server stop mid-execution. One action server handles a given action name; multiple clients can submit goals simultaneously.
+**A long-running task with three channels: goal → feedback stream → result. Plus cancellation.**
 
-**The .action file format:**
+- **Goal** — what the client wants done (`float64 target_x, target_y`)
+- **Feedback** — progress while executing (`float64 percent_complete`)
+- **Result** — final outcome when done (`float64 elapsed_seconds`)
+- **Cancel** — client can abort at any time; server decides how to honor it
+
+### When to use actions
+
+| Operation | Duration | Use |
+|-----------|----------|-----|
+| Drive to coordinates | 5–60 s | **Action** |
+| Execute trajectory | 1–30 s | **Action** |
+| Compute inverse kinematics | < 100 ms | Service |
+| Publish odometry | Continuous | Topic |
+
+### The .action format
 
 ```text
-# Goal — what the client requests
+# Goal
 float64 target_x
 float64 target_y
 ---
-# Result — returned when the action completes or is cancelled
-float64 final_x
-float64 final_y
+# Result
 float64 elapsed_seconds
+string  status_message
 ---
-# Feedback — sent periodically during execution
+# Feedback
+float64 percent_complete
 float64 current_x
 float64 current_y
-float64 percent_complete
 ```
 
-The three sections separated by `---` define the goal, result, and feedback message types respectively.
+Three sections separated by `---`: goal, result, feedback.
 
-**Action vs Service vs Topic:**
+### Goal states
 
-| | Service | Action | Topic |
-|--|---------|--------|-------|
-| **Duration** | Milliseconds | Seconds to minutes | Continuous |
-| **Feedback** | None | Yes — periodic updates | N/A |
-| **Cancellation** | No | Yes | N/A |
-| **Blocking** | Yes (client waits) | No (client continues) | No |
-| **Use for** | Quick queries | Long tasks | Streaming data |
+```mermaid
+stateDiagram-v2
+    [*] --> Pending : SendGoal
+    Pending --> Accepted : server accepts
+    Pending --> Rejected : server rejects
+    Accepted --> Executing : execution starts
+    Executing --> Succeeded : task complete
+    Executing --> Aborted : server error
+    Executing --> Canceling : cancel request received
+    Canceling --> Canceled : server honors cancel
+```
 
-**The action lifecycle:**
+### Cancellation contract
 
-1. Client sends a **goal request** — server accepts or rejects it
-2. On acceptance: server begins execution and sends **feedback** messages periodically
-3. On completion: server sends a **result** (Succeeded, Canceled, or Aborted)
-4. At any point: client can send a **cancel request**; the server decides whether and how to honor it
+Sending a cancel does **not** immediately stop the action:
 
-**When cancellation arrives:**
+1. Client sends cancel request
+2. Server receives it — decides how/when to stop
+3. Server sends `Result(status=Canceled)` to close the goal
+4. Until then, the goal remains in `Executing` state
 
-- The server receives a cancel signal and is responsible for stopping gracefully
-- The server still sends a result (with Canceled status) to close the goal
-- If the server does not act on the cancel, the goal remains in Executing state
+### ros-z type-state API
 
-**In ros-z**, actions use a type-state pattern: `RequestedGoal → AcceptedGoal → ExecutingGoal`. The `.with_handler(|executing: ExecutingGoal<A>| async { ... })` closure runs in a Tokio task per goal. Within the handler, call `executing.publish_feedback(fb)` to send progress and return the result at the end. The examples below show this in full.
+ros-z uses Rust's type system to enforce the action protocol at compile time:
+
+```text
+RequestedGoal  →  AcceptedGoal  →  ExecutingGoal
+     ↓                                   ↓
+  (reject)                          publish_feedback()
+                                    return Result
+```
+
+The compiler prevents calling `publish_feedback` before `accept()`. Invalid state transitions are caught at compile time, not at runtime.
 
 ### Key Concepts at a Glance
 
