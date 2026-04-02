@@ -123,8 +123,9 @@ pub fn run_service_client(
 
         // Send request and wait for response using the shared runtime
         let response = rt.block_on(async {
-            client.send_request(&request).await?;
-            client.take_response_timeout(Duration::from_secs(5))
+            client
+                .call_or_timeout(&request, Duration::from_secs(5))
+                .await
         })?;
 
         if response.success {
@@ -172,47 +173,50 @@ pub fn run_service_server(
 
     loop {
         match server.take_request() {
-            Ok((key, request)) => {
+            Ok(request) => {
                 consecutive_errors = 0; // Reset error counter on success
                 count += 1;
                 println!(
                     "[Server] Request {}: {} {} {}",
-                    count, request.a, request.operation, request.b
+                    count,
+                    request.message().a,
+                    request.message().operation,
+                    request.message().b
                 );
 
-                let response = match request.operation.as_str() {
+                let response = match request.message().operation.as_str() {
                     "add" => types::CalculateResponse {
                         success: true,
-                        result: request.a + request.b,
+                        result: request.message().a + request.message().b,
                         message: format!(
                             "{} + {} = {}",
-                            request.a,
-                            request.b,
-                            request.a + request.b
+                            request.message().a,
+                            request.message().b,
+                            request.message().a + request.message().b
                         ),
                     },
                     "subtract" => types::CalculateResponse {
                         success: true,
-                        result: request.a - request.b,
+                        result: request.message().a - request.message().b,
                         message: format!(
                             "{} - {} = {}",
-                            request.a,
-                            request.b,
-                            request.a - request.b
+                            request.message().a,
+                            request.message().b,
+                            request.message().a - request.message().b
                         ),
                     },
                     "multiply" => types::CalculateResponse {
                         success: true,
-                        result: request.a * request.b,
+                        result: request.message().a * request.message().b,
                         message: format!(
                             "{} * {} = {}",
-                            request.a,
-                            request.b,
-                            request.a * request.b
+                            request.message().a,
+                            request.message().b,
+                            request.message().a * request.message().b
                         ),
                     },
                     "divide" => {
-                        if request.b == 0.0 {
+                        if request.message().b == 0.0 {
                             types::CalculateResponse {
                                 success: false,
                                 result: 0.0,
@@ -221,12 +225,12 @@ pub fn run_service_server(
                         } else {
                             types::CalculateResponse {
                                 success: true,
-                                result: request.a / request.b,
+                                result: request.message().a / request.message().b,
                                 message: format!(
                                     "{} / {} = {}",
-                                    request.a,
-                                    request.b,
-                                    request.a / request.b
+                                    request.message().a,
+                                    request.message().b,
+                                    request.message().a / request.message().b
                                 ),
                             }
                         }
@@ -234,11 +238,14 @@ pub fn run_service_server(
                     _ => types::CalculateResponse {
                         success: false,
                         result: 0.0,
-                        message: format!("Error: Unknown operation '{}'", request.operation),
+                        message: format!(
+                            "Error: Unknown operation '{}'",
+                            request.message().operation
+                        ),
                     },
                 };
 
-                if let Err(e) = server.send_response(&response, &key) {
+                if let Err(e) = request.reply_blocking(&response) {
                     eprintln!("[Server] Failed to send response: {}", e);
                     consecutive_errors += 1;
                 }

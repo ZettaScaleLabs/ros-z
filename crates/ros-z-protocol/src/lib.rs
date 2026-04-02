@@ -34,8 +34,8 @@
 //!
 //! let entity = EndpointEntity {
 //!     id: 1,
-//!     node,
-//!     kind: EntityKind::Publisher,
+//!     node: Some(node),
+//!     kind: EndpointKind::Publisher,
 //!     topic: "/chatter".to_string(),
 //!     type_info: None,
 //!     qos: Default::default(),
@@ -53,7 +53,9 @@ pub mod entity;
 pub mod format;
 pub mod qos;
 
-pub use entity::{EndpointEntity, Entity, EntityKind, NodeEntity, TypeHash, TypeInfo};
+pub use entity::{
+    EndpointEntity, EndpointKind, Entity, EntityKind, NodeEntity, TypeHash, TypeInfo,
+};
 #[cfg(feature = "rmw-zenoh")]
 pub use format::rmw_zenoh::RmwZenohFormatter;
 #[cfg(feature = "ros2dds")]

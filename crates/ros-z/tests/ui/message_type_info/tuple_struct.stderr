@@ -1,0 +1,6 @@
+error: MessageTypeInfo derive does not support tuple structs in v1
+ --> tests/ui/message_type_info/tuple_struct.rs:5:1
+  |
+5 | / #[ros_msg(type_name = "custom_msgs/msg/TupleStatus")]
+6 | | struct TupleStatus(f32, f32);
+  | |_____________________________^

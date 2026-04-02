@@ -10,7 +10,10 @@
 //! - Session-specific: 6 settings unique to peer mode
 //!
 //! # Example
-//! ```rust
+//! ```no_run
+//! # use ros_z::config::{RouterConfigBuilder, router_config, session_config};
+//! # #[tokio::main]
+//! # async fn main() -> zenoh::Result<()> {
 //! // Create router config
 //! let router_cfg = router_config()?;
 //! let router = zenoh::open(router_cfg).await?;
@@ -23,6 +26,8 @@
 //! let custom_router = RouterConfigBuilder::new()
 //!     .with_listen_port(7448)
 //!     .build_config()?;
+//! # Ok(())
+//! # }
 //! ```
 
 use serde::{Deserialize, Serialize};
@@ -286,9 +291,14 @@ fn build_config(overrides: &[ConfigOverride]) -> zenoh::Result<zenoh::Config> {
 /// Create a router configuration matching rmw_zenoh_cpp defaults
 ///
 /// # Example
-/// ```rust
+/// ```no_run
+/// # use ros_z::config::router_config;
+/// # #[tokio::main]
+/// # async fn main() -> zenoh::Result<()> {
 /// let config = router_config()?;
 /// let router = zenoh::open(config).await?;
+/// # Ok(())
+/// # }
 /// ```
 pub fn router_config() -> zenoh::Result<zenoh::Config> {
     build_config(&router_overrides())
@@ -297,9 +307,14 @@ pub fn router_config() -> zenoh::Result<zenoh::Config> {
 /// Create a session configuration matching rmw_zenoh_cpp defaults
 ///
 /// # Example
-/// ```rust
+/// ```no_run
+/// # use ros_z::config::session_config;
+/// # #[tokio::main]
+/// # async fn main() -> zenoh::Result<()> {
 /// let config = session_config()?;
 /// let session = zenoh::open(config).await?;
+/// # Ok(())
+/// # }
 /// ```
 pub fn session_config() -> zenoh::Result<zenoh::Config> {
     build_config(&session_overrides())
@@ -313,8 +328,10 @@ pub fn session_config() -> zenoh::Result<zenoh::Config> {
 ///
 /// # Example
 /// ```rust
+/// # use ros_z::config::{generate_json5, router_overrides};
 /// let json5 = generate_json5(&router_overrides(), "Router Config");
 /// std::fs::write("router_config.json5", json5)?;
+/// # Ok::<(), std::io::Error>(())
 /// ```
 pub fn generate_json5(overrides: &[ConfigOverride], name: &str) -> String {
     use serde_json::Value as JsonValue;
@@ -470,9 +487,11 @@ impl RouterConfigBuilder {
     ///
     /// # Example
     /// ```rust
+    /// # use ros_z::config::RouterConfigBuilder;
     /// let config = RouterConfigBuilder::new()
     ///     .with_listen_port(7448)
     ///     .build_config()?;
+    /// # Ok::<(), zenoh::Error>(())
     /// ```
     pub fn with_listen_port(mut self, port: u16) -> Self {
         if let Some(listen) = self
@@ -489,9 +508,11 @@ impl RouterConfigBuilder {
     ///
     /// # Example
     /// ```rust
+    /// # use ros_z::config::RouterConfigBuilder;
     /// let config = RouterConfigBuilder::new()
     ///     .with_listen_endpoint("tcp/0.0.0.0:7447")
     ///     .build_config()?;
+    /// # Ok::<(), zenoh::Error>(())
     /// ```
     pub fn with_listen_endpoint(mut self, endpoint: &str) -> Self {
         if let Some(listen) = self
@@ -510,6 +531,7 @@ impl RouterConfigBuilder {
     ///
     /// # Example
     /// ```rust
+    /// # use ros_z::config::RouterConfigBuilder;
     /// let config = RouterConfigBuilder::new()
     ///     .with_override(
     ///         "transport/unicast/max_sessions",
@@ -517,6 +539,7 @@ impl RouterConfigBuilder {
     ///         "Custom increased sessions"
     ///     )
     ///     .build_config()?;
+    /// # Ok::<(), zenoh::Error>(())
     /// ```
     pub fn with_override(mut self, key: &'static str, value: Value, reason: &'static str) -> Self {
         if let Some(existing) = self.overrides.iter_mut().find(|o| o.key == key) {
@@ -560,9 +583,11 @@ impl SessionConfigBuilder {
     ///
     /// # Example
     /// ```rust
+    /// # use ros_z::config::SessionConfigBuilder;
     /// let config = SessionConfigBuilder::new()
     ///     .with_router_endpoint("tcp/192.168.1.100:7447")
     ///     .build_config()?;
+    /// # Ok::<(), zenoh::Error>(())
     /// ```
     pub fn with_router_endpoint(mut self, endpoint: &str) -> Self {
         if let Some(connect) = self
@@ -581,6 +606,7 @@ impl SessionConfigBuilder {
     ///
     /// # Example
     /// ```rust
+    /// # use ros_z::config::SessionConfigBuilder;
     /// let config = SessionConfigBuilder::new()
     ///     .with_override(
     ///         "queries_default_timeout",
@@ -588,6 +614,7 @@ impl SessionConfigBuilder {
     ///         "Increased timeout for slow network"
     ///     )
     ///     .build_config()?;
+    /// # Ok::<(), zenoh::Error>(())
     /// ```
     pub fn with_override(mut self, key: &'static str, value: Value, reason: &'static str) -> Self {
         if let Some(existing) = self.overrides.iter_mut().find(|o| o.key == key) {

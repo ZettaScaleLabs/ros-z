@@ -47,6 +47,15 @@ pub trait MessageTypeInfo {
         None
     }
 
+    /// Register any non-standard schema discovery hooks for this type on the node.
+    ///
+    /// Core ros-z keeps the standard type-description path separate, so the
+    /// default implementation is a no-op. Extended schema derives override this
+    /// to register with ros-z's parallel extended type description service.
+    fn register_type_extensions(_node: &crate::node::ZNode) -> std::result::Result<(), String> {
+        Ok(())
+    }
+
     // === Dynamic Methods (Runtime) ===
 
     /// Returns the ROS message type name at runtime

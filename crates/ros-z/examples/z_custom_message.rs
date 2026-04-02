@@ -9,7 +9,8 @@ use ros_z::{
 use serde::{Deserialize, Serialize};
 
 // Custom message for pub/sub example
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, MessageTypeInfo)]
+#[ros_msg(type_name = "custom_msgs/msg/RobotStatus")]
 pub struct RobotStatus {
     pub robot_id: String,
     pub battery_percentage: f64,
@@ -18,65 +19,31 @@ pub struct RobotStatus {
     pub is_moving: bool,
 }
 
-impl MessageTypeInfo for RobotStatus {
-    fn type_name() -> &'static str {
-        "custom_msgs::msg::dds_::RobotStatus_"
-    }
-
-    fn type_hash() -> TypeHash {
-        TypeHash::zero()
-    }
-}
-
-impl ros_z::WithTypeInfo for RobotStatus {}
-
 impl ros_z::msg::ZMessage for RobotStatus {
     type Serdes = ros_z::msg::SerdeCdrSerdes<RobotStatus>;
 }
 
 // Custom service request
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, MessageTypeInfo)]
+#[ros_msg(type_name = "custom_msgs/srv/NavigateTo_Request")]
 pub struct NavigateToRequest {
     pub target_x: f64,
     pub target_y: f64,
     pub max_speed: f64,
 }
 
-impl MessageTypeInfo for NavigateToRequest {
-    fn type_name() -> &'static str {
-        "custom_msgs::srv::dds_::NavigateTo_Request_"
-    }
-
-    fn type_hash() -> TypeHash {
-        TypeHash::zero()
-    }
-}
-
-impl ros_z::WithTypeInfo for NavigateToRequest {}
-
 impl ros_z::msg::ZMessage for NavigateToRequest {
     type Serdes = ros_z::msg::SerdeCdrSerdes<NavigateToRequest>;
 }
 
 // Custom service response
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, MessageTypeInfo)]
+#[ros_msg(type_name = "custom_msgs/srv/NavigateTo_Response")]
 pub struct NavigateToResponse {
     pub success: bool,
     pub estimated_duration: f64,
     pub message: String,
 }
-
-impl MessageTypeInfo for NavigateToResponse {
-    fn type_name() -> &'static str {
-        "custom_msgs::srv::dds_::NavigateTo_Response_"
-    }
-
-    fn type_hash() -> TypeHash {
-        TypeHash::zero()
-    }
-}
-
-impl ros_z::WithTypeInfo for NavigateToResponse {}
 
 impl ros_z::msg::ZMessage for NavigateToResponse {
     type Serdes = ros_z::msg::SerdeCdrSerdes<NavigateToResponse>;
@@ -153,8 +120,13 @@ async fn run_status_publisher(robot_id: String) -> Result<()> {
     println!("Starting robot status publisher for robot: {robot_id}");
 
     let ctx = ZContextBuilder::default().build()?;
-    let node = ctx.create_node("robot_status_publisher").build()?;
+    let node = ctx
+        .create_node("robot_status_publisher")
+        .with_type_description_service()
+        .build()?;
     let zpub = node.create_pub::<RobotStatus>("/robot_status").build()?;
+
+    println!("Type description service enabled for automatic schema registration");
 
     let mut position_x = 0.0;
     let mut position_y = 0.0;
@@ -233,19 +205,23 @@ pub fn run_navigation_server(ctx: ros_z::context::ZContext) -> Result<()> {
     println!("Navigation server ready, waiting for requests...");
 
     loop {
-        if let Ok((request_id, request)) = zsrv.take_request() {
+        if let Ok(request) = zsrv.take_request() {
             println!(
                 "Received navigation request: target=({:.1}, {:.1}), max_speed={:.1}",
-                request.target_x, request.target_y, request.max_speed
+                request.message().target_x,
+                request.message().target_y,
+                request.message().max_speed
             );
 
             // Simulate path planning
             std::thread::sleep(Duration::from_millis(500));
 
-            let distance = (request.target_x.powi(2) + request.target_y.powi(2)).sqrt();
-            let duration = distance / request.max_speed;
+            let distance =
+                (request.message().target_x.powi(2) + request.message().target_y.powi(2)).sqrt();
+            let duration = distance / request.message().max_speed;
 
-            let response = if request.max_speed > 0.0 && request.max_speed < 5.0 {
+            let response = if request.message().max_speed > 0.0 && request.message().max_speed < 5.0
+            {
                 NavigateToResponse {
                     success: true,
                     estimated_duration: duration,
@@ -263,7 +239,7 @@ pub fn run_navigation_server(ctx: ros_z::context::ZContext) -> Result<()> {
             };
 
             println!("Sending response: {:?}", response);
-            zsrv.send_response(&response, &request_id)?;
+            request.reply_blocking(&response)?;
         }
 
         std::thread::sleep(Duration::from_millis(100));
@@ -292,22 +268,14 @@ pub fn run_navigation_client(
         request.target_x, request.target_y, request.max_speed
     );
 
-    tokio::runtime::Runtime::new()
+    let response = tokio::runtime::Runtime::new()
         .unwrap()
-        .block_on(async { zcli.send_request(&request).await })?;
+        .block_on(async { zcli.call(&request).await })?;
 
-    println!("Waiting for response...");
-
-    loop {
-        if let Ok(response) = zcli.take_response() {
-            println!("Received response:");
-            println!("Success: {}", response.success);
-            println!("Duration: {:.2}s", response.estimated_duration);
-            println!("Message: {}", response.message);
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(100));
-    }
+    println!("Received response:");
+    println!("Success: {}", response.success);
+    println!("Duration: {:.2}s", response.estimated_duration);
+    println!("Message: {}", response.message);
 
     Ok(())
 }
