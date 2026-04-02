@@ -1,0 +1,9 @@
+error: MessageTypeInfo derive only supports named structs in v1
+ --> tests/ui/message_type_info/enum.rs:5:1
+  |
+5 | / #[ros_msg(type_name = "custom_msgs/msg/RobotState")]
+6 | | enum RobotState {
+7 | |     Idle,
+8 | |     Error(String),
+9 | | }
+  | |_^

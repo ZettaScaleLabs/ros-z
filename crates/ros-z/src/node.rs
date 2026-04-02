@@ -16,6 +16,7 @@ use crate::{
         schema_type_info,
     },
     entity::*,
+    extended_schema::ExtendedTypeDescriptionService,
     graph::Graph,
     msg::{ZMessage, ZService},
     parameter::{
@@ -51,6 +52,9 @@ pub struct ZNode {
     /// Enabled via `ZNodeBuilder::with_type_description_service()`.
     /// The service uses callback mode and requires no background task.
     type_desc_service: Option<TypeDescriptionService>,
+    /// Optional ros-z-specific extended type description service.
+    /// Enabled via `ZNodeBuilder::with_extended_type_description_service()`.
+    extended_type_desc_service: Option<ExtendedTypeDescriptionService>,
     /// Parameter service providing ROS 2-compatible parameter management.
     /// Enabled by default; disable via `ZNodeBuilder::without_parameters()`.
     parameter_service: Option<ParameterService>,
@@ -78,6 +82,8 @@ pub struct ZNodeBuilder {
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
     /// Whether to enable the type description service for this node.
     pub(crate) enable_type_desc_service: bool,
+    /// Whether to enable the extended type description service for this node.
+    pub(crate) enable_extended_type_desc_service: bool,
     /// Whether to enable parameter services for this node (default: true).
     pub(crate) enable_parameters: bool,
     /// Initial parameter overrides applied at declaration time.
@@ -144,6 +150,15 @@ impl ZNodeBuilder {
     /// ```
     pub fn with_type_description_service(mut self) -> Self {
         self.enable_type_desc_service = true;
+        self
+    }
+
+    /// Enable the ros-z-specific extended type description service for this node.
+    ///
+    /// When enabled, the node exposes `~get_extended_type_description` for
+    /// extended-only schemas such as enums and `Option<T>` fields.
+    pub fn with_extended_type_description_service(mut self) -> Self {
+        self.enable_extended_type_desc_service = true;
         self
     }
 
@@ -249,6 +264,22 @@ impl Builder for ZNodeBuilder {
             None
         };
 
+        let extended_type_desc_service = if self.enable_extended_type_desc_service {
+            debug!("[NOD] Creating extended type description service");
+            let service = ExtendedTypeDescriptionService::new(
+                self.session.clone(),
+                &self.name,
+                &self.namespace,
+                id,
+                &self.counter,
+                &self.clock,
+            )?;
+            info!("[NOD] ExtendedTypeDescriptionService created");
+            Some(service)
+        } else {
+            None
+        };
+
         // Create parameter service if enabled (default)
         let parameter_service = if self.enable_parameters {
             debug!("[NOD] Creating parameter service");
@@ -281,6 +312,7 @@ impl Builder for ZNodeBuilder {
             shm_config: self.shm_config,
             keyexpr_format: self.keyexpr_format,
             type_desc_service,
+            extended_type_desc_service,
             parameter_service,
         })
     }
@@ -316,6 +348,14 @@ impl ZNode {
                     std::any::type_name::<T>()
                 );
             }
+        }
+
+        if let Err(e) = T::register_type_extensions(self) {
+            warn!(
+                "[NOD] Failed to register non-standard schema extensions for {}: {}",
+                std::any::type_name::<T>(),
+                e
+            );
         }
 
         builder
@@ -682,6 +722,23 @@ impl ZNode {
     /// Check if this node has a type description service.
     pub fn has_type_description_service(&self) -> bool {
         self.type_desc_service.is_some()
+    }
+
+    /// Get a reference to this node's extended type description service, if enabled.
+    pub fn extended_type_description_service(&self) -> Option<&ExtendedTypeDescriptionService> {
+        self.extended_type_desc_service.as_ref()
+    }
+
+    /// Get a mutable reference to this node's extended type description service, if enabled.
+    pub fn extended_type_description_service_mut(
+        &mut self,
+    ) -> Option<&mut ExtendedTypeDescriptionService> {
+        self.extended_type_desc_service.as_mut()
+    }
+
+    /// Check if this node has an extended type description service.
+    pub fn has_extended_type_description_service(&self) -> bool {
+        self.extended_type_desc_service.is_some()
     }
 
     /// Get access to the global counter for entity ID generation.

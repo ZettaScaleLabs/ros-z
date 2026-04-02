@@ -619,6 +619,7 @@ impl ZContext {
             keyexpr_format: self.keyexpr_format,
             clock: self.clock.clone(),
             enable_type_desc_service: false,
+            enable_extended_type_desc_service: false,
             enable_parameters: true,
             parameter_overrides: std::collections::HashMap::new(),
         }

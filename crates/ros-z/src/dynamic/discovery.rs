@@ -4,6 +4,7 @@ use std::{collections::BTreeSet, sync::Arc};
 use crate::{
     dynamic::{DynamicError, MessageSchema},
     entity::{Entity, EntityKind},
+    extended_schema::ExtendedTypeDescriptionClient,
     graph::Graph,
     node::ZNode,
     topic_name::qualify_topic_name,
@@ -114,7 +115,18 @@ impl<'a> SchemaDiscovery<'a> {
         let candidates =
             collect_topic_schema_candidates(self.node.graph().as_ref(), &qualified_topic)?;
 
-        let (schema, type_hash) = self.try_standard(&candidates[..]).await?;
+        let (schema, type_hash) = match self.try_standard(&candidates[..]).await {
+            Ok(result) => result,
+            Err(standard_error) => match self.try_extended(&candidates[..]).await {
+                Ok(result) => result,
+                Err(extended_error) => {
+                    return Err(DynamicError::SchemaNotFound(format!(
+                        "Schema discovery failed. Standard: {}. Extended: {}",
+                        standard_error, extended_error
+                    )));
+                }
+            },
+        };
 
         Ok(DiscoveredTopicSchema {
             qualified_topic,
@@ -145,6 +157,42 @@ impl<'a> SchemaDiscovery<'a> {
 
         Err(last_error.unwrap_or_else(|| {
             DynamicError::SchemaNotFound("No standard schema source succeeded".to_string())
+        }))
+    }
+
+    async fn try_extended(
+        &self,
+        candidates: &[TopicSchemaCandidate],
+    ) -> Result<(Arc<MessageSchema>, String), DynamicError> {
+        let client = ExtendedTypeDescriptionClient::new(
+            self.node.session().clone(),
+            self.node.counter().clone(),
+        )
+        .with_timeout(self.timeout);
+        let mut last_error = None;
+
+        for candidate in candidates {
+            match client
+                .get_type_description(
+                    &candidate.node_name,
+                    &candidate.namespace,
+                    &candidate.type_name,
+                    &candidate.type_hash,
+                )
+                .await
+            {
+                Ok(response) => {
+                    match ExtendedTypeDescriptionClient::response_to_schema(&response) {
+                        Ok(schema) => return Ok((schema, response.type_hash.clone())),
+                        Err(error) => last_error = Some(error),
+                    }
+                }
+                Err(error) => last_error = Some(error),
+            }
+        }
+
+        Err(last_error.unwrap_or_else(|| {
+            DynamicError::SchemaNotFound("No extended schema source succeeded".to_string())
         }))
     }
 }

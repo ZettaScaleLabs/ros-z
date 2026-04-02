@@ -75,7 +75,10 @@ pub use discovery::DiscoveredTopicSchema;
 pub use error::DynamicError;
 pub use message::{DynamicMessage, DynamicMessageBuilder};
 pub use registry::{SchemaRegistry, get_schema, has_schema, register_schema};
-pub use schema::{FieldSchema, FieldType, MessageSchema, MessageSchemaBuilder};
+pub use schema::{
+    EnumPayloadSchema, EnumSchema, EnumVariantSchema, FieldSchema, FieldType, MessageSchema,
+    MessageSchemaBuilder,
+};
 pub use serdes::DynamicSerdeCdrSerdes;
 pub use serialization::SerializationFormat;
 pub use type_description::{MessageSchemaTypeDescription, type_description_msg_to_schema};
@@ -86,7 +89,9 @@ pub use type_description_service::{
     WireKeyValue, WireTypeDescription, WireTypeSource, schema_to_wire_type_description,
     wire_to_schema_type_description,
 };
-pub use value::{DynamicValue, FromDynamic, IntoDynamic};
+pub use value::{
+    DynamicNamedValue, DynamicValue, EnumPayloadValue, EnumValue, FromDynamic, IntoDynamic,
+};
 
 pub(crate) use discovery::{SchemaDiscovery, discovered_schema_type_info};
 pub(crate) use type_info::schema_type_info;

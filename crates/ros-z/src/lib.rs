@@ -57,6 +57,8 @@ pub mod encoding;
 pub mod entity;
 /// Graph events emitted by the Zenoh network graph.
 pub mod event;
+/// ros-z-specific extended schema discovery for enums, options, and other non-ROS shapes.
+pub mod extended_schema;
 #[cfg(feature = "ffi")]
 pub mod ffi;
 /// ROS 2 graph introspection (node/topic/service discovery).
@@ -102,8 +104,9 @@ pub mod parameter;
 
 pub use attachment::GidArray;
 pub use entity::{TypeHash, TypeInfo};
+pub use extended_schema::ExtendedMessageTypeInfo;
 pub use ros_msg::{ActionTypeInfo, MessageTypeInfo, ServiceTypeInfo, WithTypeInfo};
-pub use ros_z_derive::MessageTypeInfo;
+pub use ros_z_derive::{ExtendedMessageTypeInfo, MessageTypeInfo};
 pub use zbuf::ZBuf;
 pub use zenoh::Result;
 

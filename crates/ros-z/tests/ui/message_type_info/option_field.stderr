@@ -1,0 +1,5 @@
+error: Option fields are not supported by MessageTypeInfo derive in v1
+ --> tests/ui/message_type_info/option_field.rs:7:12
+  |
+7 |     value: Option<u32>,
+  |            ^^^^^^^^^^^
