@@ -165,6 +165,8 @@ The interactive terminal interface provides:
 TUI mode requires a terminal that supports ANSI escape codes. Most modern terminals work out of the box.
 ```
 
+See [TUI Demos](./console-demos.md) for annotated walkthroughs of each workflow.
+
 ### Headless Mode
 
 Headless mode streams events to stdout, making it ideal for:
