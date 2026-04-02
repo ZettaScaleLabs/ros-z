@@ -787,6 +787,42 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#parameters-vs-other-config" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters vs other config
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-9-parameter-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      The 9 parameter types
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#change-validation-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      Change validation pipeline
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#standard-parameter-services" class="md-nav__link">
+    <span class="md-ellipsis">
+      Standard parameter services
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#key-concepts-at-a-glance" class="md-nav__link">
     <span class="md-ellipsis">
       Key Concepts at a Glance
@@ -1969,61 +2005,132 @@
 <p>Parameters let you configure node behavior at runtime without recompilation. ros-z parameters are fully compatible with the ROS 2 parameter protocol, so <code>ros2 param list</code>, <code>ros2 param get</code>, and <code>ros2 param set</code> work out of the box against ros-z nodes.</p>
 </div>
 <h2 id="what-is-a-parameter">What is a Parameter?<a class="headerlink" href="#what-is-a-parameter" title="Permanent link">&para;</a></h2>
-<p>Parameters are <strong>node-specific configuration values</strong> that can be read and changed at runtime without restarting or recompiling. Each parameter belongs to one node and the node owns it. Each parameter has a type — bool, integer, double, string, or an array of those — enforced from the moment of declaration.</p>
-<p><strong>How parameters differ from other configuration mechanisms:</strong></p>
+<pre class="mermaid"><code>graph TD
+    N[Node: /robot_controller] --&gt;|owns| P1[max_speed: 2.5]
+    N --&gt;|owns| P2[use_sim_time: false]
+    N --&gt;|owns| P3[frame_id: 'base_link']
+    CLI["ros2 param set /robot_controller max_speed 3.0"] --&gt;|writes| P1
+    style N fill:#3f51b5,color:#fff,stroke:#3f51b5</code></pre>
+<p><strong>Node-scoped runtime configuration. Each parameter belongs to exactly one node and changes without recompilation.</strong></p>
+<ul>
+<li>Typed: <code>bool</code>, <code>integer</code>, <code>double</code>, <code>string</code>, or array variants</li>
+<li>Declared: nodes reject unknown parameter names by default</li>
+<li>Introspectable: <code>ros2 param list/get/set</code> works on any ros-z node</li>
+</ul>
+<h3 id="parameters-vs-other-config">Parameters vs other config<a class="headerlink" href="#parameters-vs-other-config" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
 <th></th>
-<th>Environment Variable</th>
-<th>Config File</th>
+<th>Env var</th>
+<th>Config file</th>
 <th>ROS 2 Parameter</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>Scope</strong></td>
+<td>Scope</td>
 <td>Process</td>
 <td>Application</td>
 <td>Single node</td>
 </tr>
 <tr>
-<td><strong>Runtime change</strong></td>
+<td>Runtime change</td>
 <td>No</td>
-<td>No (usually)</td>
-<td>Yes</td>
+<td>No</td>
+<td><strong>Yes</strong></td>
 </tr>
 <tr>
-<td><strong>Type enforcement</strong></td>
+<td>Type enforcement</td>
 <td>No</td>
 <td>No</td>
-<td>Yes</td>
+<td><strong>Yes</strong></td>
 </tr>
 <tr>
-<td><strong>Introspection</strong></td>
+<td>CLI introspection</td>
 <td>No</td>
 <td>No</td>
-<td>Yes (<code>ros2 param</code>)</td>
+<td><strong>Yes</strong></td>
 </tr>
 <tr>
-<td><strong>Change callbacks</strong></td>
+<td>Change callbacks</td>
 <td>No</td>
 <td>No</td>
-<td>Yes</td>
+<td><strong>Yes</strong></td>
 </tr>
 </tbody>
 </table>
-<p><strong>Declaration and enforcement:</strong></p>
-<p>Nodes declare the parameters they accept; the node rejects undeclared parameters by default. Declaration binds the type: once declared as <code>Double</code>, setting that parameter to an integer fails. Descriptors can add range constraints, human-readable descriptions, and read-only flags. Read-only parameters accept values at startup but reject all changes after that point.</p>
-<p><strong>The three callback stages:</strong></p>
-<p>ros-z processes each parameter change request in three ordered stages:</p>
-<ol>
-<li><strong>Pre-set callback</strong> — can modify, add, or remove parameters in the batch before validation; use this to synchronize related values</li>
-<li><strong>Set callback</strong> — validates each parameter and can refuse with a reason string; must be side-effect-free, because a later parameter in the same batch may still fail validation</li>
-<li><strong>Post-set callback</strong> — called after the change commits; safe for side-effects such as reconfiguring hardware</li>
-</ol>
-<p><strong>Standard parameter services (auto-created):</strong></p>
-<p>Every ros-z node automatically exposes <code>get_parameters</code>, <code>set_parameters</code>, <code>set_parameters_atomically</code>, <code>list_parameters</code>, <code>describe_parameters</code>, and <code>get_parameter_types</code>. These are compatible with the <code>ros2 param</code> CLI and any ROS 2 tool that queries parameters — see the <a href="#parameter-services">Parameter Services</a> section below.</p>
+<h3 id="the-9-parameter-types">The 9 parameter types<a class="headerlink" href="#the-9-parameter-types" title="Permanent link">&para;</a></h3>
+<pre class="mermaid"><code>graph LR
+    P([Parameter Value]) --&gt; B[bool]
+    P --&gt; I[integer i64]
+    P --&gt; D[double f64]
+    P --&gt; S[string]
+    P --&gt; BA[bool array]
+    P --&gt; IA[integer array]
+    P --&gt; DA[double array]
+    P --&gt; SA[string array]
+    P --&gt; BY[byte array]</code></pre>
+<h3 id="change-validation-pipeline">Change validation pipeline<a class="headerlink" href="#change-validation-pipeline" title="Permanent link">&para;</a></h3>
+<pre class="mermaid"><code>sequenceDiagram
+    participant CLI as ros2 param set
+    participant N as Node
+    participant Pre as Pre-set callback
+    participant Set as Set callback
+    participant Post as Post-set callback
+
+    CLI-&gt;&gt;N: set max_speed = 3.0
+    N-&gt;&gt;Pre: modify batch if needed
+    Pre--&gt;&gt;N: modified batch
+    N-&gt;&gt;Set: validate (no side-effects!)
+    alt validation passes
+        Set--&gt;&gt;N: OK
+        N-&gt;&gt;Post: apply side-effects
+        Post--&gt;&gt;N: done (e.g. reconfigure motor)
+    else validation fails
+        Set--&gt;&gt;N: Reject("exceeds hardware limit")
+        N--&gt;&gt;CLI: SetParametersResult(failed)
+    end</code></pre>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Only use side-effects (e.g. reconfiguring hardware) in the <strong>post-set callback</strong>. The set callback must be pure — a later parameter in the same batch might still fail.</p>
+</div>
+<h3 id="standard-parameter-services">Standard parameter services<a class="headerlink" href="#standard-parameter-services" title="Permanent link">&para;</a></h3>
+<p>Every ros-z node auto-creates these services — no extra code needed:</p>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>get_parameters</code></td>
+<td>Read one or more values</td>
+</tr>
+<tr>
+<td><code>set_parameters</code></td>
+<td>Write values (each independently succeeds/fails)</td>
+</tr>
+<tr>
+<td><code>set_parameters_atomically</code></td>
+<td>Write all-or-nothing</td>
+</tr>
+<tr>
+<td><code>list_parameters</code></td>
+<td>List declared parameter names</td>
+</tr>
+<tr>
+<td><code>describe_parameters</code></td>
+<td>Return type, range, description</td>
+</tr>
+<tr>
+<td><code>get_parameter_types</code></td>
+<td>Return type IDs only</td>
+</tr>
+</tbody>
+</table>
 <h3 id="key-concepts-at-a-glance">Key Concepts at a Glance<a class="headerlink" href="#key-concepts-at-a-glance" title="Permanent link">&para;</a></h3>
 <div class="flashcard-grid">
   <div class="flashcard">
