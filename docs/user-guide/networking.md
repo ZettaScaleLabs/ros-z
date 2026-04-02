@@ -14,6 +14,45 @@ graph TB
     Talker <-.->|P2P Communication| Listener
 ```
 
+## How ROS 2 Discovery Works
+
+ROS 2 nodes find each other automatically through a discovery process — no central registry or manual configuration needed. Discovery scope depends on **ROS domain**: only nodes with the same `ROS_DOMAIN_ID` can see each other (default: 0). The standard ROS 2 middleware (DDS) uses **multicast UDP** to announce node presence on the local network. Once discovered, nodes check QoS compatibility — connections only form when publisher and subscriber have compatible settings.
+
+**The discovery cycle:**
+
+1. **Announce**: a new node broadcasts its presence and advertises its publishers, subscribers, services, and actions
+2. **Respond**: existing nodes reply with their own information; endpoints with matching topics negotiate connections
+3. **Periodic heartbeat**: nodes re-broadcast periodically so nodes that join later can discover the system
+4. **Departure**: nodes announce when going offline (best-effort — the system may not detect crashes immediately)
+
+**Why ros-z replaces DDS discovery with Zenoh:**
+
+Standard DDS multicast discovery has known limitations:
+
+- Cloud networks and containers often block multicast/container networks and across subnets
+- Discovery traffic grows quadratically with node count in large systems
+- Configuration (tuning QoS, domain separation) is complex
+
+ros-z and `rmw_zenoh_cpp` use **router-based discovery** instead. All nodes connect to a `zenohd` router via TCP. The router acts as the rendezvous point — nodes announce themselves to the router, which propagates the information to interested peers. This works across subnets, containers, and cloud environments without multicast, and scales linearly: adding more nodes does not increase per-node discovery traffic.
+
+```mermaid
+sequenceDiagram
+    participant R as zenohd (router)
+    participant A as Node A (Publisher)
+    participant B as Node B (Subscriber)
+
+    A->>R: Connect + declare publisher on /chatter
+    B->>R: Connect + declare subscriber on /chatter
+    R->>A: Subscriber joined /chatter
+    R->>B: Publisher available on /chatter
+    Note over A,B: Connection negotiated — data flows
+    A->>B: Messages (Eclipse Zenoh transport)
+```
+
+**QoS and discovery:** even after discovery, a publisher and subscriber will not exchange messages if their QoS policies are incompatible (e.g., a best-effort publisher and a reliable subscriber). ros-z checks compatibility at connection time.
+
+The following sections describe how to configure ros-z's router connection for your deployment environment.
+
 ## Router-Based Architecture
 
 ros-z uses a centralized Zenoh router for node discovery and communication, providing:
