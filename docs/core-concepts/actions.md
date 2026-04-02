@@ -8,6 +8,57 @@
 !!! tip
     Use actions for robot navigation, trajectory execution, or any operation where you need progress updates and the ability to cancel mid-execution. Use services for quick request-response operations.
 
+## What is an Action?
+
+An action is a long-running task with three communication channels: a **goal** (what to do), **feedback** (progress while doing it), and a **result** (what happened when done). Think of it as a service that keeps you updated while working: "navigate to (3, 4)" → "40% there… 80% there… arrived, took 12 seconds".
+
+Actions support **cancellation**: the client can request the server stop mid-execution. One action server handles a given action name; multiple clients can submit goals simultaneously.
+
+**The .action file format:**
+
+```text
+# Goal — what the client requests
+float64 target_x
+float64 target_y
+---
+# Result — returned when the action completes or is cancelled
+float64 final_x
+float64 final_y
+float64 elapsed_seconds
+---
+# Feedback — sent periodically during execution
+float64 current_x
+float64 current_y
+float64 percent_complete
+```
+
+The three sections separated by `---` define the goal, result, and feedback message types respectively.
+
+**Action vs Service vs Topic:**
+
+| | Service | Action | Topic |
+|--|---------|--------|-------|
+| **Duration** | Milliseconds | Seconds to minutes | Continuous |
+| **Feedback** | None | Yes — periodic updates | N/A |
+| **Cancellation** | No | Yes | N/A |
+| **Blocking** | Yes (client waits) | No (client continues) | No |
+| **Use for** | Quick queries | Long tasks | Streaming data |
+
+**The action lifecycle:**
+
+1. Client sends a **goal request** — server accepts or rejects it
+2. On acceptance: server begins execution and sends **feedback** messages periodically
+3. On completion: server sends a **result** (Succeeded, Canceled, or Aborted)
+4. At any point: client can send a **cancel request**; the server decides whether and how to honor it
+
+**When cancellation arrives:**
+
+- The server receives a cancel signal and is responsible for stopping gracefully
+- The server still sends a result (with Canceled status) to close the goal
+- If the server does not act on the cancel, the goal remains in Executing state
+
+**In ros-z**, actions use a type-state pattern: `RequestedGoal → AcceptedGoal → ExecutingGoal`. The `.with_handler(|executing: ExecutingGoal<A>| async { ... })` closure runs in a Tokio task per goal. Within the handler, call `executing.publish_feedback(fb)` to send progress and return the result at the end. The examples below show this in full.
+
 ## Action Lifecycle
 
 ```mermaid

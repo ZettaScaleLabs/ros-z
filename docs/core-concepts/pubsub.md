@@ -8,6 +8,50 @@
 !!! note
     The pub-sub pattern forms the foundation of ROS 2 communication, allowing nodes to exchange data without direct coupling. ros-z leverages Zenoh's efficient transport layer for optimal performance.
 
+## What is Publish-Subscribe?
+
+Publish-subscribe is a messaging pattern where senders (publishers) and receivers (subscribers) are fully decoupled — neither knows about the other directly. Publishers send messages to a named **topic**; any subscriber watching that topic receives them. Any number of publishers and any number of subscribers can share a single topic simultaneously.
+
+The system is **anonymous**: a subscriber cannot tell which publisher sent a given message, and a publisher has no knowledge of who is listening. This decoupling makes system composition natural — you can add a logger, a visualizer, or a second processing node to an existing topic without modifying any existing code.
+
+### When to use topics
+
+| Use Case | Pattern | Reason |
+|----------|---------|--------|
+| Continuous sensor data (camera, lidar, IMU) | Topic | High frequency, many consumers |
+| Robot state (position, velocity, joint angles) | Topic | Multiple observers, continuous stream |
+| Single computation result (e.g. transform a point) | Service | One-shot request-response |
+| Long-running task (navigate to goal) | Action | Progress reporting and cancellation needed |
+| Runtime configuration | Parameter | Persistent, typed key-value storage |
+
+### The message bus model
+
+Think of a topic like an electrical bus: any number of components can tap in at any point. Messages flow one-way — publisher to topic to all subscribers — and the bus itself is transparent. Introspection tools such as `ros2 topic echo` or `ros2 bag record` subscribe to the topic like any other node; they do not affect publisher or subscriber behaviour in any way.
+
+### Strongly-typed communication
+
+Every topic carries exactly one message type. All publishers and subscribers on a topic must agree on that type — a camera image topic cannot mix `sensor_msgs/Image` and `sensor_msgs/CompressedImage`. ros-z enforces field types: a `float64` velocity field cannot receive a string. Semantic meaning is part of the definition: the IMU message specifies that angular velocity is in rad/s, not by convention but in the type itself. Type mismatches are caught at connection time, not silently at runtime.
+
+### Quality of Service
+
+QoS policies control message delivery. The key dimensions are:
+
+| Preset | Reliability | Durability | Typical use |
+|--------|------------|------------|-------------|
+| Default | Reliable | Volatile | Commands, state |
+| Sensor data | Best-effort | Volatile | Camera, lidar (recency over completeness) |
+| Services (internal) | Reliable | Volatile | Service calls |
+| Parameters | Reliable | Transient-local | Config that late-joiners must receive |
+
+!!! warning "Silent incompatibility"
+    If publisher and subscriber have incompatible QoS settings, no messages flow and no error is raised. Use `ros2 topic info -v <topic>` to inspect QoS on both ends when debugging a silent topic.
+
+The default profile — reliable delivery, keep-last-10, volatile durability — is the right starting point for most topics. Switch to best-effort only when dropping an occasional message is preferable to the latency cost of retransmission (high-frequency sensor streams are the canonical case).
+
+### In ros-z
+
+ros-z maps ROS 2 topics directly onto Eclipse Zenoh key expressions, giving you the full ROS 2 pub/sub interface with Zenoh's efficient transport. The examples below show the complete API.
+
 ## Visual Flow
 
 ```mermaid
