@@ -592,9 +592,9 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#start-the-zenoh-router" class="md-nav__link">
+  <a href="#start-the-eclipse-zenoh-router" class="md-nav__link">
     <span class="md-ellipsis">
-      Start the Zenoh Router
+      Start the Eclipse Zenoh Router
     </span>
   </a>
   
@@ -1976,7 +1976,7 @@
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/ZettaScaleLabs/ros-z.git
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">cd</span><span class="w"> </span>ros-z
 </span></code></pre></div>
-<h3 id="start-the-zenoh-router">Start the Zenoh Router<a class="headerlink" href="#start-the-zenoh-router" title="Permanent link">&para;</a></h3>
+<h3 id="start-the-eclipse-zenoh-router">Start the Eclipse Zenoh Router<a class="headerlink" href="#start-the-eclipse-zenoh-router" title="Permanent link">&para;</a></h3>
 <p>ros-z uses a router-based architecture (matching ROS 2's <code>rmw_zenoh</code> — the ROS 2 middleware plugin for Zenoh), so you'll need to start a Zenoh router first. The router acts as a rendezvous point for all nodes: publishers and subscribers discover each other through it rather than via multicast.</p>
 <p><strong>Terminal 1 - Start the Router:</strong></p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>cargo<span class="w"> </span>run<span class="w"> </span>--example<span class="w"> </span>zenoh_router
@@ -2091,7 +2091,7 @@
 </span><span id="__span-4-92"><a id="__codelineno-4-92" name="__codelineno-4-92" href="#__codelineno-4-92"></a>
 </span><span id="__span-4-93"><a id="__codelineno-4-93" name="__codelineno-4-93" href="#__codelineno-4-93"></a><span class="cp">#[derive(Debug, Parser)]</span>
 </span><span id="__span-4-94"><a id="__codelineno-4-94" name="__codelineno-4-94" href="#__codelineno-4-94"></a><span class="k">struct</span><span class="w"> </span><span class="nc">Args</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-4-95"><a id="__codelineno-4-95" name="__codelineno-4-95" href="#__codelineno-4-95"></a><span class="w">    </span><span class="cp">#[arg(short, long, default_value = </span><span class="s">&quot;Hello ROS-Z&quot;</span><span class="cp">)]</span>
+</span><span id="__span-4-95"><a id="__codelineno-4-95" name="__codelineno-4-95" href="#__codelineno-4-95"></a><span class="w">    </span><span class="cp">#[arg(short, long, default_value = </span><span class="s">&quot;Hello ros-z&quot;</span><span class="cp">)]</span>
 </span><span id="__span-4-96"><a id="__codelineno-4-96" name="__codelineno-4-96" href="#__codelineno-4-96"></a><span class="w">    </span><span class="n">data</span><span class="p">:</span><span class="w"> </span><span class="nb">String</span><span class="p">,</span>
 </span><span id="__span-4-97"><a id="__codelineno-4-97" name="__codelineno-4-97" href="#__codelineno-4-97"></a><span class="w">    </span><span class="cp">#[arg(short, long, default_value = </span><span class="s">&quot;/chatter&quot;</span><span class="cp">)]</span>
 </span><span id="__span-4-98"><a id="__codelineno-4-98" name="__codelineno-4-98" href="#__codelineno-4-98"></a><span class="w">    </span><span class="n">topic</span><span class="p">:</span><span class="w"> </span><span class="nb">String</span><span class="p">,</span>

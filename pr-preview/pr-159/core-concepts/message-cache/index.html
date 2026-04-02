@@ -1942,7 +1942,7 @@
 <p><strong><code>ZCache&lt;T&gt;</code> is a timestamp-indexed, capacity-bounded sliding-window cache of received messages.</strong> It mirrors the ROS 2 <code>message_filters::Cache&lt;T&gt;</code> API, letting you query a time-ordered history of messages without a background thread or executor.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p><code>ZCache&lt;T&gt;</code> wraps a Zenoh subscriber and retains the N most recent messages in a <code>BTreeMap</code> keyed by timestamp. Queries run in O(log n) using Rust's range API.</p>
+<p><code>ZCache&lt;T&gt;</code> wraps an Eclipse Zenoh subscriber and retains the N most recent messages in a <code>BTreeMap</code> keyed by timestamp. Queries run in O(log n) using Rust's range API.</p>
 </div>
 <h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
 <div class="language-rust highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">use</span><span class="w"> </span><span class="n">ros_z</span><span class="p">::</span><span class="n">prelude</span><span class="p">::</span><span class="o">*</span><span class="p">;</span>

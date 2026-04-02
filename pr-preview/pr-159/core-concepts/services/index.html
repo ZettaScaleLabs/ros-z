@@ -1937,7 +1937,7 @@
 <p class="admonition-title">Go users</p>
 <p>The code examples in this chapter are <strong>Rust</strong>. The Go service API is callback-based, not pull-based — there is no <code>take_request()</code>. For Go service patterns and the typed service API, see the <a href="../../bindings/go/">Go Bindings</a> chapter.</p>
 </div>
-<p><strong>ros-z implements ROS 2's service pattern with type-safe request-response communication over Zenoh.</strong> This enables synchronous, point-to-point interactions between nodes using a pull-based model for full control over request processing.</p>
+<p><strong>ros-z implements ROS 2's service pattern with type-safe request-response communication over Eclipse Zenoh.</strong> This enables synchronous, point-to-point interactions between nodes using a pull-based model for full control over request processing.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Services provide request-response communication for operations that need immediate feedback. Unlike topics, services are bidirectional and ensure a response for each request. ros-z uses a pull model that gives you explicit control over when to process requests.</p>
@@ -1992,7 +1992,7 @@
 <div class="language-rust highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="sd">/// AddTwoInts server node that provides a service to add two integers</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="sd">///</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="sd">/// # Arguments</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="sd">/// * `ctx` - The ROS-Z context</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="sd">/// * `ctx` - The ros-z context</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="sd">/// * `max_requests` - Optional maximum number of requests to handle. If None, handles requests indefinitely.</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">run_add_two_ints_server</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span><span class="w"> </span><span class="nc">ZContext</span><span class="p">,</span><span class="w"> </span><span class="n">max_requests</span><span class="p">:</span><span class="w"> </span><span class="nb">Option</span><span class="o">&lt;</span><span class="kt">usize</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="p">()</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">    </span><span class="c1">// Create a node named &quot;add_two_ints_server&quot;</span>
@@ -2063,7 +2063,7 @@
 <div class="language-rust highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="sd">/// AddTwoInts client node that calls the service to add two integers</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="sd">///</span>
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="sd">/// # Arguments</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="sd">/// * `ctx` - The ROS-Z context</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="sd">/// * `ctx` - The ros-z context</span>
 </span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="sd">/// * `a` - First number to add</span>
 </span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="sd">/// * `b` - Second number to add</span>
 </span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="sd">/// * `async_mode` - Whether to use async response waiting</span>

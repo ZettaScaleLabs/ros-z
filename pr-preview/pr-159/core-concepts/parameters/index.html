@@ -2366,7 +2366,7 @@
 <li><strong>No <code>declare_parameter_if_not_declared</code></strong>: check <code>node.get_parameter("name").is_some()</code> first</li>
 </ul>
 <h2 id="ros-2-interoperability">ROS 2 Interoperability<a class="headerlink" href="#ros-2-interoperability" title="Permanent link">&para;</a></h2>
-<p>ros-z parameter services use the same CDR wire format and RIHS01 type hashes as rclcpp. In an environment where ROS 2 is using <code>rmw_zenoh_cpp</code> and both sides are connected to the same Zenoh router, <code>ros2 param</code> commands work against ros-z nodes:</p>
+<p>ros-z parameter services use the same CDR wire format and RIHS01 type hashes as rclcpp. In an environment where ROS 2 is using <code>rmw_zenoh_cpp</code> and both sides are connected to the same Eclipse Zenoh router, <code>ros2 param</code> commands work against ros-z nodes:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># List parameters on a ros-z node</span>
 </span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>ros2<span class="w"> </span>param<span class="w"> </span>list<span class="w"> </span>/my_node
 </span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
