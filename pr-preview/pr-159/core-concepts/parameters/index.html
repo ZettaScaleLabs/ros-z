@@ -783,6 +783,21 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="What is a Parameter?">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-concepts-at-a-glance" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Concepts at a Glance
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2009,6 +2024,83 @@
 </ol>
 <p><strong>Standard parameter services (auto-created):</strong></p>
 <p>Every ros-z node automatically exposes <code>get_parameters</code>, <code>set_parameters</code>, <code>set_parameters_atomically</code>, <code>list_parameters</code>, <code>describe_parameters</code>, and <code>get_parameter_types</code>. These are compatible with the <code>ros2 param</code> CLI and any ROS 2 tool that queries parameters — see the <a href="#parameter-services">Parameter Services</a> section below.</p>
+<h3 id="key-concepts-at-a-glance">Key Concepts at a Glance<a class="headerlink" href="#key-concepts-at-a-glance" title="Permanent link">&para;</a></h3>
+<div class="flashcard-grid">
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">Scope</div>
+        <div class="flashcard-term">Who owns a parameter?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        One node. Parameters are not global — <strong>/robot/max_speed</strong> lives in the <strong>robot</strong> node. To share config across nodes, each node declares its own copy or uses a config file loaded at startup.
+      </div>
+    </div>
+  </div>
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">Types</div>
+        <div class="flashcard-term">What are the 9 parameter types?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        bool, integer (i64), double (f64), string — and array variants of each: bool[], integer[], double[], string[] — plus byte[].
+      </div>
+    </div>
+  </div>
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">Declaration</div>
+        <div class="flashcard-term">What happens if you try to set an undeclared parameter?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        By default, the node rejects it. Nodes must declare parameters they accept. This prevents misconfiguration from typos in parameter names.
+      </div>
+    </div>
+  </div>
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">Callbacks</div>
+        <div class="flashcard-term">Which callback stage can safely trigger hardware changes?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        Only the <strong>post-set callback</strong>. The set callback must be side-effect-free because a later parameter in the same batch might still fail. Post-set fires only after the full batch commits.
+      </div>
+    </div>
+  </div>
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">Atomicity</div>
+        <div class="flashcard-term">What does set_parameters_atomically guarantee?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        All-or-nothing: either every parameter in the batch changes, or none do. Prevents the node from landing in a half-configured state when setting related parameters together.
+      </div>
+    </div>
+  </div>
+  <div class="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-front">
+        <div class="flashcard-tag">Interop</div>
+        <div class="flashcard-term">How do you change a ros-z parameter from the CLI?</div>
+        <div class="flashcard-hint">Click to flip</div>
+      </div>
+      <div class="flashcard-back">
+        <strong>ros2 param set /my_node max_speed 2.5</strong>
+        ros-z exposes standard parameter services so any ROS 2 tool works out of the box.
+      </div>
+    </div>
+  </div>
+</div>
+
 <h2 id="visual-flow">Visual Flow<a class="headerlink" href="#visual-flow" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>graph TD
     A[ZNodeBuilder] --&gt;|configure| B[ZNode]
@@ -2531,6 +2623,8 @@
       <script src="../../assets/javascripts/bundle.f55a23d4.min.js"></script>
       
         <script src="../../javascripts/mermaid.js"></script>
+      
+        <script src="../../javascripts/flashcards.js"></script>
       
     
   </body>
