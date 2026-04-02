@@ -12,8 +12,8 @@ use crate::{
     context::{GlobalCounter, RemapRules},
     dynamic::{
         DiscoveredTopicSchema, DynPubBuilder, DynSub, DynSubBuilder, DynamicMessage,
-        DynamicSerdeCdrSerdes, MessageSchema, TypeDescriptionClient, TypeDescriptionService,
-        schema_type_info, schema_type_info_with_hash,
+        DynamicSerdeCdrSerdes, MessageSchema, SchemaDiscovery, TypeDescriptionService,
+        discovered_schema_type_info, schema_type_info,
     },
     entity::*,
     graph::Graph,
@@ -24,7 +24,6 @@ use crate::{
     },
     pubsub::{ZPubBuilder, ZSubBuilder},
     service::{ZClientBuilder, ZServerBuilder},
-    topic_name::qualify_topic_name,
 };
 
 /// A ROS 2-style node: a named participant that owns publishers, subscribers,
@@ -847,33 +846,10 @@ impl ZNode {
         topic: &str,
         discovery_timeout: Duration,
     ) -> Result<DiscoveredTopicSchema> {
-        debug!("[NOD] Discovering schema for topic: {}", topic);
-
-        let qualified_topic = qualify_topic_name(topic, &self.entity.namespace, &self.entity.name)
-            .map_err(|error| zenoh::Error::from(format!("Failed to qualify topic: {error}")))?;
-
-        // Create a TypeDescriptionClient to discover the schema.
-        // Use a short per-attempt timeout (3 s) so that transient Zenoh routing
-        // delays can be recovered by the retry loop inside get_type_description_for_topic
-        // rather than burning the entire discovery_timeout on a single query.
-        let client = TypeDescriptionClient::with_graph(
-            self.session.clone(),
-            self.counter.clone(),
-            self.graph.clone(),
-        )
-        .with_timeout(Duration::from_secs(3));
-
-        // Discover schema from topic publishers
-        let (schema, type_hash) = client
-            .get_type_description_for_topic(&qualified_topic, discovery_timeout)
+        SchemaDiscovery::new(self, discovery_timeout)
+            .discover(topic)
             .await
-            .map_err(|e| zenoh::Error::from(format!("Schema discovery failed: {}", e)))?;
-
-        Ok(DiscoveredTopicSchema {
-            qualified_topic,
-            schema,
-            type_hash,
-        })
+            .map_err(|e| zenoh::Error::from(e.to_string()))
     }
 
     /// Create a dynamic subscriber with automatic schema discovery.
@@ -925,11 +901,8 @@ impl ZNode {
         );
 
         self.create_dyn_sub_impl(
-            &discovered.qualified_topic,
-            Some(schema_type_info_with_hash(
-                &discovered.schema,
-                &discovered.type_hash,
-            )),
+            topic,
+            Some(discovered_schema_type_info(&discovered)),
             discovered.schema,
         )
         .build()
