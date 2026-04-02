@@ -2193,7 +2193,7 @@
 </span></code></pre></div>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
-<p>Use callbacks for low-latency event-driven processing. Use blocking/async receive when you need explicit control over when messages are processed.</p>
+<p>Use callbacks for low-latency event-driven processing. Use blocking/async receive when you need explicit control over when you process messages.</p>
 </div>
 <h3 id="pattern-comparison">Pattern Comparison<a class="headerlink" href="#pattern-comparison" title="Permanent link">&para;</a></h3>
 <table>
@@ -2289,7 +2289,7 @@
 </span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="p">#</span><span class="w"> </span><span class="nb">Ok</span><span class="p">(())</span>
 </span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="p">#</span><span class="w"> </span><span class="p">}</span>
 </span></code></pre></div>
-<p>Multiple rules can be added with <code>.with_remap_rules()</code>:</p>
+<p>Add multiple rules with <code>.with_remap_rules()</code>:</p>
 <div class="language-rust highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="p">#</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">zenoh</span><span class="p">::</span><span class="nb">Result</span><span class="o">&lt;</span><span class="p">()</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="k">use</span><span class="w"> </span><span class="n">ros_z</span><span class="p">::</span><span class="n">context</span><span class="p">::</span><span class="n">ZContextBuilder</span><span class="p">;</span>
 </span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="k">use</span><span class="w"> </span><span class="n">ros_z</span><span class="p">::</span><span class="n">Builder</span><span class="p">;</span>

@@ -2066,7 +2066,7 @@
 </table>
 <h2 id="generated-code-examples">Generated Code Examples<a class="headerlink" href="#generated-code-examples" title="Permanent link">&para;</a></h2>
 <h3 id="python-msgspec-structs">Python: msgspec Structs<a class="headerlink" href="#python-msgspec-structs" title="Permanent link">&para;</a></h3>
-<p>For each ROS message, a frozen <code>msgspec.Struct</code> is generated:</p>
+<p>The codegen tool generates a frozen <code>msgspec.Struct</code> for each ROS message:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Generated from std_msgs/msg/String.msg</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">String</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">kw_only</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">data</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
@@ -2146,7 +2146,7 @@
 </span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="kd">let</span><span class="w"> </span><span class="n">py_view</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Py</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="n">py</span><span class="p">,</span><span class="w"> </span><span class="n">zbuf_view</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
 </span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">kwargs</span><span class="p">.</span><span class="n">set_item</span><span class="p">(</span><span class="s">&quot;data&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">py_view</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
 </span></code></pre></div>
-<p>This means a received message's byte array fields can be passed directly to a new message for re-publishing without any data copy.</p>
+<p>This means you can pass a received message's byte array fields directly to a new message for re-publishing without any data copy.</p>
 <h3 id="rust-pyo3-serializedeserialize-functions">Rust: PyO3 Serialize/Deserialize Functions<a class="headerlink" href="#rust-pyo3-serializedeserialize-functions" title="Permanent link">&para;</a></h3>
 <p>The serialize/deserialize functions use the derive macro traits:</p>
 <div class="language-rust highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1">// Generated serialize function - uses FromPyMessage trait</span>
@@ -2326,7 +2326,7 @@
 </tbody>
 </table>
 <h3 id="feature-flags">Feature Flags<a class="headerlink" href="#feature-flags" title="Permanent link">&para;</a></h3>
-<p>The Python codegen is gated behind the <code>python_registry</code> feature:</p>
+<p>The <code>python_registry</code> feature gate controls Python codegen:</p>
 <div class="language-rust highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1">// lib.rs</span>
 </span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="cp">#[cfg(feature = </span><span class="s">&quot;python_registry&quot;</span><span class="cp">)]</span>
 </span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="fm">include!</span><span class="p">(</span><span class="fm">concat!</span><span class="p">(</span><span class="fm">env!</span><span class="p">(</span><span class="s">&quot;OUT_DIR&quot;</span><span class="p">),</span><span class="w"> </span><span class="s">&quot;/python_bindings.rs&quot;</span><span class="p">));</span>

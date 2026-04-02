@@ -1959,7 +1959,7 @@
 </div>
 <p><strong>Prerequisites:</strong></p>
 <ul>
-<li><strong>Rust 1.85+</strong> (edition 2024 is required) — install via <a href="https://rustup.rs/">rustup</a></li>
+<li><strong>Rust 1.85+</strong> (requires edition 2024) — install via <a href="https://rustup.rs/">rustup</a></li>
 <li><strong>Tokio 1.x</strong> — ros-z requires an async runtime (added to <code>Cargo.toml</code> in Option 2 below)</li>
 <li>No ROS 2 installation needed for the examples in this guide</li>
 </ul>
@@ -2150,7 +2150,7 @@
 </span></code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>An async runtime is required for ros-z. This example uses Tokio, the most popular choice in the Rust ecosystem.</p>
+<p>ros-z requires an async runtime. This example uses Tokio, the most popular choice in the Rust ecosystem.</p>
 </div>
 <h3 id="4-write-your-first-application">4. Write Your First Application<a class="headerlink" href="#4-write-your-first-application" title="Permanent link">&para;</a></h3>
 <p>Replace the contents of <code>src/main.rs</code> with this simple publisher example:</p>
@@ -2194,7 +2194,7 @@
 </span></code></pre></div>
 <div class="admonition success">
 <p class="admonition-title">Success</p>
-<p>You should see messages being published every second. The application will continue until you press Ctrl+C.</p>
+<p>You should see the application publishing messages every second. It will continue until you press Ctrl+C.</p>
 </div>
 <h3 id="6-test-with-multiple-nodes">6. Test with Multiple Nodes<a class="headerlink" href="#6-test-with-multiple-nodes" title="Permanent link">&para;</a></h3>
 <p>Open another terminal and create a simple listener to verify communication:</p>

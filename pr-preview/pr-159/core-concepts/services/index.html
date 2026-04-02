@@ -2150,7 +2150,7 @@
 
 <div class="admonition success">
 <p class="admonition-title">Success</p>
-<p>Each client request is processed immediately by the server, demonstrating synchronous request-response communication over Zenoh.</p>
+<p>The server processes each client request immediately, demonstrating synchronous request-response communication over Zenoh.</p>
 </div>
 <h2 id="service-server-patterns">Service Server Patterns<a class="headerlink" href="#service-server-patterns" title="Permanent link">&para;</a></h2>
 <p>Service servers in ros-z follow a <strong>pull model</strong> pattern, similar to subscribers. You explicitly receive requests when ready to process them, giving you full control over request handling timing and concurrency.</p>
@@ -2266,7 +2266,7 @@ works for pub/sub but does not fully support services.</p>
 </div>
 <h2 id="error-handling">Error Handling<a class="headerlink" href="#error-handling" title="Permanent link">&para;</a></h2>
 <h3 id="when-the-server-is-not-running">When the server is not running<a class="headerlink" href="#when-the-server-is-not-running" title="Permanent link">&para;</a></h3>
-<p><code>send_request</code> dispatches the Zenoh query and resolves immediately — it does not wait for a reply. If no server is registered, the query has no subscribers. <code>take_response()</code> will then return <code>Err("No sample available")</code>.</p>
+<p><code>send_request</code> dispatches the Zenoh query and resolves immediately — it does not wait for a reply. If no server listens, the query has no subscribers. <code>take_response()</code> will then return <code>Err("No sample available")</code>.</p>
 <p>Use <code>take_response_timeout(duration)</code> to wait for a bounded time:</p>
 <div class="language-rust highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">client</span><span class="p">.</span><span class="n">send_request</span><span class="p">(</span><span class="o">&amp;</span><span class="n">request</span><span class="p">).</span><span class="k">await</span><span class="o">?</span><span class="p">;</span>
 </span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="k">match</span><span class="w"> </span><span class="n">client</span><span class="p">.</span><span class="n">take_response_timeout</span><span class="p">(</span><span class="n">Duration</span><span class="p">::</span><span class="n">from_secs</span><span class="p">(</span><span class="mi">5</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>

@@ -2076,7 +2076,7 @@
 </tbody>
 </table>
 <h2 id="declaring-parameters">Declaring Parameters<a class="headerlink" href="#declaring-parameters" title="Permanent link">&para;</a></h2>
-<p>Parameters must be declared before use. A <code>ParameterDescriptor</code> specifies the name, expected type, and optional constraints:</p>
+<p>Declare parameters before use. A <code>ParameterDescriptor</code> specifies the name, expected type, and optional constraints:</p>
 <div class="language-rust highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">use</span><span class="w"> </span><span class="n">ros_z</span><span class="p">::</span><span class="n">parameter</span><span class="p">::</span><span class="o">*</span><span class="p">;</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="c1">// Basic declaration</span>
@@ -2164,8 +2164,8 @@
 </span><span id="__span-3-44"><a id="__codelineno-3-44" name="__codelineno-3-44" href="#__codelineno-3-44"></a><span class="w">    </span><span class="nb">Ok</span><span class="p">(())</span>
 </span><span id="__span-3-45"><a id="__codelineno-3-45" name="__codelineno-3-45" href="#__codelineno-3-45"></a><span class="p">}</span>
 </span></code></pre></div>
-<p>The callback receives all parameters being changed in a single batch. Return <code>SetParametersResult::success()</code> to accept or <code>SetParametersResult::failure("reason")</code> to reject the entire batch.</p>
-<p><code>ParameterValue::NotSet</code> is treated as an unset value for a still-declared parameter. It does <strong>not</strong> delete the parameter; call <code>undeclare_parameter</code> for that.</p>
+<p>The callback receives all parameters changing in a single batch. Return <code>SetParametersResult::success()</code> to accept or <code>SetParametersResult::failure("reason")</code> to reject the entire batch.</p>
+<p>ros-z treats <code>ParameterValue::NotSet</code> as an unset value for a still-declared parameter. It does <strong>not</strong> delete the parameter; call <code>undeclare_parameter</code> for that.</p>
 <h2 id="parameter-services">Parameter Services<a class="headerlink" href="#parameter-services" title="Permanent link">&para;</a></h2>
 <p>Each node with parameters enabled exposes 6 standard services:</p>
 <table>
@@ -2249,7 +2249,7 @@
 </span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">    </span><span class="p">.</span><span class="n">with_parameter_file</span><span class="p">(</span><span class="n">Path</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="s">&quot;params.yaml&quot;</span><span class="p">))</span><span class="o">?</span>
 </span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span><span class="p">.</span><span class="n">build</span><span class="p">()</span><span class="o">?</span><span class="p">;</span>
 </span></code></pre></div>
-<p>Parameters from the file become overrides — they replace the default value when <code>declare_parameter</code> is called.</p>
+<p>Parameters from the file become overrides — they replace the default value when you call <code>declare_parameter</code>.</p>
 <p>If both wildcard (<code>/**</code>) and node-specific entries match, node-specific values win. If you also call <code>.with_parameter_overrides(map)</code>, the last builder call wins.</p>
 <h2 id="node-builder-options">Node Builder Options<a class="headerlink" href="#node-builder-options" title="Permanent link">&para;</a></h2>
 <table>
@@ -2274,16 +2274,16 @@
 </tr>
 </tbody>
 </table>
-<p>If both a file and programmatic overrides are used, the last call wins.</p>
+<p>If you use both a file and programmatic overrides, the last call wins.</p>
 <h2 id="parameter_events">/parameter_events<a class="headerlink" href="#parameter_events" title="Permanent link">&para;</a></h2>
-<p>Every successful parameter change publishes a <code>ParameterEvent</code> message to <code>/parameter_events</code> with QoS:</p>
+<p>ros-z publishes a <code>ParameterEvent</code> message to <code>/parameter_events</code> for every successful parameter change, with QoS:</p>
 <ul>
 <li><strong>Topic</strong>: <code>/parameter_events</code> (global, shared by all nodes)</li>
 <li><strong>Reliability</strong>: Reliable</li>
 <li><strong>Durability</strong>: Transient Local</li>
 <li><strong>History</strong>: Keep Last (1000)</li>
 </ul>
-<p>Events are classified as:</p>
+<p>ros-z classifies events as:</p>
 <ul>
 <li><code>new_parameters</code> on declaration</li>
 <li><code>changed_parameters</code> on successful set, including <code>ParameterValue::NotSet</code></li>
@@ -2366,7 +2366,7 @@
 <li><strong>No <code>declare_parameter_if_not_declared</code></strong>: check <code>node.get_parameter("name").is_some()</code> first</li>
 </ul>
 <h2 id="ros-2-interoperability">ROS 2 Interoperability<a class="headerlink" href="#ros-2-interoperability" title="Permanent link">&para;</a></h2>
-<p>ros-z parameter services use the same CDR wire format and RIHS01 type hashes as rclcpp. In an environment where ROS 2 is using <code>rmw_zenoh_cpp</code> and both sides are connected to the same Eclipse Zenoh router, <code>ros2 param</code> commands work against ros-z nodes:</p>
+<p>ros-z parameter services use the same CDR wire format and RIHS01 type hashes as rclcpp. In an environment where ROS 2 is using <code>rmw_zenoh_cpp</code> and both sides connect to the same Eclipse Zenoh router, <code>ros2 param</code> commands work against ros-z nodes:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># List parameters on a ros-z node</span>
 </span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>ros2<span class="w"> </span>param<span class="w"> </span>list<span class="w"> </span>/my_node
 </span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>

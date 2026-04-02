@@ -2167,13 +2167,13 @@
 </span><span id="__span-4-19"><a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a><span class="p">#</span><span class="w"> </span><span class="nb">Ok</span><span class="p">(())</span>
 </span><span id="__span-4-20"><a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a><span class="p">#</span><span class="w"> </span><span class="p">}</span>
 </span></code></pre></div>
-<p>All publishers created with <code>create_publisher</code> are registered as <strong>managed entities</strong>: they activate and deactivate automatically when the node transitions.</p>
+<p>ros-z registers all publishers created with <code>create_publisher</code> as <strong>managed entities</strong>: they activate and deactivate automatically when the node transitions.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Publishers created <strong>after</strong> <code>activate()</code> are immediately activated. You can safely create publishers at any point in the node's lifetime.</p>
 </div>
 <h2 id="triggering-transitions">Triggering Transitions<a class="headerlink" href="#triggering-transitions" title="Permanent link">&para;</a></h2>
-<p>Transitions can be triggered programmatically or via the lifecycle management services.</p>
+<p>You can trigger transitions programmatically or via the lifecycle management services.</p>
 <h3 id="programmatic">Programmatic<a class="headerlink" href="#programmatic" title="Permanent link">&para;</a></h3>
 <div class="language-rust highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">#</span><span class="w"> </span><span class="k">use</span><span class="w"> </span><span class="n">ros_z</span><span class="p">::</span><span class="n">prelude</span><span class="p">::</span><span class="o">*</span><span class="p">;</span>
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="p">#</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">zenoh</span><span class="p">::</span><span class="nb">Result</span><span class="o">&lt;</span><span class="p">()</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>

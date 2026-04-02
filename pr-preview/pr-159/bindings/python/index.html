@@ -2495,7 +2495,7 @@ Each must have a <code>__msgtype__</code> class attribute:</p>
 <h2 id="performance-zero-copy-large-payloads">Performance: Zero-Copy Large Payloads<a class="headerlink" href="#performance-zero-copy-large-payloads" title="Permanent link">&para;</a></h2>
 <p>When working with large byte arrays (sensor data, images, point clouds), ros-z-py minimizes memory copies using a zero-copy optimization for <code>uint8[]</code> and <code>byte[]</code> fields.</p>
 <h3 id="zbufview">ZBufView<a class="headerlink" href="#zbufview" title="Permanent link">&para;</a></h3>
-<p>When a subscriber receives a message, byte array fields are exposed as a <code>ZBufView</code> — a zero-copy view into the received network buffer. <code>ZBufView</code> implements Python's buffer protocol:</p>
+<p>When a subscriber receives a message, ros-z exposes byte array fields as a <code>ZBufView</code> — a zero-copy view into the received network buffer. <code>ZBufView</code> implements Python's buffer protocol:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">msg</span> <span class="o">=</span> <span class="n">sub</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
 </span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="c1"># msg.data is a ZBufView — no copy has occurred</span>
 </span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
@@ -2560,7 +2560,7 @@ Each must have a <code>__msgtype__</code> class attribute:</p>
 <p>The optimization operates at three layers:</p>
 <ol>
 <li>
-<p><strong>Deserialization bypass</strong>: When the Python subscriber receives a message, the raw network buffer (ZBuf) is stored in a thread-local. During CDR deserialization, byte array fields create sub-views into this buffer instead of copying (<code>ZSlice::subslice()</code>).</p>
+<p><strong>Deserialization bypass</strong>: When the Python subscriber receives a message, ros-z stores the raw network buffer (ZBuf) in a thread-local. During CDR deserialization, byte array fields create sub-views into this buffer instead of copying (<code>ZSlice::subslice()</code>).</p>
 </li>
 <li>
 <p><strong>Buffer protocol</strong>: <code>ZBufView</code> wraps the ZBuf and exposes its bytes to Python via <code>__getbuffer__</code>/<code>__releasebuffer__</code>. For contiguous buffers (the common case), this is a direct pointer — no copy at all.</p>
@@ -2601,7 +2601,7 @@ Currently supported: <code>std_msgs/String</code>, <code>std_msgs/ByteMultiArray
 </details>
 <details class="question">
 <summary>recv() always returns None</summary>
-<p>This happens when no messages are being received within the timeout period.
+<p>This happens when no messages arrive within the timeout period.
 <strong>Solution:</strong></p>
 <ul>
 <li>Check the topic name matches exactly (including leading <code>/</code>)</li>
@@ -2612,7 +2612,7 @@ Currently supported: <code>std_msgs/String</code>, <code>std_msgs/ByteMultiArray
 </details>
 <h2 id="resources">Resources<a class="headerlink" href="#resources" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong><a href="../python-codegen/">Code Generation Internals</a></strong> - How Python bindings are generated</li>
+<li><strong><a href="../python-codegen/">Code Generation Internals</a></strong> - How ros-z generates Python bindings</li>
 <li><strong><a href="../../core-concepts/pubsub/">Pub/Sub</a></strong> - Deep dive into pub-sub patterns</li>
 <li><strong><a href="../../core-concepts/services/">Services</a></strong> - Request-response communication</li>
 <li><strong><a href="../../user-guide/message-generation/">Message Generation</a></strong> - How message types work</li>

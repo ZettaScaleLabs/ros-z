@@ -2100,12 +2100,12 @@
 <hr />
 <h2 id="services">Services<a class="headerlink" href="#services" title="Permanent link">&para;</a></h2>
 <blockquote>
-<p><strong>Coming in v0.2.</strong> Service client and server support will be added in the next release.</p>
+<p><strong>Coming in v0.2.</strong> Service client and server support arrives in the next release.</p>
 </blockquote>
 <hr />
 <h2 id="actions">Actions<a class="headerlink" href="#actions" title="Permanent link">&para;</a></h2>
 <blockquote>
-<p><strong>Coming in v0.2.</strong> Action client and server support, including cooperative cancellation and feedback streaming, will be added in the next release.</p>
+<p><strong>Coming in v0.2.</strong> Action client and server support, including cooperative cancellation and feedback streaming, arrives in the next release.</p>
 </blockquote>
 <hr />
 <h2 id="typed-api">Typed API<a class="headerlink" href="#typed-api" title="Permanent link">&para;</a></h2>
@@ -2178,7 +2178,7 @@
 </span></code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
-<p>Callbacks are invoked on C/Rust threads. Do <strong>not</strong> call <code>log.Fatal</code> or block inside them — send to a channel or set an atomic flag instead.</p>
+<p>C/Rust threads invoke callbacks. Do <strong>not</strong> call <code>log.Fatal</code> or block inside them — send to a channel or set an atomic flag instead.</p>
 </div>
 <hr />
 <h2 id="logging-debugging">Logging &amp; Debugging<a class="headerlink" href="#logging-debugging" title="Permanent link">&para;</a></h2>

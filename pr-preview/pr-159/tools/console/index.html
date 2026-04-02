@@ -2448,8 +2448,7 @@ message rates, and inspect QoS settings.</p>
 </span></code></pre></div>
 <h2 id="dynamic-topic-echo">Dynamic Topic Echo<a class="headerlink" href="#dynamic-topic-echo" title="Permanent link">&para;</a></h2>
 <p>ros-z-console can subscribe to and display messages from <strong>any ROS 2 topic</strong>
-without compile-time knowledge of message types. This is powered by dynamic
-schema discovery using the ROS 2 Type Description service (REP-2016).</p>
+without compile-time knowledge of message types. Dynamic schema discovery via the ROS 2 Type Description service (REP-2016) powers this capability.</p>
 <div class="admonition success">
 <p class="admonition-title">Universal Message Support</p>
 <p>Echo works with all ROS 2 message types: primitives, nested messages, arrays, and custom types. No recompilation needed!</p>
@@ -2538,7 +2537,7 @@ schema discovery using the ROS 2 Type Description service (REP-2016).</p>
 </span></code></pre></div>
 <h3 id="use-cases">Use Cases<a class="headerlink" href="#use-cases" title="Permanent link">&para;</a></h3>
 <h4 id="debugging-message-content">Debugging Message Content<a class="headerlink" href="#debugging-message-content" title="Permanent link">&para;</a></h4>
-<p>Quickly inspect what's being published:</p>
+<p>Quickly inspect what publishers are sending:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>ros-z-console<span class="w"> </span>--headless<span class="w"> </span>--echo<span class="w"> </span>/diagnostics
 </span></code></pre></div>
 <h4 id="data-analysis">Data Analysis<a class="headerlink" href="#data-analysis" title="Permanent link">&para;</a></h4>
@@ -2601,7 +2600,7 @@ schema discovery using the ROS 2 Type Description service (REP-2016).</p>
 <p><strong>Solutions:</strong></p>
 <ul>
 <li>Verify the topic exists: <code>ros2 topic list</code></li>
-<li>Check the topic is being published: <code>ros2 topic hz /my_topic</code></li>
+<li>Check the topic has publishers: <code>ros2 topic hz /my_topic</code></li>
 <li>Ensure rmw_zenohd is running</li>
 <li>Wait for publisher to fully start (may take a few seconds)</li>
 </ul>
@@ -2660,7 +2659,7 @@ schema discovery using the ROS 2 Type Description service (REP-2016).</p>
 </ul>
 <div class="admonition tip">
 <p class="admonition-title">Schema Caching</p>
-<p>Message schemas are cached in a global registry. Once a type is discovered, subsequent subscriptions to topics with the same type are instant.</p>
+<p>ros-z-console caches message schemas in a global registry. Once it discovers a type, subsequent subscriptions to topics with the same type are instant.</p>
 </div>
 <h2 id="export-formats">Export Formats<a class="headerlink" href="#export-formats" title="Permanent link">&para;</a></h2>
 <p>Export the current graph state with the <code>--export</code> flag:</p>

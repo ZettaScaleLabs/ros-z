@@ -1165,9 +1165,9 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#messages-are-forwarded-but-deserialization-fails-on-the-receiving-side" class="md-nav__link">
+  <a href="#the-bridge-forwards-messages-but-deserialization-fails-on-the-receiving-side" class="md-nav__link">
     <span class="md-ellipsis">
-      Messages are forwarded but deserialization fails on the receiving side
+      The bridge forwards messages but deserialization fails on the receiving side
     </span>
   </a>
   
@@ -2130,7 +2130,7 @@ both flags when diagnosing bridge connectivity.</p>
 </table>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Only types compiled into the bridge binary are supported. The bridge ships with all
+<p>The bridge binary supports only types compiled into it. The bridge ships with all
 standard ROS 2 message packages (<code>std_msgs</code>, <code>geometry_msgs</code>, <code>sensor_msgs</code>, …).
 If you use <strong>custom messages</strong>, you need to rebuild the bridge with your message crate
 added as a dependency (see <a href="#custom-messages">Custom Messages</a>).</p>
@@ -2170,7 +2170,7 @@ may take a few seconds to reflect them. Wait ~5 s after both nodes are running.<
 </span></code></pre></div>
 <h3 id="unknown-type-cannot-bridge"><code>Unknown type — cannot bridge</code><a class="headerlink" href="#unknown-type-cannot-bridge" title="Permanent link">&para;</a></h3>
 <p>The message type is not in the bridge's hash registry. See <a href="#custom-messages">Custom Messages</a>.</p>
-<h3 id="messages-are-forwarded-but-deserialization-fails-on-the-receiving-side">Messages are forwarded but deserialization fails on the receiving side<a class="headerlink" href="#messages-are-forwarded-but-deserialization-fails-on-the-receiving-side" title="Permanent link">&para;</a></h3>
+<h3 id="the-bridge-forwards-messages-but-deserialization-fails-on-the-receiving-side">The bridge forwards messages but deserialization fails on the receiving side<a class="headerlink" href="#the-bridge-forwards-messages-but-deserialization-fails-on-the-receiving-side" title="Permanent link">&para;</a></h3>
 <p>Verify the message definition is identical on both sides. Humble and Jazzy/Kilted ship the
 same built-in message definitions, but third-party packages may differ. Check that both
 <code>rmw_zenoh_cpp</code> versions agree on the CDR layout.</p>

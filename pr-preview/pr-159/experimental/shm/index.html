@@ -2181,14 +2181,14 @@
 <p>When publishing large messages (e.g., point clouds, images), copying data multiple times can significantly impact performance. ros-z's SHM support leverages Eclipse Zenoh's shared memory capabilities to achieve true zero-copy publishing.</p>
 <h3 id="key-benefits">Key Benefits<a class="headerlink" href="#key-benefits" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Zero-copy serialization</strong>: Messages are serialized directly into shared memory</li>
+<li><strong>Zero-copy serialization</strong>: ros-z serializes messages directly into shared memory</li>
 <li><strong>Automatic activation</strong>: Configurable threshold-based switching</li>
 <li><strong>Accurate buffer sizing</strong>: Auto-generated size estimation prevents waste</li>
 <li><strong>High performance</strong>: Sub-millisecond serialization for 1MB messages</li>
 <li><strong>Full compatibility</strong>: Works seamlessly with <code>rmw_zenoh_cpp</code></li>
 </ul>
 <h2 id="how-shm-works-in-ros-2">How SHM Works in ROS 2<a class="headerlink" href="#how-shm-works-in-ros-2" title="Permanent link">&para;</a></h2>
-<p>The following diagram illustrates how a PointCloud2 message is published using shared memory in ros-z:</p>
+<p>The following diagram illustrates how ros-z publishes a PointCloud2 message using shared memory:</p>
 <pre class="mermaid"><code>sequenceDiagram
     participant App as Application
     participant Pub as ros-z Publisher
@@ -2231,7 +2231,7 @@
 </ul>
 <h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
 <h3 id="default-behavior-shm-is-off">Default Behavior: SHM is OFF<a class="headerlink" href="#default-behavior-shm-is-off" title="Permanent link">&para;</a></h3>
-<p><strong>By default, SHM is disabled.</strong> Messages are serialized using regular memory allocation. You must explicitly enable SHM to use zero-copy publishing.</p>
+<p><strong>By default, ros-z disables SHM.</strong> It serializes messages using regular memory allocation. You must explicitly enable SHM to use zero-copy publishing.</p>
 <h3 id="enable-shm-globally">Enable SHM Globally<a class="headerlink" href="#enable-shm-globally" title="Permanent link">&para;</a></h3>
 <p>The simplest way to enable SHM is at the context level:</p>
 <div class="language-rust highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">use</span><span class="w"> </span><span class="n">ros_z</span><span class="p">::</span><span class="n">context</span><span class="p">::</span><span class="n">ZContextBuilder</span><span class="p">;</span>
@@ -2325,7 +2325,7 @@
 </table>
 <h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
 <h3 id="default-shm-disabled">Default: SHM Disabled<a class="headerlink" href="#default-shm-disabled" title="Permanent link">&para;</a></h3>
-<p><strong>SHM is disabled by default.</strong> To enable it, you must explicitly configure it at the context, node, or publisher level.</p>
+<p><strong>SHM is off by default.</strong> To enable it, you must explicitly configure it at the context, node, or publisher level.</p>
 <h3 id="hierarchical-configuration">Hierarchical Configuration<a class="headerlink" href="#hierarchical-configuration" title="Permanent link">&para;</a></h3>
 <p>SHM configuration follows a three-level hierarchy:</p>
 <ol>
@@ -2904,7 +2904,7 @@
 </span><span id="__span-17-7"><a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="c1">// (use different policy with provider.alloc().with_policy())</span>
 </span></code></pre></div>
 <h3 id="integration-with-rmw_zenoh_cpp">Integration with rmw_zenoh_cpp<a class="headerlink" href="#integration-with-rmw_zenoh_cpp" title="Permanent link">&para;</a></h3>
-<p>ros-z's SHM implementation is fully compatible with <code>rmw_zenoh_cpp</code>. Messages published from ros-z using SHM can be received zero-copy by C++/Python nodes using <code>rmw_zenoh_cpp</code>, and vice versa.</p>
+<p>ros-z's SHM implementation is fully compatible with <code>rmw_zenoh_cpp</code>. C++/Python nodes using <code>rmw_zenoh_cpp</code> can receive zero-copy the messages ros-z publishes via SHM, and vice versa.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="c1"># ros-z publisher (Rust)</span>
 </span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>cargo<span class="w"> </span>run<span class="w"> </span>--example<span class="w"> </span>shm_pointcloud2
 </span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>

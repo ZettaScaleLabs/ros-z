@@ -2062,7 +2062,7 @@
 
 
 <h1 id="key-expression-formats">Key Expression Formats<a class="headerlink" href="#key-expression-formats" title="Permanent link">&para;</a></h1>
-<p><strong>ros-z uses key expression formats to map ROS 2 entities (topics, services, actions) to Eclipse Zenoh key expressions.</strong> The format is provided by the independent <code>ros-z-protocol</code> crate and determines how ROS 2 names are translated for Zenoh routing and discovery.</p>
+<p><strong>ros-z uses key expression formats to map ROS 2 entities (topics, services, actions) to Eclipse Zenoh key expressions.</strong> The independent <code>ros-z-protocol</code> crate provides the format and determines how ros-z translates ROS 2 names for Zenoh routing and discovery.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Key expression format is a runtime choice that affects how ros-z maps ROS 2 entities to Zenoh key expressions. Choose the format that matches your infrastructure for proper message routing.</p>
@@ -2091,7 +2091,7 @@
 </tbody>
 </table>
 <h3 id="rmwzenoh-format-default">RmwZenoh Format (Default)<a class="headerlink" href="#rmwzenoh-format-default" title="Permanent link">&para;</a></h3>
-<p>The RmwZenoh format is designed for compatibility with ROS 2's official Zenoh middleware implementation (<code>rmw_zenoh_cpp</code>).</p>
+<p>The RmwZenoh format targets compatibility with ROS 2's official Zenoh middleware implementation (<code>rmw_zenoh_cpp</code>).</p>
 <p><strong>Key Expression Patterns:</strong></p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Topic keys:      &lt;domain_id&gt;/&lt;topic&gt;/&lt;type&gt;/&lt;hash&gt;
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>Liveliness:      @ros2_lv/&lt;domain_id&gt;/&lt;entity_kind&gt;/&lt;namespace&gt;/&lt;name&gt;/...
@@ -2107,7 +2107,7 @@
 <li>Requiring domain isolation via Zenoh</li>
 </ul>
 <h3 id="ros2dds-format">Ros2Dds Format<a class="headerlink" href="#ros2dds-format" title="Permanent link">&para;</a></h3>
-<p>The Ros2Dds format is designed for compatibility with <code>zenoh-bridge-ros2dds</code>, which bridges standard DDS-based ROS 2 nodes to Zenoh.</p>
+<p>The Ros2Dds format targets compatibility with <code>zenoh-bridge-ros2dds</code>, which bridges standard DDS-based ROS 2 nodes to Zenoh.</p>
 <p><strong>Key Expression Format:</strong></p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>&lt;topic&gt;/**
 </span></code></pre></div>
@@ -2122,7 +2122,7 @@
 <li>Integrating with CycloneDDS or FastDDS nodes via Zenoh</li>
 </ul>
 <h2 id="key-expression-behavior-important">Key Expression Behavior (IMPORTANT)<a class="headerlink" href="#key-expression-behavior-important" title="Permanent link">&para;</a></h2>
-<p>Understanding how topic names are converted to key expressions is critical for debugging:</p>
+<p>Understanding how ros-z converts topic names to key expressions is critical for debugging:</p>
 <h3 id="topic-key-expressions-for-data-routing">Topic Key Expressions (For Data Routing)<a class="headerlink" href="#topic-key-expressions-for-data-routing" title="Permanent link">&para;</a></h3>
 <p><strong>ALL entity types</strong> (publishers, subscriptions, services, clients, actions) use <code>strip_slashes()</code> behavior:</p>
 <ul>
@@ -2244,7 +2244,7 @@
 <li>Format choice is type-safe and explicit</li>
 </ul>
 <h3 id="creating-entities">Creating Entities<a class="headerlink" href="#creating-entities" title="Permanent link">&para;</a></h3>
-<p>Once the context is created with a format, all entities inherit it:</p>
+<p>Once you create the context with a format, all entities inherit it:</p>
 <div class="language-rust highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">use</span><span class="w"> </span><span class="n">ros_z_msgs</span><span class="p">::</span><span class="n">std_msgs</span><span class="p">::</span><span class="nb">String</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">RosString</span><span class="p">;</span>
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">use</span><span class="w"> </span><span class="n">ros_z</span><span class="p">::</span><span class="n">Builder</span><span class="p">;</span>
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
@@ -2322,7 +2322,7 @@
 <h3 id="liveliness-token-structure">Liveliness Token Structure<a class="headerlink" href="#liveliness-token-structure" title="Permanent link">&para;</a></h3>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>@ros2_lv/&lt;domain&gt;/&lt;entity_kind&gt;/&lt;zid&gt;/&lt;id&gt;/&lt;namespace&gt;/&lt;name&gt;/&lt;type&gt;/&lt;hash&gt;/&lt;qos&gt;
 </span></code></pre></div>
-<p><strong>All name fields are mangled</strong> (/ → %):</p>
+<p><strong>ros-z mangles all name fields</strong> (/ → %):</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>Namespace: /robot/arm  →  %robot%arm
 </span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>Name:      /gripper    →  %gripper
 </span></code></pre></div>
@@ -2330,7 +2330,7 @@
 <div class="language-text highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>@ros2_lv/0/MP/01234567890abcdef/1/%robot%arm/%gripper/std_msgs::msg::String_/RIHS01_.../qos_string
 </span></code></pre></div>
 <h2 id="ros-z-protocol-crate">ros-z-protocol Crate<a class="headerlink" href="#ros-z-protocol-crate" title="Permanent link">&para;</a></h2>
-<p>The key expression logic is provided by the independent <code>ros-z-protocol</code> crate:</p>
+<p>The independent <code>ros-z-protocol</code> crate provides the key expression logic:</p>
 <p><strong>Features:</strong></p>
 <ul>
 <li><code>no_std</code> compatible (with <code>alloc</code>)</li>
