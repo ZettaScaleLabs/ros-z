@@ -2835,6 +2835,7 @@ dependencies = [
  "pyo3",
  "ros-z-cdr",
  "ros-z-codegen",
+ "ros-z-derive",
  "ros-z-msgs",
  "ros-z-protocol",
  "ros-z-schema",
