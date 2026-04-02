@@ -67,7 +67,7 @@ let ctx = ZContextBuilder::default()
 | **Keep-Alive** | 2s | 2s | Optimized for loopback |
 
 !!! note
-    These defaults are tuned for ROS 2 deployments and match `rmw_zenoh_cpp` exactly. Only modify them if you have specific performance requirements.
+    These defaults target ROS 2 deployments and match `rmw_zenoh_cpp` exactly. Only modify them if you have specific performance requirements.
 
 ## Example: Full Session Config
 

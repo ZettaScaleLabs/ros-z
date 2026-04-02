@@ -141,7 +141,7 @@ let _server = node
     });
 ```
 
-The key constraint: **one `GoalHandle` per goal**. `feedback()` and `status_watch()` each return `Some` only the first time they are called — after that, the receiver has been moved out.
+The key constraint: **one `GoalHandle` per goal**. `feedback()` and `status_watch()` each return `Some` only on the first call — after that, the handle has moved out the receiver.
 
 ## Action Server Example
 

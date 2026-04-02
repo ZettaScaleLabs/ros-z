@@ -38,7 +38,7 @@ Two indexing strategies are available and selected at **compile time** via the t
 
 ### ZenohStamp (default)
 
-No configuration needed. The cache reads the `uhlc::Timestamp` that the Zenoh transport attaches to every published sample and converts it to `SystemTime`. If timestamping is disabled on the peer, the cache falls back to `SystemTime::now()` at receive time and logs a one-time warning.
+No configuration needed. The cache reads the `uhlc::Timestamp` that the Zenoh transport attaches to every published sample and converts it to `SystemTime`. If the peer has timestamping disabled, the cache falls back to `SystemTime::now()` at receive time and logs a one-time warning.
 
 ```rust
 use ros_z::prelude::*;
@@ -99,7 +99,7 @@ let next = cache.get_after(camera_stamp);
 
 ### `get_nearest(t) -> Option<T>`
 
-The message whose timestamp is nearest to `t` (either side). When two messages are equidistant, the one with the earlier timestamp is returned. Returns `None` if the cache is empty.
+The message whose timestamp is nearest to `t` (either side). When two messages are equidistant, the cache returns the one with the earlier timestamp. Returns `None` if the cache is empty.
 
 ```rust
 // Align an IMU sample to a camera frame timestamp.
@@ -118,7 +118,7 @@ cache.clear()          // remove all messages
 
 ## Capacity and Eviction
 
-The cache holds at most `capacity` messages. When a new message arrives and the cache is full, the oldest message (smallest timestamp) is evicted first, regardless of insertion order. Capacity can be changed at build time:
+The cache holds at most `capacity` messages. When a new message arrives and the cache is full, the cache evicts the oldest message (smallest timestamp) first, regardless of insertion order. Change the capacity at build time:
 
 ```rust
 let cache = node

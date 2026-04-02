@@ -1,6 +1,6 @@
 # Building ros-z
 
-**ros-z is designed to work without ROS 2 dependencies by default, enabling pure Rust development while optionally integrating with existing ROS 2 installations.** This flexible approach lets you choose your dependency level based on project requirements.
+**ros-z works without ROS 2 dependencies by default, enabling pure Rust development while optionally integrating with existing ROS 2 installations.** This flexible approach lets you choose your dependency level based on project requirements.
 
 ## Philosophy
 
@@ -115,7 +115,7 @@ This section is for contributors working on ros-z itself. If you're using ros-z 
 
 ### Package Organization
 
-The ros-z repository is organized as a Cargo workspace with multiple packages:
+The ros-z repository uses a Cargo workspace with multiple packages:
 
 | Package | Default Build | Purpose | Dependencies |
 |---------|---------------|---------|--------------|

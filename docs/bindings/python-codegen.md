@@ -49,7 +49,7 @@ graph TB
 
 ### Python: msgspec Structs
 
-For each ROS message, a frozen `msgspec.Struct` is generated:
+The codegen tool generates a frozen `msgspec.Struct` for each ROS message:
 
 ```python
 # Generated from std_msgs/msg/String.msg
@@ -153,7 +153,7 @@ let py_view = Py::new(py, zbuf_view)?;
 kwargs.set_item("data", py_view)?;
 ```
 
-This means a received message's byte array fields can be passed directly to a new message for re-publishing without any data copy.
+This means you can pass a received message's byte array fields directly to a new message for re-publishing without any data copy.
 
 ### Rust: PyO3 Serialize/Deserialize Functions
 
@@ -305,7 +305,7 @@ flowchart TD
 
 ### Feature Flags
 
-The Python codegen is gated behind the `python_registry` feature:
+The `python_registry` feature gate controls Python codegen:
 
 
 ```rust

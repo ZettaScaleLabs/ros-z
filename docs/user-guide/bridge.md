@@ -155,7 +155,7 @@ OPTIONS:
 | Nodes (graph) | ✅ | Synthetic liveliness tokens re-announced so `ros2 topic list` works on both sides |
 
 !!! note
-    Only types compiled into the bridge binary are supported. The bridge ships with all
+    The bridge binary supports only types compiled into it. The bridge ships with all
     standard ROS 2 message packages (`std_msgs`, `geometry_msgs`, `sensor_msgs`, …).
     If you use **custom messages**, you need to rebuild the bridge with your message crate
     added as a dependency (see [Custom Messages](#custom-messages)).
@@ -217,7 +217,7 @@ Declared synthetic modern lv token: @ros2_lv/0/…/RIHS01_…
 
 The message type is not in the bridge's hash registry. See [Custom Messages](#custom-messages).
 
-### Messages are forwarded but deserialization fails on the receiving side
+### The bridge forwards messages but deserialization fails on the receiving side
 
 Verify the message definition is identical on both sides. Humble and Jazzy/Kilted ship the
 same built-in message definitions, but third-party packages may differ. Check that both
