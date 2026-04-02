@@ -93,7 +93,8 @@ Send arbitrary protobuf messages defined in `.proto` files:
 
 Create `proto/sensor_data.proto`:
 
-```protobufsyntax = "proto3";
+```protobuf
+syntax = "proto3";
 
 package examples;
 
@@ -129,13 +130,9 @@ impl MessageTypeInfo for SensorData {
         "examples::msg::dds_::SensorData_"
     }
 
-
-
-fn type_hash() -> TypeHash {
-    TypeHash::zero()  // For custom protobuf messages
-}
-
-```rust
+    fn type_hash() -> TypeHash {
+        TypeHash::zero()  // For custom protobuf messages
+    }
 }
 
 impl WithTypeInfo for SensorData {}

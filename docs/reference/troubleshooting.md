@@ -7,7 +7,7 @@
 
 ## Build Issues
 
-??? question "Build fails with "
+??? question "Build fails with 'package not found' or missing ROS 2 packages"
     **Root Cause:** ROS 2 environment not sourced or packages not installed.
 
     **Solutions:**
@@ -86,7 +86,7 @@
 
 ## Runtime Issues
 
-??? question "Publishers and subscribers on different processes don"
+??? question "Publishers and subscribers on different processes don't communicate"
     **Root Cause:** Eclipse Zenoh router not running or nodes not configured correctly.
 
     **Solution:**
@@ -103,7 +103,7 @@
            .build()?;
        ```
 
-??? question "Router fails to start with "
+??? question "Router fails to start with 'address already in use'"
     **Root Cause:** Another process is using port 7447.
 
     **Solutions:**
@@ -124,7 +124,7 @@
            .build()?;
        ```
 
-??? question "Don"
+??? question "Don't want to run a router — can I use peer-to-peer mode?"
     **Solution:** Use peer mode with multicast discovery:
 
     ```rust
@@ -135,7 +135,7 @@
 
     **Warning:** Peer mode won't interoperate with ROS 2 nodes using `rmw_zenoh_cpp` in router mode.
 
-??? question "Multi-segment topics like /robot/sensors/camera don"
+??? question "Multi-segment topics like /robot/sensors/camera don't work"
     **Symptom:** Publisher publishes to `/robot/sensors/camera` but subscriber never receives messages.
 
     **Root Cause:** Old versions of ros-z (before 0.1.0) incorrectly mangled slashes in topic key expressions, breaking multi-segment topic routing.
@@ -164,7 +164,7 @@
 
     See [Key Expression Formats](../experimental/keyexpr-formats.md#key-expression-behavior-important) for details.
 
-??? question "ROS 2 nodes don"
+??? question "ROS 2 nodes don't receive messages from ros-z (type hash mismatch)"
     **Root Cause:** Type hash mismatch — ros-z and the ROS 2 node disagree on the message definition's RIHS01 hash.
 
     **Diagnosis:**
