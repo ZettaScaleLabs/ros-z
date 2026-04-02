@@ -34,7 +34,7 @@ cd ros-z
 
 ### Start the Eclipse Zenoh Router
 
-ros-z uses a router-based architecture (matching ROS 2's `rmw_zenoh` — the ROS 2 middleware plugin for Zenoh), so you'll need to start a Zenoh router first. The router acts as a rendezvous point for all nodes: publishers and subscribers discover each other through it rather than via multicast.
+ros-z uses a router-based architecture (matching ROS 2's `rmw_zenoh` — the ROS 2 middleware plugin for Zenoh), so you'll need to start a Zenoh router first. The router acts as a rendezvous point for all nodes: publishers and subscribers discover each other through it instead of via multicast.
 
 **Terminal 1 - Start the Router:**
 
@@ -65,7 +65,7 @@ cargo run --example z_pubsub -- --role talker
 
 ### Understanding the Code
 
-Here's the complete example you just ran:
+Here's the complete example you ran:
 
 ```rust
 use std::time::Duration;

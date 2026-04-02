@@ -39,7 +39,7 @@ let node = ctx.create_node("my_node").build()?;
 ```
 
 !!! success
-    That's it! The default configuration automatically connects to the router. Now you just need to run one.
+    That's it! The default configuration automatically connects to the router. Now you need to run one.
 
 ## Running the Zenoh Router
 
@@ -53,7 +53,7 @@ ros-z applications require a Zenoh router to be running. There are several ways 
 | [Pre-built Binary](#method-2-pre-built-binary) | Quick setup, no Rust | None | Fast |
 | [Docker](#method-3-docker) | Containers, CI/CD | Docker | Fast |
 | [Package Manager](#method-4-package-manager-apt-brew) | System-wide install | apt/brew/etc | Fast |
-| [ros-z Example](#method-5-ros-z-example-router) | ros-z repo developers | ros-z repository | Very Fast |
+| [ros-z Example](#method-5-ros-z-example-router) | ros-z repo developers | ros-z repository | Fast |
 | [ROS 2 rmw_zenoh](#method-6-ros-2-rmw_zenoh) | ROS 2 interop testing | ROS 2 installed | Already installed |
 
 ---

@@ -328,7 +328,7 @@ ros-z-console --headless --echo /scan
 
 #### Debugging Message Content
 
-Quickly inspect what's actually being published:
+Quickly inspect what's being published:
 
 ```bash
 ros-z-console --headless --echo /diagnostics
@@ -444,7 +444,7 @@ This occurs when the publisher and subscriber have different message definitions
 | **Custom types** | Automatic discovery | Must have .msg files available |
 | **Multiple topics** | Single command | Need multiple processes |
 | **JSON output** | Built-in structured format | Requires additional parsing |
-| **Performance** | Zenoh pub/sub (very fast) | DDS overhead |
+| **Performance** | Zenoh pub/sub (low latency) | DDS overhead |
 | **Filtering** | Easy with jq on JSON | Manual parsing needed |
 
 ### Performance Notes

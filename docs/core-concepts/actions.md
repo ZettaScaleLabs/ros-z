@@ -1,7 +1,7 @@
 # Actions
 
 !!! note "Go users"
-    The code examples in this chapter are **Rust**. The Go action API uses separate goal-acceptance and execute callbacks rather than the `with_handler(ExecutingGoal)` pattern shown here. For Go action patterns, see the [Go Bindings](../bindings/go.md) chapter.
+    The code examples in this chapter are **Rust**. The Go action API uses separate goal-acceptance and execute callbacks instead of the `with_handler(ExecutingGoal)` pattern shown here. For Go action patterns, see the [Go Bindings](../bindings/go.md) chapter.
 
 **Actions enable long-running tasks with progress feedback and cancellation support, perfect for operations that take seconds or minutes to complete.** Unlike services that return immediately, actions provide streaming feedback while executing complex workflows.
 

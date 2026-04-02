@@ -218,7 +218,7 @@ cargo run --example demo_nodes_add_two_ints_client -- --a 100 --b 200
 Service servers in ros-z follow a **pull model** pattern, similar to subscribers. You explicitly receive requests when ready to process them, giving you full control over request handling timing and concurrency.
 
 !!! info
-    This pull-based approach is consistent with subscriber's `recv()` pattern, allowing you to control when work happens rather than having callbacks interrupt your flow.
+    This pull-based approach is consistent with subscriber's `recv()` pattern, allowing you to control when work happens without callbacks interrupting your flow.
 
 ### Pattern 1: Blocking Request Handling
 

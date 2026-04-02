@@ -87,7 +87,7 @@ cargo nextest run --no-default-features --features humble
 
 ### Using Other Distributions
 
-For Rolling or Kilted, simply specify the distro feature:
+For Rolling or Kilted, specify the distro feature:
 
 ```bash
 # Build for Rolling
