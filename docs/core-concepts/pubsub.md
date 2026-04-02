@@ -154,49 +154,6 @@ QoS controls delivery guarantees. Incompatible settings = **silent** data loss.
   </div>
 </div>
 
-## Visual Flow
-
-```mermaid
-graph TD
-    A[ZContextBuilder] -->|configure| B[ZContext]
-    B -->|create| C[Node]
-    C -->|publisher| D[Publisher]
-    C -->|subscriber| E[Subscriber]
-    D -->|publish| F[Topic]
-    F -->|deliver| E
-    E -->|callback| G[Message Handler]
-```
-
-### Message Flow
-
-```mermaid
-sequenceDiagram
-    participant P as Publisher (Talker)
-    participant Z as Eclipse Zenoh
-    participant S1 as Subscriber 1 (Listener)
-    participant S2 as Subscriber 2 (Logger)
-
-    P->>Z: publish("Hello World #1")
-    Z->>S1: deliver message
-    Z->>S2: deliver message
-    S1-->>P: (no reply — fire and forget)
-
-    P->>Z: publish("Hello World #2")
-    Z->>S1: deliver message
-    Z->>S2: deliver message
-
-    Note over P,S2: Any number of subscribers receive every message.<br/>Publisher never knows who is listening.
-```
-
-## Key Features
-
-| Feature | Description | Benefit |
-|---------|-------------|---------|
-| **Type Safety** | Strongly-typed messages using Rust structs | Compile-time error detection |
-| **Zero-Copy** | Efficient message passing via Zenoh | Reduced latency and CPU usage |
-| **QoS Profiles** | Configurable reliability, durability, history | Fine-grained delivery control |
-| **Async/Blocking** | Dual API for both paradigms | Flexible integration patterns |
-
 ## Publisher Example
 
 This example demonstrates publishing "Hello World" messages to a topic. The publisher sends messages periodically, showcasing the fundamental publishing pattern.

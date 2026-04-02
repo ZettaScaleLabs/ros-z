@@ -93,7 +93,7 @@ pip install -e ../ros-z-msgs/python/
 
 # Build and install ros-z-py
 maturin develop
-
+```
 
 !!! tip
     Use `maturin develop --release` for optimized builds when benchmarking or running in production.

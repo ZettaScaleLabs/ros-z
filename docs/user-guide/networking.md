@@ -113,16 +113,7 @@ Run the router:
 zenohd
 ```
 
-**Pros:**
-
-- Always up-to-date with latest Zenoh
-- Builds optimized for your system
-- Easy to update: `cargo install zenohd --force`
-
-**Cons:**
-
-- Requires Rust toolchain
-- Takes 2-5 minutes to compile
+Requires Rust toolchain; takes 2–5 min to compile but always builds the latest version.
 
 ---
 
@@ -130,42 +121,17 @@ zenohd
 
 **Fastest way to get started without Rust installed.**
 
-**Download:** Go to the [Zenoh Releases page](https://github.com/eclipse-zenoh/zenoh/releases) and download the appropriate archive for your platform:
-
-- Linux (x86_64): `zenoh-*-x86_64-unknown-linux-gnu-standalone.zip`
-- macOS (Apple Silicon): `zenoh-*-aarch64-apple-darwin-standalone.zip`
-- macOS (Intel): `zenoh-*-x86_64-apple-darwin-standalone.zip`
-- Windows: `zenoh-*-x86_64-pc-windows-msvc-standalone.zip`
-
-**Extract and run:**
-
-Linux/macOS:
+Download from the [Zenoh Releases page](https://github.com/eclipse-zenoh/zenoh/releases) for your platform, then:
 
 ```bash
-unzip zenoh-*.zip
-chmod +x zenohd
-./zenohd
+# Linux/macOS
+unzip zenoh-*.zip && chmod +x zenohd && ./zenohd
+
+# Windows (PowerShell)
+Expand-Archive zenoh-*.zip; .\zenoh\zenohd.exe
 ```
 
-Windows (PowerShell):
-
-```powershell
-Expand-Archive zenoh-*.zip
-.\zenoh\zenohd.exe
-```
-
-**Pros:**
-
-- No build tools required
-- Instant startup
-- Portable - can run from any directory
-
-**Cons:**
-
-- Manual download and extraction
-- Need to track updates yourself
-
-**More info:** <https://zenoh.io/docs/getting-started/installation/>
+No build tools required. More info: <https://zenoh.io/docs/getting-started/installation/>
 
 ---
 
@@ -173,36 +139,19 @@ Expand-Archive zenoh-*.zip
 
 **Perfect for containerized deployments and CI/CD pipelines.**
 
-Pull and run the official Zenoh router image:
-
 ```bash
 docker run --init --net host eclipse/zenoh:latest
 ```
 
-**For production with persistent config:**
+For production with a config file:
 
 ```bash
-docker run -d \
-  --name zenoh-router \
-  --net host \
+docker run -d --name zenoh-router --net host \
   -v /path/to/config:/zenoh/config \
-  eclipse/zenoh:latest \
-  --config /zenoh/config/zenoh.json5
+  eclipse/zenoh:latest --config /zenoh/config/zenoh.json5
 ```
 
-**Pros:**
-
-- Isolated from host system
-- Easy to deploy and scale
-- Works great in Kubernetes/Docker Compose
-- Consistent across environments
-
-**Cons:**
-
-- Requires Docker installed
-- Network setup can be tricky (use `--net host` for simplicity)
-
-**Docker Hub:** <https://hub.docker.com/r/eclipse/zenoh/tags>
+Use `--net host` to avoid Docker network isolation blocking port 7447. Docker Hub: <https://hub.docker.com/r/eclipse/zenoh/tags>
 
 ---
 
@@ -210,80 +159,31 @@ docker run -d \
 
 **Best for system-wide installation on Linux/macOS.**
 
-**Ubuntu/Debian (via apt):**
-
 ```bash
+# Ubuntu/Debian
 echo "deb [trusted=yes] https://download.eclipse.org/zenoh/debian-repo/ /" | sudo tee /etc/apt/sources.list.d/zenoh.list
-sudo apt update
-sudo apt install zenoh
+sudo apt update && sudo apt install zenoh
+zenohd          # or: sudo systemctl start zenoh
+
+# macOS
+brew tap eclipse-zenoh/homebrew-zenoh && brew install zenoh && zenohd
+
+# Arch Linux
+yay -S zenoh && zenohd
 ```
-
-Run as a service:
-
-```bash
-sudo systemctl enable zenoh
-sudo systemctl start zenoh
-```
-
-Or run manually:
-
-```bash
-zenohd
-```
-
-**macOS (via Homebrew):**
-
-```bash
-brew tap eclipse-zenoh/homebrew-zenoh
-brew install zenoh
-zenohd
-```
-
-**Arch Linux (via AUR):**
-
-```bash
-yay -S zenoh
-zenohd
-```
-
-**Pros:**
-
-- System-wide installation
-- Easy updates via package manager
-- Can run as systemd service (Linux)
-- Integrates with OS security/firewall settings
-
-**Cons:**
-
-- May not have the absolute latest version
-- Requires sudo/admin privileges
 
 ---
 
 ### Method 5: ros-z Example Router
 
-**Only available when working in the ros-z repository - perfect for quick development/testing.**
-
-If you've cloned the ros-z repository:
+**Only available when working in the ros-z repository.**
 
 ```bash
 cd /path/to/ros-z
 cargo run --example zenoh_router
 ```
 
-This runs a pre-configured router that matches ros-z defaults exactly.
-
-**Pros:**
-
-- No installation needed
-- Already configured for ros-z
-- Useful for debugging ros-z itself
-
-**Cons:**
-
-- Only available in the ros-z repository
-- Not suitable for standalone projects
-- Slower startup (rebuilds if code changes)
+Pre-configured for ros-z defaults. Not suitable for standalone projects.
 
 !!! warning
     This method is for ros-z repository development only. If you're building your own project with ros-z as a dependency, use one of the other methods instead.
@@ -300,19 +200,10 @@ If you have ROS 2 Jazzy or newer with the Zenoh middleware:
 ros2 run rmw_zenoh_cpp rmw_zenohd
 ```
 
-**Pros:**
-
-- Already installed with ROS 2 Jazzy+
-- Guaranteed compatibility with ROS 2 nodes
-- Can interoperate ros-z nodes with C++/Python ROS 2 nodes
-
-**Cons:**
-
-- Requires full ROS 2 installation
-- Overkill if you only want to use ros-z
+Already installed with ROS 2 Jazzy+. Guaranteed compatibility with C++/Python ROS 2 nodes. Requires a full ROS 2 installation.
 
 !!! tip
-    This is excellent for testing interoperability - run ros-z nodes alongside standard ROS 2 nodes using the same router.
+    Use this when testing ros-z interoperability with standard ROS 2 nodes — they share the same router.
 
 ---
 
