@@ -10,47 +10,71 @@
 
 ## What is Publish-Subscribe?
 
-Publish-subscribe is a messaging pattern where senders (publishers) and receivers (subscribers) are fully decoupled — neither knows about the other directly. Publishers send messages to a named **topic**; any subscriber watching that topic receives them. Any number of publishers and any number of subscribers can share a single topic simultaneously.
+```mermaid
+graph LR
+    P1([Publisher A]) --> T{Topic}
+    P2([Publisher B]) --> T
+    T --> S1([Subscriber 1])
+    T --> S2([Subscriber 2])
+    T --> S3([Subscriber 3])
+    style T fill:#3f51b5,color:#fff,stroke:#3f51b5
+```
 
-The system is **anonymous**: a subscriber cannot tell which publisher sent a given message, and a publisher has no knowledge of who is listening. This decoupling makes system composition natural — you can add a logger, a visualizer, or a second processing node to an existing topic without modifying any existing code.
+**One topic. Any number of senders and receivers. Neither side knows the other exists.**
+
+- Publishers write messages to a named topic
+- All current subscribers receive every message
+- Adding a new subscriber (logger, visualizer) requires no code changes anywhere
 
 ### When to use topics
 
-| Use Case | Pattern | Reason |
-|----------|---------|--------|
-| Continuous sensor data (camera, lidar, IMU) | Topic | High frequency, many consumers |
-| Robot state (position, velocity, joint angles) | Topic | Multiple observers, continuous stream |
-| Single computation result (e.g. transform a point) | Service | One-shot request-response |
-| Long-running task (navigate to goal) | Action | Progress reporting and cancellation needed |
-| Runtime configuration | Parameter | Persistent, typed key-value storage |
+| Situation | Use | Why |
+|-----------|-----|-----|
+| Camera feed, lidar scan, IMU | **Topic** | High-frequency, many consumers |
+| Robot position, joint states | **Topic** | Continuous stream, multiple observers |
+| "Add these two numbers" | Service | One-shot, need a result |
+| "Drive to (3, 4)" | Action | Long task, need progress + cancel |
+| "Set max speed to 2.5" | Parameter | Runtime config, not data stream |
 
-### The message bus model
+### Message flow
 
-Think of a topic like an electrical bus: any number of components can tap in at any point. Messages flow one-way — publisher to topic to all subscribers — and the bus itself is transparent. Introspection tools such as `ros2 topic echo` or `ros2 bag record` subscribe to the topic like any other node; they do not affect publisher or subscriber behaviour in any way.
+```mermaid
+sequenceDiagram
+    participant P as Publisher
+    participant Z as Eclipse Zenoh
+    participant S1 as Subscriber 1
+    participant S2 as Subscriber 2
 
-### Strongly-typed communication
+    P->>Z: publish("Hello #1")
+    Z->>S1: deliver
+    Z->>S2: deliver
+    P->>Z: publish("Hello #2")
+    Z->>S1: deliver
+    Z->>S2: deliver
+    Note over P,S2: Fire-and-forget. Publisher never blocks waiting for subscribers.
+```
 
-Every topic carries exactly one message type. All publishers and subscribers on a topic must agree on that type — a camera image topic cannot mix `sensor_msgs/Image` and `sensor_msgs/CompressedImage`. ros-z enforces field types: a `float64` velocity field cannot receive a string. Semantic meaning is part of the definition: the IMU message specifies that angular velocity is in rad/s, not by convention but in the type itself. Type mismatches are caught at connection time, not silently at runtime.
+### Type safety
+
+Every topic has exactly **one** message type. Mismatches are caught at connection time — not at runtime.
+
+```text
+/camera/image  →  sensor_msgs/Image       ✓ all publishers must use this type
+/camera/image  →  sensor_msgs/Compressed  ✗ rejected at connection
+```
 
 ### Quality of Service
 
-QoS policies control message delivery. The key dimensions are:
+QoS controls delivery guarantees. Incompatible settings = **silent** data loss.
 
-| Preset | Reliability | Durability | Typical use |
-|--------|------------|------------|-------------|
+| Preset | Reliability | Durability | Use for |
+|--------|------------|------------|---------|
 | Default | Reliable | Volatile | Commands, state |
-| Sensor data | Best-effort | Volatile | Camera, lidar (recency over completeness) |
-| Services (internal) | Reliable | Volatile | Service calls |
-| Parameters | Reliable | Transient-local | Config that late-joiners must receive |
+| Sensor data | Best-effort | Volatile | Camera, lidar (recency > completeness) |
+| Transient local | Reliable | Transient-local | Config topics late-joiners must receive |
 
-!!! warning "Silent incompatibility"
-    If publisher and subscriber have incompatible QoS settings, no messages flow and no error is raised. Use `ros2 topic info -v <topic>` to inspect QoS on both ends when debugging a silent topic.
-
-The default profile — reliable delivery, keep-last-10, volatile durability — is the right starting point for most topics. Switch to best-effort only when dropping an occasional message is preferable to the latency cost of retransmission (high-frequency sensor streams are the canonical case).
-
-### In ros-z
-
-ros-z maps ROS 2 topics directly onto Eclipse Zenoh key expressions, giving you the full ROS 2 pub/sub interface with Zenoh's efficient transport. The examples below show the complete API.
+!!! warning
+    Incompatible QoS produces no error — messages silently stop flowing. Run `ros2 topic info -v /topic` to compare QoS on both ends.
 
 ### Key Concepts at a Glance
 
