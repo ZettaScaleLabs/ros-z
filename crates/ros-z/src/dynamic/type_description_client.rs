@@ -56,16 +56,11 @@ use crate::graph::Graph;
 use crate::service::{ZClient, ZClientBuilder};
 use crate::{Builder, ServiceTypeInfo};
 
-use super::error::DynamicError;
-use super::schema::MessageSchema;
+use super::{error::DynamicError, schema::MessageSchema};
 
-/// Normalize DDS type name to ROS 2 canonical format.
-///
-/// Converts "std_msgs::msg::dds_::String_" to "std_msgs/msg/String"
-fn normalize_type_name(name: &str) -> String {
-    // Handle DDS legacy format: sensor_msgs::msg::dds_::LaserScan_ → sensor_msgs/msg/LaserScan
-    // Handle modern format:      sensor_msgs::msg::LaserScan → sensor_msgs/msg/LaserScan
-    name.replace("::msg::dds_::", "/msg/")
+fn ros_type_name_from_dds(dds_name: &str) -> String {
+    dds_name
+        .replace("::msg::dds_::", "/msg/")
         .replace("::srv::dds_::", "/srv/")
         .replace("::action::dds_::", "/action/")
         .replace("::msg::", "/msg/")
@@ -88,7 +83,7 @@ fn topic_type_info_from_publishers(
         };
 
         return Ok((
-            normalize_type_name(&type_info.name),
+            ros_type_name_from_dds(&type_info.name),
             type_info.hash.to_rihs_string(),
         ));
     }
@@ -273,13 +268,6 @@ impl TypeDescriptionClient {
             namespace, node_name
         );
 
-        client
-            .send_request(&request)
-            .await
-            .map_err(|e| DynamicError::SerializationError(e.to_string()))?;
-
-        // Map a channel/recv timeout to the dedicated ServiceTimeout variant so callers
-        // can distinguish "service didn't respond" from actual CDR decode failures.
         let node_display = if namespace.is_empty() || namespace == "/" {
             node_name.to_string()
         } else {
@@ -291,12 +279,13 @@ impl TypeDescriptionClient {
             format!("{}/{}/get_type_description", namespace, node_name)
         };
 
-        let response = client.take_response_timeout(self.timeout).map_err(|_| {
-            DynamicError::ServiceTimeout {
+        let response = client
+            .call_or_timeout(&request, self.timeout)
+            .await
+            .map_err(|_| DynamicError::ServiceTimeout {
                 node: node_display,
                 service: service_display,
-            }
-        })?;
+            })?;
 
         if response.successful {
             debug!(
@@ -483,7 +472,7 @@ impl TypeDescriptionClient {
                         let mut schema = (*Self::response_to_schema(&response)?).clone();
                         // Normalize type_name from DDS format to ROS 2 slash format for
                         // internal use (rmw_zenoh_cpp returns the DDS name in the response).
-                        schema.type_name = normalize_type_name(&schema.type_name);
+                        schema.type_name = ros_type_name_from_dds(&schema.type_name);
                         return Ok((Arc::new(schema), type_hash.clone()));
                     }
                     Ok(response) => {

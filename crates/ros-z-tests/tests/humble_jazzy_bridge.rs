@@ -155,9 +155,8 @@ fn test_service_humble_server_jazzy_client() {
             .expect("failed to create client");
 
         let req = ros_z_msgs::ros::example_interfaces::AddTwoIntsRequest { a: 3, b: 7 };
-        client.send_request(&req).await?;
         // ctx / node / client are dropped here, inside the runtime
-        client.take_response_timeout(Duration::from_secs(20))
+        client.call_or_timeout(&req, Duration::from_secs(20)).await
     });
 
     let response = response.expect("did not receive service response within timeout");
@@ -197,13 +196,16 @@ fn test_service_jazzy_server_humble_client() {
         // Handle one request or give up after 10 s.
         let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
         loop {
-            if let Ok((key, req)) = server.take_request() {
-                let resp =
-                    ros_z_msgs::ros::example_interfaces::AddTwoIntsResponse { sum: req.a + req.b };
-                let _ = server.send_response(&resp, &key);
+            if let Ok(req) = server.take_request() {
+                let resp = ros_z_msgs::ros::example_interfaces::AddTwoIntsResponse {
+                    sum: req.message().a + req.message().b,
+                };
+                let _ = req.reply_blocking(&resp);
                 println!(
                     "Handled Humble→Jazzy service call: {} + {} = {}",
-                    req.a, req.b, resp.sum
+                    req.message().a,
+                    req.message().b,
+                    resp.sum
                 );
                 break;
             }

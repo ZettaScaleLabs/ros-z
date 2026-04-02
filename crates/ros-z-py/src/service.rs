@@ -1,7 +1,7 @@
 use crate::traits::{RawClient, RawServer};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use ros_z::service::QueryKey;
+use ros_z::service::RequestId;
 use std::time::Duration;
 
 /// Python wrapper for service client
@@ -27,56 +27,21 @@ impl PyZClient {
 #[allow(unsafe_op_in_unsafe_fn)]
 #[pymethods]
 impl PyZClient {
-    /// Send a service request
-    unsafe fn send_request(&self, py: Python, data: &Bound<'_, PyAny>) -> PyResult<()> {
+    /// Call a service request and wait for its response.
+    #[pyo3(signature = (data, timeout=None))]
+    unsafe fn call(
+        &self,
+        py: Python,
+        data: &Bound<'_, PyAny>,
+        timeout: Option<f64>,
+    ) -> PyResult<PyObject> {
         let cdr_bytes = ros_z_msgs::serialize_to_cdr(&self.request_type_name, data.py(), data)?;
-
-        py.allow_threads(|| {
-            self.inner
-                .send_request_serialized(&cdr_bytes)
-                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
-        })
-    }
-
-    /// Receive a service response (blocking)
-    #[pyo3(signature = (timeout=None))]
-    unsafe fn take_response(&self, py: Python, timeout: Option<f64>) -> PyResult<Option<PyObject>> {
         let timeout_duration = timeout.map(Duration::from_secs_f64);
 
-        let result = py.allow_threads(|| self.inner.take_response_serialized(timeout_duration));
-
-        match result {
-            Ok(cdr_bytes) => {
-                let obj =
-                    ros_z_msgs::deserialize_from_cdr(&self.response_type_name, py, &cdr_bytes)?;
-                Ok(Some(obj))
-            }
-            Err(e) => {
-                let err_str = e.to_string();
-                if err_str.contains("timeout")
-                    || err_str.contains("Timeout")
-                    || err_str.contains("timed out")
-                    || err_str.contains("No sample available")
-                {
-                    Ok(None)
-                } else {
-                    Err(pyo3::exceptions::PyRuntimeError::new_err(err_str))
-                }
-            }
-        }
-    }
-
-    /// Try to receive a response without blocking
-    unsafe fn try_take_response(&self, py: Python) -> PyResult<Option<PyObject>> {
-        match self.inner.try_take_response_serialized() {
-            Ok(Some(cdr_bytes)) => {
-                let obj =
-                    ros_z_msgs::deserialize_from_cdr(&self.response_type_name, py, &cdr_bytes)?;
-                Ok(Some(obj))
-            }
-            Ok(None) => Ok(None),
-            Err(e) => Err(pyo3::exceptions::PyRuntimeError::new_err(e.to_string())),
-        }
+        let cdr_bytes = py
+            .allow_threads(|| self.inner.call_serialized(&cdr_bytes, timeout_duration))
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        ros_z_msgs::deserialize_from_cdr(&self.response_type_name, py, &cdr_bytes)
     }
 
     /// Get the service type name (for debugging)
@@ -127,8 +92,8 @@ impl PyZServer {
         let obj = ros_z_msgs::deserialize_from_cdr(&self.request_type_name, py, &cdr_bytes)?;
 
         let request_id = PyDict::new_bound(py);
-        request_id.set_item("sn", key.sn)?;
-        request_id.set_item("gid", key.gid.to_vec())?;
+        request_id.set_item("sn", key.sequence_number)?;
+        request_id.set_item("gid", key.writer_guid.to_vec())?;
 
         Ok((request_id.into(), obj))
     }
@@ -147,7 +112,10 @@ impl PyZServer {
         let gid_vec: Vec<u8> = request_id.get_item("gid")?.unwrap().extract()?;
         let mut gid = [0u8; 16];
         gid.copy_from_slice(&gid_vec[..16]);
-        let key = QueryKey { sn, gid };
+        let key = RequestId {
+            sequence_number: sn,
+            writer_guid: gid,
+        };
 
         py.allow_threads(|| {
             let inner = self

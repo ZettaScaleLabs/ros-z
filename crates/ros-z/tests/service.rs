@@ -88,15 +88,15 @@ fn test_basic_service_request_response() {
                 .expect("Failed to create server");
 
             // Wait for request
-            let (key, request) = server.take_request().expect("Failed to take request");
-            assert_eq!(request.a, 10);
-            assert_eq!(request.b, 32);
+            let request = server.take_request().expect("Failed to take request");
+            assert_eq!(request.message().a, 10);
+            assert_eq!(request.message().b, 32);
 
             let response = AddTwoIntsResponse {
-                sum: request.a + request.b,
+                sum: request.message().a + request.message().b,
             };
-            server
-                .send_response(&response, &key)
+            request
+                .reply_blocking(&response)
                 .expect("Failed to send response");
         }
     });
@@ -119,13 +119,13 @@ fn test_basic_service_request_response() {
 
             let request = AddTwoIntsRequest { a: 10, b: 32 };
 
-            tokio::runtime::Runtime::new()
+            let response = tokio::runtime::Runtime::new()
                 .unwrap()
-                .block_on(async { client.send_request(&request).await })
-                .expect("Failed to send request");
-
-            let response = client
-                .take_response_timeout(Duration::from_secs(2))
+                .block_on(async {
+                    client
+                        .call_or_timeout(&request, Duration::from_secs(2))
+                        .await
+                })
                 .expect("Failed to receive response");
 
             assert_eq!(response.sum, 42);
@@ -157,17 +157,16 @@ async fn test_async_service_request_response() {
             .expect("Failed to create server");
 
         // Wait for request asynchronously
-        let (key, request) = server
+        let request = server
             .async_take_request()
             .await
             .expect("Failed to take request");
-
         let response = AddTwoIntsResponse {
-            sum: request.a + request.b,
+            sum: request.message().a + request.message().b,
         };
 
-        server
-            .async_send_response(&response, &key)
+        request
+            .reply(&response)
             .await
             .expect("Failed to send response");
     });
@@ -188,13 +187,8 @@ async fn test_async_service_request_response() {
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         let request = AddTwoIntsRequest { a: 100, b: 23 };
-        client
-            .send_request(&request)
-            .await
-            .expect("Failed to send request");
-
         let response = client
-            .async_take_response()
+            .call(&request)
             .await
             .expect("Failed to receive response");
 
@@ -229,15 +223,15 @@ fn test_multiple_service_requests() {
 
             // Handle 3 requests
             for expected_a in [1, 2, 3] {
-                let (key, request) = server.take_request().expect("Failed to take request");
-                assert_eq!(request.a, expected_a);
-                assert_eq!(request.b, 10);
+                let request = server.take_request().expect("Failed to take request");
+                assert_eq!(request.message().a, expected_a);
+                assert_eq!(request.message().b, 10);
 
                 let response = AddTwoIntsResponse {
-                    sum: request.a + request.b,
+                    sum: request.message().a + request.message().b,
                 };
-                server
-                    .send_response(&response, &key)
+                request
+                    .reply_blocking(&response)
                     .expect("Failed to send response");
             }
         }
@@ -265,11 +259,12 @@ fn test_multiple_service_requests() {
             for a in [1, 2, 3] {
                 let request = AddTwoIntsRequest { a, b: 10 };
 
-                rt.block_on(async { client.send_request(&request).await })
-                    .expect("Failed to send request");
-
-                let response = client
-                    .take_response_timeout(Duration::from_secs(2))
+                let response = rt
+                    .block_on(async {
+                        client
+                            .call_or_timeout(&request, Duration::from_secs(2))
+                            .await
+                    })
                     .expect("Failed to receive response");
 
                 assert_eq!(response.sum, a + 10);

@@ -24,7 +24,7 @@ pub use crate::Builder;
 pub use crate::context::{ZContext, ZContextBuilder};
 pub use crate::node::ZNode;
 pub use crate::pubsub::{ZPub, ZSub};
-pub use crate::service::{QueryKey, ZClient, ZServer};
+pub use crate::service::{RequestId, ServiceReply, ServiceRequest, ZClient, ZServer};
 
 pub use crate::action::server::{Accepted, Executing, Requested};
 /// Action types.

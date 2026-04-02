@@ -423,23 +423,13 @@ impl<A: ZAction> ZActionClient<A> {
         // 3. Send goal request via service client
         let request = SendGoalRequest { goal_id, goal };
         tracing::debug!("Sending goal request for goal_id: {:?}", goal_id);
-        if let Err(e) = self.goal_client.send_request(&request).await {
-            // Cleanup on send failure
-            self.goal_board.active_goals.remove(&goal_id);
-            return Err(e);
-        }
-        tracing::debug!("Goal request sent, waiting for response...");
-
-        // 4. Wait for response
-        let sample = self.goal_client.async_recv_sample().await?;
-        let payload = sample.payload().to_bytes();
-        tracing::debug!(
-            "Received goal response payload: {} bytes: {:?}",
-            payload.len(),
-            payload
-        );
-        let response = <SendGoalResponse as ZMessage>::deserialize(&payload)
-            .map_err(|e| zenoh::Error::from(e.to_string()))?;
+        let response = match self.goal_client.call(&request).await {
+            Ok(response) => response,
+            Err(error) => {
+                self.goal_board.active_goals.remove(&goal_id);
+                return Err(error);
+            }
+        };
 
         // 5. Check if accepted
         if !response.accepted {
@@ -481,12 +471,7 @@ impl<A: ZAction> ZActionClient<A> {
         let goal_info = GoalInfo::new(goal_id);
         let request = CancelGoalServiceRequest { goal_info };
 
-        self.cancel_client.send_request(&request).await?;
-        let sample = self.cancel_client.async_recv_sample().await?;
-        let payload = sample.payload().to_bytes();
-        let response = <CancelGoalServiceResponse as ZMessage>::deserialize(&payload)
-            .map_err(|e| zenoh::Error::from(e.to_string()))?;
-        Ok(response)
+        self.cancel_client.call(&request).await
     }
 
     pub async fn cancel_all_goals(&self) -> Result<CancelGoalServiceResponse> {
@@ -498,12 +483,7 @@ impl<A: ZAction> ZActionClient<A> {
         };
         let request = CancelGoalServiceRequest { goal_info };
 
-        self.cancel_client.send_request(&request).await?;
-        let sample = self.cancel_client.async_recv_sample().await?;
-        let payload = sample.payload().to_bytes();
-        let response = <CancelGoalServiceResponse as ZMessage>::deserialize(&payload)
-            .map_err(|e| zenoh::Error::from(e.to_string()))?;
-        Ok(response)
+        self.cancel_client.call(&request).await
     }
 
     pub fn feedback_stream(&self, goal_id: GoalId) -> Option<mpsc::UnboundedReceiver<A::Feedback>> {
@@ -528,53 +508,57 @@ impl<A: ZAction> ZActionClient<A> {
     pub async fn get_result(&self, goal_id: GoalId) -> Result<A::Result> {
         let request = GetResultRequest { goal_id };
 
-        self.result_client.send_request(&request).await?;
-        let sample = self.result_client.async_recv_sample().await?;
-        let payload = sample.payload().to_bytes();
-        let response = <GetResultResponse<A> as ZMessage>::deserialize(&payload)
-            .map_err(|e| zenoh::Error::from(e.to_string()))?;
+        let response: GetResultResponse<A> = self.result_client.call(&request).await?;
 
         Ok(response.result)
     }
 
     // FIXME: Check the necessity
     // Low-level methods for testing
-    pub async fn send_goal_request_low(&self, request: &SendGoalRequest<A>) -> Result<()> {
-        self.goal_client.send_request(request).await
+    pub async fn send_goal_request_low(
+        &self,
+        request: &SendGoalRequest<A>,
+    ) -> Result<SendGoalResponse> {
+        self.goal_client.call(request).await
     }
 
     // FIXME: Check the necessity
     pub async fn recv_goal_response_low(&self) -> Result<SendGoalResponse> {
-        let sample = self.goal_client.async_recv_sample().await?;
-        let payload = sample.payload().to_bytes();
-        <SendGoalResponse as ZMessage>::deserialize(&payload)
-            .map_err(|e| zenoh::Error::from(e.to_string()))
+        Err(zenoh::Error::from(
+            "recv_goal_response_low is no longer available; use send_goal_request_low".to_string(),
+        ))
     }
 
     // FIXME: Check the necessity
-    pub async fn send_cancel_request_low(&self, request: &CancelGoalServiceRequest) -> Result<()> {
-        self.cancel_client.send_request(request).await
+    pub async fn send_cancel_request_low(
+        &self,
+        request: &CancelGoalServiceRequest,
+    ) -> Result<CancelGoalServiceResponse> {
+        self.cancel_client.call(request).await
     }
 
     // FIXME: Check the necessity
     pub async fn recv_cancel_response_low(&self) -> Result<CancelGoalServiceResponse> {
-        let sample = self.cancel_client.async_recv_sample().await?;
-        let payload = sample.payload().to_bytes();
-        <CancelGoalServiceResponse as ZMessage>::deserialize(&payload)
-            .map_err(|e| zenoh::Error::from(e.to_string()))
+        Err(zenoh::Error::from(
+            "recv_cancel_response_low is no longer available; use send_cancel_request_low"
+                .to_string(),
+        ))
     }
 
     // FIXME: Check the necessity
-    pub async fn send_result_request_low(&self, request: &GetResultRequest) -> Result<()> {
-        self.result_client.send_request(request).await
+    pub async fn send_result_request_low(
+        &self,
+        request: &GetResultRequest,
+    ) -> Result<GetResultResponse<A>> {
+        self.result_client.call(request).await
     }
 
     // FIXME: Check the necessity
     pub async fn recv_result_response_low(&self) -> Result<GetResultResponse<A>> {
-        let sample = self.result_client.async_recv_sample().await?;
-        let payload = sample.payload().to_bytes();
-        <GetResultResponse<A> as ZMessage>::deserialize(&payload)
-            .map_err(|e| zenoh::Error::from(e.to_string()))
+        Err(zenoh::Error::from(
+            "recv_result_response_low is no longer available; use send_result_request_low"
+                .to_string(),
+        ))
     }
 }
 
