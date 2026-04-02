@@ -251,7 +251,7 @@ cargo build -p ros-z-msgs --features bundled_msgs
 
 ### Additional Packages
 
-These packages are bundled and available without ROS 2 installation:
+ros-z bundles these packages so they are available without ROS 2 installation:
 
 | Package | Messages | Use Cases |
 |---------|----------|-----------|

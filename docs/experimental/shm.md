@@ -8,7 +8,7 @@ When publishing large messages (e.g., point clouds, images), copying data multip
 
 ### Key Benefits
 
-- **Zero-copy serialization**: Messages are serialized directly into shared memory
+- **Zero-copy serialization**: ros-z serializes messages directly into shared memory
 - **Automatic activation**: Configurable threshold-based switching
 - **Accurate buffer sizing**: Auto-generated size estimation prevents waste
 - **High performance**: Sub-millisecond serialization for 1MB messages
@@ -16,7 +16,7 @@ When publishing large messages (e.g., point clouds, images), copying data multip
 
 ## How SHM Works in ROS 2
 
-The following diagram illustrates how a PointCloud2 message is published using shared memory in ros-z:
+The following diagram illustrates how ros-z publishes a PointCloud2 message using shared memory:
 
 ```mermaid
 sequenceDiagram
@@ -65,7 +65,7 @@ sequenceDiagram
 
 ### Default Behavior: SHM is OFF
 
-**By default, SHM is disabled.** Messages are serialized using regular memory allocation. You must explicitly enable SHM to use zero-copy publishing.
+**By default, ros-z disables SHM.** It serializes messages using regular memory allocation. You must explicitly enable SHM to use zero-copy publishing.
 
 ### Enable SHM Globally
 
@@ -153,7 +153,7 @@ fn main() -> zenoh::Result<()> {
 
 ### Default: SHM Disabled
 
-**SHM is disabled by default.** To enable it, you must explicitly configure it at the context, node, or publisher level.
+**SHM is off by default.** To enable it, you must explicitly configure it at the context, node, or publisher level.
 
 ### Hierarchical Configuration
 
@@ -780,7 +780,7 @@ let policy = BlockOn::<GarbageCollect>;
 
 ### Integration with rmw_zenoh_cpp
 
-ros-z's SHM implementation is fully compatible with `rmw_zenoh_cpp`. Messages published from ros-z using SHM can be received zero-copy by C++/Python nodes using `rmw_zenoh_cpp`, and vice versa.
+ros-z's SHM implementation is fully compatible with `rmw_zenoh_cpp`. C++/Python nodes using `rmw_zenoh_cpp` can receive zero-copy the messages ros-z publishes via SHM, and vice versa.
 
 ```bash
 # ros-z publisher (Rust)

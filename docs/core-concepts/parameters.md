@@ -68,7 +68,7 @@ node.set_parameter(Parameter::new("max_speed", ParameterValue::Double(2.5)))?;
 
 ## Declaring Parameters
 
-Parameters must be declared before use. A `ParameterDescriptor` specifies the name, expected type, and optional constraints:
+Declare parameters before use. A `ParameterDescriptor` specifies the name, expected type, and optional constraints:
 
 ```rust
 use ros_z::parameter::*;
@@ -167,9 +167,9 @@ fn run(ctx: ZContext) -> Result<()> {
 }
 ```
 
-The callback receives all parameters being changed in a single batch. Return `SetParametersResult::success()` to accept or `SetParametersResult::failure("reason")` to reject the entire batch.
+The callback receives all parameters changing in a single batch. Return `SetParametersResult::success()` to accept or `SetParametersResult::failure("reason")` to reject the entire batch.
 
-`ParameterValue::NotSet` is treated as an unset value for a still-declared parameter. It does **not** delete the parameter; call `undeclare_parameter` for that.
+ros-z treats `ParameterValue::NotSet` as an unset value for a still-declared parameter. It does **not** delete the parameter; call `undeclare_parameter` for that.
 
 ## Parameter Services
 
@@ -235,7 +235,7 @@ let node = ctx.create_node("my_node")
     .build()?;
 ```
 
-Parameters from the file become overrides — they replace the default value when `declare_parameter` is called.
+Parameters from the file become overrides — they replace the default value when you call `declare_parameter`.
 
 If both wildcard (`/**`) and node-specific entries match, node-specific values win. If you also call `.with_parameter_overrides(map)`, the last builder call wins.
 
@@ -247,18 +247,18 @@ If both wildcard (`/**`) and node-specific entries match, node-specific values w
 | `.with_parameter_overrides(map)` | Set overrides from a `HashMap<String, ParameterValue>` |
 | `.with_parameter_file(path)` | Load overrides from a YAML file |
 
-If both a file and programmatic overrides are used, the last call wins.
+If you use both a file and programmatic overrides, the last call wins.
 
 ## /parameter_events
 
-Every successful parameter change publishes a `ParameterEvent` message to `/parameter_events` with QoS:
+ros-z publishes a `ParameterEvent` message to `/parameter_events` for every successful parameter change, with QoS:
 
 - **Topic**: `/parameter_events` (global, shared by all nodes)
 - **Reliability**: Reliable
 - **Durability**: Transient Local
 - **History**: Keep Last (1000)
 
-Events are classified as:
+ros-z classifies events as:
 
 - `new_parameters` on declaration
 - `changed_parameters` on successful set, including `ParameterValue::NotSet`
@@ -292,7 +292,7 @@ This matches the ROS 2 default topic/QoS shape. Tools like `ros2 param` and `rqt
 
 ## ROS 2 Interoperability
 
-ros-z parameter services use the same CDR wire format and RIHS01 type hashes as rclcpp. In an environment where ROS 2 is using `rmw_zenoh_cpp` and both sides are connected to the same Eclipse Zenoh router, `ros2 param` commands work against ros-z nodes:
+ros-z parameter services use the same CDR wire format and RIHS01 type hashes as rclcpp. In an environment where ROS 2 is using `rmw_zenoh_cpp` and both sides connect to the same Eclipse Zenoh router, `ros2 param` commands work against ros-z nodes:
 
 ```bash
 # List parameters on a ros-z node

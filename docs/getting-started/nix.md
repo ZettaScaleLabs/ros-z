@@ -8,9 +8,9 @@ ros-z provides Nix flakes for reproducible development environments with all dep
 
 ## Why Use Nix?
 
-**Reproducible Builds:** Nix ensures every developer and CI system uses the exact same dependencies, eliminating "works on my machine" issues. All dependencies — from compilers to ROS 2 packages — are pinned to specific versions and cached immutably.
+**Reproducible Builds:** Nix ensures every developer and CI system uses the exact same dependencies, eliminating "works on my machine" issues. Nix pins all dependencies — from compilers to ROS 2 packages — to specific versions and caches them immutably.
 
-**Uniform CI/CD:** The same Nix configuration that runs locally is used in continuous integration, ensuring build consistency across development, testing, and deployment environments.
+**Uniform CI/CD:** Continuous integration uses the same Nix configuration that runs locally, ensuring build consistency across development, testing, and deployment environments.
 
 **Zero Setup:** New team members can start developing with a single `nix develop` command — no manual ROS installation, no dependency hunting, no environment configuration.
 
@@ -85,7 +85,7 @@ cargo run --example z_pubsub
 exit   # or Ctrl-D
 ```
 
-Your system environment is unchanged — nothing was installed globally.
+Your system environment remains intact — Nix installed nothing globally.
 
 ## Use Cases
 
@@ -98,7 +98,7 @@ Your system environment is unchanged — nothing was installed globally.
 
 ## Troubleshooting
 
-??? question "nix develop hangs or is very slow"
+??? question "nix develop hangs or is slow"
     The first run must download and compile dependencies. Check progress with:
 
     ```bash

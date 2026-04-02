@@ -170,14 +170,14 @@ pub_.publish(&RosString { data: "dropped".to_string() })?;
 # }
 ```
 
-All publishers created with `create_publisher` are registered as **managed entities**: they activate and deactivate automatically when the node transitions.
+ros-z registers all publishers created with `create_publisher` as **managed entities**: they activate and deactivate automatically when the node transitions.
 
 !!! note
     Publishers created **after** `activate()` are immediately activated. You can safely create publishers at any point in the node's lifetime.
 
 ## Triggering Transitions
 
-Transitions can be triggered programmatically or via the lifecycle management services.
+You can trigger transitions programmatically or via the lifecycle management services.
 
 ### Programmatic
 

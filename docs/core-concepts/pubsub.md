@@ -284,7 +284,7 @@ let subscriber = node
 ```
 
 !!! tip
-    Use callbacks for low-latency event-driven processing. Use blocking/async receive when you need explicit control over when messages are processed.
+    Use callbacks for low-latency event-driven processing. Use blocking/async receive when you need explicit control over when you process messages.
 
 ### Pattern Comparison
 
@@ -358,7 +358,7 @@ let ctx = ZContextBuilder::default()
 # }
 ```
 
-Multiple rules can be added with `.with_remap_rules()`:
+Add multiple rules with `.with_remap_rules()`:
 
 ```rust
 # fn main() -> zenoh::Result<()> {

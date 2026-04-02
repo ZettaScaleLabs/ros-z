@@ -211,7 +211,7 @@ cargo run --example demo_nodes_add_two_ints_client -- --a 100 --b 200
 <script src="https://asciinema.org/a/yChRkMOyYKoKBPqM.js" id="asciicast-yChRkMOyYKoKBPqM" async="true"></script>
 
 !!! success
-    Each client request is processed immediately by the server, demonstrating synchronous request-response communication over Zenoh.
+    The server processes each client request immediately, demonstrating synchronous request-response communication over Zenoh.
 
 ## Service Server Patterns
 
@@ -346,7 +346,7 @@ ros2 service info /add_two_ints
 
 ### When the server is not running
 
-`send_request` dispatches the Zenoh query and resolves immediately — it does not wait for a reply. If no server is registered, the query has no subscribers. `take_response()` will then return `Err("No sample available")`.
+`send_request` dispatches the Zenoh query and resolves immediately — it does not wait for a reply. If no server listens, the query has no subscribers. `take_response()` will then return `Err("No sample available")`.
 
 Use `take_response_timeout(duration)` to wait for a bounded time:
 

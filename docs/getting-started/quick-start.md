@@ -8,7 +8,7 @@
 
 **Prerequisites:**
 
-- **Rust 1.85+** (edition 2024 is required) — install via [rustup](https://rustup.rs/)
+- **Rust 1.85+** (requires edition 2024) — install via [rustup](https://rustup.rs/)
 - **Tokio 1.x** — ros-z requires an async runtime (added to `Cargo.toml` in Option 2 below)
 - No ROS 2 installation needed for the examples in this guide
 
@@ -245,7 +245,7 @@ tokio = { version = "1", features = ["full"] }  # Async runtime
 ```
 
 !!! note
-    An async runtime is required for ros-z. This example uses Tokio, the most popular choice in the Rust ecosystem.
+    ros-z requires an async runtime. This example uses Tokio, the most popular choice in the Rust ecosystem.
 
 ### 4. Write Your First Application
 
@@ -295,7 +295,7 @@ cargo run
 ```
 
 !!! success
-    You should see messages being published every second. The application will continue until you press Ctrl+C.
+    You should see the application publishing messages every second. It will continue until you press Ctrl+C.
 
 ### 6. Test with Multiple Nodes
 

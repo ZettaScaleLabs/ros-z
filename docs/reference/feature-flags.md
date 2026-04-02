@@ -103,7 +103,7 @@ cargo build -p ros-z --features rcl-z
 **Requirements:** ROS 2 installation with RCL libraries
 
 !!! warning
-    This feature requires ROS 2 to be sourced before building. See [Building Guide](../getting-started/building.md) for setup instructions.
+    This feature requires you to source ROS 2 before building. See [Building Guide](../getting-started/building.md) for setup instructions.
 
 ## ros-z-msgs Features
 
@@ -129,7 +129,7 @@ cargo build -p ros-z-msgs
 
 ### Individual Package Features
 
-All packages are bundled in assets and work without ROS 2:
+ros-z bundles all packages in assets so they work without ROS 2:
 
 | Feature | Package | Use Case |
 |---------|---------|----------|
@@ -390,6 +390,6 @@ cargo run --example z_custom_message  # No features needed
 
 - **[Building Guide](../getting-started/building.md)** - Build procedures for each scenario
 - **[ROS 2 Distribution Compatibility](../getting-started/distro-compatibility.md)** - Target Jazzy, Humble, or other distributions
-- **[Message Generation](../user-guide/message-generation.md)** - How messages are generated
+- **[Message Generation](../user-guide/message-generation.md)** - How ros-z generates messages
 
 **Start with default features and add more as your project evolves. Feature flags provide flexibility without forcing early architectural decisions.**

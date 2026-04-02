@@ -56,7 +56,7 @@ ROS 2 uses a middleware abstraction layer called RMW (ROS Middleware) that allow
 
 ### ROS 2 Dependencies
 
-The following ROS 2 packages are required:
+rmw-zenoh-rs requires the following ROS 2 packages:
 
 - `rmw` - RMW interface definitions
 - `rcutils` - ROS C utilities

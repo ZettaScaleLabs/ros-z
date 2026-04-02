@@ -1,6 +1,6 @@
 # Key Expression Formats
 
-**ros-z uses key expression formats to map ROS 2 entities (topics, services, actions) to Eclipse Zenoh key expressions.** The format is provided by the independent `ros-z-protocol` crate and determines how ROS 2 names are translated for Zenoh routing and discovery.
+**ros-z uses key expression formats to map ROS 2 entities (topics, services, actions) to Eclipse Zenoh key expressions.** The independent `ros-z-protocol` crate provides the format and determines how ros-z translates ROS 2 names for Zenoh routing and discovery.
 
 !!! note
     Key expression format is a runtime choice that affects how ros-z maps ROS 2 entities to Zenoh key expressions. Choose the format that matches your infrastructure for proper message routing.
@@ -16,7 +16,7 @@ ros-z supports multiple key expression formats for interoperability with differe
 
 ### RmwZenoh Format (Default)
 
-The RmwZenoh format is designed for compatibility with ROS 2's official Zenoh middleware implementation (`rmw_zenoh_cpp`).
+The RmwZenoh format targets compatibility with ROS 2's official Zenoh middleware implementation (`rmw_zenoh_cpp`).
 
 **Key Expression Patterns:**
 
@@ -40,7 +40,7 @@ Liveliness:      @ros2_lv/<domain_id>/<entity_kind>/<namespace>/<name>/...
 
 ### Ros2Dds Format
 
-The Ros2Dds format is designed for compatibility with `zenoh-bridge-ros2dds`, which bridges standard DDS-based ROS 2 nodes to Zenoh.
+The Ros2Dds format targets compatibility with `zenoh-bridge-ros2dds`, which bridges standard DDS-based ROS 2 nodes to Zenoh.
 
 **Key Expression Format:**
 
@@ -69,7 +69,7 @@ robot/sensors/camera/**       # Topic /robot/sensors/camera
 
 ## Key Expression Behavior (IMPORTANT)
 
-Understanding how topic names are converted to key expressions is critical for debugging:
+Understanding how ros-z converts topic names to key expressions is critical for debugging:
 
 ### Topic Key Expressions (For Data Routing)
 
@@ -157,7 +157,7 @@ let ctx = ZContextBuilder::default()
 
 ### Creating Entities
 
-Once the context is created with a format, all entities inherit it:
+Once you create the context with a format, all entities inherit it:
 
 ```rust
 use ros_z_msgs::std_msgs::String as RosString;
@@ -262,7 +262,7 @@ Key Expression:
 @ros2_lv/<domain>/<entity_kind>/<zid>/<id>/<namespace>/<name>/<type>/<hash>/<qos>
 ```
 
-**All name fields are mangled** (/ → %):
+**ros-z mangles all name fields** (/ → %):
 
 ```text
 Namespace: /robot/arm  →  %robot%arm
@@ -277,7 +277,7 @@ Name:      /gripper    →  %gripper
 
 ## ros-z-protocol Crate
 
-The key expression logic is provided by the independent `ros-z-protocol` crate:
+The independent `ros-z-protocol` crate provides the key expression logic:
 
 **Features:**
 

@@ -164,13 +164,13 @@ Apply QoS with `.WithQoS(rosz.QosSensorData())` on either builder.
 
 ## Services
 
-> **Coming in v0.2.** Service client and server support will be added in the next release.
+> **Coming in v0.2.** Service client and server support arrives in the next release.
 
 ---
 
 ## Actions
 
-> **Coming in v0.2.** Action client and server support, including cooperative cancellation and feedback streaming, will be added in the next release.
+> **Coming in v0.2.** Action client and server support, including cooperative cancellation and feedback streaming, arrives in the next release.
 
 ---
 
@@ -256,7 +256,7 @@ if errors.As(err, &e) {
 ```
 
 !!! warning
-    Callbacks are invoked on C/Rust threads. Do **not** call `log.Fatal` or block inside them — send to a channel or set an atomic flag instead.
+    C/Rust threads invoke callbacks. Do **not** call `log.Fatal` or block inside them — send to a channel or set an atomic flag instead.
 
 ---
 

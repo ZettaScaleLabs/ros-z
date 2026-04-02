@@ -30,7 +30,7 @@ The most significant difference between distributions is **type hash support**:
 - Supports real type hashes computed from message definitions
 - Format: `RIHS01_<64-hex-chars>` (ROS IDL Hash Standard version 1)
 - Enables type safety checks during pub/sub matching
-- Type hashes are embedded in Eclipse Zenoh key expressions for discovery
+- ros-z embeds type hashes in Eclipse Zenoh key expressions for discovery
 
 **Humble** (Legacy):
 

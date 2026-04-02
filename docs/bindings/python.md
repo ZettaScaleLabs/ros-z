@@ -414,7 +414,7 @@ When working with large byte arrays (sensor data, images, point clouds), ros-z-p
 
 ### ZBufView
 
-When a subscriber receives a message, byte array fields are exposed as a `ZBufView` — a zero-copy view into the received network buffer. `ZBufView` implements Python's buffer protocol:
+When a subscriber receives a message, ros-z exposes byte array fields as a `ZBufView` — a zero-copy view into the received network buffer. `ZBufView` implements Python's buffer protocol:
 
 ```python
 msg = sub.recv(timeout=1.0)
@@ -458,7 +458,7 @@ pub.publish(echo)
 
 The optimization operates at three layers:
 
-1. **Deserialization bypass**: When the Python subscriber receives a message, the raw network buffer (ZBuf) is stored in a thread-local. During CDR deserialization, byte array fields create sub-views into this buffer instead of copying (`ZSlice::subslice()`).
+1. **Deserialization bypass**: When the Python subscriber receives a message, ros-z stores the raw network buffer (ZBuf) in a thread-local. During CDR deserialization, byte array fields create sub-views into this buffer instead of copying (`ZSlice::subslice()`).
 
 2. **Buffer protocol**: `ZBufView` wraps the ZBuf and exposes its bytes to Python via `__getbuffer__`/`__releasebuffer__`. For contiguous buffers (the common case), this is a direct pointer — no copy at all.
 
@@ -503,7 +503,7 @@ cargo test --features python-interop -p ros-z-tests --test python_interop -- --t
     Ensure you are passing a message class object (e.g., `std_msgs.String`), not a string.
 
 ??? question "recv() always returns None"
-    This happens when no messages are being received within the timeout period.
+    This happens when no messages arrive within the timeout period.
     **Solution:**
 
     - Check the topic name matches exactly (including leading `/`)
@@ -513,7 +513,7 @@ cargo test --features python-interop -p ros-z-tests --test python_interop -- --t
 
 ## Resources
 
-- **[Code Generation Internals](./python-codegen.md)** - How Python bindings are generated
+- **[Code Generation Internals](./python-codegen.md)** - How ros-z generates Python bindings
 - **[Pub/Sub](../core-concepts/pubsub.md)** - Deep dive into pub-sub patterns
 - **[Services](../core-concepts/services.md)** - Request-response communication
 - **[Message Generation](../user-guide/message-generation.md)** - How message types work

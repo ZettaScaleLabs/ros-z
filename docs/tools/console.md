@@ -203,8 +203,7 @@ ros-z-console --headless --json tcp/127.0.0.1:7447 0
 ## Dynamic Topic Echo
 
 ros-z-console can subscribe to and display messages from **any ROS 2 topic**
-without compile-time knowledge of message types. This is powered by dynamic
-schema discovery using the ROS 2 Type Description service (REP-2016).
+without compile-time knowledge of message types. Dynamic schema discovery via the ROS 2 Type Description service (REP-2016) powers this capability.
 
 !!! success "Universal Message Support"
     Echo works with all ROS 2 message types: primitives, nested messages, arrays, and custom types. No recompilation needed!
@@ -328,7 +327,7 @@ ros-z-console --headless --echo /scan
 
 #### Debugging Message Content
 
-Quickly inspect what's being published:
+Quickly inspect what publishers are sending:
 
 ```bash
 ros-z-console --headless --echo /diagnostics
@@ -424,7 +423,7 @@ Failed to subscribe to /my_topic: Schema discovery failed: No publishers found f
 **Solutions:**
 
 - Verify the topic exists: `ros2 topic list`
-- Check the topic is being published: `ros2 topic hz /my_topic`
+- Check the topic has publishers: `ros2 topic hz /my_topic`
 - Ensure rmw_zenohd is running
 - Wait for publisher to fully start (may take a few seconds)
 
@@ -455,7 +454,7 @@ This occurs when the publisher and subscriber have different message definitions
 - **CPU:** Minimal - only active when messages arrive
 
 !!! tip "Schema Caching"
-    Message schemas are cached in a global registry. Once a type is discovered, subsequent subscriptions to topics with the same type are instant.
+    ros-z-console caches message schemas in a global registry. Once it discovers a type, subsequent subscriptions to topics with the same type are instant.
 
 ## Export Formats
 
