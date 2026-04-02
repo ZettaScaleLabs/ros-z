@@ -6,6 +6,42 @@
 .mermaid svg { max-width: 100%; }
 
 /* ============================================================
+   Hero — "no ROS required" pill list
+   ============================================================ */
+
+.mdx-hero__pills {
+  list-style: none;
+  margin: 1rem 0 1.5rem;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.mdx-hero__pills li {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  padding: 0.25rem 0.85rem;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+}
+
+.mdx-hero__pills li::before {
+  content: "✕ ";
+  color: #ef9a9a;
+  font-weight: 700;
+}
+
+.mdx-hero__pills code {
+  background: none;
+  color: inherit;
+  padding: 0;
+  font-size: inherit;
+}
+
+/* ============================================================
    Hero section
    ============================================================ */
 
