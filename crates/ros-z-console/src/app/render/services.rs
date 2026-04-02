@@ -100,10 +100,15 @@ impl App {
                 for (idx, entity) in server_entities.iter().enumerate() {
                     if let Some(endpoint) = entity_get_endpoint(entity) {
                         detail.push_str(&format!("   Server {}:\n", idx + 1));
-                        detail.push_str(&format!(
-                            "    Node: {}/{}\n",
-                            endpoint.node.namespace, endpoint.node.name
-                        ));
+                        match endpoint.node.as_ref() {
+                            Some(node) => {
+                                detail.push_str(&format!(
+                                    "    Node: {}/{}\n",
+                                    node.namespace, node.name
+                                ));
+                            }
+                            None => detail.push_str("    Node: unknown\n"),
+                        }
                         detail.push_str(&format_qos_detail(&endpoint.qos));
                         detail.push_str("\n\n");
                     }
@@ -131,10 +136,15 @@ impl App {
                 for (idx, entity) in client_entities.iter().enumerate() {
                     if let Some(endpoint) = entity_get_endpoint(entity) {
                         detail.push_str(&format!("   Client {}:\n", idx + 1));
-                        detail.push_str(&format!(
-                            "    Node: {}/{}\n",
-                            endpoint.node.namespace, endpoint.node.name
-                        ));
+                        match endpoint.node.as_ref() {
+                            Some(node) => {
+                                detail.push_str(&format!(
+                                    "    Node: {}/{}\n",
+                                    node.namespace, node.name
+                                ));
+                            }
+                            None => detail.push_str("    Node: unknown\n"),
+                        }
                         detail.push_str(&format_qos_detail(&endpoint.qos));
                         detail.push_str("\n\n");
                     }

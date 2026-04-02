@@ -143,14 +143,9 @@ fn test_get_type_description_from_ros2_talker() {
                 include_type_sources: true,
             };
 
-            println!("Calling GetTypeDescription for std_msgs/msg/String...");
-            zcli.send_request(&req)
-                .await
-                .expect("Failed to send request");
-
-            println!("Waiting for response (timeout: 15s)...");
             let resp = zcli
-                .take_response_timeout(Duration::from_secs(15))
+                .call_or_timeout(&req, Duration::from_secs(15))
+                .await
                 .expect("Failed to receive response");
 
             resp
@@ -256,13 +251,9 @@ fn test_get_type_description_without_sources() {
                 include_type_sources: false,
             };
 
-            println!("Calling GetTypeDescription without hash...");
-            zcli.send_request(&req)
-                .await
-                .expect("Failed to send request");
-
             let resp = zcli
-                .take_response_timeout(Duration::from_secs(15))
+                .call_or_timeout(&req, Duration::from_secs(15))
+                .await
                 .expect("Failed to receive response");
 
             resp
@@ -388,12 +379,9 @@ fn test_dynamic_subscriber_from_type_description() {
                 include_type_sources: false,
             };
 
-            zcli.send_request(&req)
-                .await
-                .expect("Failed to send request");
-
             let resp = zcli
-                .take_response_timeout(Duration::from_secs(15))
+                .call_or_timeout(&req, Duration::from_secs(15))
+                .await
                 .expect("Failed to receive GetTypeDescription response");
 
             assert!(

@@ -24,7 +24,7 @@ pub use crate::Builder;
 pub use crate::context::{ZContext, ZContextBuilder};
 pub use crate::node::ZNode;
 pub use crate::pubsub::{ZPub, ZSub};
-pub use crate::service::{QueryKey, ZClient, ZServer};
+pub use crate::service::{RequestId, ServiceReply, ServiceRequest, ZClient, ZServer};
 
 pub use crate::action::server::{Accepted, Executing, Requested};
 /// Action types.
@@ -39,7 +39,10 @@ pub use crate::qos::{
 pub use crate::action::ZAction;
 
 /// Trait bounds for custom messages and services.
-pub use crate::ros_msg::{ActionTypeInfo, MessageTypeInfo, ServiceTypeInfo, WithTypeInfo};
+pub use crate::{
+    ExtendedMessageTypeInfo,
+    ros_msg::{ActionTypeInfo, MessageTypeInfo, ServiceTypeInfo, WithTypeInfo},
+};
 
 /// Type identity helpers for custom message definitions.
 pub use crate::entity::{TypeHash, TypeInfo};

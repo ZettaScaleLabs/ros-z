@@ -2,7 +2,9 @@
 //!
 //! Provides JSON and human-readable text formatting for dynamic messages.
 
-use ros_z::dynamic::{DynamicMessage, DynamicValue};
+use ros_z::dynamic::{
+    DynamicMessage, DynamicNamedValue, DynamicValue, EnumPayloadValue, EnumValue,
+};
 use serde_json;
 
 /// Convert a DynamicMessage to a JSON value
@@ -47,9 +49,42 @@ pub fn dynamic_value_to_json(value: &DynamicValue) -> serde_json::Value {
             )
         }
         DynamicValue::Message(msg) => dynamic_message_to_json(msg),
+        DynamicValue::Optional(None) => serde_json::Value::Null,
+        DynamicValue::Optional(Some(value)) => dynamic_value_to_json(value),
+        DynamicValue::Enum(value) => enum_value_to_json(value),
         DynamicValue::Array(arr) => {
             serde_json::Value::Array(arr.iter().map(dynamic_value_to_json).collect())
         }
+    }
+}
+
+fn enum_value_to_json(value: &EnumValue) -> serde_json::Value {
+    let mut fields = serde_json::Map::new();
+    fields.insert(
+        "variant_index".to_string(),
+        serde_json::Value::Number(value.variant_index.into()),
+    );
+    fields.insert(
+        "variant_name".to_string(),
+        serde_json::Value::String(value.variant_name.clone()),
+    );
+    fields.insert("payload".to_string(), enum_payload_to_json(&value.payload));
+    serde_json::Value::Object(fields)
+}
+
+fn enum_payload_to_json(payload: &EnumPayloadValue) -> serde_json::Value {
+    match payload {
+        EnumPayloadValue::Unit => serde_json::Value::Null,
+        EnumPayloadValue::Newtype(value) => dynamic_value_to_json(value),
+        EnumPayloadValue::Tuple(values) => {
+            serde_json::Value::Array(values.iter().map(dynamic_value_to_json).collect())
+        }
+        EnumPayloadValue::Struct(fields) => serde_json::Value::Object(
+            fields
+                .iter()
+                .map(|field| (field.name.clone(), dynamic_value_to_json(&field.value)))
+                .collect(),
+        ),
     }
 }
 
@@ -121,6 +156,11 @@ fn format_value_pretty(output: &mut String, name: &str, value: &DynamicValue, in
                 format_value_pretty(output, n, v, indent + 1);
             }
         }
+        DynamicValue::Optional(None) => {
+            output.push_str(&format!("{}{}: null\n", prefix, name));
+        }
+        DynamicValue::Optional(Some(value)) => format_value_pretty(output, name, value, indent),
+        DynamicValue::Enum(value) => format_enum_value_pretty(output, name, value, indent),
         DynamicValue::Array(arr) => {
             if arr.is_empty() {
                 output.push_str(&format!("{}{}[]: []\n", prefix, name));
@@ -134,10 +174,59 @@ fn format_value_pretty(output: &mut String, name: &str, value: &DynamicValue, in
     }
 }
 
+fn format_enum_value_pretty(output: &mut String, name: &str, value: &EnumValue, indent: usize) {
+    let prefix = "  ".repeat(indent);
+    output.push_str(&format!("{}{}:\n", prefix, name));
+    output.push_str(&format!("{}  variant: {}\n", prefix, value.variant_name));
+    format_enum_payload_pretty(output, &value.payload, indent + 1);
+}
+
+fn format_enum_payload_pretty(output: &mut String, payload: &EnumPayloadValue, indent: usize) {
+    let prefix = "  ".repeat(indent);
+
+    match payload {
+        EnumPayloadValue::Unit => {
+            output.push_str(&format!("{}payload: null\n", prefix));
+        }
+        EnumPayloadValue::Newtype(value) => {
+            format_value_pretty(output, "payload", value, indent);
+        }
+        EnumPayloadValue::Tuple(values) => {
+            if values.is_empty() {
+                output.push_str(&format!("{}payload[]: []\n", prefix));
+            } else {
+                output.push_str(&format!("{}payload[{}]:\n", prefix, values.len()));
+                for (index, value) in values.iter().enumerate() {
+                    format_value_pretty(output, &format!("[{}]", index), value, indent + 1);
+                }
+            }
+        }
+        EnumPayloadValue::Struct(fields) => {
+            if fields.is_empty() {
+                output.push_str(&format!("{}payload: {{}}\n", prefix));
+            } else {
+                output.push_str(&format!("{}payload:\n", prefix));
+                format_named_fields_pretty(output, fields, indent + 1);
+            }
+        }
+    }
+}
+
+fn format_named_fields_pretty(output: &mut String, fields: &[DynamicNamedValue], indent: usize) {
+    for field in fields {
+        format_value_pretty(output, &field.name, &field.value, indent);
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
-    use ros_z::dynamic::{FieldType, MessageSchema};
+    use ros_z::dynamic::{
+        EnumPayloadValue, EnumSchema, EnumValue, EnumVariantSchema, FieldSchema, FieldType,
+        MessageSchema,
+    };
 
     #[test]
     fn test_json_primitives() {
@@ -203,5 +292,68 @@ mod tests {
         let formatted = format_message_pretty(&msg);
         assert!(formatted.contains("linear:"));
         assert!(formatted.contains("  x: 1"));
+    }
+
+    #[test]
+    fn test_json_optional_and_enum_values() {
+        let optional = DynamicValue::Optional(Some(Box::new(DynamicValue::Int32(7))));
+        assert_eq!(dynamic_value_to_json(&optional), serde_json::json!(7));
+
+        let enum_value = DynamicValue::Enum(EnumValue::new(
+            1,
+            "Error",
+            EnumPayloadValue::Struct(vec![crate::dynamic::DynamicNamedValue {
+                name: "code".to_string(),
+                value: DynamicValue::Uint32(42),
+            }]),
+        ));
+        let json = dynamic_value_to_json(&enum_value);
+        assert_eq!(json["variant_index"], 1);
+        assert_eq!(json["variant_name"], "Error");
+        assert_eq!(json["payload"]["code"], 42);
+    }
+
+    #[test]
+    fn test_pretty_format_optional_and_enum_fields() {
+        let status_schema = Arc::new(EnumSchema::new(
+            "test_msgs/msg/Status",
+            vec![
+                EnumVariantSchema::new("Idle", crate::dynamic::EnumPayloadSchema::Unit),
+                EnumVariantSchema::new(
+                    "Error",
+                    crate::dynamic::EnumPayloadSchema::Struct(vec![FieldSchema::new(
+                        "code",
+                        FieldType::Uint32,
+                    )]),
+                ),
+            ],
+        ));
+
+        let schema = MessageSchema::builder("test_msgs/msg/State")
+            .field("nickname", FieldType::Optional(Box::new(FieldType::String)))
+            .field("status", FieldType::Enum(status_schema))
+            .build()
+            .unwrap();
+
+        let mut msg = DynamicMessage::new(&schema);
+        msg.set("nickname", Some("ros-z".to_string())).unwrap();
+        msg.set(
+            "status",
+            EnumValue::new(
+                1,
+                "Error",
+                EnumPayloadValue::Struct(vec![crate::dynamic::DynamicNamedValue {
+                    name: "code".to_string(),
+                    value: DynamicValue::Uint32(5),
+                }]),
+            ),
+        )
+        .unwrap();
+
+        let formatted = format_message_pretty(&msg);
+        assert!(formatted.contains("nickname: \"ros-z\""));
+        assert!(formatted.contains("status:"));
+        assert!(formatted.contains("variant: Error"));
+        assert!(formatted.contains("code: 5"));
     }
 }
