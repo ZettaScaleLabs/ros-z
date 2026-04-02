@@ -125,7 +125,7 @@ cargo build -p ros-z-msgs
 - `action_tutorials_interfaces` - Tutorial actions (Fibonacci)
 
 !!! tip
-    All messages are vendored in assets - no ROS 2 installation required. Feature flags simply control which packages to include in your build.
+    All messages are vendored in assets - no ROS 2 installation required. Feature flags control which packages to include in your build.
 
 ### Individual Package Features
 

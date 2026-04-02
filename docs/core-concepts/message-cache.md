@@ -49,7 +49,7 @@ let cache = node.create_cache::<LaserScan>("/scan", 100).build()?;
 
 ### ExtractorStamp (application-level)
 
-Supply a closure that extracts a `SystemTime` from the deserialized message. Use this when you need messages aligned by their logical capture time rather than network arrival time — the classic sensor fusion use case.
+Supply a closure that extracts a `SystemTime` from the deserialized message. Use this when you need messages aligned by their logical capture time instead of network arrival time — the classic sensor fusion use case.
 
 ```rust
 use ros_z::prelude::*;

@@ -198,7 +198,7 @@ Used for network optimization and selective discovery in distributed systems.
 
 - Type hash fields in endpoint info structs
 - QoS event types (`rmw_incompatible_type_status_t`, etc.)
-- Various discovery and introspection functions
+- Multiple discovery and introspection functions
 
 ### Impact
 

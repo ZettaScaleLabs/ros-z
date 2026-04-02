@@ -729,7 +729,7 @@ sudo sysctl -w kernel.shmall=32768       # 128MB in pages
 
 - Small messages (<512 bytes)
 - High-frequency, small updates
-- Messages with mostly fixed-size fields
+- Messages with primarily fixed-size fields
 
 ### Configuration Guidelines
 
