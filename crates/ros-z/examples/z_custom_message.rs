@@ -9,7 +9,8 @@ use ros_z::{
 use serde::{Deserialize, Serialize};
 
 // Custom message for pub/sub example
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, MessageTypeInfo)]
+#[ros_msg(type_name = "custom_msgs/msg/RobotStatus")]
 pub struct RobotStatus {
     pub robot_id: String,
     pub battery_percentage: f64,
@@ -18,65 +19,31 @@ pub struct RobotStatus {
     pub is_moving: bool,
 }
 
-impl MessageTypeInfo for RobotStatus {
-    fn type_name() -> &'static str {
-        "custom_msgs::msg::dds_::RobotStatus_"
-    }
-
-    fn type_hash() -> TypeHash {
-        TypeHash::zero()
-    }
-}
-
-impl ros_z::WithTypeInfo for RobotStatus {}
-
 impl ros_z::msg::ZMessage for RobotStatus {
     type Serdes = ros_z::msg::SerdeCdrSerdes<RobotStatus>;
 }
 
 // Custom service request
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, MessageTypeInfo)]
+#[ros_msg(type_name = "custom_msgs/srv/NavigateTo_Request")]
 pub struct NavigateToRequest {
     pub target_x: f64,
     pub target_y: f64,
     pub max_speed: f64,
 }
 
-impl MessageTypeInfo for NavigateToRequest {
-    fn type_name() -> &'static str {
-        "custom_msgs::srv::dds_::NavigateTo_Request_"
-    }
-
-    fn type_hash() -> TypeHash {
-        TypeHash::zero()
-    }
-}
-
-impl ros_z::WithTypeInfo for NavigateToRequest {}
-
 impl ros_z::msg::ZMessage for NavigateToRequest {
     type Serdes = ros_z::msg::SerdeCdrSerdes<NavigateToRequest>;
 }
 
 // Custom service response
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, MessageTypeInfo)]
+#[ros_msg(type_name = "custom_msgs/srv/NavigateTo_Response")]
 pub struct NavigateToResponse {
     pub success: bool,
     pub estimated_duration: f64,
     pub message: String,
 }
-
-impl MessageTypeInfo for NavigateToResponse {
-    fn type_name() -> &'static str {
-        "custom_msgs::srv::dds_::NavigateTo_Response_"
-    }
-
-    fn type_hash() -> TypeHash {
-        TypeHash::zero()
-    }
-}
-
-impl ros_z::WithTypeInfo for NavigateToResponse {}
 
 impl ros_z::msg::ZMessage for NavigateToResponse {
     type Serdes = ros_z::msg::SerdeCdrSerdes<NavigateToResponse>;
@@ -153,8 +120,13 @@ async fn run_status_publisher(robot_id: String) -> Result<()> {
     println!("Starting robot status publisher for robot: {robot_id}");
 
     let ctx = ZContextBuilder::default().build()?;
-    let node = ctx.create_node("robot_status_publisher").build()?;
+    let node = ctx
+        .create_node("robot_status_publisher")
+        .with_type_description_service()
+        .build()?;
     let zpub = node.create_pub::<RobotStatus>("/robot_status").build()?;
+
+    println!("Type description service enabled for automatic schema registration");
 
     let mut position_x = 0.0;
     let mut position_y = 0.0;
