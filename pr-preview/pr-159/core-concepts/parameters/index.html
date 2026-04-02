@@ -777,6 +777,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#what-is-a-parameter" class="md-nav__link">
+    <span class="md-ellipsis">
+      What is a Parameter?
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#visual-flow" class="md-nav__link">
     <span class="md-ellipsis">
       Visual Flow
@@ -1944,6 +1953,62 @@
 <p class="admonition-title">Note</p>
 <p>Parameters let you configure node behavior at runtime without recompilation. ros-z parameters are fully compatible with the ROS 2 parameter protocol, so <code>ros2 param list</code>, <code>ros2 param get</code>, and <code>ros2 param set</code> work out of the box against ros-z nodes.</p>
 </div>
+<h2 id="what-is-a-parameter">What is a Parameter?<a class="headerlink" href="#what-is-a-parameter" title="Permanent link">&para;</a></h2>
+<p>Parameters are <strong>node-specific configuration values</strong> that can be read and changed at runtime without restarting or recompiling. Each parameter belongs to one node and the node owns it. Each parameter has a type — bool, integer, double, string, or an array of those — enforced from the moment of declaration.</p>
+<p><strong>How parameters differ from other configuration mechanisms:</strong></p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Environment Variable</th>
+<th>Config File</th>
+<th>ROS 2 Parameter</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Scope</strong></td>
+<td>Process</td>
+<td>Application</td>
+<td>Single node</td>
+</tr>
+<tr>
+<td><strong>Runtime change</strong></td>
+<td>No</td>
+<td>No (usually)</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><strong>Type enforcement</strong></td>
+<td>No</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><strong>Introspection</strong></td>
+<td>No</td>
+<td>No</td>
+<td>Yes (<code>ros2 param</code>)</td>
+</tr>
+<tr>
+<td><strong>Change callbacks</strong></td>
+<td>No</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Declaration and enforcement:</strong></p>
+<p>Nodes declare the parameters they accept; the node rejects undeclared parameters by default. Declaration binds the type: once declared as <code>Double</code>, setting that parameter to an integer fails. Descriptors can add range constraints, human-readable descriptions, and read-only flags. Read-only parameters accept values at startup but reject all changes after that point.</p>
+<p><strong>The three callback stages:</strong></p>
+<p>ros-z processes each parameter change request in three ordered stages:</p>
+<ol>
+<li><strong>Pre-set callback</strong> — can modify, add, or remove parameters in the batch before validation; use this to synchronize related values</li>
+<li><strong>Set callback</strong> — validates each parameter and can refuse with a reason string; must be side-effect-free, because a later parameter in the same batch may still fail validation</li>
+<li><strong>Post-set callback</strong> — called after the change commits; safe for side-effects such as reconfiguring hardware</li>
+</ol>
+<p><strong>Standard parameter services (auto-created):</strong></p>
+<p>Every ros-z node automatically exposes <code>get_parameters</code>, <code>set_parameters</code>, <code>set_parameters_atomically</code>, <code>list_parameters</code>, <code>describe_parameters</code>, and <code>get_parameter_types</code>. These are compatible with the <code>ros2 param</code> CLI and any ROS 2 tool that queries parameters — see the <a href="#parameter-services">Parameter Services</a> section below.</p>
 <h2 id="visual-flow">Visual Flow<a class="headerlink" href="#visual-flow" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>graph TD
     A[ZNodeBuilder] --&gt;|configure| B[ZNode]

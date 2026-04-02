@@ -708,6 +708,66 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#what-is-publish-subscribe" class="md-nav__link">
+    <span class="md-ellipsis">
+      What is Publish-Subscribe?
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What is Publish-Subscribe?">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#when-to-use-topics" class="md-nav__link">
+    <span class="md-ellipsis">
+      When to use topics
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-message-bus-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      The message bus model
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#strongly-typed-communication" class="md-nav__link">
+    <span class="md-ellipsis">
+      Strongly-typed communication
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quality-of-service" class="md-nav__link">
+    <span class="md-ellipsis">
+      Quality of Service
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#in-ros-z" class="md-nav__link">
+    <span class="md-ellipsis">
+      In ros-z
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#visual-flow" class="md-nav__link">
     <span class="md-ellipsis">
       Visual Flow
@@ -1936,6 +1996,95 @@
 <p class="admonition-title">Note</p>
 <p>The pub-sub pattern forms the foundation of ROS 2 communication, allowing nodes to exchange data without direct coupling. ros-z leverages Zenoh's efficient transport layer for optimal performance.</p>
 </div>
+<h2 id="what-is-publish-subscribe">What is Publish-Subscribe?<a class="headerlink" href="#what-is-publish-subscribe" title="Permanent link">&para;</a></h2>
+<p>Publish-subscribe is a messaging pattern where senders (publishers) and receivers (subscribers) are fully decoupled — neither knows about the other directly. Publishers send messages to a named <strong>topic</strong>; any subscriber watching that topic receives them. Any number of publishers and any number of subscribers can share a single topic simultaneously.</p>
+<p>The system is <strong>anonymous</strong>: a subscriber cannot tell which publisher sent a given message, and a publisher has no knowledge of who is listening. This decoupling makes system composition natural — you can add a logger, a visualizer, or a second processing node to an existing topic without modifying any existing code.</p>
+<h3 id="when-to-use-topics">When to use topics<a class="headerlink" href="#when-to-use-topics" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Use Case</th>
+<th>Pattern</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Continuous sensor data (camera, lidar, IMU)</td>
+<td>Topic</td>
+<td>High frequency, many consumers</td>
+</tr>
+<tr>
+<td>Robot state (position, velocity, joint angles)</td>
+<td>Topic</td>
+<td>Multiple observers, continuous stream</td>
+</tr>
+<tr>
+<td>Single computation result (e.g. transform a point)</td>
+<td>Service</td>
+<td>One-shot request-response</td>
+</tr>
+<tr>
+<td>Long-running task (navigate to goal)</td>
+<td>Action</td>
+<td>Progress reporting and cancellation needed</td>
+</tr>
+<tr>
+<td>Runtime configuration</td>
+<td>Parameter</td>
+<td>Persistent, typed key-value storage</td>
+</tr>
+</tbody>
+</table>
+<h3 id="the-message-bus-model">The message bus model<a class="headerlink" href="#the-message-bus-model" title="Permanent link">&para;</a></h3>
+<p>Think of a topic like an electrical bus: any number of components can tap in at any point. Messages flow one-way — publisher to topic to all subscribers — and the bus itself is transparent. Introspection tools such as <code>ros2 topic echo</code> or <code>ros2 bag record</code> subscribe to the topic like any other node; they do not affect publisher or subscriber behaviour in any way.</p>
+<h3 id="strongly-typed-communication">Strongly-typed communication<a class="headerlink" href="#strongly-typed-communication" title="Permanent link">&para;</a></h3>
+<p>Every topic carries exactly one message type. All publishers and subscribers on a topic must agree on that type — a camera image topic cannot mix <code>sensor_msgs/Image</code> and <code>sensor_msgs/CompressedImage</code>. ros-z enforces field types: a <code>float64</code> velocity field cannot receive a string. Semantic meaning is part of the definition: the IMU message specifies that angular velocity is in rad/s, not by convention but in the type itself. Type mismatches are caught at connection time, not silently at runtime.</p>
+<h3 id="quality-of-service">Quality of Service<a class="headerlink" href="#quality-of-service" title="Permanent link">&para;</a></h3>
+<p>QoS policies control message delivery. The key dimensions are:</p>
+<table>
+<thead>
+<tr>
+<th>Preset</th>
+<th>Reliability</th>
+<th>Durability</th>
+<th>Typical use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Default</td>
+<td>Reliable</td>
+<td>Volatile</td>
+<td>Commands, state</td>
+</tr>
+<tr>
+<td>Sensor data</td>
+<td>Best-effort</td>
+<td>Volatile</td>
+<td>Camera, lidar (recency over completeness)</td>
+</tr>
+<tr>
+<td>Services (internal)</td>
+<td>Reliable</td>
+<td>Volatile</td>
+<td>Service calls</td>
+</tr>
+<tr>
+<td>Parameters</td>
+<td>Reliable</td>
+<td>Transient-local</td>
+<td>Config that late-joiners must receive</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition warning">
+<p class="admonition-title">Silent incompatibility</p>
+<p>If publisher and subscriber have incompatible QoS settings, no messages flow and no error is raised. Use <code>ros2 topic info -v &lt;topic&gt;</code> to inspect QoS on both ends when debugging a silent topic.</p>
+</div>
+<p>The default profile — reliable delivery, keep-last-10, volatile durability — is the right starting point for most topics. Switch to best-effort only when dropping an occasional message is preferable to the latency cost of retransmission (high-frequency sensor streams are the canonical case).</p>
+<h3 id="in-ros-z">In ros-z<a class="headerlink" href="#in-ros-z" title="Permanent link">&para;</a></h3>
+<p>ros-z maps ROS 2 topics directly onto Eclipse Zenoh key expressions, giving you the full ROS 2 pub/sub interface with Zenoh's efficient transport. The examples below show the complete API.</p>
 <h2 id="visual-flow">Visual Flow<a class="headerlink" href="#visual-flow" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>graph TD
     A[ZContextBuilder] --&gt;|configure| B[ZContext]

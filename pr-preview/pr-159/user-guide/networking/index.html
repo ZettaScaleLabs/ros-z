@@ -875,6 +875,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#how-ros-2-discovery-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      How ROS 2 Discovery Works
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#router-based-architecture" class="md-nav__link">
     <span class="md-ellipsis">
       Router-Based Architecture
@@ -1925,6 +1934,36 @@
     Router &lt;--&gt;|Discovery| Talker
     Router &lt;--&gt;|Discovery| Listener
     Talker &lt;-.-&gt;|P2P Communication| Listener</code></pre>
+<h2 id="how-ros-2-discovery-works">How ROS 2 Discovery Works<a class="headerlink" href="#how-ros-2-discovery-works" title="Permanent link">&para;</a></h2>
+<p>ROS 2 nodes find each other automatically through a discovery process — no central registry or manual configuration needed. Discovery scope depends on <strong>ROS domain</strong>: only nodes with the same <code>ROS_DOMAIN_ID</code> can see each other (default: 0). The standard ROS 2 middleware (DDS) uses <strong>multicast UDP</strong> to announce node presence on the local network. Once discovered, nodes check QoS compatibility — connections only form when publisher and subscriber have compatible settings.</p>
+<p><strong>The discovery cycle:</strong></p>
+<ol>
+<li><strong>Announce</strong>: a new node broadcasts its presence and advertises its publishers, subscribers, services, and actions</li>
+<li><strong>Respond</strong>: existing nodes reply with their own information; endpoints with matching topics negotiate connections</li>
+<li><strong>Periodic heartbeat</strong>: nodes re-broadcast periodically so nodes that join later can discover the system</li>
+<li><strong>Departure</strong>: nodes announce when going offline (best-effort — the system may not detect crashes immediately)</li>
+</ol>
+<p><strong>Why ros-z replaces DDS discovery with Zenoh:</strong></p>
+<p>Standard DDS multicast discovery has known limitations:</p>
+<ul>
+<li>Cloud networks and containers often block multicast/container networks and across subnets</li>
+<li>Discovery traffic grows quadratically with node count in large systems</li>
+<li>Configuration (tuning QoS, domain separation) is complex</li>
+</ul>
+<p>ros-z and <code>rmw_zenoh_cpp</code> use <strong>router-based discovery</strong> instead. All nodes connect to a <code>zenohd</code> router via TCP. The router acts as the rendezvous point — nodes announce themselves to the router, which propagates the information to interested peers. This works across subnets, containers, and cloud environments without multicast, and scales linearly: adding more nodes does not increase per-node discovery traffic.</p>
+<pre class="mermaid"><code>sequenceDiagram
+    participant R as zenohd (router)
+    participant A as Node A (Publisher)
+    participant B as Node B (Subscriber)
+
+    A-&gt;&gt;R: Connect + declare publisher on /chatter
+    B-&gt;&gt;R: Connect + declare subscriber on /chatter
+    R-&gt;&gt;A: Subscriber joined /chatter
+    R-&gt;&gt;B: Publisher available on /chatter
+    Note over A,B: Connection negotiated — data flows
+    A-&gt;&gt;B: Messages (Eclipse Zenoh transport)</code></pre>
+<p><strong>QoS and discovery:</strong> even after discovery, a publisher and subscriber will not exchange messages if their QoS policies are incompatible (e.g., a best-effort publisher and a reliable subscriber). ros-z checks compatibility at connection time.</p>
+<p>The following sections describe how to configure ros-z's router connection for your deployment environment.</p>
 <h2 id="router-based-architecture">Router-Based Architecture<a class="headerlink" href="#router-based-architecture" title="Permanent link">&para;</a></h2>
 <p>ros-z uses a centralized Zenoh router for node discovery and communication, providing:</p>
 <table>
