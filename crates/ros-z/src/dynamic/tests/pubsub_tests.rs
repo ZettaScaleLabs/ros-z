@@ -166,7 +166,14 @@ fn test_zpub_builder_with_dyn_schema() {
     let session = zenoh::Wait::wait(zenoh::open(zenoh::Config::default())).unwrap();
     let graph = std::sync::Arc::new(crate::graph::Graph::new(&session, 0).unwrap());
     let builder: ZPubBuilder<DynamicMessage> = ZPubBuilder {
-        entity: Default::default(),
+        entity: crate::entity::EndpointEntity {
+            id: 0,
+            node: None,
+            kind: crate::entity::EndpointKind::Publisher,
+            topic: String::new(),
+            type_info: None,
+            qos: ros_z_protocol::qos::QosProfile::default(),
+        },
         session: std::sync::Arc::new(session),
         graph,
         clock: crate::time::ZClock::default(),
@@ -199,7 +206,14 @@ fn test_zpub_builder_with_serdes_preserves_schema() {
     let session = zenoh::Wait::wait(zenoh::open(zenoh::Config::default())).unwrap();
     let graph = std::sync::Arc::new(crate::graph::Graph::new(&session, 0).unwrap());
     let builder: ZPubBuilder<DynamicMessage> = ZPubBuilder {
-        entity: Default::default(),
+        entity: crate::entity::EndpointEntity {
+            id: 0,
+            node: None,
+            kind: crate::entity::EndpointKind::Publisher,
+            topic: String::new(),
+            type_info: None,
+            qos: ros_z_protocol::qos::QosProfile::default(),
+        },
         session: std::sync::Arc::new(session),
         graph,
         clock: crate::time::ZClock::default(),

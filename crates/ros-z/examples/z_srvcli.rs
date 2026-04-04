@@ -66,13 +66,19 @@ pub fn run_server(ctx: ZContext) -> Result<()> {
     println!("AddTwoInts service server started, waiting for requests...");
 
     loop {
-        let (key, req) = zsrv.take_request()?;
-        println!("Received request: {} + {}", req.a, req.b);
+        let req = zsrv.take_request()?;
+        println!(
+            "Received request: {} + {}",
+            req.message().a,
+            req.message().b
+        );
 
-        let resp = AddTwoIntsResponse { sum: req.a + req.b };
+        let resp = AddTwoIntsResponse {
+            sum: req.message().a + req.message().b,
+        };
 
         println!("Sending response: {}", resp.sum);
-        zsrv.send_response(&resp, &key)?;
+        req.reply_blocking(&resp)?;
     }
 }
 
@@ -85,8 +91,9 @@ pub async fn run_client(ctx: ZContext, a: i64, b: i64) -> Result<()> {
     let req = AddTwoIntsRequest { a, b };
     println!("Sending request: {} + {}", req.a, req.b);
 
-    zcli.send_request(&req).await?;
-    let resp = zcli.take_response_timeout(std::time::Duration::from_secs(5))?;
+    let resp = zcli
+        .call_or_timeout(&req, std::time::Duration::from_secs(5))
+        .await?;
 
     println!("Received response: {}", resp.sum);
 
