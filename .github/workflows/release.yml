@@ -1,0 +1,362 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-msgs:
+    name: Build ros-z-msgs-py wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build
+        run: pip install build
+
+      - name: Build wheel and sdist
+        run: python -m build
+        working-directory: crates/ros-z-msgs/python
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ros-z-msgs-py-dist
+          path: crates/ros-z-msgs/python/dist/*
+
+  build-wheels:
+    name: Build ros-z-py (${{ matrix.distro }}, ${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            distro: jazzy
+            extra_args: ""
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            distro: humble
+            extra_args: ""
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            distro: jazzy
+            # --zig uses cargo-zigbuild for cross-compilation; handles ring's C assembly
+            extra_args: "--zig"
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            distro: humble
+            extra_args: "--zig"
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            distro: jazzy
+            extra_args: ""
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            distro: humble
+            extra_args: ""
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: >-
+            --release
+            --strip
+            --features pyo3/extension-module,${{ matrix.distro }}
+            --no-default-features
+            --out dist
+            ${{ matrix.extra_args }}
+          working-directory: crates/ros-z-py
+          manylinux: auto
+
+      - name: Rename wheel to include distro suffix
+        shell: bash
+        run: |
+          for whl in crates/ros-z-py/dist/*.whl; do
+            base="${whl%.whl}"
+            # sudo needed: manylinux container builds as root, wheel is root-owned
+            sudo mv "$whl" "${base}-${{ matrix.distro }}.whl"
+          done
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ros-z-py-${{ matrix.distro }}-${{ matrix.target }}
+          path: crates/ros-z-py/dist/*
+
+  build-binaries:
+    name: Build ${{ matrix.bin }} (${{ matrix.label }}, ${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ros-z-console — distro-agnostic, one binary per platform
+          - bin: ros-z-console
+            package: ros-z-console
+            features: ""
+            artifact: bin-console-x86_64-linux
+            target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - bin: ros-z-console
+            package: ros-z-console
+            features: ""
+            artifact: bin-console-aarch64-linux
+            target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+          - bin: ros-z-console
+            package: ros-z-console
+            features: ""
+            artifact: bin-console-aarch64-macos
+            target: aarch64-apple-darwin
+            os: macos-latest
+          # ros-z-bridge — one binary per distro per platform
+          - bin: ros-z-bridge
+            package: ros-z-bridge
+            features: "jazzy"
+            artifact: bin-bridge-jazzy-x86_64-linux
+            target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - bin: ros-z-bridge
+            package: ros-z-bridge
+            features: "humble"
+            artifact: bin-bridge-humble-x86_64-linux
+            target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - bin: ros-z-bridge
+            package: ros-z-bridge
+            features: "jazzy"
+            artifact: bin-bridge-jazzy-aarch64-linux
+            target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+          - bin: ros-z-bridge
+            package: ros-z-bridge
+            features: "humble"
+            artifact: bin-bridge-humble-aarch64-linux
+            target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+          - bin: ros-z-bridge
+            package: ros-z-bridge
+            features: "jazzy"
+            artifact: bin-bridge-jazzy-aarch64-macos
+            target: aarch64-apple-darwin
+            os: macos-latest
+          - bin: ros-z-bridge
+            package: ros-z-bridge
+            features: "humble"
+            artifact: bin-bridge-humble-aarch64-macos
+            target: aarch64-apple-darwin
+            os: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure Rust is installed (macOS)
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          if ! command -v cargo &>/dev/null; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+              | sh -s -- -y --no-modify-path
+          fi
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install Rust target (Linux cross-compile only)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Install cross-compile tools (aarch64 Linux)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          cargo install cargo-zigbuild
+          pip install ziglang
+
+      - name: Build binary (aarch64 Linux via zigbuild)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: >-
+          cargo zigbuild --release
+          --bin ${{ matrix.bin }}
+          --package ${{ matrix.package }}
+          ${{ matrix.features != '' && format('--features {0} --no-default-features', matrix.features) || '' }}
+          --target ${{ matrix.target }}
+
+      - name: Build binary (native)
+        if: matrix.target != 'aarch64-unknown-linux-gnu'
+        shell: bash
+        run: |
+          cargo build --release \
+            --bin ${{ matrix.bin }} \
+            --package ${{ matrix.package }} \
+            ${{ matrix.features != '' && format('--features {0} --no-default-features', matrix.features) || '' }} \
+            --target ${{ matrix.target }}
+
+      - name: Package binary
+        shell: bash
+        run: |
+          mkdir -p bin-dist
+          cp "target/${{ matrix.target }}/release/${{ matrix.bin }}" \
+             "bin-dist/${{ matrix.artifact }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: bin-dist/*
+
+  build-go-libs:
+    name: Build libros_z (${{ matrix.distro }}, ${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            distro: jazzy
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            distro: humble
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            distro: jazzy
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            distro: humble
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            distro: jazzy
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            distro: humble
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure Rust is installed (macOS)
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          if ! command -v cargo &>/dev/null; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+              | sh -s -- -y --no-modify-path
+          fi
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install Rust target (Linux cross-compile only)
+        if: matrix.target == 'aarch64-unknown-linux-gnu' && matrix.os == 'ubuntu-latest'
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Install cross-compile tools (aarch64 Linux)
+        if: matrix.target == 'aarch64-unknown-linux-gnu' && matrix.os == 'ubuntu-latest'
+        run: |
+          cargo install cargo-zigbuild
+          pip install ziglang
+
+      - name: Build libros_z (native)
+        if: matrix.target != 'aarch64-unknown-linux-gnu' || matrix.os != 'ubuntu-latest'
+        shell: bash
+        run: |
+          cargo build --release \
+            --features ffi,${{ matrix.distro }} \
+            --no-default-features \
+            --target ${{ matrix.target }} \
+            -p ros-z
+
+      - name: Build libros_z (aarch64 Linux via zigbuild)
+        if: matrix.target == 'aarch64-unknown-linux-gnu' && matrix.os == 'ubuntu-latest'
+        run: >-
+          cargo zigbuild --release
+          --features ffi,${{ matrix.distro }}
+          --no-default-features
+          --target ${{ matrix.target }}
+          -p ros-z
+
+      - name: Package library
+        shell: bash
+        run: |
+          mkdir -p go-dist
+          src="target/${{ matrix.target }}/release"
+          name="libros_z-${{ matrix.distro }}-${{ matrix.target }}"
+          if [ -f "$src/libros_z.a" ]; then
+            cp "$src/libros_z.a" "go-dist/${name}.a"
+          fi
+          if [ -f "$src/libros_z.dylib" ]; then
+            cp "$src/libros_z.dylib" "go-dist/${name}.dylib"
+          fi
+          if [ -f "$src/libros_z.so" ]; then
+            cp "$src/libros_z.so" "go-dist/${name}.so"
+          fi
+          cp crates/ros-z-go/rosz/ros_z_ffi.h "go-dist/ros_z_ffi.h" 2>/dev/null || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libros_z-${{ matrix.distro }}-${{ matrix.target }}
+          path: go-dist/*
+
+  release:
+    name: Create GitHub Release
+    needs: [build-msgs, build-wheels, build-go-libs, build-binaries]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        uses: orhun/git-cliff-action@v4
+        id: git-cliff
+        with:
+          config: cliff.toml
+          args: --verbose --latest --strip header
+        env:
+          OUTPUT: CHANGELOG.md
+          GITHUB_REPO: ${{ github.repository }}
+
+      - name: Download ros-z-msgs-py artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ros-z-msgs-py-dist
+          path: dist/
+
+      - name: Download ros-z-py wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ros-z-py-*
+          path: dist/
+          merge-multiple: true
+
+      - name: Download binary artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bin-*
+          path: dist/
+          merge-multiple: true
+
+      - name: Download libros_z artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: libros_z-*
+          path: dist/
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          body_path: CHANGELOG.md
+          files: dist/**
