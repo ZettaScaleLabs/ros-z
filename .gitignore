@@ -56,7 +56,7 @@ ros-z-msgs/python/uv.lock
 /crates/ros-z-go/generated/
 
 # Core dumps
-core
+/core
 
 # Build cache
 .cache/
