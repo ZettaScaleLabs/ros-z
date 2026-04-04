@@ -44,7 +44,7 @@ The `#cgo LDFLAGS` in `rosz/context.go` resolves the library via `${SRCDIR}` —
 **Generate message types** (no ROS 2 install needed for bundled types):
 
 ```bash
-just -f crates/ros-z-go/justfile codegen-bundled   # std_msgs, geometry_msgs
+just -f crates/ros-z-go/justfile codegen-bundled   # std_msgs, geometry_msgs, example_interfaces
 just -f crates/ros-z-go/justfile codegen            # full set from a ROS 2 installation
 ```
 
@@ -118,13 +118,87 @@ Apply QoS with `.WithQoS(rosz.QosSensorData())` on either builder.
 
 ## Services
 
-> **Coming in v0.2.** Service client and server support will be added in the next release.
+```go
+// Server
+server, err := node.CreateServiceServer("add_two_ints").
+    Build(&example_interfaces.AddTwoInts{}, func(reqBytes []byte) ([]byte, error) {
+        var req example_interfaces.AddTwoIntsRequest
+        req.DeserializeCDR(reqBytes)
+        return (&example_interfaces.AddTwoIntsResponse{Sum: req.A + req.B}).SerializeCDR()
+    })
+
+// Client
+client, err := node.CreateServiceClient("add_two_ints").
+    Build(&example_interfaces.AddTwoInts{})
+respBytes, err := client.Call(&example_interfaces.AddTwoIntsRequest{A: 5, B: 3})
+// client.CallWithTimeout(req, 10*time.Second) for a custom timeout
+var resp example_interfaces.AddTwoIntsResponse
+if err := resp.DeserializeCDR(respBytes); err != nil {
+    // handle error
+}
+// use resp.Sum
+```
 
 ---
 
 ## Actions
 
-> **Coming in v0.2.** Action client and server support, including cooperative cancellation and feedback streaming, will be added in the next release.
+```go
+// Server
+server, err := node.CreateActionServer("fibonacci").Build(
+    &example_interfaces.Fibonacci{},
+    func(goalBytes []byte) bool {         // accept / reject
+        var g example_interfaces.FibonacciGoal
+        g.DeserializeCDR(goalBytes)
+        return g.Order > 0
+    },
+    func(h *rosz.ServerGoalHandle, goalBytes []byte) ([]byte, error) {
+        var g example_interfaces.FibonacciGoal
+        g.DeserializeCDR(goalBytes)
+        seq := []int32{0, 1}
+        for i := 2; i < int(g.Order); i++ {
+            seq = append(seq, seq[i-1]+seq[i-2])
+            h.PublishFeedback(&example_interfaces.FibonacciFeedback{Sequence: seq})
+        }
+        return (&example_interfaces.FibonacciResult{Sequence: seq}).SerializeCDR()
+    },
+)
+
+// Client
+client, err := node.CreateActionClient("fibonacci").
+    Build(&example_interfaces.Fibonacci{})
+handle, err := client.SendGoal(&example_interfaces.FibonacciGoal{Order: 10})
+resultBytes, err := handle.GetResult()
+```
+
+### Goal status
+
+```go
+handle.GetStatus()    // GoalStatusAccepted → GoalStatusSucceeded
+handle.IsActive()     // true while executing
+handle.IsTerminal()   // true when finished
+handle.Cancel()       // request cancellation
+```
+
+### Cooperative cancellation
+
+The execute callback runs in its own goroutine. Poll `IsCancelRequested()` at safe points:
+
+```go
+func(h *rosz.ServerGoalHandle, goalBytes []byte) ([]byte, error) {
+    // ...
+    for i := 2; i < int(g.Order); i++ {
+        if h.IsCancelRequested() {
+            // return partial result and acknowledge cancel
+            h.Canceled(&example_interfaces.FibonacciResult{Sequence: seq})
+            return (&example_interfaces.FibonacciResult{Sequence: seq}).SerializeCDR()
+        }
+        // ... compute step
+        time.Sleep(50 * time.Millisecond)
+    }
+    // ...
+}
+```
 
 ---
 
@@ -152,11 +226,47 @@ Use `rosz.NewRingChannel` (drops oldest on full) or `rosz.NewFifoChannel` (block
 
 ### Service
 
-> **Coming in v0.2.**
+```go
+// Typed server
+server, err := rosz.BuildTypedServiceServer(
+    node.CreateServiceServer("add_two_ints"),
+    &example_interfaces.AddTwoInts{},
+    func(req *example_interfaces.AddTwoIntsRequest) (*example_interfaces.AddTwoIntsResponse, error) {
+        return &example_interfaces.AddTwoIntsResponse{Sum: req.A + req.B}, nil
+    },
+)
+
+// Typed call
+resp := &example_interfaces.AddTwoIntsResponse{}
+err := rosz.CallTyped(client, &example_interfaces.AddTwoIntsRequest{A: 5, B: 3}, resp)
+// rosz.CallTypedWithTimeout(client, req, resp, 10*time.Second)
+```
 
 ### Action
 
-> **Coming in v0.2.**
+```go
+// Typed server
+server, err := rosz.BuildTypedActionServer(
+    node.CreateActionServer("fibonacci"), &example_interfaces.Fibonacci{},
+    func(g *example_interfaces.FibonacciGoal) bool { return g.Order > 0 },
+    func(h *rosz.ServerGoalHandle, g *example_interfaces.FibonacciGoal) (*example_interfaces.FibonacciResult, error) {
+        seq := []int32{0, 1}
+        for i := 2; i < int(g.Order); i++ {
+            if h.IsCancelRequested() {
+                return &example_interfaces.FibonacciResult{Sequence: seq}, nil
+            }
+            seq = append(seq, seq[i-1]+seq[i-2])
+        }
+        return &example_interfaces.FibonacciResult{Sequence: seq}, nil
+    },
+)
+
+// Typed client
+client, err := rosz.BuildTypedActionClient(node.CreateActionClient("fibonacci"), &example_interfaces.Fibonacci{})
+handle, err := rosz.SendTypedGoal(client, &example_interfaces.FibonacciGoal{Order: 10})
+result := &example_interfaces.FibonacciResult{}
+err = rosz.GetTypedResult(handle, result)
+```
 
 ---
 
@@ -165,6 +275,7 @@ Use `rosz.NewRingChannel` (drops oldest on full) or `rosz.NewFifoChannel` (block
 ```go
 rosz.QosDefault()          // Reliable, Volatile, KeepLast(10)
 rosz.QosSensorData()       // BestEffort, Volatile, KeepLast(5) — high-rate streams
+rosz.QosServicesDefault()  // Reliable, Volatile, KeepLast(10)
 rosz.QosTransientLocal()   // Reliable, TransientLocal, KeepLast(1) — /tf_static, /robot_description
 rosz.QosKeepAll()          // Reliable, Volatile, KeepAll
 ```
@@ -180,9 +291,10 @@ Match QoS profiles on both sides. BestEffort publisher + Reliable subscriber wil
 ## Graph Introspection
 
 ```go
-topics, _ := node.GetTopicNamesAndTypes()    // []TopicInfo
-names, _  := node.GetNodeNames()             // []NodeInfo
-exists, _ := node.NodeExists("talker", "/")
+topics, _ := node.GetTopicNamesAndTypes()    // map[string][]string
+names, _  := node.GetNodeNames()             // []string
+services, _ := node.GetServiceNamesAndTypes()
+exists, _ := node.NodeExists("talker")
 ```
 
 Requires a Zenoh router and a brief settling time after nodes come online.
@@ -196,9 +308,14 @@ All `Build()` calls and operations return `error`. Use `errors.Is()` with sentin
 | Sentinel | When raised |
 |----------|-------------|
 | `rosz.ErrBuildFailed` | `Build()` failed — FFI returned nil |
+| `rosz.ErrTimeout` | Service call timed out |
+| `rosz.ErrGoalRejected` | Action server rejected the goal |
+| `rosz.ErrResultFailed` | Could not retrieve action result |
+| `rosz.ErrCancelFailed` | Cancellation request failed |
 
 ```go
 if errors.Is(err, rosz.ErrBuildFailed) { /* construction failed */ }
+if errors.Is(err, rosz.ErrTimeout)     { /* no server responded */ }
 ```
 
 Inspect the error code directly when you need fine-grained handling:
@@ -206,7 +323,12 @@ Inspect the error code directly when you need fine-grained handling:
 ```go
 var e rosz.RoszError
 if errors.As(err, &e) {
-    log.Fatalf("FFI error %d: %s", e.Code(), e.Message())
+    switch e.Code() {
+    case rosz.ErrorCodeServiceTimeout:
+        // retry
+    default:
+        log.Fatalf("FFI error %d: %s", e.Code(), e.Message())
+    }
 }
 ```
 
@@ -238,14 +360,26 @@ Logs go to stderr via Go's `log/slog` structured text format. For Zenoh-level tr
 | `publisher/` | Basic publish loop |
 | `subscriber/` | Typed callback subscriber |
 | `subscriber_channel/` | Channel-based, `range`-friendly |
+| `service_server/` | AddTwoInts server |
+| `service_client/` | Synchronous call |
+| `service_client_errors/` | Timeouts, retries, sentinel errors |
+| `action_server/` | Fibonacci server with feedback |
+| `action_client/` | Send goal · monitor feedback · get result |
+| `action_client_errors/` | Rejected goals, cancellation |
+| `production_service/` | Graceful shutdown, circuit breaker, metrics |
 
 ```bash
 just -f crates/ros-z-go/justfile run-example <name>
 ```
+
+See `crates/ros-z-go/examples/production_service/README.md` for the production walkthrough.
 
 ---
 
 ## Further Reading
 
 - **[Pub/Sub](./pubsub.md)** — QoS theory, ROS 2 interop requirements
+- **[Services](./services.md)** — Service concepts
+- **[Actions](./actions.md)** — Action lifecycle
 - **[Message Generation](./message_generation.md)** — Generating types from IDL
+- **[Interop Tests](./go_interop_tests.md)** — Test suite details

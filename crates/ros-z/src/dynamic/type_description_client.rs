@@ -294,8 +294,11 @@ impl TypeDescriptionClient {
 
         if publishers.is_empty() {
             debug!("[TDC] No publishers found initially, waiting for discovery...");
-            for attempt in 1..=5 {
+            let deadline = tokio::time::Instant::now() + timeout;
+            let mut attempt = 0usize;
+            loop {
                 tokio::time::sleep(Duration::from_millis(500)).await;
+                attempt += 1;
                 publishers = graph.get_entities_by_topic(EntityKind::Publisher, topic);
                 debug!(
                     "[TDC] Discovery attempt {}: found {} publishers",
@@ -305,17 +308,16 @@ impl TypeDescriptionClient {
                 if !publishers.is_empty() {
                     break;
                 }
-            }
-
-            if publishers.is_empty() {
-                warn!(
-                    "[TDC] No publishers found for topic {} after retries",
-                    topic
-                );
-                return Err(DynamicError::SchemaNotFound(format!(
-                    "No publishers found for topic: {}",
-                    topic
-                )));
+                if tokio::time::Instant::now() >= deadline {
+                    warn!(
+                        "[TDC] No publishers found for topic {} after retries",
+                        topic
+                    );
+                    return Err(DynamicError::SchemaNotFound(format!(
+                        "No publishers found for topic: {}",
+                        topic
+                    )));
+                }
             }
         }
 
