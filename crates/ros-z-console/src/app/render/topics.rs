@@ -145,10 +145,15 @@ impl App {
                 for (idx, entity) in pub_entities.iter().enumerate() {
                     if let Some(endpoint) = entity_get_endpoint(entity) {
                         detail.push_str(&format!("   Publisher {}:\n", idx + 1));
-                        detail.push_str(&format!(
-                            "    Node: {}/{}\n",
-                            endpoint.node.namespace, endpoint.node.name
-                        ));
+                        match endpoint.node.as_ref() {
+                            Some(node) => {
+                                detail.push_str(&format!(
+                                    "    Node: {}/{}\n",
+                                    node.namespace, node.name
+                                ));
+                            }
+                            None => detail.push_str("    Node: unknown\n"),
+                        }
 
                         if let Some(ti) = &endpoint.type_info {
                             let hash_str = ti.hash.to_rihs_string();
@@ -187,10 +192,15 @@ impl App {
                 for (idx, entity) in sub_entities.iter().enumerate() {
                     if let Some(endpoint) = entity_get_endpoint(entity) {
                         detail.push_str(&format!("   Subscriber {}:\n", idx + 1));
-                        detail.push_str(&format!(
-                            "    Node: {}/{}\n",
-                            endpoint.node.namespace, endpoint.node.name
-                        ));
+                        match endpoint.node.as_ref() {
+                            Some(node) => {
+                                detail.push_str(&format!(
+                                    "    Node: {}/{}\n",
+                                    node.namespace, node.name
+                                ));
+                            }
+                            None => detail.push_str("    Node: unknown\n"),
+                        }
 
                         if let Some(ti) = &endpoint.type_info {
                             let hash_str = ti.hash.to_rihs_string();
