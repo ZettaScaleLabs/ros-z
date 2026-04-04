@@ -5,9 +5,10 @@ on:
     branches: [main]
     paths-ignore:
       - '**.md'
-      - 'book/**'
+      - 'docs/**'
+      - 'mkdocs.yml'
       - '.github/workflows/docs.yml'
-      - '.github/workflows/mdbook-preview.yml'
+      - '.github/workflows/mkdocs-preview.yml'
       - '.github/workflows/test.yml'
       - '.github/workflows/rmw-zenoh-rs.yml'
       - '.github/workflows/semantic-pr.yml'
@@ -17,9 +18,10 @@ on:
     branches: [main]
     paths-ignore:
       - '**.md'
-      - 'book/**'
+      - 'docs/**'
+      - 'mkdocs.yml'
       - '.github/workflows/docs.yml'
-      - '.github/workflows/mdbook-preview.yml'
+      - '.github/workflows/mkdocs-preview.yml'
       - '.github/workflows/test.yml'
       - '.github/workflows/rmw-zenoh-rs.yml'
       - '.github/workflows/semantic-pr.yml'
