@@ -24,7 +24,7 @@ use crate::{
     Builder, ServiceTypeInfo,
     attachment::Attachment,
     context::GlobalCounter,
-    entity::{EndpointEntity, EntityKind, NodeEntity, TypeInfo},
+    entity::{EndpointEntity, EndpointKind, NodeEntity, TypeInfo},
     msg::{SerdeCdrSerdes, ZDeserializer, ZSerializer},
     pubsub::{ZPub, ZPubBuilder},
     qos::{QosDurability, QosHistory, QosProfile, QosReliability},
@@ -284,11 +284,11 @@ impl ParameterService {
         let make_entity =
             |counter: &GlobalCounter, service_name: &str, type_info: TypeInfo| EndpointEntity {
                 id: counter.increment(),
-                node: node_entity.clone(),
-                kind: EntityKind::Service,
+                node: Some(node_entity.clone()),
+                kind: EndpointKind::Service,
                 topic: service_name.to_string(),
                 type_info: Some(type_info),
-                ..Default::default()
+                qos: Default::default(),
             };
 
         let ke_format = ros_z_protocol::KeyExprFormat::default();
@@ -296,8 +296,8 @@ impl ParameterService {
         // ── /parameter_events publisher ───────────────────────────────────────
         let pub_entity = EndpointEntity {
             id: counter.increment(),
-            node: node_entity.clone(),
-            kind: EntityKind::Publisher,
+            node: Some(node_entity.clone()),
+            kind: EndpointKind::Publisher,
             topic: "/parameter_events".to_string(),
             type_info: Some(parameter_event_type_info()),
             qos: {

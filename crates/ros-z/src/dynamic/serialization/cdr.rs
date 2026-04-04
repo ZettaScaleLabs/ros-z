@@ -10,8 +10,8 @@ use zenoh_buffers::ZBuf;
 
 use crate::dynamic::error::DynamicError;
 use crate::dynamic::message::DynamicMessage;
-use crate::dynamic::schema::{FieldType, MessageSchema};
-use crate::dynamic::value::DynamicValue;
+use crate::dynamic::schema::{EnumPayloadSchema, EnumSchema, FieldType, MessageSchema};
+use crate::dynamic::value::{DynamicNamedValue, DynamicValue, EnumPayloadValue, EnumValue};
 
 use super::CDR_HEADER_LE;
 
@@ -86,6 +86,14 @@ fn serialize_value(
         (DynamicValue::Float64(v), FieldType::Float64) => writer.write_f64(*v),
         (DynamicValue::String(v), FieldType::String) => writer.write_string(v),
         (DynamicValue::String(v), FieldType::BoundedString(_)) => writer.write_string(v),
+        (DynamicValue::Optional(None), FieldType::Optional(_)) => writer.write_u32(0),
+        (DynamicValue::Optional(Some(inner)), FieldType::Optional(inner_type)) => {
+            writer.write_u32(1);
+            serialize_value(inner, inner_type, writer)?;
+        }
+        (DynamicValue::Enum(enum_value), FieldType::Enum(schema)) => {
+            serialize_enum_value(enum_value, schema, writer)?;
+        }
 
         // Fixed-size array (no length prefix)
         (DynamicValue::Array(values), FieldType::Array(inner, _len)) => {
@@ -175,6 +183,19 @@ fn deserialize_value(
         FieldType::String | FieldType::BoundedString(_) => Ok(DynamicValue::String(
             reader.read_string().map_err(map_cdr_err)?,
         )),
+        FieldType::Optional(inner) => {
+            let tag = reader.read_u32().map_err(map_cdr_err)?;
+            match tag {
+                0 => Ok(DynamicValue::Optional(None)),
+                1 => Ok(DynamicValue::Optional(Some(Box::new(deserialize_value(
+                    inner, reader,
+                )?)))),
+                other => Err(DynamicError::DeserializationError(format!(
+                    "invalid option discriminant: {other}"
+                ))),
+            }
+        }
+        FieldType::Enum(schema) => Ok(DynamicValue::Enum(deserialize_enum_value(schema, reader)?)),
 
         // Fixed-size array
         FieldType::Array(inner, len) => {
@@ -222,6 +243,131 @@ fn deserialize_value(
             let msg = deserialize_message(schema, reader)?;
             Ok(DynamicValue::Message(Box::new(msg)))
         }
+    }
+}
+
+fn serialize_enum_value(
+    value: &EnumValue,
+    schema: &Arc<EnumSchema>,
+    writer: &mut CdrWriter<LittleEndian>,
+) -> Result<(), DynamicError> {
+    let variant = schema
+        .variants
+        .get(value.variant_index as usize)
+        .ok_or_else(|| {
+            DynamicError::SerializationError(format!(
+                "enum variant index {} is out of bounds for {}",
+                value.variant_index, schema.type_name
+            ))
+        })?;
+
+    if variant.name != value.variant_name {
+        return Err(DynamicError::SerializationError(format!(
+            "enum variant name mismatch for {}: schema={}, value={}",
+            schema.type_name, variant.name, value.variant_name
+        )));
+    }
+
+    writer.write_u32(value.variant_index);
+    serialize_enum_payload(&value.payload, &variant.payload, writer)
+}
+
+fn serialize_enum_payload(
+    payload: &EnumPayloadValue,
+    schema: &EnumPayloadSchema,
+    writer: &mut CdrWriter<LittleEndian>,
+) -> Result<(), DynamicError> {
+    match (payload, schema) {
+        (EnumPayloadValue::Unit, EnumPayloadSchema::Unit) => Ok(()),
+        (EnumPayloadValue::Newtype(value), EnumPayloadSchema::Newtype(field_type)) => {
+            serialize_value(value, field_type, writer)
+        }
+        (EnumPayloadValue::Tuple(values), EnumPayloadSchema::Tuple(field_types)) => {
+            if values.len() != field_types.len() {
+                return Err(DynamicError::SerializationError(format!(
+                    "enum tuple payload length mismatch: expected {}, got {}",
+                    field_types.len(),
+                    values.len()
+                )));
+            }
+
+            for (value, field_type) in values.iter().zip(field_types.iter()) {
+                serialize_value(value, field_type, writer)?;
+            }
+            Ok(())
+        }
+        (EnumPayloadValue::Struct(values), EnumPayloadSchema::Struct(fields)) => {
+            if values.len() != fields.len() {
+                return Err(DynamicError::SerializationError(format!(
+                    "enum struct payload length mismatch: expected {}, got {}",
+                    fields.len(),
+                    values.len()
+                )));
+            }
+
+            for (value, field) in values.iter().zip(fields.iter()) {
+                if value.name != field.name {
+                    return Err(DynamicError::SerializationError(format!(
+                        "enum struct payload field mismatch: expected {}, got {}",
+                        field.name, value.name
+                    )));
+                }
+                serialize_value(&value.value, &field.field_type, writer)?;
+            }
+            Ok(())
+        }
+        _ => Err(DynamicError::SerializationError(format!(
+            "enum payload mismatch: payload={payload:?}, schema={schema:?}"
+        ))),
+    }
+}
+
+fn deserialize_enum_value(
+    schema: &Arc<EnumSchema>,
+    reader: &mut CdrReader<LittleEndian>,
+) -> Result<EnumValue, DynamicError> {
+    let variant_index = reader.read_u32().map_err(map_cdr_err)?;
+    let variant = schema.variants.get(variant_index as usize).ok_or_else(|| {
+        DynamicError::DeserializationError(format!(
+            "enum variant index {} is out of bounds for {}",
+            variant_index, schema.type_name
+        ))
+    })?;
+
+    let payload = deserialize_enum_payload(&variant.payload, reader)?;
+    Ok(EnumValue {
+        variant_index,
+        variant_name: variant.name.clone(),
+        payload,
+    })
+}
+
+fn deserialize_enum_payload(
+    schema: &EnumPayloadSchema,
+    reader: &mut CdrReader<LittleEndian>,
+) -> Result<EnumPayloadValue, DynamicError> {
+    match schema {
+        EnumPayloadSchema::Unit => Ok(EnumPayloadValue::Unit),
+        EnumPayloadSchema::Newtype(field_type) => Ok(EnumPayloadValue::Newtype(Box::new(
+            deserialize_value(field_type, reader)?,
+        ))),
+        EnumPayloadSchema::Tuple(field_types) => Ok(EnumPayloadValue::Tuple(
+            field_types
+                .iter()
+                .map(|field_type| deserialize_value(field_type, reader))
+                .collect::<Result<Vec<_>, _>>()?,
+        )),
+        EnumPayloadSchema::Struct(fields) => Ok(EnumPayloadValue::Struct(
+            fields
+                .iter()
+                .map(|field| {
+                    Ok(DynamicNamedValue {
+                        name: field.name.clone(),
+                        value: deserialize_value(&field.field_type, reader)?,
+                    })
+                })
+                .collect::<Result<Vec<_>, DynamicError>>()?,
+        )),
     }
 }
 

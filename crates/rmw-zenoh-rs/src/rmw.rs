@@ -1271,6 +1271,7 @@ pub extern "C" fn rmw_create_service(
 
     let service_impl = crate::service::ServiceImpl {
         inner: zserver,
+        pending: std::collections::HashMap::new(),
         service_name: service_name_cstr,
         request_ts: service_type_support,
         response_ts: service_type_support,

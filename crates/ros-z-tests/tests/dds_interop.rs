@@ -275,12 +275,7 @@ fn test_ros2_dds_service_server_to_ros_z_client() {
         let req = AddTwoIntsRequest { a: 15, b: 27 };
         println!("Sending request: {} + {}", req.a, req.b);
 
-        client
-            .send_request(&req)
-            .await
-            .expect("Failed to send request");
-
-        match client.take_response_timeout(Duration::from_secs(10)) {
+        match client.call_or_timeout(&req, Duration::from_secs(10)).await {
             Ok(resp) => {
                 println!("Received response: {}", resp.sum);
                 assert_eq!(resp.sum, 42, "Expected 15 + 27 = 42, got {}", resp.sum);
@@ -342,12 +337,16 @@ fn test_ros_z_service_server_to_ros2_dds_client() {
 
             // Handle one request
             match server.async_take_request().await {
-                Ok((key, req)) => {
-                    println!("Received request: {} + {}", req.a, req.b);
-                    let resp = AddTwoIntsResponse { sum: req.a + req.b };
-                    server
-                        .send_response(&resp, &key)
-                        .expect("Failed to send response");
+                Ok(req) => {
+                    println!(
+                        "Received request: {} + {}",
+                        req.message().a,
+                        req.message().b
+                    );
+                    let resp = AddTwoIntsResponse {
+                        sum: req.message().a + req.message().b,
+                    };
+                    req.reply(&resp).await.expect("Failed to send response");
                     println!("Sent response: {}", resp.sum);
                 }
                 Err(e) => {

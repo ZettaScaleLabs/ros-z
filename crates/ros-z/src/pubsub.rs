@@ -102,7 +102,7 @@ impl<T, S> ZPubBuilder<T, S> {
     /// let provider = Arc::new(ShmProviderBuilder::new(20 * 1024 * 1024).build()?);
     /// let config = ShmConfig::new(provider).with_threshold(5_000);
     ///
-    /// let pub = node.create_pub::<ros_z_msgs::std_msgs::String>("topic")
+    /// let publisher = node.create_pub::<ros_z_msgs::std_msgs::String>("topic")
     ///     .with_shm_config(config)
     ///     .build()?;
     /// # Ok(())
@@ -126,7 +126,7 @@ impl<T, S> ZPubBuilder<T, S> {
     /// # let ctx = ros_z::context::ZContextBuilder::default().with_shm_enabled()?.build()?;
     /// # let node = ctx.create_node("test").build()?;
     /// // Context has SHM enabled, but disable for this publisher
-    /// let pub = node.create_pub::<ros_z_msgs::std_msgs::String>("small_messages")
+    /// let publisher = node.create_pub::<ros_z_msgs::std_msgs::String>("small_messages")
     ///     .without_shm()
     ///     .build()?;
     /// # Ok(())
@@ -172,7 +172,7 @@ impl<T, S> ZPubBuilder<T, S> {
     /// # let ctx = ros_z::context::ZContextBuilder::default().build()?;
     /// # let node = ctx.create_node("test").build()?;
     /// // Publish with Protobuf encoding
-    /// let pub = node.create_pub::<ros_z_msgs::geometry_msgs::Point>("/topic")
+    /// let publisher = node.create_pub::<ros_z_msgs::geometry_msgs::Point>("/topic")
     ///     .with_encoding(Encoding::protobuf().with_schema("geometry_msgs/msg/Point"))
     ///     .build()?;
     /// # Ok(())
@@ -199,35 +199,10 @@ impl<T, S> ZPubBuilder<T, S> {
     ///     .build()?;
     /// ```
     pub fn with_dyn_schema(mut self, schema: Arc<crate::dynamic::schema::MessageSchema>) -> Self {
-        use crate::dynamic::MessageSchemaTypeDescription;
-
         // Only compute and set type_info if it hasn't been set already
         // (e.g., from create_dyn_sub_auto which provides the publisher's hash)
         if self.entity.type_info.is_none() {
-            // Compute TypeInfo from schema for proper key expression matching with ROS 2
-            // Convert ROS 2 canonical name to DDS name
-            // "std_msgs/msg/String" → "std_msgs::msg::dds_::String_"
-            let dds_name = schema
-                .type_name
-                .replace("/msg/", "::msg::dds_::")
-                .replace("/srv/", "::srv::dds_::")
-                .replace("/action/", "::action::dds_::")
-                + "_";
-
-            // Convert schema TypeHash to entity TypeHash via RIHS string
-            let type_hash = match schema.compute_type_hash() {
-                Ok(hash) => {
-                    let rihs_string = hash.to_rihs_string();
-                    crate::entity::TypeHash::from_rihs_string(&rihs_string)
-                        .unwrap_or_else(crate::entity::TypeHash::zero)
-                }
-                Err(_) => crate::entity::TypeHash::zero(),
-            };
-
-            self.entity.type_info = Some(crate::entity::TypeInfo {
-                name: dds_name,
-                hash: type_hash,
-            });
+            self.entity.type_info = Some(crate::dynamic::schema_type_info(&schema));
         }
 
         self.dyn_schema = Some(schema);
@@ -248,13 +223,13 @@ where
         qos_durability = ?self.entity.qos.durability
     ))]
     fn build(mut self) -> Result<Self::Output> {
+        let Some(node) = self.entity.node.as_ref() else {
+            return Err(zenoh::Error::from("publisher build requires node identity"));
+        };
         // Qualify the topic name according to ROS 2 rules
-        let qualified_topic = topic_name::qualify_topic_name(
-            &self.entity.topic,
-            &self.entity.node.namespace,
-            &self.entity.node.name,
-        )
-        .map_err(|e| zenoh::Error::from(format!("Failed to qualify topic: {}", e)))?;
+        let qualified_topic =
+            topic_name::qualify_topic_name(&self.entity.topic, &node.namespace, &node.name)
+                .map_err(|e| zenoh::Error::from(format!("Failed to qualify topic: {}", e)))?;
 
         self.entity.topic = qualified_topic.clone();
         debug!("[PUB] Qualified topic: {}", qualified_topic);
@@ -660,35 +635,10 @@ where
     ///     .build()?;
     /// ```
     pub fn with_dyn_schema(mut self, schema: Arc<crate::dynamic::schema::MessageSchema>) -> Self {
-        use crate::dynamic::MessageSchemaTypeDescription;
-
         // Only compute and set type_info if it hasn't been set already
         // (e.g., from create_dyn_sub_auto which provides the publisher's hash)
         if self.entity.type_info.is_none() {
-            // Compute TypeInfo from schema for proper key expression matching with ROS 2
-            // Convert ROS 2 canonical name to DDS name
-            // "std_msgs/msg/String" → "std_msgs::msg::dds_::String_"
-            let dds_name = schema
-                .type_name
-                .replace("/msg/", "::msg::dds_::")
-                .replace("/srv/", "::srv::dds_::")
-                .replace("/action/", "::action::dds_::")
-                + "_";
-
-            // Convert schema TypeHash to entity TypeHash via RIHS string
-            let type_hash = match schema.compute_type_hash() {
-                Ok(hash) => {
-                    let rihs_string = hash.to_rihs_string();
-                    crate::entity::TypeHash::from_rihs_string(&rihs_string)
-                        .unwrap_or_else(crate::entity::TypeHash::zero)
-                }
-                Err(_) => crate::entity::TypeHash::zero(),
-            };
-
-            self.entity.type_info = Some(crate::entity::TypeInfo {
-                name: dds_name,
-                hash: type_hash,
-            });
+            self.entity.type_info = Some(crate::dynamic::schema_type_info(&schema));
         }
 
         self.dyn_schema = Some(schema);
@@ -713,12 +663,14 @@ where
     where
         F: Fn(Sample) + Send + Sync + 'static,
     {
-        let qualified_topic = crate::topic_name::qualify_topic_name(
-            &self.entity.topic,
-            &self.entity.node.namespace,
-            &self.entity.node.name,
-        )
-        .map_err(|e| zenoh::Error::from(format!("Failed to qualify topic: {}", e)))?;
+        let Some(node) = self.entity.node.as_ref() else {
+            return Err(zenoh::Error::from(
+                "subscriber build requires node identity",
+            ));
+        };
+        let qualified_topic =
+            crate::topic_name::qualify_topic_name(&self.entity.topic, &node.namespace, &node.name)
+                .map_err(|e| zenoh::Error::from(format!("Failed to qualify topic: {}", e)))?;
 
         self.entity.topic = qualified_topic.clone();
         debug!("[CACHE] Qualified topic: {}", qualified_topic);
@@ -754,12 +706,14 @@ where
     where
         S: ZDeserializer,
     {
-        let qualified_topic = topic_name::qualify_topic_name(
-            &self.entity.topic,
-            &self.entity.node.namespace,
-            &self.entity.node.name,
-        )
-        .map_err(|e| zenoh::Error::from(format!("Failed to qualify topic: {}", e)))?;
+        let Some(node) = self.entity.node.as_ref() else {
+            return Err(zenoh::Error::from(
+                "subscriber build requires node identity",
+            ));
+        };
+        let qualified_topic =
+            topic_name::qualify_topic_name(&self.entity.topic, &node.namespace, &node.name)
+                .map_err(|e| zenoh::Error::from(format!("Failed to qualify topic: {}", e)))?;
 
         self.entity.topic = qualified_topic.clone();
         debug!("[SUB] Qualified topic: {}", qualified_topic);
@@ -1270,8 +1224,12 @@ mod tests {
     #[test]
     fn test_endpoint_entity_topic_field() {
         let entity = ros_z_protocol::entity::EndpointEntity {
+            id: 0,
+            node: None,
+            kind: ros_z_protocol::entity::EndpointKind::Publisher,
             topic: "/my_topic".to_string(),
-            ..Default::default()
+            type_info: None,
+            qos: Default::default(),
         };
         assert_eq!(entity.topic, "/my_topic");
     }

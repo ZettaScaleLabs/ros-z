@@ -41,6 +41,9 @@ pub enum DynamicError {
     /// Type description service call timed out — no response from the remote node.
     ServiceTimeout { node: String, service: String },
 
+    /// Automatic topic-based schema discovery requires publisher node identity.
+    MissingNodeIdentity { topic: String },
+
     /// Invalid default value for field type
     InvalidDefaultValue { field: String, reason: String },
 
@@ -105,6 +108,13 @@ impl fmt::Display for DynamicError {
                     f,
                     "type description service timed out: no response from node '{}' on service '{}'",
                     node, service
+                )
+            }
+            DynamicError::MissingNodeIdentity { topic } => {
+                write!(
+                    f,
+                    "automatic schema discovery for topic '{}' requires publisher node identity, which is unavailable from this backend/discovery format",
+                    topic
                 )
             }
             DynamicError::InvalidDefaultValue { field, reason } => {

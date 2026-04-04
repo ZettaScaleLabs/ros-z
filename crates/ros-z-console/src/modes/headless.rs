@@ -1,9 +1,12 @@
 use chrono::Utc;
+use ros_z::{
+    Builder,
+    dynamic::{DynSub, MessageSchemaTypeDescription},
+};
 use serde::Serialize;
 use std::{collections::HashMap, time::Duration};
 
 use crate::core::{
-    dynamic_subscriber::DynamicTopicSubscriber,
     engine::CoreEngine,
     message_formatter::{dynamic_message_to_json, format_message_pretty},
 };
@@ -40,7 +43,7 @@ pub async fn run_headless_mode(
     }
 
     // Create dynamic subscribers for echo topics
-    let mut subscribers: HashMap<String, DynamicTopicSubscriber> = HashMap::new();
+    let mut subscribers: HashMap<String, DynSub> = HashMap::new();
 
     if !echo_topics.is_empty() {
         tracing::info!(
@@ -50,28 +53,43 @@ pub async fn run_headless_mode(
 
         for topic in echo_topics {
             match core
-                .create_dynamic_subscriber(&topic, Duration::from_secs(5))
+                .create_dynamic_subscriber_builder(&topic, Duration::from_secs(5))
                 .await
             {
                 Ok(sub) => {
+                    let sub = match sub.build() {
+                        Ok(sub) => sub,
+                        Err(e) => {
+                            eprintln!("Failed to build subscriber for {}: {}", topic, e);
+                            continue;
+                        }
+                    };
+                    let Some(schema) = sub.schema() else {
+                        eprintln!(
+                            "Failed to inspect schema for {}: missing dynamic schema",
+                            topic
+                        );
+                        continue;
+                    };
+                    let type_hash = schema
+                        .compute_type_hash()
+                        .map(|hash| hash.to_rihs_string())
+                        .unwrap_or_else(|_| "unknown".to_string());
                     if json {
                         // Output schema info
                         let schema_info = serde_json::json!({
                             "event": "topic_subscribed",
                             "topic": topic,
-                            "type_name": sub.schema().type_name,
-                            "type_hash": sub.type_hash(),
-                            "fields": sub.schema().field_names().collect::<Vec<_>>(),
+                            "type_name": schema.type_name,
+                            "type_hash": type_hash,
+                            "fields": schema.field_names().collect::<Vec<_>>(),
                         });
                         println!("{}", serde_json::to_string(&schema_info)?);
                     } else {
                         println!("\n=== Subscribed to {} ===", topic);
-                        println!("Type: {}", sub.schema().type_name);
-                        println!("Hash: {}", sub.type_hash());
-                        println!(
-                            "Fields: {:?}",
-                            sub.schema().field_names().collect::<Vec<_>>()
-                        );
+                        println!("Type: {}", schema.type_name);
+                        println!("Hash: {}", type_hash);
+                        println!("Fields: {:?}", schema.field_names().collect::<Vec<_>>());
                         println!();
                     }
                     subscribers.insert(topic.clone(), sub);
@@ -117,20 +135,27 @@ pub async fn run_headless_mode(
                 // Handle echo messages
                 _ = async {
                     for (topic, subscriber) in &subscribers {
-                        if let Ok(Some(msg)) = subscriber.try_recv() {
-                            if json {
-                                let msg_json = serde_json::json!({
-                                    "event": "message_received",
-                                    "topic": topic,
-                                    "type": msg.schema().type_name,
-                                    "data": dynamic_message_to_json(&msg),
-                                });
-                                if let Ok(json_str) = serde_json::to_string(&msg_json) {
-                                    println!("{}", json_str);
+                        if let Some(result) = subscriber.try_recv() {
+                            match result {
+                                Ok(msg) => {
+                                    if json {
+                                        let msg_json = serde_json::json!({
+                                            "event": "message_received",
+                                            "topic": topic,
+                                            "type": msg.schema().type_name,
+                                            "data": dynamic_message_to_json(&msg),
+                                        });
+                                        if let Ok(json_str) = serde_json::to_string(&msg_json) {
+                                            println!("{}", json_str);
+                                        }
+                                    } else {
+                                        println!("\n=== {} ===", topic);
+                                        print!("{}", format_message_pretty(&msg));
+                                    }
                                 }
-                            } else {
-                                println!("\n=== {} ===", topic);
-                                print!("{}", format_message_pretty(&msg));
+                                Err(error) => {
+                                    eprintln!("Failed to receive from {}: {}", topic, error);
+                                }
                             }
                         }
                     }

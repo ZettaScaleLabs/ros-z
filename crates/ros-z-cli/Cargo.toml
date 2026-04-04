@@ -1,0 +1,19 @@
+[package]
+name = "ros-z-cli"
+version = "0.1.0"
+edition = "2024"
+description = "Scriptable command-line companion to ros-z"
+homepage = "https://github.com/ZettaScaleLabs/ros-z"
+
+[[bin]]
+name = "rosz"
+path = "src/main.rs"
+
+[dependencies]
+clap = { workspace = true, features = ["derive"] }
+color-eyre = "0.6"
+ros-z = { path = "../ros-z", features = ["ros2dds"] }
+ros-z-protocol = { path = "../ros-z-protocol", features = ["ros2dds"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
