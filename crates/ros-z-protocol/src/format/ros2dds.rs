@@ -12,7 +12,7 @@ use zenoh::{key_expr::KeyExpr, session::ZenohId, Result};
 
 use crate::{
     entity::{
-        EndpointEntity, Entity, EntityConversionError, EntityKind, LivelinessKE, NodeEntity,
+        EndpointEntity, EndpointKind, Entity, EntityConversionError, LivelinessKE, NodeEntity,
         TopicKE, TypeHash, TypeInfo,
     },
     qos::{QosDurability, QosHistory, QosProfile, QosReliability},
@@ -48,11 +48,10 @@ impl KeyExprFormatter for Ros2DdsFormatter {
     fn liveliness_key_expr(entity: &EndpointEntity, zid: &ZenohId) -> Result<LivelinessKE> {
         // ros2dds format: @/<zenoh_id>/@ros2_lv/<kind>/<escaped_ke>/<type>[/<qos>]
         let kind = match entity.kind {
-            EntityKind::Publisher => "MP",
-            EntityKind::Subscription => "MS",
-            EntityKind::Service => "SS",
-            EntityKind::Client => "SC",
-            EntityKind::Node => "NN", // ros2dds doesn't actually expose node tokens
+            EndpointKind::Publisher => "MP",
+            EndpointKind::Subscription => "MS",
+            EndpointKind::Service => "SS",
+            EndpointKind::Client => "SC",
         };
 
         // Escape slashes in topic name
@@ -72,7 +71,7 @@ impl KeyExprFormatter for Ros2DdsFormatter {
 
         // QoS encoding for pub/sub only
         let qos_str = match entity.kind {
-            EntityKind::Publisher | EntityKind::Subscription => {
+            EndpointKind::Publisher | EndpointKind::Subscription => {
                 format!("/{}", Self::encode_qos(&entity.qos, false))
             }
             _ => String::new(),
@@ -119,13 +118,13 @@ impl KeyExprFormatter for Ros2DdsFormatter {
         // Entity kind
         let kind_str = iter.next().ok_or(MissingEntityKind)?;
         let kind = match kind_str {
-            "MP" => EntityKind::Publisher,
-            "MS" => EntityKind::Subscription,
-            "SS" => EntityKind::Service,
-            "SC" => EntityKind::Client,
+            "MP" => EndpointKind::Publisher,
+            "MS" => EndpointKind::Subscription,
+            "SS" => EndpointKind::Service,
+            "SC" => EndpointKind::Client,
             "AS" | "AC" => {
                 // Action server/client - map to Service for now
-                EntityKind::Service
+                EndpointKind::Service
             }
             _ => return Err(zenoh::Error::from(ParsingError)),
         };
@@ -146,16 +145,6 @@ impl KeyExprFormatter for Ros2DdsFormatter {
             QosProfile::default()
         };
 
-        // Create a placeholder node (ros2dds doesn't include node info in liveliness)
-        let node = NodeEntity {
-            id: 0,
-            domain_id: 0,
-            z_id,
-            name: String::new(),
-            namespace: String::new(),
-            enclave: String::new(),
-        };
-
         let type_info = if type_name.is_empty() || type_name == "unknown" {
             None
         } else {
@@ -165,9 +154,11 @@ impl KeyExprFormatter for Ros2DdsFormatter {
             })
         };
 
+        let _ = z_id;
+
         Ok(Entity::Endpoint(EndpointEntity {
             id: 0,
-            node,
+            node: None,
             kind,
             topic,
             type_info,
@@ -417,8 +408,8 @@ mod tests {
 
         let entity = EndpointEntity {
             id: 1,
-            node,
-            kind: EntityKind::Publisher,
+            node: Some(node),
+            kind: EndpointKind::Publisher,
             topic: "chatter".to_string(),
             type_info: Some(TypeInfo::new("std_msgs/msg/String", TypeHash::zero())),
             qos: QosProfile::default(),
@@ -446,8 +437,8 @@ mod tests {
 
         let entity = EndpointEntity {
             id: 1,
-            node,
-            kind: EntityKind::Publisher,
+            node: Some(node),
+            kind: EndpointKind::Publisher,
             topic: "chatter".to_string(),
             type_info: Some(TypeInfo::new("std_msgs/msg/String", TypeHash::zero())),
             qos: QosProfile::default(),
@@ -505,8 +496,8 @@ mod tests {
 
         let entity = EndpointEntity {
             id: 1,
-            node,
-            kind: EntityKind::Subscription,
+            node: Some(node),
+            kind: EndpointKind::Subscription,
             topic: "chatter".to_string(),
             type_info: Some(TypeInfo::new("std_msgs/msg/String", TypeHash::zero())),
             qos: QosProfile::default(),
@@ -521,6 +512,39 @@ mod tests {
             "Should contain '/MS/' for Subscription, got: {}",
             ke_str
         );
+    }
+
+    #[test]
+    fn test_parse_liveliness_restores_absolute_topic_name() {
+        let zid: zenoh::session::ZenohId = "1234567890abcdef1234567890abcdef".parse().unwrap();
+        let node = NodeEntity::new(
+            0,
+            zid,
+            1,
+            "test_node".to_string(),
+            "/".to_string(),
+            String::new(),
+        );
+
+        let entity = EndpointEntity {
+            id: 1,
+            node: Some(node),
+            kind: EndpointKind::Publisher,
+            topic: "/chatter".to_string(),
+            type_info: Some(TypeInfo::new("std_msgs/msg/String", TypeHash::zero())),
+            qos: QosProfile::default(),
+        };
+
+        let liveliness_ke = Ros2DdsFormatter::liveliness_key_expr(&entity, &zid).unwrap();
+        let parsed = Ros2DdsFormatter::parse_liveliness(&liveliness_ke).unwrap();
+
+        match parsed {
+            Entity::Endpoint(endpoint) => {
+                assert_eq!(endpoint.topic, "/chatter");
+                assert!(endpoint.node.is_none());
+            }
+            other => panic!("expected endpoint entity, got {:?}", other),
+        }
     }
 
     /// Test service server liveliness key expression
@@ -538,8 +562,8 @@ mod tests {
 
         let entity = EndpointEntity {
             id: 1,
-            node,
-            kind: EntityKind::Service,
+            node: Some(node),
+            kind: EndpointKind::Service,
             topic: "add_two_ints".to_string(),
             type_info: Some(TypeInfo::new(
                 "example_interfaces/srv/AddTwoInts",
@@ -585,8 +609,8 @@ mod tests {
 
         let entity = EndpointEntity {
             id: 1,
-            node,
-            kind: EntityKind::Client,
+            node: Some(node),
+            kind: EndpointKind::Client,
             topic: "add_two_ints".to_string(),
             type_info: Some(TypeInfo::new(
                 "example_interfaces/srv/AddTwoInts",

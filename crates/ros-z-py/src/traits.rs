@@ -93,19 +93,17 @@ impl RawSubscriber for GenericSubWrapper {
 
 // -- Generic service wrappers using RawBytesService --
 
-use ros_z::service::{QueryKey, ZClient, ZServer};
+use ros_z::service::{RequestId, ServiceReply, ZClient, ZServer};
 
 /// Type-erased client trait for Python interop
 pub(crate) trait RawClient: Send + Sync {
-    fn send_request_serialized(&self, data: &[u8]) -> Result<()>;
-    fn take_response_serialized(&self, timeout: Option<Duration>) -> Result<Vec<u8>>;
-    fn try_take_response_serialized(&self) -> Result<Option<Vec<u8>>>;
+    fn call_serialized(&self, data: &[u8], timeout: Option<Duration>) -> Result<Vec<u8>>;
 }
 
 /// Type-erased server trait for Python interop
 pub(crate) trait RawServer: Send + Sync {
-    fn take_request_serialized(&self) -> Result<(QueryKey, Vec<u8>)>;
-    fn send_response_serialized(&self, data: &[u8], key: &QueryKey) -> Result<()>;
+    fn take_request_serialized(&self) -> Result<(RequestId, Vec<u8>)>;
+    fn send_response_serialized(&self, data: &[u8], request_id: &RequestId) -> Result<()>;
 }
 
 /// Generic client wrapper using RawBytesService
@@ -120,85 +118,72 @@ impl GenericClientWrapper {
 }
 
 impl RawClient for GenericClientWrapper {
-    fn send_request_serialized(&self, data: &[u8]) -> Result<()> {
+    fn call_serialized(&self, data: &[u8], timeout: Option<Duration>) -> Result<Vec<u8>> {
         let request = RawBytesMessage(data.to_vec());
+        let timeout = timeout.unwrap_or(Duration::from_secs(3600));
 
         let rt = tokio::runtime::Handle::try_current()
             .or_else(|_| tokio::runtime::Runtime::new().map(|rt| rt.handle().clone()))?;
 
-        rt.block_on(async {
+        let response = rt.block_on(async {
             self.inner
-                .send_request(&request)
+                .call_or_timeout(&request, timeout)
                 .await
-                .map_err(|e| anyhow::anyhow!("Failed to send request: {}", e))
-        })
-    }
-
-    fn take_response_serialized(&self, timeout: Option<Duration>) -> Result<Vec<u8>> {
-        let timeout_duration = timeout.unwrap_or(Duration::from_secs(3600));
-        let response = self
-            .inner
-            .take_response_timeout(timeout_duration)
-            .map_err(|e| anyhow::anyhow!("Failed to receive response: {}", e))?;
+                .map_err(|e| anyhow::anyhow!("Failed to call service: {}", e))
+        })?;
 
         Ok(response.0)
-    }
-
-    fn try_take_response_serialized(&self) -> Result<Option<Vec<u8>>> {
-        match self.inner.take_response_timeout(Duration::from_millis(1)) {
-            Ok(response) => Ok(Some(response.0)),
-            Err(e) => {
-                let err_str = e.to_string();
-                if err_str.contains("timeout")
-                    || err_str.contains("Timeout")
-                    || err_str.contains("No sample available")
-                {
-                    Ok(None)
-                } else {
-                    Err(anyhow::anyhow!("Failed to receive response: {}", e))
-                }
-            }
-        }
     }
 }
 
 /// Generic server wrapper using RawBytesService
 pub struct GenericServerWrapper {
     inner: std::sync::Mutex<ZServer<RawBytesService>>,
+    pending: std::sync::Mutex<std::collections::HashMap<RequestId, ServiceReply<RawBytesService>>>,
 }
 
 impl GenericServerWrapper {
     pub fn new(inner: ZServer<RawBytesService>) -> Self {
         Self {
             inner: std::sync::Mutex::new(inner),
+            pending: std::sync::Mutex::new(std::collections::HashMap::new()),
         }
     }
 }
 
 impl RawServer for GenericServerWrapper {
-    fn take_request_serialized(&self) -> Result<(QueryKey, Vec<u8>)> {
+    fn take_request_serialized(&self) -> Result<(RequestId, Vec<u8>)> {
         let mut server = self
             .inner
             .lock()
             .map_err(|e| anyhow::anyhow!("Failed to lock server: {}", e))?;
 
-        let (key, request) = server
+        let request = server
             .take_request()
             .map_err(|e| anyhow::anyhow!("Failed to receive request: {}", e))?;
+        let (request, reply) = request.into_parts();
+        let request_id = reply.id().clone();
 
-        Ok((key, request.0))
+        self.pending
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Failed to lock pending replies: {}", e))?
+            .insert(request_id.clone(), reply);
+
+        Ok((request_id, request.0))
     }
 
-    fn send_response_serialized(&self, data: &[u8], key: &QueryKey) -> Result<()> {
+    fn send_response_serialized(&self, data: &[u8], request_id: &RequestId) -> Result<()> {
         let response = RawBytesMessage(data.to_vec());
 
-        let mut server = self
-            .inner
+        let reply = self
+            .pending
             .lock()
-            .map_err(|e| anyhow::anyhow!("Failed to lock server: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to lock pending replies: {}", e))?
+            .remove(request_id)
+            .ok_or_else(|| anyhow::anyhow!("Unknown request id"))?;
 
-        server
-            .send_response(&response, key)
+        reply
+            .reply_blocking(&response)
             .map_err(|e| anyhow::anyhow!("Failed to send response: {}", e))
     }
 }

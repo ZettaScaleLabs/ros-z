@@ -29,10 +29,6 @@ use std::fmt;
 /// // Protobuf with schema
 /// let proto = Encoding::protobuf()
 ///     .with_schema("geometry_msgs/msg/Vector3");
-///
-/// // FlatBuffers with schema
-/// let fb = Encoding::flatbuffers()
-///     .with_schema("sensor_msgs/msg/Image");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub enum Encoding {

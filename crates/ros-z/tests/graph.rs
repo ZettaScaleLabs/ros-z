@@ -15,7 +15,6 @@ use ros_z::{
     entity::{EntityKind, NodeKey},
 };
 use ros_z_msgs::{example_interfaces::srv::AddTwoInts, std_msgs::String as RosString};
-
 /// Helper to create a test context and node
 async fn setup_test_node(
     node_name: &str,
@@ -74,7 +73,6 @@ async fn wait_for_subscribers(
 #[cfg(test)]
 mod tests {
     use super::*;
-
     /// Tests getting topic names and types from the graph
     #[tokio::test(flavor = "multi_thread")]
     async fn test_get_topic_names_and_types() -> Result<()> {

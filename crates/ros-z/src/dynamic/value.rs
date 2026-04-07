@@ -3,8 +3,10 @@
 //! This module provides the `DynamicValue` enum for representing any ROS 2
 //! value at runtime, along with conversion traits.
 
+use std::sync::Arc;
+
 use super::message::DynamicMessage;
-use super::schema::FieldType;
+use super::schema::{EnumPayloadSchema, EnumSchema, FieldType};
 
 /// Runtime representation of any ROS 2 value.
 #[derive(Clone, Debug, PartialEq)]
@@ -28,9 +30,52 @@ pub enum DynamicValue {
 
     /// Nested message
     Message(Box<DynamicMessage>),
+    /// Optional value encoded with a `u32` presence tag.
+    Optional(Option<Box<DynamicValue>>),
+    /// Tagged enum encoded with a `u32` variant index.
+    Enum(EnumValue),
 
     /// Collections (homogeneous)
     Array(Vec<DynamicValue>),
+}
+
+/// Runtime representation of a serde enum value.
+#[derive(Clone, Debug, PartialEq)]
+pub struct EnumValue {
+    pub variant_index: u32,
+    pub variant_name: String,
+    pub payload: EnumPayloadValue,
+}
+
+impl EnumValue {
+    /// Create a new enum value.
+    pub fn new(
+        variant_index: u32,
+        variant_name: impl Into<String>,
+        payload: EnumPayloadValue,
+    ) -> Self {
+        Self {
+            variant_index,
+            variant_name: variant_name.into(),
+            payload,
+        }
+    }
+}
+
+/// Runtime payload value for a serde enum variant.
+#[derive(Clone, Debug, PartialEq)]
+pub enum EnumPayloadValue {
+    Unit,
+    Newtype(Box<DynamicValue>),
+    Tuple(Vec<DynamicValue>),
+    Struct(Vec<DynamicNamedValue>),
+}
+
+/// Named field value used by struct enum variants.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DynamicNamedValue {
+    pub name: String,
+    pub value: DynamicValue,
 }
 
 /// Macro to generate accessor methods for primitive types.
@@ -93,6 +138,23 @@ impl DynamicValue {
     pub fn as_message_mut(&mut self) -> Option<&mut DynamicMessage> {
         match self {
             DynamicValue::Message(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    /// Try to extract as an optional reference.
+    pub fn as_optional(&self) -> Option<Option<&DynamicValue>> {
+        match self {
+            DynamicValue::Optional(Some(value)) => Some(Some(value.as_ref())),
+            DynamicValue::Optional(None) => Some(None),
+            _ => None,
+        }
+    }
+
+    /// Try to extract as an enum reference.
+    pub fn as_enum(&self) -> Option<&EnumValue> {
+        match self {
+            DynamicValue::Enum(value) => Some(value),
             _ => None,
         }
     }
@@ -210,6 +272,28 @@ impl<T: IntoDynamic> IntoDynamic for Vec<T> {
     }
 }
 
+impl<T: IntoDynamic> IntoDynamic for Option<T> {
+    fn into_dynamic(self) -> DynamicValue {
+        DynamicValue::Optional(self.map(|value| Box::new(value.into_dynamic())))
+    }
+}
+
+impl<T: FromDynamic> FromDynamic for Option<T> {
+    fn from_dynamic(value: &DynamicValue) -> Option<Self> {
+        match value {
+            DynamicValue::Optional(None) => Some(None),
+            DynamicValue::Optional(Some(inner)) => T::from_dynamic(inner.as_ref()).map(Some),
+            _ => None,
+        }
+    }
+}
+
+impl IntoDynamic for EnumValue {
+    fn into_dynamic(self) -> DynamicValue {
+        DynamicValue::Enum(self)
+    }
+}
+
 /// Create the default value for a given field type.
 pub fn default_for_type(field_type: &FieldType) -> DynamicValue {
     match field_type {
@@ -226,9 +310,45 @@ pub fn default_for_type(field_type: &FieldType) -> DynamicValue {
         FieldType::Float64 => DynamicValue::Float64(0.0),
         FieldType::String | FieldType::BoundedString(_) => DynamicValue::String(String::new()),
         FieldType::Message(schema) => DynamicValue::Message(Box::new(DynamicMessage::new(schema))),
+        FieldType::Optional(_) => DynamicValue::Optional(None),
+        FieldType::Enum(schema) => DynamicValue::Enum(default_enum_value(schema)),
         FieldType::Array(inner, len) => DynamicValue::Array(vec![default_for_type(inner); *len]),
         FieldType::Sequence(_) | FieldType::BoundedSequence(_, _) => {
             DynamicValue::Array(Vec::new())
         }
+    }
+}
+
+fn default_enum_value(schema: &Arc<EnumSchema>) -> EnumValue {
+    let variant = schema
+        .variants
+        .first()
+        .expect("enum schemas must have at least one variant");
+
+    EnumValue {
+        variant_index: 0,
+        variant_name: variant.name.clone(),
+        payload: default_enum_payload(&variant.payload),
+    }
+}
+
+fn default_enum_payload(payload: &EnumPayloadSchema) -> EnumPayloadValue {
+    match payload {
+        EnumPayloadSchema::Unit => EnumPayloadValue::Unit,
+        EnumPayloadSchema::Newtype(field_type) => {
+            EnumPayloadValue::Newtype(Box::new(default_for_type(field_type)))
+        }
+        EnumPayloadSchema::Tuple(field_types) => {
+            EnumPayloadValue::Tuple(field_types.iter().map(default_for_type).collect())
+        }
+        EnumPayloadSchema::Struct(fields) => EnumPayloadValue::Struct(
+            fields
+                .iter()
+                .map(|field| DynamicNamedValue {
+                    name: field.name.clone(),
+                    value: default_for_type(&field.field_type),
+                })
+                .collect(),
+        ),
     }
 }
