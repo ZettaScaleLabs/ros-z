@@ -31,30 +31,22 @@ pub fn start_forwarder(
     dst_session: Arc<Session>,
     dst_ke: String,
 ) -> Result<ForwarderHandle> {
-    let publisher = Arc::new(
-        dst_session
-            .declare_publisher(dst_ke.clone())
-            .wait()
-            .map_err(|e| anyhow::anyhow!("declare_publisher {dst_ke}: {e}"))?,
-    );
-
     // Use Arc<str> so the closure captures a reference-counted pointer rather
     // than cloning the full String on every message.
     let src_ke_log: Arc<str> = src_ke.as_str().into();
-    let dst_ke_log: Arc<str> = dst_ke.as_str().into();
+    let dst_ke_arc: Arc<str> = dst_ke.as_str().into();
 
     let sub = src_session
         .declare_subscriber(src_ke.clone())
         .callback({
-            let publisher = publisher.clone();
             move |sample| {
                 let payload: ZBytes = sample.payload().clone();
-                let pub_clone = publisher.clone();
+                let session = dst_session.clone();
+                let ke = dst_ke_arc.clone();
                 let src = src_ke_log.clone();
-                let dst = dst_ke_log.clone();
                 tokio::spawn(async move {
-                    if let Err(e) = pub_clone.put(payload).await {
-                        tracing::warn!("forwarder {src} → {dst}: put failed: {e}");
+                    if let Err(e) = session.put(ke.as_ref(), payload).await {
+                        tracing::warn!("forwarder {src} → {ke}: put failed: {e}");
                     }
                 });
             }

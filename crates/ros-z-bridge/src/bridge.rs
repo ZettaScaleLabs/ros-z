@@ -107,20 +107,8 @@ fn lv_ke_to_humble(raw_ke: &str) -> String {
 }
 
 /// Build a minimal Zenoh config connecting to a single endpoint.
-///
-/// Uses `client` mode so the bridge sessions never attempt peer-to-peer
-/// autoconnect.  In zenoh 1.9.0 the default peer mode eagerly gossip-connects
-/// to every discovered session, including zenoh-c 1.6.x sessions (Humble).
-/// The 1.9.0 interest protocol is not understood by 1.6.x, which causes
-/// subscriber declarations to be silently dropped on the P2P link, so the
-/// Humble publisher never routes its data to the bridge.  Running as a client
-/// forces all traffic through the router, where the version differences are
-/// handled transparently.
 fn build_session_config(endpoint: &str) -> Result<zenoh::Config> {
     let mut config = zenoh::Config::default();
-    config
-        .insert_json5("mode", r#""client""#)
-        .map_err(|e| anyhow::anyhow!("config insert mode: {e}"))?;
     config
         .insert_json5("connect/endpoints", &format!("[\"{endpoint}\"]"))
         .map_err(|e| anyhow::anyhow!("config insert connect/endpoints: {e}"))?;
