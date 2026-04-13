@@ -210,8 +210,8 @@ pub struct ZLifecycleNodeBuilder {
 }
 
 impl ZLifecycleNodeBuilder {
-    pub fn with_namespace<S: Into<String>>(mut self, ns: S) -> Self {
-        self.namespace = Some(ns.into());
+    pub fn with_namespace<S: AsRef<str>>(mut self, ns: S) -> Self {
+        self.namespace = Some(crate::entity::normalize_node_namespace(ns.as_ref()));
         self
     }
 
