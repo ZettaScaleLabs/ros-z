@@ -607,7 +607,11 @@ impl ZContext {
         crate::lifecycle::node::ZLifecycleNodeBuilder {
             ctx: self.clone(),
             name: name.as_ref().to_owned(),
-            namespace: None,
+            namespace: if self.namespace.is_empty() {
+                None
+            } else {
+                Some(self.namespace.clone())
+            },
             enable_communication_interface: true,
         }
     }
