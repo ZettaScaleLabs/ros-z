@@ -13,8 +13,6 @@ pub struct CContext {
 #[repr(C)]
 pub struct CContextConfig {
     pub domain_id: u32,
-    /// Default namespace inherited by nodes created from this context (nullable)
-    pub namespace: *const c_char,
     /// Path to a Zenoh JSON5 config file (nullable)
     pub config_file: *const c_char,
     /// Array of connect endpoint strings (nullable)
@@ -36,6 +34,9 @@ pub struct CContextConfig {
     pub remap_rules_count: usize,
     /// Whether to enable logging
     pub enable_logging: bool,
+    /// Default namespace inherited by nodes created from this context (nullable).
+    /// Added after all pre-existing fields to preserve ABI compatibility.
+    pub namespace: *const c_char,
 }
 
 /// Create a new ros-z context with default config (convenience)
