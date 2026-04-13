@@ -12,6 +12,14 @@ use anyhow::Result;
 use std::sync::Arc;
 use zenoh::{Session, Wait, bytes::ZBytes};
 
+/// Attachment key used to mark bridge-forwarded messages.
+///
+/// When a forwarder puts a message it attaches this marker.  Any forwarder that
+/// sees the marker on an incoming sample drops it immediately, preventing the
+/// two bidirectional forwarders (h2j and j2h) from feeding each other in an
+/// infinite feedback loop via the shared router.
+const BRIDGE_MARKER_KEY: &[u8] = b"_ros_z_bridge";
+
 /// A running pub/sub forwarder for a single topic pair.
 ///
 /// Dropping this handle stops the forwarder (subscriber is dropped).
@@ -25,6 +33,12 @@ pub struct ForwarderHandle {
 ///
 /// The payload bytes are forwarded verbatim (CDR serialisation is identical
 /// between Humble and Jazzy for the same message type).
+///
+/// # Loop prevention
+///
+/// Forwarded messages carry a [`BRIDGE_MARKER_KEY`] attachment.  The subscriber
+/// callback drops any incoming sample that already carries the marker so that
+/// the h2j and j2h forwarders do not feed each other.
 pub fn start_forwarder(
     src_session: Arc<Session>,
     src_ke: String,
@@ -40,13 +54,30 @@ pub fn start_forwarder(
         .declare_subscriber(src_ke.clone())
         .callback({
             move |sample| {
+                // Drop messages that were already forwarded by the bridge to
+                // prevent h2j ↔ j2h feedback loops through the shared router.
+                if sample
+                    .attachment()
+                    .map(|a| a.to_bytes().as_ref() == BRIDGE_MARKER_KEY)
+                    .unwrap_or(false)
+                {
+                    return;
+                }
+
                 let payload: ZBytes = sample.payload().clone();
                 let session = dst_session.clone();
                 let ke = dst_ke_arc.clone();
                 let src = src_ke_log.clone();
+                tracing::debug!("forwarder {src}: received message, forwarding to {ke}");
                 tokio::spawn(async move {
-                    if let Err(e) = session.put(ke.as_ref(), payload).await {
+                    let result = session
+                        .put(ke.as_ref(), payload)
+                        .attachment(BRIDGE_MARKER_KEY)
+                        .await;
+                    if let Err(e) = result {
                         tracing::warn!("forwarder {src} → {ke}: put failed: {e}");
+                    } else {
+                        tracing::debug!("forwarder → {ke}: put ok");
                     }
                 });
             }
