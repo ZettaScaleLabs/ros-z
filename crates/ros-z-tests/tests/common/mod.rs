@@ -180,6 +180,7 @@ pub fn create_ros_z_context_with_endpoint(
     ZContextBuilder::default()
         .disable_multicast_scouting()
         .with_connect_endpoints([endpoint])
+        .with_mode("client")
         .with_logging_enabled()
         .build()
 }
