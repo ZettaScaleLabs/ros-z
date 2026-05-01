@@ -113,7 +113,7 @@ where
         let inner = self
             .session
             .declare_querier(key_expr)
-            .target(zenoh::query::QueryTarget::BestMatching)
+            .target(zenoh::query::QueryTarget::All)
             .consolidation(zenoh::query::ConsolidationMode::None)
             .timeout(Duration::from_secs(10))
             .wait()?;
