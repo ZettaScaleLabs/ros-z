@@ -157,7 +157,7 @@ impl TestRouter {
     #[allow(dead_code)]
     pub fn rmw_zenoh_env(&self) -> String {
         format!(
-            "connect/endpoints=[\"tcp/127.0.0.1:{}\"];scouting/multicast/enabled=false",
+            "mode=\"client\";connect/endpoints=[\"tcp/127.0.0.1:{}\"];scouting/multicast/enabled=false",
             self.port
         )
     }

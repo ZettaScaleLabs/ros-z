@@ -461,7 +461,7 @@ mod tests {
         let k1 = BridgeKey {
             topic: "/chatter".to_string(),
             type_name: "std_msgs::msg::dds_::String_".to_string(),
-            kind: EntityKind::Publisher,
+            kind: EntityKind::Publisher.into(),
         };
         let k2 = k1.clone();
         assert_eq!(k1, k2);
