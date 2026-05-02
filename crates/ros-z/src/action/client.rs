@@ -669,25 +669,12 @@ impl<A: ZAction> GoalHandle<A, goal_state::Active> {
     ///
     /// The result of the action once it completes.
     pub async fn result(mut self) -> Result<A::Result> {
-        // Wait for terminal status with a short timeout. With cross-version
-        // zenoh interop (CLIENT mode vs older PEER), transient_local status
-        // publications may not arrive via the router. The get_result queryable
-        // handles both cases (returns immediately if already terminated, or
-        // blocks until done), so we fall through after 5s if status is absent.
-        if let Some(mut rx) = self.status_rx.take() {
-            let wait = async move {
-                loop {
-                    if rx.borrow_and_update().is_terminal() {
-                        break;
-                    }
-                    if rx.changed().await.is_err() {
-                        tracing::warn!("Status channel closed before terminal state");
-                        break;
-                    }
-                }
-            };
-            let _ = tokio::time::timeout(std::time::Duration::from_secs(5), wait).await;
-        }
+        // Skip status wait — go directly to get_result. The get_result
+        // queryable handles both cases (returns immediately if the goal is
+        // already terminated, or blocks until done). Relying on the status
+        // subscription to gate get_result breaks when the server is on an
+        // older zenoh version where transient_local pub/sub via router is
+        // not reliable (e.g. zenoh-c 1.6.2 PEER pub → zenoh 1.9.0 CLIENT sub).
 
         // Fetch result. The server's get_result handler will either:
         // - Return immediately if the goal is already terminated
