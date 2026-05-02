@@ -239,6 +239,20 @@ impl<'a, A: ZAction> ZActionServerBuilder<'a, A> {
 }
 
 // Legacy result handler to preserve original behavior (using InnerServer)
+fn reply_result<A: ZAction>(query: zenoh::query::Query, result: A::Result, status: GoalStatus) {
+    let response = GetResultResponse::<A> {
+        status: status as i8,
+        result,
+    };
+    let response_bytes = <GetResultResponse<A> as ZMessage>::serialize(&response);
+    let attachment: Attachment = query.attachment().unwrap().try_into().unwrap();
+    let _ = query
+        .reply(query.key_expr().clone(), response_bytes)
+        .attachment(attachment)
+        .wait();
+    tracing::debug!("Sent result response");
+}
+
 async fn handle_result_requests_legacy_inner<A: ZAction>(
     inner: &InnerServer<A>,
     query: zenoh::query::Query,
@@ -253,40 +267,42 @@ async fn handle_result_requests_legacy_inner<A: ZAction>(
         }
     };
 
-    // Look up goal result - extract data while holding lock, then release
-    let result_data = inner.goal_manager.read(|manager| {
+    let goal_id = request.goal_id;
+
+    // Either extract the result immediately (goal already terminated) or register
+    // a oneshot channel so `ExecutingGoal::terminate` can notify us later.
+    let (result_data, maybe_rx) = inner.goal_manager.modify(|manager| {
         if let Some(ServerGoalState::Terminated { result, status, .. }) =
-            manager.goals.get(&request.goal_id)
+            manager.goals.get(&goal_id)
         {
-            Some((result.clone(), *status))
+            (Some((result.clone(), *status)), None)
         } else {
-            None
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            manager.result_futures.entry(goal_id).or_default().push(tx);
+            (None, Some(rx))
         }
-    }); // Lock released here
+    });
 
     if let Some((result, status)) = result_data {
-        tracing::debug!(
-            "Goal {:?} is terminated with status {:?}",
-            request.goal_id,
-            status
-        );
-
-        // Send result response without holding lock
-        let response = GetResultResponse::<A> {
-            status: status as i8,
-            result,
-        };
-        let response_bytes = <GetResultResponse<A> as ZMessage>::serialize(&response);
-        let attachment: Attachment = query.attachment().unwrap().try_into().unwrap();
-        //FIXME: address the result
-        let _ = query
-            .reply(query.key_expr().clone(), response_bytes)
-            .attachment(attachment)
-            .wait();
-        tracing::debug!("Sent result response");
-    } else {
-        tracing::warn!("Goal {:?} not found or not terminated yet", request.goal_id);
-        // Server doesn't reply if goal is not ready yet
+        tracing::debug!("Goal {:?} already terminated ({:?})", goal_id, status);
+        reply_result::<A>(query, result, status);
+    } else if let Some(rx) = maybe_rx {
+        // Goal not yet terminal — spawn a task so the result loop stays responsive.
+        tokio::spawn(async move {
+            match rx.await {
+                Ok((result, status)) => {
+                    tracing::debug!(
+                        "Goal {:?} terminated ({:?}), sending result",
+                        goal_id,
+                        status
+                    );
+                    reply_result::<A>(query, result, status);
+                }
+                Err(_) => {
+                    tracing::warn!("Result future dropped for goal {:?}", goal_id);
+                }
+            }
+        });
     }
 }
 
