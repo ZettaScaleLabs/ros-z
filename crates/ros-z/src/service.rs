@@ -39,6 +39,7 @@ pub struct ZClientBuilder<T> {
     pub(crate) session: Arc<Session>,
     pub(crate) clock: crate::time::ZClock,
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
+    pub(crate) querier_timeout: Duration,
     pub(crate) _phantom_data: PhantomData<T>,
 }
 
@@ -115,7 +116,7 @@ where
             .declare_querier(key_expr)
             .target(zenoh::query::QueryTarget::All)
             .consolidation(zenoh::query::ConsolidationMode::None)
-            .timeout(Duration::from_secs(10))
+            .timeout(self.querier_timeout)
             .wait()?;
         let lv_ke = self
             .keyexpr_format
@@ -331,6 +332,11 @@ impl<T> ZClientBuilder<T> {
     /// Set the QoS profile for this client.
     pub fn with_qos(mut self, qos: crate::qos::QosProfile) -> Self {
         self.entity.qos = qos.to_protocol_qos();
+        self
+    }
+
+    pub(crate) fn with_querier_timeout(mut self, timeout: Duration) -> Self {
+        self.querier_timeout = timeout;
         self
     }
 

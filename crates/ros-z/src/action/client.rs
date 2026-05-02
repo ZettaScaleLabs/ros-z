@@ -181,7 +181,8 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
         );
         let mut result_client_builder = self
             .node
-            .create_client_impl::<ResultService<A>>(&result_service_name, result_type_info);
+            .create_client_impl::<ResultService<A>>(&result_service_name, result_type_info)
+            .with_querier_timeout(std::time::Duration::MAX);
         if let Some(qos) = self.result_service_qos {
             result_client_builder.entity.qos = qos.to_protocol_qos();
         }

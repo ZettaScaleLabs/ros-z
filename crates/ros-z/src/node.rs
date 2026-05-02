@@ -526,6 +526,7 @@ impl ZNode {
             session: self.session.clone(),
             clock: self.clock.clone(),
             keyexpr_format: self.keyexpr_format,
+            querier_timeout: Duration::from_secs(10),
             _phantom_data: Default::default(),
         }
     }
