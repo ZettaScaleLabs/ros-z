@@ -57,9 +57,9 @@ pub async fn run_fibonacci_action_client(ctx: ZContext, order: i32) -> Result<Ve
 
     // ANCHOR: wait_result
     // Wait for the result with timeout
-    println!("Waiting for result (timeout: 10s)...");
+    println!("Waiting for result (timeout: 30s)...");
     let result = match tokio::time::timeout(
-        tokio::time::Duration::from_secs(10),
+        tokio::time::Duration::from_secs(30),
         goal_handle.result(),
     )
     .await

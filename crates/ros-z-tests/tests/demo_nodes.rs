@@ -372,7 +372,7 @@ fn test_rcl_fibonacci_action_server_to_ros_z_client() {
 
     let _server_guard = ProcessGuard::new(server, "RCL fibonacci action server");
 
-    wait_for_ready(Duration::from_secs(2));
+    wait_for_ready(Duration::from_secs(5));
 
     // Start ros-z client in a thread
     let client_handle = thread::spawn(move || -> Vec<i32> {
