@@ -106,6 +106,7 @@ jobs:
         run: |
           source /opt/ros/${{ matrix.distro }}/setup.bash
           export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+          export RUST_LOG=ros_z=debug,zenoh=warn
           FEATURES="${{ matrix.ros_z_feature }}"
           if [ "$FEATURES" = "humble" ]; then
             cargo nextest run -p ros-z-tests --profile interop \
