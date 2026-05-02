@@ -668,7 +668,7 @@ impl<A: ZAction> GoalHandle<A, goal_state::Active> {
     /// # Returns
     ///
     /// The result of the action once it completes.
-    pub async fn result(mut self) -> Result<A::Result> {
+    pub async fn result(self) -> Result<A::Result> {
         // Skip status wait — go directly to get_result. The get_result
         // queryable handles both cases (returns immediately if the goal is
         // already terminated, or blocks until done). Relying on the status
