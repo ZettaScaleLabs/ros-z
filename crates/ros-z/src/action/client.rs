@@ -669,35 +669,32 @@ impl<A: ZAction> GoalHandle<A, goal_state::Active> {
     ///
     /// The result of the action once it completes.
     pub async fn result(mut self) -> Result<A::Result> {
-        // 1. Wait for Terminal Status
+        // Wait for terminal status with a short timeout. With cross-version
+        // zenoh interop (CLIENT mode vs older PEER), transient_local status
+        // publications may not arrive via the router. The get_result queryable
+        // handles both cases (returns immediately if already terminated, or
+        // blocks until done), so we fall through after 5s if status is absent.
         if let Some(mut rx) = self.status_rx.take() {
-            // Wait until status becomes terminal using watch channel properly
-            loop {
-                // Check current status
-                let status = *rx.borrow_and_update();
-
-                if status.is_terminal() {
-                    // Status is already terminal, we're done
-                    break;
+            let wait = async move {
+                loop {
+                    if rx.borrow_and_update().is_terminal() {
+                        break;
+                    }
+                    if rx.changed().await.is_err() {
+                        tracing::warn!("Status channel closed before terminal state");
+                        break;
+                    }
                 }
-
-                // Wait for the next status change
-                // This properly yields to the async runtime instead of busy-waiting
-                if rx.changed().await.is_err() {
-                    tracing::warn!("Status channel closed before reaching terminal state");
-                    break;
-                }
-            }
+            };
+            let _ = tokio::time::timeout(std::time::Duration::from_secs(5), wait).await;
         }
 
-        // 2. Fetch Result
-        // The server's get_result handler will either:
+        // Fetch result. The server's get_result handler will either:
         // - Return immediately if the goal is already terminated
-        // - Register a future and wait for termination
-        // This eliminates the need for the sleep workaround
+        // - Block until termination otherwise
         let res = self.client.get_result(self.id).await;
 
-        // 3. Cleanup Board (Crucial for Memory Safety)
+        // Cleanup Board (Crucial for Memory Safety)
         self.client.goal_board.active_goals.remove(&self.id);
 
         res
