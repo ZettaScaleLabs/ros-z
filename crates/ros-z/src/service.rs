@@ -200,14 +200,24 @@ where
         let rx = self.current_rx_clone();
         match rx.try_recv() {
             Ok(sample) => Ok(sample),
-            Err(flume::TryRecvError::Empty) => Err("No sample available".into()),
-            Err(flume::TryRecvError::Disconnected) => Err("Channel disconnected".into()),
+            // Treat both empty and disconnected as "no response yet".
+            Err(flume::TryRecvError::Empty) | Err(flume::TryRecvError::Disconnected) => {
+                Err("No sample available".into())
+            }
         }
     }
 
     pub fn take_sample_timeout(&self, timeout: Duration) -> Result<Sample> {
         let rx = self.current_rx_clone();
-        Ok(rx.recv_timeout(timeout)?)
+        match rx.recv_timeout(timeout) {
+            Ok(sample) => Ok(sample),
+            // Timeout is the expected "no reply yet" signal for the sync API.
+            // Disconnected means the query was finalized without a reply (no
+            // matching server). Map both to a timeout error so callers that
+            // do timeout-looping see consistent behaviour.
+            Err(flume::RecvTimeoutError::Timeout) => Err("Timeout".into()),
+            Err(flume::RecvTimeoutError::Disconnected) => Err("Timeout".into()),
+        }
     }
 
     /// Retrieve the next response without blocking.
