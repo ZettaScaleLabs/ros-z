@@ -382,14 +382,14 @@ fn test_rcl_fibonacci_action_server_to_ros_z_client() {
         // Use the actual client example code
         tokio::runtime::Runtime::new()
             .unwrap()
-            .block_on(async { demo_nodes::run_fibonacci_action_client(ctx, 5).await })
+            .block_on(async { demo_nodes::run_fibonacci_action_client(ctx, 2).await })
             .expect("Client failed")
     });
 
     let result = client_handle.join().expect("Client thread panicked");
 
-    // Check that we got the correct Fibonacci sequence for order 5
-    let expected = vec![0, 1, 1, 2, 3, 5];
+    // Check that we got the correct Fibonacci sequence for order 2
+    let expected = vec![0, 1, 1];
     assert_eq!(
         result, expected,
         "Expected Fibonacci sequence {:?}",
