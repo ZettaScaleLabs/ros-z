@@ -288,7 +288,9 @@ impl TypeDescriptionClient {
         debug!("[TDC] Discovering type description for topic: {}", topic);
 
         // ── Phase 1: Publisher discovery ─────────────────────────────────────
-        // Retry up to 5 × 500 ms if the graph hasn't seen any publishers yet.
+        // Wait reactively for the full `timeout` duration rather than a fixed
+        // 5 × 500 ms loop, so slow-starting publishers (e.g. rmw_zenoh_cpp) are
+        // not missed when the caller supplies a longer timeout.
         let mut publishers = graph.get_entities_by_topic(EntityKind::Publisher, topic);
         debug!(
             "[TDC] Initial discovery found {} publishers for topic {}",
@@ -297,14 +299,31 @@ impl TypeDescriptionClient {
         );
 
         if publishers.is_empty() {
-            debug!("[TDC] No publishers found initially, waiting for discovery...");
-            for attempt in 1..=5 {
-                tokio::time::sleep(Duration::from_millis(500)).await;
+            debug!(
+                "[TDC] No publishers found initially, waiting up to {:?}...",
+                timeout
+            );
+            let deadline = tokio::time::Instant::now() + timeout;
+            let change_notify = graph.change_notify.clone();
+
+            loop {
+                let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+                if remaining.is_zero() {
+                    break;
+                }
+
+                let notified = change_notify.notified();
+                tokio::pin!(notified);
+
+                // Cap each wait at 500 ms to guard against spurious misses.
+                let wait = remaining.min(Duration::from_millis(500));
+                tokio::time::timeout(wait, &mut notified).await.ok();
+
                 publishers = graph.get_entities_by_topic(EntityKind::Publisher, topic);
                 debug!(
-                    "[TDC] Discovery attempt {}: found {} publishers",
-                    attempt,
-                    publishers.len()
+                    "[TDC] Post-notify discovery: found {} publishers for topic {}",
+                    publishers.len(),
+                    topic
                 );
                 if !publishers.is_empty() {
                     break;
@@ -313,8 +332,8 @@ impl TypeDescriptionClient {
 
             if publishers.is_empty() {
                 warn!(
-                    "[TDC] No publishers found for topic {} after retries",
-                    topic
+                    "[TDC] No publishers found for topic {} after {:?}",
+                    topic, timeout
                 );
                 return Err(DynamicError::SchemaNotFound(format!(
                     "No publishers found for topic: {}",
