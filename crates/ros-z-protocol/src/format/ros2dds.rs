@@ -136,7 +136,7 @@ impl KeyExprFormatter for Ros2DdsFormatter {
 
         // Type name (escaped)
         let type_escaped = iter.next().ok_or(MissingTopicType)?;
-        let type_name = Self::demangle_name(type_escaped);
+        let type_name = Self::normalize_type_name(Self::demangle_name(type_escaped));
 
         // Optional QoS
         let qos = if let Some(qos_str) = iter.next() {

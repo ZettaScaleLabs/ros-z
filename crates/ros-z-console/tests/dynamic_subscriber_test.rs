@@ -1,12 +1,5 @@
-// rmw_zenoh_cpp encodes type names in liveliness tokens using the legacy
-// DDS-style format (e.g. sensor_msgs::msg::dds_::LaserScan_) across all
-// distros. ros-z-console does not yet normalize this format before schema
-// lookup, so dynamic subscription silently fails. These tests are skipped
-// until type name normalization is implemented in the graph layer.
-// See: https://github.com/ZettaScaleLabs/ros-z/issues/172
 #![cfg(feature = "ros-interop")]
 #![cfg(not(ros_humble))]
-#![cfg(any())]
 
 mod common;
 
