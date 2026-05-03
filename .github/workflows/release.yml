@@ -322,6 +322,11 @@ jobs:
     needs: [build-msgs, build-wheels]
     runs-on: ubuntu-latest
     steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: Download ros-z-msgs-py
         uses: actions/download-artifact@v4
         with:
@@ -334,11 +339,15 @@ jobs:
           name: ros-z-py-jazzy-x86_64-unknown-linux-gnu
           path: dist/
 
-      - name: Install wheels
-        run: pip install dist/ros_z_msgs_py-*.whl "dist/ros_z_py-"*0jazzy*.whl
+      - name: Install wheels into venv
+        run: |
+          python -m venv .venv
+          # Install msgs first so it is fully initialized before ros_z_py imports it
+          .venv/bin/pip install dist/ros_z_msgs_py-*.whl
+          .venv/bin/pip install "dist/ros_z_py-"*0jazzy*.whl
 
       - name: Import test
-        run: python -c "import ros_z_py; print('ros_z_py import ok')"
+        run: .venv/bin/python -c "import ros_z_py; print('ros_z_py import ok')"
 
   smoke-test-binaries:
     name: Smoke test binaries
