@@ -62,11 +62,15 @@ use super::schema::MessageSchema;
 /// Normalize DDS type name to ROS 2 canonical format.
 ///
 /// Converts "std_msgs::msg::dds_::String_" to "std_msgs/msg/String"
-fn normalize_type_name(dds_name: &str) -> String {
-    dds_name
-        .replace("::msg::dds_::", "/msg/")
+fn normalize_type_name(name: &str) -> String {
+    // Handle DDS legacy format: sensor_msgs::msg::dds_::LaserScan_ → sensor_msgs/msg/LaserScan
+    // Handle modern format:      sensor_msgs::msg::LaserScan → sensor_msgs/msg/LaserScan
+    name.replace("::msg::dds_::", "/msg/")
         .replace("::srv::dds_::", "/srv/")
         .replace("::action::dds_::", "/action/")
+        .replace("::msg::", "/msg/")
+        .replace("::srv::", "/srv/")
+        .replace("::action::", "/action/")
         .trim_end_matches('_')
         .to_string()
 }
@@ -284,7 +288,9 @@ impl TypeDescriptionClient {
         debug!("[TDC] Discovering type description for topic: {}", topic);
 
         // ── Phase 1: Publisher discovery ─────────────────────────────────────
-        // Retry up to 5 × 500 ms if the graph hasn't seen any publishers yet.
+        // Wait reactively for the full `timeout` duration rather than a fixed
+        // 5 × 500 ms loop, so slow-starting publishers (e.g. rmw_zenoh_cpp) are
+        // not missed when the caller supplies a longer timeout.
         let mut publishers = graph.get_entities_by_topic(EntityKind::Publisher, topic);
         debug!(
             "[TDC] Initial discovery found {} publishers for topic {}",
@@ -293,24 +299,46 @@ impl TypeDescriptionClient {
         );
 
         if publishers.is_empty() {
-            debug!("[TDC] No publishers found initially, waiting for discovery...");
-            for attempt in 1..=5 {
-                tokio::time::sleep(Duration::from_millis(500)).await;
+            debug!(
+                "[TDC] No publishers found initially, waiting up to {:?}...",
+                timeout
+            );
+            let deadline = tokio::time::Instant::now() + timeout;
+            let change_notify = graph.change_notify.clone();
+
+            loop {
+                // Create the notification future and enable it BEFORE checking
+                // the condition so that a notify_waiters() fired between enable()
+                // and the await is not lost (tokio::sync::Notify semantics).
+                let notified = change_notify.notified();
+                tokio::pin!(notified);
+                notified.as_mut().enable();
+
                 publishers = graph.get_entities_by_topic(EntityKind::Publisher, topic);
                 debug!(
-                    "[TDC] Discovery attempt {}: found {} publishers",
-                    attempt,
-                    publishers.len()
+                    "[TDC] Discovery poll: found {} publishers for topic {}",
+                    publishers.len(),
+                    topic
                 );
                 if !publishers.is_empty() {
                     break;
                 }
+
+                let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+                if remaining.is_zero() {
+                    break;
+                }
+
+                // Cap each wait at 500 ms to poll even without a notification
+                // (guards against any edge-case where notify_waiters is missed).
+                let wait = remaining.min(Duration::from_millis(500));
+                tokio::time::timeout(wait, &mut notified).await.ok();
             }
 
             if publishers.is_empty() {
                 warn!(
-                    "[TDC] No publishers found for topic {} after retries",
-                    topic
+                    "[TDC] No publishers found for topic {} after {:?}",
+                    topic, timeout
                 );
                 return Err(DynamicError::SchemaNotFound(format!(
                     "No publishers found for topic: {}",
@@ -335,7 +363,11 @@ impl TypeDescriptionClient {
         let type_info = first_ep.type_info.as_ref().ok_or_else(|| {
             DynamicError::SchemaNotFound(format!("Publisher on {} has no type information", topic))
         })?;
-        let type_name = normalize_type_name(&type_info.name);
+        // Use the raw type name from the liveliness token for the service query.
+        // rmw_zenoh_cpp registers schemas under the DDS name (e.g. pkg::msg::dds_::Foo_)
+        // and must be queried with that name.  The ros-z server normalizes incoming
+        // request names before lookup so it accepts DDS-format queries too.
+        let type_name = type_info.name.clone();
         let type_hash = type_info.hash.to_rihs_string();
 
         debug!(
@@ -412,8 +444,11 @@ impl TypeDescriptionClient {
                     .await
                 {
                     Ok(response) if response.successful => {
-                        let schema = Self::response_to_schema(&response)?;
-                        return Ok((schema, type_hash.clone()));
+                        let mut schema = (*Self::response_to_schema(&response)?).clone();
+                        // Normalize type_name from DDS format to ROS 2 slash format for
+                        // internal use (rmw_zenoh_cpp returns the DDS name in the response).
+                        schema.type_name = normalize_type_name(&schema.type_name);
+                        return Ok((Arc::new(schema), type_hash.clone()));
                     }
                     Ok(response) => {
                         // Definitive service failure (e.g. hash mismatch): no point retrying.

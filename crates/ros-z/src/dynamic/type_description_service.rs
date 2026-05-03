@@ -415,6 +415,22 @@ impl RegisteredSchema {
 /// query for type descriptions by type name.
 ///
 /// The service uses callback mode to handle requests, avoiding the need for
+/// Convert a DDS-format type name to the ROS 2 canonical slash format for schema lookup.
+///
+/// `pkg::msg::dds_::Foo_` → `pkg/msg/Foo`
+/// `pkg::msg::Foo` → `pkg/msg/Foo`
+/// `pkg/msg/Foo` → `pkg/msg/Foo` (unchanged)
+fn normalize_type_name_for_lookup(name: &str) -> String {
+    name.replace("::msg::dds_::", "/msg/")
+        .replace("::srv::dds_::", "/srv/")
+        .replace("::action::dds_::", "/action/")
+        .replace("::msg::", "/msg/")
+        .replace("::srv::", "/srv/")
+        .replace("::action::", "/action/")
+        .trim_end_matches('_')
+        .to_string()
+}
+
 /// a background task that would block on queue.recv().
 #[derive(Clone)]
 pub struct TypeDescriptionService {
@@ -655,7 +671,14 @@ impl TypeDescriptionService {
             }
         };
 
-        let registered = match schemas_guard.get(&request.type_name) {
+        // Normalize the requested type name so queries using the DDS format
+        // (e.g. pkg::msg::dds_::Foo_ from rmw_zenoh_cpp clients) resolve to
+        // the canonical slash format used internally (pkg/msg/Foo).
+        let lookup_name = normalize_type_name_for_lookup(&request.type_name);
+        let registered = match schemas_guard
+            .get(lookup_name.as_str())
+            .or_else(|| schemas_guard.get(request.type_name.as_str()))
+        {
             Some(r) => r,
             None => {
                 debug!("[TDS] Type not found: {}", request.type_name);
