@@ -83,13 +83,16 @@ jobs:
           working-directory: crates/ros-z-py
           manylinux: auto
 
-      - name: Rename wheel to include distro suffix
+      - name: Rename wheel to include distro in package name
         shell: bash
         run: |
+          # Rename ros_z_py-X.Y.Z-... → ros_z_py_{distro}-X.Y.Z-... so the wheel
+          # filename stays valid (PEP 427) and pip can install it directly.
+          # sudo needed: manylinux container builds as root, wheel is root-owned.
           for whl in crates/ros-z-py/dist/*.whl; do
-            base="${whl%.whl}"
-            # sudo needed: manylinux container builds as root, wheel is root-owned
-            sudo mv "$whl" "${base}-${{ matrix.distro }}.whl"
+            dir=$(dirname "$whl")
+            base=$(basename "$whl")
+            sudo mv "$whl" "$dir/${base/ros_z_py-/ros_z_py_${{ matrix.distro }}-}"
           done
 
       - name: Upload artifact
@@ -320,7 +323,7 @@ jobs:
           path: dist/
 
       - name: Install wheels
-        run: pip install dist/ros_z_msgs_py-*.whl "dist/ros_z_py-"*jazzy*.whl
+        run: pip install dist/ros_z_msgs_py-*.whl dist/ros_z_py_jazzy-*.whl
 
       - name: Import test
         run: python -c "import ros_z_py; print('ros_z_py import ok')"
