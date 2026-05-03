@@ -24,13 +24,12 @@ def cleanup-tag [tag: string] {
     ^git tag -d $tag
 
     log-step "Deleting GitHub Release (if created)"
-    let release_id = (
-        ^gh api $"repos/($REPO)/releases" --jq $".[] | select(.tag_name == \"($tag)\") | .id"
-        | str trim
-    )
-    if ($release_id | is-empty) {
+    let releases = (^gh api $"repos/($REPO)/releases" | from json)
+    let matched = ($releases | where tag_name == $tag)
+    if ($matched | is-empty) {
         print "  No GitHub Release found — nothing to delete."
     } else {
+        let release_id = ($matched | first | get id)
         ^gh api -X DELETE $"repos/($REPO)/releases/($release_id)"
         print $"  Deleted release ($release_id)."
     }
@@ -63,7 +62,7 @@ def main [
     ^git push origin $tag
 
     print $"\n  Workflow triggered: https://github.com/($REPO)/actions"
-    print $"  GitHub Release (draft): https://github.com/($REPO)/releases/tag/($tag)\n"
+    print $"  GitHub Release [draft]: https://github.com/($REPO)/releases/tag/($tag)\n"
 
     if $no_wait {
         print "Skipping CI poll (--no-wait). When done, run:"
