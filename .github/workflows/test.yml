@@ -179,7 +179,7 @@ jobs:
           SERVER_PID=$!
           sleep 2
 
-          # Run fibonacci action client (order 5); capture output
+          # Run fibonacci action client; exit 0 = succeeded, 124 = timed out
           set +e
           timeout 30 ros2 run action_tutorials_cpp fibonacci_action_client 2>&1 | tee /tmp/client_out.txt
           CLIENT_EXIT=${PIPESTATUS[0]}
@@ -191,11 +191,13 @@ jobs:
           echo "--- client output ---"
           cat /tmp/client_out.txt
 
-          # Check that the client printed a result (not just feedback)
-          if grep -q "Result received" /tmp/client_out.txt || grep -q "result" /tmp/client_out.txt; then
-            echo "PASS: fibonacci action completed successfully"
+          if [ "$CLIENT_EXIT" -eq 0 ]; then
+            echo "PASS: fibonacci action client exited successfully"
             exit 0
+          elif [ "$CLIENT_EXIT" -eq 124 ]; then
+            echo "FAIL: fibonacci action client timed out (30s)"
+            exit 1
           else
-            echo "FAIL: fibonacci action did not complete (timeout or no result)"
+            echo "FAIL: fibonacci action client exited with code $CLIENT_EXIT"
             exit 1
           fi
