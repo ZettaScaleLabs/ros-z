@@ -118,3 +118,84 @@ jobs:
             cargo nextest run -p ros-z-console \
               --features ros-interop --release
           fi
+
+  # Smoke-test: pure RCL fibonacci action (no ros-z) under rmw_zenoh_cpp.
+  # This isolates whether action get_result failures are a ros-z bug or an
+  # rmw_zenoh_cpp regression. Expected: Jazzy fails (zenoh-c 1.6.2 PR#2205),
+  # Kilted passes. Re-enable the ros-z test once this passes on Jazzy.
+  rcl_fibonacci_smoke:
+    name: RCL fibonacci smoke test (${{ matrix.distro }})
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'push' ||
+      github.event.pull_request.draft == false
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [jazzy, kilted]
+        include:
+          - distro: jazzy
+            image: rostooling/setup-ros-docker:ubuntu-noble-ros-jazzy-ros-base-latest
+          - distro: kilted
+            image: rostooling/setup-ros-docker:ubuntu-noble-ros-kilted-ros-base-latest
+    continue-on-error: ${{ matrix.distro == 'jazzy' }}
+    container:
+      image: ${{ matrix.image }}
+    steps:
+      - name: Cache apt packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-${{ matrix.distro }}-smoke-v1-${{ hashFiles('.github/workflows/test.yml') }}
+
+      - name: Install ROS dependencies
+        run: |
+          apt-get update && apt-get install -y \
+            ros-${{ matrix.distro }}-rmw-zenoh-cpp \
+            ros-${{ matrix.distro }}-action-tutorials-cpp
+
+      - name: Fix broken rmw_zenoh_cpp config for Kilted
+        if: matrix.distro == 'kilted'
+        run: |
+          CONFIG_FILE="/opt/ros/kilted/share/rmw_zenoh_cpp/config/DEFAULT_RMW_ZENOH_SESSION_CONFIG.json5"
+          if grep -q "transport_optimization" "$CONFIG_FILE" 2>/dev/null; then
+            sed -i '/transport_optimization:/,/},$/d' "$CONFIG_FILE"
+          fi
+
+      - name: RCL fibonacci action (server + client, pure rmw_zenoh_cpp)
+        shell: bash
+        timeout-minutes: 2
+        run: |
+          source /opt/ros/${{ matrix.distro }}/setup.bash
+          export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+
+          # Start Zenoh router in background
+          ros2 run rmw_zenoh_cpp rmw_zenohd &
+          ROUTER_PID=$!
+          sleep 2
+
+          # Start fibonacci action server in background
+          ros2 run action_tutorials_cpp fibonacci_action_server &
+          SERVER_PID=$!
+          sleep 2
+
+          # Run fibonacci action client (order 5); capture output
+          set +e
+          timeout 30 ros2 run action_tutorials_cpp fibonacci_action_client 2>&1 | tee /tmp/client_out.txt
+          CLIENT_EXIT=${PIPESTATUS[0]}
+          set -e
+
+          kill $SERVER_PID $ROUTER_PID 2>/dev/null || true
+          wait $SERVER_PID $ROUTER_PID 2>/dev/null || true
+
+          echo "--- client output ---"
+          cat /tmp/client_out.txt
+
+          # Check that the client printed a result (not just feedback)
+          if grep -q "Result received" /tmp/client_out.txt || grep -q "result" /tmp/client_out.txt; then
+            echo "PASS: fibonacci action completed successfully"
+            exit 0
+          else
+            echo "FAIL: fibonacci action did not complete (timeout or no result)"
+            exit 1
+          fi
