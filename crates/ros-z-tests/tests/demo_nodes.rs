@@ -345,12 +345,14 @@ fn test_ros_z_add_two_ints_server_to_rcl_client() {
     println!("Test passed: RCL client called ros-z server");
 }
 
-// ros-jazzy-rmw-zenoh-cpp 0.2.9 ships zenoh-c 1.6.2, which includes a regression
-// (PR eclipse-zenoh/zenoh-c#2205) that prunes the reply face entry on fast goal
-// completion. When get_result arrives afterwards, z_reply() silently drops it.
-// The jazzy branch HEAD fixes this by bumping to zenoh-c 1.8.0, but no 0.2.10
-// apt package exists yet. Kilted (0.6.6) is unaffected.
-// Re-enable once a fixed ros-jazzy-rmw-zenoh-cpp is available on apt.
+// The fibonacci_action_server crashes on Jazzy CI with a Fast-CDR ABI mismatch:
+//   libaction_tutorials_interfaces__rosidl_typesupport_fastrtps_cpp.so:
+//   undefined symbol: _ZN8eprosima7fastcdr3Cdr9serializeEa (exit 127)
+// The server crashes after sending all feedback but before replying to get_result,
+// so our client times out. Root cause: ros-jazzy-action-tutorials-cpp was compiled
+// against a different Fast-CDR version than what the rostooling Docker image ships.
+// This is a CI environment issue, not a ros-z bug. Kilted is unaffected.
+// Re-enable once the Jazzy Docker image ships consistent Fast-CDR packages.
 #[cfg_attr(feature = "jazzy", ignore)]
 #[test]
 fn test_rcl_fibonacci_action_server_to_ros_z_client() {
