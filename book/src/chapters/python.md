@@ -33,14 +33,14 @@ Pick a release version from the [Releases page](https://github.com/ZettaScaleLab
 
 ```bash
 pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/<version>/ros_z_msgs_py-<version>-py3-none-any.whl
-pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/<version>/ros_z_py_jazzy-<version>-cp311-abi3-linux_x86_64.whl
+pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/<version>/ros_z_py-<version>-0jazzy-cp311-abi3-linux_x86_64.whl
 ```
 
 **Humble:**
 
 ```bash
 pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/<version>/ros_z_msgs_py-<version>-py3-none-any.whl
-pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/<version>/ros_z_py_humble-<version>-cp311-abi3-linux_x86_64.whl
+pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/<version>/ros_z_py-<version>-0humble-cp311-abi3-linux_x86_64.whl
 ```
 
 ```admonish tip

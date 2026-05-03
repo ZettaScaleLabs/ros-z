@@ -83,16 +83,22 @@ jobs:
           working-directory: crates/ros-z-py
           manylinux: auto
 
-      - name: Rename wheel to include distro in package name
+      - name: Rename wheel to include distro as build tag
         shell: bash
         run: |
-          # Rename ros_z_py-X.Y.Z-... → ros_z_py_{distro}-X.Y.Z-... so the wheel
-          # filename stays valid (PEP 427) and pip can install it directly.
+          # Insert the distro as the PEP 427 build tag (field 3): 0{distro}
+          # e.g. ros_z_py-0.1.0-cp311-... → ros_z_py-0.1.0-0jazzy-cp311-...
+          # Build tags must start with a digit. The distribution name is unchanged
+          # so pip can match it against the .dist-info directory inside the wheel.
           # sudo needed: manylinux container builds as root, wheel is root-owned.
           for whl in crates/ros-z-py/dist/*.whl; do
             dir=$(dirname "$whl")
-            base=$(basename "$whl")
-            sudo mv "$whl" "$dir/${base/ros_z_py-/ros_z_py_${{ matrix.distro }}-}"
+            base=$(basename "${whl%.whl}")
+            name="${base%%-*}"
+            rest="${base#*-}"
+            version="${rest%%-*}"
+            tags="${rest#*-}"
+            sudo mv "$whl" "$dir/${name}-${version}-0${{ matrix.distro }}-${tags}.whl"
           done
 
       - name: Upload artifact
@@ -323,7 +329,7 @@ jobs:
           path: dist/
 
       - name: Install wheels
-        run: pip install dist/ros_z_msgs_py-*.whl dist/ros_z_py_jazzy-*.whl
+        run: pip install dist/ros_z_msgs_py-*.whl "dist/ros_z_py-"*0jazzy*.whl
 
       - name: Import test
         run: python -c "import ros_z_py; print('ros_z_py import ok')"

@@ -27,13 +27,19 @@ def build-ros-z-py-wheel [distro: string] {
 }
 
 def rename-wheel [distro: string] {
-    log-step $"Rename wheel to include distro in package name: ($distro)"
-    # Only rename wheels that haven't been renamed yet (no distro in the package name)
+    log-step $"Rename wheel: insert distro as build tag (0($distro))"
+    # Only rename wheels that haven't been tagged yet (no 0{distro} build tag present)
     let whl = (ls crates/ros-z-py/dist/*.whl
-        | where { |f| not ($DISTROS | any { |d| ($f.name | str contains $"ros_z_py_($d)") }) }
+        | where { |f| not ($DISTROS | any { |d| ($f.name | str contains $"-0($d)-") }) }
         | get name)
     for w in $whl {
-        let dest = ($w | str replace "ros_z_py-" $"ros_z_py_($distro)-")
+        # ros_z_py-0.1.0-cp311-... → ros_z_py-0.1.0-0jazzy-cp311-...
+        let base = ($w | path basename | str replace --regex '\.whl$' '')
+        let name = ($base | split row '-' | first)
+        let rest = ($base | str replace $"($name)-" '')
+        let version = ($rest | split row '-' | first)
+        let tags = ($rest | str replace $"($version)-" '')
+        let dest = ($w | path dirname) + $"/($name)-($version)-0($distro)-($tags).whl"
         mv $w $dest
         print $"  ($w | path basename) → ($dest | path basename)"
     }
