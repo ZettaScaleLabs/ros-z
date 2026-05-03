@@ -339,7 +339,11 @@ impl TypeDescriptionClient {
         let type_info = first_ep.type_info.as_ref().ok_or_else(|| {
             DynamicError::SchemaNotFound(format!("Publisher on {} has no type information", topic))
         })?;
-        let type_name = normalize_type_name(&type_info.name);
+        // Use the raw type name from the liveliness token for the service query.
+        // rmw_zenoh_cpp registers schemas under the DDS name (e.g. pkg::msg::dds_::Foo_)
+        // and must be queried with that name.  The ros-z server normalizes incoming
+        // request names before lookup so it accepts DDS-format queries too.
+        let type_name = type_info.name.clone();
         let type_hash = type_info.hash.to_rihs_string();
 
         debug!(
@@ -416,8 +420,11 @@ impl TypeDescriptionClient {
                     .await
                 {
                     Ok(response) if response.successful => {
-                        let schema = Self::response_to_schema(&response)?;
-                        return Ok((schema, type_hash.clone()));
+                        let mut schema = (*Self::response_to_schema(&response)?).clone();
+                        // Normalize type_name from DDS format to ROS 2 slash format for
+                        // internal use (rmw_zenoh_cpp returns the DDS name in the response).
+                        schema.type_name = normalize_type_name(&schema.type_name);
+                        return Ok((Arc::new(schema), type_hash.clone()));
                     }
                     Ok(response) => {
                         // Definitive service failure (e.g. hash mismatch): no point retrying.
