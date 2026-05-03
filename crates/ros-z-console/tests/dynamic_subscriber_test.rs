@@ -24,13 +24,24 @@ fn spawn_console_headless(router_endpoint: &str, echo_topics: &[&str]) -> Proces
         args.push(topic);
     }
 
-    let child = Command::new(env!("CARGO_BIN_EXE_ros-z-console"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_ros-z-console"))
         .args(&args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .process_group(0)
         .spawn()
         .expect("Failed to spawn ros-z-console");
+
+    // Drain stderr in a background thread to prevent the pipe buffer from filling up
+    // (which would deadlock the console when it tries to write debug logs).
+    if let Some(stderr) = child.stderr.take() {
+        thread::spawn(move || {
+            use std::io::BufRead;
+            for line in BufReader::new(stderr).lines().flatten() {
+                eprintln!("[ros-z-console] {}", line);
+            }
+        });
+    }
 
     thread::sleep(Duration::from_millis(500));
 

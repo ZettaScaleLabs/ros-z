@@ -115,7 +115,7 @@ jobs:
           else
             cargo nextest run -p ros-z-tests --profile interop \
               --features "ros-interop,$FEATURES" --release
-            cargo nextest run -p ros-z-console \
+            cargo nextest run -p ros-z-console --profile interop \
               --features ros-interop --release \
               -E 'test(dynamic_subscriber)'
           fi
