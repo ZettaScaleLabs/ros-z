@@ -452,7 +452,9 @@ jobs:
         id: venv-cache
         uses: actions/cache@v4
         with:
-          path: crates/ros-z-py/.venv
+          path: |
+            crates/ros-z-py/.venv
+            crates/ros-z-msgs/python/ros_z_msgs_py/types
           key: >-
             ${{ runner.os }}-${{ matrix.distro }}-venv-${{
             hashFiles('Cargo.lock', 'crates/ros-z-py/src/**',
