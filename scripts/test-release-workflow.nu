@@ -72,23 +72,18 @@ def main [
 
     log-step "Waiting for CI... (polling every 60s)"
 
-    # Poll until all checks complete
-    let result = (
-        ^gh run list --repo $REPO --branch $tag --workflow release.yml --json status,conclusion,databaseId
-        | from json
-    )
-
-    # Give GitHub a moment to register the run, then poll via gh run watch
+    # Poll until GitHub registers the new run (filter out any old completed runs)
     mut run_id = ""
     mut attempts = 0
     loop {
         $attempts += 1
-        if $attempts > 10 {
+        if $attempts > 20 {
             error make { msg: "Timed out waiting for workflow run to appear." }
         }
         let runs = (
             ^gh run list --repo $REPO --branch $tag --workflow release.yml --json databaseId,status
             | from json
+            | where status != "completed"
         )
         if not ($runs | is-empty) {
             $run_id = ($runs | first | get databaseId | into string)
