@@ -307,27 +307,32 @@ impl TypeDescriptionClient {
             let change_notify = graph.change_notify.clone();
 
             loop {
-                let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
-                if remaining.is_zero() {
-                    break;
-                }
-
+                // Create the notification future and enable it BEFORE checking
+                // the condition so that a notify_waiters() fired between enable()
+                // and the await is not lost (tokio::sync::Notify semantics).
                 let notified = change_notify.notified();
                 tokio::pin!(notified);
-
-                // Cap each wait at 500 ms to guard against spurious misses.
-                let wait = remaining.min(Duration::from_millis(500));
-                tokio::time::timeout(wait, &mut notified).await.ok();
+                notified.as_mut().enable();
 
                 publishers = graph.get_entities_by_topic(EntityKind::Publisher, topic);
                 debug!(
-                    "[TDC] Post-notify discovery: found {} publishers for topic {}",
+                    "[TDC] Discovery poll: found {} publishers for topic {}",
                     publishers.len(),
                     topic
                 );
                 if !publishers.is_empty() {
                     break;
                 }
+
+                let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+                if remaining.is_zero() {
+                    break;
+                }
+
+                // Cap each wait at 500 ms to poll even without a notification
+                // (guards against any edge-case where notify_waiters is missed).
+                let wait = remaining.min(Duration::from_millis(500));
+                tokio::time::timeout(wait, &mut notified).await.ok();
             }
 
             if publishers.is_empty() {
