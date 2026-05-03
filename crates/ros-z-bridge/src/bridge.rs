@@ -33,6 +33,30 @@ use crate::{
 // BridgedEntry
 // ---------------------------------------------------------------------------
 
+/// Canonical entity kind for deduplication: Publisher and Subscription are treated
+/// as the same "pubsub" endpoint since they use the same bidirectional forwarder pair.
+///
+/// Using the raw `EntityKind` as part of the key would cause two separate forwarder
+/// pairs to be created when both a Publisher and a Subscription are discovered for
+/// the same topic (e.g., a Humble publisher AND a Jazzy subscriber for `/chatter`).
+/// The second pair's subscriber declaration arrives AFTER the 1.6.2 humble talker has
+/// connected, triggering a 1.9.0-style Interest that the 1.6.2 peer doesn't understand.
+/// That can reset the peer's routing state and break delivery.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum CanonicalKind {
+    PubSub,
+    Service,
+}
+
+impl From<EntityKind> for CanonicalKind {
+    fn from(k: EntityKind) -> Self {
+        match k {
+            EntityKind::Publisher | EntityKind::Subscription => CanonicalKind::PubSub,
+            EntityKind::Service | EntityKind::Client | EntityKind::Node => CanonicalKind::Service,
+        }
+    }
+}
+
 /// Key identifying a unique bridged topic/service/action sub-entity.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct BridgeKey {
@@ -40,8 +64,8 @@ struct BridgeKey {
     topic: String,
     /// Fully-qualified ROS type name.
     type_name: String,
-    /// Entity kind.
-    kind: EntityKind,
+    /// Canonical entity kind (Publisher and Subscription share the same key).
+    kind: CanonicalKind,
 }
 
 /// Forwarding handles for a bridged entity — pub/sub pair or service proxy.
@@ -106,15 +130,39 @@ fn lv_ke_to_humble(raw_ke: &str) -> String {
     rewrite_lv_ke(raw_ke, |s| s.starts_with("RIHS01_"), HUMBLE_HASH_SENTINEL)
 }
 
-/// Build a minimal Zenoh config connecting to a single endpoint.
+/// Build a Zenoh CLIENT-mode config for a bridge session connecting to a single endpoint.
+///
+/// CLIENT mode is required to avoid zenoh-c 1.6.x P2P routing breakage with zenoh 1.9.0.
+///
+/// With zenoh 1.9.0 default PEER mode, sessions eagerly gossip-connect to ALL discovered
+/// peers, including zenoh-c 1.6.x nodes.  Two problems arise:
+///
+/// 1. The bridge's peer session sends its 1.9.0 interest declarations over the new P2P link.
+///    zenoh-c 1.6.2 does NOT understand the 1.9.0 interest protocol → silently drops them.
+///    The 1.6.2 node then prefers the (now broken) P2P route over the router route, causing
+///    publications from the humble talker to never reach the bridge's subscriber.
+///
+/// 2. Gossip target restriction alone (`"peer": ["router"]`) is insufficient because
+///    zenoh-c 1.6.2 can initiate a P2P connection TO the bridge's peer sessions.  The
+///    bridge side never refuses incoming P2P connections, so the broken P2P route is
+///    still established.
+///
+/// CLIENT mode completely avoids P2P: clients never form direct peer-to-peer connections.
+/// All traffic goes through the router, where the 1.6.2 ↔ 1.9.0 interest mismatch is
+/// harmless (the router handles interest on behalf of all connected sessions).
 fn build_session_config(endpoint: &str) -> Result<zenoh::Config> {
     let mut config = zenoh::Config::default();
+    // CLIENT mode: never form direct P2P connections, always go through the router.
+    config
+        .insert_json5("mode", "\"client\"")
+        .map_err(|e| anyhow::anyhow!("config insert mode: {e}"))?;
     config
         .insert_json5("connect/endpoints", &format!("[\"{endpoint}\"]"))
         .map_err(|e| anyhow::anyhow!("config insert connect/endpoints: {e}"))?;
+    // Disable multicast — connect to router explicitly.
     config
         .insert_json5("scouting/multicast/enabled", "false")
-        .map_err(|e| anyhow::anyhow!("config insert scouting: {e}"))?;
+        .map_err(|e| anyhow::anyhow!("config insert scouting/multicast: {e}"))?;
     Ok(config)
 }
 
@@ -203,10 +251,17 @@ impl Bridge {
             None => return,
         };
 
+        // Skip Client and Node entities — Clients are handled when their Server is
+        // discovered (creating a single proxy); Nodes carry no type info.
+        match ep.kind {
+            EntityKind::Client | EntityKind::Node => return,
+            _ => {}
+        }
+
         let key = BridgeKey {
             topic: ep.topic.clone(),
             type_name: type_info.name.clone(),
-            kind: ep.kind,
+            kind: CanonicalKind::from(ep.kind),
         };
 
         if event.appeared {
@@ -319,16 +374,13 @@ impl Bridge {
         };
 
         let forwarders = match key.kind {
-            EntityKind::Publisher | EntityKind::Subscription => {
-                self.setup_pubsub_bridge(&humble_ke, &jazzy_ke)
-            }
-            EntityKind::Service => {
+            CanonicalKind::PubSub => self.setup_pubsub_bridge(&humble_ke, &jazzy_ke),
+            CanonicalKind::Service => {
                 // Bridge only when the server is discovered; place the proxy on the
                 // opposite side so clients can reach the server.  Bridging on Client
                 // discovery would create a second proxy causing an infinite query loop.
                 self.setup_service_bridge(&humble_ke, &jazzy_ke, from_distro)
             }
-            EntityKind::Client | EntityKind::Node => return,
         };
 
         match forwarders {
@@ -409,7 +461,7 @@ mod tests {
         let k1 = BridgeKey {
             topic: "/chatter".to_string(),
             type_name: "std_msgs::msg::dds_::String_".to_string(),
-            kind: EntityKind::Publisher,
+            kind: EntityKind::Publisher.into(),
         };
         let k2 = k1.clone();
         assert_eq!(k1, k2);

@@ -122,6 +122,12 @@ impl TestRouter {
             config
                 .insert_json5("scouting/multicast/enabled", "false")
                 .unwrap();
+            // Disable gateway.south so the router doesn't apply the South-region
+            // optimization that sets subscriber_interest_finalized on publisher faces.
+            // With gateway.south:auto (the zenoh 1.9.0 default), the router classifies
+            // all connecting sessions as South and uses client-hat routing which can
+            // suppress routing from zenoh-c 1.6.2 publishers to 1.9.0 client subscribers.
+            let _ = config.insert_json5("gateway/south", "null");
 
             match zenoh::open(config).wait() {
                 Ok(session) => {
@@ -174,6 +180,7 @@ pub fn create_ros_z_context_with_endpoint(
     ZContextBuilder::default()
         .disable_multicast_scouting()
         .with_connect_endpoints([endpoint])
+        .with_mode("client")
         .with_logging_enabled()
         .build()
 }
@@ -746,8 +753,9 @@ mod humble_jazzy {
         let child = Command::new(&bridge_bin)
             .args(["--humble-endpoint", endpoint])
             .args(["--jazzy-endpoint", endpoint])
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+            .env("RUST_LOG", std::env::var("RUST_LOG").unwrap_or_default())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
             .process_group(0)
             .spawn()
             .unwrap_or_else(|e| {

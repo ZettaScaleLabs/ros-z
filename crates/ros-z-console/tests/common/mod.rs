@@ -145,10 +145,10 @@ pub fn spawn_ros2_topic_pub(
         router_port
     );
 
-    let child = Command::new("ros2")
+    let mut child = Command::new("ros2")
         .args(["topic", "pub", topic, msg_type, data])
         .env("RMW_IMPLEMENTATION", "rmw_zenoh_cpp")
-        .env("ZENOH_CONFIG_OVERRIDE", env_override)
+        .env("ZENOH_CONFIG_OVERRIDE", &env_override)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .process_group(0)
@@ -156,6 +156,17 @@ pub fn spawn_ros2_topic_pub(
         .expect("Failed to spawn ros2 topic pub");
 
     thread::sleep(Duration::from_secs(2));
+
+    // Log any stderr output so CI failures are diagnosable
+    if let Some(stderr) = child.stderr.take() {
+        let topic_name = topic.to_string();
+        thread::spawn(move || {
+            use std::io::BufRead;
+            for line in std::io::BufReader::new(stderr).lines().flatten() {
+                eprintln!("[ros2 topic pub {}] {}", topic_name, line);
+            }
+        });
+    }
 
     ProcessGuard::new(child, &format!("ros2_topic_pub_{}", topic))
 }

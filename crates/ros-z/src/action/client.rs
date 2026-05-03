@@ -181,7 +181,8 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
         );
         let mut result_client_builder = self
             .node
-            .create_client_impl::<ResultService<A>>(&result_service_name, result_type_info);
+            .create_client_impl::<ResultService<A>>(&result_service_name, result_type_info)
+            .with_querier_timeout(std::time::Duration::MAX);
         if let Some(qos) = self.result_service_qos {
             result_client_builder.entity.qos = qos.to_protocol_qos();
         }
@@ -445,7 +446,7 @@ impl<A: ZAction> ZActionClient<A> {
         tracing::debug!("Goal request sent, waiting for response...");
 
         // 4. Wait for response
-        let sample = self.goal_client.rx.recv_async().await?;
+        let sample = self.goal_client.async_recv_sample().await?;
         let payload = sample.payload().to_bytes();
         tracing::debug!(
             "Received goal response payload: {} bytes: {:?}",
@@ -477,7 +478,7 @@ impl<A: ZAction> ZActionClient<A> {
         let request = CancelGoalServiceRequest { goal_info };
 
         self.cancel_client.send_request(&request).await?;
-        let sample = self.cancel_client.rx.recv_async().await?;
+        let sample = self.cancel_client.async_recv_sample().await?;
         let payload = sample.payload().to_bytes();
         let response = <CancelGoalServiceResponse as ZMessage>::deserialize(&payload)
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
@@ -494,7 +495,7 @@ impl<A: ZAction> ZActionClient<A> {
         let request = CancelGoalServiceRequest { goal_info };
 
         self.cancel_client.send_request(&request).await?;
-        let sample = self.cancel_client.rx.recv_async().await?;
+        let sample = self.cancel_client.async_recv_sample().await?;
         let payload = sample.payload().to_bytes();
         let response = <CancelGoalServiceResponse as ZMessage>::deserialize(&payload)
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
@@ -524,7 +525,7 @@ impl<A: ZAction> ZActionClient<A> {
         let request = GetResultRequest { goal_id };
 
         self.result_client.send_request(&request).await?;
-        let sample = self.result_client.rx.recv_async().await?;
+        let sample = self.result_client.async_recv_sample().await?;
         let payload = sample.payload().to_bytes();
         let response = <GetResultResponse<A> as ZMessage>::deserialize(&payload)
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
@@ -540,7 +541,7 @@ impl<A: ZAction> ZActionClient<A> {
 
     // FIXME: Check the necessity
     pub async fn recv_goal_response_low(&self) -> Result<SendGoalResponse> {
-        let sample = self.goal_client.rx.recv_async().await?;
+        let sample = self.goal_client.async_recv_sample().await?;
         let payload = sample.payload().to_bytes();
         <SendGoalResponse as ZMessage>::deserialize(&payload)
             .map_err(|e| zenoh::Error::from(e.to_string()))
@@ -553,7 +554,7 @@ impl<A: ZAction> ZActionClient<A> {
 
     // FIXME: Check the necessity
     pub async fn recv_cancel_response_low(&self) -> Result<CancelGoalServiceResponse> {
-        let sample = self.cancel_client.rx.recv_async().await?;
+        let sample = self.cancel_client.async_recv_sample().await?;
         let payload = sample.payload().to_bytes();
         <CancelGoalServiceResponse as ZMessage>::deserialize(&payload)
             .map_err(|e| zenoh::Error::from(e.to_string()))
@@ -566,7 +567,7 @@ impl<A: ZAction> ZActionClient<A> {
 
     // FIXME: Check the necessity
     pub async fn recv_result_response_low(&self) -> Result<GetResultResponse<A>> {
-        let sample = self.result_client.rx.recv_async().await?;
+        let sample = self.result_client.async_recv_sample().await?;
         let payload = sample.payload().to_bytes();
         <GetResultResponse<A> as ZMessage>::deserialize(&payload)
             .map_err(|e| zenoh::Error::from(e.to_string()))
@@ -668,36 +669,20 @@ impl<A: ZAction> GoalHandle<A, goal_state::Active> {
     /// # Returns
     ///
     /// The result of the action once it completes.
-    pub async fn result(mut self) -> Result<A::Result> {
-        // 1. Wait for Terminal Status
-        if let Some(mut rx) = self.status_rx.take() {
-            // Wait until status becomes terminal using watch channel properly
-            loop {
-                // Check current status
-                let status = *rx.borrow_and_update();
+    pub async fn result(self) -> Result<A::Result> {
+        // Skip status wait — go directly to get_result. The get_result
+        // queryable handles both cases (returns immediately if the goal is
+        // already terminated, or blocks until done). Relying on the status
+        // subscription to gate get_result breaks when the server is on an
+        // older zenoh version where transient_local pub/sub via router is
+        // not reliable (e.g. zenoh-c 1.6.2 PEER pub → zenoh 1.9.0 CLIENT sub).
 
-                if status.is_terminal() {
-                    // Status is already terminal, we're done
-                    break;
-                }
-
-                // Wait for the next status change
-                // This properly yields to the async runtime instead of busy-waiting
-                if rx.changed().await.is_err() {
-                    tracing::warn!("Status channel closed before reaching terminal state");
-                    break;
-                }
-            }
-        }
-
-        // 2. Fetch Result
-        // The server's get_result handler will either:
+        // Fetch result. The server's get_result handler will either:
         // - Return immediately if the goal is already terminated
-        // - Register a future and wait for termination
-        // This eliminates the need for the sleep workaround
+        // - Block until termination otherwise
         let res = self.client.get_result(self.id).await;
 
-        // 3. Cleanup Board (Crucial for Memory Safety)
+        // Cleanup Board (Crucial for Memory Safety)
         self.client.goal_board.active_goals.remove(&self.id);
 
         res

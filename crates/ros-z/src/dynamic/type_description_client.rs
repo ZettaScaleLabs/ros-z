@@ -513,6 +513,7 @@ impl TypeDescriptionClient {
             session: self.session.clone(),
             clock: crate::time::ZClock::default(),
             keyexpr_format: ros_z_protocol::KeyExprFormat::default(),
+            querier_timeout: std::time::Duration::from_secs(10),
             _phantom_data: Default::default(),
         };
 

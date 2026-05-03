@@ -39,6 +39,7 @@ pub struct ZClientBuilder<T> {
     pub(crate) session: Arc<Session>,
     pub(crate) clock: crate::time::ZClock,
     pub(crate) keyexpr_format: ros_z_protocol::KeyExprFormat,
+    pub(crate) querier_timeout: Duration,
     pub(crate) _phantom_data: PhantomData<T>,
 }
 
@@ -70,7 +71,18 @@ pub struct ZClient<T: ZService> {
     gid: GidArray,
     inner: zenoh::query::Querier<'static>,
     lv_token: LivelinessToken,
+    // Per-request reply channel. send_request replaces this on each call and
+    // moves the sender into the query callback. When the query is finalized
+    // (ResponseFinal / server session close), the callback is dropped, the
+    // sender is dropped, and recv_async wakes immediately with Disconnected
+    // instead of hanging until a 30-second timeout.
+    depth: usize,
+    current_rx: std::sync::Mutex<flume::Receiver<Sample>>,
+    // Persistent channel used only by the RMW path (rmw_send_request), which
+    // can have multiple in-flight requests and needs a durable queue.
+    #[cfg(feature = "rmw")]
     tx: flume::Sender<Sample>,
+    #[cfg(feature = "rmw")]
     pub(crate) rx: flume::Receiver<Sample>,
     topic: String,
     clock: crate::time::ZClock,
@@ -113,9 +125,9 @@ where
         let inner = self
             .session
             .declare_querier(key_expr)
-            .target(zenoh::query::QueryTarget::AllComplete)
+            .target(zenoh::query::QueryTarget::All)
             .consolidation(zenoh::query::ConsolidationMode::None)
-            .timeout(Duration::from_secs(10))
+            .timeout(self.querier_timeout)
             .wait()?;
         let lv_ke = self
             .keyexpr_format
@@ -130,7 +142,10 @@ where
             ros_z_protocol::qos::QosHistory::KeepLast(n) => n,
             ros_z_protocol::qos::QosHistory::KeepAll => 1000, // Default reasonable limit for KeepAll
         };
-        let (tx, rx) = flume::bounded(depth);
+        // Initial dummy receiver: no sender, so recv before send_request returns Disconnected.
+        let (_, init_rx) = flume::bounded::<Sample>(depth);
+        #[cfg(feature = "rmw")]
+        let (rmw_tx, rmw_rx) = flume::bounded::<Sample>(depth);
         debug!("[CLN] Client ready: service={}", self.entity.topic);
 
         Ok(ZClient {
@@ -138,8 +153,12 @@ where
             inner,
             lv_token,
             gid: crate::entity::endpoint_gid(&self.entity),
-            tx,
-            rx,
+            depth,
+            current_rx: std::sync::Mutex::new(init_rx),
+            #[cfg(feature = "rmw")]
+            tx: rmw_tx,
+            #[cfg(feature = "rmw")]
+            rx: rmw_rx,
             topic: self.entity.topic.clone(),
             clock: self.clock,
             _phantom_data: Default::default(),
@@ -159,21 +178,46 @@ where
         )
     }
 
-    /// Access the raw response receiver channel.
+    /// Access the raw response receiver channel (RMW path only).
+    #[cfg(feature = "rmw")]
     pub fn rx(&self) -> &flume::Receiver<Sample> {
         &self.rx
     }
 
+    /// Clone the current per-request receiver. Cheap: clones only the Arc handle.
+    fn current_rx_clone(&self) -> flume::Receiver<Sample> {
+        self.current_rx.lock().unwrap().clone()
+    }
+
+    /// Async receive on the current per-request channel.
+    /// Returns `Err` if the query was finalized without a reply (server closed).
+    pub(crate) async fn async_recv_sample(&self) -> Result<Sample> {
+        let rx = self.current_rx_clone();
+        Ok(rx.recv_async().await?)
+    }
+
     pub fn take_sample(&self) -> Result<Sample> {
-        match self.rx.try_recv() {
+        let rx = self.current_rx_clone();
+        match rx.try_recv() {
             Ok(sample) => Ok(sample),
-            Err(flume::TryRecvError::Empty) => Err("No sample available".into()),
-            Err(flume::TryRecvError::Disconnected) => Err("Channel disconnected".into()),
+            // Treat both empty and disconnected as "no response yet".
+            Err(flume::TryRecvError::Empty) | Err(flume::TryRecvError::Disconnected) => {
+                Err("No sample available".into())
+            }
         }
     }
 
     pub fn take_sample_timeout(&self, timeout: Duration) -> Result<Sample> {
-        Ok(self.rx.recv_timeout(timeout)?)
+        let rx = self.current_rx_clone();
+        match rx.recv_timeout(timeout) {
+            Ok(sample) => Ok(sample),
+            // Timeout is the expected "no reply yet" signal for the sync API.
+            // Disconnected means the query was finalized without a reply (no
+            // matching server). Map both to a timeout error so callers that
+            // do timeout-looping see consistent behaviour.
+            Err(flume::RecvTimeoutError::Timeout) => Err("Timeout".into()),
+            Err(flume::RecvTimeoutError::Disconnected) => Err("Timeout".into()),
+        }
     }
 
     /// Retrieve the next response without blocking.
@@ -217,7 +261,7 @@ where
         for<'a> <T::Response as ZMessage>::Serdes:
             ZDeserializer<Output = T::Response, Input<'a> = &'a [u8]>,
     {
-        let sample = self.rx.recv_async().await?;
+        let sample = self.async_recv_sample().await?;
         let payload_bytes = sample.payload().to_bytes();
         let msg = <T::Response as ZMessage>::deserialize(&payload_bytes[..])
             .map_err(|e| zenoh::Error::from(e.to_string()))?;
@@ -252,7 +296,14 @@ where
         info!("[CLN] Sending request to key expression: {}", query_ke);
         debug!("[CLN] Sending request");
 
-        let tx = self.tx.clone();
+        // Create a per-request channel. The sender is moved into the callback
+        // closure and is the ONLY sender. When the query is finalized
+        // (ResponseFinal on server close), the closure is dropped, the sender
+        // drops, and async_recv_sample wakes with Disconnected instead of
+        // hanging until the client-side 30-second timeout.
+        let (tx, rx) = flume::bounded::<Sample>(self.depth);
+        *self.current_rx.lock().unwrap() = rx;
+
         self.inner
             .get()
             .payload(payload)
@@ -266,7 +317,6 @@ where
                             sample.kind()
                         );
                         debug!("[CLN] Reply received: len={}", sample.payload().len());
-                        // Use try_send for bounded channel - if full, drop the response (QoS depth enforcement)
                         if tx.try_send(sample).is_err() {
                             tracing::warn!(
                                 "Client response queue full, dropping response (QoS depth enforced)"
@@ -275,8 +325,11 @@ where
                     }
                     Err(e) => {
                         warn!("[CLN] Reply error: {:?}", e);
+                        // tx is dropped when the closure is eventually dropped,
+                        // closing the channel and waking async_recv_sample.
                     }
                 }
+                // tx lives until the closure is dropped (query finalized).
             })
             .await?;
 
@@ -331,6 +384,11 @@ impl<T> ZClientBuilder<T> {
     /// Set the QoS profile for this client.
     pub fn with_qos(mut self, qos: crate::qos::QosProfile) -> Self {
         self.entity.qos = qos.to_protocol_qos();
+        self
+    }
+
+    pub(crate) fn with_querier_timeout(mut self, timeout: Duration) -> Self {
+        self.querier_timeout = timeout;
         self
     }
 
