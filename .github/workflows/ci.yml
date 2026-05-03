@@ -469,6 +469,9 @@ jobs:
           nu scripts/test-python.nu --distro ${{ matrix.distro }} setup-venv
 
       - name: Build native extension
+        if: >-
+          steps.venv-cache.outputs.cache-hit != 'true' ||
+          !hashFiles('crates/ros-z-py/.venv/lib/**/ros_z_py/_native*.so')
         run: |
           source /tmp/nix-dev-env.sh
           cd crates/ros-z-py && source .venv/bin/activate && maturin develop
