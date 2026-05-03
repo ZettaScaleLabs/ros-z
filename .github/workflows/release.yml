@@ -165,15 +165,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Ensure Rust is installed (macOS)
-        if: matrix.os == 'macos-latest'
-        shell: bash
-        run: |
-          if ! command -v cargo &>/dev/null; then
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-              | sh -s -- -y --no-modify-path
-          fi
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install Rust target (Linux cross-compile only)
         if: matrix.target == 'aarch64-unknown-linux-gnu'
@@ -182,8 +175,12 @@ jobs:
       - name: Install cross-compile tools (aarch64 Linux)
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
-          cargo install cargo-zigbuild
           pip install ziglang
+      - name: Install cargo-zigbuild (aarch64 Linux)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-zigbuild
 
       - name: Build binary (aarch64 Linux via zigbuild)
         if: matrix.target == 'aarch64-unknown-linux-gnu'
@@ -246,15 +243,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Ensure Rust is installed (macOS)
-        if: matrix.os == 'macos-latest'
-        shell: bash
-        run: |
-          if ! command -v cargo &>/dev/null; then
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-              | sh -s -- -y --no-modify-path
-          fi
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install Rust target (Linux cross-compile only)
         if: matrix.target == 'aarch64-unknown-linux-gnu' && matrix.os == 'ubuntu-latest'
@@ -263,8 +253,12 @@ jobs:
       - name: Install cross-compile tools (aarch64 Linux)
         if: matrix.target == 'aarch64-unknown-linux-gnu' && matrix.os == 'ubuntu-latest'
         run: |
-          cargo install cargo-zigbuild
           pip install ziglang
+      - name: Install cargo-zigbuild (aarch64 Linux)
+        if: matrix.target == 'aarch64-unknown-linux-gnu' && matrix.os == 'ubuntu-latest'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-zigbuild
 
       - name: Build libros_z (native)
         if: matrix.target != 'aarch64-unknown-linux-gnu' || matrix.os != 'ubuntu-latest'
@@ -300,7 +294,7 @@ jobs:
           if [ -f "$src/libros_z.so" ]; then
             cp "$src/libros_z.so" "go-dist/${name}.so"
           fi
-          cp crates/ros-z-go/rosz/ros_z_ffi.h "go-dist/ros_z_ffi.h" 2>/dev/null || true
+          cp crates/ros-z-go/rosz/ros_z_ffi.h "go-dist/ros_z_ffi.h"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

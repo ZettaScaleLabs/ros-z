@@ -27,21 +27,20 @@ graph TD
 Pre-built wheels are available for Linux (x86_64, aarch64) and macOS (aarch64),
 Python 3.11+. No Rust toolchain required.
 
-Replace `v0.1.0` with the desired release version from the
-[Releases page](https://github.com/ZettaScaleLabs/ros-z/releases).
+Pick a release version from the [Releases page](https://github.com/ZettaScaleLabs/ros-z/releases) and substitute `<version>` below (e.g. `v0.2.0`).
 
 **Jazzy / Kilted / Rolling:**
 
 ```bash
-pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/v0.1.0/ros_z_msgs_py-0.1.0-py3-none-any.whl
-pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/v0.1.0/ros_z_py-0.1.0-cp311-abi3-linux_x86_64-jazzy.whl
+pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/<version>/ros_z_msgs_py-<version>-py3-none-any.whl
+pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/<version>/ros_z_py-<version>-cp311-abi3-linux_x86_64-jazzy.whl
 ```
 
 **Humble:**
 
 ```bash
-pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/v0.1.0/ros_z_msgs_py-0.1.0-py3-none-any.whl
-pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/v0.1.0/ros_z_py-0.1.0-cp311-abi3-linux_x86_64-humble.whl
+pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/<version>/ros_z_msgs_py-<version>-py3-none-any.whl
+pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/<version>/ros_z_py-<version>-cp311-abi3-linux_x86_64-humble.whl
 ```
 
 ```admonish tip
