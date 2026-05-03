@@ -50,7 +50,7 @@ pub async fn run_headless_mode(
 
         for topic in echo_topics {
             match core
-                .create_dynamic_subscriber(&topic, Duration::from_secs(20))
+                .create_dynamic_subscriber(&topic, Duration::from_secs(5))
                 .await
             {
                 Ok(sub) => {
