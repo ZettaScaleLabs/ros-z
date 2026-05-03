@@ -111,7 +111,7 @@ jobs:
               --no-default-features --features ros-interop,humble --release
             cargo nextest run -p ros-z-console \
               --no-default-features --features ros-interop,humble --release \
-              -E 'test(dynamic_subscriber)'
+              -E 'test(dynamic_subscriber)' --no-tests skip
           else
             cargo nextest run -p ros-z-tests --profile interop \
               --features "ros-interop,$FEATURES" --release

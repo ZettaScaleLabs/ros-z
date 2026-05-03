@@ -44,10 +44,14 @@ impl CoreEngine {
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let backend = backend.into();
 
-        // Initialize Zenoh session in peer mode (doesn't require immediate router connection)
+        // Initialize Zenoh session in client mode connected to the given router.
+        // Client mode is required for correct liveliness propagation with rmw_zenoh_cpp
+        // publishers: peer mode with multicast scouting does not reliably see liveliness
+        // tokens from rmw_zenoh_cpp nodes connected to the same router.
         let mut config = zenoh::Config::default();
-        config.insert_json5("mode", "\"peer\"")?;
+        config.insert_json5("mode", "\"client\"")?;
         config.insert_json5("connect/endpoints", &format!("[\"{}\"]", router_addr))?;
+        config.insert_json5("scouting/multicast/enabled", "false")?;
 
         let session = zenoh::open(config.clone())
             .await
