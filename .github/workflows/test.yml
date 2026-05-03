@@ -135,9 +135,9 @@ jobs:
         distro: [jazzy, kilted]
         include:
           - distro: jazzy
-            image: osrf/ros:jazzy-ros-base
+            image: rostooling/setup-ros-docker:ubuntu-noble-ros-jazzy-ros-base-latest
           - distro: kilted
-            image: osrf/ros:kilted-ros-base
+            image: rostooling/setup-ros-docker:ubuntu-noble-ros-kilted-ros-base-latest
     continue-on-error: ${{ matrix.distro == 'jazzy' }}
     container:
       image: ${{ matrix.image }}
