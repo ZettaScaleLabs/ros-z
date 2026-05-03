@@ -353,6 +353,14 @@ jobs:
           nu scripts/test-pure-rust.nu check-distro-features
         shell: bash
 
+      - name: Clippy (ros-z-py)
+        run: |
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            source /tmp/nix-dev-env.sh
+          fi
+          nu scripts/test-pure-rust.nu clippy-ros-z-py
+        shell: bash
+
   go-tests:
     name: Go Tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -463,11 +471,6 @@ jobs:
         run: |
           source /tmp/nix-dev-env.sh
           cd crates/ros-z-py && source .venv/bin/activate && maturin develop
-
-      - name: Clippy (ros-z-py)
-        run: |
-          source /tmp/nix-dev-env.sh
-          nu scripts/test-python.nu --distro ${{ matrix.distro }} clippy
 
       - name: Ruff linting
         run: |
