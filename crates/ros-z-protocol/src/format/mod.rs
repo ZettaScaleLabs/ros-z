@@ -233,20 +233,6 @@ pub trait KeyExprFormatter {
         name.replace(Self::ESCAPE_CHAR, "/")
     }
 
-    /// Normalize a type name from a liveliness token, stripping legacy DDS wrapper.
-    ///
-    /// `A::B::dds_::Foo_` → `A::B::Foo`
-    /// `A::B::Foo` → `A::B::Foo` (unchanged)
-    fn normalize_type_name(name: String) -> String {
-        if let Some(idx) = name.find("::dds_::") {
-            let prefix = &name[..idx];
-            let suffix = &name[idx + "::dds_::".len()..];
-            let suffix = suffix.strip_suffix('_').unwrap_or(suffix);
-            return format!("{}::{}", prefix, suffix);
-        }
-        name
-    }
-
     /// Encode QoS for liveliness token.
     fn encode_qos(qos: &QosProfile, keyless: bool) -> String;
 

@@ -209,7 +209,7 @@ impl KeyExprFormatter for RmwZenohFormatter {
                         let type_hash = TypeHash::from_rihs_string(topic_hash)
                             .unwrap_or(TypeHash::new(0, [0u8; 32]));
                         Some(TypeInfo {
-                            name: Self::normalize_type_name(Self::demangle_name(topic_type)),
+                            name: Self::demangle_name(topic_type),
                             hash: type_hash,
                         })
                     }
@@ -246,26 +246,6 @@ mod tests {
     use super::*;
     use crate::entity::{EndpointEntity, EntityKind, NodeEntity, TypeInfo};
     use crate::qos::{QosDurability, QosHistory, QosProfile, QosReliability};
-
-    #[test]
-    fn test_normalize_type_name() {
-        // DDS-style names are stripped
-        assert_eq!(
-            RmwZenohFormatter::normalize_type_name("sensor_msgs::msg::dds_::LaserScan_".into()),
-            "sensor_msgs::msg::LaserScan"
-        );
-        assert_eq!(
-            RmwZenohFormatter::normalize_type_name(
-                "rcl_interfaces::msg::dds_::ParameterEvent_".into()
-            ),
-            "rcl_interfaces::msg::ParameterEvent"
-        );
-        // Modern names pass through unchanged
-        assert_eq!(
-            RmwZenohFormatter::normalize_type_name("sensor_msgs::msg::LaserScan".into()),
-            "sensor_msgs::msg::LaserScan"
-        );
-    }
 
     #[test]
     fn test_mangle_demangle() {
@@ -1217,7 +1197,7 @@ mod tests {
             assert_eq!(parsed_entity.topic, "/my/service");
             assert_eq!(
                 parsed_entity.type_info.as_ref().unwrap().name,
-                "example_interfaces::srv::AddTwoInts"
+                "example_interfaces::srv::dds_::AddTwoInts_"
             );
         } else {
             panic!("Expected Endpoint entity");

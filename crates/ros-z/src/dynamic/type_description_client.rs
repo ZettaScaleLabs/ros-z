@@ -62,11 +62,15 @@ use super::schema::MessageSchema;
 /// Normalize DDS type name to ROS 2 canonical format.
 ///
 /// Converts "std_msgs::msg::dds_::String_" to "std_msgs/msg/String"
-fn normalize_type_name(dds_name: &str) -> String {
-    dds_name
-        .replace("::msg::dds_::", "/msg/")
+fn normalize_type_name(name: &str) -> String {
+    // Handle DDS legacy format: sensor_msgs::msg::dds_::LaserScan_ → sensor_msgs/msg/LaserScan
+    // Handle modern format:      sensor_msgs::msg::LaserScan → sensor_msgs/msg/LaserScan
+    name.replace("::msg::dds_::", "/msg/")
         .replace("::srv::dds_::", "/srv/")
         .replace("::action::dds_::", "/action/")
+        .replace("::msg::", "/msg/")
+        .replace("::srv::", "/srv/")
+        .replace("::action::", "/action/")
         .trim_end_matches('_')
         .to_string()
 }
