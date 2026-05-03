@@ -339,6 +339,85 @@ fn test_expected_hash_set_parameters_atomically() {
     );
 }
 
+// --- generate_user_messages regression (issue #168) ---
+//
+// `generate_user_messages` is the public API used by user crates from build.rs.
+// Before issue #168 was fixed, it computed wrong hashes for user messages that
+// referenced bundled types like `std_msgs/Header`, because the resolver had no
+// access to those bundled type descriptions. Now `generate_user_messages` loads
+// the bundled assets shipped with `ros-z-codegen` automatically, so user
+// messages get the canonical RIHS01 hash without callers having to manually
+// add bundled package paths to `ROS_Z_MSG_PATH`.
+
+mod issue_168 {
+    use std::fs;
+
+    use ros_z_codegen::generate_user_messages;
+    use serial_test::serial;
+
+    /// Canonical hash for `test_messages/msg/MsgWithHeader` defined as
+    /// `std_msgs/Header header` + `float64 member_1`, computed by
+    /// `rosidl_generator_type_description`.
+    const EXPECTED_MSG_WITH_HEADER_HASH: &str =
+        "RIHS01_0be811aef59cf675e4afdd9dca7f4e5d70fc4a8dee741e2e8ada6003e46a966c";
+
+    fn set_env(k: &str, v: &str) {
+        // SAFETY: tests are #[serial] to prevent data races on env vars.
+        unsafe { std::env::set_var(k, v) };
+    }
+
+    fn remove_env(k: &str) {
+        unsafe { std::env::remove_var(k) };
+    }
+
+    #[test]
+    #[serial]
+    fn generate_user_messages_msg_with_header_matches_canonical_hash() {
+        let temp = tempfile::tempdir().unwrap();
+        let pkg = temp.path().join("test_messages");
+        let msg_dir = pkg.join("msg");
+        fs::create_dir_all(&msg_dir).unwrap();
+        fs::write(
+            msg_dir.join("MsgWithHeader.msg"),
+            "std_msgs/Header header\nfloat64 member_1\n",
+        )
+        .unwrap();
+
+        let out = temp.path().join("out");
+        fs::create_dir_all(&out).unwrap();
+
+        // ROS_Z_MSG_PATH points only at the user package — the bundled
+        // `std_msgs` and `builtin_interfaces` paths must be picked up
+        // automatically by `generate_user_messages`.
+        set_env("ROS_Z_MSG_PATH", pkg.to_str().unwrap());
+        let result = generate_user_messages(&out, false);
+        remove_env("ROS_Z_MSG_PATH");
+        assert!(result.is_ok(), "generate_user_messages failed: {result:?}");
+
+        let generated = fs::read_to_string(out.join("generated.rs")).unwrap();
+        assert!(
+            generated.contains(EXPECTED_MSG_WITH_HEADER_HASH),
+            "Generated code did not contain expected hash {EXPECTED_MSG_WITH_HEADER_HASH}.\n\
+             Full generated code:\n{generated}"
+        );
+
+        // Bundled types must NOT be re-emitted as user code — they come from
+        // the `ros_z_msgs` crate.
+        assert!(
+            !generated.contains("pub struct Header"),
+            "Generated code unexpectedly contains bundled std_msgs::Header"
+        );
+        assert!(
+            !generated.contains("pub mod std_msgs"),
+            "Generated code unexpectedly contains bundled std_msgs module"
+        );
+        assert!(
+            generated.contains("pub mod test_messages"),
+            "Generated code missing user package module test_messages"
+        );
+    }
+}
+
 #[test]
 #[ignore = "utility: prints current service hash values for comparison with wire_types.rs"]
 fn print_service_hashes() {
