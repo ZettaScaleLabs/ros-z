@@ -69,11 +69,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python (macOS)
+      - name: Create Python venv for maturin (macOS)
         if: matrix.os == 'macos-latest'
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+        run: |
+          python3 -m venv .venv
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
 
       - name: Build wheels
         uses: PyO3/maturin-action@v1
