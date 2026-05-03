@@ -302,9 +302,72 @@ jobs:
           name: libros_z-${{ matrix.distro }}-${{ matrix.target }}
           path: go-dist/*
 
+  smoke-test-python:
+    name: Smoke test Python wheel
+    needs: [build-msgs, build-wheels]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download ros-z-msgs-py
+        uses: actions/download-artifact@v4
+        with:
+          name: ros-z-msgs-py-dist
+          path: dist/
+
+      - name: Download ros-z-py wheel (jazzy, x86_64)
+        uses: actions/download-artifact@v4
+        with:
+          name: ros-z-py-jazzy-x86_64-unknown-linux-gnu
+          path: dist/
+
+      - name: Install wheels
+        run: pip install dist/ros_z_msgs_py-*.whl "dist/ros_z_py-"*jazzy*.whl
+
+      - name: Import test
+        run: python -c "import ros_z_py; print('ros_z_py import ok')"
+
+  smoke-test-binaries:
+    name: Smoke test binaries
+    needs: [build-binaries]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download console binary (x86_64)
+        uses: actions/download-artifact@v4
+        with:
+          name: bin-console-x86_64-linux
+          path: dist/
+
+      - name: Download bridge binary (jazzy, x86_64)
+        uses: actions/download-artifact@v4
+        with:
+          name: bin-bridge-jazzy-x86_64-linux
+          path: dist/
+
+      - name: Run --help
+        run: |
+          chmod +x dist/bin-console-x86_64-linux dist/bin-bridge-jazzy-x86_64-linux
+          dist/bin-console-x86_64-linux --help
+          dist/bin-bridge-jazzy-x86_64-linux --help
+
+  smoke-test-go:
+    name: Smoke test Go library
+    needs: [build-go-libs]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download libros_z (jazzy, x86_64)
+        uses: actions/download-artifact@v4
+        with:
+          name: libros_z-jazzy-x86_64-unknown-linux-gnu
+          path: dist/
+
+      - name: Verify archive and header
+        run: |
+          ar t dist/libros_z-jazzy-x86_64-unknown-linux-gnu.a | head -5
+          test -f dist/ros_z_ffi.h
+          echo "Go library artifact ok"
+
   release:
     name: Create GitHub Release
-    needs: [build-msgs, build-wheels, build-go-libs, build-binaries]
+    needs: [smoke-test-python, smoke-test-binaries, smoke-test-go]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
