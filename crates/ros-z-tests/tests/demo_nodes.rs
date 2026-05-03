@@ -345,15 +345,6 @@ fn test_ros_z_add_two_ints_server_to_rcl_client() {
     println!("Test passed: RCL client called ros-z server");
 }
 
-// The fibonacci_action_server crashes on Jazzy CI with a Fast-CDR ABI mismatch:
-//   libaction_tutorials_interfaces__rosidl_typesupport_fastrtps_cpp.so:
-//   undefined symbol: _ZN8eprosima7fastcdr3Cdr9serializeEa (exit 127)
-// The server crashes after sending all feedback but before replying to get_result,
-// so our client times out. Root cause: ros-jazzy-action-tutorials-cpp was compiled
-// against a different Fast-CDR version than what the rostooling Docker image ships.
-// This is a CI environment issue, not a ros-z bug. Kilted is unaffected.
-// Re-enable once the Jazzy Docker image ships consistent Fast-CDR packages.
-#[cfg_attr(feature = "jazzy", ignore)]
 #[test]
 fn test_rcl_fibonacci_action_server_to_ros_z_client() {
     if !check_ros2_available() {

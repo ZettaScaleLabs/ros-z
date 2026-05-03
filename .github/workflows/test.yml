@@ -43,13 +43,13 @@ jobs:
         distro: [humble, jazzy, kilted]
         include:
           - distro: humble
-            image: rostooling/setup-ros-docker:ubuntu-jammy-ros-humble-ros-base-latest
+            image: ros:humble-ros-base
             ros_z_feature: humble
           - distro: jazzy
-            image: rostooling/setup-ros-docker:ubuntu-noble-ros-jazzy-ros-base-latest
+            image: ros:jazzy-ros-base
             ros_z_feature: jazzy
           - distro: kilted
-            image: rostooling/setup-ros-docker:ubuntu-noble-ros-kilted-ros-base-latest
+            image: ros:kilted-ros-base
             ros_z_feature: kilted
     container:
       image: ${{ matrix.image }}
@@ -58,7 +58,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /var/cache/apt/archives
-          key: apt-${{ matrix.distro }}-v2-${{ hashFiles('.github/workflows/test.yml') }}
+          key: apt-${{ matrix.distro }}-v3-${{ hashFiles('.github/workflows/test.yml') }}
 
       - name: Install system dependencies
         run: apt-get update && apt-get install -y nodejs
@@ -79,7 +79,6 @@ jobs:
         if: matrix.distro == 'kilted'
         run: |
           # WORKAROUND: ros-kilted-rmw-zenoh-cpp 0.6.6 has invalid transport_optimization field
-          # The rostooling image has 0.6.2, but apt-get install upgrades to 0.6.6
           CONFIG_FILE="/opt/ros/kilted/share/rmw_zenoh_cpp/config/DEFAULT_RMW_ZENOH_SESSION_CONFIG.json5"
           if grep -q "transport_optimization" "$CONFIG_FILE" 2>/dev/null; then
             sed -i '/transport_optimization:/,/},$/d' "$CONFIG_FILE"
@@ -117,87 +116,4 @@ jobs:
               --features "ros-interop,$FEATURES" --release
             cargo nextest run -p ros-z-console \
               --features ros-interop --release
-          fi
-
-  # Smoke-test: pure RCL fibonacci action (no ros-z) under rmw_zenoh_cpp.
-  # This isolates whether action get_result failures are a ros-z bug or an
-  # rmw_zenoh_cpp regression. Expected: Jazzy fails (zenoh-c 1.6.2 PR#2205),
-  # Kilted passes. Re-enable the ros-z test once this passes on Jazzy.
-  rcl_fibonacci_smoke:
-    name: RCL fibonacci smoke test (${{ matrix.distro }})
-    runs-on: ubuntu-latest
-    if: |
-      github.event_name == 'push' ||
-      github.event.pull_request.draft == false
-    strategy:
-      fail-fast: false
-      matrix:
-        distro: [jazzy, kilted]
-        include:
-          - distro: jazzy
-            image: ros:jazzy-ros-base
-          - distro: kilted
-            image: ros:kilted-ros-base
-    continue-on-error: ${{ matrix.distro == 'jazzy' }}
-    container:
-      image: ${{ matrix.image }}
-    steps:
-      - name: Cache apt packages
-        uses: actions/cache@v4
-        with:
-          path: /var/cache/apt/archives
-          key: apt-${{ matrix.distro }}-smoke-v1-${{ hashFiles('.github/workflows/test.yml') }}
-
-      - name: Install ROS dependencies
-        run: |
-          apt-get update && apt-get install -y \
-            ros-${{ matrix.distro }}-rmw-zenoh-cpp \
-            ros-${{ matrix.distro }}-action-tutorials-cpp
-
-      - name: Fix broken rmw_zenoh_cpp config for Kilted
-        if: matrix.distro == 'kilted'
-        run: |
-          CONFIG_FILE="/opt/ros/kilted/share/rmw_zenoh_cpp/config/DEFAULT_RMW_ZENOH_SESSION_CONFIG.json5"
-          if grep -q "transport_optimization" "$CONFIG_FILE" 2>/dev/null; then
-            sed -i '/transport_optimization:/,/},$/d' "$CONFIG_FILE"
-          fi
-
-      - name: RCL fibonacci action (server + client, pure rmw_zenoh_cpp)
-        shell: bash
-        timeout-minutes: 2
-        run: |
-          source /opt/ros/${{ matrix.distro }}/setup.bash
-          export RMW_IMPLEMENTATION=rmw_zenoh_cpp
-
-          # Start Zenoh router in background
-          ros2 run rmw_zenoh_cpp rmw_zenohd &
-          ROUTER_PID=$!
-          sleep 2
-
-          # Start fibonacci action server in background
-          ros2 run action_tutorials_cpp fibonacci_action_server &
-          SERVER_PID=$!
-          sleep 2
-
-          # Run fibonacci action client; exit 0 = succeeded, 124 = timed out
-          set +e
-          timeout 30 ros2 run action_tutorials_cpp fibonacci_action_client 2>&1 | tee /tmp/client_out.txt
-          CLIENT_EXIT=${PIPESTATUS[0]}
-          set -e
-
-          kill $SERVER_PID $ROUTER_PID 2>/dev/null || true
-          wait $SERVER_PID $ROUTER_PID 2>/dev/null || true
-
-          echo "--- client output ---"
-          cat /tmp/client_out.txt
-
-          if [ "$CLIENT_EXIT" -eq 0 ]; then
-            echo "PASS: fibonacci action client exited successfully"
-            exit 0
-          elif [ "$CLIENT_EXIT" -eq 124 ]; then
-            echo "FAIL: fibonacci action client timed out (30s)"
-            exit 1
-          else
-            echo "FAIL: fibonacci action client exited with code $CLIENT_EXIT"
-            exit 1
           fi
