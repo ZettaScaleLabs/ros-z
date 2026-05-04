@@ -577,7 +577,8 @@ impl ZNode {
         };
 
         let topic_ke = self.keyexpr_format.topic_key_expr(&entity)?;
-        let gid = crate::entity::endpoint_gid(&entity);
+        let gid =
+            crate::entity::endpoint_gid(&entity).expect("local endpoint always has node identity");
         let publisher = self
             .session
             .declare_publisher((*topic_ke).clone())

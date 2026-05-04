@@ -123,11 +123,12 @@ impl Drop for ShutdownGuard {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
 /// # use ros_z::action::*;
 /// # use std::time::Duration;
-/// # let node = todo!();
-/// let server = node.create_action_server::<MyAction>("my_action")
+/// # use ros_z_msgs::action_tutorials_interfaces::action::Fibonacci;
+/// # let node: ros_z::node::ZNode = todo!();
+/// let server = node.create_action_server::<Fibonacci>("fibonacci")
 ///     .with_result_timeout(Duration::from_secs(30))
 ///     .build()?;
 /// # Ok::<(), zenoh::Error>(())
@@ -692,12 +693,12 @@ impl<A: ZAction> ZActionServer<A> {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
     /// # use ros_z::action::*;
-    /// # let server = todo!();
-    /// let server = server.with_handler(|executing| async move {
-    ///     // Process the goal
-    ///     executing.succeed(result).unwrap();
+    /// # use ros_z_msgs::action_tutorials_interfaces::{FibonacciResult, action::Fibonacci};
+    /// # let server: ros_z::action::server::ZActionServer<Fibonacci> = todo!();
+    /// let server = server.with_handler(|executing: ros_z::action::server::ExecutingGoal<Fibonacci>| async move {
+    ///     executing.succeed(FibonacciResult { sequence: vec![1, 1, 2, 3] }).unwrap();
     /// });
     /// ```
     pub fn with_handler<F, Fut>(self, handler: F) -> Self
@@ -733,10 +734,10 @@ impl<A: ZAction> ZActionServer<A> {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
     /// # use ros_z::action::*;
-    /// # let server: ros_z::action::server::ZActionServer<MyAction> = todo!();
-    /// // Check and expire any goals that have passed their expiration time
+    /// # use ros_z_msgs::action_tutorials_interfaces::action::Fibonacci;
+    /// # let server: ros_z::action::server::ZActionServer<Fibonacci> = todo!();
     /// let expired = server.expire_goals();
     /// println!("Expired {} goals", expired.len());
     /// ```
@@ -787,10 +788,11 @@ impl<A: ZAction> ZActionServer<A> {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
     /// # use ros_z::action::*;
     /// # use std::time::Duration;
-    /// # let mut server: ros_z::action::server::ZActionServer<MyAction> = todo!();
+    /// # use ros_z_msgs::action_tutorials_interfaces::action::Fibonacci;
+    /// # let server: ros_z::action::server::ZActionServer<Fibonacci> = todo!();
     /// server.set_result_timeout(Duration::from_secs(30));
     /// ```
     pub fn set_result_timeout(&self, timeout: Duration) {
@@ -843,14 +845,15 @@ pub type ExecutingGoal<A> = GoalHandle<A, Executing>;
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
 /// # use ros_z::action::*;
-/// # let server: std::sync::Arc<server::ZActionServer<MyAction>> = todo!();
+/// # use ros_z_msgs::action_tutorials_interfaces::{FibonacciResult, action::Fibonacci};
+/// # let server: std::sync::Arc<server::ZActionServer<Fibonacci>> = todo!();
 /// # async {
 /// let requested = server.recv_goal().await?;
 /// let accepted = requested.accept();
 /// let executing = accepted.execute();
-/// executing.succeed(result)?;
+/// executing.succeed(FibonacciResult { sequence: vec![] })?;
 /// # Ok::<(), zenoh::Error>(())
 /// # };
 /// ```

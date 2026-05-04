@@ -1,6 +1,6 @@
 //! Graph discovery: node/topic/service introspection from Python.
 
-use ros_z::entity::EntityKind;
+use ros_z::entity::EndpointKind;
 use ros_z::graph::Graph;
 use std::sync::Arc;
 
@@ -31,11 +31,11 @@ impl GraphQueries {
 
     /// Count publishers for a topic.
     pub fn count_publishers(graph: &Arc<Graph>, topic: &str) -> usize {
-        graph.count(EntityKind::Publisher, topic)
+        graph.count(EndpointKind::Publisher, topic)
     }
 
     /// Count subscribers for a topic.
     pub fn count_subscribers(graph: &Arc<Graph>, topic: &str) -> usize {
-        graph.count(EntityKind::Subscription, topic)
+        graph.count(EndpointKind::Subscription, topic)
     }
 }

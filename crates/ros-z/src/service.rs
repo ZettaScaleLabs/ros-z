@@ -152,7 +152,8 @@ where
             sn: AtomicUsize::new(1), // Start at 1 for ROS compatibility
             inner,
             lv_token,
-            gid: crate::entity::endpoint_gid(&self.entity),
+            gid: crate::entity::endpoint_gid(&self.entity)
+                .expect("local endpoint always has node identity"),
             depth,
             current_rx: std::sync::Mutex::new(init_rx),
             #[cfg(feature = "rmw")]
@@ -534,7 +535,8 @@ where
             inner,
             lv_token,
             clock: self.clock,
-            gid: crate::entity::endpoint_gid(&self.entity),
+            gid: crate::entity::endpoint_gid(&self.entity)
+                .expect("local endpoint always has node identity"),
             queue,
             map: HashMap::new(),
             _phantom_data: Default::default(),

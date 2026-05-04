@@ -105,9 +105,9 @@ impl KeyExprFormatter for Ros2DdsFormatter {
             return Err(zenoh::Error::from(MissingAdminSpace));
         }
 
-        // Zenoh ID
-        let z_id_str = iter.next().ok_or(MissingZId)?;
-        let z_id: ZenohId = z_id_str.parse().map_err(|_| ParsingError)?;
+        // Zenoh ID: present in the key expression but not used in Ros2Dds format
+        // (endpoints have no node identity, so the z_id cannot be stored)
+        let _z_id = iter.next().ok_or(MissingZId)?;
 
         // @ros2_lv
         let admin = iter.next().ok_or(MissingAdminSpace)?;
@@ -153,8 +153,6 @@ impl KeyExprFormatter for Ros2DdsFormatter {
                 hash: TypeHash::zero(),
             })
         };
-
-        let _ = z_id;
 
         Ok(Entity::Endpoint(EndpointEntity {
             id: 0,

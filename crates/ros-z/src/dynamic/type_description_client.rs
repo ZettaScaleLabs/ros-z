@@ -51,7 +51,7 @@ use tracing::{debug, warn};
 use zenoh::Session;
 
 use crate::context::GlobalCounter;
-use crate::entity::{EndpointEntity, EndpointKind, Entity, EntityKind, NodeEntity};
+use crate::entity::{EndpointEntity, EndpointKind, Entity, NodeEntity};
 use crate::graph::Graph;
 use crate::service::{ZClient, ZClientBuilder};
 use crate::{Builder, ServiceTypeInfo};
@@ -344,7 +344,7 @@ impl TypeDescriptionClient {
         // Wait reactively for the full `timeout` duration rather than a fixed
         // 5 × 500 ms loop, so slow-starting publishers (e.g. rmw_zenoh_cpp) are
         // not missed when the caller supplies a longer timeout.
-        let mut publishers = graph.get_entities_by_topic(EntityKind::Publisher, topic);
+        let mut publishers = graph.get_entities_by_topic(EndpointKind::Publisher, topic);
         debug!(
             "[TDC] Initial discovery found {} publishers for topic {}",
             publishers.len(),
@@ -367,7 +367,7 @@ impl TypeDescriptionClient {
                 tokio::pin!(notified);
                 notified.as_mut().enable();
 
-                publishers = graph.get_entities_by_topic(EntityKind::Publisher, topic);
+                publishers = graph.get_entities_by_topic(EndpointKind::Publisher, topic);
                 debug!(
                     "[TDC] Discovery poll: found {} publishers for topic {}",
                     publishers.len(),

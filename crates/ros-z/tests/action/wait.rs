@@ -230,8 +230,9 @@ mod tests {
         // Test waiting for status changes
         let mut status_watch = goal_handle.status_watch().unwrap();
 
-        // Check initial status first (marks it as "seen")
-        // This prevents race where status changes before we start waiting
+        // send_goal() seeds the watch to Accepted before returning, so borrow_and_update()
+        // here always consumes Accepted (never Unknown). Exactly 2 further transitions
+        // (Executing, Succeeded) will be observed below.
         let initial_status = *status_watch.borrow_and_update();
         tracing::debug!("Initial status: {:?}", initial_status);
 

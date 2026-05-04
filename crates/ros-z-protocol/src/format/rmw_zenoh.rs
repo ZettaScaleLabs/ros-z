@@ -10,8 +10,8 @@ use zenoh::{key_expr::KeyExpr, session::ZenohId, Result};
 
 use crate::{
     entity::{
-        EndpointEntity, EndpointKind, Entity, EntityConversionError, EntityKind, LivelinessKE,
-        NodeEntity, TopicKE, TypeHash, TypeInfo,
+        EndpointEntity, Entity, EntityConversionError, EntityKind, LivelinessKE, NodeEntity,
+        TopicKE, TypeHash, TypeInfo,
     },
     qos::QosProfile,
 };
@@ -213,7 +213,7 @@ impl KeyExprFormatter for RmwZenohFormatter {
 
         Ok(match entity_kind {
             EntityKind::Node => Entity::Node(node),
-            _ => {
+            EntityKind::Endpoint(kind) => {
                 let topic_name = Self::demangle_name(iter.next().ok_or(MissingTopicName)?);
                 let topic_type = iter.next().ok_or(MissingTopicType)?;
                 let topic_hash = iter.next().ok_or(MissingTopicHash)?;
@@ -237,7 +237,7 @@ impl KeyExprFormatter for RmwZenohFormatter {
                 Entity::Endpoint(EndpointEntity {
                     id: entity_id,
                     node: Some(node),
-                    kind: EndpointKind::try_from(entity_kind).map_err(|_| ParsingError)?,
+                    kind,
                     topic: topic_name,
                     type_info,
                     qos,

@@ -9,7 +9,7 @@ use zenoh::{Result, Session, Wait, sample::Sample};
 use crate::Builder;
 use crate::attachment::{Attachment, GidArray};
 use crate::common::DataHandler;
-use crate::entity::{EndpointEntity, EntityKind};
+use crate::entity::{EndpointEntity, EndpointKind};
 use crate::event::EventsManager;
 use crate::graph::Graph;
 use crate::impl_with_type_info;
@@ -301,7 +301,8 @@ where
             .liveliness()
             .declare_token((*lv_ke).clone())
             .wait()?;
-        let gid = crate::entity::endpoint_gid(&self.entity);
+        let gid = crate::entity::endpoint_gid(&self.entity)
+            .expect("local endpoint always has node identity");
 
         // Cache the Zenoh encoding if specified (performance optimization)
         let encoding = self.encoding.map(|enc| Arc::new(enc.to_zenoh_encoding()));
@@ -359,7 +360,7 @@ where
 
             let n = self
                 .graph
-                .get_entities_by_topic(EntityKind::Subscription, &self.entity.topic)
+                .get_entities_by_topic(EndpointKind::Subscription, &self.entity.topic)
                 .len();
             if n >= count {
                 return true;
@@ -378,7 +379,7 @@ where
                 // Timeout — do one final check in case a late notification was missed.
                 return self
                     .graph
-                    .get_entities_by_topic(EntityKind::Subscription, &self.entity.topic)
+                    .get_entities_by_topic(EndpointKind::Subscription, &self.entity.topic)
                     .len()
                     >= count;
             }
@@ -811,7 +812,8 @@ where
 
         let inner = sub_builder.wait()?;
 
-        let gid = crate::entity::endpoint_gid(&self.entity);
+        let gid = crate::entity::endpoint_gid(&self.entity)
+            .expect("local endpoint always has node identity");
         let lv_ke = self
             .keyexpr_format
             .liveliness_key_expr(&self.entity, &self.session.zid())?;
@@ -1026,7 +1028,7 @@ where
 
             let n = self
                 .graph
-                .get_entities_by_topic(EntityKind::Publisher, &self.entity.topic)
+                .get_entities_by_topic(EndpointKind::Publisher, &self.entity.topic)
                 .len();
             if n >= count {
                 return true;
@@ -1043,7 +1045,7 @@ where
             {
                 return self
                     .graph
-                    .get_entities_by_topic(EntityKind::Publisher, &self.entity.topic)
+                    .get_entities_by_topic(EndpointKind::Publisher, &self.entity.topic)
                     .len()
                     >= count;
             }

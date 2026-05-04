@@ -10,7 +10,7 @@ use tokio::sync::Notify;
 use tracing::debug;
 
 use crate::entity::{
-    ADMIN_SPACE, EndpointEntity, EndpointKind, Entity, EntityKind, LivelinessKE, NodeKey, Topic,
+    ADMIN_SPACE, EndpointEntity, EndpointKind, Entity, LivelinessKE, NodeKey, Topic,
 };
 use crate::event::GraphEventManager;
 use tracing;
@@ -549,7 +549,9 @@ impl Graph {
                             tracing::debug!("  Adding to cached");
                             graph_data_guard.insert(ke.clone());
                         }
-                        if let Some(entity) = parsed_entity {
+                        // Only fire the event for genuinely new entities; if add_local_entity
+                        // already inserted and fired for this key, don't fire a second time.
+                        if !already_parsed && let Some(entity) = parsed_entity {
                             tracing::debug!("Successfully parsed entity: {:?}", entity);
                             c_event_manager.trigger_graph_change(&entity, true, c_zid);
                         }
@@ -580,20 +582,41 @@ impl Graph {
             .wait()?;
 
         // Process all replies and add them to the graph.
-        // At this point plain ros-z still relies on liveliness for local entity
-        // visibility, so do not filter current-session entities here.
+        // Filter current-session entities: add_local_entity() already inserted them, so
+        // re-inserting from the query reply is redundant. Mirrors rmw_zenoh_cpp which passes
+        // ignore_from_current_session=true for query replies.
+        // Ros2Dds endpoints (node: None) carry no z_id and are never filtered.
         let mut reply_count = 0;
+        let mut filtered_count = 0;
         while let Ok(reply) = replies.recv() {
             reply_count += 1;
             if let Ok(sample) = reply.into_result() {
                 let key_expr = sample.key_expr().to_owned();
                 let ke = LivelinessKE(key_expr.clone());
 
-                tracing::debug!("Graph: Caching liveliness entity: {}", key_expr.as_str());
+                if let Ok(entity) = parser_arc(&key_expr) {
+                    let is_local = match &entity {
+                        Entity::Node(node) => node.z_id == zid,
+                        Entity::Endpoint(endpoint) => {
+                            endpoint.node.as_ref().is_some_and(|n| n.z_id == zid)
+                        }
+                    };
+                    if is_local {
+                        filtered_count += 1;
+                        tracing::debug!("Graph: Filtered local entity: {}", key_expr.as_str());
+                        continue;
+                    }
+                }
+
+                tracing::debug!("Graph: Caching cross-context entity: {}", key_expr.as_str());
                 graph_data.lock().insert(ke);
             }
         }
-        tracing::debug!("Graph: Liveliness query received {} replies", reply_count);
+        tracing::debug!(
+            "Graph: Liveliness query received {} replies, filtered {} local entities",
+            reply_count,
+            filtered_count
+        );
 
         Ok(Self {
             _subscriber: sub,
@@ -604,7 +627,7 @@ impl Graph {
         })
     }
 
-    /// Check if an entity belongs to the current session
+    /// Check if an entity belongs to the current session.
     pub fn is_entity_local(&self, entity: &Entity) -> bool {
         match entity {
             Entity::Node(node) => node.z_id == self.zid,
@@ -777,50 +800,46 @@ impl Graph {
         Ok(())
     }
 
-    pub fn count(&self, kind: EntityKind, name: impl AsRef<str>) -> usize {
-        assert!(kind != EntityKind::Node);
+    pub fn count(&self, kind: EndpointKind, name: impl AsRef<str>) -> usize {
         let mut total = 0;
         match kind {
-            EntityKind::Publisher | EntityKind::Subscription => {
+            EndpointKind::Publisher | EndpointKind::Subscription => {
                 self.data.lock().visit_by_topic(name, |ent| {
-                    if crate::entity::entity_kind(&ent) == kind {
+                    if crate::entity::entity_get_endpoint(&ent).is_some_and(|ep| ep.kind == kind) {
                         total += 1;
                     }
                 });
             }
-            EntityKind::Service | EntityKind::Client => {
+            EndpointKind::Service | EndpointKind::Client => {
                 self.data.lock().visit_by_service(name, |ent| {
-                    if crate::entity::entity_kind(&ent) == kind {
+                    if crate::entity::entity_get_endpoint(&ent).is_some_and(|ep| ep.kind == kind) {
                         total += 1;
                     }
                 });
             }
-            _ => unreachable!(),
         }
         total
     }
 
     pub fn get_entities_by_topic(
         &self,
-        kind: EntityKind,
+        kind: EndpointKind,
         topic: impl AsRef<str>,
     ) -> Vec<Arc<Entity>> {
-        assert!(kind != EntityKind::Node);
         let mut res = Vec::new();
         self.data.lock().visit_by_topic(topic, |ent| {
-            if crate::entity::entity_kind(&ent) == kind {
+            if crate::entity::entity_get_endpoint(&ent).is_some_and(|ep| ep.kind == kind) {
                 res.push(ent);
             }
         });
         res
     }
 
-    pub fn get_entities_by_node(&self, kind: EntityKind, node: NodeKey) -> Vec<EndpointEntity> {
-        assert!(kind != EntityKind::Node);
+    pub fn get_entities_by_node(&self, kind: EndpointKind, node: NodeKey) -> Vec<EndpointEntity> {
         let mut res = Vec::new();
         self.data.lock().visit_by_node(node, |ent| {
-            if crate::entity::entity_kind(&ent) == kind
-                && let Entity::Endpoint(endpoint) = &*ent
+            if let Entity::Endpoint(endpoint) = &*ent
+                && endpoint.kind == kind
             {
                 res.push(endpoint.clone());
             }
@@ -828,11 +847,10 @@ impl Graph {
         res
     }
 
-    pub fn count_by_service(&self, kind: EntityKind, service_name: impl AsRef<str>) -> usize {
-        assert!(matches!(kind, EntityKind::Service | EntityKind::Client));
+    pub fn count_by_service(&self, kind: EndpointKind, service_name: impl AsRef<str>) -> usize {
         let mut total = 0;
         self.data.lock().visit_by_service(service_name, |ent| {
-            if crate::entity::entity_kind(&ent) == kind {
+            if crate::entity::entity_get_endpoint(&ent).is_some_and(|ep| ep.kind == kind) {
                 total += 1;
             }
         });
@@ -841,13 +859,12 @@ impl Graph {
 
     pub fn get_entities_by_service(
         &self,
-        kind: EntityKind,
+        kind: EndpointKind,
         service_name: impl AsRef<str>,
     ) -> Vec<Arc<Entity>> {
-        assert!(matches!(kind, EntityKind::Service | EntityKind::Client));
         let mut res = Vec::new();
         self.data.lock().visit_by_service(service_name, |ent| {
-            if crate::entity::entity_kind(&ent) == kind {
+            if crate::entity::entity_get_endpoint(&ent).is_some_and(|ep| ep.kind == kind) {
                 res.push(ent);
             }
         });
@@ -932,7 +949,7 @@ impl Graph {
     pub fn get_names_and_types_by_node(
         &self,
         node_key: NodeKey,
-        kind: EntityKind,
+        kind: EndpointKind,
     ) -> Vec<(String, String)> {
         use std::collections::BTreeSet;
 
@@ -961,7 +978,7 @@ impl Graph {
 
         data.visit_by_node(node_key, |ent| {
             if let Some(enp) = crate::entity::entity_get_endpoint(&ent)
-                && enp.entity_kind() == kind
+                && enp.kind == kind
                 && let Some(type_info) = &enp.type_info
             {
                 // Insert into set for automatic deduplication
@@ -1084,7 +1101,7 @@ impl Graph {
         node_key: NodeKey,
     ) -> Vec<(String, String)> {
         // Get all subscribers for this node
-        let subscribers = self.get_names_and_types_by_node(node_key, EntityKind::Subscription);
+        let subscribers = self.get_names_and_types_by_node(node_key, EndpointKind::Subscription);
 
         // Filter for action feedback topics and extract action name/type
         self.filter_action_names_and_types(subscribers)
@@ -1101,7 +1118,7 @@ impl Graph {
         node_key: NodeKey,
     ) -> Vec<(String, String)> {
         // Get all publishers for this node
-        let publishers = self.get_names_and_types_by_node(node_key, EntityKind::Publisher);
+        let publishers = self.get_names_and_types_by_node(node_key, EndpointKind::Publisher);
 
         // Filter for action feedback topics and extract action name/type
         self.filter_action_names_and_types(publishers)
@@ -1182,14 +1199,14 @@ impl Graph {
         let status_topic = format!("{action_name}/_action/status");
 
         self.wait_until(timeout, move |graph| {
-            graph.count_by_service(EntityKind::Service, &goal_service) >= 1
-                && graph.count_by_service(EntityKind::Service, &result_service) >= 1
-                && graph.count_by_service(EntityKind::Service, &cancel_service) >= 1
+            graph.count_by_service(EndpointKind::Service, &goal_service) >= 1
+                && graph.count_by_service(EndpointKind::Service, &result_service) >= 1
+                && graph.count_by_service(EndpointKind::Service, &cancel_service) >= 1
                 && !graph
-                    .get_entities_by_topic(EntityKind::Publisher, &feedback_topic)
+                    .get_entities_by_topic(EndpointKind::Publisher, &feedback_topic)
                     .is_empty()
                 && !graph
-                    .get_entities_by_topic(EntityKind::Publisher, &status_topic)
+                    .get_entities_by_topic(EndpointKind::Publisher, &status_topic)
                     .is_empty()
         })
         .await
@@ -1205,10 +1222,10 @@ impl Graph {
             .into_iter()
             .map(|(name, type_name)| {
                 let publishers = self
-                    .get_entities_by_topic(EntityKind::Publisher, &name)
+                    .get_entities_by_topic(EndpointKind::Publisher, &name)
                     .len();
                 let subscribers = self
-                    .get_entities_by_topic(EntityKind::Subscription, &name)
+                    .get_entities_by_topic(EndpointKind::Subscription, &name)
                     .len();
                 TopicSnapshot {
                     name,

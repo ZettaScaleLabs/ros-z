@@ -17,7 +17,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Result;
 use parking_lot::RwLock;
-use ros_z_protocol::{EntityKind, TypeHash};
+use ros_z_protocol::{EndpointKind, TypeHash};
 use zenoh::{Wait, liveliness::LivelinessToken};
 
 use crate::{
@@ -36,7 +36,7 @@ use crate::{
 /// Canonical entity kind for deduplication: Publisher and Subscription are treated
 /// as the same "pubsub" endpoint since they use the same bidirectional forwarder pair.
 ///
-/// Using the raw `EntityKind` as part of the key would cause two separate forwarder
+/// Using Publisher/Subscription as separate keys would cause two separate forwarder
 /// pairs to be created when both a Publisher and a Subscription are discovered for
 /// the same topic (e.g., a Humble publisher AND a Jazzy subscriber for `/chatter`).
 /// The second pair's subscriber declaration arrives AFTER the 1.6.2 humble talker has
@@ -48,11 +48,11 @@ enum CanonicalKind {
     Service,
 }
 
-impl From<EntityKind> for CanonicalKind {
-    fn from(k: EntityKind) -> Self {
+impl From<EndpointKind> for CanonicalKind {
+    fn from(k: EndpointKind) -> Self {
         match k {
-            EntityKind::Publisher | EntityKind::Subscription => CanonicalKind::PubSub,
-            EntityKind::Service | EntityKind::Client | EntityKind::Node => CanonicalKind::Service,
+            EndpointKind::Publisher | EndpointKind::Subscription => CanonicalKind::PubSub,
+            EndpointKind::Service | EndpointKind::Client => CanonicalKind::Service,
         }
     }
 }
@@ -251,11 +251,10 @@ impl Bridge {
             None => return,
         };
 
-        // Skip Client and Node entities — Clients are handled when their Server is
-        // discovered (creating a single proxy); Nodes carry no type info.
-        match ep.kind {
-            EntityKind::Client | EntityKind::Node => return,
-            _ => {}
+        // Skip Client endpoints — they are handled when their Server is discovered
+        // (creating a single bidirectional proxy).
+        if ep.kind == EndpointKind::Client {
+            return;
         }
 
         let key = BridgeKey {
@@ -461,7 +460,7 @@ mod tests {
         let k1 = BridgeKey {
             topic: "/chatter".to_string(),
             type_name: "std_msgs::msg::dds_::String_".to_string(),
-            kind: EntityKind::Publisher.into(),
+            kind: EndpointKind::Publisher.into(),
         };
         let k2 = k1.clone();
         assert_eq!(k1, k2);
