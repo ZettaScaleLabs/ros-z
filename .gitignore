@@ -9,6 +9,7 @@ _*
 !crates/ros-z-py/python/**/*.pyi
 !crates/ros-z-py/python/**/py.typed
 !crates/ros-z-msgs/python/ros_z_msgs_py/__init__.py
+!crates/ros-z-msgs/python/ros_z_msgs_py/types/__init__.py
 # Old paths (pre-reorganization) - kept for backwards compatibility
 !ros-z-py/python/**/__init__.py
 !ros-z-msgs/python/ros_z_msgs_py/__init__.py
