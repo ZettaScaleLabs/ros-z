@@ -199,8 +199,9 @@ impl<T, S> ZPubBuilder<T, S> {
     ///     .build()?;
     /// ```
     pub fn with_dyn_schema(mut self, schema: Arc<crate::dynamic::schema::MessageSchema>) -> Self {
-        // Only compute and set type_info if it hasn't been set already
-        // (e.g., from create_dyn_sub_auto which provides the publisher's hash)
+        // Only compute and set type_info if it hasn't been set already.
+        // Typed publishers (create_pub) already have type_info set via T::type_info();
+        // don't overwrite it with the schema-derived value.
         if self.entity.type_info.is_none() {
             self.entity.type_info = Some(crate::dynamic::schema_type_info(&schema));
         }

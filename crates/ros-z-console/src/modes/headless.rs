@@ -135,6 +135,8 @@ pub async fn run_headless_mode(
                 // Handle echo messages
                 _ = async {
                     for (topic, subscriber) in &subscribers {
+                        // try_recv returns Option<Result>: None = no message queued,
+                        // Some(Err) = deserialization failure.
                         if let Some(result) = subscriber.try_recv() {
                             match result {
                                 Ok(msg) => {

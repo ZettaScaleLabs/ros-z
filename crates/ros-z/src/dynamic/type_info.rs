@@ -11,6 +11,7 @@ use crate::{
 pub struct DiscoveredTopicSchema {
     pub qualified_topic: String,
     pub schema: Arc<MessageSchema>,
+    /// RIHS01 type hash string as reported by the publishing node (e.g. `"RIHS01_abcd..."`).
     pub type_hash: String,
 }
 
@@ -46,6 +47,9 @@ pub(crate) fn schema_type_info(schema: &MessageSchema) -> TypeInfo {
     }
 }
 
+/// Like `schema_type_info`, but uses the hash reported by the remote publisher rather
+/// than recomputing it locally. This ensures the subscriber's key expression matches
+/// the publisher's exact hash even when local recomputation would differ.
 pub(crate) fn schema_type_info_with_hash(
     schema: &MessageSchema,
     discovered_hash: &str,
