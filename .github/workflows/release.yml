@@ -15,6 +15,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Generate Python message types
+        run: cargo build -p ros-z-msgs --features python_registry -j4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
