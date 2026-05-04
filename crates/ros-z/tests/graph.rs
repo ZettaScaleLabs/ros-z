@@ -704,11 +704,11 @@ mod tests {
 
         let graph = ctx.graph();
         assert!(
-            graph.count(EntityKind::Publisher, topic_name) >= 1,
+            graph.count(EndpointKind::Publisher, topic_name) >= 1,
             "Expected Ros2Dds graph to discover local publisher"
         );
         assert!(
-            graph.count(EntityKind::Subscription, topic_name) >= 1,
+            graph.count(EndpointKind::Subscription, topic_name) >= 1,
             "Expected Ros2Dds graph to discover local subscriber"
         );
 
