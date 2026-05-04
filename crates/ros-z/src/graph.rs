@@ -445,6 +445,12 @@ impl Graph {
                 format!("{ADMIN_SPACE}/{domain_id}/**")
             }
             ros_z_protocol::KeyExprFormat::Ros2Dds => "@/*/@ros2_lv/**".to_string(),
+            _ => {
+                return Err(zenoh::Error::from(format!(
+                    "unsupported key expression format for graph construction: {:?}",
+                    format
+                )));
+            }
         };
 
         Self::new_with_pattern(session, domain_id, liveliness_pattern, move |ke| {
