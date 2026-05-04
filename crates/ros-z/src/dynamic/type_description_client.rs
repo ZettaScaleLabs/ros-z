@@ -51,7 +51,7 @@ use tracing::{debug, warn};
 use zenoh::Session;
 
 use crate::context::GlobalCounter;
-use crate::entity::{EndpointEntity, Entity, EntityKind, NodeEntity};
+use crate::entity::{EndpointEntity, EndpointKind, Entity, NodeEntity};
 use crate::graph::Graph;
 use crate::service::{ZClient, ZClientBuilder};
 use crate::{Builder, ServiceTypeInfo};
@@ -74,6 +74,59 @@ fn normalize_type_name(name: &str) -> String {
         .trim_end_matches('_')
         .to_string()
 }
+
+fn topic_type_info_from_publishers(
+    publishers: &[Arc<Entity>],
+    topic: &str,
+) -> Result<(String, String), DynamicError> {
+    for publisher in publishers {
+        let Entity::Endpoint(endpoint) = &**publisher else {
+            continue;
+        };
+        let Some(type_info) = endpoint.type_info.as_ref() else {
+            continue;
+        };
+
+        return Ok((
+            normalize_type_name(&type_info.name),
+            type_info.hash.to_rihs_string(),
+        ));
+    }
+
+    Err(DynamicError::SchemaNotFound(format!(
+        "No publishers with type information found for topic: {}",
+        topic
+    )))
+}
+
+fn publisher_service_nodes(
+    publishers: &[Arc<Entity>],
+    topic: &str,
+) -> Result<Vec<(String, String)>, DynamicError> {
+    let mut nodes = Vec::new();
+    let mut saw_missing_node_identity = false;
+
+    for publisher in publishers {
+        let Entity::Endpoint(endpoint) = &**publisher else {
+            continue;
+        };
+
+        if let Some(node) = endpoint.node.as_ref() {
+            nodes.push((node.name.clone(), node.namespace.clone()));
+        } else {
+            saw_missing_node_identity = true;
+        }
+    }
+
+    if nodes.is_empty() && saw_missing_node_identity {
+        return Err(DynamicError::MissingNodeIdentity {
+            topic: topic.to_string(),
+        });
+    }
+
+    Ok(nodes)
+}
+
 use super::type_description::type_description_msg_to_schema;
 use super::type_description_service::{
     GetTypeDescription, GetTypeDescriptionRequest, GetTypeDescriptionResponse,
@@ -291,7 +344,7 @@ impl TypeDescriptionClient {
         // Wait reactively for the full `timeout` duration rather than a fixed
         // 5 × 500 ms loop, so slow-starting publishers (e.g. rmw_zenoh_cpp) are
         // not missed when the caller supplies a longer timeout.
-        let mut publishers = graph.get_entities_by_topic(EntityKind::Publisher, topic);
+        let mut publishers = graph.get_entities_by_topic(EndpointKind::Publisher, topic);
         debug!(
             "[TDC] Initial discovery found {} publishers for topic {}",
             publishers.len(),
@@ -314,7 +367,7 @@ impl TypeDescriptionClient {
                 tokio::pin!(notified);
                 notified.as_mut().enable();
 
-                publishers = graph.get_entities_by_topic(EntityKind::Publisher, topic);
+                publishers = graph.get_entities_by_topic(EndpointKind::Publisher, topic);
                 debug!(
                     "[TDC] Discovery poll: found {} publishers for topic {}",
                     publishers.len(),
@@ -347,33 +400,22 @@ impl TypeDescriptionClient {
             }
         }
 
-        // Extract type name and hash from the first publisher.
+        // Extract type metadata from any publisher with type information.
         // All publishers on a topic share the same type in ROS 2.
-        let first_pub = publishers.first().ok_or_else(|| {
-            DynamicError::SchemaNotFound(format!("No publishers found for topic: {}", topic))
-        })?;
-        let first_ep = match &**first_pub {
-            Entity::Endpoint(e) => e,
-            _ => {
-                return Err(DynamicError::SerializationError(
-                    "Expected endpoint entity".to_string(),
-                ));
-            }
-        };
-        let type_info = first_ep.type_info.as_ref().ok_or_else(|| {
-            DynamicError::SchemaNotFound(format!("Publisher on {} has no type information", topic))
-        })?;
-        // Use the raw type name from the liveliness token for the service query.
-        // rmw_zenoh_cpp registers schemas under the DDS name (e.g. pkg::msg::dds_::Foo_)
-        // and must be queried with that name.  The ros-z server normalizes incoming
-        // request names before lookup so it accepts DDS-format queries too.
-        let type_name = type_info.name.clone();
-        let type_hash = type_info.hash.to_rihs_string();
+        let (type_name, type_hash) = topic_type_info_from_publishers(&publishers, topic)?;
+        let service_nodes = publisher_service_nodes(&publishers, topic)?;
 
-        debug!(
-            "[TDC] Found publisher for {}: node={}/{}, type={} (normalized from: {})",
-            topic, first_ep.node.namespace, first_ep.node.name, type_name, type_info.name
-        );
+        if let Some((node_name, namespace)) = service_nodes.first() {
+            debug!(
+                "[TDC] Found publisher for {}: node={}/{}, type={}",
+                topic, namespace, node_name, type_name
+            );
+        } else {
+            debug!(
+                "[TDC] Found publisher type metadata for {}: type={}",
+                topic, type_name
+            );
+        }
 
         // ── Phase 2: Create one ZClient (Querier) per publisher endpoint ─────
         //
@@ -393,20 +435,14 @@ impl TypeDescriptionClient {
         // to settle in Phase 3 below.
         // (node_name, namespace, client)
         let mut pub_clients: Vec<(String, String, ZClient<GetTypeDescription>)> = Vec::new();
-        for publisher in &publishers {
-            let Entity::Endpoint(ep) = &**publisher else {
-                continue;
-            };
-            let service_name = if ep.node.namespace.is_empty() || ep.node.namespace == "/" {
-                format!("/{}/get_type_description", ep.node.name)
+        for (node_name, namespace) in service_nodes {
+            let service_name = if namespace.is_empty() || namespace == "/" {
+                format!("/{}/get_type_description", node_name)
             } else {
-                format!(
-                    "{}/{}/get_type_description",
-                    ep.node.namespace, ep.node.name
-                )
+                format!("{}/{}/get_type_description", namespace, node_name)
             };
             match self.create_client(&service_name, "") {
-                Ok(c) => pub_clients.push((ep.node.name.clone(), ep.node.namespace.clone(), c)),
+                Ok(c) => pub_clients.push((node_name, namespace, c)),
                 Err(e) => warn!("[TDC] Could not create client for {}: {}", service_name, e),
             }
         }
@@ -536,11 +572,11 @@ impl TypeDescriptionClient {
 
         let entity = EndpointEntity {
             id: self.counter.increment(),
-            node: node_entity,
-            kind: EntityKind::Client,
+            node: Some(node_entity),
+            kind: EndpointKind::Client,
             topic: service_name.to_string(),
             type_info: Some(GetTypeDescription::service_type_info()),
-            ..Default::default()
+            qos: Default::default(),
         };
 
         let builder: ZClientBuilder<GetTypeDescription> = ZClientBuilder {
@@ -565,6 +601,29 @@ mod tests {
     use crate::dynamic::type_description_service::{
         WireTypeDescription, schema_to_wire_type_description,
     };
+    use crate::entity::{EndpointKind, TypeHash, TypeInfo};
+
+    fn publisher_entity(node_name: Option<&str>, type_name: Option<&str>) -> Arc<Entity> {
+        let node = node_name.map(|name| {
+            NodeEntity::new(
+                1,
+                "1234567890abcdef1234567890abcdef".parse().unwrap(),
+                0,
+                name.to_string(),
+                "/".to_string(),
+                String::new(),
+            )
+        });
+
+        Arc::new(Entity::Endpoint(EndpointEntity {
+            id: 1,
+            node,
+            kind: EndpointKind::Publisher,
+            topic: "/chatter".to_string(),
+            type_info: type_name.map(|name| TypeInfo::new(name, TypeHash::zero())),
+            qos: Default::default(),
+        }))
+    }
 
     #[test]
     fn test_response_to_schema_success() {
@@ -641,5 +700,45 @@ mod tests {
         } else {
             panic!("Expected Message type for linear field");
         }
+    }
+
+    #[test]
+    fn test_topic_discovery_uses_type_info_from_any_publisher() {
+        let publishers = vec![
+            publisher_entity(None, Some("std_msgs::msg::dds_::String_")),
+            publisher_entity(Some("talker"), None),
+        ];
+
+        let (type_name, type_hash) = topic_type_info_from_publishers(&publishers, "/chatter")
+            .expect("expected type info to be discovered");
+
+        assert_eq!(type_name, "std_msgs/msg/String");
+        assert_eq!(type_hash, TypeHash::zero().to_rihs_string());
+    }
+
+    #[test]
+    fn test_topic_discovery_uses_nodeful_publishers_when_available() {
+        let publishers = vec![
+            publisher_entity(None, Some("std_msgs::msg::dds_::String_")),
+            publisher_entity(Some("talker"), Some("std_msgs::msg::dds_::String_")),
+        ];
+
+        let service_nodes = publisher_service_nodes(&publishers, "/chatter")
+            .expect("expected a usable publisher node");
+
+        assert_eq!(service_nodes, vec![("talker".to_string(), "/".to_string())]);
+    }
+
+    #[test]
+    fn test_topic_discovery_reports_missing_node_identity_only_when_all_publishers_lack_it() {
+        let publishers = vec![publisher_entity(None, Some("std_msgs::msg::dds_::String_"))];
+
+        let err = publisher_service_nodes(&publishers, "/chatter")
+            .expect_err("expected missing node identity error");
+
+        assert!(matches!(
+            err,
+            DynamicError::MissingNodeIdentity { ref topic } if topic == "/chatter"
+        ));
     }
 }

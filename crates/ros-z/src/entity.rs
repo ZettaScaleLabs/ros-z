@@ -39,17 +39,18 @@ pub fn node_lv_token_key_expr(entity: &NodeEntity) -> Result<KeyExpr<'static>> {
 
 // Extension functions for EndpointEntity
 
-/// Get the GID (globally unique identifier) for this endpoint
-pub fn endpoint_gid(entity: &EndpointEntity) -> crate::attachment::GidArray {
+/// Get the GID (globally unique identifier) for this endpoint.
+/// Returns `None` for endpoints without node identity (e.g. Ros2Dds-format liveliness tokens).
+pub fn endpoint_gid(entity: &EndpointEntity) -> Option<crate::attachment::GidArray> {
     use sha2::Digest;
+    let node = entity.node.as_ref()?;
     let mut hasher = sha2::Sha256::new();
-    // ZenohId has to_le_bytes() method
-    hasher.update(entity.node.z_id.to_le_bytes());
+    hasher.update(node.z_id.to_le_bytes());
     hasher.update(entity.id.to_le_bytes());
     let hash = hasher.finalize();
     let mut gid = [0u8; 16];
     gid.copy_from_slice(&hash[..16]);
-    gid
+    Some(gid)
 }
 
 // Helper functions for converting entities to LivelinessKE
@@ -64,7 +65,12 @@ pub fn node_to_liveliness_ke(entity: &NodeEntity) -> Result<LivelinessKE> {
 /// Convert an EndpointEntity to a LivelinessKE using the default format
 pub fn endpoint_to_liveliness_ke(entity: &EndpointEntity) -> Result<LivelinessKE> {
     let format = ros_z_protocol::KeyExprFormat::default();
-    format.liveliness_key_expr(entity, &entity.node.z_id)
+    let Some(node) = entity.node.as_ref() else {
+        return Err(zenoh::Error::from(
+            "endpoint liveliness requires node identity",
+        ));
+    };
+    format.liveliness_key_expr(entity, &node.z_id)
 }
 
 /// Convert an Entity to a LivelinessKE using the default format
@@ -79,7 +85,7 @@ pub fn entity_to_liveliness_ke(entity: &Entity) -> Result<LivelinessKE> {
 pub fn entity_kind(entity: &Entity) -> EntityKind {
     match entity {
         Entity::Node(_) => EntityKind::Node,
-        Entity::Endpoint(e) => e.kind,
+        Entity::Endpoint(e) => e.entity_kind(),
     }
 }
 

@@ -182,7 +182,8 @@ pub extern "C" fn rmw_create_publisher(
 
     let qualified_topic = zpub.entity().topic.clone();
     let entity = zpub.entity().clone();
-    let entity_gid = ros_z::entity::endpoint_gid(zpub.entity());
+    let entity_gid =
+        ros_z::entity::endpoint_gid(zpub.entity()).expect("publisher always has node identity");
 
     // Get context to access the shared notifier
     let context = unsafe { (*node).context };
@@ -247,7 +248,7 @@ pub extern "C" fn rmw_create_publisher(
     }
 
     // Check if there are already existing subscriptions for this topic and trigger the event
-    let matching_sub_count = graph.count(ros_z::entity::EntityKind::Subscription, &entity.topic);
+    let matching_sub_count = graph.count(ros_z::entity::EndpointKind::Subscription, &entity.topic);
     if matching_sub_count > 0 {
         if let Ok(mut mgr) = zpub.events_mgr().lock() {
             mgr.update_event_status(
@@ -261,7 +262,7 @@ pub extern "C" fn rmw_create_publisher(
     // Check for QoS incompatibility with existing subscriptions (only once per unique subscription GID)
     let pub_qos = crate::qos::normalize_rmw_qos(unsafe { &*qos_profile });
     let sub_entities =
-        graph.get_entities_by_topic(ros_z::entity::EntityKind::Subscription, &entity.topic);
+        graph.get_entities_by_topic(ros_z::entity::EndpointKind::Subscription, &entity.topic);
 
     // Track which subscription GIDs we've already checked to avoid double-counting
     let local_zid = graph.zid;
@@ -270,15 +271,20 @@ pub extern "C" fn rmw_create_publisher(
     let mut last_policy_kind = 0u32;
     for sub_entity in &sub_entities {
         if let Some(endpoint) = ros_z::entity::entity_get_endpoint(sub_entity) {
-            // Skip if we've already checked this GID (avoids double-counting if same subscription appears multiple times)
-            let gid = ros_z::entity::endpoint_gid(endpoint);
-            if !checked_gids.insert(gid) {
+            // Skip Ros2Dds endpoints that carry no node identity
+            let Some(node) = endpoint.node.as_ref() else {
                 continue;
-            }
+            };
 
             // Only check QoS compatibility with entities from the same Zenoh session
             // This avoids counting subscriptions from previous test cases that used different sessions
-            if endpoint.node.z_id != local_zid {
+            if node.z_id != local_zid {
+                continue;
+            }
+
+            // node is Some here, so endpoint_gid is always Some
+            let gid = ros_z::entity::endpoint_gid(endpoint).unwrap();
+            if !checked_gids.insert(gid) {
                 continue;
             }
 
@@ -292,7 +298,7 @@ pub extern "C" fn rmw_create_publisher(
                 last_policy_kind = policy_kind;
                 // Also trigger the event on the subscription side (it's local, so it has an events_mgr)
                 graph.event_manager.trigger_event_with_policy(
-                    &ros_z::entity::endpoint_gid(endpoint),
+                    &gid,
                     ros_z::event::ZenohEventType::RequestedQosIncompatible,
                     1,
                     policy_kind,
@@ -571,7 +577,8 @@ pub extern "C" fn rmw_create_subscription(
     };
 
     let entity = zsub.entity().clone();
-    let entity_gid = ros_z::entity::endpoint_gid(zsub.entity());
+    let entity_gid =
+        ros_z::entity::endpoint_gid(zsub.entity()).expect("subscriber always has node identity");
     let sub_topic = zsub.entity().topic.clone();
 
     // Register matched event callback with graph
@@ -627,7 +634,7 @@ pub extern "C" fn rmw_create_subscription(
     }
 
     // Check if there are already existing publishers for this topic and trigger the event
-    let matching_pub_count = graph.count(ros_z::entity::EntityKind::Publisher, &entity.topic);
+    let matching_pub_count = graph.count(ros_z::entity::EndpointKind::Publisher, &entity.topic);
     if matching_pub_count > 0 {
         if let Ok(mut mgr) = zsub.events_mgr().lock() {
             mgr.update_event_status(
@@ -641,7 +648,7 @@ pub extern "C" fn rmw_create_subscription(
     // Check for QoS incompatibility with existing publishers (only once per unique publisher GID)
     let sub_qos = crate::qos::normalize_rmw_qos(unsafe { &*qos_policies });
     let pub_entities =
-        graph.get_entities_by_topic(ros_z::entity::EntityKind::Publisher, &entity.topic);
+        graph.get_entities_by_topic(ros_z::entity::EndpointKind::Publisher, &entity.topic);
 
     // Track which publisher GIDs we've already checked to avoid double-counting
     let local_zid = graph.zid;
@@ -650,15 +657,20 @@ pub extern "C" fn rmw_create_subscription(
     let mut last_policy_kind = 0u32;
     for pub_entity in &pub_entities {
         if let Some(endpoint) = ros_z::entity::entity_get_endpoint(pub_entity) {
-            // Skip if we've already checked this GID (avoids double-counting if same publisher appears multiple times)
-            let gid = ros_z::entity::endpoint_gid(endpoint);
-            if !checked_gids.insert(gid) {
+            // Skip Ros2Dds endpoints that carry no node identity
+            let Some(node) = endpoint.node.as_ref() else {
                 continue;
-            }
+            };
 
             // Only check QoS compatibility with entities from the same Zenoh session
             // This avoids counting publishers from previous test cases that used different sessions
-            if endpoint.node.z_id != local_zid {
+            if node.z_id != local_zid {
+                continue;
+            }
+
+            // node is Some here, so endpoint_gid is always Some
+            let gid = ros_z::entity::endpoint_gid(endpoint).unwrap();
+            if !checked_gids.insert(gid) {
                 continue;
             }
 
@@ -672,7 +684,7 @@ pub extern "C" fn rmw_create_subscription(
                 last_policy_kind = policy_kind;
                 // Also trigger the event on the publisher side (it's local, so it has an events_mgr)
                 graph.event_manager.trigger_event_with_policy(
-                    &ros_z::entity::endpoint_gid(endpoint),
+                    &gid,
                     ros_z::event::ZenohEventType::OfferedQosIncompatible,
                     1,
                     policy_kind,
@@ -1679,7 +1691,7 @@ pub extern "C" fn rmw_count_publishers(
     let publisher_count = node_impl
         .inner
         .graph()
-        .count(ros_z::entity::EntityKind::Publisher, topic_str);
+        .count(ros_z::entity::EndpointKind::Publisher, topic_str);
 
     unsafe {
         *count = publisher_count;
@@ -1729,7 +1741,7 @@ pub extern "C" fn rmw_count_subscribers(
     let subscriber_count = node_impl
         .inner
         .graph()
-        .count(ros_z::entity::EntityKind::Subscription, topic_str);
+        .count(ros_z::entity::EndpointKind::Subscription, topic_str);
 
     unsafe {
         *count = subscriber_count;
@@ -1801,7 +1813,7 @@ pub extern "C" fn rmw_count_clients(
     let client_count = node_impl
         .inner
         .graph()
-        .count_by_service(ros_z::entity::EntityKind::Client, service_str);
+        .count_by_service(ros_z::entity::EndpointKind::Client, service_str);
 
     unsafe {
         *count = client_count;
@@ -1851,7 +1863,7 @@ pub extern "C" fn rmw_count_services(
     let service_count = node_impl
         .inner
         .graph()
-        .count_by_service(ros_z::entity::EntityKind::Service, service_str);
+        .count_by_service(ros_z::entity::EndpointKind::Service, service_str);
 
     unsafe {
         *count = service_count;
@@ -1902,7 +1914,7 @@ pub extern "C" fn rmw_get_publishers_info_by_topic(
     let publishers = node_impl
         .inner
         .graph()
-        .get_entities_by_topic(ros_z::entity::EntityKind::Publisher, topic_str);
+        .get_entities_by_topic(ros_z::entity::EndpointKind::Publisher, topic_str);
 
     let count = publishers.len();
 
@@ -1928,8 +1940,20 @@ pub extern "C" fn rmw_get_publishers_info_by_topic(
             // Convert entity to endpoint info
             let endpoint_info = (*publishers_info).info_array.add(i);
 
-            // Set node name
-            let node_name_cstr = match std::ffi::CString::new(endpoint.node.name.as_str()) {
+            // Set node name and namespace; Ros2Dds-format endpoints have no node identity
+            let (node_name_str, node_ns_str) = if let Some(node) = endpoint.node.as_ref() {
+                (
+                    node.name.clone(),
+                    if node.namespace.is_empty() {
+                        "/".to_string()
+                    } else {
+                        node.namespace.clone()
+                    },
+                )
+            } else {
+                (String::new(), "/".to_string())
+            };
+            let node_name_cstr = match std::ffi::CString::new(node_name_str) {
                 Ok(s) => s,
                 Err(_) => {
                     rmw_topic_endpoint_info_array_fini(publishers_info, allocator as *mut _);
@@ -1938,13 +1962,7 @@ pub extern "C" fn rmw_get_publishers_info_by_topic(
             };
             (*endpoint_info).node_name = rcutils_strdup(node_name_cstr.as_ptr(), *allocator);
 
-            // Set node namespace
-            let node_ns = if endpoint.node.namespace.is_empty() {
-                "/"
-            } else {
-                &endpoint.node.namespace
-            };
-            let node_ns_cstr = match std::ffi::CString::new(node_ns) {
+            let node_ns_cstr = match std::ffi::CString::new(node_ns_str) {
                 Ok(s) => s,
                 Err(_) => {
                     rmw_topic_endpoint_info_array_fini(publishers_info, allocator as *mut _);
@@ -2097,7 +2115,7 @@ pub extern "C" fn rmw_get_subscriber_names_and_types_by_node(
     let entities_and_types = node_impl
         .inner
         .graph()
-        .get_names_and_types_by_node(node_key, ros_z::entity::EntityKind::Subscription);
+        .get_names_and_types_by_node(node_key, ros_z::entity::EndpointKind::Subscription);
 
     // Group by entity name
     let mut entity_map: std::collections::BTreeMap<String, Vec<String>> =
@@ -2600,7 +2618,8 @@ pub extern "C" fn rmw_get_gid_for_publisher(
         Err(_) => return RMW_RET_INVALID_ARGUMENT as _,
     };
 
-    let gid_array = ros_z::entity::endpoint_gid(&publisher_impl.entity);
+    let gid_array = ros_z::entity::endpoint_gid(&publisher_impl.entity)
+        .expect("publisher always has node identity");
     unsafe {
         (*gid).implementation_identifier = crate::RMW_ZENOH_IDENTIFIER.as_ptr() as *const _;
         (*gid).data.copy_from_slice(&gid_array);
@@ -2631,7 +2650,8 @@ pub extern "C" fn rmw_get_gid_for_client(
         Err(_) => return RMW_RET_INVALID_ARGUMENT as _,
     };
 
-    let gid_array = ros_z::entity::endpoint_gid(&client_impl.entity);
+    let gid_array =
+        ros_z::entity::endpoint_gid(&client_impl.entity).expect("client always has node identity");
     unsafe {
         (*gid).implementation_identifier = crate::RMW_ZENOH_IDENTIFIER.as_ptr() as *const _;
         (*gid).data.copy_from_slice(&gid_array);
@@ -2747,7 +2767,7 @@ pub extern "C" fn rmw_service_server_is_available(
     let server_count = node_impl
         .inner
         .graph()
-        .count(ros_z::entity::EntityKind::Service, service_name);
+        .count(ros_z::entity::EndpointKind::Service, service_name);
 
     unsafe {
         *is_available = server_count > 0;
@@ -2937,7 +2957,7 @@ pub extern "C" fn rmw_get_client_names_and_types_by_node(
     let entities_and_types = node_impl
         .inner
         .graph()
-        .get_names_and_types_by_node(node_key, ros_z::entity::EntityKind::Client);
+        .get_names_and_types_by_node(node_key, ros_z::entity::EndpointKind::Client);
 
     let mut entity_map: std::collections::BTreeMap<String, Vec<String>> =
         std::collections::BTreeMap::new();
@@ -3099,7 +3119,7 @@ pub extern "C" fn rmw_get_publisher_names_and_types_by_node(
     let entities_and_types = node_impl
         .inner
         .graph()
-        .get_names_and_types_by_node(node_key, ros_z::entity::EntityKind::Publisher);
+        .get_names_and_types_by_node(node_key, ros_z::entity::EndpointKind::Publisher);
 
     let mut entity_map: std::collections::BTreeMap<String, Vec<String>> =
         std::collections::BTreeMap::new();
@@ -3281,7 +3301,7 @@ pub extern "C" fn rmw_get_service_names_and_types_by_node(
     let entities_and_types = node_impl
         .inner
         .graph()
-        .get_names_and_types_by_node(node_key, ros_z::entity::EntityKind::Service);
+        .get_names_and_types_by_node(node_key, ros_z::entity::EndpointKind::Service);
 
     let mut entity_map: std::collections::BTreeMap<String, Vec<String>> =
         std::collections::BTreeMap::new();
@@ -3406,7 +3426,7 @@ pub extern "C" fn rmw_get_subscriptions_info_by_topic(
     let subscriptions = node_impl
         .inner
         .graph()
-        .get_entities_by_topic(ros_z::entity::EntityKind::Subscription, topic_str);
+        .get_entities_by_topic(ros_z::entity::EndpointKind::Subscription, topic_str);
 
     let count = subscriptions.len();
 
@@ -3432,8 +3452,20 @@ pub extern "C" fn rmw_get_subscriptions_info_by_topic(
             // Convert entity to endpoint info
             let endpoint_info = (*subscriptions_info).info_array.add(i);
 
-            // Set node name
-            let node_name_cstr = match std::ffi::CString::new(endpoint.node.name.as_str()) {
+            // Set node name and namespace; Ros2Dds-format endpoints have no node identity
+            let (node_name_str, node_ns_str) = if let Some(node) = endpoint.node.as_ref() {
+                (
+                    node.name.clone(),
+                    if node.namespace.is_empty() {
+                        "/".to_string()
+                    } else {
+                        node.namespace.clone()
+                    },
+                )
+            } else {
+                (String::new(), "/".to_string())
+            };
+            let node_name_cstr = match std::ffi::CString::new(node_name_str) {
                 Ok(s) => s,
                 Err(_) => {
                     rmw_topic_endpoint_info_array_fini(subscriptions_info, allocator as *mut _);
@@ -3442,13 +3474,7 @@ pub extern "C" fn rmw_get_subscriptions_info_by_topic(
             };
             (*endpoint_info).node_name = rcutils_strdup(node_name_cstr.as_ptr(), *allocator);
 
-            // Set node namespace
-            let node_ns = if endpoint.node.namespace.is_empty() {
-                "/"
-            } else {
-                &endpoint.node.namespace
-            };
-            let node_ns_cstr = match std::ffi::CString::new(node_ns) {
+            let node_ns_cstr = match std::ffi::CString::new(node_ns_str) {
                 Ok(s) => s,
                 Err(_) => {
                     rmw_topic_endpoint_info_array_fini(subscriptions_info, allocator as *mut _);

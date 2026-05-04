@@ -33,8 +33,9 @@ pub mod goal_state {
 /// ```no_run
 /// # use ros_z::action::*;
 /// # use ros_z::qos::QosProfile;
-/// # let node = todo!();
-/// let client = node.create_action_client::<MyAction>("my_action")
+/// # use ros_z_msgs::action_tutorials_interfaces::action::Fibonacci;
+/// # let node: ros_z::node::ZNode = todo!();
+/// let client = node.create_action_client::<Fibonacci>("fibonacci")
 ///     .with_goal_service_qos(QosProfile::default())
 ///     .build()?;
 /// # Ok::<(), zenoh::Error>(())
@@ -289,18 +290,14 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
 ///
 /// ```no_run
 /// # use ros_z::action::*;
+/// # use ros_z_msgs::action_tutorials_interfaces::{FibonacciGoal, action::Fibonacci};
 /// # #[tokio::main]
-/// # async fn main() -> Result<()> {
-/// # let node = todo!();
-/// // Create a client for an action
-/// let client = node.create_action_client::<MyAction>("my_action").build()?;
-///
-/// // Send a goal
-/// let goal_handle = client.send_goal(MyGoal { value: 42 }).await?;
-///
-/// // Wait for the result
+/// # async fn main() -> zenoh::Result<()> {
+/// # let node: ros_z::node::ZNode = todo!();
+/// let client = node.create_action_client::<Fibonacci>("fibonacci").build()?;
+/// let goal_handle = client.send_goal(FibonacciGoal { order: 42 }).await?;
 /// let result = goal_handle.result().await?;
-/// println!("Result: {:?}", result);
+/// println!("Sequence: {:?}", result.sequence);
 /// # Ok(())
 /// # }
 /// ```
@@ -309,18 +306,14 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
 ///
 /// ```no_run
 /// # use ros_z::action::*;
+/// # use ros_z_msgs::action_tutorials_interfaces::action::Fibonacci;
 /// # #[tokio::main]
-/// # async fn main() -> Result<()> {
-/// # let node = todo!();
-/// # let client = todo!();
-/// # let goal_handle = todo!();
-/// // Get feedback stream
+/// # async fn main() -> zenoh::Result<()> {
+/// # let mut goal_handle: GoalHandle<Fibonacci, goal_state::Active> = todo!();
 /// let mut feedback_rx = goal_handle.feedback().unwrap();
-///
-/// // Process feedback in a separate task
 /// tokio::spawn(async move {
 ///     while let Some(feedback) = feedback_rx.recv().await {
-///         println!("Progress: {:.1}%", feedback.progress * 100.0);
+///         println!("Partial sequence: {:?}", feedback.partial_sequence);
 ///     }
 /// });
 /// # Ok(())
@@ -331,15 +324,12 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
 ///
 /// ```no_run
 /// # use ros_z::action::*;
+/// # use ros_z_msgs::action_tutorials_interfaces::action::Fibonacci;
 /// # #[tokio::main]
-/// # async fn main() -> Result<()> {
-/// # let node = todo!();
-/// # let client = todo!();
-/// # let goal_handle = todo!();
-/// // Cancel a specific goal
+/// # async fn main() -> zenoh::Result<()> {
+/// # let client: ZActionClient<Fibonacci> = todo!();
+/// # let goal_handle: GoalHandle<Fibonacci, goal_state::Active> = todo!();
 /// client.cancel_goal(goal_handle.id()).await?;
-///
-/// // Or cancel all goals
 /// client.cancel_all_goals().await?;
 /// # Ok(())
 /// # }
@@ -406,16 +396,11 @@ impl<A: ZAction> ZActionClient<A> {
     ///
     /// ```no_run
     /// # use ros_z::action::*;
+    /// # use ros_z_msgs::action_tutorials_interfaces::{FibonacciGoal, action::Fibonacci};
     /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// # let node = todo!();
-    /// // Create an action client
-    /// let client = node.create_action_client::<MyAction>("my_action").build()?;
-    ///
-    /// // Send a goal and get a handle to monitor it
-    /// let goal_handle = client.send_goal(MyGoal { target: 42.0 }).await?;
-    ///
-    /// // The handle can be used to monitor progress, get feedback, and retrieve results
+    /// # async fn main() -> zenoh::Result<()> {
+    /// # let client: ZActionClient<Fibonacci> = todo!();
+    /// let goal_handle = client.send_goal(FibonacciGoal { order: 42 }).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -463,7 +448,26 @@ impl<A: ZAction> ZActionClient<A> {
             return Err(zenoh::Error::from("Goal rejected".to_string()));
         }
 
-        // 6. Return typed handle in Active state
+        // 6. Seed status watch with Accepted.
+        //
+        // The RPC response already confirms acceptance; the status topic message
+        // travels a separate async pub/sub path and may arrive later. Setting
+        // Accepted here ensures the caller sees a consistent initial status
+        // regardless of pub/sub delivery timing.  Use send_if_modified so a
+        // concurrent status delivery that already advanced beyond Accepted
+        // (unlikely but possible) is not overwritten.
+        if let Some(channels) = self.goal_board.active_goals.get(&goal_id) {
+            channels.status_tx.send_if_modified(|s| {
+                if *s == GoalStatus::Unknown {
+                    *s = GoalStatus::Accepted;
+                    true
+                } else {
+                    false
+                }
+            });
+        }
+
+        // 7. Return typed handle in Active state
         Ok(GoalHandle {
             id: goal_id,
             client: Arc::new(self.clone()),
@@ -600,16 +604,14 @@ struct GoalChannels<A: ZAction> {
 ///
 /// ```no_run
 /// # use ros_z::action::*;
+/// # use ros_z_msgs::action_tutorials_interfaces::action::Fibonacci;
 /// # #[tokio::main]
-/// # async fn main() -> Result<()> {
-/// # let mut goal_handle = todo!();
-/// // Monitor status
+/// # async fn main() -> zenoh::Result<()> {
+/// # let mut goal_handle: GoalHandle<Fibonacci, goal_state::Active> = todo!();
 /// let mut status_watch = goal_handle.status_watch().unwrap();
 /// while let Ok(()) = status_watch.changed().await {
 ///     println!("Status: {:?}", *status_watch.borrow());
 /// }
-///
-/// // Get result (consumes the handle)
 /// let result = goal_handle.result().await?;
 /// # Ok(())
 /// # }

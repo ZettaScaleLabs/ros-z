@@ -107,13 +107,13 @@ where
         service = %self.entity.topic
     ))]
     fn build(mut self) -> Result<Self::Output> {
+        let Some(node) = self.entity.node.as_ref() else {
+            return Err(zenoh::Error::from("client build requires node identity"));
+        };
         // Qualify the service name according to ROS 2 rules
-        let qualified_service = topic_name::qualify_service_name(
-            &self.entity.topic,
-            &self.entity.node.namespace,
-            &self.entity.node.name,
-        )
-        .map_err(|e| zenoh::Error::from(format!("Failed to qualify service: {}", e)))?;
+        let qualified_service =
+            topic_name::qualify_service_name(&self.entity.topic, &node.namespace, &node.name)
+                .map_err(|e| zenoh::Error::from(format!("Failed to qualify service: {}", e)))?;
 
         self.entity.topic = qualified_service.clone();
         debug!("[CLN] Qualified service: {}", qualified_service);
@@ -152,7 +152,8 @@ where
             sn: AtomicUsize::new(1), // Start at 1 for ROS compatibility
             inner,
             lv_token,
-            gid: crate::entity::endpoint_gid(&self.entity),
+            gid: crate::entity::endpoint_gid(&self.entity)
+                .expect("local endpoint always has node identity"),
             depth,
             current_rx: std::sync::Mutex::new(init_rx),
             #[cfg(feature = "rmw")]
@@ -476,12 +477,12 @@ where
         handler: DataHandler<Query>,
         queue: Option<Arc<BoundedQueue<Q>>>,
     ) -> Result<ZServer<T, Q>> {
-        let qualified_service = topic_name::qualify_service_name(
-            &self.entity.topic,
-            &self.entity.node.namespace,
-            &self.entity.node.name,
-        )
-        .map_err(|e| zenoh::Error::from(format!("Failed to qualify service: {}", e)))?;
+        let Some(node) = self.entity.node.as_ref() else {
+            return Err(zenoh::Error::from("service build requires node identity"));
+        };
+        let qualified_service =
+            topic_name::qualify_service_name(&self.entity.topic, &node.namespace, &node.name)
+                .map_err(|e| zenoh::Error::from(format!("Failed to qualify service: {}", e)))?;
 
         self.entity.topic = qualified_service;
 
@@ -534,7 +535,8 @@ where
             inner,
             lv_token,
             clock: self.clock,
-            gid: crate::entity::endpoint_gid(&self.entity),
+            gid: crate::entity::endpoint_gid(&self.entity)
+                .expect("local endpoint always has node identity"),
             queue,
             map: HashMap::new(),
             _phantom_data: Default::default(),

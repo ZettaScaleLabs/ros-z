@@ -12,10 +12,9 @@ use std::time::Duration;
 use ros_z::{
     Builder, Result,
     context::ZContextBuilder,
-    entity::{EntityKind, NodeKey},
+    entity::{EndpointKind, NodeKey},
 };
 use ros_z_msgs::{example_interfaces::srv::AddTwoInts, std_msgs::String as RosString};
-
 /// Helper to create a test context and node
 async fn setup_test_node(
     node_name: &str,
@@ -39,7 +38,7 @@ async fn wait_for_publishers(
     let start = std::time::Instant::now();
     let timeout = Duration::from_millis(timeout_ms);
     loop {
-        let count = node.graph().count(EntityKind::Publisher, topic);
+        let count = node.graph().count(EndpointKind::Publisher, topic);
         if count >= expected_count {
             return Ok(true);
         }
@@ -60,7 +59,7 @@ async fn wait_for_subscribers(
     let start = std::time::Instant::now();
     let timeout = Duration::from_millis(timeout_ms);
     loop {
-        let count = node.graph().count(EntityKind::Subscription, topic);
+        let count = node.graph().count(EndpointKind::Subscription, topic);
         if count >= expected_count {
             return Ok(true);
         }
@@ -126,7 +125,7 @@ mod tests {
 
         // Count publishers on a topic that doesn't exist yet
         let graph = node.graph().clone();
-        let count = graph.count(EntityKind::Publisher, topic_name);
+        let count = graph.count(EndpointKind::Publisher, topic_name);
 
         // Should be 0 or at least return successfully
         assert_eq!(count, 0, "Expected 0 publishers on non-existent topic");
@@ -138,7 +137,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(200)).await;
 
         // Count again - should see our publisher
-        let count = graph.count(EntityKind::Publisher, topic_name);
+        let count = graph.count(EndpointKind::Publisher, topic_name);
         assert!(
             count >= 1,
             "Expected at least 1 publisher after creating one"
@@ -155,7 +154,7 @@ mod tests {
 
         // Count subscribers on a topic that doesn't exist yet
         let graph = node.graph().clone();
-        let count = graph.count(EntityKind::Subscription, topic_name);
+        let count = graph.count(EndpointKind::Subscription, topic_name);
         assert_eq!(count, 0, "Expected 0 subscribers on non-existent topic");
 
         // Create a subscriber
@@ -165,7 +164,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(200)).await;
 
         // Count again - should see our subscriber
-        let count = graph.count(EntityKind::Subscription, topic_name);
+        let count = graph.count(EndpointKind::Subscription, topic_name);
         assert!(
             count >= 1,
             "Expected at least 1 subscriber after creating one"
@@ -182,7 +181,7 @@ mod tests {
 
         // Count clients on a service that doesn't exist yet
         let graph = node.graph().clone();
-        let count = graph.count(EntityKind::Client, service_name);
+        let count = graph.count(EndpointKind::Client, service_name);
 
         // Should be 0 or at least return successfully
         assert_eq!(count, 0, "Expected 0 clients on non-existent service");
@@ -194,7 +193,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(200)).await;
 
         // Count again - should see our client
-        let count = graph.count(EntityKind::Client, service_name);
+        let count = graph.count(EndpointKind::Client, service_name);
         assert!(count >= 1, "Expected at least 1 client after creating one");
 
         Ok(())
@@ -208,7 +207,7 @@ mod tests {
 
         // Count services on a service that doesn't exist yet
         let graph = node.graph().clone();
-        let count = graph.count(EntityKind::Service, service_name);
+        let count = graph.count(EndpointKind::Service, service_name);
 
         // Should be 0 or at least return successfully
         assert_eq!(count, 0, "Expected 0 services on non-existent service");
@@ -220,7 +219,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(200)).await;
 
         // Count again - should see our service
-        let count = graph.count(EntityKind::Service, service_name);
+        let count = graph.count(EndpointKind::Service, service_name);
         println!("Service count after creation: {}", count);
         assert!(count >= 1, "Expected at least 1 service after creating one");
 
@@ -243,7 +242,7 @@ mod tests {
         let graph = node.graph().clone();
         let node_key: NodeKey = ("/".to_string(), "test_graph_node".to_string());
 
-        let entities = graph.get_entities_by_node(EntityKind::Publisher, node_key);
+        let entities = graph.get_entities_by_node(EndpointKind::Publisher, node_key);
 
         // FIXME: In ros-z, local entities may not always be reflected in the graph immediately
         // This test verifies the API works but may return empty for local-only entities
@@ -276,7 +275,7 @@ mod tests {
         let graph = node.graph().clone();
         let node_key: NodeKey = ("/".to_string(), "test_graph_node".to_string());
 
-        let entities = graph.get_entities_by_node(EntityKind::Subscription, node_key);
+        let entities = graph.get_entities_by_node(EndpointKind::Subscription, node_key);
 
         // FIXME: In ros-z, local entities may not always be reflected in the graph immediately
         // This test verifies the API works but may return empty for local-only entities
@@ -309,7 +308,7 @@ mod tests {
         // Note: "/" namespace is normalized to "" in NodeEntity::key()
         let node_key: NodeKey = ("".to_string(), "test_graph_node".to_string());
 
-        let entities = graph.get_entities_by_node(EntityKind::Service, node_key);
+        let entities = graph.get_entities_by_node(EndpointKind::Service, node_key);
 
         // Should find our service
         assert!(!entities.is_empty(), "Expected to find service by node");
@@ -340,7 +339,7 @@ mod tests {
         // Note: "/" namespace is normalized to "" in NodeEntity::key()
         let node_key: NodeKey = ("".to_string(), "test_graph_node".to_string());
 
-        let entities = graph.get_entities_by_node(EntityKind::Client, node_key);
+        let entities = graph.get_entities_by_node(EndpointKind::Client, node_key);
 
         // Should find our client
         assert!(!entities.is_empty(), "Expected to find client by node");
@@ -369,8 +368,8 @@ mod tests {
         let graph = node.graph().clone();
 
         // Initially, topic should not exist
-        let count_pubs = graph.count(EntityKind::Publisher, &topic_name);
-        let count_subs = graph.count(EntityKind::Subscription, &topic_name);
+        let count_pubs = graph.count(EndpointKind::Publisher, &topic_name);
+        let count_subs = graph.count(EndpointKind::Subscription, &topic_name);
         assert_eq!(count_pubs, 0, "Expected 0 publishers initially");
         assert_eq!(count_subs, 0, "Expected 0 subscribers initially");
 
@@ -380,7 +379,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(300)).await;
 
         // Should see 1 publisher
-        let count_pubs = graph.count(EntityKind::Publisher, &topic_name);
+        let count_pubs = graph.count(EndpointKind::Publisher, &topic_name);
         assert!(
             count_pubs >= 1,
             "Expected at least 1 publisher after creation"
@@ -392,8 +391,8 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(300)).await;
 
         // Should see 1 publisher and 1 subscriber
-        let count_pubs = graph.count(EntityKind::Publisher, &topic_name);
-        let count_subs = graph.count(EntityKind::Subscription, &topic_name);
+        let count_pubs = graph.count(EndpointKind::Publisher, &topic_name);
+        let count_subs = graph.count(EndpointKind::Subscription, &topic_name);
         assert!(count_pubs >= 1, "Expected at least 1 publisher");
         assert!(count_subs >= 1, "Expected at least 1 subscriber");
 
@@ -402,8 +401,8 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(300)).await;
 
         // Should see 0 publishers, 1 subscriber
-        let count_pubs = graph.count(EntityKind::Publisher, &topic_name);
-        let count_subs = graph.count(EntityKind::Subscription, &topic_name);
+        let count_pubs = graph.count(EndpointKind::Publisher, &topic_name);
+        let count_subs = graph.count(EndpointKind::Subscription, &topic_name);
         assert_eq!(count_pubs, 0, "Expected 0 publishers after drop");
         assert!(count_subs >= 1, "Expected at least 1 subscriber still");
 
@@ -412,8 +411,8 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(300)).await;
 
         // Should see 0 publishers, 0 subscribers
-        let count_pubs = graph.count(EntityKind::Publisher, &topic_name);
-        let count_subs = graph.count(EntityKind::Subscription, &topic_name);
+        let count_pubs = graph.count(EndpointKind::Publisher, &topic_name);
+        let count_subs = graph.count(EndpointKind::Subscription, &topic_name);
         assert_eq!(count_pubs, 0, "Expected 0 publishers after all drops");
         assert_eq!(count_subs, 0, "Expected 0 subscribers after all drops");
 
@@ -475,7 +474,7 @@ mod tests {
 
         // Check from node1's perspective
         let graph1 = node1.graph();
-        let count = graph1.count(EntityKind::Publisher, topic_name);
+        let count = graph1.count(EndpointKind::Publisher, topic_name);
         // Should see at least one publisher (itself), ideally both
         assert!(
             count >= 1,
@@ -485,7 +484,7 @@ mod tests {
 
         // Check from node2's perspective
         let graph2 = node2.graph();
-        let count = graph2.count(EntityKind::Publisher, topic_name);
+        let count = graph2.count(EndpointKind::Publisher, topic_name);
         assert!(
             count >= 1,
             "Expected at least 1 publisher from node2's view, got {}",
@@ -512,7 +511,7 @@ mod tests {
 
         // Check from node1's perspective
         let graph1 = node1.graph();
-        let count = graph1.count(EntityKind::Subscription, topic_name);
+        let count = graph1.count(EndpointKind::Subscription, topic_name);
         // Should see at least one subscriber (itself), ideally both
         assert!(
             count >= 1,
@@ -522,7 +521,7 @@ mod tests {
 
         // Check from node2's perspective
         let graph2 = node2.graph();
-        let count = graph2.count(EntityKind::Subscription, topic_name);
+        let count = graph2.count(EndpointKind::Subscription, topic_name);
         assert!(
             count >= 1,
             "Expected at least 1 subscriber from node2's view, got {}",
@@ -585,7 +584,7 @@ mod tests {
 
         // Check from graph
         let graph1 = node1.graph();
-        let count = graph1.count(EntityKind::Client, service_name);
+        let count = graph1.count(EndpointKind::Client, service_name);
         assert!(count >= 2, "Expected at least 2 clients");
 
         Ok(())
@@ -604,7 +603,7 @@ mod tests {
 
         // Service should not be available yet
         let graph = node.graph().clone();
-        let count = graph.count(EntityKind::Service, service_name);
+        let count = graph.count(EndpointKind::Service, service_name);
         assert_eq!(count, 0, "Expected 0 services before creating server");
 
         // Create the service
@@ -613,7 +612,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(300)).await;
 
         // Service should now be available
-        let count = graph.count(EntityKind::Service, service_name);
+        let count = graph.count(EndpointKind::Service, service_name);
         assert!(count >= 1, "Expected at least 1 service after creation");
 
         // Drop service
@@ -621,7 +620,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(300)).await;
 
         // Service should no longer be available
-        let count = graph.count(EntityKind::Service, service_name);
+        let count = graph.count(EndpointKind::Service, service_name);
         assert_eq!(count, 0, "Expected 0 services after dropping server");
 
         drop(client);
@@ -642,8 +641,8 @@ mod tests {
 
         // Get entities by topic
         let graph = node.graph().clone();
-        let pubs = graph.get_entities_by_topic(EntityKind::Publisher, topic_name);
-        let subs = graph.get_entities_by_topic(EntityKind::Subscription, topic_name);
+        let pubs = graph.get_entities_by_topic(EndpointKind::Publisher, topic_name);
+        let subs = graph.get_entities_by_topic(EndpointKind::Subscription, topic_name);
 
         // Should find both
         assert!(!pubs.is_empty(), "Expected to find publishers");
