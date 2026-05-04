@@ -306,11 +306,8 @@ impl ZNode {
         debug!("[NOD] Creating publisher: topic={}", topic);
         let mut builder = self.create_pub_impl(topic, Some(T::type_info()));
 
-        // Register schema and attach it to the builder regardless of whether
-        // type_desc_service is enabled. with_dyn_schema guards against overwriting
-        // the type_info already set by T::type_info() above, so there is no
-        // double-assignment. Setting dyn_schema on typed publishers lets callers
-        // inspect the schema via ZPub::schema() even without a discovery service.
+        // Call with_dyn_schema regardless of type_desc_service: its is_none() guard
+        // prevents overwriting the type_info already set by T::type_info() above.
         match T::message_schema() {
             Some(schema) => {
                 self.register_schema_with_type_description_service(&schema);
