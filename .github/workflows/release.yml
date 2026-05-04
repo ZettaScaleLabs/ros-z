@@ -373,11 +373,34 @@ jobs:
           dist/bin-console-x86_64-linux --help
           dist/bin-bridge-jazzy-x86_64-linux --help
 
+      - name: Runtime startup check (no crash without router)
+        run: |
+          # Run bridge for 3 s without a router; SIGTERM is expected, crash is not.
+          dist/bin-bridge-jazzy-x86_64-linux &
+          BID=$!
+          sleep 3
+          kill $BID 2>/dev/null
+          wait $BID 2>/dev/null
+          EXIT=$?
+          # SIGTERM = 143; SIGSEGV = 139; SIGABRT = 134
+          if [ "$EXIT" -eq 139 ] || [ "$EXIT" -eq 134 ]; then
+            echo "FAIL: bridge crashed on startup (exit $EXIT)"
+            exit 1
+          fi
+          echo "bridge runtime ok (exit $EXIT — expected SIGTERM/connection error)"
+
   smoke-test-go:
     name: Smoke test Go library
     needs: [build-go-libs]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
       - name: Download libros_z (jazzy, x86_64)
         uses: actions/download-artifact@v4
         with:
@@ -389,6 +412,15 @@ jobs:
           ar t dist/libros_z-jazzy-x86_64-unknown-linux-gnu.a | head -5
           test -f dist/ros_z_ffi.h
           echo "Go library artifact ok"
+
+      - name: Place library for CGO build
+        run: |
+          mkdir -p target/release
+          cp dist/libros_z-jazzy-x86_64-unknown-linux-gnu.a target/release/libros_z.a
+
+      - name: Build Go package (CGO link test)
+        working-directory: crates/ros-z-go
+        run: go build ./rosz/...
 
   release:
     name: Create GitHub Release
@@ -442,3 +474,31 @@ jobs:
           name: ${{ github.ref_name }}
           body_path: CHANGELOG.md
           files: dist/**
+
+  smoke-test-release-install:
+    name: Smoke test install from release URL
+    needs: [release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install from GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python -m venv .venv
+          TAG="${{ github.ref_name }}"
+          REPO="${{ github.repository }}"
+          mkdir release-dist
+          gh release download "$TAG" --repo "$REPO" \
+            --pattern "ros_z_msgs_py-*.whl" \
+            --pattern "*0jazzy*x86_64*linux*.whl" \
+            --dir release-dist/
+          .venv/bin/pip install release-dist/ros_z_msgs_py-*.whl
+          .venv/bin/pip install release-dist/*0jazzy*x86_64*linux*.whl
+
+      - name: Import test
+        run: .venv/bin/python -c "import ros_z_py; print('ros_z_py install-from-release ok')"
