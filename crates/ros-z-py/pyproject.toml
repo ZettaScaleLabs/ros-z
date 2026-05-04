@@ -24,10 +24,11 @@ classifiers = [
 ]
 dependencies = [
     "msgspec>=0.18.0",
+    "ros-z-msgs-py>=0.1.0",
 ]
 
 [tool.maturin]
-features = ["pyo3/extension-module"]
+features = ["pyo3/extension-module", "jazzy"]
 python-source = "python"
 module-name = "ros_z_py._native"
 include = [
