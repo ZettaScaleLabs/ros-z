@@ -234,6 +234,12 @@ robot/sensors/camera/**       # Topic /robot/sensors/camera
 <li>Using <code>zenoh-bridge-ros2dds</code></li>
 <li>Integrating with CycloneDDS or FastDDS nodes via Zenoh</li>
 </ul>
+<p><strong>Discovery consequences:</strong></p>
+<ul>
+<li><code>Ros2Dds</code> graph discovery can identify publishers/subscribers/services by topic or service name, but its liveliness data does not provide publisher node identity.</li>
+<li>Topic-based graph helpers such as publisher/subscriber matching work with <code>Ros2Dds</code>.</li>
+<li>Node-based discovery and automatic schema discovery via <code>create_dyn_sub_auto()</code> are not supported with <code>Ros2Dds</code>, because the publishing node cannot be identified from discovery data.</li>
+</ul>
 <h2 id="key-expression-behavior-important"><a class="header" href="#key-expression-behavior-important">Key Expression Behavior (IMPORTANT)</a></h2>
 <p>Understanding how topic names are converted to key expressions is critical for debugging:</p>
 <h3 id="topic-key-expressions-for-data-routing"><a class="header" href="#topic-key-expressions-for-data-routing">Topic Key Expressions (For Data Routing)</a></h3>
