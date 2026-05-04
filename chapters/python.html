@@ -208,7 +208,48 @@
     H --&gt;|deserialize| I[Rust Struct]
 </pre>
 <h2 id="installation"><a class="header" href="#installation">Installation</a></h2>
-<h3 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h3>
+<h3 id="pre-built-wheels-recommended"><a class="header" href="#pre-built-wheels-recommended">Pre-built Wheels (Recommended)</a></h3>
+<p>Pre-built wheels are available for Linux (x86_64, aarch64) and macOS (aarch64),
+Python 3.11+. No Rust toolchain required.</p>
+<p>Pick a release version from the <a href="https://github.com/ZettaScaleLabs/ros-z/releases">Releases page</a> and substitute <code>&lt;version&gt;</code> below (e.g. <code>v0.2.0</code>).</p>
+<p><strong>Jazzy / Kilted / Rolling:</strong></p>
+<pre><code class="language-bash">pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/&lt;version&gt;/ros_z_msgs_py-&lt;version&gt;-py3-none-any.whl
+pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/&lt;version&gt;/ros_z_py-&lt;version&gt;-0jazzy-cp311-abi3-linux_x86_64.whl
+</code></pre>
+<p><strong>Humble:</strong></p>
+<pre><code class="language-bash">pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/&lt;version&gt;/ros_z_msgs_py-&lt;version&gt;-py3-none-any.whl
+pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/&lt;version&gt;/ros_z_py-&lt;version&gt;-0humble-cp311-abi3-linux_x86_64.whl
+</code></pre>
+<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
+<div class="admonition-title">
+<div id="admonition-tip-title">
+<p>Tip</p>
+</div>
+<a class="admonition-anchor-link" href="#admonition-tip"></a>
+</div>
+<div>
+<p><code>ros-z-msgs-py</code> (message definitions) is a dependency of <code>ros-z-py</code> and is installed
+automatically when using <code>pip install</code>. The explicit install above is only needed when
+pinning a specific version or installing from a direct URL.</p>
+</div>
+</div>
+<h3 id="local-dry-run-before-releasing"><a class="header" href="#local-dry-run-before-releasing">Local Dry-Run (before releasing)</a></h3>
+<p>To verify the wheel build locally before pushing a release tag, use the build script
+which mirrors the CI release workflow exactly:</p>
+<pre><code class="language-bash"># Build jazzy + humble wheels into crates/ros-z-py/dist/
+./scripts/build-python-wheels.nu
+
+# Build and immediately install into crates/ros-z-py/.venv
+./scripts/build-python-wheels.nu --install jazzy
+
+# Build a single distro only
+./scripts/build-python-wheels.nu jazzy
+</code></pre>
+<p>The script produces the same wheel filenames as CI (with the <code>‑jazzy</code> / <code>‑humble</code> distro
+suffix) and prints ready-to-use <code>pip install</code> commands for the local files.</p>
+<h3 id="build-from-source"><a class="header" href="#build-from-source">Build from Source</a></h3>
+<p>For development or platforms without pre-built wheels:</p>
+<h4 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h4>
 <ul>
 <li>Python 3.8+</li>
 <li>Rust 1.85+ — install via <a href="https://rustup.rs">rustup</a>: <code>curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh</code></li>
@@ -225,7 +266,7 @@
 <p>If you use Nix, run <code>nix develop</code> in the repo root. It provides Rust, maturin, and all build tools automatically — skip the manual install steps above.</p>
 </div>
 </div>
-<h3 id="setup"><a class="header" href="#setup">Setup</a></h3>
+<h4 id="setup"><a class="header" href="#setup">Setup</a></h4>
 <pre><code class="language-bash"># Create and activate virtual environment
 cd crates/ros-z-py
 python -m venv .venv
@@ -237,12 +278,12 @@ pip install -e ../ros-z-msgs/python/
 # Build and install ros-z-py
 maturin develop
 </code></pre>
-<div id="admonition-tip" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-title">
+<div id="admonition-tip-1" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-1-title">
 <div class="admonition-title">
-<div id="admonition-tip-title">
+<div id="admonition-tip-1-title">
 <p>Tip</p>
 </div>
-<a class="admonition-anchor-link" href="#admonition-tip"></a>
+<a class="admonition-anchor-link" href="#admonition-tip-1"></a>
 </div>
 <div>
 <p>Use <code>maturin develop --release</code> for optimized builds when benchmarking or running in production.</p>
@@ -351,12 +392,12 @@ maturin develop
 
 
 </code></pre>
-<div id="admonition-tip-1" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-1-title">
+<div id="admonition-tip-2" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-2-title">
 <div class="admonition-title">
-<div id="admonition-tip-1-title">
+<div id="admonition-tip-2-title">
 <p>Tip</p>
 </div>
-<a class="admonition-anchor-link" href="#admonition-tip-1"></a>
+<a class="admonition-anchor-link" href="#admonition-tip-2"></a>
 </div>
 <div>
 <p>Service servers use a pull model: <code>take_request()</code> blocks until a request arrives. This gives you explicit control over when to process requests.</p>
@@ -386,12 +427,12 @@ class CountToFeedback(msgspec.Struct):
 
 
 </code></pre>
-<div id="admonition-tip-2" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-2-title">
+<div id="admonition-tip-3" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-3-title">
 <div class="admonition-title">
-<div id="admonition-tip-2-title">
+<div id="admonition-tip-3-title">
 <p>Tip</p>
 </div>
-<a class="admonition-anchor-link" href="#admonition-tip-2"></a>
+<a class="admonition-anchor-link" href="#admonition-tip-3"></a>
 </div>
 <div>
 <p>Types from <code>ros_z_msgs_py</code> already have <code>__msgtype__</code> and a ROS 2 type hash. Inline
@@ -579,12 +620,12 @@ pub.publish(echo)
 <tr><td><code>bytes(view)</code></td><td>Convert to <code>bytes</code> (copies)</td></tr>
 <tr><td><code>view.is_zero_copy</code></td><td>Whether the view avoids internal copying</td></tr>
 </tbody></table>
-</div><div id="admonition-tip-3" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-3-title">
+</div><div id="admonition-tip-4" class="admonition admonish-tip" role="note" aria-labelledby="admonition-tip-4-title">
 <div class="admonition-title">
-<div id="admonition-tip-3-title">
+<div id="admonition-tip-4-title">
 <p>Tip</p>
 </div>
-<a class="admonition-anchor-link" href="#admonition-tip-3"></a>
+<a class="admonition-anchor-link" href="#admonition-tip-4"></a>
 </div>
 <div>
 <p>For best performance with large payloads, avoid calling <code>bytes()</code> on <code>ZBufView</code> fields. Use <code>memoryview()</code> for read access, or pass the <code>ZBufView</code> directly when re-publishing.</p>
