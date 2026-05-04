@@ -75,6 +75,7 @@ jobs:
           python3 -m venv .venv
           echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
           echo "DEVELOPER_DIR=$(xcode-select -p)" >> $GITHUB_ENV
+          echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> $GITHUB_ENV
 
       - name: Build wheels
         uses: PyO3/maturin-action@v1
@@ -375,13 +376,13 @@ jobs:
 
       - name: Runtime startup check (no crash without router)
         run: |
-          # Run bridge for 3 s without a router; SIGTERM is expected, crash is not.
+          # Run bridge for 3 s without a router; SIGTERM or connection-refused is
+          # expected. A crash (SIGSEGV=139, SIGABRT=134) is not.
           dist/bin-bridge-jazzy-x86_64-linux &
           BID=$!
           sleep 3
-          kill $BID 2>/dev/null
-          wait $BID 2>/dev/null
-          EXIT=$?
+          kill $BID 2>/dev/null || true   # ignore: process may have exited already
+          EXIT=0; wait $BID 2>/dev/null || EXIT=$?
           # SIGTERM = 143; SIGSEGV = 139; SIGABRT = 134
           if [ "$EXIT" -eq 139 ] || [ "$EXIT" -eq 134 ]; then
             echo "FAIL: bridge crashed on startup (exit $EXIT)"
