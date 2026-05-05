@@ -11,6 +11,8 @@
 ## What is a Service?
 
 ```mermaid
+accTitle: Service request and response between client and server
+accDescr: The client sends a typed request with two integers to the server, which computes the sum and returns a typed response.
 sequenceDiagram
     participant C as Client
     participant S as Server
@@ -30,6 +32,8 @@ sequenceDiagram
 ### Service vs Topic vs Action
 
 ```mermaid
+accTitle: Decision tree for choosing Topic, Service, or Action
+accDescr: A decision tree that routes continuous data streams to Topics, fast single results to Services, and long tasks needing progress and cancellation to Actions.
 graph TD
     Q{What do you need?}
     Q -->|Continuous data stream| T[Topic]
@@ -68,6 +72,8 @@ trait AddTwoInts: ZService {
 ### What happens with no server?
 
 ```mermaid
+accTitle: Service call timeout when no server is registered
+accDescr: The client sends a request to the Zenoh router, which waits indefinitely for a server and eventually times out after the configured queries_default_timeout.
 sequenceDiagram
     participant C as Client
     participant Z as Zenoh Router
@@ -165,6 +171,8 @@ Services use **reliable + volatile** durability. Volatile means: if a server res
 ## Visual Flow
 
 ```mermaid
+accTitle: Service visual flow from context creation to response handling
+accDescr: ZContextBuilder creates a ZContext that spawns both a client node and server node; the client sends a request routed through the service call to the server's handler, which returns a response the client takes.
 graph TD
     A[ZContextBuilder] -->|configure| B[ZContext]
     B -->|create| C[Client Node]

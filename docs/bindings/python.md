@@ -9,6 +9,8 @@
 ## Visual Flow
 
 ```mermaid
+accTitle: Python bindings architecture from Python code to Zenoh network
+accDescr: Python code imports ros_z_py which calls through PyO3 into the Rust ros-z core, which uses the Zenoh transport to reach ROS 2 and Rust nodes; Python messages go through msgspec and CDR serialization.
 graph TD
     A[Python Code] -->|import| B[ros_z_py]
     B -->|PyO3| C[Rust ros-z]

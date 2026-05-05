@@ -32,6 +32,8 @@ The bridge fixes this by:
 ## Architecture
 
 ```mermaid
+accTitle: Cross-distro bridge connecting Humble and Jazzy Zenoh networks
+accDescr: ros-z-bridge opens two Zenoh sessions, one to the legacy Humble router and one to the modern Jazzy or Kilted router, transparently forwarding messages between them.
 graph TD
     H_node["Humble node<br>(TypeHashNotSupported)"]
     J_node["Jazzy / Kilted node<br>(RIHS01_abcd…)"]

@@ -10,6 +10,8 @@
 A lifecycle node moves through a defined set of states. Only in the **Active** state does a node send or receive messages.
 
 ```mermaid
+accTitle: Lifecycle node state machine with all transitions
+accDescr: Shows the four primary states Unconfigured, Inactive, Active, and Finalized with transitions configure, activate, deactivate, cleanup, and shutdown connecting them.
 stateDiagram-v2
     direction LR
 

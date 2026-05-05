@@ -8,6 +8,8 @@
 ## What is a Parameter?
 
 ```mermaid
+accTitle: Node owning typed parameters with CLI write access
+accDescr: The robot_controller node owns three typed parameters and the ros2 param set CLI command writes directly to the max_speed parameter at runtime.
 graph TD
     N[Node: /robot_controller] -->|owns| P1[max_speed: 2.5]
     N -->|owns| P2[use_sim_time: false]
@@ -35,6 +37,8 @@ graph TD
 ### The 9 parameter types
 
 ```mermaid
+accTitle: The nine ROS 2 parameter value types
+accDescr: A Parameter Value node branches into the nine supported types: bool, integer i64, double f64, string, bool array, integer array, double array, string array, and byte array.
 graph LR
     P([Parameter Value]) --> B[bool]
     P --> I[integer i64]
@@ -50,6 +54,8 @@ graph LR
 ### Change validation pipeline
 
 ```mermaid
+accTitle: Parameter change validation pipeline through pre-set, set, and post-set callbacks
+accDescr: A CLI set command enters the node's three-stage callback pipeline where pre-set can modify the batch, set validates without side-effects, and post-set applies hardware changes only on success.
 sequenceDiagram
     participant CLI as ros2 param set
     participant N as Node
@@ -168,6 +174,8 @@ Every ros-z node auto-creates these services — no extra code needed:
 ## Visual Flow
 
 ```mermaid
+accTitle: Parameter subsystem components inside a ros-z node
+accDescr: A ZNodeBuilder creates a ZNode that owns both a ParameterStore and a ParameterService; the service hosts six ZServers for all standard parameter operations and publishes parameter events.
 graph TD
     A[ZNodeBuilder] -->|configure| B[ZNode]
     B -->|owns| C[ParameterStore]

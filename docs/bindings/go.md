@@ -10,6 +10,8 @@
 ## Architecture
 
 ```mermaid
+accTitle: Go bindings architecture through CGO and Rust to Zenoh network
+accDescr: Go code calls through CGO into a C FFI layer that bridges to the Rust ros-z core, which uses the Zenoh transport to communicate with ROS 2, Rust, and Python nodes.
 graph TD
     A[Go Code] -->|CGO| B[C FFI Layer]
     B --> C[Rust ros-z]

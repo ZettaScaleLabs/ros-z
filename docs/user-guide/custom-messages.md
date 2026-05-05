@@ -8,6 +8,8 @@ ros-z supports two approaches for defining custom message types:
 | **Schema-Generated** | Write `.msg`/`.srv` files, generate Rust | Production, ROS 2 interop       |
 
 ```mermaid
+accTitle: Decision tree for choosing Rust-native or schema-generated messages
+accDescr: If custom messages are needed and ROS 2 interop is required use schema-generated; for quick prototypes without interop use Rust-native; otherwise use standard messages.
 flowchart TD
     A[Need Custom Messages?] -->|Yes| B{ROS 2 Interop Needed?}
     B -->|Yes| C[Schema-Generated]
@@ -29,6 +31,8 @@ flowchart TD
 ### Workflow of Rust-Native Messages
 
 ```mermaid
+accTitle: Rust-native message definition workflow
+accDescr: Starting from defining the struct, the workflow proceeds through implementing MessageTypeInfo, adding Serde traits, implementing WithTypeInfo, and finally using the type in pub/sub.
 graph LR
     A[Define Struct] --> B[Derive MessageTypeInfo]
     B --> C[Add Serde Traits]
@@ -126,6 +130,8 @@ cargo run --example z_custom_message -- --mode status-pub
 ### Workflow of Schema-Generated Messages
 
 ```mermaid
+accTitle: Schema-generated message workflow from msg files to Rust types
+accDescr: The developer writes dot-msg files, creates a Rust crate with a build.rs, sets ROS_Z_MSG_PATH, runs cargo build, and then uses the generated Rust types.
 graph LR
     A[Write .msg files] --> B[Create Rust crate]
     B --> C[Add build.rs]
