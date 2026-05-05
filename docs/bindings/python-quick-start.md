@@ -5,15 +5,32 @@ Get a Python publisher and subscriber running in five minutes.
 
 ## Prerequisites
 
-- Python 3.8+
-- Rust 1.85+ — install via [rustup](https://rustup.rs)
-- `maturin` — `pip install maturin`
+- Python 3.11+
 - An Eclipse Zenoh router — see [Networking](../user-guide/networking.md)
 
-!!! tip "Using Nix"
-    Run `nix develop` in the repo root to get Rust, maturin, and all build tools automatically — skip the manual install steps above.
+## 1. Install ros-z-py
 
-## 1. Set Up
+### Option A — Pre-built wheel (recommended, no Rust needed)
+
+Pick a release from the [Releases page](https://github.com/ZettaScaleLabs/ros-z/releases) and substitute `<version>`:
+
+=== "Jazzy / Kilted / Rolling"
+
+    ```bash
+    pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/<version>/ros_z_msgs_py-<version>-py3-none-any.whl
+    pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/<version>/ros_z_py-<version>-0jazzy-cp311-abi3-linux_x86_64.whl
+    ```
+
+=== "Humble"
+
+    ```bash
+    pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/<version>/ros_z_msgs_py-<version>-py3-none-any.whl
+    pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/<version>/ros_z_py-<version>-0humble-cp311-abi3-linux_x86_64.whl
+    ```
+
+### Option B — Build from source
+
+Requires Rust 1.85+ and `maturin`:
 
 ```bash
 cd crates/ros-z-py
