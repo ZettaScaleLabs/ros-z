@@ -163,9 +163,13 @@ QoS controls delivery guarantees. Incompatible settings = **silent** data loss.
 Publish "Hello World" messages to `/chatter` once per second:
 
 ```rust
-use ros_z::Builder;
+use ros_z::{Builder, context::ZContextBuilder};
+use ros_z_msgs::std_msgs::String as RosString;
 use std::time::Duration;
 
+let ctx = ZContextBuilder::default()
+    .with_connect_endpoints(["tcp/127.0.0.1:7447"])
+    .build()?;
 let node = ctx.create_node("talker").build()?;
 let publisher = node.create_pub::<RosString>("/chatter").build()?;
 
@@ -185,23 +189,17 @@ loop {
 - For a non-async context, use `publisher.publish(&msg)?` instead
 - Default QoS (Reliable, KeepLast 10) is fine for most use cases; see the [QoS section](#quality-of-service-qos) below for custom profiles
 
-**Running the publisher:**
-
-```bash
-# Basic usage
-cargo run --example demo_nodes_talker
-
-# Custom topic and rate
-cargo run --example demo_nodes_talker -- --topic /my_topic --period 0.5
-```
-
 ## Subscriber Example
 
 Receive and print every message on `/chatter`:
 
 ```rust
-use ros_z::Builder;
+use ros_z::{Builder, context::ZContextBuilder};
+use ros_z_msgs::std_msgs::String as RosString;
 
+let ctx = ZContextBuilder::default()
+    .with_connect_endpoints(["tcp/127.0.0.1:7447"])
+    .build()?;
 let node = ctx.create_node("listener").build()?;
 let subscriber = node.create_sub::<RosString>("/chatter").build()?;
 
@@ -216,19 +214,10 @@ while let Ok(msg) = subscriber.async_recv().await {
 - For a non-async context, use `subscriber.recv()` (blocks the thread)
 - For timeout-based polling, use `subscriber.recv_timeout(Duration::from_secs(1))`
 
-**Running the subscriber:**
-
-```bash
-# Basic usage
-cargo run --example demo_nodes_listener
-
-# Custom topic
-cargo run --example demo_nodes_listener -- --topic /my_topic
-```
-
 ## Complete Pub-Sub Workflow
 
-To see publishers and subscribers in action together, you'll need to start a Zenoh router first:
+!!! note
+    These commands run the ready-made examples from the ros-z repository. Clone it first with `git clone https://github.com/ZettaScaleLabs/ros-z.git && cd ros-z`. If you're building your own project, run your binaries with `cargo run` instead.
 
 **Terminal 1 — Start Zenoh Router:**
 

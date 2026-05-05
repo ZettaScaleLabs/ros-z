@@ -201,8 +201,12 @@ accDescr: ZContextBuilder creates a ZContext that spawns both a client node and 
 A server that adds two integers: wait for requests in a loop, compute the result, send it back.
 
 ```rust
-use ros_z::Builder;
+use ros_z::{Builder, context::ZContextBuilder};
+use example_interfaces::srv::add_two_ints::{AddTwoInts, AddTwoIntsResponse};
 
+let ctx = ZContextBuilder::default()
+    .with_connect_endpoints(["tcp/127.0.0.1:7447"])
+    .build()?;
 let node = ctx.create_node("add_two_ints_server").build()?;
 let mut service = node.create_service::<AddTwoInts>("/add_two_ints").build()?;
 
@@ -220,27 +224,18 @@ loop {
 - `key` is an opaque token that ties the response to the original request; you must pass it back with `send_response`
 - `service` must be `mut` because `take_request` takes `&mut self`
 
-**Running the server:**
-
-```bash
-# Basic usage - runs indefinitely
-cargo run --example demo_nodes_add_two_ints_server
-
-# Handle 5 requests then exit
-cargo run --example demo_nodes_add_two_ints_server -- --count 5
-
-# Connect to specific Zenoh router
-cargo run --example demo_nodes_add_two_ints_server -- --endpoint tcp/localhost:7447
-```
-
 ## Service Client Example
 
 A client that sends one addition request and prints the result:
 
 ```rust
-use ros_z::Builder;
+use ros_z::{Builder, context::ZContextBuilder};
+use example_interfaces::srv::add_two_ints::{AddTwoInts, AddTwoIntsRequest};
 use std::time::Duration;
 
+let ctx = ZContextBuilder::default()
+    .with_connect_endpoints(["tcp/127.0.0.1:7447"])
+    .build()?;
 let node = ctx.create_node("add_two_ints_client").build()?;
 let client = node.create_client::<AddTwoInts>("/add_two_ints").build()?;
 
@@ -257,22 +252,10 @@ println!("Result: {}", resp.sum);
 - `take_response_timeout` waits up to the deadline; returns `Err` on timeout
 - If no server is running, the call times out rather than hanging forever
 
-**Running the client:**
-
-```bash
-# Basic usage
-cargo run --example demo_nodes_add_two_ints_client -- --a 10 --b 20
-
-# Using async mode
-cargo run --example demo_nodes_add_two_ints_client -- --a 5 --b 3 --async-mode
-
-# Connect to specific Zenoh router
-cargo run --example demo_nodes_add_two_ints_client -- --a 100 --b 200 --endpoint tcp/localhost:7447
-```
-
 ## Complete Service Workflow
 
-To see services in action, you'll need to start a Zenoh router first:
+!!! note
+    These commands run the ready-made examples from the ros-z repository. Clone it first with `git clone https://github.com/ZettaScaleLabs/ros-z.git && cd ros-z`. If you're building your own project, run your binaries with `cargo run` instead.
 
 **Terminal 1 — Start Zenoh Router:**
 

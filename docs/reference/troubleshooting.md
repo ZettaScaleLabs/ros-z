@@ -93,13 +93,14 @@
 
     1. **Ensure the router is running:**
        ```bash
-       cargo run --example zenoh_router
+       zenohd   # pre-built binary from https://github.com/eclipse-zenoh/zenoh/releases
+       # or: cargo install zenohd && zenohd
        ```
 
-    2. **Verify endpoint matches in your code:**
+    2. **Verify your code connects to the router:**
        ```rust
        let ctx = ZContextBuilder::default()
-           .with_router_endpoint("tcp/localhost:7447")?  // Must match router
+           .with_connect_endpoints(["tcp/127.0.0.1:7447"])  // must match router address
            .build()?;
        ```
 
@@ -108,32 +109,31 @@
 
     **Solutions:**
 
-    1. **Stop the conflicting process**
+    1. **Stop the conflicting process** — find it with `lsof -i :7447` (Linux/macOS) or `netstat -ano | findstr 7447` (Windows), then kill it.
 
     2. **Use a custom port:**
 
        Start the router on a different port:
        ```bash
-       cargo run --example zenoh_router -- --listen "tcp/[::]:7448"
+       zenohd --listen "tcp/[::]:7448"
        ```
 
-       Then connect your sessions to that port:
+       Then connect your code to that port:
        ```rust
        let ctx = ZContextBuilder::default()
-           .with_router_endpoint("tcp/localhost:7448")?
+           .with_connect_endpoints(["tcp/127.0.0.1:7448"])
            .build()?;
        ```
 
-??? question "Don't want to run a router — can I use peer-to-peer mode?"
-    **Solution:** Use peer mode with multicast discovery:
+??? question "Can I skip the router and use peer-to-peer mode?"
+    **No** — ros-z requires a Zenoh router for reliable operation and ROS 2 interoperability. Peer-to-peer mode is not supported.
 
-    ```rust
-    let ctx = ZContextBuilder::default()
-        .with_mode("peer")
-        .build()?;
+    If you don't want to install a router locally, the easiest alternative is Docker:
+    ```bash
+    docker run --init --net host eclipse/zenoh:latest
     ```
 
-    **Warning:** Peer mode won't interoperate with ROS 2 nodes using [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) in router mode.
+    See [Networking](../user-guide/networking.md) for all router options, including apt/brew install and pre-built binaries.
 
 ??? question "Multi-segment topics like /robot/sensors/camera don't work"
     **Symptom:** Publisher publishes to `/robot/sensors/camera` but subscriber never receives messages.
