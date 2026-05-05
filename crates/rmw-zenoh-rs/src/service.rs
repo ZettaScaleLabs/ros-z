@@ -180,11 +180,9 @@ impl ServiceImpl {
             *taken = false;
         }
 
-        if let Some(request_ctx) = self.inner.try_take_request()? {
-            let request_id = request_ctx.id().clone();
+        if let Some((bytes, reply)) = self.inner.try_take_request_raw()? {
+            let request_id = reply.id().clone();
             let source_timestamp = request_id.source_timestamp;
-            let (request_msg, reply) = request_ctx.into_parts();
-            let bytes = request_msg.0;
 
             // Set received_timestamp to current time
             let received_timestamp = std::time::SystemTime::now()

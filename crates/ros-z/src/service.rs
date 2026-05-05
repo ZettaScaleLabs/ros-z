@@ -644,6 +644,37 @@ where
         }
     }
 
+    /// Take the next request as raw payload bytes without typed deserialization.
+    ///
+    /// Used by the RMW layer, which performs its own C FFI deserialization on the raw bytes.
+    /// Returns `(payload_bytes, reply_token)` so the caller can fill an existing message buffer.
+    #[cfg(feature = "rmw")]
+    pub fn try_take_request_raw(&mut self) -> Result<Option<(Vec<u8>, ServiceReply<T>)>> {
+        let queue = self.queue.as_ref().ok_or_else(|| {
+            zenoh::Error::from("Server was built with callback, no queue available")
+        })?;
+        let Some(query) = queue.try_recv() else {
+            return Ok(None);
+        };
+        let attachment_bytes = query
+            .attachment()
+            .ok_or_else(|| zenoh::Error::from("Service request missing attachment"))?;
+        let attachment: Attachment = attachment_bytes.try_into()?;
+        let request_id: RequestId = attachment.into();
+        let payload_bytes = query
+            .payload()
+            .map(|p| p.to_bytes().to_vec())
+            .unwrap_or_default();
+        let reply = ServiceReply {
+            request_id,
+            key_expr: self.key_expr.clone(),
+            query,
+            clock: self.clock.clone(),
+            _phantom_data: PhantomData,
+        };
+        Ok(Some((payload_bytes, reply)))
+    }
+
     /// Blocks waiting to receive the next request on the service and then deserializes the payload.
     ///
     /// This method may fail if the message does not deserialize as the requested type.

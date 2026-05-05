@@ -199,15 +199,13 @@ fn test_service_jazzy_server_humble_client() {
         let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
         loop {
             if let Ok(req) = server.take_request() {
-                let resp = ros_z_msgs::ros::example_interfaces::AddTwoIntsResponse {
-                    sum: req.message().a + req.message().b,
-                };
+                let a = req.message().a;
+                let b = req.message().b;
+                let resp = ros_z_msgs::ros::example_interfaces::AddTwoIntsResponse { sum: a + b };
                 let _ = req.reply_blocking(&resp);
                 println!(
                     "Handled Humble→Jazzy service call: {} + {} = {}",
-                    req.message().a,
-                    req.message().b,
-                    resp.sum
+                    a, b, resp.sum
                 );
                 break;
             }
