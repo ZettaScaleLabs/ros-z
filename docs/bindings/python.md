@@ -76,9 +76,6 @@ For development or platforms without pre-built wheels:
 - Rust 1.85+ — install via [rustup](https://rustup.rs): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
 - maturin — `pip install maturin`
 
-!!! tip "Using Nix"
-    If you use Nix, run `nix develop` in the repo root. It provides Rust, maturin, and all build tools automatically — skip the manual install steps above.
-
 #### Setup
 
 ```bash
