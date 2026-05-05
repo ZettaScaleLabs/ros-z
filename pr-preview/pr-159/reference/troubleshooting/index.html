@@ -2054,13 +2054,14 @@
 <ol>
 <li>
 <p><strong>Ensure the router is running:</strong>
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>cargo<span class="w"> </span>run<span class="w"> </span>--example<span class="w"> </span>zenoh_router
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>zenohd<span class="w">   </span><span class="c1"># pre-built binary from https://github.com/eclipse-zenoh/zenoh/releases</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="c1"># or: cargo install zenohd &amp;&amp; zenohd</span>
 </span></code></pre></div></p>
 </li>
 <li>
-<p><strong>Verify endpoint matches in your code:</strong>
+<p><strong>Verify your code connects to the router:</strong>
    <div class="language-rust highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kd">let</span><span class="w"> </span><span class="n">ctx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ZContextBuilder</span><span class="p">::</span><span class="n">default</span><span class="p">()</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">    </span><span class="p">.</span><span class="n">with_router_endpoint</span><span class="p">(</span><span class="s">&quot;tcp/localhost:7447&quot;</span><span class="p">)</span><span class="o">?</span><span class="w">  </span><span class="c1">// Must match router</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">    </span><span class="p">.</span><span class="n">with_connect_endpoints</span><span class="p">([</span><span class="s">&quot;tcp/127.0.0.1:7447&quot;</span><span class="p">])</span><span class="w">  </span><span class="c1">// must match router address</span>
 </span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">    </span><span class="p">.</span><span class="n">build</span><span class="p">()</span><span class="o">?</span><span class="p">;</span>
 </span></code></pre></div></p>
 </li>
@@ -2072,29 +2073,28 @@
 <p><strong>Solutions:</strong></p>
 <ol>
 <li>
-<p><strong>Stop the conflicting process</strong></p>
+<p><strong>Stop the conflicting process</strong> — find it with <code>lsof -i :7447</code> (Linux/macOS) or <code>netstat -ano | findstr 7447</code> (Windows), then kill it.</p>
 </li>
 <li>
 <p><strong>Use a custom port:</strong></p>
 </li>
 </ol>
 <p>Start the router on a different port:
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>cargo<span class="w"> </span>run<span class="w"> </span>--example<span class="w"> </span>zenoh_router<span class="w"> </span>--<span class="w"> </span>--listen<span class="w"> </span><span class="s2">&quot;tcp/[::]:7448&quot;</span>
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>zenohd<span class="w"> </span>--listen<span class="w"> </span><span class="s2">&quot;tcp/[::]:7448&quot;</span>
 </span></code></pre></div></p>
-<p>Then connect your sessions to that port:
+<p>Then connect your code to that port:
    <div class="language-rust highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kd">let</span><span class="w"> </span><span class="n">ctx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ZContextBuilder</span><span class="p">::</span><span class="n">default</span><span class="p">()</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span><span class="p">.</span><span class="n">with_router_endpoint</span><span class="p">(</span><span class="s">&quot;tcp/localhost:7448&quot;</span><span class="p">)</span><span class="o">?</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span><span class="p">.</span><span class="n">with_connect_endpoints</span><span class="p">([</span><span class="s">&quot;tcp/127.0.0.1:7448&quot;</span><span class="p">])</span>
 </span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">    </span><span class="p">.</span><span class="n">build</span><span class="p">()</span><span class="o">?</span><span class="p">;</span>
 </span></code></pre></div></p>
 </details>
 <details class="question">
-<summary>Don't want to run a router — can I use peer-to-peer mode?</summary>
-<p><strong>Solution:</strong> Use peer mode with multicast discovery:</p>
-<div class="language-rust highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kd">let</span><span class="w"> </span><span class="n">ctx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ZContextBuilder</span><span class="p">::</span><span class="n">default</span><span class="p">()</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">    </span><span class="p">.</span><span class="n">with_mode</span><span class="p">(</span><span class="s">&quot;peer&quot;</span><span class="p">)</span>
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">    </span><span class="p">.</span><span class="n">build</span><span class="p">()</span><span class="o">?</span><span class="p">;</span>
-</span></code></pre></div>
-<p><strong>Warning:</strong> Peer mode won't interoperate with ROS 2 nodes using <a href="https://github.com/ros2/rmw_zenoh"><code>rmw_zenoh_cpp</code></a> in router mode.</p>
+<summary>Can I skip the router and use peer-to-peer mode?</summary>
+<p><strong>No</strong> — ros-z requires a Zenoh router for reliable operation and ROS 2 interoperability. Peer-to-peer mode is not supported.</p>
+<p>If you don't want to install a router locally, the easiest alternative is Docker:
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>docker<span class="w"> </span>run<span class="w"> </span>--init<span class="w"> </span>--net<span class="w"> </span>host<span class="w"> </span>eclipse/zenoh:latest
+</span></code></pre></div></p>
+<p>See <a href="../../user-guide/networking/">Networking</a> for all router options, including apt/brew install and pre-built binaries.</p>
 </details>
 <details class="question">
 <summary>Multi-segment topics like /robot/sensors/camera don't work</summary>
