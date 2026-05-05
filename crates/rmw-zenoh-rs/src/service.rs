@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicI64, Ordering};
 
 use crate::c_void;
 use crate::rmw_impl_has_data_ptr;
@@ -19,9 +18,6 @@ pub struct ClientImpl {
     pub callback: std::sync::Arc<Mutex<rmw_client_new_response_callback_t>>,
     pub callback_user_data: std::sync::Arc<Mutex<usize>>,
     pub notifier: std::sync::Arc<crate::utils::Notifier>,
-    /// Sequence counter that mirrors ZClient's internal counter
-    /// Must be kept in sync with inner.sn by calling fetch_add(1) for each request
-    pub sequence_counter: AtomicI64,
     /// Tracks responses that arrived while no callback was set
     pub unread_count: std::sync::Arc<Mutex<usize>>,
     pub graph: std::sync::Arc<ros_z::graph::Graph>,
@@ -30,43 +26,33 @@ pub struct ClientImpl {
 
 impl ClientImpl {
     pub fn send_request(&self, request: *const c_void, sequence_id: *mut i64) -> Result<()> {
-        // Create RosMessage from the raw pointer using request MessageTypeSupport
         let req = crate::msg::RosMessage::new(request, self.request_ts.request);
 
-        // Get the sequence number before sending (fetch_add returns old value before incrementing)
-        // This mirrors ZClient's internal sequence counter behavior
-        let sn = self.sequence_counter.fetch_add(1, Ordering::AcqRel);
-
-        // Create notification callback that wakes up wait sets and invokes user callback
         let notifier = self.notifier.clone();
         let callback_holder = self.callback.clone();
         let user_data_holder = self.callback_user_data.clone();
         let unread_count_holder = self.unread_count.clone();
         let notify_callback = move || {
-            // Wake up wait sets
             notifier.notify_all();
-            // Invoke user callback if set, otherwise increment unread count
             if let Ok(cb) = callback_holder.lock() {
                 if let Some(callback_fn) = *cb {
                     if let Ok(user_data_usize) = user_data_holder.lock() {
                         unsafe {
                             let user_data_ptr = *user_data_usize as *const std::ffi::c_void;
-                            callback_fn(user_data_ptr, 1); // 1 new response
+                            callback_fn(user_data_ptr, 1);
                         }
                     }
-                } else {
-                    // No callback set, increment unread count
-                    if let Ok(mut unread) = unread_count_holder.lock() {
-                        *unread += 1;
-                    }
+                } else if let Ok(mut unread) = unread_count_holder.lock() {
+                    *unread += 1;
                 }
             }
         };
 
-        // Send the request with notification callback
-        let _ = self.inner.rmw_send_request(&req, notify_callback)?;
+        // rmw_send_request returns the sequence number stamped into the attachment,
+        // which is the same value the server will echo back. Use it directly as the
+        // rcl sequence ID so correlation is exact with no offset.
+        let sn = self.inner.rmw_send_request(&req, notify_callback)?;
 
-        // Return the sequence number we tracked
         unsafe {
             *sequence_id = sn;
         }

@@ -16,12 +16,11 @@ use crate::topic_name;
 
 use crate::{
     Builder,
-    attachment::{self, Attachment, GidArray},
+    attachment::{Attachment, GidArray},
     common::DataHandler,
     entity::EndpointEntity,
     impl_with_type_info,
-    msg::{SerdeCdrSerdes, ZDeserializer, ZMessage, ZService},
-    qos::QosHistory,
+    msg::{ZDeserializer, ZMessage, ZService},
     queue::BoundedQueue,
 };
 
@@ -481,11 +480,31 @@ where
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+/// Identifies a service request by the client's GUID and its per-client sequence number.
+///
+/// `source_timestamp` is metadata (when the request was sent); it is NOT part of the
+/// identity and is excluded from `PartialEq`/`Eq`/`Hash` so that `pending` map lookups
+/// work correctly when the response header only carries `(writer_guid, sequence_number)`.
+#[derive(Debug, Clone)]
 pub struct RequestId {
     pub sequence_number: i64,
     pub writer_guid: GidArray,
     pub source_timestamp: i64,
+}
+
+impl PartialEq for RequestId {
+    fn eq(&self, other: &Self) -> bool {
+        self.sequence_number == other.sequence_number && self.writer_guid == other.writer_guid
+    }
+}
+
+impl Eq for RequestId {}
+
+impl std::hash::Hash for RequestId {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.sequence_number.hash(state);
+        self.writer_guid.hash(state);
+    }
 }
 
 impl From<Attachment> for RequestId {
