@@ -122,15 +122,17 @@ impl RawClient for GenericClientWrapper {
         let request = RawBytesMessage(data.to_vec());
         let timeout = timeout.unwrap_or(Duration::from_secs(3600));
 
-        let rt = tokio::runtime::Handle::try_current()
-            .or_else(|_| tokio::runtime::Runtime::new().map(|rt| rt.handle().clone()))?;
-
-        let response = rt.block_on(async {
+        let fut = async {
             self.inner
                 .call_with_timeout(&request, timeout)
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to call service: {}", e))
-        })?;
+        };
+
+        let response = match tokio::runtime::Handle::try_current() {
+            Ok(handle) => handle.block_on(fut),
+            Err(_) => tokio::runtime::Runtime::new()?.block_on(fut),
+        }?;
 
         Ok(response.0)
     }
