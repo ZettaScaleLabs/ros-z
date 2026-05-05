@@ -123,7 +123,7 @@ impl Drop for ShutdownGuard {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
 /// # use ros_z::action::*;
 /// # use std::time::Duration;
 /// # use ros_z_msgs::action_tutorials_interfaces::action::Fibonacci;
@@ -693,7 +693,7 @@ impl<A: ZAction> ZActionServer<A> {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
     /// # use ros_z::action::*;
     /// # use ros_z_msgs::action_tutorials_interfaces::{FibonacciResult, action::Fibonacci};
     /// # let server: ros_z::action::server::ZActionServer<Fibonacci> = todo!();
@@ -734,7 +734,7 @@ impl<A: ZAction> ZActionServer<A> {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
     /// # use ros_z::action::*;
     /// # use ros_z_msgs::action_tutorials_interfaces::action::Fibonacci;
     /// # let server: ros_z::action::server::ZActionServer<Fibonacci> = todo!();
@@ -788,7 +788,7 @@ impl<A: ZAction> ZActionServer<A> {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
     /// # use ros_z::action::*;
     /// # use std::time::Duration;
     /// # use ros_z_msgs::action_tutorials_interfaces::action::Fibonacci;
@@ -845,7 +845,7 @@ pub type ExecutingGoal<A> = GoalHandle<A, Executing>;
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
 /// # use ros_z::action::*;
 /// # use ros_z_msgs::action_tutorials_interfaces::{FibonacciResult, action::Fibonacci};
 /// # let server: std::sync::Arc<server::ZActionServer<Fibonacci>> = todo!();
