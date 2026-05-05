@@ -73,7 +73,30 @@ ros2 run demo_nodes_cpp listener
     their services appear in ros-z-console. Use the TUI to browse topics, check
     message rates, and inspect QoS settings.
 
-## Building and Running
+## Installation
+
+### Pre-built Binary (Recommended)
+
+Download the latest release for your platform from the [Releases page](https://github.com/ZettaScaleLabs/ros-z/releases):
+
+| Platform | File |
+|---|---|
+| Linux x86_64 | `bin-console-x86_64-linux` |
+| Linux aarch64 | `bin-console-aarch64-linux` |
+| macOS aarch64 | `bin-console-aarch64-macos` |
+
+```bash
+# Linux x86_64 example — replace <version> and filename for your platform
+curl -Lo ros-z-console https://github.com/ZettaScaleLabs/ros-z/releases/download/<version>/bin-console-x86_64-linux
+chmod +x ros-z-console
+./ros-z-console tcp/127.0.0.1:7447 0
+```
+
+`ros-z-console` has no ROS 2 dependency — it works with any [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) or ros-z deployment.
+
+### Build from Source
+
+Requires Rust 1.85+:
 
 ```bash
 # Build the console (release build)

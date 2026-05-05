@@ -12,6 +12,21 @@
 - **Tokio 1.x** — ros-z requires an async runtime (added to `Cargo.toml` in Option 2 below)
 - No ROS 2 installation needed for the examples in this guide
 
+## Pre-built Releases
+
+Pre-built artifacts are available on the [Releases page](https://github.com/ZettaScaleLabs/ros-z/releases) — no Rust toolchain required:
+
+| Artifact | Use case | Install |
+|---|---|---|
+| `ros-z-console` binary | Monitor any ROS 2 / ros-z system | [Console docs](../tools/console.md#installation) |
+| `ros-z-bridge` binary | Bridge Humble ↔ Jazzy/Kilted | [Bridge docs](../user-guide/bridge.md#installation) |
+| `ros_z_py` Python wheel | Python pub/sub & services | [Python docs](../bindings/python.md#installation) |
+| `libros_z` Go library | Go pub/sub & services | [Go docs](../bindings/go.md) |
+
+If you want to **embed ros-z in a Rust application**, continue below.
+
+---
+
 ## Choose Your Path
 
 There are two ways to get started with ros-z:

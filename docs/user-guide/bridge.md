@@ -54,7 +54,28 @@ never interfere with each other.
 
 ## Installation
 
-Build from source (requires Rust ≥ 1.82):
+### Pre-built Binary (Recommended)
+
+Download the latest release for your platform from the [Releases page](https://github.com/ZettaScaleLabs/ros-z/releases). The bridge ships as separate binaries per ROS 2 distro generation:
+
+| Platform | Jazzy / Kilted / Rolling | Humble |
+|---|---|---|
+| Linux x86_64 | `bin-bridge-jazzy-x86_64-linux` | `bin-bridge-humble-x86_64-linux` |
+| Linux aarch64 | `bin-bridge-jazzy-aarch64-linux` | `bin-bridge-humble-aarch64-linux` |
+| macOS aarch64 | `bin-bridge-jazzy-aarch64-macos` | `bin-bridge-humble-aarch64-macos` |
+
+```bash
+# Linux x86_64, Jazzy side — replace <version> for your release
+curl -Lo ros-z-bridge https://github.com/ZettaScaleLabs/ros-z/releases/download/<version>/bin-bridge-jazzy-x86_64-linux
+chmod +x ros-z-bridge
+```
+
+!!! tip
+    Pick the binary that matches the **newer** side of your bridge. If you are bridging Humble ↔ Jazzy, download the `jazzy` binary.
+
+### Build from Source
+
+Requires Rust 1.85+:
 
 ```bash
 cargo build --release -p ros-z-bridge
