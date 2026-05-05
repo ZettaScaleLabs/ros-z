@@ -57,6 +57,7 @@ pub struct ZClient<T: ZService> {
     // TODO: replace this with zenoh's global entity id
     gid: GidArray,
     inner: zenoh::query::Querier<'static>,
+    #[allow(dead_code)] // RAII: revokes liveliness token on drop
     lv_token: LivelinessToken,
     topic: String,
     clock: crate::time::ZClock,
@@ -332,7 +333,9 @@ impl<T> ZServerBuilder<T> {
 
 pub struct ZServer<T: ZService, Q = Query> {
     key_expr: KeyExpr<'static>,
+    #[allow(dead_code)] // RAII: deregisters the queryable on drop
     inner: zenoh::query::Queryable<()>,
+    #[allow(dead_code)] // RAII: revokes liveliness token on drop
     lv_token: LivelinessToken,
     clock: crate::time::ZClock,
     pub(crate) queue: Option<Arc<BoundedQueue<Q>>>,
@@ -595,15 +598,6 @@ impl<T> ZServer<T, Query>
 where
     T: ZService,
 {
-    fn take_query(&self) -> Result<Query> {
-        let queue = self.queue.as_ref().ok_or_else(|| {
-            zenoh::Error::from("Server was built with callback, no queue available")
-        })?;
-        queue
-            .try_recv()
-            .ok_or_else(|| zenoh::Error::from("No query available"))
-    }
-
     fn decode_request(&self, query: Query) -> Result<ServiceRequest<T>>
     where
         T::Request: ZMessage + Send + Sync + 'static,
