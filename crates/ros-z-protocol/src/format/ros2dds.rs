@@ -158,8 +158,6 @@ impl KeyExprFormatter for Ros2DdsFormatter {
             })
         };
 
-        let _ = z_id;
-
         Ok(Entity::Endpoint(EndpointEntity {
             id: 0,
             node: None,
