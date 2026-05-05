@@ -6,21 +6,6 @@
 !!! note
     Python bindings provide the same pub/sub and service patterns as Rust, with Pythonic APIs. Messages are automatically serialized/deserialized between Python objects and CDR format for ROS 2 compatibility.
 
-## Visual Flow
-
-```mermaid
-graph TD
-accTitle: Python bindings architecture from Python code to Zenoh network
-accDescr: Python code imports ros_z_py which calls through PyO3 into the Rust ros-z core, which uses the Zenoh transport to reach ROS 2 and Rust nodes; Python messages go through msgspec and CDR serialization.
-    A[Python Code] -->|import| B[ros_z_py]
-    B -->|PyO3| C[Rust ros-z]
-    C -->|Zenoh| D[Network]
-    D -->|Zenoh| E[ROS 2 / Rust Nodes]
-    F[Python Message] -->|msgspec| G[Struct]
-    G -->|serialize| H[CDR Bytes]
-    H -->|deserialize| I[Rust Struct]
-```
-
 ## Installation
 
 ### Pre-built Wheels (Recommended)
@@ -93,6 +78,21 @@ maturin develop
 
 !!! tip
     Use `maturin develop --release` for optimized builds when benchmarking or running in production.
+
+## Architecture
+
+```mermaid
+graph TD
+accTitle: Python bindings architecture from Python code to Zenoh network
+accDescr: Python code imports ros_z_py which calls through PyO3 into the Rust ros-z core, which uses the Zenoh transport to reach ROS 2 and Rust nodes; Python messages go through msgspec and CDR serialization.
+    A[Python Code] -->|import| B[ros_z_py]
+    B -->|PyO3| C[Rust ros-z]
+    C -->|Zenoh| D[Network]
+    D -->|Zenoh| E[ROS 2 / Rust Nodes]
+    F[Python Message] -->|msgspec| G[Struct]
+    G -->|serialize| H[CDR Bytes]
+    H -->|deserialize| I[Rust Struct]
+```
 
 ## Quick Start
 
