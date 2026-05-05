@@ -5,9 +5,14 @@
   rustfmtNightly,
   rustToolchain ? pkgs.rust-bin.stable.latest.default,
   docTools ? [
-    pkgs.mdbook
-    pkgs.mdbook-admonish
-    pkgs.mdbook-mermaid
+    (pkgs.python3.withPackages (
+      ps: with ps; [
+        mkdocs
+        mkdocs-material
+        mkdocs-material-extensions
+        pymdown-extensions
+      ]
+    ))
   ],
 }:
 let
@@ -56,9 +61,6 @@ git-hooks.lib.${system}.run {
   tools = {
     rustfmt = rustfmtNightly;
     cargo = rustToolchain;
-    mdbook = pkgs.mdbook;
-    mdbook-admonish = pkgs.mdbook-admonish;
-    mdbook-mermaid = pkgs.mdbook-mermaid;
   };
   hooks = {
     # Rust tooling
@@ -106,60 +108,17 @@ git-hooks.lib.${system}.run {
 
     nixfmt-rfc-style.enable = true;
 
-    # Documentation testing
-    mdbook-build = {
+    # Documentation build check
+    mkdocs-build = {
       enable = true;
-      name = "mdbook-build";
-      description = "Build mdbook documentation";
+      name = "mkdocs-build";
+      description = "Build MkDocs documentation";
       entry = toString (
-        pkgs.writeShellScript "mdbook-build-with-deps" ''
-          # Install preprocessors if not already installed
-          ${pkgs.mdbook-admonish}/bin/mdbook-admonish install book/ 2>/dev/null || true
-          ${pkgs.mdbook-mermaid}/bin/mdbook-mermaid install book/ 2>/dev/null || true
-          exec ${pkgs.mdbook}/bin/mdbook build book
+        pkgs.writeShellScript "mkdocs-build" ''
+          exec ${builtins.head docTools}/bin/mkdocs build --strict
         ''
       );
-      files = "book/.*\\.(md|toml)$";
-      pass_filenames = false;
-    };
-
-    mdbook-test = {
-      enable = true;
-      name = "mdbook-test";
-      description = "Test mdbook code examples (rust,no_run blocks via rustdoc --test)";
-      entry = toString (
-        pkgs.writeShellScript "mdbook-test-with-deps" ''
-          # Install preprocessors if not already installed
-          ${pkgs.mdbook-admonish}/bin/mdbook-admonish install book/ 2>/dev/null || true
-          ${pkgs.mdbook-mermaid}/bin/mdbook-mermaid install book/ 2>/dev/null || true
-
-          # Use rustdoc --test with explicit --extern flags so rust,no_run blocks
-          # that import external crates (ros_z, zenoh) compile correctly.
-          # Falls back gracefully if build artifacts don't exist yet.
-          LIBDIR="target/debug/deps"
-          ROS_Z_RLIB=$(ls -t "$LIBDIR"/libros_z-*.rlib 2>/dev/null | head -1)
-
-          if [ -z "$ROS_Z_RLIB" ]; then
-            echo "⚠️  libros_z.rlib not found in $LIBDIR — run 'cargo build' first to enable book snippet testing."
-            echo "   Skipping book snippet compile check."
-            exit 0
-          fi
-
-          ZENOH_RLIB=$(ls -t "$LIBDIR"/libzenoh-*.rlib 2>/dev/null | head -1)
-          RUSTDOC="${rustToolchain}/bin/rustdoc"
-
-          FAILED=0
-          for chapter in book/src/chapters/*.md; do
-            ARGS="--test --edition 2021 -L $LIBDIR --extern ros_z=$ROS_Z_RLIB"
-            if [ -n "$ZENOH_RLIB" ]; then ARGS="$ARGS --extern zenoh=$ZENOH_RLIB"; fi
-            if ! "$RUSTDOC" $ARGS "$chapter"; then
-              FAILED=1
-            fi
-          done
-          exit $FAILED
-        ''
-      );
-      files = "book/.*\\.md$|crates/.*/examples/.*\\.rs$";
+      files = "docs/.*\\.(md|html|css|js)$|mkdocs\\.yml$";
       pass_filenames = false;
     };
   };

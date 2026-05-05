@@ -42,11 +42,8 @@ pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/<version>/
 pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/<version>/ros_z_py-<version>-0humble-cp311-abi3-linux_x86_64.whl
 ```
 
-```admonish tip
-`ros-z-msgs-py` (message definitions) is a dependency of `ros-z-py` and is installed
-automatically when using `pip install`. The explicit install above is only needed when
-pinning a specific version or installing from a direct URL.
-```
+!!! tip
+    `ros-z-msgs-py` (message definitions) is a dependency of `ros-z-py` and is installed automatically when using `pip install`. The explicit install above is only needed when pinning a specific version or installing from a direct URL.
 
 ### Local Dry-Run (before releasing)
 
