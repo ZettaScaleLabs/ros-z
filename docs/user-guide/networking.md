@@ -76,13 +76,14 @@ The default ros-z configuration connects to a Zenoh router on `tcp/localhost:744
 use ros_z::context::ZContextBuilder;
 use ros_z::Builder;
 
-// Uses default ROS session config (connects to tcp/localhost:7447)
-let ctx = ZContextBuilder::default().build()?;
+let ctx = ZContextBuilder::default()
+    .with_connect_endpoints(["tcp/127.0.0.1:7447"])
+    .build()?;
 let node = ctx.create_node("my_node").build()?;
 ```
 
 !!! success
-    That's it! The default configuration automatically connects to the router. Now you need to run one.
+    That's it! Connect to the router address and you're ready. Now you need to run one.
 
 ## Running the Zenoh Router
 

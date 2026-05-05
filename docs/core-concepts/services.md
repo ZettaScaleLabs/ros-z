@@ -198,63 +198,27 @@ accDescr: ZContextBuilder creates a ZContext that spawns both a client node and 
 
 ## Service Server Example
 
-This example demonstrates a service server that adds two integers. The server waits for requests, processes them, and sends responses back to clients.
+A server that adds two integers: wait for requests in a loop, compute the result, send it back.
 
 ```rust
-/// AddTwoInts server node that provides a service to add two integers
-///
-/// # Arguments
-/// * `ctx` - The ros-z context
-/// * `max_requests` - Optional maximum number of requests to handle. If None, handles requests indefinitely.
-pub fn run_add_two_ints_server(ctx: ZContext, max_requests: Option<usize>) -> Result<()> {
-    // Create a node named "add_two_ints_server"
-    let node = ctx.create_node("add_two_ints_server").build()?;
+use ros_z::Builder;
 
+let node = ctx.create_node("add_two_ints_server").build()?;
+let mut service = node.create_service::<AddTwoInts>("/add_two_ints").build()?;
 
-
-// Create a service that will handle requests
-let mut service = node.create_service::`<AddTwoInts>`("add_two_ints").build()?;
-
-println!("AddTwoInts service server started, waiting for requests...");
-
-let mut request_count = 0;
-
+println!("Service ready — waiting for requests...");
 loop {
-    // Wait for a request
     let (key, req) = service.take_request()?;
-    println!("Incoming request\na: {} b: {}", req.a, req.b);
-
-    // Compute the sum
-let sum = req.a + req.b;
-
-// Create the response
-let resp = AddTwoIntsResponse { sum };
-
-println!("Sending response: {}", resp.sum);
-
-// Send the response
-service.send_response(&resp, &key)?;
-
-request_count += 1;
-
-// Check if we've reached the max requests
-if let Some(max) = max_requests
-    && request_count >= max
-{
-    break;
-}
-}
-
-Ok(())
+    println!("Request: {} + {}", req.a, req.b);
+    service.send_response(&AddTwoIntsResponse { sum: req.a + req.b }, &key)?;
 }
 ```
 
 **Key points:**
 
-- **Pull Model**: Uses `take_request()` for explicit control over when to accept requests
-- **Request Key**: Each request has a unique key for matching responses
-- **Bounded Operation**: Optional `max_requests` parameter for testing
-- **Simple Processing**: Demonstrates synchronous request handling
+- `take_request()` blocks until a request arrives — the pull model means you control timing
+- `key` is an opaque token that ties the response to the original request; you must pass it back with `send_response`
+- `service` must be `mut` because `take_request` takes `&mut self`
 
 **Running the server:**
 
@@ -271,59 +235,27 @@ cargo run --example demo_nodes_add_two_ints_server -- --endpoint tcp/localhost:7
 
 ## Service Client Example
 
-This example demonstrates a service client that sends addition requests to the server and displays the results.
+A client that sends one addition request and prints the result:
 
 ```rust
-/// AddTwoInts client node that calls the service to add two integers
-///
-/// # Arguments
-/// * `ctx` - The ros-z context
-/// * `a` - First number to add
-/// * `b` - Second number to add
-/// * `async_mode` - Whether to use async response waiting
-pub fn run_add_two_ints_client(ctx: ZContext, a: i64, b: i64, async_mode: bool) -> Result<i64> {
-    // Create a node named "add_two_ints_client"
-    let node = ctx.create_node("add_two_ints_client").build()?;
+use ros_z::Builder;
+use std::time::Duration;
 
+let node = ctx.create_node("add_two_ints_client").build()?;
+let client = node.create_client::<AddTwoInts>("/add_two_ints").build()?;
 
-
-// Create a client for the service
-let client = node.create_client::`<AddTwoInts>`("add_two_ints").build()?;
-
-println!(
-    "AddTwoInts service client started (mode: {})",
-    if async_mode { "async" } else { "sync" }
-);
-
-// Create the request
-let req = AddTwoIntsRequest { a, b };
-println!("Sending request: {} + {}", req.a, req.b);
-
-// Wait for the response
-let resp = if async_mode {
-    tokio::runtime::Runtime::new().unwrap().block_on(async {
-        client.send_request(&req).await?;
-        client.async_take_response().await
-    })?
-} else {
-    tokio::runtime::Runtime::new()
-        .unwrap()
-        .block_on(async { client.send_request(&req).await })?;
-    client.take_response_timeout(Duration::from_secs(5))?
-};
-
-println!("Received response: {}", resp.sum);
-
-Ok(resp.sum)
-}
+let req = AddTwoIntsRequest { a: 10, b: 20 };
+println!("Sending: {} + {}", req.a, req.b);
+client.send_request(&req).await?;
+let resp = client.take_response_timeout(Duration::from_secs(5))?;
+println!("Result: {}", resp.sum);
 ```
 
 **Key points:**
 
-- **Async Support**: Supports both blocking and async response patterns
-- **Timeout Handling**: Uses `take_response_timeout()` for reliable operation
-- **Simple API**: Send request, receive response, process result
-- **Type Safety**: Request and response types are enforced at compile time
+- `send_request` is `async` and must be `.await`ed
+- `take_response_timeout` waits up to the deadline; returns `Err` on timeout
+- If no server is running, the call times out rather than hanging forever
 
 **Running the client:**
 
@@ -342,19 +274,19 @@ cargo run --example demo_nodes_add_two_ints_client -- --a 100 --b 200 --endpoint
 
 To see services in action, you'll need to start a Zenoh router first:
 
-**Terminal 1 - Start Zenoh Router:**
+**Terminal 1 — Start Zenoh Router:**
 
 ```bash
 cargo run --example zenoh_router
 ```
 
-**Terminal 2 - Start Server:**
+**Terminal 2 — Start Server:**
 
 ```bash
 cargo run --example demo_nodes_add_two_ints_server
 ```
 
-**Terminal 3 - Send Client Requests:**
+**Terminal 3 — Send Client Requests:**
 
 ```bash
 # Request 1

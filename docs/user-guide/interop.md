@@ -66,6 +66,10 @@ For more detail on publisher/subscriber patterns see [Pub/Sub](../core-concepts/
 
 ## Python
 
+If you installed via **pip** (pre-built wheel), write your own `listener.py` using the code in [Python Quick Start](../bindings/python-quick-start.md) and run it with `python listener.py`.
+
+If you cloned the repository (build from source), use the bundled example:
+
 ```bash
 cd crates/ros-z-py
 source .venv/bin/activate

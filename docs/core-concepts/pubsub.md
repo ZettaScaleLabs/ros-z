@@ -160,69 +160,30 @@ QoS controls delivery guarantees. Incompatible settings = **silent** data loss.
 
 ## Publisher Example
 
-This example demonstrates publishing "Hello World" messages to a topic. The publisher sends messages periodically, showcasing the fundamental publishing pattern.
+Publish "Hello World" messages to `/chatter` once per second:
 
 ```rust
-/// Talker node that publishes "Hello World" messages to a topic
-///
-/// # Arguments
-/// * `ctx` - The ros-z context
-/// * `topic` - The topic name to publish to
-/// * `period` - Duration between messages
-/// * `max_count` - Optional maximum number of messages to publish. If None, publishes indefinitely.
-pub async fn run_talker(
-    ctx: ZContext,
-    topic: &str,
-    period: Duration,
-    max_count: Option<usize>,
-) -> Result<()> {
-    // Create a node named "talker"
-    let node = ctx.create_node("talker").build()?;
+use ros_z::Builder;
+use std::time::Duration;
 
-    // Create a publisher with a custom Quality of Service profile
-    let qos = QosProfile {
-        history: QosHistory::KeepLast(NonZeroUsize::new(7).unwrap()),
-        ..Default::default()
-    };
-    let publisher = node.create_pub::<RosString>(topic).with_qos(qos).build()?;
+let node = ctx.create_node("talker").build()?;
+let publisher = node.create_pub::<RosString>("/chatter").build()?;
 
-    let mut count = 1;
-
-    loop {
-        // Create the message
-        let msg = RosString {
-            data: format!("Hello World: {}", count),
-        };
-
-        // Log the message being published
-        println!("Publishing: '{}'", msg.data);
-
-        // Publish the message (non-blocking)
-        publisher.async_publish(&msg).await?;
-
-        // Check if we've reached the max count
-        if let Some(max) = max_count
-            && count >= max
-        {
-            break;
-        }
-
-        // Wait for the next publish cycle
-        tokio::time::sleep(period).await;
-
-        count += 1;
-    }
-
-    Ok(())
+let mut count = 0;
+loop {
+    let msg = RosString { data: format!("Hello World: {}", count) };
+    println!("Publishing: '{}'", msg.data);
+    publisher.async_publish(&msg).await?;
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    count += 1;
 }
 ```
 
 **Key points:**
 
-- **QoS Configuration**: Uses `KeepLast(7)` to buffer the last 7 messages
-- **Async Publishing**: Non-blocking `async_publish()` for efficient I/O. For blocking (non-async) contexts, use `publisher.publish(&msg)?` instead.
-- **Rate Control**: Uses `tokio::time::sleep()` to control publishing frequency
-- **Bounded Operation**: Optional `max_count` for testing scenarios
+- `async_publish()` is non-blocking — the publisher never waits for subscribers
+- For a non-async context, use `publisher.publish(&msg)?` instead
+- Default QoS (Reliable, KeepLast 10) is fine for most use cases; see the [QoS section](#quality-of-service-qos) below for custom profiles
 
 **Running the publisher:**
 
@@ -236,89 +197,24 @@ cargo run --example demo_nodes_talker -- --topic /my_topic --period 0.5
 
 ## Subscriber Example
 
-This example demonstrates subscribing to messages from a topic. The subscriber receives and displays messages, showing both timeout-based and async reception patterns.
+Receive and print every message on `/chatter`:
 
 ```rust
-/// Listener node that subscribes to a topic
-///
-/// # Arguments
-/// * `ctx` - The ros-z context
-/// * `topic` - The topic name to subscribe to
-/// * `max_count` - Optional maximum number of messages to receive. If None, listens indefinitely.
-/// * `timeout` - Optional timeout duration. If None, waits indefinitely.
-///
-/// # Returns
-/// A vector of received messages
-pub async fn run_listener(
-    ctx: ZContext,
-    topic: &str,
-    max_count: Option<usize>,
-    timeout: Option<Duration>,
-) -> Result<Vec<String>> {
-    // Create a node named "listener"
-    let node = ctx.create_node("listener").build()?;
+use ros_z::Builder;
 
-    // Create a subscription to the "chatter" topic
-    let qos = QosProfile {
-        history: QosHistory::KeepLast(NonZeroUsize::new(10).unwrap()),
-        ..Default::default()
-    };
-    let subscriber = node.create_sub::<RosString>(topic).with_qos(qos).build()?;
+let node = ctx.create_node("listener").build()?;
+let subscriber = node.create_sub::<RosString>("/chatter").build()?;
 
-    let mut received_messages = Vec::new();
-    let start = std::time::Instant::now();
-
-    // Receive messages in a loop
-    loop {
-        // Check timeout
-        if let Some(t) = timeout
-            && start.elapsed() > t
-        {
-            break;
-        }
-
-        // Try to receive with a small timeout to allow checking other conditions
-        let recv_result = if timeout.is_some() || max_count.is_some() {
-            subscriber.recv_timeout(Duration::from_millis(100))
-        } else {
-            // If no limits, use async_recv
-            subscriber.async_recv().await
-        };
-
-        match recv_result {
-            Ok(msg) => {
-                // Log the received message
-                println!("I heard: [{}]", msg.data);
-                received_messages.push(msg.data.clone());
-
-                // Check if we've received enough messages
-                if let Some(max) = max_count
-                    && received_messages.len() >= max
-                {
-                    break;
-                }
-            }
-            Err(_) => {
-                // Continue if timeout on recv_timeout
-                if timeout.is_some() || max_count.is_some() {
-                    continue;
-                } else {
-                    break;
-                }
-            }
-        }
-    }
-
-    Ok(received_messages)
+while let Ok(msg) = subscriber.async_recv().await {
+    println!("I heard: [{}]", msg.data);
 }
 ```
 
 **Key points:**
 
-- **Flexible Reception**: Supports timeout-based and indefinite blocking
-- **Testable Design**: Returns received messages for verification
-- **Bounded Operation**: Optional `max_count` and `timeout` parameters
-- **QoS Configuration**: Uses `KeepLast(10)` for message buffering
+- `async_recv()` awaits the next message; the loop exits when the subscriber is dropped
+- For a non-async context, use `subscriber.recv()` (blocks the thread)
+- For timeout-based polling, use `subscriber.recv_timeout(Duration::from_secs(1))`
 
 **Running the subscriber:**
 
@@ -334,19 +230,19 @@ cargo run --example demo_nodes_listener -- --topic /my_topic
 
 To see publishers and subscribers in action together, you'll need to start a Zenoh router first:
 
-**Terminal 1 - Start Zenoh Router:**
+**Terminal 1 — Start Zenoh Router:**
 
 ```bash
 cargo run --example zenoh_router
 ```
 
-**Terminal 2 - Start Subscriber:**
+**Terminal 2 — Start Subscriber:**
 
 ```bash
 cargo run --example demo_nodes_listener
 ```
 
-**Terminal 3 - Start Publisher:**
+**Terminal 3 — Start Publisher:**
 
 ```bash
 cargo run --example demo_nodes_talker
@@ -426,48 +322,33 @@ let subscriber = node
 
 ## Quality of Service (QoS)
 
-QoS profiles control message delivery behavior. Both publishers and subscribers accept a QoS profile:
-
-**Publisher QoS:**
+QoS profiles control delivery guarantees. Apply a profile with `.with_qos(qos)` on the publisher or subscriber builder:
 
 ```rust
 use std::num::NonZeroUsize;
 use ros_z::Builder;
 use ros_z::qos::{QosProfile, QosHistory, QosReliability};
 
+// Sensor data: best-effort, keep only the latest value
 let qos = QosProfile {
-    history: QosHistory::KeepLast(NonZeroUsize::new(10).unwrap()),
-    reliability: QosReliability::Reliable,
+    history: QosHistory::KeepLast(NonZeroUsize::new(1).unwrap()),
+    reliability: QosReliability::BestEffort,
     ..Default::default()
 };
 
-let publisher = node
-    .create_pub::<RosString>("topic")
-    .with_qos(qos)
-    .build()?;
+let publisher = node.create_pub::<RosString>("/scan").with_qos(qos).build()?;
 ```
 
-**Subscriber QoS:**
+Common presets:
 
-```rust
-use std::num::NonZeroUsize;
-use ros_z::Builder;
-use ros_z::qos::{QosProfile, QosHistory, QosReliability};
-
-let qos = QosProfile {
-    history: QosHistory::KeepLast(NonZeroUsize::new(10).unwrap()),
-    reliability: QosReliability::Reliable,
-    ..Default::default()
-};
-
-let subscriber = node
-    .create_sub::<RosString>("topic")
-    .with_qos(qos)
-    .build()?;
-```
+| Use case | Reliability | History |
+|----------|-------------|---------|
+| Commands, joint states | `Reliable` | `KeepLast(10)` (default) |
+| Camera, lidar | `BestEffort` | `KeepLast(1)` |
+| `/tf_static`, `/robot_description` | `Reliable` + `TransientLocal` | `KeepLast(1)` |
 
 !!! tip
-    Use `QosHistory::KeepLast(NonZeroUsize::new(1).unwrap())` for sensor data and `QosReliability::Reliable` for critical commands. Match QoS profiles between publishers and subscribers for optimal message delivery.
+    Always use the same QoS preset on both publisher and subscriber. Mismatches silently drop messages — run `ros2 topic info -v /topic` to compare QoS on both sides.
 
 ## Name Remapping
 

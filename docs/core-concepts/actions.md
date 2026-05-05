@@ -298,7 +298,9 @@ Before reading the full examples, here is the skeleton every action client and s
 use ros_z::Builder;
 use ros_z::context::ZContextBuilder;
 
-let ctx = ZContextBuilder::default().build()?;
+let ctx = ZContextBuilder::default()
+    .with_connect_endpoints(["tcp/127.0.0.1:7447"])
+    .build()?;
 let node = ctx.create_node("my_client").build()?;
 
 // Create the action client
@@ -330,7 +332,9 @@ use ros_z::Builder;
 use ros_z::action::server::ExecutingGoal;
 use ros_z::context::ZContextBuilder;
 
-let ctx = ZContextBuilder::default().build()?;
+let ctx = ZContextBuilder::default()
+    .with_connect_endpoints(["tcp/127.0.0.1:7447"])
+    .build()?;
 let node = ctx.create_node("my_server").build()?;
 
 // Create the action server (keep _server alive for the duration)
