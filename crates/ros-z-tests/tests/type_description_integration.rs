@@ -111,10 +111,11 @@ fn test_static_pub_dynamic_sub_with_type_discovery() {
 
             // Discover schema and create dynamic subscriber
             println!("Discovering schema from publisher...");
-            let (subscriber, discovered_schema) = sub_node
+            let subscriber = sub_node
                 .create_dyn_sub_auto("/test_topic", Duration::from_secs(15))
                 .await
                 .expect("Failed to create dynamic subscriber with auto-discovery");
+            let discovered_schema = subscriber.schema().expect("discovered schema");
 
             println!("Discovered schema: {}", discovered_schema.type_name);
             assert_eq!(discovered_schema.type_name, "std_msgs/msg/String");
@@ -204,6 +205,7 @@ fn test_dynamic_pub_dynamic_sub_with_type_discovery() {
             // Create dynamic publisher (auto-registers schema)
             let publisher = pub_node
                 .create_dyn_pub("/point_topic", schema.clone())
+                .build()
                 .expect("Failed to create dynamic publisher");
 
             println!(
@@ -252,10 +254,11 @@ fn test_dynamic_pub_dynamic_sub_with_type_discovery() {
 
             // Discover schema and create dynamic subscriber
             println!("Discovering schema from dynamic publisher...");
-            let (subscriber, discovered_schema) = sub_node
+            let subscriber = sub_node
                 .create_dyn_sub_auto("/point_topic", Duration::from_secs(15))
                 .await
                 .expect("Failed to create dynamic subscriber with auto-discovery");
+            let discovered_schema = subscriber.schema().expect("discovered schema");
 
             println!("Discovered schema: {}", discovered_schema.type_name);
             assert_eq!(discovered_schema.type_name, "geometry_msgs/msg/Point");
@@ -341,6 +344,7 @@ fn test_dynamic_pub_static_sub() {
             // Create dynamic publisher
             let publisher = pub_node
                 .create_dyn_pub("/dyn_to_static", schema.clone())
+                .build()
                 .expect("Failed to create dynamic publisher");
 
             println!("Dynamic publisher created");
@@ -462,6 +466,7 @@ fn test_static_pub_dynamic_sub_known_schema() {
 
             let subscriber = sub_node
                 .create_dyn_sub("/static_to_dyn", schema)
+                .build()
                 .expect("Failed to create dynamic subscriber");
 
             println!("Dynamic subscriber created with known schema");
@@ -555,6 +560,7 @@ fn test_multiple_publishers_schema_discovery() {
 
             let publisher1 = pub1_node
                 .create_dyn_pub("/multi_pub_topic", schema.clone())
+                .build()
                 .expect("Failed to create publisher 1");
 
             // Create second publisher with type description service
@@ -568,6 +574,7 @@ fn test_multiple_publishers_schema_discovery() {
 
             let publisher2 = pub2_node
                 .create_dyn_pub("/multi_pub_topic", schema.clone())
+                .build()
                 .expect("Failed to create publisher 2");
 
             println!("Two publishers created on /multi_pub_topic");
@@ -584,10 +591,11 @@ fn test_multiple_publishers_schema_discovery() {
                 .expect("Failed to create subscriber node");
 
             println!("Discovering schema from publishers...");
-            let (subscriber, discovered_schema) = sub_node
+            let subscriber = sub_node
                 .create_dyn_sub_auto("/multi_pub_topic", Duration::from_secs(15))
                 .await
-                .expect("Failed to create subscriber with auto-discovery");
+                .expect("Failed to create dynamic subscriber with auto-discovery");
+            let discovered_schema = subscriber.schema().expect("discovered schema");
 
             println!("Discovered schema: {}", discovered_schema.type_name);
 

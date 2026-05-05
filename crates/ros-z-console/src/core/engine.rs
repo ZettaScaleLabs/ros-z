@@ -8,12 +8,10 @@ use std::{
 };
 
 use parking_lot::Mutex;
-use ros_z::{Builder, context::ZContext, graph::Graph, node::ZNode};
+use ros_z::{Builder, context::ZContext, dynamic::DynSub, graph::Graph, node::ZNode};
 use tokio::sync::broadcast;
 
-use super::{
-    dynamic_subscriber::DynamicTopicSubscriber, events::SystemEvent, metrics::MetricsCollector,
-};
+use super::{events::SystemEvent, metrics::MetricsCollector};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Backend {
@@ -141,8 +139,10 @@ impl CoreEngine {
         &self,
         topic: &str,
         discovery_timeout: Duration,
-    ) -> Result<DynamicTopicSubscriber, Box<dyn std::error::Error + Send + Sync>> {
-        DynamicTopicSubscriber::new(&self.node, topic, discovery_timeout).await
+    ) -> Result<DynSub, Box<dyn std::error::Error + Send + Sync>> {
+        self.node
+            .create_dyn_sub_auto(topic, discovery_timeout)
+            .await
     }
 
     pub async fn start_monitoring(&self) {

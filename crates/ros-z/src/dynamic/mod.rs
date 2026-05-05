@@ -63,6 +63,7 @@ pub mod serialization;
 pub mod type_description;
 pub mod type_description_client;
 pub mod type_description_service;
+pub(crate) mod type_info;
 pub mod value;
 
 #[cfg(test)]
@@ -83,7 +84,10 @@ pub use type_description_service::{
     WireKeyValue, WireTypeDescription, WireTypeSource, schema_to_wire_type_description,
     wire_to_schema_type_description,
 };
+pub use type_info::DiscoveredTopicSchema;
 pub use value::{DynamicValue, FromDynamic, IntoDynamic};
+
+pub(crate) use type_info::{schema_type_info, schema_type_info_with_hash};
 
 use zenoh::sample::Sample;
 

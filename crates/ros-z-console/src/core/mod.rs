@@ -1,4 +1,3 @@
-pub mod dynamic_subscriber;
 pub mod engine;
 pub mod events;
 pub mod logger;
