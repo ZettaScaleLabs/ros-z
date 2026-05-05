@@ -11,9 +11,9 @@ use crate::{
     cache::ZCacheBuilder,
     context::{GlobalCounter, RemapRules},
     dynamic::{
-        DiscoveredTopicSchema, DynPubBuilder, DynSubBuilder, DynamicMessage, DynamicSerdeCdrSerdes,
-        MessageSchema, TypeDescriptionClient, TypeDescriptionService, schema_type_info,
-        schema_type_info_with_hash,
+        DiscoveredTopicSchema, DynPubBuilder, DynSub, DynSubBuilder, DynamicMessage,
+        DynamicSerdeCdrSerdes, MessageSchema, TypeDescriptionClient, TypeDescriptionService,
+        schema_type_info, schema_type_info_with_hash,
     },
     entity::*,
     graph::Graph,
@@ -879,9 +879,11 @@ impl ZNode {
     /// Create a dynamic subscriber with automatic schema discovery.
     ///
     /// This method queries publishers on the topic for their type description
-    /// and returns a preconfigured subscriber builder using the discovered
-    /// schema. This is useful when you don't know the message type at compile
-    /// time.
+    /// and returns a ready-to-use subscriber. This is useful when you don't
+    /// know the message type at compile time.
+    ///
+    /// For fine-grained control (e.g. custom QoS), use [`discover_topic_schema`]
+    /// combined with [`create_dyn_sub`] instead.
     ///
     /// The topic name will be qualified according to ROS 2 rules:
     /// - Absolute topics (starting with '/') are used as-is
@@ -893,31 +895,23 @@ impl ZNode {
     /// * `topic` - The topic name to subscribe to
     /// * `discovery_timeout` - How long to wait for schema discovery
     ///
-    /// # Returns
-    ///
-    /// A preconfigured dynamic subscriber builder on success.
-    ///
     /// # Example
     ///
     /// ```ignore
-    /// // Discover schema from publishers and create subscriber
-    /// let subscriber = node.create_dyn_sub_auto(
-    ///     "chatter",
-    ///     Duration::from_secs(5),
-    /// ).await?
-    /// .build()?;
+    /// let subscriber = node.create_dyn_sub_auto("chatter", Duration::from_secs(5)).await?;
     ///
     /// println!("Discovered type: {}", subscriber.schema().unwrap().type_name);
-    ///
-    /// // Receive messages
     /// let msg = subscriber.recv()?;
     /// let data: String = msg.get("data")?;
     /// ```
+    ///
+    /// [`discover_topic_schema`]: ZNode::discover_topic_schema
+    /// [`create_dyn_sub`]: ZNode::create_dyn_sub
     pub async fn create_dyn_sub_auto(
         &self,
         topic: &str,
         discovery_timeout: Duration,
-    ) -> Result<DynSubBuilder> {
+    ) -> Result<DynSub> {
         debug!(
             "[NOD] Creating dynamic subscriber with auto-discovery for topic: {}",
             topic
@@ -930,14 +924,15 @@ impl ZNode {
             discovered.qualified_topic, discovered.schema.type_name, discovered.type_hash
         );
 
-        Ok(self.create_dyn_sub_impl(
+        self.create_dyn_sub_impl(
             &discovered.qualified_topic,
             Some(schema_type_info_with_hash(
                 &discovered.schema,
                 &discovered.type_hash,
             )),
             discovered.schema,
-        ))
+        )
+        .build()
     }
 
     /// Create a dynamic subscriber with a known schema.

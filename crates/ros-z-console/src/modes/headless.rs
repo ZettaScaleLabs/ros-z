@@ -1,8 +1,5 @@
 use chrono::Utc;
-use ros_z::{
-    Builder,
-    dynamic::{DynSub, MessageSchemaTypeDescription},
-};
+use ros_z::dynamic::{DynSub, MessageSchemaTypeDescription};
 use serde::Serialize;
 use std::{collections::HashMap, time::Duration};
 
@@ -53,17 +50,10 @@ pub async fn run_headless_mode(
 
         for topic in echo_topics {
             match core
-                .create_dynamic_subscriber_builder(&topic, Duration::from_secs(5))
+                .create_dynamic_subscriber(&topic, Duration::from_secs(5))
                 .await
             {
                 Ok(sub) => {
-                    let sub = match sub.build() {
-                        Ok(sub) => sub,
-                        Err(e) => {
-                            eprintln!("Failed to build subscriber for {}: {}", topic, e);
-                            continue;
-                        }
-                    };
                     let Some(schema) = sub.schema() else {
                         eprintln!(
                             "Failed to inspect schema for {}: missing dynamic schema",

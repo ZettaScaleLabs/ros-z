@@ -8,7 +8,7 @@ use std::{
 };
 
 use parking_lot::Mutex;
-use ros_z::{Builder, context::ZContext, dynamic::DynSubBuilder, graph::Graph, node::ZNode};
+use ros_z::{Builder, context::ZContext, dynamic::DynSub, graph::Graph, node::ZNode};
 use tokio::sync::broadcast;
 
 use super::{events::SystemEvent, metrics::MetricsCollector};
@@ -135,11 +135,11 @@ impl CoreEngine {
     /// # Errors
     ///
     /// Returns error if schema discovery fails or subscriber creation fails
-    pub async fn create_dynamic_subscriber_builder(
+    pub async fn create_dynamic_subscriber(
         &self,
         topic: &str,
         discovery_timeout: Duration,
-    ) -> Result<DynSubBuilder, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<DynSub, Box<dyn std::error::Error + Send + Sync>> {
         self.node
             .create_dyn_sub_auto(topic, discovery_timeout)
             .await
