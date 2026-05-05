@@ -144,7 +144,7 @@ fn test_get_type_description_from_ros2_talker() {
             };
 
             let resp = zcli
-                .call_or_timeout(&req, Duration::from_secs(15))
+                .call_with_timeout(&req, Duration::from_secs(15))
                 .await
                 .expect("Failed to receive response");
 
@@ -252,7 +252,7 @@ fn test_get_type_description_without_sources() {
             };
 
             let resp = zcli
-                .call_or_timeout(&req, Duration::from_secs(15))
+                .call_with_timeout(&req, Duration::from_secs(15))
                 .await
                 .expect("Failed to receive response");
 
@@ -380,7 +380,7 @@ fn test_dynamic_subscriber_from_type_description() {
             };
 
             let resp = zcli
-                .call_or_timeout(&req, Duration::from_secs(15))
+                .call_with_timeout(&req, Duration::from_secs(15))
                 .await
                 .expect("Failed to receive GetTypeDescription response");
 

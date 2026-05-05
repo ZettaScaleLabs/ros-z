@@ -123,7 +123,7 @@ fn test_basic_service_request_response() {
                 .unwrap()
                 .block_on(async {
                     client
-                        .call_or_timeout(&request, Duration::from_secs(2))
+                        .call_with_timeout(&request, Duration::from_secs(2))
                         .await
                 })
                 .expect("Failed to receive response");
@@ -262,7 +262,7 @@ fn test_multiple_service_requests() {
                 let response = rt
                     .block_on(async {
                         client
-                            .call_or_timeout(&request, Duration::from_secs(2))
+                            .call_with_timeout(&request, Duration::from_secs(2))
                             .await
                     })
                     .expect("Failed to receive response");

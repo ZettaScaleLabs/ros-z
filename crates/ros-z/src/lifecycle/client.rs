@@ -128,7 +128,7 @@ impl ZLifecycleClient {
                 label: String::new(),
             },
         };
-        let resp = self.change_state.call_or_timeout(&req, timeout).await?;
+        let resp = self.change_state.call_with_timeout(&req, timeout).await?;
         Ok(resp.success)
     }
 
@@ -140,7 +140,7 @@ impl ZLifecycleClient {
     pub async fn get_state(&self, timeout: Duration) -> Result<LifecycleState> {
         let resp = self
             .get_state
-            .call_or_timeout(&GetStateRequest {}, timeout)
+            .call_with_timeout(&GetStateRequest {}, timeout)
             .await?;
         Ok(state_from_lc(&resp.current_state))
     }
@@ -149,7 +149,7 @@ impl ZLifecycleClient {
     pub async fn get_available_states(&self, timeout: Duration) -> Result<Vec<LcState>> {
         let resp = self
             .get_available_states
-            .call_or_timeout(&GetAvailableStatesRequest {}, timeout)
+            .call_with_timeout(&GetAvailableStatesRequest {}, timeout)
             .await?;
         Ok(resp.available_states)
     }
@@ -161,7 +161,7 @@ impl ZLifecycleClient {
     ) -> Result<Vec<LcTransitionDescription>> {
         let resp = self
             .get_available_transitions
-            .call_or_timeout(&GetAvailableTransitionsRequest {}, timeout)
+            .call_with_timeout(&GetAvailableTransitionsRequest {}, timeout)
             .await?;
         Ok(resp.available_transitions)
     }

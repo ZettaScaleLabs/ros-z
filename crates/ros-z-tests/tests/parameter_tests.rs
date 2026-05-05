@@ -520,7 +520,7 @@ mod service_tests {
                 .expect("get client");
 
             let resp: GetParametersResponse = get_client
-                .call_or_timeout(
+                .call_with_timeout(
                     &GetParametersRequest {
                         names: vec!["value".to_string()],
                     },
@@ -540,7 +540,7 @@ mod service_tests {
                 .expect("list client");
 
             let list_resp: ListParametersResponse = list_client
-                .call_or_timeout(
+                .call_with_timeout(
                     &ListParametersRequest {
                         prefixes: vec![],
                         depth: 0,
@@ -563,7 +563,7 @@ mod service_tests {
             wire_value.integer_value = 42;
 
             let set_resp: SetParametersResponse = set_client
-                .call_or_timeout(
+                .call_with_timeout(
                     &SetParametersRequest {
                         parameters: vec![rcl_interfaces::Parameter {
                             name: "value".to_string(),
@@ -589,7 +589,7 @@ mod service_tests {
                 .expect("types client");
 
             let types_resp: GetParameterTypesResponse = types_client
-                .call_or_timeout(
+                .call_with_timeout(
                     &GetParameterTypesRequest {
                         names: vec!["value".to_string(), "nonexistent".to_string()],
                     },
@@ -610,7 +610,7 @@ mod service_tests {
                 .expect("desc client");
 
             let desc_resp: DescribeParametersResponse = desc_client
-                .call_or_timeout(
+                .call_with_timeout(
                     &DescribeParametersRequest {
                         names: vec!["value".to_string()],
                     },
@@ -685,7 +685,7 @@ mod service_tests {
                 .expect("atomic client");
 
             let atomic_resp: SetParametersAtomicallyResponse = atomic_client
-                .call_or_timeout(
+                .call_with_timeout(
                     &SetParametersAtomicallyRequest {
                         parameters: vec![make_int("a", 10), make_int("b", 20)],
                     },
@@ -711,7 +711,7 @@ mod service_tests {
                 .expect("get client");
 
             let get_resp: GetParametersResponse = get_client
-                .call_or_timeout(
+                .call_with_timeout(
                     &GetParametersRequest {
                         names: vec!["a".to_string(), "b".to_string()],
                     },
@@ -771,7 +771,7 @@ mod service_tests {
             };
 
             let resp: SetParametersAtomicallyResponse = atomic_client
-                .call_or_timeout(
+                .call_with_timeout(
                     &SetParametersAtomicallyRequest {
                         parameters: vec![make_int("a", 10), make_int("b", 20)],
                     },

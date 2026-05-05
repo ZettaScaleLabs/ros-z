@@ -77,7 +77,7 @@ fn test_ros_z_server_ros_z_client() {
             println!("Sending request...");
 
             let resp = zcli
-                .call_or_timeout(&AddTwoIntsRequest { a: 5, b: 3 }, Duration::from_secs(5))
+                .call_with_timeout(&AddTwoIntsRequest { a: 5, b: 3 }, Duration::from_secs(5))
                 .await
                 .expect("Failed to receive response");
             println!("Received response: {}", resp.sum);
@@ -149,7 +149,7 @@ fn test_ros_z_server_ros_z_client_multipart_name() {
             tokio::time::sleep(Duration::from_millis(500)).await;
 
             let resp = zcli
-                .call_or_timeout(&AddTwoIntsRequest { a: 7, b: 5 }, Duration::from_secs(5))
+                .call_with_timeout(&AddTwoIntsRequest { a: 7, b: 5 }, Duration::from_secs(5))
                 .await
                 .expect("Failed to receive response");
             println!("Received response: {}", resp.sum);
@@ -369,7 +369,7 @@ fn test_ros2_server_ros_z_client_multipart() {
             println!("Calling ROS2 multi-part server...");
 
             let resp = zcli
-                .call_or_timeout(
+                .call_with_timeout(
                     &AddTwoIntsRequest { a: 11, b: 13 },
                     std::time::Duration::from_secs(5),
                 )
@@ -451,7 +451,7 @@ fn test_ros2_server_ros_z_client() {
             println!("Calling ROS2 server...");
 
             let resp = zcli
-                .call_or_timeout(
+                .call_with_timeout(
                     &AddTwoIntsRequest { a: 15, b: 9 },
                     std::time::Duration::from_secs(5),
                 )

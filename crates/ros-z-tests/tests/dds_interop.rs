@@ -275,7 +275,10 @@ fn test_ros2_dds_service_server_to_ros_z_client() {
         let req = AddTwoIntsRequest { a: 15, b: 27 };
         println!("Sending request: {} + {}", req.a, req.b);
 
-        match client.call_or_timeout(&req, Duration::from_secs(10)).await {
+        match client
+            .call_with_timeout(&req, Duration::from_secs(10))
+            .await
+        {
             Ok(resp) => {
                 println!("Received response: {}", resp.sum);
                 assert_eq!(resp.sum, 42, "Expected 15 + 27 = 42, got {}", resp.sum);

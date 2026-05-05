@@ -127,7 +127,7 @@ impl RawClient for GenericClientWrapper {
 
         let response = rt.block_on(async {
             self.inner
-                .call_or_timeout(&request, timeout)
+                .call_with_timeout(&request, timeout)
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to call service: {}", e))
         })?;

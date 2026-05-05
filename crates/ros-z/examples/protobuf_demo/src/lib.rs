@@ -124,7 +124,7 @@ pub fn run_service_client(
         // Send request and wait for response using the shared runtime
         let response = rt.block_on(async {
             client
-                .call_or_timeout(&request, Duration::from_secs(5))
+                .call_with_timeout(&request, Duration::from_secs(5))
                 .await
         })?;
 

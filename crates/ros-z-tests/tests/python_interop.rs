@@ -243,7 +243,7 @@ fn test_python_server_rust_client() {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             client
-                .call_or_timeout(&request, Duration::from_secs(5))
+                .call_with_timeout(&request, Duration::from_secs(5))
                 .await
                 .map(|resp| resp.sum)
         })

@@ -176,7 +176,7 @@ async fn run_client(ctx: ros_z::context::ZContext, args: &Args) -> ros_z::Result
 
         println!("Sending request #{}: a={}, b={}", i + 1, req.a, req.b);
 
-        match client.call_or_timeout(&req, Duration::from_secs(5)).await {
+        match client.call_with_timeout(&req, Duration::from_secs(5)).await {
             Ok(resp) => {
                 println!("Received response: {} + {} = {}\n", req.a, req.b, resp.sum);
             }

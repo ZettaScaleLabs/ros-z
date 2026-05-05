@@ -92,7 +92,7 @@ pub async fn run_client(ctx: ZContext, a: i64, b: i64) -> Result<()> {
     println!("Sending request: {} + {}", req.a, req.b);
 
     let resp = zcli
-        .call_or_timeout(&req, std::time::Duration::from_secs(5))
+        .call_with_timeout(&req, std::time::Duration::from_secs(5))
         .await?;
 
     println!("Received response: {}", resp.sum);

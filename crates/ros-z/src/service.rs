@@ -40,7 +40,7 @@ impl_with_type_info!(ZServerBuilder<T>);
 /// A ROS 2-style reusable service handle for typed request/response calls.
 ///
 /// Create a client via [`ZNode::create_client`](crate::node::ZNode::create_client).
-/// Invoke the service with [`call`](ZClient::call) or [`call_or_timeout`](ZClient::call_or_timeout).
+/// Invoke the service with [`call`](ZClient::call) or [`call_with_timeout`](ZClient::call_with_timeout).
 ///
 /// # Example
 ///
@@ -49,7 +49,7 @@ impl_with_type_info!(ZServerBuilder<T>);
 /// use std::time::Duration;
 ///
 /// // client: ZClient<MyService>
-/// let response = client.call_or_timeout(&request, Duration::from_secs(5)).await?;
+/// let response = client.call_with_timeout(&request, Duration::from_secs(5)).await?;
 /// ```
 pub struct ZClient<T: ZService> {
     // TODO: replace this with the sample sn
@@ -211,7 +211,11 @@ where
     }
 
     /// Call the service and fail if no reply arrives before `timeout` elapses.
-    pub async fn call_or_timeout(&self, msg: &T::Request, timeout: Duration) -> Result<T::Response>
+    pub async fn call_with_timeout(
+        &self,
+        msg: &T::Request,
+        timeout: Duration,
+    ) -> Result<T::Response>
     where
         T::Request: ZMessage,
         T::Response: ZMessage,

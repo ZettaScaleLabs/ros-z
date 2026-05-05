@@ -156,7 +156,9 @@ fn test_service_humble_server_jazzy_client() {
 
         let req = ros_z_msgs::ros::example_interfaces::AddTwoIntsRequest { a: 3, b: 7 };
         // ctx / node / client are dropped here, inside the runtime
-        client.call_or_timeout(&req, Duration::from_secs(20)).await
+        client
+            .call_with_timeout(&req, Duration::from_secs(20))
+            .await
     });
 
     let response = response.expect("did not receive service response within timeout");

@@ -280,7 +280,7 @@ impl TypeDescriptionClient {
         };
 
         let response = client
-            .call_or_timeout(&request, self.timeout)
+            .call_with_timeout(&request, self.timeout)
             .await
             .map_err(|_| DynamicError::ServiceTimeout {
                 node: node_display,
