@@ -5,21 +5,47 @@ Get a Go publisher and subscriber running in five minutes.
 ## Prerequisites
 
 - Go 1.23+
-- Rust toolchain (`rustup`)
-- `cbindgen` — `cargo install cbindgen`
-- `just` — `cargo install just`
 - An Eclipse Zenoh router — see [Networking](../user-guide/networking.md)
 
-## 1. Set up
+No Rust toolchain required when using the pre-built library.
 
-Generate bundled message types, build the Rust FFI library, and verify the installation in one command:
+## 1. Get the library
+
+### Option A — Pre-built library (recommended)
+
+Download the static library and C header for your platform from the [Releases page](https://github.com/ZettaScaleLabs/ros-z/releases):
+
+| Platform | Jazzy / Kilted / Rolling | Humble |
+|---|---|---|
+| Linux x86_64 | `libros_z-jazzy-x86_64-unknown-linux-gnu.a` | `libros_z-humble-x86_64-unknown-linux-gnu.a` |
+| Linux aarch64 | `libros_z-jazzy-aarch64-unknown-linux-gnu.a` | `libros_z-humble-aarch64-unknown-linux-gnu.a` |
+| macOS aarch64 | `libros_z-jazzy-aarch64-apple-darwin.a` | `libros_z-humble-aarch64-apple-darwin.a` |
+
+Each release also includes `ros_z_ffi.h` (the C header required for CGO).
 
 ```bash
+# Clone the repo for the Go package source — no Rust build needed
+git clone https://github.com/ZettaScaleLabs/ros-z.git
+cd ros-z
+
+# Download the pre-built library and header — replace <version> and pick your platform file
+curl -Lo crates/ros-z-go/libros_z.a \
+  https://github.com/ZettaScaleLabs/ros-z/releases/download/<version>/libros_z-jazzy-x86_64-unknown-linux-gnu.a
+curl -Lo crates/ros-z-go/rosz/ros_z_ffi.h \
+  https://github.com/ZettaScaleLabs/ros-z/releases/download/<version>/ros_z_ffi.h
+```
+
+### Option B — Build from source
+
+Requires Rust 1.85+, `cbindgen`, and `just`:
+
+```bash
+git clone https://github.com/ZettaScaleLabs/ros-z.git
+cd ros-z
 just -f crates/ros-z-go/justfile quickstart
 ```
 
-This runs `codegen-bundled` (generates `std_msgs`, `geometry_msgs` — no ROS 2 needed), compiles
-`libros_z.a` into `target/release/`, and confirms both are present.
+This generates message types, compiles `libros_z.a`, and verifies both are present.
 
 ## 2. Write a publisher
 
@@ -67,7 +93,7 @@ func main() {
 }
 ```
 
-Create `hello_pub/go.mod`:
+Create `hello_pub/go.mod` — the `replace` directive points Go to the local `rosz` package:
 
 ```text
 module hello_pub
@@ -78,6 +104,8 @@ require github.com/ZettaScaleLabs/ros-z/crates/ros-z-go v0.0.0
 
 replace github.com/ZettaScaleLabs/ros-z/crates/ros-z-go => /path/to/ros-z/crates/ros-z-go
 ```
+
+Replace `/path/to/ros-z` with the absolute path where you cloned the repo.
 
 ## 3. Write a subscriber
 
@@ -123,53 +151,44 @@ func main() {
 }
 ```
 
-Create `hello_sub/go.mod`:
-
-```text
-module hello_sub
-
-go 1.23
-
-require github.com/ZettaScaleLabs/ros-z/crates/ros-z-go v0.0.0
-
-replace github.com/ZettaScaleLabs/ros-z/crates/ros-z-go => /path/to/ros-z/crates/ros-z-go
-```
+Create `hello_sub/go.mod` with the same `replace` directive as above.
 
 ## 4. Run
 
-You need a Zenoh router running first — publishers and subscribers only discover each other through a router:
+You need a Zenoh router running first — it acts as the rendezvous point for all nodes.
+
+**Start the router** (pick one):
 
 ```bash
-# Terminal 1: router
-cargo run --example zenoh_router
+# Option A: download zenohd from https://github.com/eclipse-zenoh/zenoh/releases
+./zenohd
+
+# Option B: install via cargo (one-time)
+cargo install zenohd && zenohd
+```
+
+**Run the subscriber and publisher** — set `CGO_LDFLAGS` to point at the library:
+
+```bash
+ROSZ=/path/to/ros-z
 
 # Terminal 2: subscriber
 cd hello_sub
-CGO_LDFLAGS="-L/path/to/ros-z/target/release" go run main.go
+CGO_LDFLAGS="-L$ROSZ/crates/ros-z-go -lros_z -lm" \
+CGO_CFLAGS="-I$ROSZ/crates/ros-z-go/rosz" \
+go run main.go
 
 # Terminal 3: publisher
 cd hello_pub
-CGO_LDFLAGS="-L/path/to/ros-z/target/release" go run main.go
+CGO_LDFLAGS="-L$ROSZ/crates/ros-z-go -lros_z -lm" \
+CGO_CFLAGS="-I$ROSZ/crates/ros-z-go/rosz" \
+go run main.go
 ```
 
-You should see the subscriber printing messages published by the publisher.
+You should see the subscriber printing messages from the publisher.
 
-## 5. Try the built-in examples
-
-The repo ships ready-to-run examples. Start a router first, then:
-
-```bash
-# Terminal 1: router
-cargo run --example zenoh_router
-
-# Publisher + subscriber in parallel (Ctrl+C to stop)
-just -f crates/ros-z-go/justfile demo
-
-# Or run each individually
-just -f crates/ros-z-go/justfile run-example publisher
-just -f crates/ros-z-go/justfile run-example subscriber
-just -f crates/ros-z-go/justfile run-example subscriber_channel   # channel-based / range loop
-```
+!!! tip
+    Set `ROSZ` in your shell profile to avoid repeating the path.
 
 ## What's next
 
