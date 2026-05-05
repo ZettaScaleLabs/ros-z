@@ -1,16 +1,7 @@
 <!-- markdownlint-disable MD046 -->
 # Quick Start
 
-**Get ros-z running in under 5 minutes with this hands-on tutorial.** Build a complete publisher-subscriber system to understand the core concepts through working code.
-
-!!! tip
-    This guide assumes basic Rust knowledge. If you're new to Rust, complete the [Rust Book](https://doc.rust-lang.org/book/) first for the best experience.
-
-**Prerequisites:**
-
-- **Rust 1.85+** (requires edition 2024) — install via [rustup](https://rustup.rs/)
-- **Tokio 1.x** — ros-z requires an async runtime (added to `Cargo.toml` in Option 2 below)
-- No ROS 2 installation needed for the examples in this guide
+**Get ros-z running in under 5 minutes.** Pick your language below — no ROS 2 installation required.
 
 ## Pre-built Releases
 
@@ -20,18 +11,24 @@ Pre-built artifacts are available on the [Releases page](https://github.com/Zett
 |---|---|---|
 | `ros-z-console` binary | Monitor any ROS 2 / ros-z system | [Console docs](../tools/console.md#installation) |
 | `ros-z-bridge` binary | Bridge Humble ↔ Jazzy/Kilted | [Bridge docs](../user-guide/bridge.md#installation) |
-| `ros_z_py` Python wheel | Python pub/sub & services | [Python docs](../bindings/python.md#installation) |
-| `libros_z` Go library | Go pub/sub & services | [Go docs](../bindings/go.md) |
-
-If you want to **embed ros-z in a Rust application**, continue below.
+| `ros_z_py` Python wheel | Python pub/sub & services | [Python quick start](../bindings/python-quick-start.md) |
+| `libros_z` Go library | Go pub/sub & services | [Go quick start](../bindings/go-quick-start.md) |
 
 ---
 
-## Choose Your Path
+## Embed ros-z in a Rust Application
 
-There are two ways to get started with ros-z:
+The rest of this page covers using ros-z from Rust. If you're using Python or Go, follow the quick start links in the table above instead.
 
-1. **Try the Examples** — Clone the ros-z repository and run pre-built examples (fastest way to see it in action)
+**Prerequisites:**
+
+- **Rust 1.85+** (requires edition 2024) — install via [rustup](https://rustup.rs/)
+- **Tokio 1.x** — ros-z requires an async runtime (added to `Cargo.toml` in Option 2 below)
+- No ROS 2 installation needed
+
+There are two ways to get started:
+
+1. **Option 1: Try the Examples** — Clone the ros-z repository and run pre-built examples (fastest)
 2. **Option 2: Create Your Own Project** — Start a new Rust project with ros-z as a dependency
 
 ---
