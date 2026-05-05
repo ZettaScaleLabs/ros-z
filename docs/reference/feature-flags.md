@@ -220,9 +220,9 @@ cargo build -p ros-z-codegen --features protobuf
 ## Feature Dependency Graph
 
 ```mermaid
+graph TD
 accTitle: Feature flag dependency graph for ros-z message packages
 accDescr: The all_msgs feature depends on bundled_msgs plus example, action tutorial, and test message packages; bundled_msgs and core_msgs both cover the four core geometry, sensor, nav, and std message packages.
-graph TD
     A[all_msgs] --> B[bundled_msgs]
     A --> C[example_interfaces]
     A --> D[action_tutorials_interfaces]
@@ -341,9 +341,9 @@ cargo build -p ros-z-msgs --features std_msgs,geometry_msgs -v
 ## Feature Selection Strategy
 
 ```mermaid
+flowchart TD
 accTitle: Feature selection strategy flowchart for ros-z message features
 accDescr: A decision flowchart that directs projects needing no ROS messages to zero features, and those needing messages to core_msgs for common types, individual packages for minimal sets, or all_msgs for the full collection.
-flowchart TD
     A[Start Project] --> B{Need ROS messages?}
     B -->|No| C[Zero features<br/>Custom messages]
     B -->|Yes| D{Which messages?}

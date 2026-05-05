@@ -8,9 +8,9 @@
 ## System Architecture
 
 ```mermaid
+graph LR
 accTitle: Message generation system architecture from msg files to ros-z-msgs
 accDescr: ROS message and service files are parsed and resolved by ros-z-codegen, hashed for type safety, then fed to Rust and Protobuf generators whose output is collected into the ros-z-msgs crate.
-graph LR
     A[.msg/.srv files] --> B[ros-z-codegen]
     B --> C[Parse & Resolve]
     C --> D[Type Hashing]
@@ -60,9 +60,9 @@ ros-z-codegen's orchestration capabilities:
 **Discovery workflow:**
 
 ```mermaid
+sequenceDiagram
 accTitle: Package discovery sequence checking system then bundled message sources
 accDescr: build.rs asks the discovery layer to find packages, which checks AMENT_PREFIX_PATH then standard opt/ros paths and finally falls back to bundled assets before returning paths for Rust code generation.
-sequenceDiagram
     participant B as build.rs
     participant D as Discovery
     participant S as Sources
@@ -151,9 +151,9 @@ impl WithTypeInfo for std_msgs::String {
 The generation happens in `build.rs`:
 
 ```mermaid
+flowchart TD
 accTitle: ros-z-msgs build script flow from feature flags to compiled output
 accDescr: The build script reads enabled features, discovers package paths, parses and resolves message definitions if found, generates Rust code written to OUT_DIR, then compilation completes.
-flowchart TD
     A[Start build.rs] --> B[Read enabled features]
     B --> C[Discover package paths]
     C --> D{Messages found?}
@@ -179,9 +179,9 @@ let config = GeneratorConfig {
 ### Package Discovery Order
 
 ```mermaid
+flowchart LR
 accTitle: Package discovery order by feature flags and ROS installation presence
 accDescr: Feature flags trigger discovery that checks for a system ROS installation via AMENT_PREFIX_PATH or standard distro paths, falling back to bundled assets when no ROS is installed.
-flowchart LR
     A[Feature Flags] --> B{System ROS?}
     B -->|Found| C[AMENT_PREFIX_PATH]
     B -->|Not Found| D{/opt/ros/distro?}
@@ -315,9 +315,9 @@ impl WithTypeInfo for RobotStatus {}
 ### When to Use Each Approach
 
 ```mermaid
+flowchart TD
 accTitle: Decision flowchart for manual versus generated custom messages
 accDescr: Prototyping without ROS 2 interop or type safety requirements leads to manual implementation, while production use or ROS 2 interop requirements lead to generating Rust types from dot-msg files.
-flowchart TD
     A[Need Custom Message?] --> B{Prototyping?}
     B -->|Yes| C[Manual Implementation]
     B -->|No| D{ROS 2 Interop?}
@@ -433,9 +433,9 @@ The generator automatically filters:
 ros-z uses the RIHS (ROS IDL Hash) algorithm:
 
 ```mermaid
+flowchart LR
 accTitle: RIHS type hash calculation pipeline for ROS message definitions
 accDescr: A message definition is parsed, its dependencies are included, a hash is calculated over the full structure, and the result is encoded as an RIHS string wrapped in a TypeHash object.
-flowchart LR
     A[Message Definition] --> B[Parse Structure]
     B --> C[Include Dependencies]
     C --> D[Calculate Hash]

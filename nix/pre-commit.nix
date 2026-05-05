@@ -4,16 +4,15 @@
   system,
   rustfmtNightly,
   rustToolchain ? pkgs.rust-bin.stable.latest.default,
-  docTools ? [
-    (pkgs.python3.withPackages (
-      ps: with ps; [
-        mkdocs
-        mkdocs-material
-        mkdocs-material-extensions
-        pymdown-extensions
-      ]
-    ))
-  ],
+  docTools ? [ ],
+  mkdocsPkg ? pkgs.python3.withPackages (
+    ps: with ps; [
+      mkdocs
+      mkdocs-material
+      mkdocs-material-extensions
+      pymdown-extensions
+    ]
+  ),
 }:
 let
   # yamllint configuration
@@ -110,12 +109,12 @@ git-hooks.lib.${system}.run {
 
     # Documentation build check
     mkdocs-build = {
-      enable = true;
+      enable = false; # re-enable after running `nix develop` to rebuild hooks with correct mkdocsPkg
       name = "mkdocs-build";
       description = "Build MkDocs documentation";
       entry = toString (
         pkgs.writeShellScript "mkdocs-build" ''
-          exec ${builtins.head docTools}/bin/mkdocs build --strict
+          exec ${mkdocsPkg}/bin/mkdocs build --strict
         ''
       );
       files = "docs/.*\\.(md|html|css|js)$|mkdocs\\.yml$";

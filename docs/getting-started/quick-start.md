@@ -365,9 +365,9 @@ cargo run --bin listener
 ## What's Happening?
 
 ```mermaid
+sequenceDiagram
 accTitle: Talker publishing messages through Zenoh to a Listener
 accDescr: The Talker publishes Hello messages to the Zenoh network each second, which delivers each message to the Listener who prints it to the console.
-sequenceDiagram
     participant T as Talker
     participant Z as Zenoh Network
     participant L as Listener

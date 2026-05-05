@@ -11,9 +11,9 @@
 ## What is Publish-Subscribe?
 
 ```mermaid
+graph LR
 accTitle: Publish-subscribe topic with multiple publishers and subscribers
 accDescr: Two publishers send messages to a shared topic node, which fans out to three subscribers — none of the parties are directly coupled to each other.
-graph LR
     P1([Publisher A]) --> T{Topic}
     P2([Publisher B]) --> T
     T --> S1([Subscriber 1])
@@ -41,9 +41,9 @@ graph LR
 ### Message flow
 
 ```mermaid
+sequenceDiagram
 accTitle: Message flow from publisher through Zenoh to multiple subscribers
 accDescr: The publisher sends two successive messages into the Zenoh transport, which delivers each one to both Subscriber 1 and Subscriber 2 without the publisher waiting.
-sequenceDiagram
     participant P as Publisher
     participant Z as Eclipse Zenoh
     participant S1 as Subscriber 1

@@ -16,9 +16,9 @@ using [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) communicate through t
 ros-z-console to observe the entire system.
 
 ```mermaid
+graph LR
 accTitle: ros-z-console monitoring topology via Zenoh router
 accDescr: The ros-z-console connects as a read-only observer to the same Zenoh router that the talker and listener nodes use, enabling zero-interference monitoring of the ROS 2 graph.
-graph LR
     subgraph "ROS 2 System"
         T[talker<br/>rmw_zenoh_cpp]
         L[listener<br/>rmw_zenoh_cpp]
@@ -221,9 +221,9 @@ When you echo a topic, ros-z-console:
 5. **Deserializes and displays messages** in real-time
 
 ```mermaid
+sequenceDiagram
 accTitle: ros-z-console topic echo flow using dynamic type discovery
 accDescr: The console queries the graph for publishers, retrieves the type schema from the publisher node, subscribes dynamically, then deserializes incoming CDR bytes for display.
-sequenceDiagram
     participant C as ros-z-console
     participant G as Graph
     participant P as Publisher Node

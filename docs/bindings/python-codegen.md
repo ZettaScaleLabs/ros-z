@@ -7,9 +7,9 @@ This chapter explains how ros-z generates Python bindings for ROS 2 messages, in
 ros-z uses a **hybrid approach**: Python classes for ergonomics, Rust for serialization performance. The architecture uses **derive macros** for automatic Python-Rust conversion of arbitrarily nested message types.
 
 ```mermaid
+graph TB
 accTitle: Python bindings code generation architecture from msg files to runtime
 accDescr: At build time ros-z-codegen parses msg files, resolves dependencies, and generates both Python msgspec structs and Rust PyO3 bindings; at runtime Python objects are converted to Rust structs and serialized to CDR bytes via derive macros.
-graph TB
     subgraph "Build Time (cargo build)"
         ROS[".msg/.srv files"] --> Parser["ros-z-codegen<br/>Parser"]
         Parser --> Resolver["Dependency<br/>Resolver"]
@@ -199,9 +199,9 @@ pub fn deserialize_string(py: Python, bytes: &[u8]) -> PyResult<PyObject> {
 ### Publishing (Python to Wire)
 
 ```mermaid
+sequenceDiagram
 accTitle: Python to wire publishing data flow through PyO3 and CDR
 accDescr: The Python app creates a msgspec message, passes it to PyO3 which extracts each field, constructs a Rust struct, serializes it to CDR bytes, and sends them over the Zenoh network.
-sequenceDiagram
     participant App as Python App
     participant Msg as msgspec.Struct
     participant PyO3 as PyO3 Layer
@@ -220,9 +220,9 @@ sequenceDiagram
 ### Subscribing (Wire to Python)
 
 ```mermaid
+sequenceDiagram
 accTitle: Wire to Python subscribing data flow with zero-copy deserialization
 accDescr: Zenoh delivers CDR bytes which are zero-copy deserialized into a Rust struct; PyO3 builds keyword arguments and constructs the msgspec Python object returned to the application.
-sequenceDiagram
     participant Net as Zenoh Network
     participant CDR as CDR Decoder
     participant Rust as Rust Struct
@@ -289,9 +289,9 @@ sequenceDiagram
 ### Step-by-step Flow
 
 ```mermaid
+flowchart TD
 accTitle: Python bindings build process from cargo build to compiled output
 accDescr: Running cargo build triggers build.rs which discovers ROS packages, parses msg files, resolves dependencies, then generates both Python type files and a Rust PyO3 module compiled into ros-z-msgs.
-flowchart TD
     A["cargo build ros-z-msgs<br/>--features python_registry"] --> B["build.rs executes"]
     B --> C["Discover ROS packages<br/>(AMENT_PREFIX_PATH or bundled)"]
     C --> D["Parse .msg/.srv files"]

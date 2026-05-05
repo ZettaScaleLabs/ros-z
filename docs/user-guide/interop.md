@@ -16,9 +16,9 @@ ros-z nodes — whether written in Rust, Python, or Go — speak the same Eclips
 All participants connect to the same Zenoh router on the local machine.
 
 ```mermaid
+graph LR
 accTitle: ROS 2 interop via shared Zenoh router with Rust, Python, and Go
 accDescr: A ROS 2 C++ talker connects through rmw_zenoh_cpp to a local Zenoh router, which also serves ros-z nodes written in Rust, Python, and Go.
-graph LR
     talker["demo_nodes_cpp<br>talker"] --> rmw["rmw_zenoh_cpp"] --> router(["Zenoh router<br>localhost:7447"])
     router <-->|Zenoh| rust["Rust<br>(ros-z)"]
     router <-->|Zenoh| python["Python<br>(ros-z-py)"]

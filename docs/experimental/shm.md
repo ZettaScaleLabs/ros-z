@@ -19,9 +19,9 @@ When publishing large messages (e.g., point clouds, images), copying data multip
 The following diagram illustrates how ros-z publishes a PointCloud2 message using shared memory:
 
 ```mermaid
+sequenceDiagram
 accTitle: Shared memory zero-copy publishing of a PointCloud2 message
 accDescr: The application allocates a shared memory buffer, writes point data directly into it, and the ros-z publisher sends only a reference through the Zenoh network so the subscriber reads data without any copy.
-sequenceDiagram
     participant App as Application
     participant Pub as ros-z Publisher
     participant SHM as SHM Provider

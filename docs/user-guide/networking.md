@@ -3,9 +3,9 @@
 **Configure ros-z's Eclipse Zenoh transport layer for optimal performance in your deployment environment.** ros-z uses router-based architecture by default, matching ROS 2's official [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) middleware for production-ready scalability.
 
 ```mermaid
+graph TB
 accTitle: Zenoh router-based node topology
 accDescr: Talker and Listener nodes both connect to a central zenohd router for discovery, with optional peer-to-peer communication between them.
-graph TB
     Router["zenohd (router)"]
 
     Talker["Talker node (peer)"]
@@ -38,9 +38,9 @@ Standard DDS multicast discovery has known limitations:
 ros-z and [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) use **router-based discovery** instead. All nodes connect to a `zenohd` router via TCP. The router acts as the rendezvous point — nodes announce themselves to the router, which propagates the information to interested peers. This works across subnets, containers, and cloud environments without multicast, and scales linearly: adding more nodes does not increase per-node discovery traffic.
 
 ```mermaid
+sequenceDiagram
 accTitle: Zenoh router discovery sequence for publisher and subscriber
 accDescr: Node A declares a publisher and Node B declares a subscriber through the zenohd router, which notifies each side so messages can flow directly between them.
-sequenceDiagram
     participant R as zenohd (router)
     participant A as Node A (Publisher)
     participant B as Node B (Subscriber)

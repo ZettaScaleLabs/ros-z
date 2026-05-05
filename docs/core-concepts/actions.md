@@ -11,9 +11,9 @@
 ## What is an Action?
 
 ```mermaid
+sequenceDiagram
 accTitle: ROS 2 action goal, feedback, and result sequence
 accDescr: The action client sends a goal to the server, which returns acceptance then streams periodic feedback before sending the final result.
-sequenceDiagram
     participant C as Action Client
     participant S as Action Server
 
@@ -67,9 +67,9 @@ Three sections separated by `---`: goal, result, feedback.
 ### Goal states
 
 ```mermaid
+stateDiagram-v2
 accTitle: Action goal state machine from Pending to terminal states
 accDescr: A goal moves from Pending to Accepted or Rejected, then through Executing toward Succeeded, Aborted, or Canceled via a Canceling intermediate state.
-stateDiagram-v2
     [*] --> Pending : SendGoal
     Pending --> Accepted : server accepts
     Pending --> Rejected : server rejects
@@ -188,9 +188,9 @@ The compiler prevents calling `publish_feedback` before `accept()`. Invalid stat
 ## Action Lifecycle
 
 ```mermaid
+stateDiagram-v2
 accTitle: Full action lifecycle including feedback and terminal states
 accDescr: The action progresses from Idle through Accepted and Executing, optionally looping on feedback, before reaching Succeeded, Canceled, or Aborted.
-stateDiagram-v2
     [*] --> Idle
     Idle --> Accepted: Send Goal
     Accepted --> Executing: Start Processing
@@ -215,9 +215,9 @@ stateDiagram-v2
 ## Communication Pattern
 
 ```mermaid
+sequenceDiagram
 accTitle: Action communication pattern with success, cancel, and error paths
 accDescr: The client sends a goal and receives feedback during execution, then one of three outcomes: Success, Canceled by client request, or Aborted on server error.
-sequenceDiagram
     participant C as Client
     participant S as Server
 
@@ -239,9 +239,9 @@ sequenceDiagram
 ### Execution Timeline
 
 ```mermaid
+sequenceDiagram
 accTitle: Detailed action execution timeline with cancellation and error
 accDescr: Shows a navigation goal being sent with a goal ID, followed by periodic feedback at 25, 50, and 75 percent, ending in Succeeded, Canceled, or Aborted depending on outcome.
-sequenceDiagram
     participant C as Action Client
     participant S as Action Server
 

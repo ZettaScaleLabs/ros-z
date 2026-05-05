@@ -355,6 +355,8 @@
           }) distros
         );
         # Pre-commit hooks configuration
+        mkdocsPkg = builtins.elemAt docTools 1;
+
         pre-commit-check = import ./nix/pre-commit.nix {
           inherit
             pkgs
@@ -363,6 +365,7 @@
             rustfmtNightly
             rustToolchain
             docTools
+            mkdocsPkg
             ;
         };
       in

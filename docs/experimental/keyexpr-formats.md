@@ -203,9 +203,9 @@ let node_dds = ctx_dds.create_node("dds_node").build()?;
 ### RmwZenoh Format Architecture
 
 ```mermaid
+graph LR
 accTitle: RmwZenoh key expression format connecting ros-z and ROS 2 nodes
 accDescr: A ros-z node in RmwZenoh format communicates through a Zenoh router using domain-prefixed key expressions to reach a standard ROS 2 node running rmw_zenoh_cpp.
-graph LR
     A[ros-z Node<br/>RmwZenoh Format] -->|"0/chatter/**"| B[Zenoh Router<br/>rmw_zenoh]
     B -->|"0/chatter/**"| C[ROS 2 Node<br/>rmw_zenoh_cpp]
 ```
@@ -219,9 +219,9 @@ graph LR
 ### Ros2Dds Format Architecture
 
 ```mermaid
+graph LR
 accTitle: Ros2Dds key expression format bridging Zenoh and DDS networks
 accDescr: A ros-z node in Ros2Dds format sends messages via Zenoh to the zenoh-bridge-ros2dds, which translates them to DDS for standard ROS 2 nodes running CycloneDDS or FastDDS.
-graph LR
     A[ros-z Node<br/>Ros2Dds Format] -->|"chatter/**"| B[zenoh-bridge-ros2dds<br/>Router + Bridge]
     B -->|DDS| C[ROS 2 Node<br/>CycloneDDS/FastDDS]
 ```
