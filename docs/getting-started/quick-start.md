@@ -46,9 +46,9 @@ cd ros-z
 
 ### Start the Eclipse Zenoh Router
 
-ros-z uses a router-based architecture (matching ROS 2's [`rmw_zenoh`](https://github.com/ros2/rmw_zenoh) — the ROS 2 middleware plugin for Zenoh), so you'll need to start a Zenoh router first. The router acts as a rendezvous point for all nodes: publishers and subscribers discover each other through it instead of via multicast.
+The router is a lightweight process that lets nodes find each other — think of it as the matchmaker between publishers and subscribers. Keep it running in its own terminal for the entire session.
 
-**Terminal 1 - Start the Router:**
+**Terminal 1 — Start the Router:**
 
 ```bash
 cargo run --example zenoh_router
@@ -58,17 +58,15 @@ cargo run --example zenoh_router
 
 Open two more terminals and navigate to the same `ros-z` directory:
 
-**Terminal 2 - Start the Listener:**
+**Terminal 2 — Start the Listener:**
 
 ```bash
-cd ros-z
 cargo run --example z_pubsub -- --role listener
 ```
 
-**Terminal 3 - Start the Talker:**
+**Terminal 3 — Start the Talker:**
 
 ```bash
-cd ros-z
 cargo run --example z_pubsub -- --role talker
 ```
 
@@ -77,119 +75,14 @@ cargo run --example z_pubsub -- --role talker
 
 ### Understanding the Code
 
-Here's the complete example you ran:
+The example you just ran does four things:
 
-```rust
-use std::time::Duration;
+1. **Creates a context** — `ZContextBuilder` connects to the Zenoh router and sets up the ROS 2 domain.
+2. **Creates a node** — `ctx.create_node("name")` is the logical unit your publishers and subscribers attach to.
+3. **Publishes** — `node.create_pub::<RosString>("/chatter")` sends CDR-serialized ROS 2 messages on a topic.
+4. **Subscribes** — `node.create_sub::<RosString>("/chatter")` receives and deserializes them asynchronously.
 
-use clap::{Parser, ValueEnum};
-use ros_z::{
-    Builder, Result,
-    context::{ZContext, ZContextBuilder},
-};
-use ros_z_msgs::std_msgs::String as RosString;
-
-/// Subscriber function that continuously receives messages from a topic
-async fn run_subscriber(ctx: ZContext, topic: String) -> Result<()> {
-    // Create a ROS 2 node - the fundamental unit of computation
-    let node = ctx.create_node("Sub").build()?;
-
-    // Create a subscriber for the specified topic
-    let zsub = node.create_sub::<RosString>(&topic).build()?;
-
-    // Continuously receive messages asynchronously
-    while let Ok(msg) = zsub.async_recv().await {
-        println!("Hearing:>> {}", msg.data);
-    }
-    Ok(())
-}
-
-/// Publisher function that continuously publishes messages to a topic
-async fn run_publisher(
-    ctx: ZContext,
-    topic: String,
-    period: Duration,
-    payload: String,
-) -> Result<()> {
-    let node = ctx.create_node("Pub").build()?;
-    let zpub = node.create_pub::<RosString>(&topic).build()?;
-
-    let mut count = 0;
-    loop {
-        let str = RosString {
-            data: format!("{payload} - #{count}"),
-        };
-        println!("Telling:>> {}", str.data);
-        zpub.async_publish(&str).await?;
-        let _ = tokio::time::sleep(period).await;
-        count += 1;
-    }
-}
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    let args = Args::parse();
-
-    let format = match args.backend {
-        Backend::RmwZenoh => ros_z_protocol::KeyExprFormat::RmwZenoh,
-        #[cfg(feature = "ros2dds")]
-        Backend::Ros2Dds => ros_z_protocol::KeyExprFormat::Ros2Dds,
-    };
-
-    // Create a ZContext - the entry point for ros-z applications
-    let ctx = if let Some(e) = args.endpoint {
-        ZContextBuilder::default()
-            .with_mode(args.mode)
-            .with_connect_endpoints([e])
-            .keyexpr_format(format)
-            .build()?
-    } else {
-        ZContextBuilder::default()
-            .with_mode(args.mode)
-            .keyexpr_format(format)
-            .build()?
-    };
-
-    let period = std::time::Duration::from_secs_f64(args.period);
-    zenoh::init_log_from_env_or("error");
-
-    match args.role.as_str() {
-        "listener" => run_subscriber(ctx, args.topic).await?,
-        "talker" => run_publisher(ctx, args.topic, period, args.data).await?,
-        role => println!(
-            "Please use \"talker\" or \"listener\" as role, {} is not supported.",
-            role
-        ),
-    }
-    Ok(())
-}
-
-#[derive(Debug, Clone, Copy, ValueEnum)]
-enum Backend {
-    /// RmwZenoh backend (default) - compatible with rmw_zenoh nodes
-    RmwZenoh,
-    #[cfg(feature = "ros2dds")]
-    Ros2Dds,
-}
-
-#[derive(Debug, Parser)]
-struct Args {
-    #[arg(short, long, default_value = "Hello ros-z")]
-    data: String,
-    #[arg(short, long, default_value = "/chatter")]
-    topic: String,
-    #[arg(short, long, default_value = "1.0")]
-    period: f64,
-    #[arg(short, long, default_value = "listener")]
-    role: String,
-    #[arg(short, long, default_value = "peer")]
-    mode: String,
-    #[arg(short, long)]
-    endpoint: Option<String>,
-    #[arg(short, long, value_enum, default_value = "rmw-zenoh")]
-    backend: Backend,
-}
-```
+The full example source (with CLI flags and multi-backend support) is at [`examples/z_pubsub.rs`](https://github.com/ZettaScaleLabs/ros-z/blob/main/crates/ros-z/examples/z_pubsub.rs) in the repository.
 
 ---
 
@@ -367,12 +260,6 @@ cargo run --bin listener
     - **Production-ready** architecture used in real ROS 2 systems
 
     See the [Networking](../user-guide/networking.md) chapter for customization options.
-
-!!! info "Key Terms"
-    **key expression** — Zenoh's topic addressing scheme. A string like `0/chatter/std_msgs::msg::dds_::String_/RIHS01_<hash>` that identifies where messages flow. ros-z maps ROS 2 topic names to key expressions automatically.
-    **CDR** — Common Data Representation, the binary serialization format used by all ROS 2 middleware. ros-z serializes message structs to CDR bytes before publishing.
-    **RIHS01** — ROS Interface Hash Scheme 01, a hash of the message definition that ensures publisher and subscriber agree on the exact message fields. If the hash differs, messages are silently dropped.
-    **RMW** — ROS MiddleWare interface, the plugin layer that connects ROS 2 nodes to an underlying transport (DDS, Zenoh, etc.). [`rmw_zenoh_cpp`](https://github.com/ros2/rmw_zenoh) is the RMW that lets standard ROS 2 C++/Python nodes speak Zenoh.
 
 ## What's Happening?
 

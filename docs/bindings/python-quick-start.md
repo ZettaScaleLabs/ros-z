@@ -1,18 +1,18 @@
 <!-- markdownlint-disable MD046 -->
 # Python Quick Start
 
-Get a Python publisher and subscriber running in five minutes.
+Get a Python publisher and subscriber running in five minutes. No Rust or ROS 2 installation required.
 
 ## Prerequisites
 
 - Python 3.11+
-- An Eclipse Zenoh router — see [Networking](../user-guide/networking.md)
+- A Zenoh router running locally (covered in step 3)
 
 ## 1. Install ros-z-py
 
-### Option A — Pre-built wheel (recommended, no Rust needed)
+### Option A — Pre-built wheel (recommended)
 
-Pick a release from the [Releases page](https://github.com/ZettaScaleLabs/ros-z/releases) and substitute `<version>`:
+Go to the [Releases page](https://github.com/ZettaScaleLabs/ros-z/releases), find the latest release, and substitute `<version>` below. Pick the tab for your ROS 2 distro — if you are new to ros-z and have no ROS 2 install, choose **Jazzy**.
 
 === "Jazzy / Kilted / Rolling"
 
@@ -28,12 +28,16 @@ Pick a release from the [Releases page](https://github.com/ZettaScaleLabs/ros-z/
     pip install https://github.com/ZettaScaleLabs/ros-z/releases/download/<version>/ros_z_py-<version>-0humble-cp311-abi3-linux_x86_64.whl
     ```
 
+!!! tip
+    On **aarch64 Linux** (e.g. Raspberry Pi) replace `linux_x86_64` with `linux_aarch64`. On **macOS Apple Silicon** use `macosx_11_0_arm64`.
+
 ### Option B — Build from source
 
 Requires Rust 1.85+ and `maturin`:
 
 ```bash
-cd crates/ros-z-py
+git clone https://github.com/ZettaScaleLabs/ros-z.git
+cd ros-z/crates/ros-z-py
 python -m venv .venv
 source .venv/bin/activate
 
@@ -87,29 +91,47 @@ while True:
 
 ## 4. Run
 
-You need a Zenoh router running first:
+### Start the Zenoh router
+
+ros-z nodes communicate through a Zenoh router. Download `zenohd` from the [Eclipse Zenoh releases](https://github.com/eclipse-zenoh/zenoh/releases) or install it via cargo:
 
 ```bash
-# Terminal 1: router
-cargo run --example zenoh_router
+cargo install zenohd
+```
 
-# Terminal 2: subscriber
-source crates/ros-z-py/.venv/bin/activate
+Then start it:
+
+```bash
+# Terminal 1
+zenohd
+```
+
+!!! tip
+    For full router setup options (apt, brew, Docker, Windows), see [Networking](../user-guide/networking.md).
+
+### Run the publisher and subscriber
+
+```bash
+# Terminal 2 — subscriber
 python listener.py
 
-# Terminal 3: publisher
-source crates/ros-z-py/.venv/bin/activate
+# Terminal 3 — publisher
 python talker.py
 ```
 
-You should see the subscriber printing messages published by the publisher.
+You should see the subscriber printing messages from the publisher.
 
 ## 5. Try the Built-in Examples
 
-The repo ships ready-to-run Python examples:
+!!! note
+    These examples live inside the cloned repository. If you installed via pip (Option A), clone the repo first:
+    ```bash
+    git clone https://github.com/ZettaScaleLabs/ros-z.git
+    ```
 
 ```bash
-source crates/ros-z-py/.venv/bin/activate
+cd ros-z
+source crates/ros-z-py/.venv/bin/activate  # or your own venv if using Option A
 
 # Pub/sub demo (pass --role talker or --role listener)
 python crates/ros-z-py/examples/topic_demo.py --role talker
