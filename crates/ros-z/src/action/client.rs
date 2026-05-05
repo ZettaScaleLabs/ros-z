@@ -512,54 +512,6 @@ impl<A: ZAction> ZActionClient<A> {
 
         Ok(response.result)
     }
-
-    // FIXME: Check the necessity
-    // Low-level methods for testing
-    pub async fn send_goal_request_low(
-        &self,
-        request: &SendGoalRequest<A>,
-    ) -> Result<SendGoalResponse> {
-        self.goal_client.call(request).await
-    }
-
-    // FIXME: Check the necessity
-    pub async fn recv_goal_response_low(&self) -> Result<SendGoalResponse> {
-        Err(zenoh::Error::from(
-            "recv_goal_response_low is no longer available; use send_goal_request_low".to_string(),
-        ))
-    }
-
-    // FIXME: Check the necessity
-    pub async fn send_cancel_request_low(
-        &self,
-        request: &CancelGoalServiceRequest,
-    ) -> Result<CancelGoalServiceResponse> {
-        self.cancel_client.call(request).await
-    }
-
-    // FIXME: Check the necessity
-    pub async fn recv_cancel_response_low(&self) -> Result<CancelGoalServiceResponse> {
-        Err(zenoh::Error::from(
-            "recv_cancel_response_low is no longer available; use send_cancel_request_low"
-                .to_string(),
-        ))
-    }
-
-    // FIXME: Check the necessity
-    pub async fn send_result_request_low(
-        &self,
-        request: &GetResultRequest,
-    ) -> Result<GetResultResponse<A>> {
-        self.result_client.call(request).await
-    }
-
-    // FIXME: Check the necessity
-    pub async fn recv_result_response_low(&self) -> Result<GetResultResponse<A>> {
-        Err(zenoh::Error::from(
-            "recv_result_response_low is no longer available; use send_result_request_low"
-                .to_string(),
-        ))
-    }
 }
 
 /// The Goal Board (Lock-Free)

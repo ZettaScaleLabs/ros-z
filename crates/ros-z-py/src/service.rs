@@ -115,6 +115,7 @@ impl PyZServer {
         let key = RequestId {
             sequence_number: sn,
             writer_guid: gid,
+            source_timestamp: 0,
         };
 
         py.allow_threads(|| {

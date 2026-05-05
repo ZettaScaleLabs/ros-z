@@ -1,13 +1,10 @@
-#![allow(unused)]
-
 use std::{
     marker::PhantomData,
     sync::{Arc, Mutex, atomic::AtomicUsize},
     time::Duration,
 };
 
-use serde::Deserialize;
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, info, trace};
 use zenoh::{
     Result, Session, Wait, bytes, key_expr::KeyExpr, liveliness::LivelinessToken, query::Query,
     sample::Sample,
@@ -15,7 +12,6 @@ use zenoh::{
 
 use std::sync::atomic::Ordering;
 
-use crate::entity::TopicKE;
 use crate::topic_name;
 
 use crate::{
@@ -223,6 +219,9 @@ where
         for<'a> <T::Response as ZMessage>::Serdes:
             ZDeserializer<Output = T::Response, Input<'a> = &'a [u8]>,
     {
+        // On timeout the call future is dropped. The Zenoh querier callback is still
+        // running briefly; it will hit the `None` sender branch and log a warning.
+        // This is expected and harmless.
         tokio::time::timeout(timeout, self.call(msg))
             .await
             .map_err(|_| zenoh::Error::from(format!("Service call timed out after {timeout:?}")))?
@@ -486,6 +485,7 @@ where
 pub struct RequestId {
     pub sequence_number: i64,
     pub writer_guid: GidArray,
+    pub source_timestamp: i64,
 }
 
 impl From<Attachment> for RequestId {
@@ -493,6 +493,7 @@ impl From<Attachment> for RequestId {
         Self {
             sequence_number: value.sequence_number,
             writer_guid: value.source_gid,
+            source_timestamp: value.source_timestamp,
         }
     }
 }
@@ -535,6 +536,7 @@ impl<T: ZService> ServiceReply<T> {
     }
 }
 
+#[must_use = "dropping without calling reply leaves the client waiting indefinitely"]
 pub struct ServiceRequest<T: ZService> {
     message: T::Request,
     reply: ServiceReply<T>,
@@ -723,21 +725,16 @@ mod tests {
     }
 
     #[test]
-    fn test_zclient_rx_initially_empty() {
-        let (tx, rx) = flume::bounded::<zenoh::sample::Sample>(8);
-        drop(tx);
-        assert!(rx.is_empty());
-    }
-
-    #[test]
     fn test_request_id_clone_and_eq() {
         let key = crate::service::RequestId {
             writer_guid: [1u8; 16],
             sequence_number: 42,
+            source_timestamp: 0,
         };
         let key2 = key.clone();
         assert_eq!(key.sequence_number, key2.sequence_number);
         assert_eq!(key.writer_guid, key2.writer_guid);
+        assert_eq!(key.source_timestamp, key2.source_timestamp);
     }
 
     #[test]

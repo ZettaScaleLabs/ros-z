@@ -196,7 +196,7 @@ impl ServiceImpl {
 
         if let Some(request_ctx) = self.inner.try_take_request()? {
             let request_id = request_ctx.id().clone();
-            let source_timestamp = 0;
+            let source_timestamp = request_id.source_timestamp;
             let (request_msg, reply) = request_ctx.into_parts();
             let bytes = request_msg.0;
 
@@ -251,6 +251,7 @@ impl ServiceImpl {
             ros_z::service::RequestId {
                 writer_guid: gid,
                 sequence_number: (*request_header).sequence_number,
+                source_timestamp: 0,
             }
         };
 

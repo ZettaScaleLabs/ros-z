@@ -162,65 +162,6 @@ impl TryFrom<EntityKind> for EndpointKind {
     }
 }
 
-/// ROS 2 endpoint kind (publisher, subscription, service, client).
-#[derive(Debug, Hash, Clone, Copy, PartialEq, Eq)]
-pub enum EndpointKind {
-    Publisher,
-    Subscription,
-    Service,
-    Client,
-}
-
-impl Display for EndpointKind {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            EndpointKind::Publisher => write!(f, "MP"),
-            EndpointKind::Subscription => write!(f, "MS"),
-            EndpointKind::Service => write!(f, "SS"),
-            EndpointKind::Client => write!(f, "SC"),
-        }
-    }
-}
-
-impl core::str::FromStr for EndpointKind {
-    type Err = &'static str;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "MP" => Ok(EndpointKind::Publisher),
-            "MS" => Ok(EndpointKind::Subscription),
-            "SS" => Ok(EndpointKind::Service),
-            "SC" => Ok(EndpointKind::Client),
-            _ => Err("Invalid endpoint kind"),
-        }
-    }
-}
-
-impl From<EndpointKind> for EntityKind {
-    fn from(kind: EndpointKind) -> Self {
-        match kind {
-            EndpointKind::Publisher => EntityKind::Publisher,
-            EndpointKind::Subscription => EntityKind::Subscription,
-            EndpointKind::Service => EntityKind::Service,
-            EndpointKind::Client => EntityKind::Client,
-        }
-    }
-}
-
-impl TryFrom<EntityKind> for EndpointKind {
-    type Error = &'static str;
-
-    fn try_from(kind: EntityKind) -> Result<Self, Self::Error> {
-        match kind {
-            EntityKind::Node => Err("Node is not a valid endpoint kind"),
-            EntityKind::Publisher => Ok(EndpointKind::Publisher),
-            EntityKind::Subscription => Ok(EndpointKind::Subscription),
-            EntityKind::Service => Ok(EndpointKind::Service),
-            EntityKind::Client => Ok(EndpointKind::Client),
-        }
-    }
-}
-
 /// Type hash (RIHS format).
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub struct TypeHash {
