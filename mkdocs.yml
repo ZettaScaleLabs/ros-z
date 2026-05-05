@@ -8,16 +8,19 @@ edit_uri: edit/main/docs/
 theme:
   name: material
   custom_dir: docs/overrides
+  icon:
+    logo: custom/zenoh
   features:
     - navigation.tabs
     - navigation.tabs.sticky
     - navigation.sections
-    - navigation.expand
     - navigation.top
-    - toc.integrate
+    - navigation.footer
     - content.code.copy
     - content.code.annotate
     - content.action.edit
+    - search.suggest
+    - search.highlight
   palette:
     - scheme: slate
       primary: indigo
@@ -86,7 +89,7 @@ nav:
           - Advanced Patterns: core-concepts/actions-advanced.md
       - Parameters: core-concepts/parameters.md
       - Lifecycle Nodes: core-concepts/lifecycle.md
-  - User Guide:
+  - Guides:
       - Networking: user-guide/networking.md
       - Configuration:
           - Options: user-guide/config-options.md

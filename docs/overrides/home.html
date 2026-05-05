@@ -20,7 +20,7 @@
         </a>
       </div>
       <div class="mdx-hero__logo">
-        <img src="https://zenoh.io/img/zenoh-dragon-500x543.png"
+        <img src="{{ 'assets/zenoh.svg' | url }}"
              alt="Zenoh Dragon"
              draggable="false">
       </div>
@@ -38,7 +38,7 @@
 
       <a class="mdx-feature" href="{{ 'getting-started/quick-start/' | url }}">
         <div class="mdx-feature__icon">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 4l5 2.18V11c0 3.5-2.33 6.79-5 7.93-2.67-1.14-5-4.43-5-7.93V7.18L12 5z"/></svg>
+          {% include ".icons/simple/rust.svg" %}
         </div>
         <h2>Native Rust</h2>
         <p>Pure Rust — no C/C++ dependencies. Memory safety, fearless concurrency, and zero-cost abstractions guaranteed at compile time.</p>
@@ -46,7 +46,7 @@
 
       <a class="mdx-feature" href="{{ 'getting-started/quick-start/' | url }}">
         <div class="mdx-feature__icon">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 6h-2.18c.07-.44.18-.88.18-1a3 3 0 0 0-6 0c0 .12.11.56.18 1H10c-1.1 0-2 .9-2 2v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2zm-7-1a1 1 0 1 1 2 0c0 .12-.11.56-.18 1h-1.64C13.11 5.56 13 5.12 13 5zm7 14H10V8h10v11zM13 10h-2l3.5 4.5L18 10h-2l-1.5 2-1.5-2z"/></svg>
+          {% include ".icons/material/package-variant-closed-remove.svg" %}
         </div>
         <h2>No ROS Installation Needed</h2>
         <p>No <code>apt install ros-*</code>, no colcon workspace, no <code>setup.bash</code>. Add ros-z as a Cargo dependency and start building — ROS 2 messages and interfaces are bundled.</p>
@@ -54,7 +54,7 @@
 
       <a class="mdx-feature" href="{{ 'user-guide/interop/' | url }}">
         <div class="mdx-feature__icon">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 8C8 10 5.9 16.17 3.82 21.34L5.71 22l1-2.3A4.49 4.49 0 0 0 8 20c9 0 10-8 10-8l-1 6h2l1.5-9.5L17 8z"/></svg>
+          {% include ".icons/simple/ros.svg" %}
         </div>
         <h2>ROS 2 Compatible</h2>
         <p>Full wire compatibility with standard ROS 2 nodes via <code>rmw_zenoh_cpp</code>. Pub/sub, services, and actions all interoperate out of the box.</p>
@@ -62,7 +62,7 @@
 
       <a class="mdx-feature" href="{{ 'core-concepts/lifecycle/' | url }}">
         <div class="mdx-feature__icon">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+          {% include ".icons/material/autorenew.svg" %}
         </div>
         <h2>Lifecycle Nodes</h2>
         <p>Full ROS 2 managed node lifecycle — configure, activate, deactivate, and clean up nodes with the standard state machine and lifecycle events.</p>
@@ -86,7 +86,7 @@
 
       <a class="mdx-feature" href="{{ 'user-guide/bridge/' | url }}">
         <div class="mdx-feature__icon">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 6h18V4H4c-1.1 0-2 .9-2 2v11H0v3h14v-3H4V6zm19 2h-6c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1zm-1 9h-4v-7h4v7z"/></svg>
+          {% include ".icons/material/bridge.svg" %}
         </div>
         <h2>Cross-Distro Bridge</h2>
         <p>Bridging between ROS 2 Humble and Jazzy over Zenoh — let different distros communicate transparently on the same network.</p>
@@ -102,7 +102,7 @@
 
       <a class="mdx-feature" href="{{ 'user-guide/networking/' | url }}">
         <div class="mdx-feature__icon">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 2.05v2.02c3.95.49 7 3.85 7 7.93 0 3.21-1.81 6-4.72 7.28L13 17v5h5l-1.22-1.22C19.91 19.07 22 15.76 22 12c0-5.18-3.95-9.45-9-9.95zM11 2.05C5.95 2.55 2 6.82 2 12c0 3.76 2.09 7.07 5.22 8.78L6 22h5V2.05zM10 17.93c-2.83-.48-5-2.9-5-5.93 0-2.76 1.54-5.26 4-6.58v13.56l1-.05z"/></svg>
+          {% include ".icons/custom/zenoh.svg" %}
         </div>
         <h2>Zenoh Transport</h2>
         <p>High-performance pub/sub engine with router-based discovery, shared memory (SHM) for zero-copy intra-host transfers, and flexible key expression routing.</p>
@@ -110,7 +110,7 @@
 
       <a class="mdx-feature" href="{{ 'user-guide/protobuf/' | url }}">
         <div class="mdx-feature__icon">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/></svg>
+          {% include ".icons/material/code-json.svg" %}
         </div>
         <h2>Flexible Serialization</h2>
         <p>CDR by default for full ROS 2 wire compatibility. Opt into Protobuf for schema evolution and cross-language data exchange — per topic, per publisher.</p>
@@ -152,7 +152,7 @@
 
       <a class="mdx-path" href="{{ 'user-guide/interop/' | url }}">
         <div class="mdx-path__icon">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 8C8 10 5.9 16.17 3.82 21.34L5.71 22l1-2.3A4.49 4.49 0 0 0 8 20c9 0 10-8 10-8l-1 6h2l1.5-9.5L17 8z"/></svg>
+          {% include ".icons/simple/ros.svg" %}
         </div>
         <div>
           <strong>Integrating with ROS 2?</strong>
@@ -162,7 +162,7 @@
 
       <a class="mdx-path" href="{{ 'bindings/python-quick-start/' | url }}">
         <div class="mdx-path__icon">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
+          {% include ".icons/simple/python.svg" %}
         </div>
         <div>
           <strong>Using Python?</strong>
@@ -172,7 +172,7 @@
 
       <a class="mdx-path" href="{{ 'bindings/go-quick-start/' | url }}">
         <div class="mdx-path__icon">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
+          {% include ".icons/simple/go.svg" %}
         </div>
         <div>
           <strong>Using Go?</strong>
@@ -182,7 +182,7 @@
 
       <a class="mdx-path" href="{{ 'core-concepts/pubsub/' | url }}">
         <div class="mdx-path__icon">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/></svg>
+          {% include ".icons/simple/rust.svg" %}
         </div>
         <div>
           <strong>Building a Rust project?</strong>
@@ -192,7 +192,7 @@
 
       <a class="mdx-path" href="{{ 'user-guide/bridge/' | url }}">
         <div class="mdx-path__icon">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 6h18V4H4c-1.1 0-2 .9-2 2v11H0v3h14v-3H4V6zm19 2h-6c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1zm-1 9h-4v-7h4v7z"/></svg>
+          {% include ".icons/material/bridge.svg" %}
         </div>
         <div>
           <strong>Bridging Humble ↔ Jazzy?</strong>
