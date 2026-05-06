@@ -126,7 +126,16 @@ Requires Rust toolchain; takes 2–5 min to compile but always builds the latest
 
 **Fastest way to get started without Rust installed.**
 
-Download from the [Zenoh Releases page](https://github.com/eclipse-zenoh/zenoh/releases) for your platform, then:
+Download the archive for your platform from the [Zenoh Releases page](https://github.com/eclipse-zenoh/zenoh/releases):
+
+| Platform | File |
+|----------|------|
+| Linux x86_64 | `zenoh-*-x86_64-unknown-linux-gnu-standalone.zip` |
+| macOS Apple Silicon | `zenoh-*-aarch64-apple-darwin-standalone.zip` |
+| macOS Intel | `zenoh-*-x86_64-apple-darwin-standalone.zip` |
+| Windows | `zenoh-*-x86_64-pc-windows-msvc-standalone.zip` |
+
+Then extract and run:
 
 ```bash
 # Linux/macOS
