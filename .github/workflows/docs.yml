@@ -44,7 +44,12 @@ jobs:
       - name: Check internal links
         uses: lycheeverse/lychee-action@v2
         with:
-          args: --offline --config .lychee.toml ./site
+          args: >-
+            --offline
+            --base ./site
+            --exclude-path ./site/overrides
+            --config .lychee.toml
+            ./site
           fail: true
 
   publish_doc:

@@ -29,7 +29,11 @@ jobs:
         id: lychee
         uses: lycheeverse/lychee-action@v2
         with:
-          args: --config .lychee.toml ./site
+          args: >-
+            --base ./site
+            --exclude-path ./site/overrides
+            --config .lychee.toml
+            ./site
           fail: false  # report only — don't block on transient failures
 
       - name: Open issue on link failures
