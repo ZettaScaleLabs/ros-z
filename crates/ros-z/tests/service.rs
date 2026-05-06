@@ -275,3 +275,153 @@ fn test_multiple_service_requests() {
     server_handle.join().expect("Server thread panicked");
     client_handle.join().expect("Client thread panicked");
 }
+
+#[test]
+fn test_try_take_request_non_blocking() {
+    let ctx = ZContextBuilder::default()
+        .disable_multicast_scouting()
+        .with_json("connect/endpoints", json!([]))
+        .build()
+        .expect("Failed to create context");
+
+    let node = ctx.create_node("try_take_server").build().unwrap();
+    let mut server = node
+        .create_service::<AddTwoInts>("try_add")
+        .build()
+        .unwrap();
+
+    // No request yet — must return None immediately.
+    let result = server.try_take_request().expect("try_take_request failed");
+    assert!(result.is_none(), "expected None when no request pending");
+
+    // Fire a client request in the background.
+    let client_node = ctx.create_node("try_take_client").build().unwrap();
+    let client = client_node
+        .create_client::<AddTwoInts>("try_add")
+        .build()
+        .unwrap();
+
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.spawn(async move {
+        let _ = client
+            .call_with_timeout(&AddTwoIntsRequest { a: 3, b: 4 }, Duration::from_secs(2))
+            .await;
+    });
+
+    // Poll until the request arrives (up to 2s), then reply via into_parts().
+    let deadline = std::time::Instant::now() + Duration::from_secs(2);
+    let request = loop {
+        if let Some(req) = server.try_take_request().expect("try_take failed") {
+            break req;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "timed out waiting for request"
+        );
+        thread::sleep(Duration::from_millis(10));
+    };
+    let (msg, reply) = request.into_parts();
+    assert_eq!(msg.a, 3);
+    assert_eq!(msg.b, 4);
+    reply
+        .reply_blocking(&AddTwoIntsResponse { sum: msg.a + msg.b })
+        .unwrap();
+}
+
+#[test]
+fn test_into_message_consumes_request() {
+    let ctx = ZContextBuilder::default()
+        .disable_multicast_scouting()
+        .with_json("connect/endpoints", json!([]))
+        .build()
+        .unwrap();
+
+    let node = ctx.create_node("into_msg_server").build().unwrap();
+    let mut server = node
+        .create_service::<AddTwoInts>("into_msg_add")
+        .build()
+        .unwrap();
+
+    let client_node = ctx.create_node("into_msg_client").build().unwrap();
+    let client = client_node
+        .create_client::<AddTwoInts>("into_msg_add")
+        .build()
+        .unwrap();
+
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.spawn(async move {
+        let _ = client
+            .call_with_timeout(&AddTwoIntsRequest { a: 5, b: 6 }, Duration::from_secs(2))
+            .await;
+    });
+
+    let request = server.take_request().unwrap();
+    assert_eq!(request.id().sequence_number, 1);
+    let msg = request.into_message();
+    assert_eq!(msg.a, 5);
+    assert_eq!(msg.b, 6);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_call_with_timeout_expires() {
+    let ctx = ZContextBuilder::default()
+        .disable_multicast_scouting()
+        .with_json("connect/endpoints", json!([]))
+        .build()
+        .unwrap();
+
+    let node = ctx.create_node("timeout_client").build().unwrap();
+    let client = node
+        .create_client::<AddTwoInts>("nonexistent_service")
+        .build()
+        .unwrap();
+
+    let result = client
+        .call_with_timeout(
+            &AddTwoIntsRequest { a: 1, b: 2 },
+            Duration::from_millis(200),
+        )
+        .await;
+    assert!(result.is_err(), "expected timeout error");
+    assert!(
+        result.unwrap_err().to_string().contains("timed out"),
+        "error should mention timeout"
+    );
+}
+
+#[test]
+fn test_request_id_hash_and_eq_ignore_timestamp() {
+    use std::collections::HashMap;
+
+    use ros_z::service::RequestId;
+
+    let id1 = RequestId {
+        sequence_number: 7,
+        writer_guid: [1u8; 16],
+        source_timestamp: 100,
+    };
+    let id2 = RequestId {
+        sequence_number: 7,
+        writer_guid: [1u8; 16],
+        source_timestamp: 999,
+    };
+    let id3 = RequestId {
+        sequence_number: 8,
+        writer_guid: [1u8; 16],
+        source_timestamp: 100,
+    };
+
+    // Same (sn, guid) but different timestamp → equal.
+    assert_eq!(id1, id2);
+    // Different sn → not equal.
+    assert_ne!(id1, id3);
+
+    // HashMap uses (sn, guid) as key — different timestamps overwrite.
+    let mut map: HashMap<RequestId, &str> = HashMap::new();
+    map.insert(id1.clone(), "first");
+    map.insert(id2.clone(), "second");
+    assert_eq!(map.len(), 1);
+    assert_eq!(map[&id2], "second");
+    map.insert(id3, "third");
+    assert_eq!(map.len(), 2);
+}
