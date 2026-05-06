@@ -16,7 +16,7 @@ import ros_z_py
 from ros_z_py import example_interfaces
 
 
-# ANCHOR: run_server
+# --8<-- [start:run_server]
 def run_server(ctx, service: str, max_requests: int):
     """Run the AddTwoInts service server."""
     node = ctx.create_node("add_two_ints_server").build()
@@ -37,10 +37,10 @@ def run_server(ctx, service: str, max_requests: int):
     print("SERVER:DONE", flush=True)
 
 
-# ANCHOR_END: run_server
+# --8<-- [end:run_server]
 
 
-# ANCHOR: run_client
+# --8<-- [start:run_client]
 def run_client(ctx, service: str, a: int, b: int, timeout: float):
     """Run the AddTwoInts service client."""
     node = ctx.create_node("add_two_ints_client").build()
@@ -60,7 +60,7 @@ def run_client(ctx, service: str, a: int, b: int, timeout: float):
         sys.exit(1)
 
 
-# ANCHOR_END: run_client
+# --8<-- [end:run_client]
 
 
 def main():

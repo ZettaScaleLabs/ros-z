@@ -7,7 +7,7 @@ use ros_z::{
 };
 use ros_z_msgs::std_msgs::String as RosString;
 
-// ANCHOR: full_example
+// --8<-- [start:full_example]
 /// Talker node that publishes "Hello World" messages to a topic
 ///
 /// # Arguments
@@ -21,23 +21,23 @@ pub async fn run_talker(
     period: Duration,
     max_count: Option<usize>,
 ) -> Result<()> {
-    // ANCHOR: node_setup
+    // --8<-- [start:node_setup]
     // Create a node named "talker"
     let node = ctx.create_node("talker").build()?;
-    // ANCHOR_END: node_setup
+    // --8<-- [end:node_setup]
 
-    // ANCHOR: publisher_setup
+    // --8<-- [start:publisher_setup]
     // Create a publisher with a custom Quality of Service profile
     let qos = QosProfile {
         history: QosHistory::KeepLast(NonZeroUsize::new(7).unwrap()),
         ..Default::default()
     };
     let publisher = node.create_pub::<RosString>(topic).with_qos(qos).build()?;
-    // ANCHOR_END: publisher_setup
+    // --8<-- [end:publisher_setup]
 
     let mut count = 1;
 
-    // ANCHOR: publishing_loop
+    // --8<-- [start:publishing_loop]
     loop {
         // Create the message
         let msg = RosString {
@@ -62,11 +62,11 @@ pub async fn run_talker(
 
         count += 1;
     }
-    // ANCHOR_END: publishing_loop
+    // --8<-- [end:publishing_loop]
 
     Ok(())
 }
-// ANCHOR_END: full_example
+// --8<-- [end:full_example]
 
 // Only compile main when building as a binary (not when included as a module)
 #[cfg(not(any(test, doctest)))]

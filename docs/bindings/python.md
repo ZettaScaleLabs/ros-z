@@ -101,45 +101,13 @@ Here's a complete publisher and subscriber example from [`crates/ros-z-py/exampl
 ### Publisher (Talker)
 
 ```python
-def run_talker(ctx, topic: str, count: int, interval: float):
-    """Run the talker (publisher)."""
-    node = ctx.create_node("talker").build()
-    pub = node.create_publisher(topic, std_msgs.String)
-
-    print(f"Talker started. Publishing to {topic}...")
-
-    i = 0
-    while count == 0 or i < count:
-        message = f"Hello from Python {i}"
-        msg = std_msgs.String(data=message)
-        pub.publish(msg)
-        print(f"PUB:{i}", flush=True)
-        i += 1
-        time.sleep(interval)
-
-    print("PUB:DONE", flush=True)
+--8<-- "crates/ros-z-py/examples/topic_demo.py:run_talker"
 ```
 
 ### Subscriber (Listener)
 
 ```python
-def run_listener(ctx, topic: str, timeout: float):
-    """Run the listener (subscriber)."""
-    node = ctx.create_node("listener").build()
-    sub = node.create_subscriber(topic, std_msgs.String)
-
-    print("SUB:READY", flush=True)
-
-    start = time.time()
-    received = 0
-
-    while timeout == 0 or (time.time() - start) < timeout:
-        msg = sub.recv(timeout=1.0)
-        if msg is not None:
-            print(f"SUB:{msg.data}", flush=True)
-            received += 1
-
-    print(f"SUB:TOTAL:{received}", flush=True)
+--8<-- "crates/ros-z-py/examples/topic_demo.py:run_listener"
 ```
 
 ## Key Components
@@ -162,48 +130,13 @@ Examples from [`crates/ros-z-py/examples/service_demo.py`](https://github.com/Ze
 ### Service Server
 
 ```python
-def run_server(ctx, service: str, max_requests: int):
-    """Run the AddTwoInts service server."""
-    node = ctx.create_node("add_two_ints_server").build()
-    server = node.create_server(service, example_interfaces.AddTwoIntsRequest)
-
-    print("SERVER:READY", flush=True)
-
-    handled = 0
-    while max_requests == 0 or handled < max_requests:
-        request_id, req = server.take_request()
-        result = req.a + req.b
-        print(f"SERVER:{req.a}+{req.b}={result}", flush=True)
-        resp = example_interfaces.AddTwoIntsResponse(sum=result)
-        server.send_response(resp, request_id)
-        handled += 1
-
-    print("SERVER:DONE", flush=True)
+--8<-- "crates/ros-z-py/examples/service_demo.py:run_server"
 ```
 
 ### Service Client
 
 ```python
-def run_client(ctx, service: str, a: int, b: int, timeout: float):
-    """Run the AddTwoInts service client."""
-    node = ctx.create_node("add_two_ints_client").build()
-    client = node.create_client(service, example_interfaces.AddTwoIntsRequest)
-
-    # Wait for service discovery
-    time.sleep(1.0)
-
-    print(f"CLIENT:REQUEST:{a}+{b}", flush=True)
-
-    req = example_interfaces.AddTwoIntsRequest(a=a, b=b)
-    client.send_request(req)
-
-    resp = client.take_response(timeout=timeout)
-
-    if resp is not None:
-        print(f"CLIENT:RESPONSE:{resp.sum}", flush=True)
-    else:
-        print("CLIENT:ERROR:no response", flush=True)
-        sys.exit(1)
+--8<-- "crates/ros-z-py/examples/service_demo.py:run_client"
 ```
 
 !!! tip
@@ -223,19 +156,7 @@ Actions require three message structs: Goal, Result, and Feedback.
 Each must have a `__msgtype__` class attribute:
 
 ```python
-class CountToGoal(msgspec.Struct):
-    __msgtype__: ClassVar[str] = "action_demo/msg/CountToGoal"
-    target: int = 10
-
-
-class CountToResult(msgspec.Struct):
-    __msgtype__: ClassVar[str] = "action_demo/msg/CountToResult"
-    final_count: int = 0
-
-
-class CountToFeedback(msgspec.Struct):
-    __msgtype__: ClassVar[str] = "action_demo/msg/CountToFeedback"
-    current: int = 0
+--8<-- "crates/ros-z-py/examples/action_demo.py:message_types"
 ```
 
 !!! tip
@@ -246,37 +167,7 @@ class CountToFeedback(msgspec.Struct):
 ### Action Server
 
 ```python
-def run_server(ctx, action: str):
-    node = ctx.create_node("count_to_server").build()
-    server = node.create_action_server(
-        action, CountToGoal, CountToResult, CountToFeedback
-    )
-
-    print("SERVER:READY", flush=True)
-
-    while True:
-        request = server.recv_goal(timeout=1.0)
-        if request is None:
-            continue
-
-        goal = request.goal()
-        print(f"SERVER:GOAL:{goal.target}", flush=True)
-        executing = request.accept_and_execute()
-
-        count = 0
-        while count < goal.target:
-            time.sleep(0.2)
-            count += 1
-            executing.publish_feedback(CountToFeedback(current=count))
-            print(f"SERVER:FEEDBACK:{count}", flush=True)
-
-            if executing.is_cancel_requested:
-                print(f"SERVER:CANCELED:{count}", flush=True)
-                executing.canceled(CountToResult(final_count=count))
-                break
-        else:
-            print(f"SERVER:SUCCEEDED:{count}", flush=True)
-            executing.succeed(CountToResult(final_count=count))
+--8<-- "crates/ros-z-py/examples/action_demo.py:run_server"
 ```
 
 
@@ -292,40 +183,7 @@ def run_server(ctx, action: str):
 ### Action Client
 
 ```python
-def run_client(ctx, action: str, target: int, cancel_after: float | None):
-    node = ctx.create_node("count_to_client").build()
-    client = node.create_action_client(
-        action, CountToGoal, CountToResult, CountToFeedback
-    )
-
-    # Give server time to advertise
-    time.sleep(1.0)
-
-    print(f"CLIENT:SEND_GOAL:{target}", flush=True)
-    handle = client.send_goal(CountToGoal(target=target))
-
-    # Schedule cancellation if requested
-    if cancel_after is not None:
-        def _cancel():
-            time.sleep(cancel_after)
-            print("CLIENT:CANCEL", flush=True)
-            handle.cancel()
-
-        threading.Thread(target=_cancel, daemon=True).start()
-
-    # Drain feedback
-    while True:
-        fb = handle.recv_feedback(timeout=0.5)
-        if fb is None:
-            break
-        print(f"CLIENT:FEEDBACK:{fb.current}", flush=True)
-
-    result = handle.get_result(timeout=5.0)
-    if result is not None:
-        print(f"CLIENT:RESULT:{result.final_count}", flush=True)
-    else:
-        print("CLIENT:ERROR:no result", flush=True)
-        sys.exit(1)
+--8<-- "crates/ros-z-py/examples/action_demo.py:run_client"
 ```
 
 #### Client Lifecycle

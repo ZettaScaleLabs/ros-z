@@ -28,7 +28,7 @@ import ros_z_py
 # ---------------------------------------------------------------------------
 
 
-# ANCHOR: message_types
+# --8<-- [start:message_types]
 class CountToGoal(msgspec.Struct):
     __msgtype__: ClassVar[str] = "action_demo/msg/CountToGoal"
     target: int = 10
@@ -44,7 +44,7 @@ class CountToFeedback(msgspec.Struct):
     current: int = 0
 
 
-# ANCHOR_END: message_types
+# --8<-- [end:message_types]
 
 
 # ---------------------------------------------------------------------------
@@ -52,7 +52,7 @@ class CountToFeedback(msgspec.Struct):
 # ---------------------------------------------------------------------------
 
 
-# ANCHOR: run_server
+# --8<-- [start:run_server]
 def run_server(ctx, action: str):
     node = ctx.create_node("count_to_server").build()
     server = node.create_action_server(
@@ -86,7 +86,7 @@ def run_server(ctx, action: str):
             executing.succeed(CountToResult(final_count=count))
 
 
-# ANCHOR_END: run_server
+# --8<-- [end:run_server]
 
 
 # ---------------------------------------------------------------------------
@@ -94,7 +94,7 @@ def run_server(ctx, action: str):
 # ---------------------------------------------------------------------------
 
 
-# ANCHOR: run_client
+# --8<-- [start:run_client]
 def run_client(ctx, action: str, target: int, cancel_after: float | None):
     node = ctx.create_node("count_to_client").build()
     client = node.create_action_client(
@@ -132,7 +132,7 @@ def run_client(ctx, action: str, target: int, cancel_after: float | None):
         sys.exit(1)
 
 
-# ANCHOR_END: run_client
+# --8<-- [end:run_client]
 
 
 def main():

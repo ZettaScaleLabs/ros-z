@@ -198,24 +198,10 @@ accDescr: ZContextBuilder creates a ZContext that spawns both a client node and 
 
 ## Service Server Example
 
-A server that adds two integers: wait for requests in a loop, compute the result, send it back.
+A server that adds two integers. Full source: [`crates/ros-z/examples/demo_nodes/add_two_ints_server.rs`](https://github.com/ZettaScaleLabs/ros-z/blob/main/crates/ros-z/examples/demo_nodes/add_two_ints_server.rs)
 
 ```rust
-use ros_z::{Builder, context::ZContextBuilder};
-use example_interfaces::srv::add_two_ints::{AddTwoInts, AddTwoIntsResponse};
-
-let ctx = ZContextBuilder::default()
-    .with_connect_endpoints(["tcp/127.0.0.1:7447"])
-    .build()?;
-let node = ctx.create_node("add_two_ints_server").build()?;
-let mut service = node.create_service::<AddTwoInts>("/add_two_ints").build()?;
-
-println!("Service ready — waiting for requests...");
-loop {
-    let (key, req) = service.take_request()?;
-    println!("Request: {} + {}", req.a, req.b);
-    service.send_response(&AddTwoIntsResponse { sum: req.a + req.b }, &key)?;
-}
+--8<-- "crates/ros-z/examples/demo_nodes/add_two_ints_server.rs:full_example"
 ```
 
 **Key points:**
@@ -223,30 +209,17 @@ loop {
 - `take_request()` blocks until a request arrives — the pull model means you control timing
 - `key` is an opaque token that ties the response to the original request; you must pass it back with `send_response`
 - `service` must be `mut` because `take_request` takes `&mut self`
+- `max_requests: Option<usize>` lets tests stop the server after N requests; pass `None` for a perpetual server
 
 !!! tip "Run it now"
     Jump to [Complete Service Workflow](#complete-service-workflow) below to see server and client exchange requests with one command per terminal.
 
 ## Service Client Example
 
-A client that sends one addition request and prints the result:
+A client that sends an addition request and prints the result. Full source: [`crates/ros-z/examples/demo_nodes/add_two_ints_client.rs`](https://github.com/ZettaScaleLabs/ros-z/blob/main/crates/ros-z/examples/demo_nodes/add_two_ints_client.rs)
 
 ```rust
-use ros_z::{Builder, context::ZContextBuilder};
-use example_interfaces::srv::add_two_ints::{AddTwoInts, AddTwoIntsRequest};
-use std::time::Duration;
-
-let ctx = ZContextBuilder::default()
-    .with_connect_endpoints(["tcp/127.0.0.1:7447"])
-    .build()?;
-let node = ctx.create_node("add_two_ints_client").build()?;
-let client = node.create_client::<AddTwoInts>("/add_two_ints").build()?;
-
-let req = AddTwoIntsRequest { a: 10, b: 20 };
-println!("Sending: {} + {}", req.a, req.b);
-client.send_request(&req).await?;
-let resp = client.take_response_timeout(Duration::from_secs(5))?;
-println!("Result: {}", resp.sum);
+--8<-- "crates/ros-z/examples/demo_nodes/add_two_ints_client.rs:full_example"
 ```
 
 **Key points:**
