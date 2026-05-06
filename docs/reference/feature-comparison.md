@@ -1,19 +1,19 @@
 # Feature Comparison
 
-Three ways to use ROS 2 over Zenoh, compared against the standard DDS stack.
+Three ways to build ROS 2 systems with Zenoh as the transport.
 
-| | rclcpp / rclpy (DDS) | rclcpp / rclpy + `rmw_zenoh_cpp` | ros-z (pure Rust) |
-|-|----------------------|----------------------------------|-------------------|
-| **Language** | C++ / Python | C++ / Python | Rust |
+| | ROS 2 (DDS) | ROS 2 (Zenoh) | ros-z |
+|-|-------------|---------------|-------|
+| **API** | rclcpp / rclpy | rclcpp / rclpy | Rust |
 | **Transport** | DDS (FastDDS, Cyclone) | Eclipse Zenoh | Eclipse Zenoh |
-| **RMW layer** | Yes | Yes | No — direct Zenoh API |
+| **RMW plugin** | rmw_fastrtps / rmw_cyclonedds | `rmw_zenoh_cpp` | No RMW — direct Zenoh API |
 | **ROS 2 install required** | Yes | Yes | No |
 
-`rmw_zenoh_cpp` gives standard rclcpp/rclpy nodes a Zenoh transport without changing any application code. ros-z is a separate Rust API built directly on Zenoh — no ROS 2 installation needed.
+ROS 2 (Zenoh) means `rmw_zenoh_cpp`: a drop-in RMW plugin that gives existing rclcpp/rclpy nodes a Zenoh transport without changing any application code. ros-z is an independent Rust API built directly on Zenoh — no ROS 2 installation needed.
 
 ## Communication
 
-| Feature | rclcpp / rclpy (DDS) | rmw_zenoh_cpp | ros-z |
+| Feature | ROS 2 (DDS) | ROS 2 (Zenoh) | ros-z |
 |---------|:--------------------:|:-------------:|:-----:|
 | Publishers | ✅ | ✅ | ✅ |
 | Subscribers | ✅ | ✅ | ✅ |
@@ -26,7 +26,7 @@ Three ways to use ROS 2 over Zenoh, compared against the standard DDS stack.
 
 ## Node Features
 
-| Feature | rclcpp / rclpy (DDS) | rmw_zenoh_cpp | ros-z |
+| Feature | ROS 2 (DDS) | ROS 2 (Zenoh) | ros-z |
 |---------|:--------------------:|:-------------:|:-----:|
 | Named nodes | ✅ | ✅ | ✅ |
 | Namespaces | ✅ | ✅ | ✅ |
@@ -43,7 +43,7 @@ Three ways to use ROS 2 over Zenoh, compared against the standard DDS stack.
 
 ## Quality of Service
 
-| Feature | rclcpp / rclpy (DDS) | rmw_zenoh_cpp | ros-z |
+| Feature | ROS 2 (DDS) | ROS 2 (Zenoh) | ros-z |
 |---------|:--------------------:|:-------------:|:-----:|
 | Reliability (reliable / best-effort) | ✅ | ✅ | ✅ |
 | History (keep-last / keep-all) | ✅ | ✅ | ✅ |
@@ -53,7 +53,7 @@ Three ways to use ROS 2 over Zenoh, compared against the standard DDS stack.
 
 ## Messages & Serialization
 
-| Feature | rclcpp / rclpy (DDS) | rmw_zenoh_cpp | ros-z |
+| Feature | ROS 2 (DDS) | ROS 2 (Zenoh) | ros-z |
 |---------|:--------------------:|:-------------:|:-----:|
 | Typed CDR messages | ✅ | ✅ | ✅ |
 | Custom `.msg` / `.srv` / `.action` types | ✅ | ✅ | ✅ |
@@ -64,7 +64,7 @@ Three ways to use ROS 2 over Zenoh, compared against the standard DDS stack.
 
 ## Parameters
 
-| Feature | rclcpp / rclpy (DDS) | rmw_zenoh_cpp | ros-z |
+| Feature | ROS 2 (DDS) | ROS 2 (Zenoh) | ros-z |
 |---------|:--------------------:|:-------------:|:-----:|
 | Declare / get / set parameters | ✅ | ✅ | ✅ |
 | Parameter event callbacks | ✅ | ✅ | ✅ |
@@ -74,7 +74,7 @@ Three ways to use ROS 2 over Zenoh, compared against the standard DDS stack.
 
 ## Interoperability & Distribution
 
-| Feature | rclcpp / rclpy (DDS) | rmw_zenoh_cpp | ros-z |
+| Feature | ROS 2 (DDS) | ROS 2 (Zenoh) | ros-z |
 |---------|:--------------------:|:-------------:|:-----:|
 | ROS 2 CLI (`ros2 topic`, `ros2 service`, …) | ✅ | ✅ | ✅ via `rmw_zenoh_cpp` |
 | Jazzy / Kilted support | ✅ | ✅ | ✅ |
