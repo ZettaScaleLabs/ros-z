@@ -41,6 +41,12 @@ jobs:
         env:
           NIX_ACCEPT_FLAKE_CONFIG: 1
 
+      - name: Check internal links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --offline --config .lychee.toml ./site
+          fail: true
+
   publish_doc:
     name: Publish to GitHub Pages
     if: github.ref == 'refs/heads/main'

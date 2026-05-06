@@ -1,0 +1,41 @@
+name: Docs — External Link Check
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'  # Every Monday at 03:00 UTC
+  workflow_dispatch:
+
+jobs:
+  check_links:
+    name: Check external links
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Determinate Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
+
+      - name: Build MkDocs
+        run: nix develop '.#pureRust-ci' -c mkdocs build --strict
+        env:
+          NIX_ACCEPT_FLAKE_CONFIG: 1
+
+      - name: Check external links
+        id: lychee
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --config .lychee.toml ./site
+          fail: false  # report only — don't block on transient failures
+
+      - name: Open issue on link failures
+        if: steps.lychee.outputs.exit_code != 0
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: 'docs: broken external links detected'
+          content-filepath: ./lychee/out.md
+          labels: documentation
