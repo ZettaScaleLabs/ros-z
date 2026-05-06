@@ -243,11 +243,8 @@ fn test_python_server_rust_client() {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             client
-                .send_request(&request)
+                .call_with_timeout(&request, Duration::from_secs(5))
                 .await
-                .expect("Failed to send request");
-            client
-                .take_response_timeout(Duration::from_secs(5))
                 .map(|resp| resp.sum)
         })
     })
@@ -295,13 +292,17 @@ fn test_rust_server_python_client() {
         // Handle one request with polling
         let start = std::time::Instant::now();
         while start.elapsed() < Duration::from_secs(10) {
-            if let Ok((key, req)) = server.take_request() {
-                let sum = req.a + req.b;
-                println!("  [rust] Received: {} + {} = {}", req.a, req.b, sum);
+            if let Ok(req) = server.take_request() {
+                let sum = req.message().a + req.message().b;
+                println!(
+                    "  [rust] Received: {} + {} = {}",
+                    req.message().a,
+                    req.message().b,
+                    sum
+                );
 
                 let response = AddTwoIntsResponse { sum };
-                server
-                    .send_response(&response, &key)
+                req.reply_blocking(&response)
                     .expect("Failed to send response");
                 break;
             }

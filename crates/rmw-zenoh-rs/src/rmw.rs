@@ -1070,8 +1070,7 @@ pub extern "C" fn rmw_create_client(
         callback: callback_holder,
         callback_user_data: user_data_holder,
         notifier,
-        sequence_counter: std::sync::atomic::AtomicI64::new(1), // Start at 1 for ROS compatibility
-        unread_count: std::sync::Arc::new(std::sync::Mutex::new(0)), // Track unread responses
+        unread_count: std::sync::Arc::new(std::sync::Mutex::new(0)),
         graph: node_impl.inner.graph().clone(),
         entity: entity.clone(),
     };
@@ -1283,6 +1282,7 @@ pub extern "C" fn rmw_create_service(
 
     let service_impl = crate::service::ServiceImpl {
         inner: zserver,
+        pending: std::collections::HashMap::new(),
         service_name: service_name_cstr,
         request_ts: service_type_support,
         response_ts: service_type_support,

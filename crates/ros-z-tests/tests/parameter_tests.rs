@@ -519,15 +519,14 @@ mod service_tests {
                 .build()
                 .expect("get client");
 
-            get_client
-                .send_request(&GetParametersRequest {
-                    names: vec!["value".to_string()],
-                })
-                .await
-                .expect("send");
-
             let resp: GetParametersResponse = get_client
-                .take_response_timeout(Duration::from_secs(5))
+                .call_with_timeout(
+                    &GetParametersRequest {
+                        names: vec!["value".to_string()],
+                    },
+                    Duration::from_secs(5),
+                )
+                .await
                 .expect("response");
 
             assert_eq!(resp.values.len(), 1);
@@ -540,16 +539,15 @@ mod service_tests {
                 .build()
                 .expect("list client");
 
-            list_client
-                .send_request(&ListParametersRequest {
-                    prefixes: vec![],
-                    depth: 0,
-                })
-                .await
-                .expect("send");
-
             let list_resp: ListParametersResponse = list_client
-                .take_response_timeout(Duration::from_secs(5))
+                .call_with_timeout(
+                    &ListParametersRequest {
+                        prefixes: vec![],
+                        depth: 0,
+                    },
+                    Duration::from_secs(5),
+                )
+                .await
                 .expect("list response");
 
             assert!(list_resp.result.names.contains(&"value".to_string()));
@@ -564,18 +562,17 @@ mod service_tests {
             wire_value.r#type = 2;
             wire_value.integer_value = 42;
 
-            set_client
-                .send_request(&SetParametersRequest {
-                    parameters: vec![rcl_interfaces::Parameter {
-                        name: "value".to_string(),
-                        value: wire_value,
-                    }],
-                })
-                .await
-                .expect("send");
-
             let set_resp: SetParametersResponse = set_client
-                .take_response_timeout(Duration::from_secs(5))
+                .call_with_timeout(
+                    &SetParametersRequest {
+                        parameters: vec![rcl_interfaces::Parameter {
+                            name: "value".to_string(),
+                            value: wire_value,
+                        }],
+                    },
+                    Duration::from_secs(5),
+                )
+                .await
                 .expect("set response");
 
             assert_eq!(set_resp.results.len(), 1);
@@ -591,15 +588,14 @@ mod service_tests {
                 .build()
                 .expect("types client");
 
-            types_client
-                .send_request(&GetParameterTypesRequest {
-                    names: vec!["value".to_string(), "nonexistent".to_string()],
-                })
-                .await
-                .expect("send");
-
             let types_resp: GetParameterTypesResponse = types_client
-                .take_response_timeout(Duration::from_secs(5))
+                .call_with_timeout(
+                    &GetParameterTypesRequest {
+                        names: vec!["value".to_string(), "nonexistent".to_string()],
+                    },
+                    Duration::from_secs(5),
+                )
+                .await
                 .expect("types response");
 
             let type_bytes = types_resp.types.contiguous();
@@ -613,15 +609,14 @@ mod service_tests {
                 .build()
                 .expect("desc client");
 
-            desc_client
-                .send_request(&DescribeParametersRequest {
-                    names: vec!["value".to_string()],
-                })
-                .await
-                .expect("send");
-
             let desc_resp: DescribeParametersResponse = desc_client
-                .take_response_timeout(Duration::from_secs(5))
+                .call_with_timeout(
+                    &DescribeParametersRequest {
+                        names: vec!["value".to_string()],
+                    },
+                    Duration::from_secs(5),
+                )
+                .await
                 .expect("desc response");
 
             assert_eq!(desc_resp.descriptors.len(), 1);
@@ -689,15 +684,14 @@ mod service_tests {
                 .build()
                 .expect("atomic client");
 
-            atomic_client
-                .send_request(&SetParametersAtomicallyRequest {
-                    parameters: vec![make_int("a", 10), make_int("b", 20)],
-                })
-                .await
-                .expect("send");
-
             let atomic_resp: SetParametersAtomicallyResponse = atomic_client
-                .take_response_timeout(Duration::from_secs(5))
+                .call_with_timeout(
+                    &SetParametersAtomicallyRequest {
+                        parameters: vec![make_int("a", 10), make_int("b", 20)],
+                    },
+                    Duration::from_secs(5),
+                )
+                .await
                 .expect("atomic response");
 
             assert!(
@@ -716,15 +710,14 @@ mod service_tests {
                 .build()
                 .expect("get client");
 
-            get_client
-                .send_request(&GetParametersRequest {
-                    names: vec!["a".to_string(), "b".to_string()],
-                })
-                .await
-                .expect("send");
-
             let get_resp: GetParametersResponse = get_client
-                .take_response_timeout(Duration::from_secs(5))
+                .call_with_timeout(
+                    &GetParametersRequest {
+                        names: vec!["a".to_string(), "b".to_string()],
+                    },
+                    Duration::from_secs(5),
+                )
+                .await
                 .expect("get response");
 
             assert_eq!(get_resp.values.len(), 2);
@@ -777,15 +770,14 @@ mod service_tests {
                 }
             };
 
-            atomic_client
-                .send_request(&SetParametersAtomicallyRequest {
-                    parameters: vec![make_int("a", 10), make_int("b", 20)],
-                })
-                .await
-                .expect("send");
-
             let resp: SetParametersAtomicallyResponse = atomic_client
-                .take_response_timeout(Duration::from_secs(5))
+                .call_with_timeout(
+                    &SetParametersAtomicallyRequest {
+                        parameters: vec![make_int("a", 10), make_int("b", 20)],
+                    },
+                    Duration::from_secs(5),
+                )
+                .await
                 .expect("atomic response");
 
             assert!(

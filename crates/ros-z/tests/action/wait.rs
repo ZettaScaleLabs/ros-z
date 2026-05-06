@@ -220,6 +220,11 @@ mod tests {
 
                 // Now proceed with status transitions
                 let executing = accepted.execute();
+                // Yield so the tokio scheduler can deliver Executing status to the
+                // client before Succeeded is published.  Without this, both
+                // transitions can be coalesced and the second changed() call never
+                // fires, causing a timeout on macOS CI.
+                tokio::task::yield_now().await;
                 let _ = executing.succeed(TestResult { value: 100 });
             }
         });

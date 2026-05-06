@@ -409,7 +409,13 @@ fn encode_reply<T: ros_z_cdr::CdrSerialize + ros_z_cdr::CdrSerializedSize>(
     resp: &T,
 ) {
     let bytes = NativeCdrSerdes::serialize(resp);
-    if let Err(e) = query.reply(query.key_expr().clone(), bytes).wait() {
+    let mut reply = query.reply(query.key_expr().clone(), bytes);
+    if let Some(att_bytes) = query.attachment()
+        && let Ok(att) = crate::attachment::Attachment::try_from(att_bytes)
+    {
+        reply = reply.attachment(att);
+    }
+    if let Err(e) = reply.wait() {
         warn!("failed to send lifecycle reply: {e}");
     }
 }

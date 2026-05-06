@@ -56,8 +56,7 @@ use crate::graph::Graph;
 use crate::service::{ZClient, ZClientBuilder};
 use crate::{Builder, ServiceTypeInfo};
 
-use super::error::DynamicError;
-use super::schema::MessageSchema;
+use super::{error::DynamicError, schema::MessageSchema};
 
 /// Normalize DDS type name to ROS 2 canonical format.
 ///
@@ -273,13 +272,6 @@ impl TypeDescriptionClient {
             namespace, node_name
         );
 
-        client
-            .send_request(&request)
-            .await
-            .map_err(|e| DynamicError::SerializationError(e.to_string()))?;
-
-        // Map a channel/recv timeout to the dedicated ServiceTimeout variant so callers
-        // can distinguish "service didn't respond" from actual CDR decode failures.
         let node_display = if namespace.is_empty() || namespace == "/" {
             node_name.to_string()
         } else {
@@ -291,12 +283,13 @@ impl TypeDescriptionClient {
             format!("{}/{}/get_type_description", namespace, node_name)
         };
 
-        let response = client.take_response_timeout(self.timeout).map_err(|_| {
-            DynamicError::ServiceTimeout {
+        let response = client
+            .call_with_timeout(&request, self.timeout)
+            .await
+            .map_err(|_| DynamicError::ServiceTimeout {
                 node: node_display,
                 service: service_display,
-            }
-        })?;
+            })?;
 
         if response.successful {
             debug!(
