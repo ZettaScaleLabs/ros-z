@@ -30,8 +30,8 @@ jobs:
         uses: lycheeverse/lychee-action@v2
         with:
           args: >-
-            --base ./site
-            --exclude-path ./site/overrides
+            --root-dir ${{ github.workspace }}/site
+            --exclude-path ${{ github.workspace }}/site/overrides
             --config .lychee.toml
             ./site
           fail: false  # report only — don't block on transient failures

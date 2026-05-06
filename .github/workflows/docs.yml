@@ -46,8 +46,8 @@ jobs:
         with:
           args: >-
             --offline
-            --base ./site
-            --exclude-path ./site/overrides
+            --root-dir ${{ github.workspace }}/site
+            --exclude-path ${{ github.workspace }}/site/overrides
             --config .lychee.toml
             ./site
           fail: true
