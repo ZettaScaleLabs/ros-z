@@ -2325,7 +2325,34 @@ accDescr: Node A declares a publisher and Node B declares a subscriber through t
 <hr />
 <h3 id="method-2-pre-built-binary">Method 2: Pre-built Binary<a class="headerlink" href="#method-2-pre-built-binary" title="Permanent link">&para;</a></h3>
 <p><strong>Fastest way to get started without Rust installed.</strong></p>
-<p>Download from the <a href="https://github.com/eclipse-zenoh/zenoh/releases">Zenoh Releases page</a> for your platform, then:</p>
+<p>Download the archive for your platform from the <a href="https://github.com/eclipse-zenoh/zenoh/releases">Zenoh Releases page</a>:</p>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>File</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Linux x86_64</td>
+<td><code>zenoh-*-x86_64-unknown-linux-gnu-standalone.zip</code></td>
+</tr>
+<tr>
+<td>macOS Apple Silicon</td>
+<td><code>zenoh-*-aarch64-apple-darwin-standalone.zip</code></td>
+</tr>
+<tr>
+<td>macOS Intel</td>
+<td><code>zenoh-*-x86_64-apple-darwin-standalone.zip</code></td>
+</tr>
+<tr>
+<td>Windows</td>
+<td><code>zenoh-*-x86_64-pc-windows-msvc-standalone.zip</code></td>
+</tr>
+</tbody>
+</table>
+<p>Then extract and run:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Linux/macOS</span>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>unzip<span class="w"> </span>zenoh-*.zip<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>chmod<span class="w"> </span>+x<span class="w"> </span>zenohd<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>./zenohd
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
