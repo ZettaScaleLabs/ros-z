@@ -2067,21 +2067,21 @@
 
 
 <h1 id="feature-comparison">Feature Comparison<a class="headerlink" href="#feature-comparison" title="Permanent link">&para;</a></h1>
-<p>Three ways to use ROS 2 over Zenoh, compared against the standard DDS stack.</p>
+<p>Three ways to build ROS 2 systems with Zenoh as the transport.</p>
 <table>
 <thead>
 <tr>
 <th></th>
-<th>rclcpp / rclpy (DDS)</th>
-<th>rclcpp / rclpy + <code>rmw_zenoh_cpp</code></th>
-<th>ros-z (pure Rust)</th>
+<th>ROS 2 (DDS)</th>
+<th>ROS 2 (Zenoh)</th>
+<th>ros-z</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>Language</strong></td>
-<td>C++ / Python</td>
-<td>C++ / Python</td>
+<td><strong>API</strong></td>
+<td>rclcpp / rclpy</td>
+<td>rclcpp / rclpy</td>
 <td>Rust</td>
 </tr>
 <tr>
@@ -2091,10 +2091,10 @@
 <td>Eclipse Zenoh</td>
 </tr>
 <tr>
-<td><strong>RMW layer</strong></td>
-<td>Yes</td>
-<td>Yes</td>
-<td>No — direct Zenoh API</td>
+<td><strong>RMW plugin</strong></td>
+<td>rmw_fastrtps / rmw_cyclonedds</td>
+<td><code>rmw_zenoh_cpp</code></td>
+<td>No RMW — direct Zenoh API</td>
 </tr>
 <tr>
 <td><strong>ROS 2 install required</strong></td>
@@ -2104,14 +2104,14 @@
 </tr>
 </tbody>
 </table>
-<p><code>rmw_zenoh_cpp</code> gives standard rclcpp/rclpy nodes a Zenoh transport without changing any application code. ros-z is a separate Rust API built directly on Zenoh — no ROS 2 installation needed.</p>
+<p>ROS 2 (Zenoh) means <code>rmw_zenoh_cpp</code>: a drop-in RMW plugin that gives existing rclcpp/rclpy nodes a Zenoh transport without changing any application code. ros-z is an independent Rust API built directly on Zenoh — no ROS 2 installation needed.</p>
 <h2 id="communication">Communication<a class="headerlink" href="#communication" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
 <th>Feature</th>
-<th style="text-align: center;">rclcpp / rclpy (DDS)</th>
-<th style="text-align: center;">rmw_zenoh_cpp</th>
+<th style="text-align: center;">ROS 2 (DDS)</th>
+<th style="text-align: center;">ROS 2 (Zenoh)</th>
 <th style="text-align: center;">ros-z</th>
 </tr>
 </thead>
@@ -2171,8 +2171,8 @@
 <thead>
 <tr>
 <th>Feature</th>
-<th style="text-align: center;">rclcpp / rclpy (DDS)</th>
-<th style="text-align: center;">rmw_zenoh_cpp</th>
+<th style="text-align: center;">ROS 2 (DDS)</th>
+<th style="text-align: center;">ROS 2 (Zenoh)</th>
 <th style="text-align: center;">ros-z</th>
 </tr>
 </thead>
@@ -2256,8 +2256,8 @@
 <thead>
 <tr>
 <th>Feature</th>
-<th style="text-align: center;">rclcpp / rclpy (DDS)</th>
-<th style="text-align: center;">rmw_zenoh_cpp</th>
+<th style="text-align: center;">ROS 2 (DDS)</th>
+<th style="text-align: center;">ROS 2 (Zenoh)</th>
 <th style="text-align: center;">ros-z</th>
 </tr>
 </thead>
@@ -2299,8 +2299,8 @@
 <thead>
 <tr>
 <th>Feature</th>
-<th style="text-align: center;">rclcpp / rclpy (DDS)</th>
-<th style="text-align: center;">rmw_zenoh_cpp</th>
+<th style="text-align: center;">ROS 2 (DDS)</th>
+<th style="text-align: center;">ROS 2 (Zenoh)</th>
 <th style="text-align: center;">ros-z</th>
 </tr>
 </thead>
@@ -2348,8 +2348,8 @@
 <thead>
 <tr>
 <th>Feature</th>
-<th style="text-align: center;">rclcpp / rclpy (DDS)</th>
-<th style="text-align: center;">rmw_zenoh_cpp</th>
+<th style="text-align: center;">ROS 2 (DDS)</th>
+<th style="text-align: center;">ROS 2 (Zenoh)</th>
 <th style="text-align: center;">ros-z</th>
 </tr>
 </thead>
@@ -2391,8 +2391,8 @@
 <thead>
 <tr>
 <th>Feature</th>
-<th style="text-align: center;">rclcpp / rclpy (DDS)</th>
-<th style="text-align: center;">rmw_zenoh_cpp</th>
+<th style="text-align: center;">ROS 2 (DDS)</th>
+<th style="text-align: center;">ROS 2 (Zenoh)</th>
 <th style="text-align: center;">ros-z</th>
 </tr>
 </thead>
