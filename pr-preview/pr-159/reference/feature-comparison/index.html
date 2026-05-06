@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#feature-comparison-ros-z-vs-rclcpp-rclpy" class="md-skip">
+        <a href="#feature-comparison" class="md-skip">
           Skip to content
         </a>
       
@@ -1764,18 +1764,18 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#interoperability" class="md-nav__link">
+  <a href="#interoperability-distribution" class="md-nav__link">
     <span class="md-ellipsis">
-      Interoperability
+      Interoperability &amp; Distribution
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#not-in-ros-z-lives-in-rmw-zenoh-rs" class="md-nav__link">
+  <a href="#which-to-choose" class="md-nav__link">
     <span class="md-ellipsis">
-      Not in ros-z (lives in rmw-zenoh-rs)
+      Which to choose?
     </span>
   </a>
   
@@ -2016,18 +2016,18 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#interoperability" class="md-nav__link">
+  <a href="#interoperability-distribution" class="md-nav__link">
     <span class="md-ellipsis">
-      Interoperability
+      Interoperability &amp; Distribution
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#not-in-ros-z-lives-in-rmw-zenoh-rs" class="md-nav__link">
+  <a href="#which-to-choose" class="md-nav__link">
     <span class="md-ellipsis">
-      Not in ros-z (lives in rmw-zenoh-rs)
+      Which to choose?
     </span>
   </a>
   
@@ -2066,61 +2066,103 @@
   
 
 
-<h1 id="feature-comparison-ros-z-vs-rclcpp-rclpy">Feature Comparison: ros-z vs rclcpp / rclpy<a class="headerlink" href="#feature-comparison-ros-z-vs-rclcpp-rclpy" title="Permanent link">&para;</a></h1>
-<p>This page summarises which ROS 2 features ros-z supports, which are planned, and which live elsewhere in the stack.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Some ROS 2 middleware features (waitsets, guard conditions, composable nodes) are implemented in <strong><a href="../../experimental/rmw-zenoh-rs/">rmw-zenoh-rs</a></strong> — the Zenoh RMW plugin for standard ROS 2 C++/Python nodes. They are intentionally absent from ros-z, which targets the pure-Rust API surface.</p>
-</div>
+<h1 id="feature-comparison">Feature Comparison<a class="headerlink" href="#feature-comparison" title="Permanent link">&para;</a></h1>
+<p>Three ways to use ROS 2 over Zenoh, compared against the standard DDS stack.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>rclcpp / rclpy (DDS)</th>
+<th>rclcpp / rclpy + <code>rmw_zenoh_cpp</code></th>
+<th>ros-z (pure Rust)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Language</strong></td>
+<td>C++ / Python</td>
+<td>C++ / Python</td>
+<td>Rust</td>
+</tr>
+<tr>
+<td><strong>Transport</strong></td>
+<td>DDS (FastDDS, Cyclone)</td>
+<td>Eclipse Zenoh</td>
+<td>Eclipse Zenoh</td>
+</tr>
+<tr>
+<td><strong>RMW layer</strong></td>
+<td>Yes</td>
+<td>Yes</td>
+<td>No — direct Zenoh API</td>
+</tr>
+<tr>
+<td><strong>ROS 2 install required</strong></td>
+<td>Yes</td>
+<td>Yes</td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+<p><code>rmw_zenoh_cpp</code> gives standard rclcpp/rclpy nodes a Zenoh transport without changing any application code. ros-z is a separate Rust API built directly on Zenoh — no ROS 2 installation needed.</p>
 <h2 id="communication">Communication<a class="headerlink" href="#communication" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
 <th>Feature</th>
-<th>rclcpp / rclpy</th>
-<th>ros-z</th>
+<th style="text-align: center;">rclcpp / rclpy (DDS)</th>
+<th style="text-align: center;">rmw_zenoh_cpp</th>
+<th style="text-align: center;">ros-z</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Publishers</td>
-<td>✅</td>
-<td>✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td>Subscribers</td>
-<td>✅</td>
-<td>✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td>Callback subscribers</td>
-<td>✅</td>
-<td>✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td>Pull-model subscribers (<code>recv()</code>)</td>
-<td>❌</td>
-<td>✅</td>
+<td style="text-align: center;">❌</td>
+<td style="text-align: center;">❌</td>
+<td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td>Services (request / response)</td>
-<td>✅</td>
-<td>✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td>Service clients</td>
-<td>✅</td>
-<td>✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td>Actions (goal / feedback / result)</td>
-<td>✅</td>
-<td>✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td>Action cancellation</td>
-<td>✅</td>
-<td>✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
 </tr>
 </tbody>
 </table>
@@ -2129,50 +2171,83 @@
 <thead>
 <tr>
 <th>Feature</th>
-<th>rclcpp / rclpy</th>
-<th>ros-z</th>
+<th style="text-align: center;">rclcpp / rclpy (DDS)</th>
+<th style="text-align: center;">rmw_zenoh_cpp</th>
+<th style="text-align: center;">ros-z</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Named nodes</td>
-<td>✅</td>
-<td>✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td>Namespaces</td>
-<td>✅</td>
-<td>✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td>Name remapping</td>
-<td>✅</td>
-<td>✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td>Lifecycle nodes</td>
-<td>✅</td>
-<td>✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td>Graph introspection</td>
-<td>✅</td>
-<td>✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+</tr>
+<tr>
+<td>Executors / spin loop</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">❌ pull model</td>
+</tr>
+<tr>
+<td>Waitsets / guard conditions</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">❌</td>
+</tr>
+<tr>
+<td>Composable / component nodes</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">❌</td>
+</tr>
+<tr>
+<td>Intra-process communication</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">❌</td>
 </tr>
 <tr>
 <td>Timers</td>
-<td>✅</td>
-<td>❌ planned</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">❌ planned</td>
 </tr>
 <tr>
 <td>Clock / sim time (<code>/clock</code>)</td>
-<td>✅</td>
-<td>❌ planned</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">❌ planned</td>
 </tr>
 <tr>
 <td><code>/rosout</code> logging</td>
-<td>✅</td>
-<td>❌ uses <code>tracing</code> only</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">❌ uses <code>tracing</code> only</td>
 </tr>
 </tbody>
 </table>
@@ -2181,35 +2256,41 @@
 <thead>
 <tr>
 <th>Feature</th>
-<th>rclcpp / rclpy</th>
-<th>ros-z</th>
+<th style="text-align: center;">rclcpp / rclpy (DDS)</th>
+<th style="text-align: center;">rmw_zenoh_cpp</th>
+<th style="text-align: center;">ros-z</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Reliability (reliable / best-effort)</td>
-<td>✅</td>
-<td>✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td>History (keep-last / keep-all)</td>
-<td>✅</td>
-<td>✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td>Durability (volatile / transient-local)</td>
-<td>✅</td>
-<td>✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td>Deadline QoS events</td>
-<td>✅</td>
-<td>⚠️ Zenoh limitation</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">⚠️ Zenoh limitation</td>
+<td style="text-align: center;">⚠️ Zenoh limitation</td>
 </tr>
 <tr>
 <td>Liveliness lease events</td>
-<td>✅</td>
-<td>⚠️ Zenoh limitation</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">⚠️ Zenoh limitation</td>
+<td style="text-align: center;">⚠️ Zenoh limitation</td>
 </tr>
 </tbody>
 </table>
@@ -2218,45 +2299,47 @@
 <thead>
 <tr>
 <th>Feature</th>
-<th>rclcpp / rclpy</th>
-<th>ros-z</th>
+<th style="text-align: center;">rclcpp / rclpy (DDS)</th>
+<th style="text-align: center;">rmw_zenoh_cpp</th>
+<th style="text-align: center;">ros-z</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Typed CDR messages</td>
-<td>✅</td>
-<td>✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td>Custom <code>.msg</code> / <code>.srv</code> / <code>.action</code> types</td>
-<td>✅</td>
-<td>✅</td>
-</tr>
-<tr>
-<td>Message codegen (<code>ros-z-codegen</code>)</td>
-<td>N/A</td>
-<td>✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td>Dynamic (schema-driven) messages</td>
-<td>❌</td>
-<td>✅</td>
+<td style="text-align: center;">❌</td>
+<td style="text-align: center;">❌</td>
+<td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td>Type description service</td>
-<td>✅</td>
-<td>✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td>Protobuf encoding</td>
-<td>❌</td>
-<td>✅ (feature flag)</td>
+<td style="text-align: center;">❌</td>
+<td style="text-align: center;">❌</td>
+<td style="text-align: center;">✅ (feature flag)</td>
 </tr>
 <tr>
 <td>Shared memory (SHM)</td>
-<td>✅ (via rmw)</td>
-<td>✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
 </tr>
 </tbody>
 </table>
@@ -2265,113 +2348,113 @@
 <thead>
 <tr>
 <th>Feature</th>
-<th>rclcpp / rclpy</th>
-<th>ros-z</th>
+<th style="text-align: center;">rclcpp / rclpy (DDS)</th>
+<th style="text-align: center;">rmw_zenoh_cpp</th>
+<th style="text-align: center;">ros-z</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Declare / get / set parameters</td>
-<td>✅</td>
-<td>✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td>Parameter event callbacks</td>
-<td>✅</td>
-<td>✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td>YAML parameter files</td>
-<td>✅</td>
-<td>✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td>Remote <code>ParameterClient</code></td>
-<td>✅</td>
-<td>✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td>Parameter descriptor / constraints</td>
-<td>✅</td>
-<td>⚠️ partial</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">⚠️ partial</td>
 </tr>
 </tbody>
 </table>
-<h2 id="interoperability">Interoperability<a class="headerlink" href="#interoperability" title="Permanent link">&para;</a></h2>
+<h2 id="interoperability-distribution">Interoperability &amp; Distribution<a class="headerlink" href="#interoperability-distribution" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
 <th>Feature</th>
-<th>rclcpp / rclpy</th>
-<th>ros-z</th>
+<th style="text-align: center;">rclcpp / rclpy (DDS)</th>
+<th style="text-align: center;">rmw_zenoh_cpp</th>
+<th style="text-align: center;">ros-z</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>ROS 2 CLI (<code>ros2 topic</code>, <code>ros2 service</code>, …)</td>
-<td>✅</td>
-<td>✅ via <code>rmw_zenoh_cpp</code></td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅ via <code>rmw_zenoh_cpp</code></td>
 </tr>
 <tr>
 <td>Jazzy / Kilted support</td>
-<td>✅</td>
-<td>✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td>Humble support</td>
-<td>✅</td>
-<td>✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td>Cross-distro bridge (Humble ↔ Jazzy)</td>
-<td>❌</td>
-<td>✅</td>
+<td style="text-align: center;">❌</td>
+<td style="text-align: center;">❌</td>
+<td style="text-align: center;">✅</td>
+</tr>
+<tr>
+<td>Pre-built binaries (no compile step)</td>
+<td style="text-align: center;">❌</td>
+<td style="text-align: center;">❌</td>
+<td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td>Python bindings</td>
-<td>native</td>
-<td>✅ (<code>ros-z-py</code>)</td>
+<td style="text-align: center;">native</td>
+<td style="text-align: center;">native</td>
+<td style="text-align: center;">✅ (<code>ros-z-py</code>)</td>
 </tr>
 <tr>
 <td>Go bindings</td>
-<td>❌</td>
-<td>✅ (<code>ros-z-go</code>)</td>
+<td style="text-align: center;">❌</td>
+<td style="text-align: center;">❌</td>
+<td style="text-align: center;">✅ (<code>ros-z-go</code>)</td>
+</tr>
+<tr>
+<td>No ROS 2 install needed</td>
+<td style="text-align: center;">❌</td>
+<td style="text-align: center;">❌</td>
+<td style="text-align: center;">✅</td>
 </tr>
 </tbody>
 </table>
-<h2 id="not-in-ros-z-lives-in-rmw-zenoh-rs">Not in ros-z (lives in rmw-zenoh-rs)<a class="headerlink" href="#not-in-ros-z-lives-in-rmw-zenoh-rs" title="Permanent link">&para;</a></h2>
-<p>The following are middleware-layer concerns handled by <strong>rmw-zenoh-rs</strong> when you use standard ROS 2 C++/Python nodes over Zenoh. They are not part of the pure-Rust ros-z API:</p>
-<table>
-<thead>
-<tr>
-<th>Feature</th>
-<th>Where</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Waitsets / guard conditions</td>
-<td>rmw-zenoh-rs</td>
-</tr>
-<tr>
-<td>Executor model</td>
-<td>rmw-zenoh-rs</td>
-</tr>
-<tr>
-<td>Composable / component nodes</td>
-<td>rmw-zenoh-rs</td>
-</tr>
-<tr>
-<td>Intra-process communication</td>
-<td>rmw-zenoh-rs</td>
-</tr>
-</tbody>
-</table>
-<p>If you need any of these from Rust, combine ros-z nodes with a standard ROS 2 executor via the <code>rmw_zenoh_cpp</code> bridge.</p>
+<h2 id="which-to-choose">Which to choose?<a class="headerlink" href="#which-to-choose" title="Permanent link">&para;</a></h2>
+<p><strong>Use <code>rmw_zenoh_cpp</code></strong> when you have an existing rclcpp/rclpy codebase and want Zenoh transport without rewriting anything. You get the full ROS 2 feature set — executors, composable nodes, lifecycle — with Zenoh's routing and cross-network capabilities replacing DDS.</p>
+<p><strong>Use ros-z</strong> when you are writing new code in Rust and want a minimal, dependency-light library. No ROS 2 installation, no DDS, no executor overhead. ros-z nodes interoperate transparently with <code>rmw_zenoh_cpp</code> nodes over the same Zenoh router.</p>
 <h2 id="resources">Resources<a class="headerlink" href="#resources" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong><a href="../ros2-to-rosz/">ROS 2 → ros-z API Mapping</a></strong> — method-by-method translation table</li>
-<li><strong><a href="../../experimental/rmw-zenoh-rs/">rmw-zenoh-rs</a></strong> — RMW plugin for standard ROS 2 nodes</li>
+<li><strong><a href="../../experimental/rmw-zenoh-rs/">rmw-zenoh-rs</a></strong> — the RMW plugin powering <code>rmw_zenoh_cpp</code></li>
+<li><strong><a href="../../user-guide/interop/">ROS 2 Interoperability</a></strong> — running ros-z alongside rclcpp/rclpy nodes</li>
 <li><strong><a href="../../user-guide/bridge/">Cross-Distro Bridge</a></strong> — Humble ↔ Jazzy bridging</li>
 </ul>
 
