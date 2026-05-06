@@ -1,12 +1,12 @@
 # Feature Comparison
 
-Three ways to build ROS 2 systems with Zenoh as the transport.
+Three options for ROS 2 communication, from standard DDS to pure-Rust Zenoh.
 
 | | ROS 2 (DDS) | ROS 2 (Zenoh) | ros-z |
 |-|-------------|---------------|-------|
 | **API** | rclcpp / rclpy | rclcpp / rclpy | Rust |
 | **Transport** | DDS (FastDDS, Cyclone) | Eclipse Zenoh | Eclipse Zenoh |
-| **RMW plugin** | rmw_fastrtps / rmw_cyclonedds | `rmw_zenoh_cpp` | No RMW — direct Zenoh API |
+| **RMW plugin** | rmw_fastrtps_cpp / rmw_cyclonedds_cpp | `rmw_zenoh_cpp` | No RMW — direct Zenoh API |
 | **ROS 2 install required** | Yes | Yes | No |
 
 ROS 2 (Zenoh) means `rmw_zenoh_cpp`: a drop-in RMW plugin that gives existing rclcpp/rclpy nodes a Zenoh transport without changing any application code. ros-z is an independent Rust API built directly on Zenoh — no ROS 2 installation needed.
