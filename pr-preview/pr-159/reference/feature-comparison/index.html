@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://zettascalelabs.github.io/ros-z/getting-started/distro-compatibility/">
+        <link rel="canonical" href="https://zettascalelabs.github.io/ros-z/reference/feature-comparison/">
       
       
-        <link rel="prev" href="../building/">
+        <link rel="prev" href="../../experimental/shm/">
       
       
-        <link rel="next" href="../../core-concepts/pubsub/">
+        <link rel="next" href="../ros2-to-rosz/">
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
@@ -24,7 +24,7 @@
     
     
       
-        <title>Distro Compatibility - ros-z</title>
+        <title>Feature Comparison - ros-z</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#ros-2-distribution-compatibility" class="md-skip">
+        <a href="#feature-comparison-ros-z-vs-rclcpp-rclpy" class="md-skip">
           Skip to content
         </a>
       
@@ -116,7 +116,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Distro Compatibility
+              Feature Comparison
             
           </span>
         </div>
@@ -240,13 +240,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../quick-start/" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../getting-started/quick-start/" class="md-tabs__link">
           
   
   
@@ -372,11 +370,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../reference/feature-comparison/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
           
   
   
@@ -465,31 +465,26 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
         
           
-          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
             
   
   
@@ -502,7 +497,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_2">
             <span class="md-nav__icon md-icon"></span>
             Getting Started
@@ -516,7 +511,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../quick-start/" class="md-nav__link">
+      <a href="../../getting-started/quick-start/" class="md-nav__link">
         
   
   
@@ -562,7 +557,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../building/" class="md-nav__link">
+      <a href="../../getting-started/building/" class="md-nav__link">
         
   
   
@@ -582,32 +577,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    Distro Compatibility
-    
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../getting-started/distro-compatibility/" class="md-nav__link">
         
   
   
@@ -618,110 +591,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#supported-distributions" class="md-nav__link">
-    <span class="md-ellipsis">
-      Supported Distributions
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#distribution-differences" class="md-nav__link">
-    <span class="md-ellipsis">
-      Distribution Differences
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Distribution Differences">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#type-hash-support" class="md-nav__link">
-    <span class="md-ellipsis">
-      Type Hash Support
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#example-key-expressions" class="md-nav__link">
-    <span class="md-ellipsis">
-      Example Key Expressions
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#building-for-different-distributions" class="md-nav__link">
-    <span class="md-ellipsis">
-      Building for Different Distributions
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Building for Different Distributions">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#using-jazzy-default" class="md-nav__link">
-    <span class="md-ellipsis">
-      Using Jazzy (Default)
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#using-humble" class="md-nav__link">
-    <span class="md-ellipsis">
-      Using Humble
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#using-other-distributions" class="md-nav__link">
-    <span class="md-ellipsis">
-      Using Other Distributions
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1749,26 +1618,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" checked>
         
           
-          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
             
   
   
@@ -1781,7 +1655,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_8">
             <span class="md-nav__icon md-icon"></span>
             Reference
@@ -1792,10 +1666,32 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../reference/feature-comparison/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Feature Comparison
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1806,6 +1702,98 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#communication" class="md-nav__link">
+    <span class="md-ellipsis">
+      Communication
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#node-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      Node Features
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quality-of-service" class="md-nav__link">
+    <span class="md-ellipsis">
+      Quality of Service
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#messages-serialization" class="md-nav__link">
+    <span class="md-ellipsis">
+      Messages &amp; Serialization
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interoperability" class="md-nav__link">
+    <span class="md-ellipsis">
+      Interoperability
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#not-in-ros-z-lives-in-rmw-zenoh-rs" class="md-nav__link">
+    <span class="md-ellipsis">
+      Not in ros-z (lives in rmw-zenoh-rs)
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      Resources
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1818,7 +1806,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/ros2-to-rosz/" class="md-nav__link">
+      <a href="../ros2-to-rosz/" class="md-nav__link">
         
   
   
@@ -1887,7 +1875,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/feature-flags/" class="md-nav__link">
+      <a href="../feature-flags/" class="md-nav__link">
         
   
   
@@ -1910,7 +1898,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../nix/" class="md-nav__link">
+      <a href="../../getting-started/nix/" class="md-nav__link">
         
   
   
@@ -1933,7 +1921,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/troubleshooting/" class="md-nav__link">
+      <a href="../troubleshooting/" class="md-nav__link">
         
   
   
@@ -1983,86 +1971,74 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#supported-distributions" class="md-nav__link">
+  <a href="#communication" class="md-nav__link">
     <span class="md-ellipsis">
-      Supported Distributions
+      Communication
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#distribution-differences" class="md-nav__link">
+  <a href="#node-features" class="md-nav__link">
     <span class="md-ellipsis">
-      Distribution Differences
+      Node Features
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Distribution Differences">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#type-hash-support" class="md-nav__link">
-    <span class="md-ellipsis">
-      Type Hash Support
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#example-key-expressions" class="md-nav__link">
-    <span class="md-ellipsis">
-      Example Key Expressions
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#building-for-different-distributions" class="md-nav__link">
+  <a href="#quality-of-service" class="md-nav__link">
     <span class="md-ellipsis">
-      Building for Different Distributions
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Building for Different Distributions">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#using-jazzy-default" class="md-nav__link">
-    <span class="md-ellipsis">
-      Using Jazzy (Default)
+      Quality of Service
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
-  <a href="#using-humble" class="md-nav__link">
+      
+        <li class="md-nav__item">
+  <a href="#messages-serialization" class="md-nav__link">
     <span class="md-ellipsis">
-      Using Humble
+      Messages &amp; Serialization
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
-  <a href="#using-other-distributions" class="md-nav__link">
+      
+        <li class="md-nav__item">
+  <a href="#parameters" class="md-nav__link">
     <span class="md-ellipsis">
-      Using Other Distributions
+      Parameters
     </span>
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#interoperability" class="md-nav__link">
+    <span class="md-ellipsis">
+      Interoperability
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#not-in-ros-z-lives-in-rmw-zenoh-rs" class="md-nav__link">
+    <span class="md-ellipsis">
+      Not in ros-z (lives in rmw-zenoh-rs)
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      Resources
+    </span>
+  </a>
   
 </li>
       
@@ -2082,7 +2058,7 @@
 
 
   
-    <a href="https://github.com/ZettaScaleLabs/ros-z/edit/main/docs/getting-started/distro-compatibility.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/ZettaScaleLabs/ros-z/edit/main/docs/reference/feature-comparison.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -2090,120 +2066,314 @@
   
 
 
-<h1 id="ros-2-distribution-compatibility">ROS 2 Distribution Compatibility<a class="headerlink" href="#ros-2-distribution-compatibility" title="Permanent link">&para;</a></h1>
-<p>ros-z supports multiple ROS 2 distributions through compile-time feature flags. This chapter explains the differences between distributions and how to target specific ROS 2 versions.</p>
-<blockquote>
-<p><strong>Important</strong>: Different ros-z components have different ROS 2 version requirements:</p>
-<ul>
-<li><strong>ros-z core library</strong>: Supports Humble, Jazzy, Kilted, Rolling</li>
-<li><strong>rmw-zenoh-rs</strong>: Requires Jazzy or later (see <a href="../../experimental/rmw-zenoh-rs/#ros-2-version-requirements">rmw-zenoh-rs chapter</a>)</li>
-</ul>
-</blockquote>
-<h2 id="supported-distributions">Supported Distributions<a class="headerlink" href="#supported-distributions" title="Permanent link">&para;</a></h2>
+<h1 id="feature-comparison-ros-z-vs-rclcpp-rclpy">Feature Comparison: ros-z vs rclcpp / rclpy<a class="headerlink" href="#feature-comparison-ros-z-vs-rclcpp-rclpy" title="Permanent link">&para;</a></h1>
+<p>This page summarises which ROS 2 features ros-z supports, which are planned, and which live elsewhere in the stack.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Some ROS 2 middleware features (waitsets, guard conditions, composable nodes) are implemented in <strong><a href="../../experimental/rmw-zenoh-rs/">rmw-zenoh-rs</a></strong> — the Zenoh RMW plugin for standard ROS 2 C++/Python nodes. They are intentionally absent from ros-z, which targets the pure-Rust API surface.</p>
+</div>
+<h2 id="communication">Communication<a class="headerlink" href="#communication" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>Distribution</th>
-<th>Core Library</th>
-<th>rmw-zenoh-rs</th>
-<th>Type Hash Support</th>
-<th>Default</th>
+<th>Feature</th>
+<th>rclcpp / rclpy</th>
+<th>ros-z</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>Kilted Kaiju</strong></td>
-<td>✅ Supported</td>
-<td>✅ Supported</td>
-<td>✅ Yes</td>
-<td>No</td>
+<td>Publishers</td>
+<td>✅</td>
+<td>✅</td>
 </tr>
 <tr>
-<td><strong>Jazzy Jalisco</strong></td>
-<td>✅ Supported</td>
-<td>✅ Supported</td>
-<td>✅ Yes</td>
-<td><strong>Yes</strong></td>
+<td>Subscribers</td>
+<td>✅</td>
+<td>✅</td>
 </tr>
 <tr>
-<td><strong>Humble Hawksbill</strong></td>
-<td>✅ Supported</td>
-<td>❌ <strong>Not Supported</strong></td>
-<td>❌ Placeholder</td>
-<td>No</td>
+<td>Callback subscribers</td>
+<td>✅</td>
+<td>✅</td>
 </tr>
 <tr>
-<td>Rolling Ridley</td>
-<td>✅ Supported</td>
-<td>✅ Supported</td>
-<td>✅ Yes</td>
-<td>No</td>
+<td>Pull-model subscribers (<code>recv()</code>)</td>
+<td>❌</td>
+<td>✅</td>
 </tr>
 <tr>
-<td>Iron Irwini</td>
-<td>⚠️ EOL (Dec 2024)</td>
-<td>❌ Not Supported</td>
-<td>✅ Yes</td>
-<td>No</td>
+<td>Services (request / response)</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Service clients</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Actions (goal / feedback / result)</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Action cancellation</td>
+<td>✅</td>
+<td>✅</td>
 </tr>
 </tbody>
 </table>
-<p><strong>Default</strong>: ros-z defaults to <strong>Jazzy</strong> compatibility, which is the recommended distribution for new projects.</p>
-<h2 id="distribution-differences">Distribution Differences<a class="headerlink" href="#distribution-differences" title="Permanent link">&para;</a></h2>
-<h3 id="type-hash-support">Type Hash Support<a class="headerlink" href="#type-hash-support" title="Permanent link">&para;</a></h3>
-<p>The most significant difference between distributions is <strong>type hash support</strong>:</p>
-<p><strong>Jazzy/Kilted/Rolling</strong> (Modern):</p>
+<h2 id="node-features">Node Features<a class="headerlink" href="#node-features" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>rclcpp / rclpy</th>
+<th>ros-z</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Named nodes</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Namespaces</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Name remapping</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Lifecycle nodes</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Graph introspection</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Timers</td>
+<td>✅</td>
+<td>❌ planned</td>
+</tr>
+<tr>
+<td>Clock / sim time (<code>/clock</code>)</td>
+<td>✅</td>
+<td>❌ planned</td>
+</tr>
+<tr>
+<td><code>/rosout</code> logging</td>
+<td>✅</td>
+<td>❌ uses <code>tracing</code> only</td>
+</tr>
+</tbody>
+</table>
+<h2 id="quality-of-service">Quality of Service<a class="headerlink" href="#quality-of-service" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>rclcpp / rclpy</th>
+<th>ros-z</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Reliability (reliable / best-effort)</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>History (keep-last / keep-all)</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Durability (volatile / transient-local)</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Deadline QoS events</td>
+<td>✅</td>
+<td>⚠️ Zenoh limitation</td>
+</tr>
+<tr>
+<td>Liveliness lease events</td>
+<td>✅</td>
+<td>⚠️ Zenoh limitation</td>
+</tr>
+</tbody>
+</table>
+<h2 id="messages-serialization">Messages &amp; Serialization<a class="headerlink" href="#messages-serialization" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>rclcpp / rclpy</th>
+<th>ros-z</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Typed CDR messages</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Custom <code>.msg</code> / <code>.srv</code> / <code>.action</code> types</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Message codegen (<code>ros-z-codegen</code>)</td>
+<td>N/A</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Dynamic (schema-driven) messages</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Type description service</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Protobuf encoding</td>
+<td>❌</td>
+<td>✅ (feature flag)</td>
+</tr>
+<tr>
+<td>Shared memory (SHM)</td>
+<td>✅ (via rmw)</td>
+<td>✅</td>
+</tr>
+</tbody>
+</table>
+<h2 id="parameters">Parameters<a class="headerlink" href="#parameters" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>rclcpp / rclpy</th>
+<th>ros-z</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Declare / get / set parameters</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Parameter event callbacks</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>YAML parameter files</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Remote <code>ParameterClient</code></td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Parameter descriptor / constraints</td>
+<td>✅</td>
+<td>⚠️ partial</td>
+</tr>
+</tbody>
+</table>
+<h2 id="interoperability">Interoperability<a class="headerlink" href="#interoperability" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>rclcpp / rclpy</th>
+<th>ros-z</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ROS 2 CLI (<code>ros2 topic</code>, <code>ros2 service</code>, …)</td>
+<td>✅</td>
+<td>✅ via <code>rmw_zenoh_cpp</code></td>
+</tr>
+<tr>
+<td>Jazzy / Kilted support</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Humble support</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Cross-distro bridge (Humble ↔ Jazzy)</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Python bindings</td>
+<td>native</td>
+<td>✅ (<code>ros-z-py</code>)</td>
+</tr>
+<tr>
+<td>Go bindings</td>
+<td>❌</td>
+<td>✅ (<code>ros-z-go</code>)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="not-in-ros-z-lives-in-rmw-zenoh-rs">Not in ros-z (lives in rmw-zenoh-rs)<a class="headerlink" href="#not-in-ros-z-lives-in-rmw-zenoh-rs" title="Permanent link">&para;</a></h2>
+<p>The following are middleware-layer concerns handled by <strong>rmw-zenoh-rs</strong> when you use standard ROS 2 C++/Python nodes over Zenoh. They are not part of the pure-Rust ros-z API:</p>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Where</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Waitsets / guard conditions</td>
+<td>rmw-zenoh-rs</td>
+</tr>
+<tr>
+<td>Executor model</td>
+<td>rmw-zenoh-rs</td>
+</tr>
+<tr>
+<td>Composable / component nodes</td>
+<td>rmw-zenoh-rs</td>
+</tr>
+<tr>
+<td>Intra-process communication</td>
+<td>rmw-zenoh-rs</td>
+</tr>
+</tbody>
+</table>
+<p>If you need any of these from Rust, combine ros-z nodes with a standard ROS 2 executor via the <code>rmw_zenoh_cpp</code> bridge.</p>
+<h2 id="resources">Resources<a class="headerlink" href="#resources" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Supports real type hashes computed from message definitions</li>
-<li>Format: <code>RIHS01_&lt;64-hex-chars&gt;</code> (ROS IDL Hash Standard version 1)</li>
-<li>Enables type safety checks during pub/sub matching</li>
-<li>ros-z embeds type hashes in Eclipse Zenoh key expressions for discovery</li>
+<li><strong><a href="../ros2-to-rosz/">ROS 2 → ros-z API Mapping</a></strong> — method-by-method translation table</li>
+<li><strong><a href="../../experimental/rmw-zenoh-rs/">rmw-zenoh-rs</a></strong> — RMW plugin for standard ROS 2 nodes</li>
+<li><strong><a href="../../user-guide/bridge/">Cross-Distro Bridge</a></strong> — Humble ↔ Jazzy bridging</li>
 </ul>
-<p><strong>Humble</strong> (Legacy):</p>
-<ul>
-<li>Does not support real type hashes</li>
-<li>Uses constant placeholder: <code>"TypeHashNotSupported"</code></li>
-<li>No type safety validation during discovery</li>
-<li>Compatible with rmw_zenoh_cpp v0.1.8</li>
-</ul>
-<h3 id="example-key-expressions">Example Key Expressions<a class="headerlink" href="#example-key-expressions" title="Permanent link">&para;</a></h3>
-<p><strong>Jazzy:</strong></p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>@ros2_lv/0/&lt;zid&gt;/&lt;nid&gt;/&lt;eid&gt;/MP/%/&lt;namespace&gt;/&lt;node&gt;/chatter/std_msgs%msg%String/RIHS01_1234567890abcdef.../...
-</span></code></pre></div>
-<p><strong>Humble:</strong></p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>@ros2_lv/0/&lt;zid&gt;/&lt;nid&gt;/&lt;eid&gt;/MP/%/&lt;namespace&gt;/&lt;node&gt;/chatter/std_msgs%msg%String/TypeHashNotSupported/...
-</span></code></pre></div>
-<h2 id="building-for-different-distributions">Building for Different Distributions<a class="headerlink" href="#building-for-different-distributions" title="Permanent link">&para;</a></h2>
-<h3 id="using-jazzy-default">Using Jazzy (Default)<a class="headerlink" href="#using-jazzy-default" title="Permanent link">&para;</a></h3>
-<p>By default, ros-z builds with Jazzy compatibility. No special flags needed:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Build with default (Jazzy)</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>cargo<span class="w"> </span>build
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># Run examples</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>cargo<span class="w"> </span>run<span class="w"> </span>--example<span class="w"> </span>demo_nodes_talker
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="c1"># Run tests</span>
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>cargo<span class="w"> </span>nextest<span class="w"> </span>run
-</span></code></pre></div>
-<h3 id="using-humble">Using Humble<a class="headerlink" href="#using-humble" title="Permanent link">&para;</a></h3>
-<p>To build for Humble, use <code>--no-default-features --features humble</code>:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Build for Humble</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>cargo<span class="w"> </span>build<span class="w"> </span>--no-default-features<span class="w"> </span>--features<span class="w"> </span>humble
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Run examples for Humble</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>cargo<span class="w"> </span>run<span class="w"> </span>--no-default-features<span class="w"> </span>--features<span class="w"> </span>humble<span class="w"> </span>--example<span class="w"> </span>demo_nodes_talker
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># Run tests for Humble</span>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>cargo<span class="w"> </span>nextest<span class="w"> </span>run<span class="w"> </span>--no-default-features<span class="w"> </span>--features<span class="w"> </span>humble
-</span></code></pre></div>
-<h3 id="using-other-distributions">Using Other Distributions<a class="headerlink" href="#using-other-distributions" title="Permanent link">&para;</a></h3>
-<p>For Rolling or Kilted, specify the distro feature:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Build for Rolling</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>cargo<span class="w"> </span>build<span class="w"> </span>--features<span class="w"> </span>rolling
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># Build for Kilted</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>cargo<span class="w"> </span>build<span class="w"> </span>--features<span class="w"> </span>kilted
-</span></code></pre></div>
 
 
 
@@ -2239,7 +2409,7 @@
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../building/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Building">
+          <a href="../../experimental/shm/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Shared Memory (SHM)">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -2249,20 +2419,20 @@
                 Previous
               </span>
               <div class="md-ellipsis">
-                Building
+                Shared Memory (SHM)
               </div>
             </div>
           </a>
         
         
           
-          <a href="../../core-concepts/pubsub/" class="md-footer__link md-footer__link--next" aria-label="Next: Pub/Sub">
+          <a href="../ros2-to-rosz/" class="md-footer__link md-footer__link--next" aria-label="Next: ROS 2 → ros-z API Mapping">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Pub/Sub
+                ROS 2 → ros-z API Mapping
               </div>
             </div>
             <div class="md-footer__button md-icon">
