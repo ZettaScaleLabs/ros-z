@@ -2968,6 +2968,10 @@ accDescr: A ZNodeBuilder creates a ZNode that owns both a ParameterStore and a P
 <p>CLI interoperability depends on your local ROS 2 environment. Use <a href="https://github.com/ros2/rmw_zenoh"><code>rmw_zenoh_cpp</code></a> (<code>export RMW_IMPLEMENTATION=rmw_zenoh_cpp</code>) and connect both sides to the same Zenoh router.</p>
 </div>
 <h2 id="focused-examples">Focused Examples<a class="headerlink" href="#focused-examples" title="Permanent link">&para;</a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>These commands run the ready-made examples from the ros-z repository. Clone it first with <code>git clone https://github.com/ZettaScaleLabs/ros-z.git &amp;&amp; cd ros-z</code>.</p>
+</div>
 <p>The parameter examples are now split into focused binaries:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Start a Zenoh router first</span>
 </span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>cargo<span class="w"> </span>run<span class="w"> </span>--example<span class="w"> </span>zenoh_router
