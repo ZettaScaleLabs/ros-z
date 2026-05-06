@@ -2614,6 +2614,10 @@ accDescr: ZContextBuilder creates a ZContext that spawns both a client node and 
 <li><code>key</code> is an opaque token that ties the response to the original request; you must pass it back with <code>send_response</code></li>
 <li><code>service</code> must be <code>mut</code> because <code>take_request</code> takes <code>&amp;mut self</code></li>
 </ul>
+<div class="admonition tip">
+<p class="admonition-title">Run it now</p>
+<p>Jump to <a href="#complete-service-workflow">Complete Service Workflow</a> below to see server and client exchange requests with one command per terminal.</p>
+</div>
 <h2 id="service-client-example">Service Client Example<a class="headerlink" href="#service-client-example" title="Permanent link">&para;</a></h2>
 <p>A client that sends one addition request and prints the result:</p>
 <div class="language-rust highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">use</span><span class="w"> </span><span class="n">ros_z</span><span class="p">::{</span><span class="n">Builder</span><span class="p">,</span><span class="w"> </span><span class="n">context</span><span class="p">::</span><span class="n">ZContextBuilder</span><span class="p">};</span>

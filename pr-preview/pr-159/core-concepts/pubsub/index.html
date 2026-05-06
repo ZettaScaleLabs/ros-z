@@ -2474,6 +2474,10 @@ accDescr: The publisher sends two successive messages into the Zenoh transport, 
 <li>For a non-async context, use <code>publisher.publish(&amp;msg)?</code> instead</li>
 <li>Default QoS (Reliable, KeepLast 10) is fine for most use cases; see the <a href="#quality-of-service-qos">QoS section</a> below for custom profiles</li>
 </ul>
+<div class="admonition tip">
+<p class="admonition-title">Run it now</p>
+<p>Jump to <a href="#complete-pub-sub-workflow">Complete Pub-Sub Workflow</a> below to see publisher and subscriber talking to each other with one command per terminal.</p>
+</div>
 <h2 id="subscriber-example">Subscriber Example<a class="headerlink" href="#subscriber-example" title="Permanent link">&para;</a></h2>
 <p>Receive and print every message on <code>/chatter</code>:</p>
 <div class="language-rust highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">use</span><span class="w"> </span><span class="n">ros_z</span><span class="p">::{</span><span class="n">Builder</span><span class="p">,</span><span class="w"> </span><span class="n">context</span><span class="p">::</span><span class="n">ZContextBuilder</span><span class="p">};</span>
