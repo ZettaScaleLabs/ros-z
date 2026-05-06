@@ -1128,11 +1128,15 @@ pub fn run_add_two_ints_server(ctx: ZContext, max_requests: Option&lt;usize&gt;)
 
     loop {
         // Wait for a request
-        let (key, req) = service.take_request()?;
-        println!("Incoming request\na: {} b: {}", req.a, req.b);
+        let req = service.take_request()?;
+        println!(
+            "Incoming request\na: {} b: {}",
+            req.message().a,
+            req.message().b
+        );
 
         // Compute the sum
-        let sum = req.a + req.b;
+        let sum = req.message().a + req.message().b;
 
         // Create the response
         let resp = AddTwoIntsResponse { sum };
@@ -1140,7 +1144,7 @@ pub fn run_add_two_ints_server(ctx: ZContext, max_requests: Option&lt;usize&gt;)
         println!("Sending response: {}", resp.sum);
 
         // Send the response
-        service.send_response(&amp;resp, &amp;key)?;
+        req.reply_blocking(&amp;resp)?;
 
         request_count += 1;
 
@@ -1198,15 +1202,13 @@ pub fn run_add_two_ints_client(ctx: ZContext, a: i64, b: i64, async_mode: bool) 
 
     // Wait for the response
     let resp = if async_mode {
-        tokio::runtime::Runtime::new().unwrap().block_on(async {
-            client.send_request(&amp;req).await?;
-            client.async_take_response().await
-        })?
+        tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(async { client.call(&amp;req).await })?
     } else {
         tokio::runtime::Runtime::new()
             .unwrap()
-            .block_on(async { client.send_request(&amp;req).await })?;
-        client.take_response_timeout(Duration::from_secs(5))?
+            .block_on(async { client.call_with_timeout(&amp;req, Duration::from_secs(5)).await })?
     };
 
     println!("Received response: {}", resp.sum);
@@ -4340,7 +4342,7 @@ cargo build -p ros-z-msgs --features bundled_msgs
 </pre>
 <hr />
 <h2 id="rust-native-messages"><a class="header" href="#rust-native-messages">Rust-Native Messages</a></h2>
-<p><strong>Define messages directly in Rust by implementing required traits.</strong> This approach is fast for prototyping but only works between ros-z nodes.</p>
+<p><strong>Define messages directly in Rust and derive their schema metadata.</strong> This approach is fast for prototyping but only works between ros-z nodes.</p>
 <div id="admonition-warning" class="admonition admonish-warning" role="note" aria-labelledby="admonition-warning-title">
 <div class="admonition-title">
 <div id="admonition-warning-title">
@@ -4354,24 +4356,24 @@ cargo build -p ros-z-msgs --features bundled_msgs
 </div>
 <h3 id="workflow-of-rust-native-messages"><a class="header" href="#workflow-of-rust-native-messages">Workflow of Rust-Native Messages</a></h3>
 <pre class="mermaid">graph LR
-    A[Define Struct] --&gt; B[Impl MessageTypeInfo]
+    A[Define Struct] --&gt; B[Derive MessageTypeInfo]
     B --&gt; C[Add Serde Traits]
-    C --&gt; D[Impl WithTypeInfo]
+    C --&gt; D[Impl ZMessage]
     D --&gt; E[Use in Pub/Sub]
 </pre>
 <h3 id="required-traits"><a class="header" href="#required-traits">Required Traits</a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Trait</th><th>Purpose</th><th>Key Method</th></tr></thead><tbody>
-<tr><td><strong>MessageTypeInfo</strong></td><td>Type identification</td><td><code>type_name()</code>, <code>type_hash()</code></td></tr>
-<tr><td><strong>WithTypeInfo</strong></td><td>ros-z integration</td><td><code>type_info()</code></td></tr>
+<tr><td><strong>MessageTypeInfo</strong></td><td>Type identification + runtime schema</td><td><code>type_name()</code>, <code>type_hash()</code>, <code>message_schema()</code></td></tr>
 <tr><td><strong>Serialize/Deserialize</strong></td><td>Data encoding</td><td>From <code>serde</code></td></tr>
+<tr><td><strong>ZMessage</strong></td><td>ros-z serialization path</td><td><code>type Serdes = SerdeCdrSerdes&lt;Self&gt;</code></td></tr>
 </tbody></table>
 </div>
 <h3 id="message-example"><a class="header" href="#message-example">Message Example</a></h3>
-<pre><code class="language-rust ignore">use ros_z::{MessageTypeInfo, entity::TypeHash};
-use ros_z::ros_msg::WithTypeInfo;
+<pre><code class="language-rust ignore">use ros_z::MessageTypeInfo;
 use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, MessageTypeInfo)]
+#[ros_msg(type_name = "my_msgs/msg/RobotStatus")]
 struct RobotStatus {
     battery_level: f32,
     position_x: f32,
@@ -4379,17 +4381,12 @@ struct RobotStatus {
     is_moving: bool,
 }
 
-impl MessageTypeInfo for RobotStatus {
-    fn type_name() -&gt; &amp;'static str {
-        "my_msgs::msg::dds_::RobotStatus_"
-    }
-
-    fn type_hash() -&gt; TypeHash {
-        TypeHash::zero()  // ros-z-to-ros-z only
-    }
-}
-
-impl WithTypeInfo for RobotStatus {}</code></pre>
+impl ros_z::msg::ZMessage for RobotStatus {
+    type Serdes = ros_z::msg::SerdeCdrSerdes&lt;Self&gt;;
+}</code></pre>
+<p><code>MessageTypeInfo</code> derive currently supports named structs with deterministic ROS field mappings:
+primitive numeric/bool types, <code>String</code>, <code>Vec&lt;T&gt;</code>, fixed arrays <code>[T; N]</code>, and nested message structs.
+Tuple structs, unit structs, enums, <code>Option</code>, maps, and other richer Rust-only shapes are not yet supported.</p>
 <h3 id="service-example"><a class="header" href="#service-example">Service Example</a></h3>
 <pre><code class="language-rust ignore">use ros_z::{ServiceTypeInfo, TypeInfo, TypeHash, msg::ZService};
 
@@ -4417,6 +4414,8 @@ impl ZService for NavigateTo {
     type Response = NavigateToResponse;
 }</code></pre>
 <p>See the <code>z_custom_message</code> example:</p>
+<p>When a publisher node enables the type description service, derived custom message types
+automatically register their runtime schema so dynamic subscribers can discover them.</p>
 <pre><code class="language-bash"># Terminal 1: Router
 cargo run --example zenoh_router
 
@@ -5884,14 +5883,11 @@ maturin develop
     print(f"CLIENT:REQUEST:{a}+{b}", flush=True)
 
     req = example_interfaces.AddTwoIntsRequest(a=a, b=b)
-    client.send_request(req)
-
-    resp = client.take_response(timeout=timeout)
-
-    if resp is not None:
+    try:
+        resp = client.call(req, timeout=timeout)
         print(f"CLIENT:RESPONSE:{resp.sum}", flush=True)
-    else:
-        print("CLIENT:ERROR:no response", flush=True)
+    except RuntimeError as e:
+        print(f"CLIENT:ERROR:{e}", flush=True)
         sys.exit(1)
 
 

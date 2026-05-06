@@ -380,14 +380,11 @@ maturin develop
     print(f"CLIENT:REQUEST:{a}+{b}", flush=True)
 
     req = example_interfaces.AddTwoIntsRequest(a=a, b=b)
-    client.send_request(req)
-
-    resp = client.take_response(timeout=timeout)
-
-    if resp is not None:
+    try:
+        resp = client.call(req, timeout=timeout)
         print(f"CLIENT:RESPONSE:{resp.sum}", flush=True)
-    else:
-        print("CLIENT:ERROR:no response", flush=True)
+    except RuntimeError as e:
+        print(f"CLIENT:ERROR:{e}", flush=True)
         sys.exit(1)
 
 

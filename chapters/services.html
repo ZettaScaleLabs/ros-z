@@ -249,11 +249,15 @@ pub fn run_add_two_ints_server(ctx: ZContext, max_requests: Option&lt;usize&gt;)
 
     loop {
         // Wait for a request
-        let (key, req) = service.take_request()?;
-        println!("Incoming request\na: {} b: {}", req.a, req.b);
+        let req = service.take_request()?;
+        println!(
+            "Incoming request\na: {} b: {}",
+            req.message().a,
+            req.message().b
+        );
 
         // Compute the sum
-        let sum = req.a + req.b;
+        let sum = req.message().a + req.message().b;
 
         // Create the response
         let resp = AddTwoIntsResponse { sum };
@@ -261,7 +265,7 @@ pub fn run_add_two_ints_server(ctx: ZContext, max_requests: Option&lt;usize&gt;)
         println!("Sending response: {}", resp.sum);
 
         // Send the response
-        service.send_response(&amp;resp, &amp;key)?;
+        req.reply_blocking(&amp;resp)?;
 
         request_count += 1;
 
@@ -319,15 +323,13 @@ pub fn run_add_two_ints_client(ctx: ZContext, a: i64, b: i64, async_mode: bool) 
 
     // Wait for the response
     let resp = if async_mode {
-        tokio::runtime::Runtime::new().unwrap().block_on(async {
-            client.send_request(&amp;req).await?;
-            client.async_take_response().await
-        })?
+        tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(async { client.call(&amp;req).await })?
     } else {
         tokio::runtime::Runtime::new()
             .unwrap()
-            .block_on(async { client.send_request(&amp;req).await })?;
-        client.take_response_timeout(Duration::from_secs(5))?
+            .block_on(async { client.call_with_timeout(&amp;req, Duration::from_secs(5)).await })?
     };
 
     println!("Received response: {}", resp.sum);
