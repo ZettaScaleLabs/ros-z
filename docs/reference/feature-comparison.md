@@ -80,7 +80,6 @@ ROS 2 (Zenoh) means `rmw_zenoh_cpp`: a drop-in RMW plugin that gives existing rc
 | Jazzy / Kilted support | ✅ | ✅ | ✅ |
 | Humble support | ✅ | ✅ | ✅ |
 | Cross-distro bridge (Humble ↔ Jazzy) | ❌ | ❌ | ✅ |
-| Pre-built binaries (no compile step) | ❌ | ❌ | ✅ |
 | Python bindings | native | native | ✅ (`ros-z-py`) |
 | Go bindings | ❌ | ❌ | ✅ (`ros-z-go`) |
 | No ROS 2 install needed | ❌ | ❌ | ✅ |
