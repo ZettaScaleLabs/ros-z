@@ -481,6 +481,9 @@ ros2 param dump /my_node
 
 ## Focused Examples
 
+!!! note
+    These commands run the ready-made examples from the ros-z repository. Clone it first with `git clone https://github.com/ZettaScaleLabs/ros-z.git && cd ros-z`.
+
 The parameter examples are now split into focused binaries:
 
 ```bash

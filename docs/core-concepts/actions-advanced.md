@@ -92,7 +92,7 @@ pub async fn run_fibonacci_action_server(ctx: ZContext, timeout: Option<Duration
 - **Cancellation Support**: Checks `is_cancel_requested()` and handles graceful cancellation
 - **Completion**: Uses `.succeed()` or `.canceled()` to send final result
 
-**Running the server:**
+**Running the server** (clone the repo first: `git clone https://github.com/ZettaScaleLabs/ros-z.git && cd ros-z`):
 
 ```bash
 # Start Eclipse Zenoh router first
@@ -193,6 +193,9 @@ cargo run --example demo_nodes_fibonacci_action_client -- --endpoint tcp/localho
 ```
 
 ## Complete Action Workflow
+
+!!! note
+    These commands run the ready-made examples from the ros-z repository. Clone it first with `git clone https://github.com/ZettaScaleLabs/ros-z.git && cd ros-z`. If you're building your own project, run your binaries with `cargo run` instead.
 
 **Terminal 1 - Start Zenoh Router:**
 

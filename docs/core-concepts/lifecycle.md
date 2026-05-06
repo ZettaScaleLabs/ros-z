@@ -56,28 +56,26 @@ accDescr: Shows the four primary states Unconfigured, Inactive, Active, and Fina
 
 ```rust
 use ros_z::lifecycle::{ZLifecycleNode, CallbackReturn, LifecycleState};
-use ros_z::prelude::*;
+use ros_z::{Builder, context::ZContextBuilder};
 
-# fn main() -> zenoh::Result<()> {
-let ctx = ZContextBuilder::default().build()?;
+let ctx = ZContextBuilder::default()
+    .with_connect_endpoints(["tcp/127.0.0.1:7447"])
+    .build()?;
 let mut node = ctx.create_lifecycle_node("my_node").build()?;
-# Ok(())
-# }
 ```
 
 ### With a Namespace
 
 ```rust
-use ros_z::prelude::*;
+use ros_z::{Builder, context::ZContextBuilder};
 
-# fn main() -> zenoh::Result<()> {
-let ctx = ZContextBuilder::default().build()?;
+let ctx = ZContextBuilder::default()
+    .with_connect_endpoints(["tcp/127.0.0.1:7447"])
+    .build()?;
 let mut node = ctx
     .create_lifecycle_node("my_node")
     .with_namespace("/robot")
     .build()?;
-# Ok(())
-# }
 ```
 
 ## Lifecycle Callbacks
@@ -85,11 +83,12 @@ let mut node = ctx
 Set callbacks on the node before triggering any transitions. Each callback receives the previous state and returns a `CallbackReturn`.
 
 ```rust
-use ros_z::lifecycle::{ZLifecycleNode, CallbackReturn};
-use ros_z::prelude::*;
+use ros_z::lifecycle::CallbackReturn;
+use ros_z::{Builder, context::ZContextBuilder};
 
-# fn main() -> zenoh::Result<()> {
-# let ctx = ZContextBuilder::default().build()?;
+let ctx = ZContextBuilder::default()
+    .with_connect_endpoints(["tcp/127.0.0.1:7447"])
+    .build()?;
 let mut node = ctx.create_lifecycle_node("talker").build()?;
 
 node.on_configure = Box::new(|_prev| {
@@ -119,8 +118,6 @@ node.on_cleanup = Box::new(|_prev| {
 node.on_shutdown = Box::new(|_prev| {
     CallbackReturn::Success
 });
-# Ok(())
-# }
 ```
 
 ### Callback Return Values
@@ -134,15 +131,10 @@ node.on_shutdown = Box::new(|_prev| {
 The default `on_error` returns `Failure`, which drives the node to **Finalized**. Override it to recover to **Unconfigured** instead:
 
 ```rust
-# use ros_z::lifecycle::{CallbackReturn};
-# use ros_z::prelude::*;
-# fn main() -> zenoh::Result<()> {
-# let ctx = ZContextBuilder::default().build()?;
-# let mut node = ctx.create_lifecycle_node("n").build()?;
+use ros_z::lifecycle::CallbackReturn;
+
 // Recover to Unconfigured instead of crashing to Finalized
 node.on_error = Box::new(|_prev| CallbackReturn::Success);
-# Ok(())
-# }
 ```
 
 ## Lifecycle Publishers
@@ -151,12 +143,13 @@ A lifecycle publisher wraps a regular publisher and **silently drops** publish c
 
 ```rust
 use ros_z::lifecycle::ZLifecycleNode;
-use ros_z::prelude::*;
+use ros_z::{Builder, context::ZContextBuilder};
 use ros_z_msgs::ros::std_msgs::String as RosString;
 
-# fn main() -> zenoh::Result<()> {
-# let ctx = ZContextBuilder::default().build()?;
-# let mut node = ctx.create_lifecycle_node("talker").build()?;
+let ctx = ZContextBuilder::default()
+    .with_connect_endpoints(["tcp/127.0.0.1:7447"])
+    .build()?;
+let mut node = ctx.create_lifecycle_node("talker").build()?;
 // Create the publisher — it starts deactivated
 let pub_ = node.create_publisher::<RosString>("chatter")?;
 
@@ -168,8 +161,6 @@ pub_.publish(&RosString { data: "hello".to_string() })?;
 node.deactivate()?;
 // Publisher is deactivated — publish() returns Ok(()) but drops the message
 pub_.publish(&RosString { data: "dropped".to_string() })?;
-# Ok(())
-# }
 ```
 
 ros-z registers all publishers created with `create_publisher` as **managed entities**: they activate and deactivate automatically when the node transitions.
@@ -184,17 +175,11 @@ You can trigger transitions programmatically or via the lifecycle management ser
 ### Programmatic
 
 ```rust
-# use ros_z::prelude::*;
-# fn main() -> zenoh::Result<()> {
-# let ctx = ZContextBuilder::default().build()?;
-# let mut node = ctx.create_lifecycle_node("n").build()?;
 let state = node.configure()?;   // → Inactive
 let state = node.activate()?;    // → Active
 let state = node.deactivate()?;  // → Inactive
 let state = node.cleanup()?;     // → Unconfigured
 let state = node.shutdown()?;    // → Finalized
-# Ok(())
-# }
 ```
 
 ### Via ROS 2 CLI
@@ -231,11 +216,12 @@ The `~/transition_event` topic publishes a `TransitionEvent` message on every st
 
 ```rust
 use std::time::Duration;
-use ros_z::prelude::*;
+use ros_z::{Builder, context::ZContextBuilder};
 use ros_z::lifecycle::ZLifecycleClient;
 
-# async fn run() -> zenoh::Result<()> {
-let ctx = ZContextBuilder::default().build()?;
+let ctx = ZContextBuilder::default()
+    .with_connect_endpoints(["tcp/127.0.0.1:7447"])
+    .build()?;
 let mgr = ctx.create_node("bringup_manager").build()?;
 
 // Connect to the lifecycle node's management services
@@ -252,8 +238,6 @@ println!("camera_driver is {:?}", state);
 
 // Graceful shutdown (auto-detects the current state)
 client.shutdown(timeout).await?;
-# Ok(())
-# }
 ```
 
 !!! tip
@@ -268,7 +252,9 @@ use ros_z_msgs::std_msgs::String as RosString;
 fn main() -> Result<()> {
     // Build an Eclipse Zenoh context and create a lifecycle node.
     // The node starts in the Unconfigured state.
-    let ctx = ZContextBuilder::default().build()?;
+    let ctx = ZContextBuilder::default()
+        .with_connect_endpoints(["tcp/127.0.0.1:7447"])
+        .build()?;
     let mut node = ctx.create_lifecycle_node("lifecycle_talker").build()?;
 
     // Register callbacks for each lifecycle transition.
@@ -353,7 +339,9 @@ fn main() -> Result<()> {
     // Shared Zenoh context — both the lifecycle node and the client connect
     // through the same context (in production they'd typically be separate
     // processes connected via a Zenoh router).
-    let ctx = ZContextBuilder::default().build()?;
+    let ctx = ZContextBuilder::default()
+        .with_connect_endpoints(["tcp/127.0.0.1:7447"])
+        .build()?;
 
     // --- Lifecycle node (simulates a remote node) ---
     let mut node = ctx.create_lifecycle_node("camera_driver").build()?;

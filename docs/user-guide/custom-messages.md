@@ -102,7 +102,7 @@ impl ZService for NavigateTo {
 }
 ```
 
-See the `z_custom_message` example:
+See the `z_custom_message` example (clone the repo first: `git clone https://github.com/ZettaScaleLabs/ros-z.git && cd ros-z`):
 
 When a publisher node enables the type description service, derived custom message types
 automatically register their runtime schema so dynamic subscribers can discover them.
