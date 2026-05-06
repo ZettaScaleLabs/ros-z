@@ -2067,7 +2067,7 @@
 
 
 <h1 id="feature-comparison">Feature Comparison<a class="headerlink" href="#feature-comparison" title="Permanent link">&para;</a></h1>
-<p>Three ways to build ROS 2 systems with Zenoh as the transport.</p>
+<p>Three options for ROS 2 communication, from standard DDS to pure-Rust Zenoh.</p>
 <table>
 <thead>
 <tr>
@@ -2092,7 +2092,7 @@
 </tr>
 <tr>
 <td><strong>RMW plugin</strong></td>
-<td>rmw_fastrtps / rmw_cyclonedds</td>
+<td>rmw_fastrtps_cpp / rmw_cyclonedds_cpp</td>
 <td><code>rmw_zenoh_cpp</code></td>
 <td>No RMW — direct Zenoh API</td>
 </tr>
@@ -2417,12 +2417,6 @@
 </tr>
 <tr>
 <td>Cross-distro bridge (Humble ↔ Jazzy)</td>
-<td style="text-align: center;">❌</td>
-<td style="text-align: center;">❌</td>
-<td style="text-align: center;">✅</td>
-</tr>
-<tr>
-<td>Pre-built binaries (no compile step)</td>
 <td style="text-align: center;">❌</td>
 <td style="text-align: center;">❌</td>
 <td style="text-align: center;">✅</td>
