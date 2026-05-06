@@ -115,6 +115,7 @@ nav:
   - Advanced Topics:
       - Shared Memory (SHM): experimental/shm.md
   - Reference:
+      - Feature Comparison: reference/feature-comparison.md
       - ROS 2 → ros-z API Mapping: reference/ros2-to-rosz.md
       - rmw_zenoh_rs: experimental/rmw-zenoh-rs.md
       - Key Expression Formats: experimental/keyexpr-formats.md
