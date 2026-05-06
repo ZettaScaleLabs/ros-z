@@ -112,6 +112,8 @@ impl PyZServer {
         let gid_vec: Vec<u8> = request_id.get_item("gid")?.unwrap().extract()?;
         let mut gid = [0u8; 16];
         gid.copy_from_slice(&gid_vec[..16]);
+        // source_timestamp is excluded from RequestId Hash/Eq — 0 is the correct sentinel;
+        // the pending map lookup succeeds regardless of the original timestamp.
         let key = RequestId {
             sequence_number: sn,
             writer_guid: gid,

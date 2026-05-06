@@ -328,40 +328,6 @@ fn test_try_take_request_non_blocking() {
         .unwrap();
 }
 
-#[test]
-fn test_into_message_consumes_request() {
-    let ctx = ZContextBuilder::default()
-        .disable_multicast_scouting()
-        .with_json("connect/endpoints", json!([]))
-        .build()
-        .unwrap();
-
-    let node = ctx.create_node("into_msg_server").build().unwrap();
-    let mut server = node
-        .create_service::<AddTwoInts>("into_msg_add")
-        .build()
-        .unwrap();
-
-    let client_node = ctx.create_node("into_msg_client").build().unwrap();
-    let client = client_node
-        .create_client::<AddTwoInts>("into_msg_add")
-        .build()
-        .unwrap();
-
-    let rt = tokio::runtime::Runtime::new().unwrap();
-    rt.spawn(async move {
-        let _ = client
-            .call_with_timeout(&AddTwoIntsRequest { a: 5, b: 6 }, Duration::from_secs(2))
-            .await;
-    });
-
-    let request = server.take_request().unwrap();
-    assert_eq!(request.id().sequence_number, 1);
-    let msg = request.into_message();
-    assert_eq!(msg.a, 5);
-    assert_eq!(msg.b, 6);
-}
-
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_call_with_timeout_expires() {
     let ctx = ZContextBuilder::default()

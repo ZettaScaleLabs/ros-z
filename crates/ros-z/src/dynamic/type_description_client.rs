@@ -58,9 +58,13 @@ use crate::{Builder, ServiceTypeInfo};
 
 use super::{error::DynamicError, schema::MessageSchema};
 
-fn ros_type_name_from_dds(dds_name: &str) -> String {
-    dds_name
-        .replace("::msg::dds_::", "/msg/")
+/// Normalize DDS type name to ROS 2 canonical format.
+///
+/// Converts "std_msgs::msg::dds_::String_" to "std_msgs/msg/String"
+fn normalize_type_name(name: &str) -> String {
+    // Handle DDS legacy format: sensor_msgs::msg::dds_::LaserScan_ → sensor_msgs/msg/LaserScan
+    // Handle modern format:      sensor_msgs::msg::LaserScan → sensor_msgs/msg/LaserScan
+    name.replace("::msg::dds_::", "/msg/")
         .replace("::srv::dds_::", "/srv/")
         .replace("::action::dds_::", "/action/")
         .replace("::msg::", "/msg/")
@@ -83,7 +87,7 @@ fn topic_type_info_from_publishers(
         };
 
         return Ok((
-            ros_type_name_from_dds(&type_info.name),
+            normalize_type_name(&type_info.name),
             type_info.hash.to_rihs_string(),
         ));
     }
@@ -472,7 +476,7 @@ impl TypeDescriptionClient {
                         let mut schema = (*Self::response_to_schema(&response)?).clone();
                         // Normalize type_name from DDS format to ROS 2 slash format for
                         // internal use (rmw_zenoh_cpp returns the DDS name in the response).
-                        schema.type_name = ros_type_name_from_dds(&schema.type_name);
+                        schema.type_name = normalize_type_name(&schema.type_name);
                         return Ok((Arc::new(schema), type_hash.clone()));
                     }
                     Ok(response) => {

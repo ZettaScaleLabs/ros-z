@@ -529,7 +529,19 @@ pub struct ServiceReply<T: ZService> {
     key_expr: KeyExpr<'static>,
     query: Query,
     clock: crate::time::ZClock,
+    replied: bool,
     _phantom_data: PhantomData<T>,
+}
+
+impl<T: ZService> Drop for ServiceReply<T> {
+    fn drop(&mut self) {
+        if !self.replied {
+            tracing::warn!(
+                sn = self.request_id.sequence_number,
+                "ServiceReply dropped without sending a reply — client will wait until querier timeout"
+            );
+        }
+    }
 }
 
 impl<T: ZService> ServiceReply<T> {
@@ -537,7 +549,8 @@ impl<T: ZService> ServiceReply<T> {
         &self.request_id
     }
 
-    pub fn reply_blocking(self, msg: &T::Response) -> Result<()> {
+    pub fn reply_blocking(mut self, msg: &T::Response) -> Result<()> {
+        self.replied = true;
         let attachment = Attachment::with_clock(
             self.request_id.sequence_number,
             self.request_id.writer_guid,
@@ -549,7 +562,8 @@ impl<T: ZService> ServiceReply<T> {
             .wait()
     }
 
-    pub async fn reply(self, msg: &T::Response) -> Result<()> {
+    pub async fn reply(mut self, msg: &T::Response) -> Result<()> {
+        self.replied = true;
         let attachment = Attachment::with_clock(
             self.request_id.sequence_number,
             self.request_id.writer_guid,
@@ -575,10 +589,6 @@ impl<T: ZService> ServiceRequest<T> {
 
     pub fn message(&self) -> &T::Request {
         &self.message
-    }
-
-    pub fn into_message(self) -> T::Request {
-        self.message
     }
 
     pub fn into_parts(self) -> (T::Request, ServiceReply<T>) {
@@ -624,6 +634,7 @@ where
                 key_expr: self.key_expr.clone(),
                 query,
                 clock: self.clock.clone(),
+                replied: false,
                 _phantom_data: PhantomData,
             },
         })
@@ -670,6 +681,7 @@ where
             key_expr: self.key_expr.clone(),
             query,
             clock: self.clock.clone(),
+            replied: false,
             _phantom_data: PhantomData,
         };
         Ok(Some((payload_bytes, reply)))
