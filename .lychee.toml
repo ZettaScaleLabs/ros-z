@@ -19,4 +19,6 @@ exclude = [
     "github\\.com/.*/edit/",
     # Known rate-limited hosts
     "crates\\.io",
+    # Jinja2 template expressions in site/overrides/ — unprocessed by MkDocs during build
+    "%7B%7B",
 ]
