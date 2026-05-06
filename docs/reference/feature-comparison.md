@@ -34,9 +34,9 @@ ROS 2 (Zenoh) means `rmw_zenoh_cpp`: a drop-in RMW plugin that gives existing rc
 | Lifecycle nodes | ✅ | ✅ | ✅ |
 | Graph introspection | ✅ | ✅ | ✅ |
 | Executors / spin loop | ✅ | ✅ | ❌ pull model |
-| Waitsets / guard conditions | ✅ | ✅ | ❌ |
-| Composable / component nodes | ✅ | ✅ | ❌ |
-| Intra-process communication | ✅ | ✅ | ❌ |
+| Waitsets / guard conditions | ✅ | ✅ | in rmw-zenoh-rs |
+| Composable / component nodes | ✅ | ✅ | in rmw-zenoh-rs |
+| Intra-process communication | ✅ | ✅ | in rmw-zenoh-rs |
 | Clock API (`ZClock`, system + simulated) | ✅ | ✅ | ✅ |
 | Timers (`ZInterval`) | ✅ | ✅ | ✅ |
 | ROS 2 `/clock` topic (external sim time) | ✅ | ✅ | ❌ planned |
