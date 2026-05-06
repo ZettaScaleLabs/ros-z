@@ -1,0 +1,24 @@
+format = "compact"
+timeout = 30
+max_retries = 3
+
+# Treat redirects as success
+accept = [200, 204, 206, 301, 302, 307, 308, 429]
+
+exclude = [
+    # localhost endpoints used in code examples — not real URLs
+    "tcp/127\\.0\\.0\\.1",
+    "tcp/localhost",
+    "tcp/\\[::.*\\]",
+    "http://127\\.0\\.0\\.1",
+    # asciinema embeds — script src tags, not navigable links
+    "asciinema\\.org",
+    # GitHub release page anchors are dynamically generated and often 404 in CI
+    "github\\.com/.*/releases",
+    # MkDocs Material edit-page links injected at build time
+    "github\\.com/.*/edit/",
+    # Known rate-limited hosts
+    "crates\\.io",
+    # Jinja2 template expressions in site/overrides/ — unprocessed by MkDocs during build
+    "%7B%7B",
+]
