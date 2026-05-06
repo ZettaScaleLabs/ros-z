@@ -23,7 +23,8 @@ impl ros_z::msg::ZMessage for RobotStatus {
     type Serdes = ros_z::msg::SerdeCdrSerdes<RobotStatus>;
 }
 
-// Custom service request
+// Custom service request/response: use the `_Request`/`_Response` suffix in type_name.
+// There is no "action" kind — derive each action sub-message (Goal, Result, Feedback) directly.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, MessageTypeInfo)]
 #[ros_msg(type_name = "custom_msgs/srv/NavigateTo_Request")]
 pub struct NavigateToRequest {

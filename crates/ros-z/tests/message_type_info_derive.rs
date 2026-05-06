@@ -124,19 +124,20 @@ fn derive_generates_type_info_and_schema() {
         other => panic!("expected byte sequence field, got {:?}", other),
     }
 
-    let expected_hash = TypeHash::from_rihs_string(
-        &schema
+    if TypeHash::is_supported() {
+        let expected_rihs = schema
             .compute_type_hash()
             .expect("schema hash")
-            .to_rihs_string(),
-    )
-    .expect("valid entity type hash");
-
-    let reported_hash = RobotTelemetry::type_hash();
-    if TypeHash::zero().to_rihs_string() == "TypeHashNotSupported" {
-        assert_eq!(reported_hash, TypeHash::zero());
+            .to_rihs_string();
+        assert_eq!(RobotTelemetry::type_hash().to_rihs_string(), expected_rihs);
+        assert_eq!(
+            schema.type_hash.as_deref(),
+            Some(expected_rihs.as_str()),
+            "message_schema() must carry the computed type_hash"
+        );
     } else {
-        assert_eq!(reported_hash, expected_hash);
+        assert_eq!(RobotTelemetry::type_hash(), TypeHash::zero());
+        assert!(schema.type_hash.is_none());
     }
 }
 
@@ -188,9 +189,7 @@ async fn derived_message_schema_is_auto_registered_and_discoverable() {
     let subscriber = sub_node
         .create_dyn_sub_auto("/derived_topic", Duration::from_secs(10))
         .await
-        .expect("dynamic subscriber with auto-discovery")
-        .build()
-        .expect("subscriber build");
+        .expect("dynamic subscriber with auto-discovery");
     let discovered_schema = subscriber.schema().expect("discovered schema");
 
     assert_eq!(

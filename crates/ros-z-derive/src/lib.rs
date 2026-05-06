@@ -127,45 +127,40 @@ fn impl_message_type_info(input: &DeriveInput) -> syn::Result<TokenStream2> {
             }
 
             fn type_hash() -> ::ros_z::entity::TypeHash {
-                let zero = ::ros_z::entity::TypeHash::zero();
-                if zero.to_rihs_string() == "TypeHashNotSupported" {
-                    return zero;
+                if !::ros_z::entity::TypeHash::is_supported() {
+                    return ::ros_z::entity::TypeHash::zero();
                 }
 
-                static TYPE_HASH: ::std::sync::OnceLock<::ros_z::entity::TypeHash> =
-                    ::std::sync::OnceLock::new();
-
-                TYPE_HASH
-                    .get_or_init(|| {
-                        use ::ros_z::dynamic::MessageSchemaTypeDescription;
-
-                        let schema = Self::message_schema()
-                            .expect("derived message schema must be available");
-                        let rihs = schema
-                            .compute_type_hash()
-                            .expect("derived message schema must produce a type hash")
-                            .to_rihs_string();
-
-                        ::ros_z::entity::TypeHash::from_rihs_string(&rihs)
-                            .expect("derived message hash must be a valid RIHS01 string")
-                    })
-                    .clone()
+                Self::message_schema()
+                    .and_then(|s| s.type_hash.as_deref().map(str::to_owned))
+                    .and_then(|rihs| ::ros_z::entity::TypeHash::from_rihs_string(&rihs))
+                    .unwrap_or_else(|| ::ros_z::entity::TypeHash::zero())
             }
 
             fn message_schema() -> Option<::std::sync::Arc<::ros_z::dynamic::MessageSchema>> {
-                static SCHEMA: ::std::sync::OnceLock<::std::sync::Arc<::ros_z::dynamic::MessageSchema>> =
-                    ::std::sync::OnceLock::new();
+                static SCHEMA: ::std::sync::OnceLock<
+                    ::std::sync::Arc<::ros_z::dynamic::MessageSchema>,
+                > = ::std::sync::OnceLock::new();
 
                 Some(
                     SCHEMA
                         .get_or_init(|| {
-                            ::std::sync::Arc::new(::ros_z::dynamic::MessageSchema {
+                            let mut schema = ::ros_z::dynamic::MessageSchema {
                                 type_name: #type_name_lit.to_string(),
                                 package: #package_lit.to_string(),
                                 name: #message_name_lit.to_string(),
                                 fields: ::std::vec![#(#schema_fields),*],
                                 type_hash: None,
-                            })
+                            };
+
+                            if ::ros_z::entity::TypeHash::is_supported() {
+                                use ::ros_z::dynamic::MessageSchemaTypeDescription;
+                                if let Ok(hash) = schema.compute_type_hash() {
+                                    schema.type_hash = Some(hash.to_rihs_string());
+                                }
+                            }
+
+                            ::std::sync::Arc::new(schema)
                         })
                         .clone(),
                 )
@@ -397,14 +392,19 @@ fn parse_canonical_type_name(type_name: &str) -> syn::Result<(String, String, St
     }
 
     match parts[1] {
-        "msg" | "srv" | "action" => Ok((
+        "msg" | "srv" => Ok((
             parts[0].to_string(),
             parts[1].to_string(),
             parts[2].to_string(),
         )),
+        "action" => Err(syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "ros_msg type_name does not support \"action\" — derive each constituent message type \
+             directly (e.g. \"my_pkg/msg/MyAction_Goal\", \"my_pkg/msg/MyAction_Result\")",
+        )),
         _ => Err(syn::Error::new(
             proc_macro2::Span::call_site(),
-            "ros_msg type_name kind must be one of: msg, srv, action",
+            "ros_msg type_name kind must be one of: msg, srv",
         )),
     }
 }
