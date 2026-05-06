@@ -189,6 +189,9 @@ loop {
 - For a non-async context, use `publisher.publish(&msg)?` instead
 - Default QoS (Reliable, KeepLast 10) is fine for most use cases; see the [QoS section](#quality-of-service-qos) below for custom profiles
 
+!!! tip "Run it now"
+    Jump to [Complete Pub-Sub Workflow](#complete-pub-sub-workflow) below to see publisher and subscriber talking to each other with one command per terminal.
+
 ## Subscriber Example
 
 Receive and print every message on `/chatter`:

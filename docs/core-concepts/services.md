@@ -224,6 +224,9 @@ loop {
 - `key` is an opaque token that ties the response to the original request; you must pass it back with `send_response`
 - `service` must be `mut` because `take_request` takes `&mut self`
 
+!!! tip "Run it now"
+    Jump to [Complete Service Workflow](#complete-service-workflow) below to see server and client exchange requests with one command per terminal.
+
 ## Service Client Example
 
 A client that sends one addition request and prints the result:
