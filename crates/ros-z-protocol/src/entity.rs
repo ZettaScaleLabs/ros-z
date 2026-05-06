@@ -213,6 +213,11 @@ impl TypeHash {
         None
     }
 
+    /// Returns true when RIHS01 type hashing is available (not the case on ROS 2 Humble).
+    pub fn is_supported() -> bool {
+        cfg!(not(feature = "no-type-hash"))
+    }
+
     pub fn to_rihs_string(&self) -> String {
         #[cfg(feature = "no-type-hash")]
         {
