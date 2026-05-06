@@ -306,15 +306,15 @@ Both request and response use protobuf encoding:
 ### Server
 
 ```rust
-let service = node
+let mut service = node
     .create_service::<MyService>("/my_service")
     .with_serdes::<ProtobufSerdes<MyServiceRequest>, ProtobufSerdes<MyServiceResponse>>()
     .build()?;
 
 loop {
-    let (key, request) = service.take_request()?;
-    let response = process_request(&request);
-    service.send_response(&response, &key)?;
+    let req = service.take_request()?;
+    let response = process_request(req.message());
+    req.reply_blocking(&response)?;
 }
 ```
 
@@ -326,8 +326,7 @@ let client = node
     .with_serdes::<ProtobufSerdes<MyServiceRequest>, ProtobufSerdes<MyServiceResponse>>()
     .build()?;
 
-client.send_request(&request)?;
-let response = client.take_response()?;
+let response = client.call_with_timeout(&request, Duration::from_secs(5)).await?;
 ```
 
 ## Available ROS Messages

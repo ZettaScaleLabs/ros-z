@@ -1,7 +1,7 @@
 # Services
 
 !!! note "Go users"
-    The code examples in this chapter are **Rust**. The Go service API is callback-based, not pull-based — there is no `take_request()`. For Go service patterns and the typed service API, see the [Go Bindings](../bindings/go.md) chapter.
+    The code examples in this chapter are **Rust**. The Go service API is callback-based — handlers are registered instead of using `take_request()`. For Go service patterns and the typed service API, see the [Go Bindings](../bindings/go.md) chapter.
 
 **ros-z implements ROS 2's service pattern with type-safe request-response communication over Eclipse Zenoh.** This enables synchronous, point-to-point interactions between nodes using a pull-based model for full control over request processing.
 
@@ -179,12 +179,11 @@ accDescr: ZContextBuilder creates a ZContext that spawns both a client node and 
     B -->|create| D[Server Node]
     C -->|create_client| E[Service Client]
     D -->|create_service| F[Service Server]
-    E -->|send_request| G[Service Call]
+    E -->|call| G[Service Call]
     G -->|route| F
-    F -->|take_request| H[Request Handler]
-    H -->|send_response| G
+    F -->|take_request| H[ServiceRequest]
+    H -->|reply_blocking| G
     G -->|deliver| E
-    E -->|take_response| I[Response Handler]
 ```
 
 ## Key Features
@@ -194,7 +193,7 @@ accDescr: ZContextBuilder creates a ZContext that spawns both a client node and 
 | **Type Safety** | Strongly-typed service definitions with Rust structs | Compile-time error detection |
 | **Pull Model** | Explicit control over request processing timing | Predictable concurrency and backpressure |
 | **Async/Blocking** | Dual API for both paradigms | Flexible integration patterns |
-| **Request Tracking** | Key-based request/response matching | Reliable message correlation |
+| **Unified Request Object** | `ServiceRequest` carries message and reply method together | No dangling reply tokens |
 
 ## Service Server Example
 
@@ -207,7 +206,8 @@ A server that adds two integers. Full source: [`crates/ros-z/examples/demo_nodes
 **Key points:**
 
 - `take_request()` blocks until a request arrives — the pull model means you control timing
-- `key` is an opaque token that ties the response to the original request; you must pass it back with `send_response`
+- `req.message()` accesses the request fields (`req.message().a`, `req.message().b`)
+- `req.reply_blocking(&resp)` sends the response; the request object owns the reply channel
 - `service` must be `mut` because `take_request` takes `&mut self`
 - `max_requests: Option<usize>` lets tests stop the server after N requests; pass `None` for a perpetual server
 
@@ -224,9 +224,9 @@ A client that sends an addition request and prints the result. Full source: [`cr
 
 **Key points:**
 
-- `send_request` is `async` and must be `.await`ed
-- `take_response_timeout` waits up to the deadline; returns `Err` on timeout
-- If no server is running, the call times out rather than hanging forever
+- `call(&req).await` is the single-step async API — it sends the request and waits for the response
+- `call_with_timeout(&req, duration).await` enforces an explicit deadline; returns `Err` on timeout
+- If no server is running, the call blocks until Zenoh's query timeout fires (default: 10 minutes)
 
 ## Complete Service Workflow
 
@@ -279,13 +279,13 @@ let mut service = node
     .build()?;
 
 loop {
-    let (key, request) = service.take_request()?;
-    let response = process_request(&request);
-    service.send_response(&response, &key)?;
+    let req = service.take_request()?;
+    let response = process_request(req.message());
+    req.reply_blocking(&response)?;
 }
 ```
 
-Note: `take_request()` blocks until a request arrives. The server variable must be `mut` because `take_request` takes `&mut self`. The `key` returned is a `ros_z::service::QueryKey` — an opaque token that ties the response to the original request.
+`take_request()` blocks until a request arrives. The server variable must be `mut` because `take_request` takes `&mut self`. The returned `ServiceRequest` owns the reply channel — call `req.reply_blocking(&response)` to send the response. Access message fields via `req.message()`.
 
 ### Pattern 2: Async Request Handling
 
@@ -299,9 +299,9 @@ let mut service = node
     .build()?;
 
 loop {
-    let (key, request) = service.async_take_request().await?;
-    let response = async_process_request(&request).await;
-    service.send_response(&response, &key)?;
+    let req = service.async_take_request().await?;
+    let response = async_process_request(req.message()).await;
+    req.reply(&response).await?;
 }
 ```
 
@@ -316,17 +316,11 @@ loop {
 
 ## Service Client Patterns
 
-Service clients send requests to servers and receive responses. `send_request` is always async and must be `.await`ed. There are two patterns for receiving the response.
+Service clients use a single `call` method — send and receive in one await.
 
-!!! note
-    `send_request` is an `async fn` — it must be called with `.await` in an async context. Calling it without `.await` will not compile.
+### Pattern 1: Call with Timeout
 
-!!! note
-    `take_response()` returns **immediately** with `Err` if no response has arrived yet. Use `take_response_timeout(duration)` to wait up to a deadline or `async_take_response().await` in fully async code.
-
-### Pattern 1: Async Client with Timeout
-
-Best for: Simple request-response where you want to wait up to a fixed deadline
+Best for: Simple request-response where you want to fail fast on a slow or absent server
 
 ```rust
 use ros_z::Builder;
@@ -337,13 +331,12 @@ let client = node
     .build()?;
 
 let request = create_request();
-client.send_request(&request).await?;
-let response = client.take_response_timeout(Duration::from_secs(5))?;
+let response = client.call_with_timeout(&request, Duration::from_secs(5)).await?;
 ```
 
-### Pattern 2: Fully Async Client
+### Pattern 2: Call without Explicit Timeout
 
-Best for: Integration with async codebases or when using `tokio::select!`
+Best for: Integration with async codebases where you manage timeouts externally (e.g., `tokio::time::timeout`)
 
 ```rust
 use ros_z::Builder;
@@ -353,8 +346,7 @@ let client = node
     .build()?;
 
 let request = create_request();
-client.send_request(&request).await?;
-let response = client.async_take_response().await?;
+let response = client.call(&request).await?;
 ```
 
 !!! tip
@@ -392,25 +384,21 @@ ros2 service info /add_two_ints
 
 ### When the server is not running
 
-`send_request` dispatches the Zenoh query and resolves immediately — it does not wait for a reply. If no server listens, the query has no subscribers. `take_response()` will then return `Err("No sample available")`.
-
-Use `take_response_timeout(duration)` to wait for a bounded time:
+`call()` blocks until a response arrives or Zenoh's query timeout fires (default: 10 minutes). For explicit deadline control, use `call_with_timeout`:
 
 ```rust
-client.send_request(&request).await?;
-match client.take_response_timeout(Duration::from_secs(5)) {
+match client.call_with_timeout(&request, Duration::from_secs(5)).await {
     Ok(response) => println!("Got response: {:?}", response),
     Err(e) => eprintln!("Service not available or timed out: {}", e),
 }
 ```
 
-### Response methods compared
+### Client methods compared
 
 | Method | Behavior |
 |--------|----------|
-| `take_response()` | Returns immediately; `Err` if no response yet |
-| `take_response_timeout(duration)` | Waits up to `duration`; `Err` on timeout |
-| `async_take_response().await` | Waits indefinitely in async context |
+| `call(&req).await` | Waits for response; Zenoh query timeout applies (default: 10 min) |
+| `call_with_timeout(&req, duration).await` | Waits up to `duration`; `Err` on timeout |
 
 ## Resources
 

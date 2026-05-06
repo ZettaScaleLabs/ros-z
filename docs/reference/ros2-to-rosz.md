@@ -10,7 +10,7 @@ If you know rclcpp or rclpy, this table maps familiar concepts to their ros-z eq
 | `rclcpp::Publisher<T>` | `ZPub<T>` | `node.create_pub::<T>("topic").build()?` |
 | `rclcpp::Subscription<T>` | `ZSub<T>` | Three patterns: blocking `recv()`, async `async_recv()`, or callback via `build_with_callback()` |
 | `rclcpp::Service<T>` | `ZServer<T>` | Pull model — call `take_request()` when ready to handle |
-| `rclcpp::Client<T>` | `ZClient<T>` | `send_request()` then `take_response()` |
+| `rclcpp::Client<T>` | `ZClient<T>` | `call(&req).await` or `call_with_timeout(&req, duration).await` |
 | `rclcpp_action::Server<T>` | `ZActionServer<T>` | Uses `with_handler` closure receiving `ExecutingGoal<A>` |
 | `rclcpp_action::Client<T>` | `ZActionClient<T>` | `send_goal()` returns a `GoalHandle` |
 | `rclcpp::ParameterServer` | `ZParameterServer` | Auto-creates `ros2 param` compatible services |
