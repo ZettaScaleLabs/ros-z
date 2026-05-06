@@ -31,7 +31,7 @@ jobs:
 
       - name: Build MkDocs
         run: |
-          sed -i 's|^site_url:.*|site_url: /|' mkdocs.yml
+          sed -i 's|^site_url:.*|site_url: http://localhost/|' mkdocs.yml
           nix develop '.#pureRust-ci' -c mkdocs build --strict
         env:
           NIX_ACCEPT_FLAKE_CONFIG: 1
