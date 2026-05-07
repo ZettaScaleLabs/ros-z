@@ -15,8 +15,8 @@ use crate::{
         entity::DdsEntity,
         gid::Gid,
         names::{
-            dds_topic_to_ros2_name, dds_type_to_ros2_service_type, dds_type_to_ros2_type,
-            is_pubsub_topic, is_request_topic, ros2_name_to_zenoh_key,
+            dds_topic_to_ros2_name, dds_type_to_ros2_action_type, dds_type_to_ros2_service_type,
+            dds_type_to_ros2_type, is_pubsub_topic, is_request_topic, ros2_name_to_zenoh_key,
         },
         participant::create_participant,
     },
@@ -428,10 +428,15 @@ impl Bridge {
         let ros2_name = dds_topic_to_ros2_name(&endpoint.topic_name)
             .unwrap_or_else(|| endpoint.topic_name.clone());
         let zenoh_ke = ros2_name_to_zenoh_key(&ros2_name, self.config.namespace.as_deref());
+        let is_action = is_action_component(&ros2_name);
 
         let key = match kind {
             EntityKind::Publisher => {
-                let ros2_type = dds_type_to_ros2_type(&endpoint.type_name);
+                let ros2_type = if is_action {
+                    dds_type_to_ros2_action_type(&endpoint.type_name)
+                } else {
+                    dds_type_to_ros2_type(&endpoint.type_name)
+                };
                 build_pub_lv_key(
                     &self.zid,
                     &zenoh_ke,
@@ -441,7 +446,11 @@ impl Bridge {
                 )
             }
             EntityKind::Subscriber => {
-                let ros2_type = dds_type_to_ros2_type(&endpoint.type_name);
+                let ros2_type = if is_action {
+                    dds_type_to_ros2_action_type(&endpoint.type_name)
+                } else {
+                    dds_type_to_ros2_type(&endpoint.type_name)
+                };
                 build_sub_lv_key(
                     &self.zid,
                     &zenoh_ke,
@@ -451,11 +460,19 @@ impl Bridge {
                 )
             }
             EntityKind::ServiceServer => {
-                let ros2_type = dds_type_to_ros2_service_type(&endpoint.type_name);
+                let ros2_type = if is_action {
+                    dds_type_to_ros2_action_type(&endpoint.type_name)
+                } else {
+                    dds_type_to_ros2_service_type(&endpoint.type_name)
+                };
                 build_service_srv_lv_key(&self.zid, &zenoh_ke, &ros2_type)
             }
             EntityKind::ServiceClient => {
-                let ros2_type = dds_type_to_ros2_service_type(&endpoint.type_name);
+                let ros2_type = if is_action {
+                    dds_type_to_ros2_action_type(&endpoint.type_name)
+                } else {
+                    dds_type_to_ros2_service_type(&endpoint.type_name)
+                };
                 build_service_cli_lv_key(&self.zid, &zenoh_ke, &ros2_type)
             }
         };

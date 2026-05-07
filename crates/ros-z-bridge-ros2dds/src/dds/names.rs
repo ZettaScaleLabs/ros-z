@@ -68,6 +68,23 @@ pub fn dds_type_to_ros2_service_type(dds_type: &str) -> String {
     )
 }
 
+/// Strip the action-specific suffix and convert to a ROS 2 action type.
+///
+/// Mirrors `dds_type_to_ros2_action_type` from zenoh-plugin-ros2dds. Handles all
+/// five action component DDS type suffixes: `_SendGoal_{Request,Response}_`,
+/// `_GetResult_{Request,Response}_`, and `_FeedbackMessage_`.
+pub fn dds_type_to_ros2_action_type(dds_type: &str) -> String {
+    dds_type_to_ros2_type(
+        dds_type
+            .strip_suffix("_SendGoal_Request_")
+            .or(dds_type.strip_suffix("_SendGoal_Response_"))
+            .or(dds_type.strip_suffix("_GetResult_Request_"))
+            .or(dds_type.strip_suffix("_GetResult_Response_"))
+            .or(dds_type.strip_suffix("_FeedbackMessage_"))
+            .unwrap_or(dds_type),
+    )
+}
+
 /// True if the DDS request topic is an action `get_result` channel.
 ///
 /// Action get_result calls can block for hundreds of seconds while the goal executes.
@@ -143,6 +160,53 @@ mod tests {
         assert_eq!(
             dds_type_to_ros2_service_type("example_interfaces::srv::dds_::AddTwoInts_Request_"),
             "example_interfaces/srv/AddTwoInts"
+        );
+        assert_eq!(
+            dds_type_to_ros2_service_type("example_interfaces::srv::dds_::AddTwoInts_Response_"),
+            "example_interfaces/srv/AddTwoInts"
+        );
+        assert_eq!(
+            dds_type_to_ros2_type("geometry_msgs::msg::dds_::Twist_"),
+            "geometry_msgs/msg/Twist"
+        );
+        assert_eq!(
+            ros2_type_to_dds_type("geometry_msgs/msg/Twist"),
+            "geometry_msgs::msg::dds_::Twist_"
+        );
+    }
+
+    #[test]
+    fn test_action_type_conversions() {
+        let base = "example_interfaces/action/Fibonacci";
+        assert_eq!(
+            dds_type_to_ros2_action_type(
+                "example_interfaces::action::dds_::Fibonacci_SendGoal_Request_"
+            ),
+            base
+        );
+        assert_eq!(
+            dds_type_to_ros2_action_type(
+                "example_interfaces::action::dds_::Fibonacci_SendGoal_Response_"
+            ),
+            base
+        );
+        assert_eq!(
+            dds_type_to_ros2_action_type(
+                "example_interfaces::action::dds_::Fibonacci_GetResult_Request_"
+            ),
+            base
+        );
+        assert_eq!(
+            dds_type_to_ros2_action_type(
+                "example_interfaces::action::dds_::Fibonacci_GetResult_Response_"
+            ),
+            base
+        );
+        assert_eq!(
+            dds_type_to_ros2_action_type(
+                "example_interfaces::action::dds_::Fibonacci_FeedbackMessage_"
+            ),
+            base
         );
     }
 
