@@ -1,222 +1,307 @@
-/// Liveliness token key builder for the ros2dds bridge.
+/// Liveliness token key builders matching the zenoh-plugin-ros2dds wire format.
 ///
-/// Tokens follow the ros-z liveliness format so that `ros2 node list`,
-/// `ros2 topic list`, and `ros2 service list` see bridged entities.
+/// The plugin uses the following key expression templates:
+/// ```text
+/// pub:  @/{zenoh_id}/@ros2_lv/MP/{ke}/{typ}/{qos_ke}
+/// sub:  @/{zenoh_id}/@ros2_lv/MS/{ke}/{typ}/{qos_ke}
+/// srv:  @/{zenoh_id}/@ros2_lv/SS/{ke}/{typ}
+/// cli:  @/{zenoh_id}/@ros2_lv/SC/{ke}/{typ}
+/// ```
 ///
-/// Key format (from ros-z-protocol):
-/// Node:   `@ros2_lv/{domain_id}/{zid}/{node_id}/{node_id}/NN/%/{ns}/{name}`
-/// Entity: `@ros2_lv/{domain_id}/{zid}/{node_id}/{entity_id}/{kind}/%/{ns}/{node_name}/{topic}/{type}/{hash}/{qos}`
+/// Where:
+/// - `zenoh_id` — Zenoh session ID
+/// - `ke` — Zenoh key expression with `/` replaced by `§`
+/// - `typ` — ROS 2 type string with `/` replaced by `§`
+/// - `qos_ke` — QoS encoded as `{keyless}:{reliability}:{durability}:{kind},{depth}[:{user_data}]`
+///
+/// References: zenoh-plugin-ros2dds `liveliness_mgt.rs`
+use std::fmt::Write as _;
 
-const LIVELINESS_PREFIX: &str = "@ros2_lv";
+use cyclors::qos::Qos;
 
-/// Type hash placeholder: bridge does not compute RIHS01 type hashes.
-const PLACEHOLDER_HASH: &str =
-    "RIHS01_0000000000000000000000000000000000000000000000000000000000000000";
+/// Slash replacement used inside liveliness key segments.
+///
+/// The plugin uses `§` (U+00A7) to embed path-like strings (type names, key
+/// expressions) inside a single Zenoh key-expression segment without breaking
+/// the `/`-separated structure of the key.
+const SLASH_REPLACEMENT: &str = "§";
 
-/// Entity kind tag used in the liveliness key.
-#[derive(Clone, Copy, Debug)]
-pub enum EntityKind {
-    Publisher,
-    Subscriber,
-    ServiceServer,
-    ServiceClient,
+/// Replace `/` with `§` so that a path-like string can be embedded as one
+/// Zenoh key-expression segment.
+fn escape_slashes(s: &str) -> String {
+    s.replace('/', SLASH_REPLACEMENT)
 }
 
-impl EntityKind {
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::Publisher => "MP",
-            Self::Subscriber => "MS",
-            Self::ServiceServer => "SS",
-            Self::ServiceClient => "SC",
+/// Encode DDS QoS as the key-expression suffix used in pub/sub liveliness tokens.
+///
+/// Format (matches zenoh-plugin-ros2dds `qos_to_key_expr`):
+/// `{keyless}:{reliability}:{durability}:{history_kind},{history_depth}[:{user_data}]`
+///
+/// - `keyless` — empty when the topic is keyless; `"K"` when it has key fields
+/// - Each QoS field is omitted (empty string) when absent; present fields are
+///   encoded as their integer enum discriminant
+/// - `user_data` — appended when non-empty (carries the type hash on Jazzy+)
+pub fn qos_to_lv_str(keyless: bool, qos: &Qos) -> String {
+    let mut w = String::new();
+    if !keyless {
+        w.push('K');
+    }
+    w.push(':');
+    if let Some(r) = &qos.reliability {
+        write!(w, "{}", r.kind as i32).unwrap();
+    }
+    w.push(':');
+    if let Some(d) = &qos.durability {
+        write!(w, "{}", d.kind as i32).unwrap();
+    }
+    w.push(':');
+    if let Some(h) = &qos.history {
+        write!(w, "{},{}", h.kind as i32, h.depth).unwrap();
+    }
+    if let Some(ud) = &qos.user_data {
+        if !ud.is_empty() {
+            write!(w, ":{}", String::from_utf8_lossy(ud)).unwrap();
         }
     }
+    w
 }
 
-/// Build a node-level liveliness key for the virtual bridge node.
+/// Build the liveliness key for a DDS→Zenoh publisher route.
 ///
-/// `ns`   — node namespace (e.g. `/` or `/my_ns`)
-/// `name` — node name (e.g. `ros_z_bridge`)
-///
-/// The enclave is always `%` (empty after mangle) per the ros-z-protocol spec.
-/// The node_id appears twice: once as the node counter and once as the entity counter,
-/// matching the `NN` (node announcement) kind used by ros-z-protocol.
-pub fn build_node_lv_key(domain_id: u32, zid: &str, node_id: u64, ns: &str, name: &str) -> String {
-    let ns_seg = encode_segment(ns);
-    format!("{LIVELINESS_PREFIX}/{domain_id}/{zid}/{node_id}/{node_id}/NN/%/{ns_seg}/{name}")
-}
-
-/// Build a per-entity liveliness key (publisher, subscriber, service, …).
-///
-/// The enclave is always `%` per the ros-z-protocol spec.
-pub fn build_entity_lv_key(
-    domain_id: u32,
+/// `zenoh_ke` — the Zenoh key expression (e.g. `chatter` or `robot/chatter`)
+/// `ros2_type` — the ROS 2 message type (e.g. `std_msgs/msg/String`)
+pub fn build_pub_lv_key(
     zid: &str,
-    node_id: u64,
-    entity_id: u64,
-    kind: EntityKind,
-    ns: &str,
-    node_name: &str,
-    topic: &str,
+    zenoh_ke: &str,
     ros2_type: &str,
-    qos_str: &str,
+    keyless: bool,
+    qos: &Qos,
 ) -> String {
-    let ns_seg = encode_segment(ns);
-    let topic_seg = encode_segment(topic);
-    let type_seg = encode_segment(ros2_type);
     format!(
-        "{LIVELINESS_PREFIX}/{domain_id}/{zid}/{node_id}/{entity_id}/{kind}/%/{ns_seg}/{node_name}/{topic_seg}/{type_seg}/{PLACEHOLDER_HASH}/{qos_str}",
-        kind = kind.as_str(),
+        "@/{zid}/@ros2_lv/MP/{ke}/{typ}/{qos_ke}",
+        ke = escape_slashes(zenoh_ke),
+        typ = escape_slashes(ros2_type),
+        qos_ke = qos_to_lv_str(keyless, qos),
     )
 }
 
-/// Encode a path-like segment for use in a liveliness key:
-/// strips leading slashes and replaces interior slashes with `%`.
-fn encode_segment(s: &str) -> String {
-    s.trim_start_matches('/').replace('/', "%")
+/// Build the liveliness key for a Zenoh→DDS subscriber route.
+pub fn build_sub_lv_key(
+    zid: &str,
+    zenoh_ke: &str,
+    ros2_type: &str,
+    keyless: bool,
+    qos: &Qos,
+) -> String {
+    format!(
+        "@/{zid}/@ros2_lv/MS/{ke}/{typ}/{qos_ke}",
+        ke = escape_slashes(zenoh_ke),
+        typ = escape_slashes(ros2_type),
+        qos_ke = qos_to_lv_str(keyless, qos),
+    )
+}
+
+/// Build the liveliness key for a DDS service server → Zenoh queryable route.
+pub fn build_service_srv_lv_key(zid: &str, zenoh_ke: &str, ros2_type: &str) -> String {
+    format!(
+        "@/{zid}/@ros2_lv/SS/{ke}/{typ}",
+        ke = escape_slashes(zenoh_ke),
+        typ = escape_slashes(ros2_type),
+    )
+}
+
+/// Build the liveliness key for a DDS service client → Zenoh querier route.
+pub fn build_service_cli_lv_key(zid: &str, zenoh_ke: &str, ros2_type: &str) -> String {
+    format!(
+        "@/{zid}/@ros2_lv/SC/{ke}/{typ}",
+        ke = escape_slashes(zenoh_ke),
+        typ = escape_slashes(ros2_type),
+    )
 }
 
 #[cfg(test)]
 mod tests {
+    use cyclors::qos::{
+        DDS_INFINITE_TIME, Durability, DurabilityKind, History, HistoryKind, Qos, Reliability,
+        ReliabilityKind,
+    };
+
     use super::*;
 
-    #[test]
-    fn test_lv_key_node_format() {
-        let key = build_node_lv_key(0, "abc123", 1, "/", "ros_z_bridge");
-        assert!(key.starts_with("@ros2_lv/0/abc123/1/1/NN/"));
-        assert!(key.contains("ros_z_bridge"));
-    }
-
-    #[test]
-    fn test_lv_key_node_enclave_is_percent() {
-        let key = build_node_lv_key(0, "abc123", 1, "/", "ros_z_bridge");
-        // Enclave is always '%'
-        assert!(key.contains("/NN/%/"), "enclave should be '%': {key}");
-    }
-
-    #[test]
-    fn test_lv_key_publisher_kind_is_mp() {
-        let key = build_entity_lv_key(
-            0,
-            "abc123",
-            1,
-            42,
-            EntityKind::Publisher,
-            "/",
-            "ros_z_bridge",
-            "/chatter",
-            "std_msgs/msg/String",
-            "be",
-        );
-        assert!(key.starts_with("@ros2_lv/0/abc123/1/42/MP/"));
-        assert!(key.contains("chatter"));
-        assert!(key.contains("std_msgs%msg%String"));
-        assert!(key.contains(PLACEHOLDER_HASH));
-    }
-
-    #[test]
-    fn test_lv_key_publisher_enclave_is_percent() {
-        let key = build_entity_lv_key(
-            0,
-            "abc123",
-            1,
-            42,
-            EntityKind::Publisher,
-            "/",
-            "ros_z_bridge",
-            "/chatter",
-            "std_msgs/msg/String",
-            "be",
-        );
-        assert!(key.contains("/MP/%/"), "enclave should be '%': {key}");
-    }
-
-    #[test]
-    fn test_lv_key_subscriber_kind_is_ms() {
-        let key = build_entity_lv_key(
-            42,
-            "zid0",
-            2,
-            7,
-            EntityKind::Subscriber,
-            "/",
-            "ros_z_bridge",
-            "/chatter",
-            "std_msgs/msg/String",
-            "be",
-        );
-        assert!(key.contains("/MS/"));
-    }
-
-    #[test]
-    fn test_lv_key_service_server_kind_is_ss() {
-        let key = build_entity_lv_key(
-            0,
-            "zid0",
-            1,
-            3,
-            EntityKind::ServiceServer,
-            "/",
-            "ros_z_bridge",
-            "/add_two_ints",
-            "example_interfaces/srv/AddTwoInts",
-            "re",
-        );
-        assert!(key.contains("/SS/"));
-    }
-
-    #[test]
-    fn test_lv_key_service_client_kind_is_sc() {
-        let key = build_entity_lv_key(
-            0,
-            "zid0",
-            1,
-            4,
-            EntityKind::ServiceClient,
-            "/",
-            "ros_z_bridge",
-            "/add_two_ints",
-            "example_interfaces/srv/AddTwoInts",
-            "re",
-        );
-        assert!(key.contains("/SC/"));
-    }
-
-    #[test]
-    fn test_lv_key_strips_leading_slash_from_ns_and_topic() {
-        let key = build_entity_lv_key(
-            0,
-            "z",
-            1,
-            1,
-            EntityKind::Publisher,
-            "/my_ns",
-            "bridge",
-            "/chatter",
-            "std_msgs/msg/String",
-            "be",
-        );
-        // Leading slashes stripped; inner slashes replaced by %
-        assert!(key.contains("my_ns"));
-        assert!(key.contains("chatter"));
-        // No raw slash in encoded segments (beyond the key separators)
-        let after_prefix = key.trim_start_matches("@ros2_lv/");
-        for seg in after_prefix.split('/') {
-            assert!(!seg.starts_with('/'), "segment starts with slash: {seg}");
+    fn qos_reliable_transient_local(depth: i32) -> Qos {
+        Qos {
+            reliability: Some(Reliability {
+                kind: ReliabilityKind::RELIABLE,
+                max_blocking_time: DDS_INFINITE_TIME,
+            }),
+            durability: Some(Durability {
+                kind: DurabilityKind::TRANSIENT_LOCAL,
+            }),
+            history: Some(History {
+                kind: HistoryKind::KEEP_LAST,
+                depth,
+            }),
+            ..Default::default()
         }
     }
 
+    // ── escape_slashes ────────────────────────────────────────────────────────
+
     #[test]
-    fn test_lv_key_root_namespace() {
-        let key = build_node_lv_key(0, "z", 1, "/", "bridge");
-        // Root ns "/" encodes to "" (empty after stripping leading slash)
-        assert!(key.contains("/bridge"), "node name should appear after ns");
+    fn test_escape_no_slashes() {
+        assert_eq!(escape_slashes("chatter"), "chatter");
     }
 
     #[test]
-    fn test_encode_segment_strips_leading_slash() {
-        assert_eq!(encode_segment("/chatter"), "chatter");
-        assert_eq!(encode_segment("/my_ns/sub"), "my_ns%sub");
-        assert_eq!(encode_segment("/"), "");
+    fn test_escape_single_slash() {
+        assert_eq!(escape_slashes("my_robot/chatter"), "my_robot§chatter");
+    }
+
+    #[test]
+    fn test_escape_type_slashes() {
+        assert_eq!(escape_slashes("std_msgs/msg/String"), "std_msgs§msg§String");
+    }
+
+    // ── qos_to_lv_str ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_qos_lv_str_empty_qos() {
+        // No fields set, keyless → ":::"
+        assert_eq!(qos_to_lv_str(true, &Qos::default()), ":::");
+    }
+
+    #[test]
+    fn test_qos_lv_str_keyed() {
+        // !keyless → "K" prefix
+        assert_eq!(qos_to_lv_str(false, &Qos::default()), "K:::");
+    }
+
+    #[test]
+    fn test_qos_lv_str_reliable() {
+        let qos = Qos {
+            reliability: Some(Reliability {
+                kind: ReliabilityKind::RELIABLE,
+                max_blocking_time: DDS_INFINITE_TIME,
+            }),
+            ..Default::default()
+        };
+        // format: ":reliable_int::"
+        let s = qos_to_lv_str(true, &qos);
+        assert_eq!(s, format!(":{}::", ReliabilityKind::RELIABLE as i32));
+    }
+
+    #[test]
+    fn test_qos_lv_str_transient_local() {
+        let qos = Qos {
+            durability: Some(Durability {
+                kind: DurabilityKind::TRANSIENT_LOCAL,
+            }),
+            ..Default::default()
+        };
+        let s = qos_to_lv_str(true, &qos);
+        assert_eq!(s, format!("::{}:", DurabilityKind::TRANSIENT_LOCAL as i32));
+    }
+
+    #[test]
+    fn test_qos_lv_str_keep_last() {
+        let qos = Qos {
+            history: Some(History {
+                kind: HistoryKind::KEEP_LAST,
+                depth: 3,
+            }),
+            ..Default::default()
+        };
+        let s = qos_to_lv_str(true, &qos);
+        assert_eq!(s, format!(":::{},3", HistoryKind::KEEP_LAST as i32));
+    }
+
+    #[test]
+    fn test_qos_lv_str_full_reliable_transient() {
+        let qos = qos_reliable_transient_local(10);
+        let s = qos_to_lv_str(true, &qos);
+        assert!(s.contains(&format!("{}", ReliabilityKind::RELIABLE as i32)));
+        assert!(s.contains(&format!("{}", DurabilityKind::TRANSIENT_LOCAL as i32)));
+        assert!(s.contains(&format!("{},10", HistoryKind::KEEP_LAST as i32)));
+    }
+
+    #[test]
+    fn test_qos_lv_str_user_data_appended() {
+        let qos = Qos {
+            user_data: Some(b"typehash=RIHS01_abc;".to_vec()),
+            ..Default::default()
+        };
+        let s = qos_to_lv_str(true, &qos);
+        assert!(s.ends_with(":typehash=RIHS01_abc;"), "got: {s}");
+    }
+
+    #[test]
+    fn test_qos_lv_str_empty_user_data_omitted() {
+        let qos = Qos {
+            user_data: Some(vec![]),
+            ..Default::default()
+        };
+        assert_eq!(qos_to_lv_str(true, &qos), ":::");
+    }
+
+    // ── key builders ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_pub_lv_key_format() {
+        let key = build_pub_lv_key(
+            "myzid",
+            "chatter",
+            "std_msgs/msg/String",
+            true,
+            &Qos::default(),
+        );
+        assert!(key.starts_with("@/myzid/@ros2_lv/MP/"));
+        assert!(key.contains("chatter"));
+        assert!(key.contains("std_msgs§msg§String"));
+    }
+
+    #[test]
+    fn test_sub_lv_key_format() {
+        let key = build_sub_lv_key(
+            "myzid",
+            "chatter",
+            "std_msgs/msg/String",
+            true,
+            &Qos::default(),
+        );
+        assert!(key.starts_with("@/myzid/@ros2_lv/MS/"));
+        assert!(key.contains("chatter"));
+    }
+
+    #[test]
+    fn test_service_srv_lv_key_no_qos_suffix() {
+        let key =
+            build_service_srv_lv_key("myzid", "add_two_ints", "example_interfaces/srv/AddTwoInts");
+        assert!(key.starts_with("@/myzid/@ros2_lv/SS/"));
+        assert!(key.contains("example_interfaces§srv§AddTwoInts"));
+        // Services have no QoS segment
+        assert_eq!(
+            key,
+            "@/myzid/@ros2_lv/SS/add_two_ints/example_interfaces§srv§AddTwoInts"
+        );
+    }
+
+    #[test]
+    fn test_service_cli_lv_key() {
+        let key =
+            build_service_cli_lv_key("myzid", "add_two_ints", "example_interfaces/srv/AddTwoInts");
+        assert!(key.starts_with("@/myzid/@ros2_lv/SC/"));
+    }
+
+    #[test]
+    fn test_ke_slashes_escaped_in_pub_key() {
+        // Namespaced topic: zenoh_ke has a slash → must be escaped
+        let key = build_pub_lv_key(
+            "z",
+            "robot/chatter",
+            "std_msgs/msg/String",
+            true,
+            &Qos::default(),
+        );
+        assert!(key.contains("robot§chatter"), "got: {key}");
     }
 }

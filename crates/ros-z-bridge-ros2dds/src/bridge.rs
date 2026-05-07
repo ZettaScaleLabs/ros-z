@@ -16,12 +16,13 @@ use crate::{
         gid::Gid,
         names::{
             dds_topic_to_ros2_name, dds_type_to_ros2_service_type, dds_type_to_ros2_type,
-            is_pubsub_topic, is_request_topic,
+            is_pubsub_topic, is_request_topic, ros2_name_to_zenoh_key,
         },
         participant::create_participant,
-        qos::is_reliable,
     },
-    liveliness::{EntityKind, build_entity_lv_key, build_node_lv_key},
+    liveliness::{
+        build_pub_lv_key, build_service_cli_lv_key, build_service_srv_lv_key, build_sub_lv_key,
+    },
     routes::{
         action::is_action_component,
         pubsub::{DdsToZenohRoute, TopicPublisherSlot, ZenohToDdsRoute},
@@ -63,6 +64,13 @@ impl Filter {
     }
 }
 
+enum EntityKind {
+    Publisher,
+    Subscriber,
+    ServiceServer,
+    ServiceClient,
+}
+
 /// Top-level bridge state.
 ///
 /// Holds all active routes keyed by (domain_id, DDS endpoint GID).
@@ -97,12 +105,6 @@ pub struct Bridge {
     // ── Liveliness ────────────────────────────────────────────────────────────
     /// Zenoh session ID string, used as a key component in liveliness tokens.
     zid: String,
-    /// Virtual bridge node id (fixed at 1; unique within this session via zid).
-    node_id: u64,
-    /// Monotonic counter for assigning unique entity_ids to liveliness tokens.
-    entity_counter: u64,
-    /// One node-level liveliness token per bridged domain (kept alive for session).
-    _node_lv_tokens: Vec<LivelinessToken>,
     /// Per-route entity liveliness tokens; removed (and thus undeclared) with their routes.
     entity_lv_tokens: HashMap<(u32, Gid), LivelinessToken>,
 }
@@ -161,21 +163,7 @@ impl Bridge {
             config.deny_action.as_deref().or(config.deny.as_deref()),
         )?;
 
-        // G5: declare one node-level liveliness token per bridged domain so that
-        // `ros2 node list` sees the bridge as a virtual ROS 2 node.
         let zid = session.info().zid().await.to_string();
-        let node_id = 1u64;
-        let ns = config.namespace.as_deref().unwrap_or("/");
-        let mut node_lv_tokens = Vec::new();
-        for &did in &config.domain_ids {
-            let key = build_node_lv_key(did, &zid, node_id, ns, "ros_z_bridge");
-            match session.liveliness().declare_token(key).await {
-                Ok(token) => node_lv_tokens.push(token),
-                Err(e) => {
-                    tracing::warn!("Failed to declare node liveliness token (domain={did}): {e}")
-                }
-            }
-        }
 
         Ok(Self {
             config,
@@ -193,9 +181,6 @@ impl Bridge {
             filter_service_cli,
             filter_action,
             zid,
-            node_id,
-            entity_counter: 0,
-            _node_lv_tokens: node_lv_tokens,
             entity_lv_tokens: HashMap::new(),
         })
     }
@@ -430,46 +415,51 @@ impl Bridge {
             .unwrap_or_else(|| self.participants[0].1.raw())
     }
 
-    /// Allocate the next entity_id and declare a per-route liveliness token.
+    /// Declare a per-route liveliness token matching the zenoh-plugin-ros2dds wire format.
     ///
     /// Failures are non-fatal: a warning is logged and `None` is returned so the
     /// caller can still store the route even when Zenoh liveliness is unavailable.
     async fn declare_entity_token(
         &mut self,
-        domain_id: u32,
+        _domain_id: u32,
         endpoint: &DiscoveredEndpoint,
         kind: EntityKind,
     ) -> Option<LivelinessToken> {
-        self.entity_counter += 1;
-        let entity_id = self.entity_counter;
-        let ns = self.config.namespace.as_deref().unwrap_or("/");
         let ros2_name = dds_topic_to_ros2_name(&endpoint.topic_name)
             .unwrap_or_else(|| endpoint.topic_name.clone());
-        let ros2_type = match kind {
-            EntityKind::Publisher | EntityKind::Subscriber => {
-                dds_type_to_ros2_type(&endpoint.type_name)
+        let zenoh_ke = ros2_name_to_zenoh_key(&ros2_name, self.config.namespace.as_deref());
+
+        let key = match kind {
+            EntityKind::Publisher => {
+                let ros2_type = dds_type_to_ros2_type(&endpoint.type_name);
+                build_pub_lv_key(
+                    &self.zid,
+                    &zenoh_ke,
+                    &ros2_type,
+                    endpoint.keyless,
+                    &endpoint.qos,
+                )
             }
-            EntityKind::ServiceServer | EntityKind::ServiceClient => {
-                dds_type_to_ros2_service_type(&endpoint.type_name)
+            EntityKind::Subscriber => {
+                let ros2_type = dds_type_to_ros2_type(&endpoint.type_name);
+                build_sub_lv_key(
+                    &self.zid,
+                    &zenoh_ke,
+                    &ros2_type,
+                    endpoint.keyless,
+                    &endpoint.qos,
+                )
+            }
+            EntityKind::ServiceServer => {
+                let ros2_type = dds_type_to_ros2_service_type(&endpoint.type_name);
+                build_service_srv_lv_key(&self.zid, &zenoh_ke, &ros2_type)
+            }
+            EntityKind::ServiceClient => {
+                let ros2_type = dds_type_to_ros2_service_type(&endpoint.type_name);
+                build_service_cli_lv_key(&self.zid, &zenoh_ke, &ros2_type)
             }
         };
-        let qos_str = if is_reliable(&endpoint.qos) {
-            "re"
-        } else {
-            "be"
-        };
-        let key = build_entity_lv_key(
-            domain_id,
-            &self.zid,
-            self.node_id,
-            entity_id,
-            kind,
-            ns,
-            "ros_z_bridge",
-            &ros2_name,
-            &ros2_type,
-            qos_str,
-        );
+
         match self.session.liveliness().declare_token(key).await {
             Ok(token) => Some(token),
             Err(e) => {
@@ -643,103 +633,37 @@ mod tests {
     }
 
     #[test]
-    fn test_entity_counter_increments_per_entity() {
-        // Simulates the entity_counter logic: each route gets a unique entity_id.
-        let mut counter = 0u64;
-        let id1 = {
-            counter += 1;
-            counter
-        };
-        let id2 = {
-            counter += 1;
-            counter
-        };
-        let id3 = {
-            counter += 1;
-            counter
-        };
-        assert_eq!((id1, id2, id3), (1, 2, 3));
-    }
-
-    #[test]
-    fn test_node_lv_key_contains_domain_and_node_name() {
-        use crate::liveliness::build_node_lv_key;
-        let key = build_node_lv_key(42, "myzid", 1, "/", "ros_z_bridge");
-        assert!(key.starts_with("@ros2_lv/42/myzid/"));
-        assert!(key.contains("ros_z_bridge"));
-        assert!(key.contains("/NN/%/"));
-    }
-
-    #[test]
     fn test_entity_lv_key_publisher_mp() {
-        use crate::liveliness::{EntityKind, build_entity_lv_key};
-        let key = build_entity_lv_key(
-            0,
-            "z",
-            1,
-            1,
-            EntityKind::Publisher,
-            "/",
-            "ros_z_bridge",
-            "/chatter",
-            "std_msgs/msg/String",
-            "be",
-        );
-        assert!(key.contains("/MP/"));
-        assert!(key.ends_with("/be"));
+        use crate::liveliness::build_pub_lv_key;
+        use cyclors::qos::Qos;
+        let key = build_pub_lv_key("z", "chatter", "std_msgs/msg/String", true, &Qos::default());
+        assert!(key.starts_with("@/z/@ros2_lv/MP/"));
+        assert!(key.contains("chatter"));
+        assert!(key.contains("std_msgs§msg§String"));
     }
 
     #[test]
     fn test_entity_lv_key_subscriber_ms() {
-        use crate::liveliness::{EntityKind, build_entity_lv_key};
-        let key = build_entity_lv_key(
-            0,
-            "z",
-            1,
-            2,
-            EntityKind::Subscriber,
-            "/",
-            "ros_z_bridge",
-            "/chatter",
-            "std_msgs/msg/String",
-            "re",
-        );
-        assert!(key.contains("/MS/"));
+        use crate::liveliness::build_sub_lv_key;
+        use cyclors::qos::Qos;
+        let key = build_sub_lv_key("z", "chatter", "std_msgs/msg/String", true, &Qos::default());
+        assert!(key.starts_with("@/z/@ros2_lv/MS/"));
     }
 
     #[test]
     fn test_entity_lv_key_service_server_ss() {
-        use crate::liveliness::{EntityKind, build_entity_lv_key};
-        let key = build_entity_lv_key(
-            0,
-            "z",
-            1,
-            3,
-            EntityKind::ServiceServer,
-            "/",
-            "ros_z_bridge",
-            "/add_two_ints",
-            "example_interfaces/srv/AddTwoInts",
-            "re",
-        );
-        assert!(key.contains("/SS/"));
+        use crate::liveliness::build_service_srv_lv_key;
+        let key =
+            build_service_srv_lv_key("z", "add_two_ints", "example_interfaces/srv/AddTwoInts");
+        assert!(key.starts_with("@/z/@ros2_lv/SS/"));
+        assert!(key.contains("example_interfaces§srv§AddTwoInts"));
     }
 
     #[test]
     fn test_entity_lv_key_service_client_sc() {
-        use crate::liveliness::{EntityKind, build_entity_lv_key};
-        let key = build_entity_lv_key(
-            0,
-            "z",
-            1,
-            4,
-            EntityKind::ServiceClient,
-            "/",
-            "ros_z_bridge",
-            "/add_two_ints",
-            "example_interfaces/srv/AddTwoInts",
-            "re",
-        );
-        assert!(key.contains("/SC/"));
+        use crate::liveliness::build_service_cli_lv_key;
+        let key =
+            build_service_cli_lv_key("z", "add_two_ints", "example_interfaces/srv/AddTwoInts");
+        assert!(key.starts_with("@/z/@ros2_lv/SC/"));
     }
 }
