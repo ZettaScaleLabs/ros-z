@@ -18,6 +18,15 @@ use crate::dds::{
 };
 
 const CDR_HEADER_LE: [u8; 4] = [0, 1, 0, 0];
+const CDR_HEADER_BE: [u8; 4] = [0, 0, 0, 0];
+
+fn cdr_header_matching(payload: &[u8]) -> [u8; 4] {
+    if payload.get(1).copied().unwrap_or(1) == 1 {
+        CDR_HEADER_LE
+    } else {
+        CDR_HEADER_BE
+    }
+}
 
 /// Regular service calls must complete within this timeout.
 const SERVICE_TIMEOUT_SECS: u64 = 10;
@@ -114,7 +123,15 @@ impl ServiceCliRoute {
         tokio::spawn(async move {
             while let Ok(req) = rx.recv_async().await {
                 let zbytes: ZBytes = req.payload.into();
-                let replies = match querier.get().payload(zbytes).await {
+                // Attach the original 16-byte DDS request header (client_guid + seq_num)
+                // so that a remote zenoh-plugin-ros2dds queryable can forward it verbatim
+                // to the DDS server, enabling correct reply routing without guid translation.
+                let replies = match querier
+                    .get()
+                    .payload(zbytes)
+                    .attachment(req.hdr.to_vec())
+                    .await
+                {
                     Ok(r) => r,
                     Err(e) => {
                         tracing::warn!("Zenoh get() failed: {e}");
@@ -131,14 +148,14 @@ impl ServiceCliRoute {
                         }
                     };
 
-                    // Build DDS reply: CDR_LE + original 16-byte request header + reply payload
+                    // Build DDS reply: preserve Zenoh server's CDR endianness + request header + body
                     let reply_body = if reply_bytes.len() >= 4 {
                         &reply_bytes[4..]
                     } else {
                         reply_bytes.as_slice()
                     };
                     let mut dds_reply = Vec::with_capacity(4 + 16 + reply_body.len());
-                    dds_reply.extend_from_slice(&CDR_HEADER_LE);
+                    dds_reply.extend_from_slice(&cdr_header_matching(&reply_bytes));
                     dds_reply.extend_from_slice(&req.hdr);
                     dds_reply.extend_from_slice(reply_body);
 
@@ -166,9 +183,9 @@ impl ServiceCliRoute {
                 let mut hdr = [0u8; 16];
                 hdr.copy_from_slice(&raw[4..20]);
 
-                // Zenoh payload: CDR_LE + body (without request header)
+                // Zenoh payload: preserve DDS client's CDR endianness + body (without request header)
                 let mut payload = Vec::with_capacity(4 + raw.len() - 20);
-                payload.extend_from_slice(&CDR_HEADER_LE);
+                payload.extend_from_slice(&cdr_header_matching(raw));
                 payload.extend_from_slice(&raw[20..]);
 
                 let _ = tx.try_send(PendingRequest {
