@@ -14,7 +14,7 @@ use zenoh::{
     bytes::ZBytes,
     key_expr::KeyExpr,
     pubsub::{Publisher, Subscriber},
-    qos::CongestionControl,
+    qos::{CongestionControl, Priority},
     sample::Locality,
 };
 use zenoh_ext::{
@@ -36,6 +36,24 @@ use crate::dds::{
 };
 
 const TRANSIENT_LOCAL_CACHE_MULTIPLIER: usize = 10;
+
+/// Parse a Zenoh priority from its integer discriminant (1=RealTime … 7=Background).
+/// Falls back to `Priority::Data` (5) for unrecognised values.
+pub fn priority_from_u8(v: u8) -> Priority {
+    match v {
+        1 => Priority::RealTime,
+        2 => Priority::InteractiveHigh,
+        3 => Priority::InteractiveLow,
+        4 => Priority::DataHigh,
+        5 => Priority::Data,
+        6 => Priority::DataLow,
+        7 => Priority::Background,
+        _ => {
+            tracing::warn!("Unknown publication priority {v}; defaulting to Priority::Data");
+            Priority::Data
+        }
+    }
+}
 
 // ─── inner publisher ──────────────────────────────────────────────────────────
 
@@ -100,6 +118,8 @@ impl TopicPublisherSlot {
         session: &Session,
         namespace: Option<&str>,
         reliable_routes_blocking: bool,
+        priority: Priority,
+        express: bool,
     ) -> Result<Self> {
         let ros2_name = dds_topic_to_ros2_name(&endpoint.topic_name)
             .ok_or_else(|| anyhow!("not a bridgeable topic: {}", endpoint.topic_name))?;
@@ -137,6 +157,8 @@ impl TopicPublisherSlot {
             let adv = session
                 .declare_publisher(ke.clone())
                 .congestion_control(congestion_ctrl)
+                .priority(priority)
+                .express(express)
                 // Prevent routing loops when two bridge instances share a Zenoh session (#542).
                 .allowed_destination(Locality::Remote)
                 .cache(CacheConfig::default().max_samples(cache_size))
@@ -148,6 +170,8 @@ impl TopicPublisherSlot {
             let plain = session
                 .declare_publisher(ke.clone())
                 .congestion_control(congestion_ctrl)
+                .priority(priority)
+                .express(express)
                 .allowed_destination(Locality::Remote)
                 .await
                 .map_err(|e| anyhow!("declare_publisher failed: {e}"))?;
@@ -185,6 +209,8 @@ impl DdsToZenohRoute {
         session: &Session,
         namespace: Option<&str>,
         reliable_routes_blocking: bool,
+        priority: Priority,
+        express: bool,
         topic_publishers: &Arc<
             Mutex<std::collections::HashMap<(u32, String), Arc<TopicPublisherSlot>>>,
         >,
@@ -210,6 +236,8 @@ impl DdsToZenohRoute {
                         session,
                         namespace,
                         reliable_routes_blocking,
+                        priority,
+                        express,
                     )
                     .await?,
                 );

@@ -26,7 +26,7 @@ use crate::{
     },
     routes::{
         action::is_action_component,
-        pubsub::{DdsToZenohRoute, TopicPublisherSlot, ZenohToDdsRoute},
+        pubsub::{DdsToZenohRoute, TopicPublisherSlot, ZenohToDdsRoute, priority_from_u8},
         service::ServiceRoute,
         service_cli::ServiceCliRoute,
     },
@@ -337,6 +337,8 @@ impl Bridge {
                     &self.session,
                     self.config.namespace.as_deref(),
                     self.config.reliable_routes_blocking,
+                    priority_from_u8(self.config.publication_priority),
+                    self.config.publication_express,
                     &self.topic_publishers,
                     domain_id,
                 )

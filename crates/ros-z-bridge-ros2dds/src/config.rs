@@ -88,6 +88,16 @@ pub struct Config {
     #[arg(long, default_value_t = true)]
     pub reliable_routes_blocking: bool,
 
+    /// Zenoh publication priority for DDS→Zenoh routes (1=RealTime … 7=Background; default 5=Data).
+    /// Mirrors the zenoh-plugin-ros2dds `publication.priority` option.
+    #[arg(long, default_value_t = 5)]
+    pub publication_priority: u8,
+
+    /// Publish Zenoh samples in express mode (bypass batching) on DDS→Zenoh routes.
+    /// Mirrors the zenoh-plugin-ros2dds `publication.express` option.
+    #[arg(long, default_value_t = false)]
+    pub publication_express: bool,
+
     /// Path to a Zenoh JSON5 config file. Merged before --zenoh-endpoint is applied.
     /// Use this to configure TLS, access control, or other advanced Zenoh options.
     #[arg(long)]
