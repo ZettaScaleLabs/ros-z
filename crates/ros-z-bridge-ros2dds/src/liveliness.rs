@@ -119,6 +119,43 @@ pub fn build_service_cli_lv_key(zid: &str, zenoh_ke: &str, ros2_type: &str) -> S
     )
 }
 
+/// Build the liveliness key for an action server (DDS server → Zenoh queryable).
+///
+/// Uses the `AS` kind prefix, which the plugin emits for action server entities.
+/// `action_ke` must be the base action key expression (without `/_action/...`).
+pub fn build_action_srv_lv_key(zid: &str, action_ke: &str, ros2_type: &str) -> String {
+    format!(
+        "@/{zid}/@ros2_lv/AS/{ke}/{typ}",
+        ke = escape_slashes(action_ke),
+        typ = escape_slashes(ros2_type),
+    )
+}
+
+/// Build the liveliness key for an action client (DDS client → Zenoh querier).
+///
+/// Uses the `AC` kind prefix, mirroring the plugin's action client liveliness format.
+/// `action_ke` must be the base action key expression (without `/_action/...`).
+pub fn build_action_cli_lv_key(zid: &str, action_ke: &str, ros2_type: &str) -> String {
+    format!(
+        "@/{zid}/@ros2_lv/AC/{ke}/{typ}",
+        ke = escape_slashes(action_ke),
+        typ = escape_slashes(ros2_type),
+    )
+}
+
+/// Extract the base action name from a ROS 2 action component name.
+///
+/// Action component names have the form `/<action_name>/_action/<component>`.
+/// Returns the base action name (e.g. `/fibonacci`) or the input unchanged if
+/// `/_action/` is not found.
+pub fn action_base_name(ros2_name: &str) -> &str {
+    if let Some(pos) = ros2_name.find("/_action/") {
+        &ros2_name[..pos]
+    } else {
+        ros2_name
+    }
+}
+
 /// Build the bridge self-announcement liveliness key.
 ///
 /// Mirrors the zenoh-plugin-ros2dds plugin token declared at startup.
@@ -299,6 +336,41 @@ mod tests {
         let key =
             build_service_cli_lv_key("myzid", "add_two_ints", "example_interfaces/srv/AddTwoInts");
         assert!(key.starts_with("@/myzid/@ros2_lv/SC/"));
+    }
+
+    #[test]
+    fn test_action_srv_lv_key_format() {
+        let key = build_action_srv_lv_key("z", "fibonacci", "example_interfaces/action/Fibonacci");
+        assert_eq!(
+            key,
+            "@/z/@ros2_lv/AS/fibonacci/example_interfaces§action§Fibonacci"
+        );
+    }
+
+    #[test]
+    fn test_action_cli_lv_key_format() {
+        let key = build_action_cli_lv_key("z", "fibonacci", "example_interfaces/action/Fibonacci");
+        assert_eq!(
+            key,
+            "@/z/@ros2_lv/AC/fibonacci/example_interfaces§action§Fibonacci"
+        );
+    }
+
+    #[test]
+    fn test_action_base_name_strips_action_suffix() {
+        assert_eq!(
+            action_base_name("/fibonacci/_action/send_goal"),
+            "/fibonacci"
+        );
+        assert_eq!(
+            action_base_name("/my_ns/my_action/_action/get_result"),
+            "/my_ns/my_action"
+        );
+    }
+
+    #[test]
+    fn test_action_base_name_no_action_unchanged() {
+        assert_eq!(action_base_name("/chatter"), "/chatter");
     }
 
     #[test]

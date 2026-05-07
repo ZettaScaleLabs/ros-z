@@ -21,8 +21,8 @@ use crate::{
         participant::create_participant,
     },
     liveliness::{
-        build_bridge_lv_key, build_pub_lv_key, build_service_cli_lv_key, build_service_srv_lv_key,
-        build_sub_lv_key,
+        action_base_name, build_action_cli_lv_key, build_action_srv_lv_key, build_bridge_lv_key,
+        build_pub_lv_key, build_service_cli_lv_key, build_service_srv_lv_key, build_sub_lv_key,
     },
     routes::{
         action::is_action_component,
@@ -480,20 +480,30 @@ impl Bridge {
                 )
             }
             EntityKind::ServiceServer => {
-                let ros2_type = if is_action {
-                    dds_type_to_ros2_action_type(&endpoint.type_name)
+                if is_action {
+                    let ros2_type = dds_type_to_ros2_action_type(&endpoint.type_name);
+                    let action_ke = ros2_name_to_zenoh_key(
+                        action_base_name(&ros2_name),
+                        self.config.namespace.as_deref(),
+                    );
+                    build_action_srv_lv_key(&self.zid, &action_ke, &ros2_type)
                 } else {
-                    dds_type_to_ros2_service_type(&endpoint.type_name)
-                };
-                build_service_srv_lv_key(&self.zid, &zenoh_ke, &ros2_type)
+                    let ros2_type = dds_type_to_ros2_service_type(&endpoint.type_name);
+                    build_service_srv_lv_key(&self.zid, &zenoh_ke, &ros2_type)
+                }
             }
             EntityKind::ServiceClient => {
-                let ros2_type = if is_action {
-                    dds_type_to_ros2_action_type(&endpoint.type_name)
+                if is_action {
+                    let ros2_type = dds_type_to_ros2_action_type(&endpoint.type_name);
+                    let action_ke = ros2_name_to_zenoh_key(
+                        action_base_name(&ros2_name),
+                        self.config.namespace.as_deref(),
+                    );
+                    build_action_cli_lv_key(&self.zid, &action_ke, &ros2_type)
                 } else {
-                    dds_type_to_ros2_service_type(&endpoint.type_name)
-                };
-                build_service_cli_lv_key(&self.zid, &zenoh_ke, &ros2_type)
+                    let ros2_type = dds_type_to_ros2_service_type(&endpoint.type_name);
+                    build_service_cli_lv_key(&self.zid, &zenoh_ke, &ros2_type)
+                }
             }
         };
 
