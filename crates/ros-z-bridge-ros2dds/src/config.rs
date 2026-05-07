@@ -98,6 +98,12 @@ pub struct Config {
     #[arg(long, default_value_t = false)]
     pub publication_express: bool,
 
+    /// Maximum publication rate in samples per second for DDS→Zenoh routes (0 = unlimited).
+    /// Samples arriving faster than this rate are dropped. Mirrors the zenoh-plugin-ros2dds
+    /// `max_frequencies` option.
+    #[arg(long, default_value_t = 0.0)]
+    pub max_publication_hz: f64,
+
     /// Path to a Zenoh JSON5 config file. Merged before --zenoh-endpoint is applied.
     /// Use this to configure TLS, access control, or other advanced Zenoh options.
     #[arg(long)]

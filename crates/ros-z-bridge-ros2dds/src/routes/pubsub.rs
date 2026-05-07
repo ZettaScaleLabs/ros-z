@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+    sync::{Arc, Mutex as StdMutex},
+    time::{Duration, Instant},
+};
 
 use anyhow::{Result, anyhow};
 use cyclors::{
@@ -211,6 +214,7 @@ impl DdsToZenohRoute {
         reliable_routes_blocking: bool,
         priority: Priority,
         express: bool,
+        max_publication_hz: f64,
         topic_publishers: &Arc<
             Mutex<std::collections::HashMap<(u32, String), Arc<TopicPublisherSlot>>>,
         >,
@@ -268,6 +272,14 @@ impl DdsToZenohRoute {
 
         let pub_clone = Arc::clone(&arc_pub);
 
+        // Rate limiter: None when max_publication_hz == 0 (unlimited).
+        let min_interval: Option<Duration> = if max_publication_hz > 0.0 {
+            Some(Duration::from_secs_f64(1.0 / max_publication_hz))
+        } else {
+            None
+        };
+        let last_pub: Arc<StdMutex<Option<Instant>>> = Arc::new(StdMutex::new(None));
+
         let reader_handle = create_blob_reader(
             dp,
             &topic_name,
@@ -275,6 +287,17 @@ impl DdsToZenohRoute {
             keyless,
             qos,
             move |sample: DDSRawSample| {
+                // Rate limiting: drop samples that arrive within min_interval of the last publish.
+                if let Some(interval) = min_interval {
+                    let mut last = last_pub.lock().unwrap();
+                    let now = Instant::now();
+                    if let Some(t) = *last {
+                        if now.duration_since(t) < interval {
+                            return;
+                        }
+                    }
+                    *last = Some(now);
+                }
                 let bytes: ZBytes = sample.as_slice().into();
                 // G4: attach the ROS 2 type name so Zenoh receivers can identify the type.
                 let attachment = Some(ros2_type.as_bytes().to_vec());

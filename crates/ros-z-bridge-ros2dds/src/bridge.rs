@@ -339,6 +339,7 @@ impl Bridge {
                     self.config.reliable_routes_blocking,
                     priority_from_u8(self.config.publication_priority),
                     self.config.publication_express,
+                    self.config.max_publication_hz,
                     &self.topic_publishers,
                     domain_id,
                 )
