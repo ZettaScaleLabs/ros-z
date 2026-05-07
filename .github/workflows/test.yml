@@ -116,3 +116,55 @@ jobs:
               --features ros-interop --release \
               -E 'test(dynamic_subscriber)'
           fi
+
+  ros2dds_bridge_test:
+    name: ros-z-bridge-ros2dds integration tests (Jazzy / CycloneDDS)
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'push' ||
+      github.event.pull_request.draft == false
+    container:
+      image: ros:jazzy-ros-base
+    steps:
+      - name: Cache apt packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-jazzy-bridge-v1-${{ hashFiles('.github/workflows/test.yml') }}
+
+      - name: Install system dependencies
+        run: apt-get update && apt-get install -y nodejs cmake clang mold
+
+      - name: Install ROS dependencies
+        run: |
+          apt-get install -y \
+            ros-jazzy-rmw-cyclonedds-cpp \
+            ros-jazzy-demo-nodes-cpp
+
+      - uses: actions/checkout@v4
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: jazzy-bridge-interop
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      - name: Build ros-z-bridge-ros2dds
+        run: |
+          RUSTFLAGS="-C linker=clang -C link-arg=-fuse-ld=mold" \
+          cargo build -p ros-z-bridge-ros2dds --features jazzy --release -j4
+
+      - name: Run bridge integration tests
+        shell: bash
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+          export RUST_LOG=info
+          cargo nextest run -p ros-z-tests --profile interop \
+            --features "ros2dds-bridge-interop,jazzy" --release -j4

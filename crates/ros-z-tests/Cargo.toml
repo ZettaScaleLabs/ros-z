@@ -58,6 +58,9 @@ humble-jazzy-bridge-tests = [
 # This enables testing ros-z with DDS-based ROS 2 nodes via zenoh-bridge-ros2dds
 ros2dds-interop = ["ros-msgs", "ros-z/ros2dds", "ros-z/rmw-zenoh"]
 
+# Native ros-z-bridge-ros2dds integration tests (no ros packages needed on bridge)
+ros2dds-bridge-interop = []
+
 # ROS 2 distro compatibility - propagate to ros-z and ros-z-msgs
 humble = ["ros-z/humble", "ros-z-msgs/humble"]
 jazzy = ["ros-z/jazzy", "ros-z-msgs/jazzy"]
