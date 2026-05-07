@@ -5,6 +5,9 @@ use cyclors::{
     dds_entity_t,
     qos::{DurabilityKind, HistoryKind, ReliabilityKind},
 };
+
+// cyclors does not re-export this constant publicly.
+const DDS_LENGTH_UNLIMITED: i32 = -1;
 use parking_lot::Mutex;
 use zenoh::{
     Session, Wait,
@@ -125,7 +128,7 @@ impl TopicPublisherSlot {
         };
 
         let inner = if is_transient_local {
-            let cache_size = compute_cache_size(&endpoint.qos);
+            let cache_size = compute_cache_size(&endpoint.qos, endpoint.keyless);
             tracing::debug!(
                 "DDS→Zenoh: TRANSIENT_LOCAL topic {}, cache_size={}",
                 endpoint.topic_name,
@@ -265,9 +268,12 @@ impl DdsToZenohRoute {
 
 /// Compute the AdvancedPublisher cache size from DDS QoS.
 ///
-/// Mirrors the zenoh-plugin-ros2dds formula: history.depth × cache_multiplier,
-/// bounded by usize::MAX for KEEP_ALL or unlimited instances.
-fn compute_cache_size(qos: &cyclors::qos::Qos) -> usize {
+/// Mirrors the zenoh-plugin-ros2dds formula:
+/// - KEEP_ALL → usize::MAX
+/// - keyless topics → `depth × multiplier` (no instance axis)
+/// - KEEP_LAST, unlimited instances → usize::MAX
+/// - KEEP_LAST, N instances → `(depth × N) × multiplier`
+fn compute_cache_size(qos: &cyclors::qos::Qos, keyless: bool) -> usize {
     let depth = match &qos.history {
         Some(h) => match h.kind {
             HistoryKind::KEEP_ALL => return usize::MAX,
@@ -275,7 +281,24 @@ fn compute_cache_size(qos: &cyclors::qos::Qos) -> usize {
         },
         None => 1,
     };
-    depth.saturating_mul(TRANSIENT_LOCAL_CACHE_MULTIPLIER)
+
+    if keyless {
+        return depth.saturating_mul(TRANSIENT_LOCAL_CACHE_MULTIPLIER);
+    }
+
+    let max_instances = qos
+        .durability_service
+        .as_ref()
+        .map(|ds| ds.max_instances)
+        .unwrap_or(DDS_LENGTH_UNLIMITED);
+
+    if max_instances == DDS_LENGTH_UNLIMITED {
+        return usize::MAX;
+    }
+
+    depth
+        .saturating_mul(max_instances.max(0) as usize)
+        .saturating_mul(TRANSIENT_LOCAL_CACHE_MULTIPLIER)
 }
 
 // ─── ZenohToDdsRoute ─────────────────────────────────────────────────────────
@@ -381,10 +404,12 @@ impl ZenohToDdsRoute {
 
 #[cfg(test)]
 mod tests {
-    use cyclors::qos::{Durability, DurabilityKind, History, HistoryKind, Qos};
+    use cyclors::qos::{Durability, DurabilityKind, DurabilityService, History, HistoryKind, Qos};
 
     use super::compute_cache_size;
     use crate::dds::names::dds_type_to_ros2_type;
+
+    const DDS_LENGTH_UNLIMITED: i32 = -1;
 
     fn qos_transient_local(depth: i32) -> Qos {
         Qos {
@@ -394,6 +419,27 @@ mod tests {
             history: Some(History {
                 kind: HistoryKind::KEEP_LAST,
                 depth,
+            }),
+            ..Default::default()
+        }
+    }
+
+    fn qos_transient_local_with_instances(depth: i32, max_instances: i32) -> Qos {
+        Qos {
+            durability: Some(Durability {
+                kind: DurabilityKind::TRANSIENT_LOCAL,
+            }),
+            history: Some(History {
+                kind: HistoryKind::KEEP_LAST,
+                depth,
+            }),
+            durability_service: Some(DurabilityService {
+                service_cleanup_delay: 0,
+                history_kind: HistoryKind::KEEP_LAST,
+                history_depth: depth,
+                max_samples: DDS_LENGTH_UNLIMITED,
+                max_instances,
+                max_samples_per_instance: DDS_LENGTH_UNLIMITED,
             }),
             ..Default::default()
         }
@@ -423,24 +469,48 @@ mod tests {
     }
 
     #[test]
-    fn test_cache_size_keep_last() {
-        assert_eq!(compute_cache_size(&qos_transient_local(1)), 10);
-        assert_eq!(compute_cache_size(&qos_transient_local(5)), 50);
+    fn test_cache_size_keep_last_keyless() {
+        // keyless: no instance axis — depth × multiplier only
+        assert_eq!(compute_cache_size(&qos_transient_local(1), true), 10);
+        assert_eq!(compute_cache_size(&qos_transient_local(5), true), 50);
+    }
+
+    #[test]
+    fn test_cache_size_keep_last_no_durability_service_is_unlimited() {
+        // non-keyless with no durability_service → unlimited instances → usize::MAX
+        assert_eq!(
+            compute_cache_size(&qos_transient_local(5), false),
+            usize::MAX
+        );
+    }
+
+    #[test]
+    fn test_cache_size_keep_last_unlimited_instances_is_max() {
+        let qos = qos_transient_local_with_instances(5, DDS_LENGTH_UNLIMITED);
+        assert_eq!(compute_cache_size(&qos, false), usize::MAX);
+    }
+
+    #[test]
+    fn test_cache_size_keep_last_n_instances() {
+        // depth=2, instances=3 → 2 × 3 × 10 = 60
+        let qos = qos_transient_local_with_instances(2, 3);
+        assert_eq!(compute_cache_size(&qos, false), 60);
     }
 
     #[test]
     fn test_cache_size_no_history_defaults_to_multiplier() {
-        assert_eq!(compute_cache_size(&Qos::default()), 10);
+        assert_eq!(compute_cache_size(&Qos::default(), true), 10);
     }
 
     #[test]
     fn test_cache_size_keep_all_is_max() {
-        assert_eq!(compute_cache_size(&qos_keep_all()), usize::MAX);
+        assert_eq!(compute_cache_size(&qos_keep_all(), false), usize::MAX);
+        assert_eq!(compute_cache_size(&qos_keep_all(), true), usize::MAX);
     }
 
     #[test]
-    fn test_volatile_cache_size_still_computed() {
-        assert_eq!(compute_cache_size(&qos_volatile(3)), 30);
+    fn test_volatile_cache_size_keyless() {
+        assert_eq!(compute_cache_size(&qos_volatile(3), true), 30);
     }
 
     // G4: type name attachment
