@@ -1,20 +1,16 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use anyhow::{Result, anyhow};
-use cyclors::dds_entity_t;
 use zenoh::{Session, bytes::ZBytes, key_expr::KeyExpr};
 
 use crate::dds::{
+    backend::{DdsParticipant, DdsWriter},
     discovery::DiscoveredEndpoint,
-    entity::DdsEntity,
     names::{
         dds_topic_to_ros2_name, dds_type_to_ros2_service_type, is_action_get_result_topic,
         ros2_name_to_zenoh_key,
     },
-    qos::{qos_mismatch_reason, service_default_qos},
-    reader::create_blob_reader,
-    types::DDSRawSample,
-    writer::{create_blob_writer, write_cdr},
+    qos::{qos_mismatch_reason, service_default_bridge_qos},
 };
 
 const CDR_HEADER_LE: [u8; 4] = [0, 1, 0, 0];
@@ -28,11 +24,7 @@ fn cdr_header_matching(payload: &[u8]) -> [u8; 4] {
     }
 }
 
-/// Regular service calls must complete within this timeout.
 const SERVICE_TIMEOUT_SECS: u64 = 10;
-
-/// Action `get_result` calls block until the goal completes — allow up to 300 s.
-/// This matches the zenoh-plugin-ros2dds DEFAULT_ACTION_GET_RESULT_TIMEOUT.
 const ACTION_GET_RESULT_TIMEOUT_SECS: u64 = 300;
 
 /// Request forwarded from the DDS reader callback to the async dispatch task.
@@ -41,30 +33,17 @@ struct PendingRequest {
     hdr: [u8; 16],
     /// CDR payload without the request header (what the Zenoh server expects).
     payload: Vec<u8>,
-    /// Raw DDS writer handle for sending the reply back to the DDS client.
-    rep_writer: dds_entity_t,
 }
 
 /// A route that proxies a DDS service CLIENT through a Zenoh queryable (server).
-///
-/// When the bridge discovers a DDS publication on `rq/<name>Request` (a DDS client
-/// is calling a service), this route:
-/// 1. Reads each CDR request from DDS
-/// 2. Forwards it as a Zenoh `get()` to the matching queryable
-/// 3. Writes the CDR reply back on `rr/<name>Reply` to the DDS client
-///
-/// Action `get_result` requests use a 300 s timeout instead of 10 s because the
-/// Zenoh server blocks until the goal finishes executing.
-///
-/// This is the reverse direction of `ServiceRoute` (which handles DDS servers).
-pub struct ServiceCliRoute {
-    _req_reader: DdsEntity,
-    _rep_writer: DdsEntity,
+pub struct ServiceCliRoute<P: DdsParticipant> {
+    _req_reader: P::Reader,
+    _rep_writer: Arc<P::Writer>,
 }
 
-impl ServiceCliRoute {
+impl<P: DdsParticipant> ServiceCliRoute<P> {
     pub async fn create(
-        dp: dds_entity_t,
+        participant: &P,
         endpoint: &DiscoveredEndpoint,
         session: &Session,
         namespace: Option<&str>,
@@ -78,7 +57,6 @@ impl ServiceCliRoute {
             .try_into()
             .map_err(|e| anyhow!("invalid key expr: {e}"))?;
 
-        // Action get_result blocks for the full goal duration; use a much longer timeout.
         let timeout = if is_action_get_result_topic(&endpoint.topic_name) {
             tracing::debug!(
                 "Action get_result topic detected ({}): using {}s timeout",
@@ -99,33 +77,27 @@ impl ServiceCliRoute {
         let rep_topic = format!("rr{ros2_name}Reply");
         let req_topic = endpoint.topic_name.clone();
 
-        let qos = service_default_qos();
+        let qos = service_default_bridge_qos();
 
-        // G3: warn on QoS incompatibility between discovered endpoint and the service QoS.
         if let Some(reason) = qos_mismatch_reason(&endpoint.qos, &qos) {
             tracing::warn!("QoS mismatch on {}: {}", endpoint.topic_name, reason);
         }
 
-        let rep_writer_h = create_blob_writer(dp, &rep_topic, &rep_type, true, qos.clone())?;
-        let rep_writer = unsafe { DdsEntity::new(rep_writer_h) };
-        let rep_writer_raw = rep_writer_h;
+        let rep_writer =
+            Arc::new(participant.create_writer(&rep_topic, &rep_type, true, qos.clone())?);
 
-        // Channel: DDS callback → async task
         let (tx, rx) = flume::bounded::<PendingRequest>(64);
 
-        // Async task: receive requests, do Zenoh get(), write DDS replies
         let querier = session
             .declare_querier(ke.clone())
             .timeout(timeout)
             .await
             .map_err(|e| anyhow!("declare_querier failed: {e}"))?;
 
+        let writer_task = Arc::clone(&rep_writer);
         tokio::spawn(async move {
             while let Ok(req) = rx.recv_async().await {
                 let zbytes: ZBytes = req.payload.into();
-                // Attach the original 16-byte DDS request header (client_guid + seq_num)
-                // so that a remote zenoh-plugin-ros2dds queryable can forward it verbatim
-                // to the DDS server, enabling correct reply routing without guid translation.
                 let replies = match querier
                     .get()
                     .payload(zbytes)
@@ -148,7 +120,6 @@ impl ServiceCliRoute {
                         }
                     };
 
-                    // Build DDS reply: preserve Zenoh server's CDR endianness + request header + body
                     let reply_body = if reply_bytes.len() >= 4 {
                         &reply_bytes[4..]
                     } else {
@@ -159,7 +130,7 @@ impl ServiceCliRoute {
                     dds_reply.extend_from_slice(&req.hdr);
                     dds_reply.extend_from_slice(reply_body);
 
-                    if let Err(e) = write_cdr(req.rep_writer, dds_reply) {
+                    if let Err(e) = writer_task.write_cdr(dds_reply) {
                         tracing::warn!("DDS reply write failed: {e}");
                     }
                     break;
@@ -167,15 +138,13 @@ impl ServiceCliRoute {
             }
         });
 
-        let req_reader_h = create_blob_reader(
-            dp,
+        let req_reader = participant.create_reader(
             &req_topic,
             &req_type,
             true,
             qos,
-            move |sample: DDSRawSample| {
-                let raw = sample.as_slice();
-                // raw = 4-byte CDR header + 16-byte request header + payload
+            Box::new(move |bytes: Vec<u8>| {
+                let raw = bytes.as_slice();
                 if raw.len() < 20 {
                     tracing::warn!("Service request too short ({} bytes)", raw.len());
                     return;
@@ -183,19 +152,13 @@ impl ServiceCliRoute {
                 let mut hdr = [0u8; 16];
                 hdr.copy_from_slice(&raw[4..20]);
 
-                // Zenoh payload: preserve DDS client's CDR endianness + body (without request header)
                 let mut payload = Vec::with_capacity(4 + raw.len() - 20);
                 payload.extend_from_slice(&cdr_header_matching(raw));
                 payload.extend_from_slice(&raw[20..]);
 
-                let _ = tx.try_send(PendingRequest {
-                    hdr,
-                    payload,
-                    rep_writer: rep_writer_raw,
-                });
-            },
+                let _ = tx.try_send(PendingRequest { hdr, payload });
+            }),
         )?;
-        let req_reader = unsafe { DdsEntity::new(req_reader_h) };
 
         Ok(Self {
             _req_reader: req_reader,

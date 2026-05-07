@@ -11,14 +11,13 @@ use zenoh::{Session, liveliness::LivelinessToken};
 use crate::{
     config::Config,
     dds::{
-        discovery::{DiscoveredEndpoint, DiscoveryEvent, run_discovery},
-        entity::DdsEntity,
+        backend::DdsParticipant,
+        discovery::{DiscoveredEndpoint, DiscoveryEvent},
         gid::Gid,
         names::{
             dds_topic_to_ros2_name, dds_type_to_ros2_action_type, dds_type_to_ros2_service_type,
             dds_type_to_ros2_type, is_pubsub_topic, is_request_topic, ros2_name_to_zenoh_key,
         },
-        participant::create_participant,
     },
     liveliness::{
         action_base_name, build_action_cli_lv_key, build_action_srv_lv_key, build_bridge_lv_key,
@@ -76,22 +75,21 @@ enum EntityKind {
 ///
 /// Holds all active routes keyed by (domain_id, DDS endpoint GID).
 /// Dropping a route tears down the underlying DDS entities via RAII.
-pub struct Bridge {
+pub struct Bridge<P: DdsParticipant> {
     config: Config,
     session: Session,
     /// One participant per domain ID.
-    participants: Vec<(u32, DdsEntity)>,
+    participants: Vec<(u32, P)>,
 
     /// DDS→Zenoh routes keyed by (domain_id, gid).
-    dds_to_zenoh: HashMap<(u32, Gid), DdsToZenohRoute>,
+    dds_to_zenoh: HashMap<(u32, Gid), DdsToZenohRoute<P>>,
     /// Shared Zenoh publisher slots for DDS topics; keyed by (domain_id, dds_topic_name).
-    /// Kept alive across DDS writer churn to preserve AdvancedPublisher history cache (#690).
     topic_publishers: Arc<Mutex<HashMap<(u32, String), Arc<TopicPublisherSlot>>>>,
-    zenoh_to_dds: HashMap<(u32, Gid), ZenohToDdsRoute>,
+    zenoh_to_dds: HashMap<(u32, Gid), ZenohToDdsRoute<P>>,
     /// DDS server → Zenoh queryable
-    service_srv: HashMap<(u32, Gid), ServiceRoute>,
+    service_srv: HashMap<(u32, Gid), ServiceRoute<P>>,
     /// DDS client → Zenoh querier
-    service_cli: HashMap<(u32, Gid), ServiceCliRoute>,
+    service_cli: HashMap<(u32, Gid), ServiceCliRoute<P>>,
 
     /// Global filter (applied when no per-type filter is set)
     global: Filter,
@@ -107,15 +105,13 @@ pub struct Bridge {
     /// Zenoh session ID string, used as a key component in liveliness tokens.
     zid: String,
     /// Self-announcement token (`@/{zid}/@ros2_lv`) kept alive for the bridge lifetime.
-    /// Signals peer bridges that this instance is active, matching zenoh-plugin-ros2dds.
     _bridge_lv_token: Option<LivelinessToken>,
     /// Per-route entity liveliness tokens; removed (and thus undeclared) with their routes.
     entity_lv_tokens: HashMap<(u32, Gid), LivelinessToken>,
 }
 
-impl Bridge {
+impl<P: DdsParticipant> Bridge<P> {
     pub async fn new(config: Config, session: Session) -> Result<Self> {
-        // Validate domain IDs: DDS spec limits to 0–229; no duplicates.
         let mut seen = HashSet::new();
         for &did in &config.domain_ids {
             if did > 229 {
@@ -126,10 +122,10 @@ impl Bridge {
             }
         }
 
-        let participants: Vec<(u32, DdsEntity)> = config
+        let participants: Vec<(u32, P)> = config
             .domain_ids
             .iter()
-            .map(|&did| create_participant(did).map(|p| (did, p)))
+            .map(|&did| P::create(did).map(|p| (did, p)))
             .collect::<Result<_>>()?;
 
         let global = Filter::compile(config.allow.as_deref(), config.deny.as_deref())?;
@@ -207,12 +203,10 @@ impl Bridge {
 
     /// Start the discovery loop and process events until shutdown.
     pub async fn run(mut self) -> Result<()> {
-        // Merge all per-domain discovery channels into one tagged stream.
         let (merged_tx, merged_rx) = flume::bounded::<(u32, DiscoveryEvent)>(256);
 
         for (domain_id, participant) in &self.participants {
-            let (tx, rx) = flume::bounded::<DiscoveryEvent>(256);
-            run_discovery(participant.raw(), tx);
+            let rx = participant.run_discovery();
             let mtx = merged_tx.clone();
             let did = *domain_id;
             tokio::spawn(async move {
@@ -221,7 +215,6 @@ impl Bridge {
                 }
             });
         }
-        // Drop our copy so merged_rx closes when all forwarders finish.
         drop(merged_tx);
 
         tracing::info!(
@@ -246,10 +239,6 @@ impl Bridge {
             DiscoveryEvent::UndiscoveredPublication(gid) => {
                 let key = (domain_id, gid);
                 if let Some(removed) = self.dds_to_zenoh.remove(&key) {
-                    // G1: after dropping the reader (and its Arc<TopicPublisherSlot>), start a
-                    // 5-second grace period before evicting the publisher slot from the map.
-                    // If a new DDS writer for the same topic appears within that window, it will
-                    // reuse the slot and its AdvancedPublisher history cache survives.
                     let topic_name = removed.topic_name().to_owned();
                     let slot_key = (domain_id, topic_name.clone());
                     let tp = Arc::clone(&self.topic_publishers);
@@ -269,7 +258,6 @@ impl Bridge {
                     });
                 }
                 self.service_cli.remove(&key);
-                // G5: drop entity token → liveliness undeclared on the Zenoh graph.
                 self.entity_lv_tokens.remove(&key);
                 tracing::debug!("Removed publication route for {gid}");
             }
@@ -280,15 +268,12 @@ impl Bridge {
                 let key = (domain_id, gid);
                 self.zenoh_to_dds.remove(&key);
                 self.service_srv.remove(&key);
-                // G5: drop entity token → liveliness undeclared on the Zenoh graph.
                 self.entity_lv_tokens.remove(&key);
                 tracing::debug!("Removed subscription route for {gid}");
             }
         }
         Ok(())
     }
-
-    // G2: pick the right filter based on whether the topic is an action component.
 
     fn pub_filter_for<'a>(&'a self, topic_name: &str) -> &'a Filter {
         if is_action_component(topic_name) {
@@ -322,7 +307,6 @@ impl Bridge {
         }
     }
 
-    /// A DDS publication was discovered (someone is publishing on DDS).
     async fn on_discovered_publication(
         &mut self,
         domain_id: u32,
@@ -345,7 +329,6 @@ impl Bridge {
                 )
                 .await?;
                 self.dds_to_zenoh.insert((domain_id, ep.key), route);
-                // G5: advertise this bridged publisher on the Zenoh graph.
                 if let Some(token) = self
                     .declare_entity_token(domain_id, &ep, EntityKind::Publisher)
                     .await
@@ -367,7 +350,6 @@ impl Bridge {
                 )
                 .await?;
                 self.service_cli.insert((domain_id, ep.key), route);
-                // G5: advertise this bridged service client on the Zenoh graph.
                 if let Some(token) = self
                     .declare_entity_token(domain_id, &ep, EntityKind::ServiceClient)
                     .await
@@ -379,7 +361,6 @@ impl Bridge {
         Ok(())
     }
 
-    /// A DDS subscription was discovered (someone is subscribing on DDS).
     async fn on_discovered_subscription(
         &mut self,
         domain_id: u32,
@@ -396,7 +377,6 @@ impl Bridge {
                 )
                 .await?;
                 self.zenoh_to_dds.insert((domain_id, ep.key), route);
-                // G5: advertise this bridged subscriber on the Zenoh graph.
                 if let Some(token) = self
                     .declare_entity_token(domain_id, &ep, EntityKind::Subscriber)
                     .await
@@ -418,7 +398,6 @@ impl Bridge {
                 )
                 .await?;
                 self.service_srv.insert((domain_id, ep.key), route);
-                // G5: advertise this bridged service server on the Zenoh graph.
                 if let Some(token) = self
                     .declare_entity_token(domain_id, &ep, EntityKind::ServiceServer)
                     .await
@@ -430,18 +409,14 @@ impl Bridge {
         Ok(())
     }
 
-    fn participant_for(&self, domain_id: u32) -> i32 {
+    fn participant_for(&self, domain_id: u32) -> &P {
         self.participants
             .iter()
             .find(|(did, _)| *did == domain_id)
-            .map(|(_, p)| p.raw())
-            .unwrap_or_else(|| self.participants[0].1.raw())
+            .map(|(_, p)| p)
+            .unwrap_or_else(|| &self.participants[0].1)
     }
 
-    /// Declare a per-route liveliness token matching the zenoh-plugin-ros2dds wire format.
-    ///
-    /// Failures are non-fatal: a warning is logged and `None` is returned so the
-    /// caller can still store the route even when Zenoh liveliness is unavailable.
     async fn declare_entity_token(
         &mut self,
         _domain_id: u32,
@@ -561,8 +536,6 @@ mod tests {
         assert!(Filter::compile(None, Some("[invalid")).is_err());
     }
 
-    // G2: action filtering
-
     #[test]
     fn test_action_filter_allows_matching() {
         let f = Filter::compile(Some(".*_action.*"), None).unwrap();
@@ -592,8 +565,6 @@ mod tests {
         assert!(pub_f.allows("rt/chatter"));
         assert!(!action_f.allows("rt/fibonacci/_action/feedback"));
     }
-
-    // G6: multi-domain validation
 
     #[test]
     fn test_domain_id_validation_rejects_too_large() {
@@ -629,40 +600,43 @@ mod tests {
 
     #[test]
     fn test_route_key_distinct_across_domains() {
-        // (domain_id, topic_name) keys with same topic but different domains are distinct.
         let key0: (u32, String) = (0, "rt/chatter".to_string());
         let key42: (u32, String) = (42, "rt/chatter".to_string());
         assert_ne!(key0, key42);
     }
 
-    // G5: liveliness token key construction via bridge helpers
-
     #[test]
     fn test_entity_token_qos_str_reliable() {
-        use crate::dds::qos::is_reliable;
-        use cyclors::qos::{DDS_INFINITE_TIME, Qos, Reliability, ReliabilityKind};
-        let qos = Qos {
+        use crate::dds::backend::{BridgeQos, Reliability, ReliabilityKind};
+        let qos = BridgeQos {
             reliability: Some(Reliability {
-                kind: ReliabilityKind::RELIABLE,
-                max_blocking_time: DDS_INFINITE_TIME,
+                kind: ReliabilityKind::Reliable,
+                max_blocking_time: None,
             }),
             ..Default::default()
         };
-        assert_eq!(if is_reliable(&qos) { "re" } else { "be" }, "re");
+        let is_re = qos
+            .reliability
+            .as_ref()
+            .is_some_and(|r| r.kind == ReliabilityKind::Reliable);
+        assert_eq!(if is_re { "re" } else { "be" }, "re");
     }
 
     #[test]
     fn test_entity_token_qos_str_best_effort() {
-        use crate::dds::qos::is_reliable;
-        use cyclors::qos::{DDS_INFINITE_TIME, Qos, Reliability, ReliabilityKind};
-        let qos = Qos {
+        use crate::dds::backend::{BridgeQos, Reliability, ReliabilityKind};
+        let qos = BridgeQos {
             reliability: Some(Reliability {
-                kind: ReliabilityKind::BEST_EFFORT,
-                max_blocking_time: DDS_INFINITE_TIME,
+                kind: ReliabilityKind::BestEffort,
+                max_blocking_time: None,
             }),
             ..Default::default()
         };
-        assert_eq!(if is_reliable(&qos) { "re" } else { "be" }, "be");
+        let is_re = qos
+            .reliability
+            .as_ref()
+            .is_some_and(|r| r.kind == ReliabilityKind::Reliable);
+        assert_eq!(if is_re { "re" } else { "be" }, "be");
     }
 
     #[test]
@@ -684,9 +658,15 @@ mod tests {
 
     #[test]
     fn test_entity_lv_key_publisher_mp() {
+        use crate::dds::backend::BridgeQos;
         use crate::liveliness::build_pub_lv_key;
-        use cyclors::qos::Qos;
-        let key = build_pub_lv_key("z", "chatter", "std_msgs/msg/String", true, &Qos::default());
+        let key = build_pub_lv_key(
+            "z",
+            "chatter",
+            "std_msgs/msg/String",
+            true,
+            &BridgeQos::default(),
+        );
         assert!(key.starts_with("@/z/@ros2_lv/MP/"));
         assert!(key.contains("chatter"));
         assert!(key.contains("std_msgs§msg§String"));
@@ -694,9 +674,15 @@ mod tests {
 
     #[test]
     fn test_entity_lv_key_subscriber_ms() {
+        use crate::dds::backend::BridgeQos;
         use crate::liveliness::build_sub_lv_key;
-        use cyclors::qos::Qos;
-        let key = build_sub_lv_key("z", "chatter", "std_msgs/msg/String", true, &Qos::default());
+        let key = build_sub_lv_key(
+            "z",
+            "chatter",
+            "std_msgs/msg/String",
+            true,
+            &BridgeQos::default(),
+        );
         assert!(key.starts_with("@/z/@ros2_lv/MS/"));
     }
 

@@ -2,8 +2,8 @@ use cyclors::{dds_delete, dds_entity_t};
 
 /// RAII wrapper around a `dds_entity_t`.
 ///
-/// Calls `dds_delete` on drop, preventing ghost-subscriber accumulation (fix for #570).
-pub struct DdsEntity(dds_entity_t);
+/// Calls `dds_delete` on drop, preventing ghost-subscriber accumulation.
+pub struct DdsEntity(pub(super) dds_entity_t);
 
 impl DdsEntity {
     /// Wrap an existing DDS entity handle.

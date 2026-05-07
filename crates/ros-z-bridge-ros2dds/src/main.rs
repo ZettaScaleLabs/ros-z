@@ -8,7 +8,7 @@ use anyhow::{Result, anyhow};
 use clap::Parser;
 use zenoh::Config as ZConfig;
 
-use crate::{bridge::Bridge, config::Config};
+use crate::{bridge::Bridge, config::Config, dds::cyclors::CyclorsParticipant};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -39,5 +39,8 @@ async fn main() -> Result<()> {
         .await
         .map_err(|e| anyhow!("Zenoh open failed: {e}"))?;
 
-    Bridge::new(config, session).await?.run().await
+    Bridge::<CyclorsParticipant>::new(config, session)
+        .await?
+        .run()
+        .await
 }

@@ -4,30 +4,51 @@ use anyhow::{Result, anyhow};
 use cyclors::{
     cdds_create_blob_topic, dds_create_writer, dds_entity_t, dds_get_entity_sertype,
     dds_strretcode, dds_writecdr, ddsi_serdata_from_ser_iov, ddsi_serdata_kind_SDK_DATA,
-    ddsi_sertype, ddsrt_iov_len_t, ddsrt_iovec_t, qos::Qos,
+    ddsi_sertype, ddsrt_iov_len_t, ddsrt_iovec_t,
 };
 
-use super::types::ddsrt_iov_len_to_usize;
+use crate::dds::backend::{BridgeQos, DdsWriter};
 
-/// Create a DDS writer for a blob (schema-free) topic.
-pub fn create_blob_writer(
+use super::entity::DdsEntity;
+
+/// Converts a `ddsrt_iov_len_t` (platform-specific unsigned) to `usize`.
+fn iov_len_to_usize(len: ddsrt_iov_len_t) -> usize {
+    len as usize
+}
+
+/// CycloneDDS implementation of [`DdsWriter`].
+pub struct CyclorsWriter(pub(super) DdsEntity);
+
+impl DdsWriter for CyclorsWriter {
+    fn write_cdr(&self, data: Vec<u8>) -> Result<()> {
+        write_cdr_raw(self.0.raw(), data)
+    }
+
+    fn instance_handle(&self) -> Result<u64> {
+        get_instance_handle(self.0.raw())
+    }
+}
+
+/// Create a CycloneDDS blob writer on the given participant.
+pub fn create_writer(
     dp: dds_entity_t,
-    topic_name: &str,
+    topic: &str,
     type_name: &str,
     keyless: bool,
-    qos: Qos,
-) -> Result<dds_entity_t> {
+    qos: BridgeQos,
+) -> Result<CyclorsWriter> {
     unsafe {
-        let c_topic = CString::new(topic_name).unwrap();
+        let c_topic = CString::new(topic).unwrap();
         let c_type = CString::new(type_name).unwrap();
-        let topic = cdds_create_blob_topic(dp, c_topic.into_raw(), c_type.into_raw(), keyless);
-        if topic < 0 {
-            return Err(anyhow!("cdds_create_blob_topic failed: {topic}"));
+        let topic_h = cdds_create_blob_topic(dp, c_topic.into_raw(), c_type.into_raw(), keyless);
+        if topic_h < 0 {
+            return Err(anyhow!("cdds_create_blob_topic failed: {topic_h}"));
         }
 
-        let qos_native = qos.to_qos_native();
-        let writer = dds_create_writer(dp, topic, qos_native, std::ptr::null_mut());
-        Qos::delete_qos_native(qos_native);
+        let cyclors_qos: cyclors::qos::Qos = qos.into();
+        let qos_native = cyclors_qos.to_qos_native();
+        let writer = dds_create_writer(dp, topic_h, qos_native, std::ptr::null_mut());
+        cyclors::qos::Qos::delete_qos_native(qos_native);
 
         if writer < 0 {
             let msg = CStr::from_ptr(dds_strretcode(-writer))
@@ -35,17 +56,14 @@ pub fn create_blob_writer(
                 .unwrap_or("unknown");
             return Err(anyhow!("dds_create_writer failed: {msg}"));
         }
-        Ok(writer)
+        Ok(CyclorsWriter(unsafe { DdsEntity::new(writer) }))
     }
 }
 
-/// Write raw CDR bytes through a DDS writer.
-///
-/// `data` must include the 4-byte CDR representation header followed by the payload.
-pub fn write_cdr(writer: dds_entity_t, data: Vec<u8>) -> Result<()> {
+/// Write raw CDR bytes through a DDS entity handle.
+fn write_cdr_raw(writer: dds_entity_t, data: Vec<u8>) -> Result<()> {
     unsafe {
         let len = data.len();
-        // Safety: we reconstruct the Vec from raw parts after the DDS write to ensure proper drop.
         let mut data = std::mem::ManuallyDrop::new(data);
         let ptr = data.as_mut_ptr();
         let cap = data.capacity();
@@ -53,7 +71,6 @@ pub fn write_cdr(writer: dds_entity_t, data: Vec<u8>) -> Result<()> {
         let iov_len: ddsrt_iov_len_t = len
             .try_into()
             .map_err(|_| anyhow!("CDR payload too large"))?;
-
         let iov = ddsrt_iovec_t {
             iov_base: ptr as *mut std::os::raw::c_void,
             iov_len,
@@ -70,7 +87,6 @@ pub fn write_cdr(writer: dds_entity_t, data: Vec<u8>) -> Result<()> {
         }
 
         let serdata = ddsi_serdata_from_ser_iov(sertype, ddsi_serdata_kind_SDK_DATA, 1, &iov, len);
-
         let ret = dds_writecdr(writer, serdata);
         drop(Vec::from_raw_parts(ptr, len, cap));
 
@@ -81,5 +97,17 @@ pub fn write_cdr(writer: dds_entity_t, data: Vec<u8>) -> Result<()> {
             return Err(anyhow!("dds_writecdr failed: {msg}"));
         }
         Ok(())
+    }
+}
+
+fn get_instance_handle(entity: dds_entity_t) -> Result<u64> {
+    unsafe {
+        let mut handle: cyclors::dds_instance_handle_t = 0;
+        let ret = cyclors::dds_get_instance_handle(entity, &mut handle);
+        if ret == 0 {
+            Ok(handle)
+        } else {
+            Err(anyhow!("dds_get_instance_handle failed: {ret}"))
+        }
     }
 }

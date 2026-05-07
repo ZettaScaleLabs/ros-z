@@ -17,7 +17,7 @@
 /// References: zenoh-plugin-ros2dds `liveliness_mgt.rs`
 use std::fmt::Write as _;
 
-use cyclors::qos::Qos;
+use crate::dds::backend::BridgeQos;
 
 /// Slash replacement used inside liveliness key segments.
 ///
@@ -41,22 +41,22 @@ fn escape_slashes(s: &str) -> String {
 /// - Each QoS field is omitted (empty string) when absent; present fields are
 ///   encoded as their integer enum discriminant
 /// - `user_data` — appended when non-empty (carries the type hash on Jazzy+)
-pub fn qos_to_lv_str(keyless: bool, qos: &Qos) -> String {
+pub fn qos_to_lv_str(keyless: bool, qos: &BridgeQos) -> String {
     let mut w = String::new();
     if !keyless {
         w.push('K');
     }
     w.push(':');
     if let Some(r) = &qos.reliability {
-        write!(w, "{}", r.kind as i32).unwrap();
+        write!(w, "{}", r.kind.wire_discriminant()).unwrap();
     }
     w.push(':');
     if let Some(d) = &qos.durability {
-        write!(w, "{}", d.kind as i32).unwrap();
+        write!(w, "{}", d.kind.wire_discriminant()).unwrap();
     }
     w.push(':');
     if let Some(h) = &qos.history {
-        write!(w, "{},{}", h.kind as i32, h.depth).unwrap();
+        write!(w, "{},{}", h.kind.wire_discriminant(), h.depth).unwrap();
     }
     if let Some(ud) = &qos.user_data {
         if !ud.is_empty() {
@@ -75,7 +75,7 @@ pub fn build_pub_lv_key(
     zenoh_ke: &str,
     ros2_type: &str,
     keyless: bool,
-    qos: &Qos,
+    qos: &BridgeQos,
 ) -> String {
     format!(
         "@/{zid}/@ros2_lv/MP/{ke}/{typ}/{qos_ke}",
@@ -91,7 +91,7 @@ pub fn build_sub_lv_key(
     zenoh_ke: &str,
     ros2_type: &str,
     keyless: bool,
-    qos: &Qos,
+    qos: &BridgeQos,
 ) -> String {
     format!(
         "@/{zid}/@ros2_lv/MS/{ke}/{typ}/{qos_ke}",
@@ -167,24 +167,23 @@ pub fn build_bridge_lv_key(zid: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use cyclors::qos::{
-        DDS_INFINITE_TIME, Durability, DurabilityKind, History, HistoryKind, Qos, Reliability,
-        ReliabilityKind,
+    use crate::dds::backend::{
+        BridgeQos, Durability, DurabilityKind, History, HistoryKind, Reliability, ReliabilityKind,
     };
 
     use super::*;
 
-    fn qos_reliable_transient_local(depth: i32) -> Qos {
-        Qos {
+    fn qos_reliable_transient_local(depth: i32) -> BridgeQos {
+        BridgeQos {
             reliability: Some(Reliability {
-                kind: ReliabilityKind::RELIABLE,
-                max_blocking_time: DDS_INFINITE_TIME,
+                kind: ReliabilityKind::Reliable,
+                max_blocking_time: None,
             }),
             durability: Some(Durability {
-                kind: DurabilityKind::TRANSIENT_LOCAL,
+                kind: DurabilityKind::TransientLocal,
             }),
             history: Some(History {
-                kind: HistoryKind::KEEP_LAST,
+                kind: HistoryKind::KeepLast,
                 depth,
             }),
             ..Default::default()
@@ -212,67 +211,79 @@ mod tests {
 
     #[test]
     fn test_qos_lv_str_empty_qos() {
-        // No fields set, keyless → ":::"
-        assert_eq!(qos_to_lv_str(true, &Qos::default()), ":::");
+        assert_eq!(qos_to_lv_str(true, &BridgeQos::default()), ":::");
     }
 
     #[test]
     fn test_qos_lv_str_keyed() {
-        // !keyless → "K" prefix
-        assert_eq!(qos_to_lv_str(false, &Qos::default()), "K:::");
+        assert_eq!(qos_to_lv_str(false, &BridgeQos::default()), "K:::");
     }
 
     #[test]
     fn test_qos_lv_str_reliable() {
-        let qos = Qos {
+        let qos = BridgeQos {
             reliability: Some(Reliability {
-                kind: ReliabilityKind::RELIABLE,
-                max_blocking_time: DDS_INFINITE_TIME,
+                kind: ReliabilityKind::Reliable,
+                max_blocking_time: None,
             }),
             ..Default::default()
         };
-        // format: ":reliable_int::"
         let s = qos_to_lv_str(true, &qos);
-        assert_eq!(s, format!(":{}::", ReliabilityKind::RELIABLE as i32));
+        assert_eq!(
+            s,
+            format!(":{}::", ReliabilityKind::Reliable.wire_discriminant())
+        );
     }
 
     #[test]
     fn test_qos_lv_str_transient_local() {
-        let qos = Qos {
+        let qos = BridgeQos {
             durability: Some(Durability {
-                kind: DurabilityKind::TRANSIENT_LOCAL,
+                kind: DurabilityKind::TransientLocal,
             }),
             ..Default::default()
         };
         let s = qos_to_lv_str(true, &qos);
-        assert_eq!(s, format!("::{}:", DurabilityKind::TRANSIENT_LOCAL as i32));
+        assert_eq!(
+            s,
+            format!("::{}:", DurabilityKind::TransientLocal.wire_discriminant())
+        );
     }
 
     #[test]
     fn test_qos_lv_str_keep_last() {
-        let qos = Qos {
+        let qos = BridgeQos {
             history: Some(History {
-                kind: HistoryKind::KEEP_LAST,
+                kind: HistoryKind::KeepLast,
                 depth: 3,
             }),
             ..Default::default()
         };
         let s = qos_to_lv_str(true, &qos);
-        assert_eq!(s, format!(":::{},3", HistoryKind::KEEP_LAST as i32));
+        assert_eq!(
+            s,
+            format!(":::{},3", HistoryKind::KeepLast.wire_discriminant())
+        );
     }
 
     #[test]
     fn test_qos_lv_str_full_reliable_transient() {
         let qos = qos_reliable_transient_local(10);
         let s = qos_to_lv_str(true, &qos);
-        assert!(s.contains(&format!("{}", ReliabilityKind::RELIABLE as i32)));
-        assert!(s.contains(&format!("{}", DurabilityKind::TRANSIENT_LOCAL as i32)));
-        assert!(s.contains(&format!("{},10", HistoryKind::KEEP_LAST as i32)));
+        assert!(s.contains(&format!(
+            "{}",
+            ReliabilityKind::Reliable.wire_discriminant()
+        )));
+        assert!(s.contains(&format!(
+            "{}",
+            DurabilityKind::TransientLocal.wire_discriminant()
+        )));
+        assert!(s.contains(&format!("{},10", HistoryKind::KeepLast.wire_discriminant())));
     }
 
     #[test]
     fn test_qos_lv_str_user_data_appended() {
-        let qos = Qos {
+        let qos = BridgeQos {
             user_data: Some(b"typehash=RIHS01_abc;".to_vec()),
             ..Default::default()
         };
@@ -282,7 +293,7 @@ mod tests {
 
     #[test]
     fn test_qos_lv_str_empty_user_data_omitted() {
-        let qos = Qos {
+        let qos = BridgeQos {
             user_data: Some(vec![]),
             ..Default::default()
         };
@@ -298,7 +309,7 @@ mod tests {
             "chatter",
             "std_msgs/msg/String",
             true,
-            &Qos::default(),
+            &BridgeQos::default(),
         );
         assert!(key.starts_with("@/myzid/@ros2_lv/MP/"));
         assert!(key.contains("chatter"));
@@ -312,7 +323,7 @@ mod tests {
             "chatter",
             "std_msgs/msg/String",
             true,
-            &Qos::default(),
+            &BridgeQos::default(),
         );
         assert!(key.starts_with("@/myzid/@ros2_lv/MS/"));
         assert!(key.contains("chatter"));
@@ -324,7 +335,6 @@ mod tests {
             build_service_srv_lv_key("myzid", "add_two_ints", "example_interfaces/srv/AddTwoInts");
         assert!(key.starts_with("@/myzid/@ros2_lv/SS/"));
         assert!(key.contains("example_interfaces§srv§AddTwoInts"));
-        // Services have no QoS segment
         assert_eq!(
             key,
             "@/myzid/@ros2_lv/SS/add_two_ints/example_interfaces§srv§AddTwoInts"
@@ -381,13 +391,12 @@ mod tests {
 
     #[test]
     fn test_ke_slashes_escaped_in_pub_key() {
-        // Namespaced topic: zenoh_ke has a slash → must be escaped
         let key = build_pub_lv_key(
             "z",
             "robot/chatter",
             "std_msgs/msg/String",
             true,
-            &Qos::default(),
+            &BridgeQos::default(),
         );
         assert!(key.contains("robot§chatter"), "got: {key}");
     }

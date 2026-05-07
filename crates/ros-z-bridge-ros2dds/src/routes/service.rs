@@ -7,7 +7,6 @@ use std::{
 };
 
 use anyhow::{Result, anyhow};
-use cyclors::dds_entity_t;
 use parking_lot::Mutex;
 use zenoh::{
     Session, Wait,
@@ -17,17 +16,24 @@ use zenoh::{
 };
 
 use crate::dds::{
+    backend::{DdsParticipant, DdsWriter},
     discovery::DiscoveredEndpoint,
-    entity::DdsEntity,
     names::{dds_topic_to_ros2_name, dds_type_to_ros2_service_type, ros2_name_to_zenoh_key},
-    participant::get_instance_handle,
-    qos::{qos_mismatch_reason, service_default_qos},
-    reader::create_blob_reader,
-    types::DDSRawSample,
-    writer::{create_blob_writer, write_cdr},
+    qos::{qos_mismatch_reason, service_default_bridge_qos},
 };
 
 const CDR_HEADER_LE: [u8; 4] = [0, 1, 0, 0];
+const CDR_HEADER_BE: [u8; 4] = [0, 0, 0, 0];
+
+/// Return a CDR header with the same endianness as `payload` (byte [1]: 1=LE, 0=BE).
+/// Falls back to LE when the payload is too short to contain a header.
+fn cdr_header_matching(payload: &[u8]) -> [u8; 4] {
+    if payload.get(1).copied().unwrap_or(1) == 1 {
+        CDR_HEADER_LE
+    } else {
+        CDR_HEADER_BE
+    }
+}
 
 /// Sequence number embedded in every ROS 2 CDR service payload.
 ///
@@ -46,15 +52,15 @@ fn extract_sequence_number(raw: &[u8]) -> Option<u64> {
 ///
 /// The queryable is declared with `.complete(true)` so Zenoh clients across a
 /// router topology see this bridge as a complete service provider (#642).
-pub struct ServiceRoute {
-    _req_writer: DdsEntity,
-    _rep_reader: DdsEntity,
+pub struct ServiceRoute<P: DdsParticipant> {
+    _req_writer: Arc<P::Writer>,
+    _rep_reader: P::Reader,
     _queryable: Queryable<()>,
 }
 
-impl ServiceRoute {
+impl<P: DdsParticipant> ServiceRoute<P> {
     pub async fn create(
-        dp: dds_entity_t,
+        participant: &P,
         endpoint: &DiscoveredEndpoint,
         session: &Session,
         namespace: Option<&str>,
@@ -83,31 +89,25 @@ impl ServiceRoute {
         let req_type = format!("{dds_base}_Request_");
         let rep_type = format!("{dds_base}_Response_");
 
-        let qos = service_default_qos();
+        let qos = service_default_bridge_qos();
 
-        // G3: warn on QoS incompatibility between discovered endpoint and the service QoS.
         if let Some(reason) = qos_mismatch_reason(&endpoint.qos, &qos) {
             tracing::warn!("QoS mismatch on {}: {}", endpoint.topic_name, reason);
         }
 
-        let req_writer_h = create_blob_writer(dp, &req_topic, &req_type, true, qos.clone())?;
-        let req_writer = unsafe { DdsEntity::new(req_writer_h) };
-        let req_writer_raw = req_writer_h;
+        let req_writer =
+            Arc::new(participant.create_writer(&req_topic, &req_type, true, qos.clone())?);
 
-        // Derive client_guid from the request writer's instance handle (#647).
-        // CycloneDDS echoes this handle back as the client_guid in the reply header,
-        // so replies are routed to this specific writer — not the participant at large.
-        let client_guid = get_instance_handle(req_writer_h)?;
+        let client_guid = req_writer.instance_handle()?;
 
         let in_flight_rep = in_flight.clone();
-        let rep_reader_h = create_blob_reader(
-            dp,
+        let rep_reader = participant.create_reader(
             &rep_topic,
             &rep_type,
             true,
             qos.clone(),
-            move |sample: DDSRawSample| {
-                let raw = sample.as_slice();
+            Box::new(move |bytes: Vec<u8>| {
+                let raw = bytes.as_slice();
                 let seq = match extract_sequence_number(raw) {
                     Some(s) => s,
                     None => {
@@ -116,12 +116,9 @@ impl ServiceRoute {
                     }
                 };
                 if let Some(query) = in_flight_rep.lock().remove(&seq) {
-                    // Strip the 16-byte CddsRequestHeader before forwarding to Zenoh (#647).
-                    // The Zenoh querier sent [CDR_HDR + payload] and expects the same shape back,
-                    // not the DDS-level [CDR_HDR + guid + seq + payload].
                     let zenoh_payload = if raw.len() >= 20 {
                         let mut v = Vec::with_capacity(4 + (raw.len() - 20));
-                        v.extend_from_slice(&CDR_HEADER_LE);
+                        v.extend_from_slice(&cdr_header_matching(raw));
                         v.extend_from_slice(&raw[20..]);
                         v
                     } else {
@@ -135,17 +132,15 @@ impl ServiceRoute {
                 } else {
                     tracing::debug!("No in-flight query for seq={seq}");
                 }
-            },
+            }),
         )?;
-        let rep_reader = unsafe { DdsEntity::new(rep_reader_h) };
 
         let in_flight_q = in_flight.clone();
         let seq_counter_q = seq_counter.clone();
+        let req_writer_q = Arc::clone(&req_writer);
 
         let queryable = session
             .declare_queryable(ke.clone())
-            // complete(true): signals to Zenoh routers that this queryable handles the full
-            // key space, enabling cross-router service calls to succeed (#642).
             .complete(true)
             .callback(move |query: Query| {
                 let seq = seq_counter_q.fetch_add(1, Ordering::Relaxed);
@@ -161,16 +156,16 @@ impl ServiceRoute {
                     query_payload.as_slice()
                 };
 
-                // Build DDS payload: CDR_LE + client_guid (8 bytes LE) + seq (8 bytes LE) + body
+                let cdr_hdr = cdr_header_matching(&query_payload);
                 let mut dds_payload = Vec::with_capacity(4 + 16 + payload_body.len());
-                dds_payload.extend_from_slice(&CDR_HEADER_LE);
+                dds_payload.extend_from_slice(&cdr_hdr);
                 dds_payload.extend_from_slice(&client_guid.to_le_bytes());
                 dds_payload.extend_from_slice(&seq.to_le_bytes());
                 dds_payload.extend_from_slice(payload_body);
 
                 in_flight_q.lock().insert(seq, query);
 
-                if let Err(e) = write_cdr(req_writer_raw, dds_payload) {
+                if let Err(e) = req_writer_q.write_cdr(dds_payload) {
                     tracing::warn!("DDS request write failed: {e}");
                     in_flight_q.lock().remove(&seq);
                 }
@@ -211,10 +206,9 @@ mod tests {
 
     #[test]
     fn test_reply_header_stripping_removes_16_byte_dds_header() {
-        // DDS reply: [4-byte CDR header] [8-byte guid] [8-byte seq] [4-byte payload]
         let mut dds_reply = vec![0u8; 24];
         dds_reply[0] = 0;
-        dds_reply[1] = 1; // CDR LE
+        dds_reply[1] = 1;
         dds_reply[4..12].copy_from_slice(&0xdeadbeef_u64.to_le_bytes());
         dds_reply[12..20].copy_from_slice(&7u64.to_le_bytes());
         dds_reply[20..24].copy_from_slice(&[1, 2, 3, 4]);
@@ -236,7 +230,6 @@ mod tests {
 
     #[test]
     fn test_reply_header_stripping_short_payload_passthrough() {
-        // Raw < 20 bytes → passthrough unchanged (defensive fallback)
         let raw = &[0u8; 15];
         let zenoh_payload: Vec<u8> = if raw.len() >= 20 {
             let mut v = Vec::with_capacity(4 + (raw.len() - 20));

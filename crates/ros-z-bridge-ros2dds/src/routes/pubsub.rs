@@ -4,13 +4,6 @@ use std::{
 };
 
 use anyhow::{Result, anyhow};
-use cyclors::{
-    dds_entity_t,
-    qos::{DurabilityKind, HistoryKind, ReliabilityKind},
-};
-
-// cyclors does not re-export this constant publicly.
-const DDS_LENGTH_UNLIMITED: i32 = -1;
 use parking_lot::Mutex;
 use zenoh::{
     Session, Wait,
@@ -26,16 +19,10 @@ use zenoh_ext::{
 };
 
 use crate::dds::{
+    backend::{BridgeQos, DdsParticipant, DdsWriter, DurabilityKind, HistoryKind, ReliabilityKind},
     discovery::DiscoveredEndpoint,
-    entity::DdsEntity,
     names::{dds_topic_to_ros2_name, dds_type_to_ros2_type, ros2_name_to_zenoh_key},
-    qos::{
-        adapt_reader_qos_for_writer, adapt_writer_qos_for_reader, is_transient_local,
-        qos_mismatch_reason,
-    },
-    reader::create_blob_reader,
-    types::DDSRawSample,
-    writer::{create_blob_writer, write_cdr},
+    qos::{adapt_reader_qos_for_writer, adapt_writer_qos_for_reader, qos_mismatch_reason},
 };
 
 const TRANSIENT_LOCAL_CACHE_MULTIPLIER: usize = 10;
@@ -136,13 +123,13 @@ impl TopicPublisherSlot {
             .qos
             .reliability
             .as_ref()
-            .is_some_and(|r| r.kind == ReliabilityKind::RELIABLE);
+            .is_some_and(|r| r.kind == ReliabilityKind::Reliable);
 
         let is_transient_local = endpoint
             .qos
             .durability
             .as_ref()
-            .is_some_and(|d| d.kind == DurabilityKind::TRANSIENT_LOCAL);
+            .is_some_and(|d| d.kind == DurabilityKind::TransientLocal);
 
         let congestion_ctrl = if reliable_routes_blocking && is_reliable {
             CongestionControl::Block
@@ -162,7 +149,6 @@ impl TopicPublisherSlot {
                 .congestion_control(congestion_ctrl)
                 .priority(priority)
                 .express(express)
-                // Prevent routing loops when two bridge instances share a Zenoh session (#542).
                 .allowed_destination(Locality::Remote)
                 .cache(CacheConfig::default().max_samples(cache_size))
                 .publisher_detection()
@@ -188,26 +174,19 @@ impl TopicPublisherSlot {
 // ─── DdsToZenohRoute ─────────────────────────────────────────────────────────
 
 /// A route from a DDS publication to a Zenoh publisher.
-///
-/// The Zenoh publisher is held in a shared `TopicPublisherSlot` (also stored in
-/// `Bridge::topic_publishers`). When multiple DDS writers for the same topic are
-/// discovered, they all share one slot. Undiscovering a writer does not destroy
-/// the slot immediately — a 5-second grace period in Bridge allows the slot
-/// (and its AdvancedPublisher history cache) to survive rapid churn (#690).
-pub struct DdsToZenohRoute {
-    _reader: DdsEntity,
-    /// Keeps the TopicPublisherSlot alive while this reader is active.
+pub struct DdsToZenohRoute<P: DdsParticipant> {
+    _reader: P::Reader,
     _publisher: Arc<TopicPublisherSlot>,
     topic_name: String,
 }
 
-impl DdsToZenohRoute {
+impl<P: DdsParticipant> DdsToZenohRoute<P> {
     pub(crate) fn topic_name(&self) -> &str {
         &self.topic_name
     }
 
     pub async fn create(
-        dp: dds_entity_t,
+        participant: &P,
         endpoint: &DiscoveredEndpoint,
         session: &Session,
         namespace: Option<&str>,
@@ -223,7 +202,6 @@ impl DdsToZenohRoute {
         let topic_name = endpoint.topic_name.clone();
         let slot_key = (domain_id, topic_name.clone());
 
-        // Get or create the shared publisher slot for this topic.
         let arc_pub = {
             let mut map = topic_publishers.lock();
             if let Some(existing) = map.get(&slot_key).cloned() {
@@ -252,7 +230,6 @@ impl DdsToZenohRoute {
 
         let qos = adapt_writer_qos_for_reader(&endpoint.qos);
 
-        // G3: warn on QoS incompatibility between writer and adapted reader.
         if let Some(reason) = qos_mismatch_reason(&endpoint.qos, &qos) {
             tracing::warn!("QoS mismatch on {}: {}", endpoint.topic_name, reason);
         }
@@ -272,7 +249,6 @@ impl DdsToZenohRoute {
 
         let pub_clone = Arc::clone(&arc_pub);
 
-        // Rate limiter: None when max_publication_hz == 0 (unlimited).
         let min_interval: Option<Duration> = if max_publication_hz > 0.0 {
             Some(Duration::from_secs_f64(1.0 / max_publication_hz))
         } else {
@@ -280,14 +256,12 @@ impl DdsToZenohRoute {
         };
         let last_pub: Arc<StdMutex<Option<Instant>>> = Arc::new(StdMutex::new(None));
 
-        let reader_handle = create_blob_reader(
-            dp,
+        let reader = participant.create_reader(
             &topic_name,
             &type_name,
             keyless,
             qos,
-            move |sample: DDSRawSample| {
-                // Rate limiting: drop samples that arrive within min_interval of the last publish.
+            Box::new(move |bytes: Vec<u8>| {
                 if let Some(interval) = min_interval {
                     let mut last = last_pub.lock().unwrap();
                     let now = Instant::now();
@@ -298,17 +272,16 @@ impl DdsToZenohRoute {
                     }
                     *last = Some(now);
                 }
-                let bytes: ZBytes = sample.as_slice().into();
-                // G4: attach the ROS 2 type name so Zenoh receivers can identify the type.
+                let zbytes: ZBytes = ZBytes::from(bytes.as_slice());
                 let attachment = Some(ros2_type.as_bytes().to_vec());
-                if let Err(e) = pub_clone.put_wait(bytes, attachment) {
+                if let Err(e) = pub_clone.put_wait(zbytes, attachment) {
                     tracing::warn!("Zenoh put failed on {ke_display}: {e}");
                 }
-            },
+            }),
         )?;
 
         Ok(Self {
-            _reader: unsafe { DdsEntity::new(reader_handle) },
+            _reader: reader,
             _publisher: arc_pub,
             topic_name,
         })
@@ -324,11 +297,11 @@ impl DdsToZenohRoute {
 /// - keyless topics → `depth × multiplier` (no instance axis)
 /// - KEEP_LAST, unlimited instances → usize::MAX
 /// - KEEP_LAST, N instances → `(depth × N) × multiplier`
-fn compute_cache_size(qos: &cyclors::qos::Qos, keyless: bool) -> usize {
+fn compute_cache_size(qos: &BridgeQos, keyless: bool) -> usize {
     let depth = match &qos.history {
         Some(h) => match h.kind {
-            HistoryKind::KEEP_ALL => return usize::MAX,
-            HistoryKind::KEEP_LAST => h.depth as usize,
+            HistoryKind::KeepAll => return usize::MAX,
+            HistoryKind::KeepLast => h.depth as usize,
         },
         None => 1,
     };
@@ -337,49 +310,39 @@ fn compute_cache_size(qos: &cyclors::qos::Qos, keyless: bool) -> usize {
         return depth.saturating_mul(TRANSIENT_LOCAL_CACHE_MULTIPLIER);
     }
 
-    let max_instances = qos
+    let max_instances: Option<usize> = qos
         .durability_service
         .as_ref()
-        .map(|ds| ds.max_instances)
-        .unwrap_or(DDS_LENGTH_UNLIMITED);
+        .and_then(|ds| ds.max_instances);
 
-    if max_instances == DDS_LENGTH_UNLIMITED {
-        return usize::MAX;
+    match max_instances {
+        None => usize::MAX,
+        Some(n) => depth
+            .saturating_mul(n)
+            .saturating_mul(TRANSIENT_LOCAL_CACHE_MULTIPLIER),
     }
-
-    depth
-        .saturating_mul(max_instances.max(0) as usize)
-        .saturating_mul(TRANSIENT_LOCAL_CACHE_MULTIPLIER)
 }
 
 // ─── ZenohToDdsRoute ─────────────────────────────────────────────────────────
 
-/// Holds a Zenoh subscriber handle (plain or advanced) for RAII lifetime management.
 #[allow(dead_code)]
 enum ZenohSubscriberHandle {
     Plain(Subscriber<()>),
-    /// Used for TRANSIENT_LOCAL DDS readers: receives historical samples published
-    /// before this subscriber was created (`detect_late_publishers()`).
     Advanced(AdvancedSubscriber<()>),
 }
 
-// Safety: Subscriber<()> and AdvancedSubscriber<()> are Send+Sync.
 unsafe impl Send for ZenohSubscriberHandle {}
 unsafe impl Sync for ZenohSubscriberHandle {}
 
 /// A route from a Zenoh subscriber to a DDS writer.
-///
-/// Receives CDR bytes from Zenoh and forwards them verbatim to DDS.
-/// For TRANSIENT_LOCAL DDS readers, uses an AdvancedSubscriber with history
-/// so late-joining DDS readers receive samples published before they appeared.
-pub struct ZenohToDdsRoute {
-    _writer: DdsEntity,
+pub struct ZenohToDdsRoute<P: DdsParticipant> {
+    _writer: Arc<P::Writer>,
     _subscriber: ZenohSubscriberHandle,
 }
 
-impl ZenohToDdsRoute {
+impl<P: DdsParticipant> ZenohToDdsRoute<P> {
     pub async fn create(
-        dp: dds_entity_t,
+        participant: &P,
         endpoint: &DiscoveredEndpoint,
         session: &Session,
         namespace: Option<&str>,
@@ -394,25 +357,30 @@ impl ZenohToDdsRoute {
 
         let qos = adapt_reader_qos_for_writer(&endpoint.qos);
 
-        // G3: warn on QoS incompatibility between reader and adapted writer.
         if let Some(reason) = qos_mismatch_reason(&qos, &endpoint.qos) {
             tracing::warn!("QoS mismatch on {}: {}", endpoint.topic_name, reason);
         }
 
-        let writer_handle = create_blob_writer(
-            dp,
+        let writer = participant.create_writer(
             &endpoint.topic_name,
             &endpoint.type_name,
             endpoint.keyless,
             qos,
         )?;
-        let writer_entity = unsafe { DdsEntity::new(writer_handle) };
-        let writer_raw = writer_entity.raw();
 
         let ke_display = ke.to_string();
         let dds_topic = endpoint.topic_name.clone();
-        let endpoint_is_transient_local = is_transient_local(&endpoint.qos);
+        let endpoint_is_transient_local = endpoint
+            .qos
+            .durability
+            .as_ref()
+            .is_some_and(|d| d.kind == DurabilityKind::TransientLocal);
+
         tracing::info!("Zenoh→DDS pub/sub route: {ke_display} → {dds_topic}");
+
+        // Wrap in Arc so the writer can be shared with the subscriber callback.
+        let writer = Arc::new(writer);
+        let writer_cb = Arc::clone(&writer);
 
         let subscriber_handle = if endpoint_is_transient_local {
             tracing::debug!(
@@ -423,7 +391,7 @@ impl ZenohToDdsRoute {
                 .history(HistoryConfig::default().detect_late_publishers())
                 .callback(move |sample| {
                     let bytes: Vec<u8> = sample.payload().to_bytes().into_owned();
-                    if let Err(e) = write_cdr(writer_raw, bytes) {
+                    if let Err(e) = writer_cb.write_cdr(bytes) {
                         tracing::warn!("DDS write failed on {ke_display}: {e}");
                     }
                 })
@@ -435,7 +403,7 @@ impl ZenohToDdsRoute {
                 .declare_subscriber(ke.clone())
                 .callback(move |sample| {
                     let bytes: Vec<u8> = sample.payload().to_bytes().into_owned();
-                    if let Err(e) = write_cdr(writer_raw, bytes) {
+                    if let Err(e) = writer_cb.write_cdr(bytes) {
                         tracing::warn!("DDS write failed on {ke_display}: {e}");
                     }
                 })
@@ -445,7 +413,7 @@ impl ZenohToDdsRoute {
         };
 
         Ok(Self {
-            _writer: writer_entity,
+            _writer: writer,
             _subscriber: subscriber_handle,
         })
     }
@@ -455,64 +423,64 @@ impl ZenohToDdsRoute {
 
 #[cfg(test)]
 mod tests {
-    use cyclors::qos::{Durability, DurabilityKind, DurabilityService, History, HistoryKind, Qos};
-
-    use super::compute_cache_size;
+    use crate::dds::backend::{
+        BridgeQos, Durability, DurabilityKind, DurabilityService, History, HistoryKind,
+    };
     use crate::dds::names::dds_type_to_ros2_type;
 
-    const DDS_LENGTH_UNLIMITED: i32 = -1;
+    use super::compute_cache_size;
 
-    fn qos_transient_local(depth: i32) -> Qos {
-        Qos {
+    fn qos_transient_local(depth: i32) -> BridgeQos {
+        BridgeQos {
             durability: Some(Durability {
-                kind: DurabilityKind::TRANSIENT_LOCAL,
+                kind: DurabilityKind::TransientLocal,
             }),
             history: Some(History {
-                kind: HistoryKind::KEEP_LAST,
+                kind: HistoryKind::KeepLast,
                 depth,
             }),
             ..Default::default()
         }
     }
 
-    fn qos_transient_local_with_instances(depth: i32, max_instances: i32) -> Qos {
-        Qos {
+    fn qos_transient_local_with_instances(depth: i32, max_instances: Option<usize>) -> BridgeQos {
+        BridgeQos {
             durability: Some(Durability {
-                kind: DurabilityKind::TRANSIENT_LOCAL,
+                kind: DurabilityKind::TransientLocal,
             }),
             history: Some(History {
-                kind: HistoryKind::KEEP_LAST,
+                kind: HistoryKind::KeepLast,
                 depth,
             }),
             durability_service: Some(DurabilityService {
-                service_cleanup_delay: 0,
-                history_kind: HistoryKind::KEEP_LAST,
+                service_cleanup_delay: None,
+                history_kind: HistoryKind::KeepLast,
                 history_depth: depth,
-                max_samples: DDS_LENGTH_UNLIMITED,
+                max_samples: None,
                 max_instances,
-                max_samples_per_instance: DDS_LENGTH_UNLIMITED,
+                max_samples_per_instance: None,
             }),
             ..Default::default()
         }
     }
 
-    fn qos_volatile(depth: i32) -> Qos {
-        Qos {
+    fn qos_volatile(depth: i32) -> BridgeQos {
+        BridgeQos {
             history: Some(History {
-                kind: HistoryKind::KEEP_LAST,
+                kind: HistoryKind::KeepLast,
                 depth,
             }),
             ..Default::default()
         }
     }
 
-    fn qos_keep_all() -> Qos {
-        Qos {
+    fn qos_keep_all() -> BridgeQos {
+        BridgeQos {
             durability: Some(Durability {
-                kind: DurabilityKind::TRANSIENT_LOCAL,
+                kind: DurabilityKind::TransientLocal,
             }),
             history: Some(History {
-                kind: HistoryKind::KEEP_ALL,
+                kind: HistoryKind::KeepAll,
                 depth: 0,
             }),
             ..Default::default()
@@ -521,14 +489,12 @@ mod tests {
 
     #[test]
     fn test_cache_size_keep_last_keyless() {
-        // keyless: no instance axis — depth × multiplier only
         assert_eq!(compute_cache_size(&qos_transient_local(1), true), 10);
         assert_eq!(compute_cache_size(&qos_transient_local(5), true), 50);
     }
 
     #[test]
     fn test_cache_size_keep_last_no_durability_service_is_unlimited() {
-        // non-keyless with no durability_service → unlimited instances → usize::MAX
         assert_eq!(
             compute_cache_size(&qos_transient_local(5), false),
             usize::MAX
@@ -537,20 +503,19 @@ mod tests {
 
     #[test]
     fn test_cache_size_keep_last_unlimited_instances_is_max() {
-        let qos = qos_transient_local_with_instances(5, DDS_LENGTH_UNLIMITED);
+        let qos = qos_transient_local_with_instances(5, None);
         assert_eq!(compute_cache_size(&qos, false), usize::MAX);
     }
 
     #[test]
     fn test_cache_size_keep_last_n_instances() {
-        // depth=2, instances=3 → 2 × 3 × 10 = 60
-        let qos = qos_transient_local_with_instances(2, 3);
+        let qos = qos_transient_local_with_instances(2, Some(3));
         assert_eq!(compute_cache_size(&qos, false), 60);
     }
 
     #[test]
     fn test_cache_size_no_history_defaults_to_multiplier() {
-        assert_eq!(compute_cache_size(&Qos::default(), true), 10);
+        assert_eq!(compute_cache_size(&BridgeQos::default(), true), 10);
     }
 
     #[test]
@@ -564,8 +529,6 @@ mod tests {
         assert_eq!(compute_cache_size(&qos_volatile(3), true), 30);
     }
 
-    // G4: type name attachment
-
     #[test]
     fn test_type_name_attachment_string_type() {
         let dds_type = "std_msgs::msg::dds_::String_";
@@ -575,13 +538,10 @@ mod tests {
 
     #[test]
     fn test_type_name_attachment_full_dds_type_preserved() {
-        // pub/sub uses dds_type_to_ros2_type (not service variant) — full type string
         let dds_type = "example_interfaces::msg::dds_::Int64_";
         let ros2_type = dds_type_to_ros2_type(dds_type);
         assert_eq!(ros2_type, "example_interfaces/msg/Int64");
     }
-
-    // G1: shared publisher slot (Arc ref-count logic)
 
     #[test]
     fn test_arc_count_increases_with_clones() {
