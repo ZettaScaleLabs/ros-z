@@ -115,9 +115,19 @@ impl<'a> SchemaDiscovery<'a> {
             .map_err(|error| {
                 DynamicError::SchemaNotFound(format!("Failed to qualify topic: {error}"))
             })?;
-        let candidates =
-            collect_topic_schema_candidates(self.node.graph().as_ref(), &qualified_topic)?;
 
+        let graph = self.node.graph();
+        if !graph
+            .wait_for_publisher(&qualified_topic, self.timeout)
+            .await
+        {
+            return Err(DynamicError::SchemaNotFound(format!(
+                "No publishers found for topic: {}",
+                qualified_topic
+            )));
+        }
+
+        let candidates = collect_topic_schema_candidates(graph.as_ref(), &qualified_topic)?;
         let (schema, type_hash) = self.try_standard(&candidates[..]).await?;
 
         Ok(DiscoveredTopicSchema {

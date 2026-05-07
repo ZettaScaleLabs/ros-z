@@ -816,6 +816,14 @@ impl Graph {
         Ok(())
     }
 
+    pub async fn wait_for_publisher(&self, topic: impl AsRef<str>, timeout: Duration) -> bool {
+        let topic = topic.as_ref().to_string();
+        self.wait_until(timeout, move |g| {
+            g.count(EndpointKind::Publisher, &topic) > 0
+        })
+        .await
+    }
+
     pub fn count(&self, kind: EndpointKind, name: impl AsRef<str>) -> usize {
         let mut total = 0;
         match kind {
