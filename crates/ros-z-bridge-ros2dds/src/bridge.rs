@@ -11,7 +11,7 @@ use crate::{
         entity::DdsEntity,
         gid::Gid,
         names::{is_pubsub_topic, is_request_topic},
-        participant::{create_participant, get_instance_handle},
+        participant::create_participant,
     },
     routes::{
         pubsub::{DdsToZenohRoute, ZenohToDdsRoute},
@@ -61,9 +61,6 @@ pub struct Bridge {
     config: Config,
     session: Session,
     participant: DdsEntity,
-    /// Stable u64 derived from the participant instance handle. Used as client_guid
-    /// for all service requests originated by this bridge (fixes #647).
-    client_guid: u64,
 
     dds_to_zenoh: HashMap<Gid, DdsToZenohRoute>,
     zenoh_to_dds: HashMap<Gid, ZenohToDdsRoute>,
@@ -84,7 +81,6 @@ pub struct Bridge {
 impl Bridge {
     pub async fn new(config: Config, session: Session) -> Result<Self> {
         let participant = create_participant(config.domain_id)?;
-        let client_guid = get_instance_handle(participant.raw())?;
 
         let global = Filter::compile(config.allow.as_deref(), config.deny.as_deref())?;
 
@@ -122,7 +118,6 @@ impl Bridge {
             config,
             session,
             participant,
-            client_guid,
             dds_to_zenoh: HashMap::new(),
             zenoh_to_dds: HashMap::new(),
             service_srv: HashMap::new(),
@@ -232,7 +227,6 @@ impl Bridge {
                     &ep,
                     &self.session,
                     self.config.namespace.as_deref(),
-                    self.client_guid,
                 )
                 .await?;
                 self.service_srv.insert(ep.key, route);

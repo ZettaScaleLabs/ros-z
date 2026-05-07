@@ -11,6 +11,7 @@ use zenoh::{
     key_expr::KeyExpr,
     pubsub::{Publisher, Subscriber},
     qos::CongestionControl,
+    sample::Locality,
 };
 use zenoh_ext::{AdvancedPublisher, AdvancedPublisherBuilderExt, CacheConfig};
 
@@ -103,6 +104,9 @@ impl DdsToZenohRoute {
             let adv = session
                 .declare_publisher(ke.clone())
                 .congestion_control(congestion_ctrl)
+                // Only send to remote Zenoh subscribers — prevents routing loops when two
+                // bridge instances share the same Zenoh session and DDS domain (#542).
+                .allowed_destination(Locality::Remote)
                 .cache(CacheConfig::default().max_samples(cache_size))
                 .publisher_detection()
                 .await
@@ -112,6 +116,7 @@ impl DdsToZenohRoute {
             let plain = session
                 .declare_publisher(ke.clone())
                 .congestion_control(congestion_ctrl)
+                .allowed_destination(Locality::Remote)
                 .await
                 .map_err(|e| anyhow!("declare_publisher failed: {e}"))?;
             BridgePublisher::Plain(plain)
