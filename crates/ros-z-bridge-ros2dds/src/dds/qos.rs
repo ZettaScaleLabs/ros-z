@@ -39,6 +39,51 @@ pub fn is_transient_local(qos: &Qos) -> bool {
         .is_some_and(|d| d.kind == DurabilityKind::TRANSIENT_LOCAL)
 }
 
+/// Check whether a writer/reader QoS pair is compatible per RTPS rules.
+///
+/// Returns `Some(reason)` if the pair is incompatible and the mismatch should
+/// be logged; returns `None` if the pair is compatible.
+pub fn qos_mismatch_reason(writer_qos: &Qos, reader_qos: &Qos) -> Option<String> {
+    // BEST_EFFORT writer + RELIABLE reader → incompatible.
+    // Per RTPS, TRANSIENT_LOCAL durability implies RELIABLE delivery even when the
+    // reliability field is absent from the QoS struct.
+    let writer_reliable = writer_qos
+        .reliability
+        .as_ref()
+        .is_some_and(|r| r.kind == ReliabilityKind::RELIABLE)
+        || writer_qos
+            .durability
+            .as_ref()
+            .is_some_and(|d| d.kind == DurabilityKind::TRANSIENT_LOCAL);
+    let reader_reliable = reader_qos
+        .reliability
+        .as_ref()
+        .is_some_and(|r| r.kind == ReliabilityKind::RELIABLE);
+    if !writer_reliable && reader_reliable {
+        return Some(
+            "BEST_EFFORT writer cannot satisfy RELIABLE reader; samples may be dropped".to_string(),
+        );
+    }
+
+    // VOLATILE writer + TRANSIENT_LOCAL reader → incompatible
+    let writer_transient = writer_qos
+        .durability
+        .as_ref()
+        .is_some_and(|d| d.kind == DurabilityKind::TRANSIENT_LOCAL);
+    let reader_transient = reader_qos
+        .durability
+        .as_ref()
+        .is_some_and(|d| d.kind == DurabilityKind::TRANSIENT_LOCAL);
+    if !writer_transient && reader_transient {
+        return Some(
+            "VOLATILE writer cannot satisfy TRANSIENT_LOCAL reader; late-joiner samples lost"
+                .to_string(),
+        );
+    }
+
+    None
+}
+
 /// Adapt a discovered writer's QoS to create a matching reader.
 pub fn adapt_writer_qos_for_reader(qos: &Qos) -> Qos {
     let mut reader_qos = qos.clone();
@@ -267,5 +312,37 @@ mod tests {
         let r = writer_qos.reliability.expect("reliability set");
         assert_eq!(r.kind, ReliabilityKind::RELIABLE);
         assert_eq!(r.max_blocking_time, DDS_100MS_DURATION + 1);
+    }
+
+    // --- qos_mismatch_reason ---
+
+    #[test]
+    fn test_qos_best_effort_writer_reliable_reader_is_mismatch() {
+        let reason = qos_mismatch_reason(&best_effort_qos(), &reliable_qos());
+        assert!(reason.is_some(), "expected mismatch");
+        assert!(reason.unwrap().contains("BEST_EFFORT"));
+    }
+
+    #[test]
+    fn test_qos_reliable_writer_best_effort_reader_ok() {
+        assert!(qos_mismatch_reason(&reliable_qos(), &best_effort_qos()).is_none());
+    }
+
+    #[test]
+    fn test_qos_volatile_writer_transient_reader_is_mismatch() {
+        let reason = qos_mismatch_reason(&reliable_qos(), &transient_local_qos(1));
+        assert!(reason.is_some(), "expected mismatch");
+        assert!(reason.unwrap().contains("VOLATILE"));
+    }
+
+    #[test]
+    fn test_qos_transient_writer_volatile_reader_ok() {
+        assert!(qos_mismatch_reason(&transient_local_qos(1), &reliable_qos()).is_none());
+    }
+
+    #[test]
+    fn test_qos_both_same_returns_none() {
+        assert!(qos_mismatch_reason(&reliable_qos(), &reliable_qos()).is_none());
+        assert!(qos_mismatch_reason(&best_effort_qos(), &best_effort_qos()).is_none());
     }
 }

@@ -12,7 +12,7 @@ path = "src/main.rs"
 cyclors = "=0.2.7"
 ros-z = { path = "../ros-z" }
 ros-z-protocol = { path = "../ros-z-protocol", features = ["std", "rmw-zenoh"] }
-zenoh = { workspace = true }
+zenoh = { workspace = true, features = ["transport_tls"] }
 zenoh-ext = { workspace = true }
 
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync"] }

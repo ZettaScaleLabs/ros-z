@@ -1,6 +1,7 @@
 mod bridge;
 mod config;
 mod dds;
+mod liveliness;
 mod routes;
 
 use anyhow::{Result, anyhow};
@@ -19,7 +20,13 @@ async fn main() -> Result<()> {
 
     let config = Config::parse();
 
-    let mut z_config = ZConfig::default();
+    // G7: load Zenoh config file if provided, then overlay the endpoint.
+    let mut z_config = match &config.zenoh_config_file {
+        Some(path) => {
+            ZConfig::from_file(path).map_err(|e| anyhow!("Zenoh config load failed: {e}"))?
+        }
+        None => ZConfig::default(),
+    };
     z_config
         .insert_json5(
             "connect/endpoints",

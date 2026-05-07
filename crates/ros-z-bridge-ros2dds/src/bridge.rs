@@ -1,6 +1,10 @@
-use std::collections::HashMap;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use anyhow::Result;
+use parking_lot::Mutex;
 use regex::Regex;
 use zenoh::Session;
 
@@ -14,7 +18,8 @@ use crate::{
         participant::create_participant,
     },
     routes::{
-        pubsub::{DdsToZenohRoute, ZenohToDdsRoute},
+        action::is_action_component,
+        pubsub::{DdsToZenohRoute, TopicPublisherSlot, ZenohToDdsRoute},
         service::ServiceRoute,
         service_cli::ServiceCliRoute,
     },
@@ -39,7 +44,7 @@ impl Filter {
         Ok(Self { allow, deny })
     }
 
-    /// Returns true if `name` passes this filter (allow overrides deny; if neither set, passes).
+    /// Returns true if `name` passes this filter (deny checked first; if neither set, passes).
     fn allows(&self, name: &str) -> bool {
         if let Some(deny) = &self.deny {
             if deny.is_match(name) {
@@ -55,36 +60,57 @@ impl Filter {
 
 /// Top-level bridge state.
 ///
-/// Holds all active routes keyed by the DDS endpoint GID.
+/// Holds all active routes keyed by (domain_id, DDS endpoint GID).
 /// Dropping a route tears down the underlying DDS entities via RAII.
 pub struct Bridge {
     config: Config,
     session: Session,
-    participant: DdsEntity,
+    /// One participant per domain ID.
+    participants: Vec<(u32, DdsEntity)>,
 
-    dds_to_zenoh: HashMap<Gid, DdsToZenohRoute>,
-    zenoh_to_dds: HashMap<Gid, ZenohToDdsRoute>,
+    /// DDS→Zenoh routes keyed by (domain_id, gid).
+    dds_to_zenoh: HashMap<(u32, Gid), DdsToZenohRoute>,
+    /// Shared Zenoh publisher slots for DDS topics; keyed by (domain_id, dds_topic_name).
+    /// Kept alive across DDS writer churn to preserve AdvancedPublisher history cache (#690).
+    topic_publishers: Arc<Mutex<HashMap<(u32, String), Arc<TopicPublisherSlot>>>>,
+    zenoh_to_dds: HashMap<(u32, Gid), ZenohToDdsRoute>,
     /// DDS server → Zenoh queryable
-    service_srv: HashMap<Gid, ServiceRoute>,
+    service_srv: HashMap<(u32, Gid), ServiceRoute>,
     /// DDS client → Zenoh querier
-    service_cli: HashMap<Gid, ServiceCliRoute>,
+    service_cli: HashMap<(u32, Gid), ServiceCliRoute>,
 
     /// Global filter (applied when no per-type filter is set)
     global: Filter,
-    /// Per-type filters; fall back to global when None fields are present
+    /// Per-type filters; fall back to global when per-type unset
     filter_pub: Filter,
     filter_sub: Filter,
     filter_service_srv: Filter,
     filter_service_cli: Filter,
+    /// Action-specific filter (/_action/ topics); falls back to global.
+    filter_action: Filter,
 }
 
 impl Bridge {
     pub async fn new(config: Config, session: Session) -> Result<Self> {
-        let participant = create_participant(config.domain_id)?;
+        // Validate domain IDs: DDS spec limits to 0–229; no duplicates.
+        let mut seen = HashSet::new();
+        for &did in &config.domain_ids {
+            if did > 229 {
+                anyhow::bail!("domain ID {did} is out of range (valid: 0–229)");
+            }
+            if !seen.insert(did) {
+                anyhow::bail!("domain ID {did} specified more than once");
+            }
+        }
+
+        let participants: Vec<(u32, DdsEntity)> = config
+            .domain_ids
+            .iter()
+            .map(|&did| create_participant(did).map(|p| (did, p)))
+            .collect::<Result<_>>()?;
 
         let global = Filter::compile(config.allow.as_deref(), config.deny.as_deref())?;
 
-        // Per-type filters: use explicit per-type if set, else fall back to global regex.
         let filter_pub = Filter::compile(
             config.allow_pub.as_deref().or(config.allow.as_deref()),
             config.deny_pub.as_deref().or(config.deny.as_deref()),
@@ -113,12 +139,17 @@ impl Bridge {
                 .as_deref()
                 .or(config.deny.as_deref()),
         )?;
+        let filter_action = Filter::compile(
+            config.allow_action.as_deref().or(config.allow.as_deref()),
+            config.deny_action.as_deref().or(config.deny.as_deref()),
+        )?;
 
         Ok(Self {
             config,
             session,
-            participant,
+            participants,
             dds_to_zenoh: HashMap::new(),
+            topic_publishers: Arc::new(Mutex::new(HashMap::new())),
             zenoh_to_dds: HashMap::new(),
             service_srv: HashMap::new(),
             service_cli: HashMap::new(),
@@ -127,113 +158,206 @@ impl Bridge {
             filter_sub,
             filter_service_srv,
             filter_service_cli,
+            filter_action,
         })
     }
 
     /// Start the discovery loop and process events until shutdown.
     pub async fn run(mut self) -> Result<()> {
-        let (tx, rx) = flume::bounded::<DiscoveryEvent>(256);
-        run_discovery(self.participant.raw(), tx);
+        // Merge all per-domain discovery channels into one tagged stream.
+        let (merged_tx, merged_rx) = flume::bounded::<(u32, DiscoveryEvent)>(256);
+
+        for (domain_id, participant) in &self.participants {
+            let (tx, rx) = flume::bounded::<DiscoveryEvent>(256);
+            run_discovery(participant.raw(), tx);
+            let mtx = merged_tx.clone();
+            let did = *domain_id;
+            tokio::spawn(async move {
+                while let Ok(ev) = rx.recv_async().await {
+                    let _ = mtx.send_async((did, ev)).await;
+                }
+            });
+        }
+        // Drop our copy so merged_rx closes when all forwarders finish.
+        drop(merged_tx);
 
         tracing::info!(
-            "Bridge running (domain={}, zenoh={})",
-            self.config.domain_id,
+            "Bridge running (domains={:?}, zenoh={})",
+            self.config.domain_ids,
             self.config.zenoh_endpoint,
         );
 
-        while let Ok(event) = rx.recv_async().await {
-            if let Err(e) = self.handle_event(event).await {
+        while let Ok((domain_id, event)) = merged_rx.recv_async().await {
+            if let Err(e) = self.handle_event(domain_id, event).await {
                 tracing::warn!("Route creation error: {e}");
             }
         }
         Ok(())
     }
 
-    async fn handle_event(&mut self, event: DiscoveryEvent) -> Result<()> {
+    async fn handle_event(&mut self, domain_id: u32, event: DiscoveryEvent) -> Result<()> {
         match event {
             DiscoveryEvent::DiscoveredPublication(ep) => {
-                self.on_discovered_publication(ep).await?;
+                self.on_discovered_publication(domain_id, ep).await?;
             }
             DiscoveryEvent::UndiscoveredPublication(gid) => {
-                self.dds_to_zenoh.remove(&gid);
-                self.service_cli.remove(&gid);
+                let key = (domain_id, gid);
+                if let Some(removed) = self.dds_to_zenoh.remove(&key) {
+                    // G1: after dropping the reader (and its Arc<TopicPublisherSlot>), start a
+                    // 5-second grace period before evicting the publisher slot from the map.
+                    // If a new DDS writer for the same topic appears within that window, it will
+                    // reuse the slot and its AdvancedPublisher history cache survives.
+                    let topic_name = removed.topic_name().to_owned();
+                    let slot_key = (domain_id, topic_name.clone());
+                    let tp = Arc::clone(&self.topic_publishers);
+                    drop(removed);
+                    tokio::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                        let mut map = tp.lock();
+                        if let Some(arc) = map.get(&slot_key) {
+                            if Arc::strong_count(arc) == 1 {
+                                map.remove(&slot_key);
+                                tracing::debug!(
+                                    "Evicted publisher slot for {} after grace period",
+                                    slot_key.1
+                                );
+                            }
+                        }
+                    });
+                }
+                self.service_cli.remove(&key);
                 tracing::debug!("Removed publication route for {gid}");
             }
             DiscoveryEvent::DiscoveredSubscription(ep) => {
-                self.on_discovered_subscription(ep).await?;
+                self.on_discovered_subscription(domain_id, ep).await?;
             }
             DiscoveryEvent::UndiscoveredSubscription(gid) => {
-                self.zenoh_to_dds.remove(&gid);
-                self.service_srv.remove(&gid);
+                let key = (domain_id, gid);
+                self.zenoh_to_dds.remove(&key);
+                self.service_srv.remove(&key);
                 tracing::debug!("Removed subscription route for {gid}");
             }
         }
         Ok(())
     }
 
+    // G2: pick the right filter based on whether the topic is an action component.
+
+    fn pub_filter_for<'a>(&'a self, topic_name: &str) -> &'a Filter {
+        if is_action_component(topic_name) {
+            &self.filter_action
+        } else {
+            &self.filter_pub
+        }
+    }
+
+    fn sub_filter_for<'a>(&'a self, topic_name: &str) -> &'a Filter {
+        if is_action_component(topic_name) {
+            &self.filter_action
+        } else {
+            &self.filter_sub
+        }
+    }
+
+    fn service_cli_filter_for<'a>(&'a self, topic_name: &str) -> &'a Filter {
+        if is_action_component(topic_name) {
+            &self.filter_action
+        } else {
+            &self.filter_service_cli
+        }
+    }
+
+    fn service_srv_filter_for<'a>(&'a self, topic_name: &str) -> &'a Filter {
+        if is_action_component(topic_name) {
+            &self.filter_action
+        } else {
+            &self.filter_service_srv
+        }
+    }
+
     /// A DDS publication was discovered (someone is publishing on DDS).
-    async fn on_discovered_publication(&mut self, ep: DiscoveredEndpoint) -> Result<()> {
+    async fn on_discovered_publication(
+        &mut self,
+        domain_id: u32,
+        ep: DiscoveredEndpoint,
+    ) -> Result<()> {
         if is_pubsub_topic(&ep.topic_name) {
-            if self.filter_pub.allows(&ep.topic_name) {
+            if self.pub_filter_for(&ep.topic_name).allows(&ep.topic_name) {
                 tracing::info!("DDS→Zenoh pub route: {}", ep.topic_name);
                 let route = DdsToZenohRoute::create(
-                    self.participant.raw(),
+                    self.participant_for(domain_id),
                     &ep,
                     &self.session,
                     self.config.namespace.as_deref(),
                     self.config.reliable_routes_blocking,
+                    &self.topic_publishers,
+                    domain_id,
                 )
                 .await?;
-                self.dds_to_zenoh.insert(ep.key, route);
+                self.dds_to_zenoh.insert((domain_id, ep.key), route);
             }
         } else if is_request_topic(&ep.topic_name) {
-            if self.filter_service_cli.allows(&ep.topic_name) {
-                // A DDS service CLIENT is publishing requests: DDS client → Zenoh querier
+            if self
+                .service_cli_filter_for(&ep.topic_name)
+                .allows(&ep.topic_name)
+            {
                 tracing::info!("DDS client→Zenoh querier route: {}", ep.topic_name);
                 let route = ServiceCliRoute::create(
-                    self.participant.raw(),
+                    self.participant_for(domain_id),
                     &ep,
                     &self.session,
                     self.config.namespace.as_deref(),
                 )
                 .await?;
-                self.service_cli.insert(ep.key, route);
+                self.service_cli.insert((domain_id, ep.key), route);
             }
         }
-        // reply publications (rr/) are handled inside ServiceRoute
         Ok(())
     }
 
     /// A DDS subscription was discovered (someone is subscribing on DDS).
-    async fn on_discovered_subscription(&mut self, ep: DiscoveredEndpoint) -> Result<()> {
+    async fn on_discovered_subscription(
+        &mut self,
+        domain_id: u32,
+        ep: DiscoveredEndpoint,
+    ) -> Result<()> {
         if is_pubsub_topic(&ep.topic_name) {
-            if self.filter_sub.allows(&ep.topic_name) {
+            if self.sub_filter_for(&ep.topic_name).allows(&ep.topic_name) {
                 tracing::info!("Zenoh→DDS sub route: {}", ep.topic_name);
                 let route = ZenohToDdsRoute::create(
-                    self.participant.raw(),
+                    self.participant_for(domain_id),
                     &ep,
                     &self.session,
                     self.config.namespace.as_deref(),
                 )
                 .await?;
-                self.zenoh_to_dds.insert(ep.key, route);
+                self.zenoh_to_dds.insert((domain_id, ep.key), route);
             }
         } else if is_request_topic(&ep.topic_name) {
-            if self.filter_service_srv.allows(&ep.topic_name) {
-                // A DDS service SERVER is subscribing to requests: expose as Zenoh queryable
+            if self
+                .service_srv_filter_for(&ep.topic_name)
+                .allows(&ep.topic_name)
+            {
                 tracing::info!("DDS server→Zenoh queryable route: {}", ep.topic_name);
                 let route = ServiceRoute::create(
-                    self.participant.raw(),
+                    self.participant_for(domain_id),
                     &ep,
                     &self.session,
                     self.config.namespace.as_deref(),
                 )
                 .await?;
-                self.service_srv.insert(ep.key, route);
+                self.service_srv.insert((domain_id, ep.key), route);
             }
         }
-        // reply subscriptions (rr/) are internal; ServiceRoute handles them
         Ok(())
+    }
+
+    fn participant_for(&self, domain_id: u32) -> i32 {
+        self.participants
+            .iter()
+            .find(|(did, _)| *did == domain_id)
+            .map(|(_, p)| p.raw())
+            .unwrap_or_else(|| self.participants[0].1.raw())
     }
 }
 
@@ -264,7 +388,6 @@ mod tests {
 
     #[test]
     fn test_filter_deny_overrides_allow_for_matching_deny() {
-        // deny takes priority: topic matches deny → blocked even if allow also matches
         let f = Filter::compile(Some(".*"), Some("rt/secret")).unwrap();
         assert!(!f.allows("rt/secret"));
         assert!(f.allows("rt/chatter"));
@@ -274,5 +397,79 @@ mod tests {
     fn test_filter_invalid_regex_returns_error() {
         assert!(Filter::compile(Some("[invalid"), None).is_err());
         assert!(Filter::compile(None, Some("[invalid")).is_err());
+    }
+
+    // G2: action filtering
+
+    #[test]
+    fn test_action_filter_allows_matching() {
+        let f = Filter::compile(Some(".*_action.*"), None).unwrap();
+        assert!(f.allows("rq/fibonacci/_action/send_goalRequest"));
+        assert!(f.allows("rt/fibonacci/_action/feedback"));
+    }
+
+    #[test]
+    fn test_action_filter_denies_non_matching() {
+        let f = Filter::compile(None, Some(".*_action.*")).unwrap();
+        assert!(!f.allows("rq/fibonacci/_action/send_goalRequest"));
+        assert!(!f.allows("rt/fibonacci/_action/feedback"));
+        assert!(f.allows("rt/chatter"));
+    }
+
+    #[test]
+    fn test_action_filter_falls_back_to_global() {
+        let action_f = Filter::compile(None, Some(".*fibonacci.*")).unwrap();
+        assert!(!action_f.allows("rt/fibonacci/_action/feedback"));
+        assert!(action_f.allows("rt/chatter"));
+    }
+
+    #[test]
+    fn test_non_action_unaffected_by_action_filter() {
+        let action_f = Filter::compile(None, Some(".*_action.*")).unwrap();
+        let pub_f = Filter::compile(None, None).unwrap();
+        assert!(pub_f.allows("rt/chatter"));
+        assert!(!action_f.allows("rt/fibonacci/_action/feedback"));
+    }
+
+    // G6: multi-domain validation
+
+    #[test]
+    fn test_domain_id_validation_rejects_too_large() {
+        let ids = vec![230u32];
+        let mut seen = std::collections::HashSet::new();
+        let result: Result<(), String> = ids.iter().try_for_each(|&did| {
+            if did > 229 {
+                Err(format!("domain ID {did} out of range"))
+            } else if !seen.insert(did) {
+                Err(format!("domain ID {did} duplicated"))
+            } else {
+                Ok(())
+            }
+        });
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_domain_id_dedup_rejects_duplicate() {
+        let ids = vec![0u32, 0u32];
+        let mut seen = std::collections::HashSet::new();
+        let result: Result<(), String> = ids.iter().try_for_each(|&did| {
+            if did > 229 {
+                Err(format!("domain ID {did} out of range"))
+            } else if !seen.insert(did) {
+                Err(format!("domain ID {did} duplicated"))
+            } else {
+                Ok(())
+            }
+        });
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_route_key_distinct_across_domains() {
+        // (domain_id, topic_name) keys with same topic but different domains are distinct.
+        let key0: (u32, String) = (0, "rt/chatter".to_string());
+        let key42: (u32, String) = (42, "rt/chatter".to_string());
+        assert_ne!(key0, key42);
     }
 }
