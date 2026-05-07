@@ -1,6 +1,18 @@
+use std::sync::Arc;
+
 use anyhow::{Result, anyhow};
-use cyclors::dds_entity_t;
-use zenoh::{Session, Wait, bytes::ZBytes, key_expr::KeyExpr, pubsub::Subscriber};
+use cyclors::{
+    dds_entity_t,
+    qos::{DurabilityKind, HistoryKind, ReliabilityKind},
+};
+use zenoh::{
+    Session, Wait,
+    bytes::ZBytes,
+    key_expr::KeyExpr,
+    pubsub::{Publisher, Subscriber},
+    qos::CongestionControl,
+};
+use zenoh_ext::{AdvancedPublisher, AdvancedPublisherBuilderExt, CacheConfig};
 
 use crate::dds::{
     discovery::DiscoveredEndpoint,
@@ -12,9 +24,37 @@ use crate::dds::{
     writer::{create_blob_writer, write_cdr},
 };
 
+const TRANSIENT_LOCAL_CACHE_MULTIPLIER: usize = 10;
+
+/// Unified publisher handle: plain or TRANSIENT_LOCAL with history cache.
+enum BridgePublisher {
+    Plain(Publisher<'static>),
+    Cached(Arc<AdvancedPublisher<'static>>),
+}
+
+impl BridgePublisher {
+    fn put_wait(&self, bytes: ZBytes) -> Result<()> {
+        match self {
+            Self::Plain(p) => p
+                .put(bytes)
+                .wait()
+                .map_err(|e| anyhow!("Zenoh put failed: {e}")),
+            Self::Cached(p) => p
+                .put(bytes)
+                .wait()
+                .map_err(|e| anyhow!("Zenoh put (cached) failed: {e}")),
+        }
+    }
+}
+
+// Safety: Publisher<'static> is Send; AdvancedPublisher<'static> is Send
+unsafe impl Send for BridgePublisher {}
+
 /// A route from a DDS publication to a Zenoh publisher.
 ///
 /// Receives CDR bytes from DDS and forwards them verbatim to Zenoh.
+/// When the DDS writer is TRANSIENT_LOCAL, an AdvancedPublisher with a history
+/// cache is used so late-joining Zenoh subscribers receive historical samples.
 pub struct DdsToZenohRoute {
     _reader: DdsEntity,
 }
@@ -25,6 +65,7 @@ impl DdsToZenohRoute {
         endpoint: &DiscoveredEndpoint,
         session: &Session,
         namespace: Option<&str>,
+        reliable_routes_blocking: bool,
     ) -> Result<Self> {
         let ros2_name = dds_topic_to_ros2_name(&endpoint.topic_name)
             .ok_or_else(|| anyhow!("not a bridgeable topic: {}", endpoint.topic_name))?;
@@ -34,10 +75,47 @@ impl DdsToZenohRoute {
             .try_into()
             .map_err(|e| anyhow!("invalid key expr: {e}"))?;
 
-        let publisher = session
-            .declare_publisher(ke.clone())
-            .await
-            .map_err(|e| anyhow!("declare_publisher failed: {e}"))?;
+        let is_reliable = endpoint
+            .qos
+            .reliability
+            .as_ref()
+            .is_some_and(|r| r.kind == ReliabilityKind::RELIABLE);
+
+        let is_transient_local = endpoint
+            .qos
+            .durability
+            .as_ref()
+            .is_some_and(|d| d.kind == DurabilityKind::TRANSIENT_LOCAL);
+
+        let congestion_ctrl = if reliable_routes_blocking && is_reliable {
+            CongestionControl::Block
+        } else {
+            CongestionControl::Drop
+        };
+
+        let publisher: BridgePublisher = if is_transient_local {
+            let cache_size = compute_cache_size(&endpoint.qos);
+            tracing::debug!(
+                "DDS→Zenoh: TRANSIENT_LOCAL topic {}, cache_size={}",
+                endpoint.topic_name,
+                cache_size
+            );
+            let adv = session
+                .declare_publisher(ke.clone())
+                .congestion_control(congestion_ctrl)
+                .cache(CacheConfig::default().max_samples(cache_size))
+                .publisher_detection()
+                .await
+                .map_err(|e| anyhow!("declare_publisher(advanced) failed: {e}"))?;
+            BridgePublisher::Cached(Arc::new(adv))
+        } else {
+            let plain = session
+                .declare_publisher(ke.clone())
+                .congestion_control(congestion_ctrl)
+                .await
+                .map_err(|e| anyhow!("declare_publisher failed: {e}"))?;
+            BridgePublisher::Plain(plain)
+        };
 
         let qos = adapt_writer_qos_for_reader(&endpoint.qos);
         let topic_name = endpoint.topic_name.clone();
@@ -55,7 +133,7 @@ impl DdsToZenohRoute {
             qos,
             move |sample: DDSRawSample| {
                 let bytes: ZBytes = sample.as_slice().into();
-                if let Err(e) = publisher.put(bytes).wait() {
+                if let Err(e) = publisher.put_wait(bytes) {
                     tracing::warn!("Zenoh put failed on {ke_display}: {e}");
                 }
             },
@@ -65,6 +143,21 @@ impl DdsToZenohRoute {
             _reader: unsafe { DdsEntity::new(reader_handle) },
         })
     }
+}
+
+/// Compute the AdvancedPublisher cache size from DDS QoS.
+///
+/// Mirrors the zenoh-plugin-ros2dds formula: history.depth × cache_multiplier,
+/// bounded by usize::MAX for KEEP_ALL or unlimited instances.
+fn compute_cache_size(qos: &cyclors::qos::Qos) -> usize {
+    let depth = match &qos.history {
+        Some(h) => match h.kind {
+            HistoryKind::KEEP_ALL => return usize::MAX,
+            HistoryKind::KEEP_LAST => h.depth as usize,
+        },
+        None => 1,
+    };
+    depth.saturating_mul(TRANSIENT_LOCAL_CACHE_MULTIPLIER)
 }
 
 /// A route from a Zenoh subscriber to a DDS writer.
@@ -121,5 +214,74 @@ impl ZenohToDdsRoute {
             _writer: writer_entity,
             _subscriber: subscriber,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use cyclors::qos::{Durability, DurabilityKind, History, HistoryKind, Qos};
+
+    use super::compute_cache_size;
+
+    fn qos_transient_local(depth: i32) -> Qos {
+        Qos {
+            durability: Some(Durability {
+                kind: DurabilityKind::TRANSIENT_LOCAL,
+            }),
+            history: Some(History {
+                kind: HistoryKind::KEEP_LAST,
+                depth,
+            }),
+            ..Default::default()
+        }
+    }
+
+    fn qos_volatile(depth: i32) -> Qos {
+        Qos {
+            history: Some(History {
+                kind: HistoryKind::KEEP_LAST,
+                depth,
+            }),
+            ..Default::default()
+        }
+    }
+
+    fn qos_keep_all() -> Qos {
+        Qos {
+            durability: Some(Durability {
+                kind: DurabilityKind::TRANSIENT_LOCAL,
+            }),
+            history: Some(History {
+                kind: HistoryKind::KEEP_ALL,
+                depth: 0,
+            }),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn test_cache_size_keep_last() {
+        // depth=1 → 1 × 10 = 10
+        assert_eq!(compute_cache_size(&qos_transient_local(1)), 10);
+        // depth=5 → 5 × 10 = 50
+        assert_eq!(compute_cache_size(&qos_transient_local(5)), 50);
+    }
+
+    #[test]
+    fn test_cache_size_no_history_defaults_to_multiplier() {
+        let qos = Qos::default();
+        // no history → depth=1, 1 × 10 = 10
+        assert_eq!(compute_cache_size(&qos), 10);
+    }
+
+    #[test]
+    fn test_cache_size_keep_all_is_max() {
+        assert_eq!(compute_cache_size(&qos_keep_all()), usize::MAX);
+    }
+
+    #[test]
+    fn test_volatile_cache_size_still_computed() {
+        // compute_cache_size is called regardless of durability; bridge code gates on is_transient_local
+        assert_eq!(compute_cache_size(&qos_volatile(3)), 30);
     }
 }

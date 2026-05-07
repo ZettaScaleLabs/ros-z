@@ -13,6 +13,7 @@ cyclors = "=0.2.7"
 ros-z = { path = "../ros-z" }
 ros-z-protocol = { path = "../ros-z-protocol", features = ["std", "rmw-zenoh"] }
 zenoh = { workspace = true }
+zenoh-ext = { workspace = true }
 
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync"] }
 anyhow = { workspace = true }
@@ -22,7 +23,6 @@ clap = { workspace = true, features = ["derive"] }
 flume = { workspace = true }
 parking_lot = { workspace = true }
 regex = "1.10"
-hex = { workspace = true }
 
 [features]
 default = ["jazzy"]

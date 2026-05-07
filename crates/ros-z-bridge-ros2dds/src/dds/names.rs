@@ -68,6 +68,15 @@ pub fn dds_type_to_ros2_service_type(dds_type: &str) -> String {
     )
 }
 
+/// True if the DDS request topic is an action `get_result` channel.
+///
+/// Action get_result calls can block for hundreds of seconds while the goal executes.
+/// They need a much longer querier timeout (300 s) than regular services (10 s).
+pub fn is_action_get_result_topic(dds_topic: &str) -> bool {
+    // Pattern: "rq/<action_name>/_action/get_resultRequest"
+    dds_topic.starts_with("rq/") && dds_topic.ends_with("/_action/get_resultRequest")
+}
+
 /// Build the Zenoh key expression for a ROS 2 topic/service name.
 ///
 /// Strips the leading `/` since Zenoh key expressions must not start with one.
@@ -86,6 +95,23 @@ pub fn ros2_name_to_zenoh_key(ros2_name: &str, namespace: Option<&str>) -> Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_action_get_result_topic() {
+        assert!(is_action_get_result_topic(
+            "rq/fibonacci/_action/get_resultRequest"
+        ));
+        assert!(is_action_get_result_topic(
+            "rq/my_ns/my_action/_action/get_resultRequest"
+        ));
+        assert!(!is_action_get_result_topic(
+            "rq/fibonacci/_action/send_goalRequest"
+        ));
+        assert!(!is_action_get_result_topic(
+            "rq/fibonacci/_action/cancel_goalRequest"
+        ));
+        assert!(!is_action_get_result_topic("rt/chatter"));
+    }
 
     #[test]
     fn test_dds_topic_conversions() {

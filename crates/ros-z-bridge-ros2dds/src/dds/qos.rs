@@ -1,6 +1,7 @@
 use cyclors::qos::{
-    DDS_1S_DURATION, DDS_100MS_DURATION, DDS_INFINITE_TIME, DurabilityKind, DurabilityService,
-    History, HistoryKind, IgnoreLocal, IgnoreLocalKind, Qos, Reliability, ReliabilityKind,
+    DDS_1S_DURATION, DDS_100MS_DURATION, DDS_INFINITE_TIME, Durability, DurabilityKind,
+    DurabilityService, History, HistoryKind, IgnoreLocal, IgnoreLocalKind, Qos, Reliability,
+    ReliabilityKind,
 };
 
 // cyclors 0.2.7 does not expose DDS_LENGTH_UNLIMITED publicly; use the raw value.
@@ -22,6 +23,20 @@ pub fn service_default_qos() -> Qos {
         }),
         ..Default::default()
     }
+}
+
+/// True if the QoS specifies RELIABLE delivery.
+pub fn is_reliable(qos: &Qos) -> bool {
+    qos.reliability
+        .as_ref()
+        .is_some_and(|r| r.kind == ReliabilityKind::RELIABLE)
+}
+
+/// True if the QoS specifies TRANSIENT_LOCAL durability.
+pub fn is_transient_local(qos: &Qos) -> bool {
+    qos.durability
+        .as_ref()
+        .is_some_and(|d| d.kind == DurabilityKind::TRANSIENT_LOCAL)
 }
 
 /// Adapt a discovered writer's QoS to create a matching reader.
@@ -92,4 +107,165 @@ pub fn adapt_reader_qos_for_writer(qos: &Qos) -> Qos {
     };
 
     writer_qos
+}
+
+#[cfg(test)]
+mod tests {
+    use cyclors::qos::{
+        DurabilityKind, EntityName, History, HistoryKind, OwnershipStrength, Qos, Reliability,
+        ReliabilityKind, TransportPriority,
+    };
+
+    use super::*;
+
+    fn reliable_qos() -> Qos {
+        Qos {
+            reliability: Some(Reliability {
+                kind: ReliabilityKind::RELIABLE,
+                max_blocking_time: DDS_100MS_DURATION,
+            }),
+            ..Default::default()
+        }
+    }
+
+    fn best_effort_qos() -> Qos {
+        Qos {
+            reliability: Some(Reliability {
+                kind: ReliabilityKind::BEST_EFFORT,
+                max_blocking_time: 0,
+            }),
+            ..Default::default()
+        }
+    }
+
+    fn transient_local_qos(depth: i32) -> Qos {
+        Qos {
+            durability: Some(Durability {
+                kind: DurabilityKind::TRANSIENT_LOCAL,
+            }),
+            history: Some(History {
+                kind: HistoryKind::KEEP_LAST,
+                depth,
+            }),
+            ..Default::default()
+        }
+    }
+
+    // --- is_reliable / is_transient_local helpers ---
+
+    #[test]
+    fn test_is_reliable_true() {
+        assert!(is_reliable(&reliable_qos()));
+    }
+
+    #[test]
+    fn test_is_reliable_false_best_effort() {
+        assert!(!is_reliable(&best_effort_qos()));
+    }
+
+    #[test]
+    fn test_is_reliable_false_no_reliability_field() {
+        assert!(!is_reliable(&Qos::default()));
+    }
+
+    #[test]
+    fn test_is_transient_local_true() {
+        assert!(is_transient_local(&transient_local_qos(1)));
+    }
+
+    #[test]
+    fn test_is_transient_local_false_volatile() {
+        assert!(!is_transient_local(&Qos::default()));
+    }
+
+    // --- adapt_writer_qos_for_reader ---
+
+    #[test]
+    fn test_adapt_writer_strips_writer_only_fields() {
+        let qos = Qos {
+            reliability: Some(Reliability {
+                kind: ReliabilityKind::RELIABLE,
+                max_blocking_time: DDS_100MS_DURATION,
+            }),
+            ownership_strength: Some(OwnershipStrength { value: 5 }),
+            transport_priority: Some(TransportPriority { value: 1 }),
+            entity_name: Some(EntityName {
+                name: "writer".into(),
+            }),
+            ..Default::default()
+        };
+        let reader_qos = adapt_writer_qos_for_reader(&qos);
+        assert!(reader_qos.ownership_strength.is_none());
+        assert!(reader_qos.transport_priority.is_none());
+        assert!(reader_qos.entity_name.is_none());
+    }
+
+    #[test]
+    fn test_adapt_writer_sets_ignore_local() {
+        let qos = reliable_qos();
+        let reader_qos = adapt_writer_qos_for_reader(&qos);
+        assert_eq!(
+            reader_qos.ignore_local.unwrap().kind,
+            IgnoreLocalKind::PARTICIPANT
+        );
+    }
+
+    #[test]
+    fn test_adapt_writer_defaults_reliability_to_best_effort() {
+        let qos = Qos::default(); // no reliability field
+        let reader_qos = adapt_writer_qos_for_reader(&qos);
+        assert_eq!(
+            reader_qos.reliability.unwrap().kind,
+            ReliabilityKind::BEST_EFFORT
+        );
+    }
+
+    #[test]
+    fn test_adapt_writer_preserves_existing_reliability() {
+        let qos = reliable_qos();
+        let reader_qos = adapt_writer_qos_for_reader(&qos);
+        assert_eq!(
+            reader_qos.reliability.unwrap().kind,
+            ReliabilityKind::RELIABLE
+        );
+    }
+
+    // --- adapt_reader_qos_for_writer ---
+
+    #[test]
+    fn test_adapt_reader_sets_ignore_local() {
+        let reader_qos = adapt_reader_qos_for_writer(&reliable_qos());
+        assert_eq!(
+            reader_qos.ignore_local.unwrap().kind,
+            IgnoreLocalKind::PARTICIPANT
+        );
+    }
+
+    #[test]
+    fn test_adapt_reader_transient_local_adds_durability_service() {
+        let qos = transient_local_qos(5);
+        let writer_qos = adapt_reader_qos_for_writer(&qos);
+        let ds = writer_qos
+            .durability_service
+            .expect("durability_service set");
+        assert_eq!(ds.history_kind, HistoryKind::KEEP_LAST);
+        assert_eq!(ds.history_depth, 5);
+        assert_eq!(ds.max_samples, -1); // DDS_LENGTH_UNLIMITED
+    }
+
+    #[test]
+    fn test_adapt_reader_volatile_no_durability_service() {
+        let writer_qos = adapt_reader_qos_for_writer(&reliable_qos());
+        assert!(writer_qos.durability_service.is_none());
+    }
+
+    #[test]
+    fn test_adapt_reader_bumps_reliability_max_blocking() {
+        let qos = Qos::default(); // no reliability
+        let writer_qos = adapt_reader_qos_for_writer(&qos);
+        // Should insert RELIABLE with max_blocking_time = DDS_100MS_DURATION + 1
+        let r = writer_qos.reliability.expect("reliability set");
+        assert_eq!(r.kind, ReliabilityKind::RELIABLE);
+        assert_eq!(r.max_blocking_time, DDS_100MS_DURATION + 1);
+    }
 }

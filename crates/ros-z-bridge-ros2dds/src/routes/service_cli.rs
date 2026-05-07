@@ -7,7 +7,10 @@ use zenoh::{Session, bytes::ZBytes, key_expr::KeyExpr};
 use crate::dds::{
     discovery::DiscoveredEndpoint,
     entity::DdsEntity,
-    names::{dds_topic_to_ros2_name, dds_type_to_ros2_service_type, ros2_name_to_zenoh_key},
+    names::{
+        dds_topic_to_ros2_name, dds_type_to_ros2_service_type, is_action_get_result_topic,
+        ros2_name_to_zenoh_key,
+    },
     qos::service_default_qos,
     reader::create_blob_reader,
     types::DDSRawSample,
@@ -15,6 +18,13 @@ use crate::dds::{
 };
 
 const CDR_HEADER_LE: [u8; 4] = [0, 1, 0, 0];
+
+/// Regular service calls must complete within this timeout.
+const SERVICE_TIMEOUT_SECS: u64 = 10;
+
+/// Action `get_result` calls block until the goal completes — allow up to 300 s.
+/// This matches the zenoh-plugin-ros2dds DEFAULT_ACTION_GET_RESULT_TIMEOUT.
+const ACTION_GET_RESULT_TIMEOUT_SECS: u64 = 300;
 
 /// Request forwarded from the DDS reader callback to the async dispatch task.
 struct PendingRequest {
@@ -33,6 +43,9 @@ struct PendingRequest {
 /// 1. Reads each CDR request from DDS
 /// 2. Forwards it as a Zenoh `get()` to the matching queryable
 /// 3. Writes the CDR reply back on `rr/<name>Reply` to the DDS client
+///
+/// Action `get_result` requests use a 300 s timeout instead of 10 s because the
+/// Zenoh server blocks until the goal finishes executing.
 ///
 /// This is the reverse direction of `ServiceRoute` (which handles DDS servers).
 pub struct ServiceCliRoute {
@@ -56,6 +69,18 @@ impl ServiceCliRoute {
             .try_into()
             .map_err(|e| anyhow!("invalid key expr: {e}"))?;
 
+        // Action get_result blocks for the full goal duration; use a much longer timeout.
+        let timeout = if is_action_get_result_topic(&endpoint.topic_name) {
+            tracing::debug!(
+                "Action get_result topic detected ({}): using {}s timeout",
+                endpoint.topic_name,
+                ACTION_GET_RESULT_TIMEOUT_SECS
+            );
+            Duration::from_secs(ACTION_GET_RESULT_TIMEOUT_SECS)
+        } else {
+            Duration::from_secs(SERVICE_TIMEOUT_SECS)
+        };
+
         tracing::info!("Service client route (DDS client → Zenoh querier): {ros2_name} ↔ {ke}");
 
         let dds_base = ros2_type.replace('/', "::");
@@ -77,7 +102,7 @@ impl ServiceCliRoute {
         // Async task: receive requests, do Zenoh get(), write DDS replies
         let querier = session
             .declare_querier(ke.clone())
-            .timeout(Duration::from_secs(10))
+            .timeout(timeout)
             .await
             .map_err(|e| anyhow!("declare_querier failed: {e}"))?;
 

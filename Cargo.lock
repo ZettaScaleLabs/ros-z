@@ -2977,7 +2977,6 @@ dependencies = [
  "clap",
  "cyclors",
  "flume",
- "hex",
  "parking_lot",
  "regex",
  "ros-z",
@@ -2986,6 +2985,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "zenoh",
+ "zenoh-ext",
 ]
 
 [[package]]
