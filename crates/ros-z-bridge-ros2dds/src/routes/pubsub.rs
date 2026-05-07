@@ -14,13 +14,19 @@ use zenoh::{
     qos::CongestionControl,
     sample::Locality,
 };
-use zenoh_ext::{AdvancedPublisher, AdvancedPublisherBuilderExt, CacheConfig};
+use zenoh_ext::{
+    AdvancedPublisher, AdvancedPublisherBuilderExt, AdvancedSubscriber,
+    AdvancedSubscriberBuilderExt, CacheConfig, HistoryConfig,
+};
 
 use crate::dds::{
     discovery::DiscoveredEndpoint,
     entity::DdsEntity,
     names::{dds_topic_to_ros2_name, dds_type_to_ros2_type, ros2_name_to_zenoh_key},
-    qos::{adapt_reader_qos_for_writer, adapt_writer_qos_for_reader, qos_mismatch_reason},
+    qos::{
+        adapt_reader_qos_for_writer, adapt_writer_qos_for_reader, is_transient_local,
+        qos_mismatch_reason,
+    },
     reader::create_blob_reader,
     types::DDSRawSample,
     writer::{create_blob_writer, write_cdr},
@@ -274,12 +280,27 @@ fn compute_cache_size(qos: &cyclors::qos::Qos) -> usize {
 
 // ─── ZenohToDdsRoute ─────────────────────────────────────────────────────────
 
+/// Holds a Zenoh subscriber handle (plain or advanced) for RAII lifetime management.
+#[allow(dead_code)]
+enum ZenohSubscriberHandle {
+    Plain(Subscriber<()>),
+    /// Used for TRANSIENT_LOCAL DDS readers: receives historical samples published
+    /// before this subscriber was created (`detect_late_publishers()`).
+    Advanced(AdvancedSubscriber<()>),
+}
+
+// Safety: Subscriber<()> and AdvancedSubscriber<()> are Send+Sync.
+unsafe impl Send for ZenohSubscriberHandle {}
+unsafe impl Sync for ZenohSubscriberHandle {}
+
 /// A route from a Zenoh subscriber to a DDS writer.
 ///
 /// Receives CDR bytes from Zenoh and forwards them verbatim to DDS.
+/// For TRANSIENT_LOCAL DDS readers, uses an AdvancedSubscriber with history
+/// so late-joining DDS readers receive samples published before they appeared.
 pub struct ZenohToDdsRoute {
     _writer: DdsEntity,
-    _subscriber: Subscriber<()>,
+    _subscriber: ZenohSubscriberHandle,
 }
 
 impl ZenohToDdsRoute {
@@ -316,22 +337,42 @@ impl ZenohToDdsRoute {
 
         let ke_display = ke.to_string();
         let dds_topic = endpoint.topic_name.clone();
+        let endpoint_is_transient_local = is_transient_local(&endpoint.qos);
         tracing::info!("Zenoh→DDS pub/sub route: {ke_display} → {dds_topic}");
 
-        let subscriber = session
-            .declare_subscriber(ke.clone())
-            .callback(move |sample| {
-                let bytes: Vec<u8> = sample.payload().to_bytes().into_owned();
-                if let Err(e) = write_cdr(writer_raw, bytes) {
-                    tracing::warn!("DDS write failed on {ke_display}: {e}");
-                }
-            })
-            .await
-            .map_err(|e| anyhow!("declare_subscriber failed: {e}"))?;
+        let subscriber_handle = if endpoint_is_transient_local {
+            tracing::debug!(
+                "Zenoh→DDS: TRANSIENT_LOCAL reader on {dds_topic}, using AdvancedSubscriber"
+            );
+            let adv = session
+                .declare_subscriber(ke.clone())
+                .history(HistoryConfig::default().detect_late_publishers())
+                .callback(move |sample| {
+                    let bytes: Vec<u8> = sample.payload().to_bytes().into_owned();
+                    if let Err(e) = write_cdr(writer_raw, bytes) {
+                        tracing::warn!("DDS write failed on {ke_display}: {e}");
+                    }
+                })
+                .await
+                .map_err(|e| anyhow!("declare_subscriber(advanced) failed: {e}"))?;
+            ZenohSubscriberHandle::Advanced(adv)
+        } else {
+            let sub = session
+                .declare_subscriber(ke.clone())
+                .callback(move |sample| {
+                    let bytes: Vec<u8> = sample.payload().to_bytes().into_owned();
+                    if let Err(e) = write_cdr(writer_raw, bytes) {
+                        tracing::warn!("DDS write failed on {ke_display}: {e}");
+                    }
+                })
+                .await
+                .map_err(|e| anyhow!("declare_subscriber failed: {e}"))?;
+            ZenohSubscriberHandle::Plain(sub)
+        };
 
         Ok(Self {
             _writer: writer_entity,
-            _subscriber: subscriber,
+            _subscriber: subscriber_handle,
         })
     }
 }

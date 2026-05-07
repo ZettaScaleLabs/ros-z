@@ -11,7 +11,7 @@ use crate::dds::{
         dds_topic_to_ros2_name, dds_type_to_ros2_service_type, is_action_get_result_topic,
         ros2_name_to_zenoh_key,
     },
-    qos::service_default_qos,
+    qos::{qos_mismatch_reason, service_default_qos},
     reader::create_blob_reader,
     types::DDSRawSample,
     writer::{create_blob_writer, write_cdr},
@@ -91,6 +91,11 @@ impl ServiceCliRoute {
         let req_topic = endpoint.topic_name.clone();
 
         let qos = service_default_qos();
+
+        // G3: warn on QoS incompatibility between discovered endpoint and the service QoS.
+        if let Some(reason) = qos_mismatch_reason(&endpoint.qos, &qos) {
+            tracing::warn!("QoS mismatch on {}: {}", endpoint.topic_name, reason);
+        }
 
         let rep_writer_h = create_blob_writer(dp, &rep_topic, &rep_type, true, qos.clone())?;
         let rep_writer = unsafe { DdsEntity::new(rep_writer_h) };
