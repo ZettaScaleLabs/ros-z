@@ -21,7 +21,8 @@ use crate::{
         participant::create_participant,
     },
     liveliness::{
-        build_pub_lv_key, build_service_cli_lv_key, build_service_srv_lv_key, build_sub_lv_key,
+        build_bridge_lv_key, build_pub_lv_key, build_service_cli_lv_key, build_service_srv_lv_key,
+        build_sub_lv_key,
     },
     routes::{
         action::is_action_component,
@@ -105,6 +106,9 @@ pub struct Bridge {
     // ── Liveliness ────────────────────────────────────────────────────────────
     /// Zenoh session ID string, used as a key component in liveliness tokens.
     zid: String,
+    /// Self-announcement token (`@/{zid}/@ros2_lv`) kept alive for the bridge lifetime.
+    /// Signals peer bridges that this instance is active, matching zenoh-plugin-ros2dds.
+    _bridge_lv_token: Option<LivelinessToken>,
     /// Per-route entity liveliness tokens; removed (and thus undeclared) with their routes.
     entity_lv_tokens: HashMap<(u32, Gid), LivelinessToken>,
 }
@@ -165,6 +169,21 @@ impl Bridge {
 
         let zid = session.info().zid().await.to_string();
 
+        let bridge_lv_token = match session
+            .liveliness()
+            .declare_token(build_bridge_lv_key(&zid))
+            .await
+        {
+            Ok(t) => {
+                tracing::debug!("Bridge self-announcement liveliness token declared (zid={zid})");
+                Some(t)
+            }
+            Err(e) => {
+                tracing::warn!("Failed to declare bridge liveliness token: {e}");
+                None
+            }
+        };
+
         Ok(Self {
             config,
             session,
@@ -181,6 +200,7 @@ impl Bridge {
             filter_service_cli,
             filter_action,
             zid,
+            _bridge_lv_token: bridge_lv_token,
             entity_lv_tokens: HashMap::new(),
         })
     }

@@ -119,6 +119,15 @@ pub fn build_service_cli_lv_key(zid: &str, zenoh_ke: &str, ros2_type: &str) -> S
     )
 }
 
+/// Build the bridge self-announcement liveliness key.
+///
+/// Mirrors the zenoh-plugin-ros2dds plugin token declared at startup.
+/// Other bridge instances use this to detect peer bridges and coordinate
+/// discovery (e.g. avoiding bridging the same DDS endpoint twice).
+pub fn build_bridge_lv_key(zid: &str) -> String {
+    format!("@/{zid}/@ros2_lv")
+}
+
 #[cfg(test)]
 mod tests {
     use cyclors::qos::{
@@ -290,6 +299,12 @@ mod tests {
         let key =
             build_service_cli_lv_key("myzid", "add_two_ints", "example_interfaces/srv/AddTwoInts");
         assert!(key.starts_with("@/myzid/@ros2_lv/SC/"));
+    }
+
+    #[test]
+    fn test_bridge_lv_key_format() {
+        let key = build_bridge_lv_key("abc123");
+        assert_eq!(key, "@/abc123/@ros2_lv");
     }
 
     #[test]
