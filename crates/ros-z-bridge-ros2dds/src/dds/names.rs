@@ -219,4 +219,71 @@ mod tests {
         );
         assert_eq!(ros2_name_to_zenoh_key("/chatter", Some("/")), "chatter");
     }
+
+    #[test]
+    fn test_zenoh_key_empty_namespace_passthrough() {
+        assert_eq!(ros2_name_to_zenoh_key("/chatter", Some("")), "chatter");
+    }
+
+    #[test]
+    fn test_zenoh_key_namespace_with_leading_slash() {
+        assert_eq!(
+            ros2_name_to_zenoh_key("/chatter", Some("/robot")),
+            "robot/chatter"
+        );
+    }
+
+    #[test]
+    fn test_is_request_topic() {
+        assert!(is_request_topic("rq/add_two_intsRequest"));
+        assert!(is_request_topic("rq/fibonacci/_action/send_goalRequest"));
+        assert!(!is_request_topic("rr/add_two_intsReply"));
+        assert!(!is_request_topic("rt/chatter"));
+    }
+
+    #[test]
+    fn test_is_reply_topic() {
+        assert!(is_reply_topic("rr/add_two_intsReply"));
+        assert!(is_reply_topic("rr/fibonacci/_action/send_goalReply"));
+        assert!(!is_reply_topic("rq/add_two_intsRequest"));
+        assert!(!is_reply_topic("rt/chatter"));
+    }
+
+    #[test]
+    fn test_is_pubsub_topic() {
+        assert!(is_pubsub_topic("rt/chatter"));
+        assert!(is_pubsub_topic("rt/fibonacci/_action/feedback"));
+        assert!(!is_pubsub_topic("rq/add_two_intsRequest"));
+        assert!(!is_pubsub_topic("rr/add_two_intsReply"));
+    }
+
+    #[test]
+    fn test_ros2_type_to_dds_type_roundtrip() {
+        let ros2_types = [
+            "std_msgs/msg/String",
+            "geometry_msgs/msg/Twist",
+            "example_interfaces/srv/AddTwoInts",
+            "example_interfaces/action/Fibonacci",
+        ];
+        for ros2 in ros2_types {
+            let dds = ros2_type_to_dds_type(ros2);
+            let back = dds_type_to_ros2_type(&dds);
+            assert_eq!(
+                back, ros2,
+                "roundtrip failed for {ros2}: dds={dds} back={back}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_dds_topic_to_ros2_name_nested_namespace() {
+        assert_eq!(
+            dds_topic_to_ros2_name("rt/my_ns/chatter"),
+            Some("/my_ns/chatter".into())
+        );
+        assert_eq!(
+            dds_topic_to_ros2_name("rq/my_ns/add_two_intsRequest"),
+            Some("/my_ns/add_two_ints".into())
+        );
+    }
 }

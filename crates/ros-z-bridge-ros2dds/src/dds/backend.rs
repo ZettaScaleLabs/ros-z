@@ -161,6 +161,60 @@ pub trait DdsParticipant: Send + Sync + 'static {
     ) -> Result<Self::Writer>;
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── wire_discriminant values must match zenoh-plugin-ros2dds ─────────────
+    // References: zenoh-plugin-ros2dds liveliness_mgt.rs, which encodes these as
+    // integers in the liveliness key expression for cross-bridge entity matching.
+
+    #[test]
+    fn test_reliability_wire_discriminants() {
+        assert_eq!(ReliabilityKind::BestEffort.wire_discriminant(), 0);
+        assert_eq!(ReliabilityKind::Reliable.wire_discriminant(), 1);
+    }
+
+    #[test]
+    fn test_durability_wire_discriminants() {
+        assert_eq!(DurabilityKind::Volatile.wire_discriminant(), 0);
+        assert_eq!(DurabilityKind::TransientLocal.wire_discriminant(), 1);
+        assert_eq!(DurabilityKind::Transient.wire_discriminant(), 2);
+        assert_eq!(DurabilityKind::Persistent.wire_discriminant(), 3);
+    }
+
+    #[test]
+    fn test_history_wire_discriminants() {
+        assert_eq!(HistoryKind::KeepLast.wire_discriminant(), 0);
+        assert_eq!(HistoryKind::KeepAll.wire_discriminant(), 1);
+    }
+
+    #[test]
+    fn test_bridge_qos_default_has_no_policies() {
+        let qos = BridgeQos::default();
+        assert!(qos.reliability.is_none());
+        assert!(qos.durability.is_none());
+        assert!(qos.history.is_none());
+        assert!(qos.durability_service.is_none());
+        assert!(qos.user_data.is_none());
+        assert!(!qos.ignore_local);
+    }
+
+    #[test]
+    fn test_bridge_qos_equality() {
+        use std::time::Duration;
+        let a = BridgeQos {
+            reliability: Some(Reliability {
+                kind: ReliabilityKind::Reliable,
+                max_blocking_time: Some(Duration::from_millis(100)),
+            }),
+            ..Default::default()
+        };
+        let b = a.clone();
+        assert_eq!(a, b);
+    }
+}
+
 /// A live DDS writer that can send raw CDR blobs.
 pub trait DdsWriter: Send + Sync + 'static {
     /// Write raw CDR bytes (4-byte representation header + payload) to DDS.

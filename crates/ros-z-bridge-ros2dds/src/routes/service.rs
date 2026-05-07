@@ -259,4 +259,72 @@ mod tests {
         assert_eq!(&dds_payload[12..20], &seq.to_le_bytes());
         assert_eq!(&dds_payload[20..], payload_body);
     }
+
+    // ── cdr_header_matching ───────────────────────────────────────────────────
+
+    #[test]
+    fn test_cdr_header_matching_le() {
+        let payload = [0x00, 0x01, 0x00, 0x00];
+        assert_eq!(cdr_header_matching(&payload), CDR_HEADER_LE);
+    }
+
+    #[test]
+    fn test_cdr_header_matching_be() {
+        let payload = [0x00, 0x00, 0x00, 0x00];
+        assert_eq!(cdr_header_matching(&payload), CDR_HEADER_BE);
+    }
+
+    #[test]
+    fn test_cdr_header_matching_empty_defaults_to_le() {
+        assert_eq!(cdr_header_matching(&[]), CDR_HEADER_LE);
+    }
+
+    #[test]
+    fn test_reply_zenoh_payload_preserves_be_endianness() {
+        // BE DDS reply: byte[1] == 0
+        let mut dds_reply = vec![0u8; 24];
+        dds_reply[1] = 0; // BE marker
+        dds_reply[12..20].copy_from_slice(&3u64.to_le_bytes()); // seq=3
+        dds_reply[20..24].copy_from_slice(&[0xAB, 0xCD, 0xEF, 0x01]);
+
+        let raw = dds_reply.as_slice();
+        let zenoh_payload: Vec<u8> = {
+            let mut v = Vec::new();
+            v.extend_from_slice(&cdr_header_matching(raw));
+            v.extend_from_slice(&raw[20..]);
+            v
+        };
+
+        assert_eq!(&zenoh_payload[..4], &CDR_HEADER_BE);
+        assert_eq!(&zenoh_payload[4..], &[0xAB, 0xCD, 0xEF, 0x01]);
+    }
+
+    #[test]
+    fn test_request_payload_construction_be() {
+        // A Zenoh query arriving with a BE CDR header → the DDS request should use BE
+        let query_payload = vec![0x00, 0x00, 0x00, 0x00, 0xAA, 0xBB]; // BE header + body
+        let cdr_hdr = cdr_header_matching(&query_payload);
+        assert_eq!(cdr_hdr, CDR_HEADER_BE);
+
+        let client_guid = 1u64;
+        let seq = 2u64;
+        let payload_body = &query_payload[4..];
+        let mut dds_payload = Vec::new();
+        dds_payload.extend_from_slice(&cdr_hdr);
+        dds_payload.extend_from_slice(&client_guid.to_le_bytes());
+        dds_payload.extend_from_slice(&seq.to_le_bytes());
+        dds_payload.extend_from_slice(payload_body);
+
+        assert_eq!(&dds_payload[..4], &CDR_HEADER_BE);
+        assert_eq!(&dds_payload[20..], &[0xAA, 0xBB]);
+    }
+
+    // ── sequence number overflow / wrap-around ────────────────────────────────
+
+    #[test]
+    fn test_sequence_number_extraction_max_u64() {
+        let mut raw = vec![0u8; 24];
+        raw[12..20].copy_from_slice(&u64::MAX.to_le_bytes());
+        assert_eq!(extract_sequence_number(&raw), Some(u64::MAX));
+    }
 }

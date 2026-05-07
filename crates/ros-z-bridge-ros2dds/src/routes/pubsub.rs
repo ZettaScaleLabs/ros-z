@@ -561,4 +561,31 @@ mod tests {
         drop(clone);
         assert_eq!(Arc::strong_count(&val), 1);
     }
+
+    // ── priority_from_u8 ─────────────────────────────────────────────────────
+
+    #[test]
+    fn test_priority_from_u8_all_valid() {
+        use zenoh::qos::Priority;
+        assert_eq!(super::priority_from_u8(1), Priority::RealTime);
+        assert_eq!(super::priority_from_u8(2), Priority::InteractiveHigh);
+        assert_eq!(super::priority_from_u8(3), Priority::InteractiveLow);
+        assert_eq!(super::priority_from_u8(4), Priority::DataHigh);
+        assert_eq!(super::priority_from_u8(5), Priority::Data);
+        assert_eq!(super::priority_from_u8(6), Priority::DataLow);
+        assert_eq!(super::priority_from_u8(7), Priority::Background);
+    }
+
+    #[test]
+    fn test_priority_from_u8_zero_defaults_to_data() {
+        use zenoh::qos::Priority;
+        assert_eq!(super::priority_from_u8(0), Priority::Data);
+    }
+
+    #[test]
+    fn test_priority_from_u8_out_of_range_defaults_to_data() {
+        use zenoh::qos::Priority;
+        assert_eq!(super::priority_from_u8(8), Priority::Data);
+        assert_eq!(super::priority_from_u8(255), Priority::Data);
+    }
 }
