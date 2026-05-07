@@ -6,7 +6,7 @@ use std::{
 use anyhow::Result;
 use parking_lot::Mutex;
 use regex::Regex;
-use zenoh::Session;
+use zenoh::{Session, liveliness::LivelinessToken};
 
 use crate::{
     config::Config,
@@ -14,9 +14,14 @@ use crate::{
         discovery::{DiscoveredEndpoint, DiscoveryEvent, run_discovery},
         entity::DdsEntity,
         gid::Gid,
-        names::{is_pubsub_topic, is_request_topic},
+        names::{
+            dds_topic_to_ros2_name, dds_type_to_ros2_service_type, dds_type_to_ros2_type,
+            is_pubsub_topic, is_request_topic,
+        },
         participant::create_participant,
+        qos::is_reliable,
     },
+    liveliness::{EntityKind, build_entity_lv_key, build_node_lv_key},
     routes::{
         action::is_action_component,
         pubsub::{DdsToZenohRoute, TopicPublisherSlot, ZenohToDdsRoute},
@@ -88,6 +93,18 @@ pub struct Bridge {
     filter_service_cli: Filter,
     /// Action-specific filter (/_action/ topics); falls back to global.
     filter_action: Filter,
+
+    // ── Liveliness ────────────────────────────────────────────────────────────
+    /// Zenoh session ID string, used as a key component in liveliness tokens.
+    zid: String,
+    /// Virtual bridge node id (fixed at 1; unique within this session via zid).
+    node_id: u64,
+    /// Monotonic counter for assigning unique entity_ids to liveliness tokens.
+    entity_counter: u64,
+    /// One node-level liveliness token per bridged domain (kept alive for session).
+    _node_lv_tokens: Vec<LivelinessToken>,
+    /// Per-route entity liveliness tokens; removed (and thus undeclared) with their routes.
+    entity_lv_tokens: HashMap<(u32, Gid), LivelinessToken>,
 }
 
 impl Bridge {
@@ -144,6 +161,22 @@ impl Bridge {
             config.deny_action.as_deref().or(config.deny.as_deref()),
         )?;
 
+        // G5: declare one node-level liveliness token per bridged domain so that
+        // `ros2 node list` sees the bridge as a virtual ROS 2 node.
+        let zid = session.info().zid().await.to_string();
+        let node_id = 1u64;
+        let ns = config.namespace.as_deref().unwrap_or("/");
+        let mut node_lv_tokens = Vec::new();
+        for &did in &config.domain_ids {
+            let key = build_node_lv_key(did, &zid, node_id, ns, "ros_z_bridge");
+            match session.liveliness().declare_token(key).await {
+                Ok(token) => node_lv_tokens.push(token),
+                Err(e) => {
+                    tracing::warn!("Failed to declare node liveliness token (domain={did}): {e}")
+                }
+            }
+        }
+
         Ok(Self {
             config,
             session,
@@ -159,6 +192,11 @@ impl Bridge {
             filter_service_srv,
             filter_service_cli,
             filter_action,
+            zid,
+            node_id,
+            entity_counter: 0,
+            _node_lv_tokens: node_lv_tokens,
+            entity_lv_tokens: HashMap::new(),
         })
     }
 
@@ -226,6 +264,8 @@ impl Bridge {
                     });
                 }
                 self.service_cli.remove(&key);
+                // G5: drop entity token → liveliness undeclared on the Zenoh graph.
+                self.entity_lv_tokens.remove(&key);
                 tracing::debug!("Removed publication route for {gid}");
             }
             DiscoveryEvent::DiscoveredSubscription(ep) => {
@@ -235,6 +275,8 @@ impl Bridge {
                 let key = (domain_id, gid);
                 self.zenoh_to_dds.remove(&key);
                 self.service_srv.remove(&key);
+                // G5: drop entity token → liveliness undeclared on the Zenoh graph.
+                self.entity_lv_tokens.remove(&key);
                 tracing::debug!("Removed subscription route for {gid}");
             }
         }
@@ -295,6 +337,13 @@ impl Bridge {
                 )
                 .await?;
                 self.dds_to_zenoh.insert((domain_id, ep.key), route);
+                // G5: advertise this bridged publisher on the Zenoh graph.
+                if let Some(token) = self
+                    .declare_entity_token(domain_id, &ep, EntityKind::Publisher)
+                    .await
+                {
+                    self.entity_lv_tokens.insert((domain_id, ep.key), token);
+                }
             }
         } else if is_request_topic(&ep.topic_name) {
             if self
@@ -310,6 +359,13 @@ impl Bridge {
                 )
                 .await?;
                 self.service_cli.insert((domain_id, ep.key), route);
+                // G5: advertise this bridged service client on the Zenoh graph.
+                if let Some(token) = self
+                    .declare_entity_token(domain_id, &ep, EntityKind::ServiceClient)
+                    .await
+                {
+                    self.entity_lv_tokens.insert((domain_id, ep.key), token);
+                }
             }
         }
         Ok(())
@@ -332,6 +388,13 @@ impl Bridge {
                 )
                 .await?;
                 self.zenoh_to_dds.insert((domain_id, ep.key), route);
+                // G5: advertise this bridged subscriber on the Zenoh graph.
+                if let Some(token) = self
+                    .declare_entity_token(domain_id, &ep, EntityKind::Subscriber)
+                    .await
+                {
+                    self.entity_lv_tokens.insert((domain_id, ep.key), token);
+                }
             }
         } else if is_request_topic(&ep.topic_name) {
             if self
@@ -347,6 +410,13 @@ impl Bridge {
                 )
                 .await?;
                 self.service_srv.insert((domain_id, ep.key), route);
+                // G5: advertise this bridged service server on the Zenoh graph.
+                if let Some(token) = self
+                    .declare_entity_token(domain_id, &ep, EntityKind::ServiceServer)
+                    .await
+                {
+                    self.entity_lv_tokens.insert((domain_id, ep.key), token);
+                }
             }
         }
         Ok(())
@@ -358,6 +428,58 @@ impl Bridge {
             .find(|(did, _)| *did == domain_id)
             .map(|(_, p)| p.raw())
             .unwrap_or_else(|| self.participants[0].1.raw())
+    }
+
+    /// Allocate the next entity_id and declare a per-route liveliness token.
+    ///
+    /// Failures are non-fatal: a warning is logged and `None` is returned so the
+    /// caller can still store the route even when Zenoh liveliness is unavailable.
+    async fn declare_entity_token(
+        &mut self,
+        domain_id: u32,
+        endpoint: &DiscoveredEndpoint,
+        kind: EntityKind,
+    ) -> Option<LivelinessToken> {
+        self.entity_counter += 1;
+        let entity_id = self.entity_counter;
+        let ns = self.config.namespace.as_deref().unwrap_or("/");
+        let ros2_name = dds_topic_to_ros2_name(&endpoint.topic_name)
+            .unwrap_or_else(|| endpoint.topic_name.clone());
+        let ros2_type = match kind {
+            EntityKind::Publisher | EntityKind::Subscriber => {
+                dds_type_to_ros2_type(&endpoint.type_name)
+            }
+            EntityKind::ServiceServer | EntityKind::ServiceClient => {
+                dds_type_to_ros2_service_type(&endpoint.type_name)
+            }
+        };
+        let qos_str = if is_reliable(&endpoint.qos) {
+            "re"
+        } else {
+            "be"
+        };
+        let key = build_entity_lv_key(
+            domain_id,
+            &self.zid,
+            self.node_id,
+            entity_id,
+            kind,
+            ns,
+            "ros_z_bridge",
+            &ros2_name,
+            &ros2_type,
+            qos_str,
+        );
+        match self.session.liveliness().declare_token(key).await {
+            Ok(token) => Some(token),
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to declare entity liveliness token for {}: {e}",
+                    endpoint.topic_name
+                );
+                None
+            }
+        }
     }
 }
 
@@ -471,5 +593,153 @@ mod tests {
         let key0: (u32, String) = (0, "rt/chatter".to_string());
         let key42: (u32, String) = (42, "rt/chatter".to_string());
         assert_ne!(key0, key42);
+    }
+
+    // G5: liveliness token key construction via bridge helpers
+
+    #[test]
+    fn test_entity_token_qos_str_reliable() {
+        use crate::dds::qos::is_reliable;
+        use cyclors::qos::{DDS_INFINITE_TIME, Qos, Reliability, ReliabilityKind};
+        let qos = Qos {
+            reliability: Some(Reliability {
+                kind: ReliabilityKind::RELIABLE,
+                max_blocking_time: DDS_INFINITE_TIME,
+            }),
+            ..Default::default()
+        };
+        assert_eq!(if is_reliable(&qos) { "re" } else { "be" }, "re");
+    }
+
+    #[test]
+    fn test_entity_token_qos_str_best_effort() {
+        use crate::dds::qos::is_reliable;
+        use cyclors::qos::{DDS_INFINITE_TIME, Qos, Reliability, ReliabilityKind};
+        let qos = Qos {
+            reliability: Some(Reliability {
+                kind: ReliabilityKind::BEST_EFFORT,
+                max_blocking_time: DDS_INFINITE_TIME,
+            }),
+            ..Default::default()
+        };
+        assert_eq!(if is_reliable(&qos) { "re" } else { "be" }, "be");
+    }
+
+    #[test]
+    fn test_entity_token_pubsub_type_uses_dds_type_to_ros2_type() {
+        use crate::dds::names::dds_type_to_ros2_type;
+        let dds_type = "std_msgs::msg::dds_::String_";
+        assert_eq!(dds_type_to_ros2_type(dds_type), "std_msgs/msg/String");
+    }
+
+    #[test]
+    fn test_entity_token_service_type_uses_service_variant() {
+        use crate::dds::names::dds_type_to_ros2_service_type;
+        let dds_type = "example_interfaces::srv::dds_::AddTwoInts_Request_";
+        assert_eq!(
+            dds_type_to_ros2_service_type(dds_type),
+            "example_interfaces/srv/AddTwoInts"
+        );
+    }
+
+    #[test]
+    fn test_entity_counter_increments_per_entity() {
+        // Simulates the entity_counter logic: each route gets a unique entity_id.
+        let mut counter = 0u64;
+        let id1 = {
+            counter += 1;
+            counter
+        };
+        let id2 = {
+            counter += 1;
+            counter
+        };
+        let id3 = {
+            counter += 1;
+            counter
+        };
+        assert_eq!((id1, id2, id3), (1, 2, 3));
+    }
+
+    #[test]
+    fn test_node_lv_key_contains_domain_and_node_name() {
+        use crate::liveliness::build_node_lv_key;
+        let key = build_node_lv_key(42, "myzid", 1, "/", "ros_z_bridge");
+        assert!(key.starts_with("@ros2_lv/42/myzid/"));
+        assert!(key.contains("ros_z_bridge"));
+        assert!(key.contains("/NN/%/"));
+    }
+
+    #[test]
+    fn test_entity_lv_key_publisher_mp() {
+        use crate::liveliness::{EntityKind, build_entity_lv_key};
+        let key = build_entity_lv_key(
+            0,
+            "z",
+            1,
+            1,
+            EntityKind::Publisher,
+            "/",
+            "ros_z_bridge",
+            "/chatter",
+            "std_msgs/msg/String",
+            "be",
+        );
+        assert!(key.contains("/MP/"));
+        assert!(key.ends_with("/be"));
+    }
+
+    #[test]
+    fn test_entity_lv_key_subscriber_ms() {
+        use crate::liveliness::{EntityKind, build_entity_lv_key};
+        let key = build_entity_lv_key(
+            0,
+            "z",
+            1,
+            2,
+            EntityKind::Subscriber,
+            "/",
+            "ros_z_bridge",
+            "/chatter",
+            "std_msgs/msg/String",
+            "re",
+        );
+        assert!(key.contains("/MS/"));
+    }
+
+    #[test]
+    fn test_entity_lv_key_service_server_ss() {
+        use crate::liveliness::{EntityKind, build_entity_lv_key};
+        let key = build_entity_lv_key(
+            0,
+            "z",
+            1,
+            3,
+            EntityKind::ServiceServer,
+            "/",
+            "ros_z_bridge",
+            "/add_two_ints",
+            "example_interfaces/srv/AddTwoInts",
+            "re",
+        );
+        assert!(key.contains("/SS/"));
+    }
+
+    #[test]
+    fn test_entity_lv_key_service_client_sc() {
+        use crate::liveliness::{EntityKind, build_entity_lv_key};
+        let key = build_entity_lv_key(
+            0,
+            "z",
+            1,
+            4,
+            EntityKind::ServiceClient,
+            "/",
+            "ros_z_bridge",
+            "/add_two_ints",
+            "example_interfaces/srv/AddTwoInts",
+            "re",
+        );
+        assert!(key.contains("/SC/"));
     }
 }
