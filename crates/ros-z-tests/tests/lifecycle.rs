@@ -500,10 +500,51 @@ fn test_lifecycle_node_no_context_namespace_defaults_to_root() {
         .build()
         .expect("lifecycle node");
 
-    // No namespace set — should be empty/root
-    assert!(
-        node.inner.namespace().is_empty() || node.inner.namespace() == "/",
-        "expected root namespace, got: {}",
-        node.inner.namespace()
-    );
+    assert_eq!(node.inner.namespace(), "");
+}
+
+// ---------------------------------------------------------------------------
+// Context-level namespace inheritance — regular nodes
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_node_inherits_context_namespace() {
+    let ctx = ZContextBuilder::default()
+        .with_namespace("/my_ns")
+        .disable_multicast_scouting()
+        .build()
+        .expect("context");
+
+    let node = ctx.create_node("ns_inherit").build().expect("node");
+
+    assert_eq!(node.namespace(), "/my_ns");
+}
+
+#[test]
+fn test_node_namespace_override_takes_precedence() {
+    let ctx = ZContextBuilder::default()
+        .with_namespace("/ctx_ns")
+        .disable_multicast_scouting()
+        .build()
+        .expect("context");
+
+    let node = ctx
+        .create_node("ns_override")
+        .with_namespace("/override_ns")
+        .build()
+        .expect("node");
+
+    assert_eq!(node.namespace(), "/override_ns");
+}
+
+#[test]
+fn test_node_no_context_namespace_defaults_to_root() {
+    let ctx = ZContextBuilder::default()
+        .disable_multicast_scouting()
+        .build()
+        .expect("context");
+
+    let node = ctx.create_node("ns_root").build().expect("node");
+
+    assert_eq!(node.namespace(), "");
 }
