@@ -133,7 +133,7 @@ jobs:
           key: apt-jazzy-bridge-v1-${{ hashFiles('.github/workflows/test.yml') }}
 
       - name: Install system dependencies
-        run: apt-get update && apt-get install -y nodejs cmake clang mold
+        run: apt-get update && apt-get install -y nodejs cmake clang mold protobuf-compiler
 
       - name: Install ROS dependencies
         run: |
