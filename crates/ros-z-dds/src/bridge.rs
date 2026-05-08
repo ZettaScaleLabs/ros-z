@@ -1,10 +1,18 @@
 //! ZDdsBridge — automatic DDS↔Zenoh discovery and route management.
 
-use std::{collections::HashMap, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    time::Duration,
+};
 
 use anyhow::{Result, anyhow};
 use regex::Regex;
 use ros_z::node::ZNode;
+use ros_z_protocol::{
+    entity::{EndpointEntity, EndpointKind, Entity, TypeHash},
+    format::KeyExprFormat,
+};
+use zenoh::{key_expr::OwnedKeyExpr, sample::SampleKind};
 
 use crate::{
     discovery::{DiscoveredEndpoint, DiscoveryEvent},
@@ -16,6 +24,7 @@ use crate::{
     },
     participant::{BridgeQos, DdsParticipant},
     pubsub::{ZDdsPubBridge, ZDdsSubBridge},
+    qos::qos_profile_to_bridge_qos,
     ros_discovery::RosDiscoveryPublisher,
     service::{ZDdsClientBridge, ZDdsServiceBridge},
 };
@@ -53,14 +62,40 @@ impl Filter {
     }
 }
 
-// ─── Route sets (opaque RAII handles) ────────────────────────────────────────
+// ─── RouteEntry ───────────────────────────────────────────────────────────────
 
-enum PubRoute<P: DdsParticipant> {
-    Pub(ZDdsPubBridge<P>),
+/// A bridge route tracked by both local DDS GIDs and remote bridge Z IDs.
+///
+/// The route is kept alive as long as at least one local GID or remote ZID is registered.
+/// When both sets are empty, the caller should drop the route.
+struct RouteEntry<R> {
+    route: R,
+    /// GIDs of local DDS endpoints that triggered this route.
+    local_gids: HashSet<Gid>,
+    /// Zenoh session IDs of remote bridges that announced a complementary liveliness token.
+    remote_zids: HashSet<String>,
 }
 
-enum SubRoute<P: DdsParticipant> {
-    Sub(ZDdsSubBridge<P>),
+impl<R> RouteEntry<R> {
+    fn from_local(route: R, gid: Gid) -> Self {
+        Self {
+            route,
+            local_gids: std::iter::once(gid).collect(),
+            remote_zids: HashSet::new(),
+        }
+    }
+
+    fn from_remote(route: R, zid: String) -> Self {
+        Self {
+            route,
+            local_gids: HashSet::new(),
+            remote_zids: std::iter::once(zid).collect(),
+        }
+    }
+
+    fn is_unused(&self) -> bool {
+        self.local_gids.is_empty() && self.remote_zids.is_empty()
+    }
 }
 
 // GIDs of the DDS reader(s) and writer(s) created for a single named route.
@@ -122,6 +157,24 @@ impl<P: DdsParticipant> ZDdsBridgeBuilder<P> {
             RosDiscoveryPublisher::new(&self.participant, self.node.namespace(), self.node.name())
                 .map_err(|e| tracing::warn!("ros_discovery_info publisher failed to start: {e}"))
                 .ok();
+
+        // Set up federation liveliness subscriber before entering run_loop.
+        let (lv_tx, lv_rx) = flume::bounded::<(OwnedKeyExpr, SampleKind)>(256);
+        let liveliness_pattern = liveliness_subscription_pattern(*self.node.keyexpr_format());
+        let _lv_sub = self
+            .node
+            .session()
+            .liveliness()
+            .declare_subscriber(&liveliness_pattern)
+            .history(true)
+            .callback(move |sample| {
+                let ke = OwnedKeyExpr::from(sample.key_expr().clone());
+                let _ = lv_tx.try_send((ke, sample.kind()));
+            })
+            .await
+            .map_err(|e| anyhow!("liveliness subscriber failed: {e}"))?;
+
+        let own_zid = self.node.session().zid().to_string();
         let bridge = ZDdsBridge {
             node: self.node,
             participant: self.participant,
@@ -136,6 +189,8 @@ impl<P: DdsParticipant> ZDdsBridgeBuilder<P> {
             service_timeout: self.service_timeout,
             action_get_result_timeout: self.action_get_result_timeout,
             cache_multiplier: self.transient_local_cache_multiplier,
+            own_zid,
+            lv_rx,
         };
         bridge.run_loop().await
     }
@@ -156,9 +211,9 @@ pub struct ZDdsBridge<P: DdsParticipant> {
     participant: P,
 
     /// DDS publisher → Zenoh publisher bridges, keyed by ros2_name.
-    pub_routes: HashMap<String, PubRoute<P>>,
+    pub_routes: HashMap<String, RouteEntry<ZDdsPubBridge<P>>>,
     /// Zenoh subscriber → DDS writer bridges, keyed by ros2_name.
-    sub_routes: HashMap<String, SubRoute<P>>,
+    sub_routes: HashMap<String, RouteEntry<ZDdsSubBridge<P>>>,
     /// DDS service server → Zenoh queryable bridges, keyed by ros2_name.
     srv_routes: HashMap<String, ZDdsServiceBridge<P>>,
     /// DDS service client → Zenoh querier bridges, keyed by ros2_name.
@@ -177,6 +232,11 @@ pub struct ZDdsBridge<P: DdsParticipant> {
     service_timeout: Duration,
     action_get_result_timeout: Duration,
     cache_multiplier: usize,
+
+    /// Our own Zenoh session ID string — used to skip our own liveliness tokens.
+    own_zid: String,
+    /// Federation liveliness events from the Zenoh liveliness subscriber.
+    lv_rx: flume::Receiver<(OwnedKeyExpr, SampleKind)>,
 }
 
 impl<P: DdsParticipant> ZDdsBridge<P> {
@@ -194,14 +254,37 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
     }
 
     async fn run_loop(mut self) -> Result<()> {
-        let rx = self.participant.run_discovery();
+        let discovery_rx = self.participant.run_discovery();
         tracing::info!("ZDdsBridge: discovery loop started");
-        while let Ok(event) = rx.recv_async().await {
-            if let Err(e) = self.handle_event(event).await {
-                tracing::warn!("ZDdsBridge: route error: {e}");
+        loop {
+            tokio::select! {
+                event = discovery_rx.recv_async() => {
+                    match event {
+                        Ok(ev) => {
+                            if let Err(e) = self.handle_event(ev).await {
+                                tracing::warn!("ZDdsBridge: route error: {e}");
+                            }
+                        }
+                        Err(_) => {
+                            tracing::info!("ZDdsBridge: discovery channel closed, shutting down");
+                            break;
+                        }
+                    }
+                }
+                lv_event = self.lv_rx.recv_async() => {
+                    match lv_event {
+                        Ok((ke, kind)) => {
+                            if let Err(e) = self.handle_liveliness(ke, kind).await {
+                                tracing::debug!("ZDdsBridge: liveliness error: {e}");
+                            }
+                        }
+                        Err(_) => {
+                            tracing::debug!("ZDdsBridge: liveliness channel closed");
+                        }
+                    }
+                }
             }
         }
-        tracing::info!("ZDdsBridge: discovery channel closed, shutting down");
         Ok(())
     }
 
@@ -212,10 +295,9 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
             }
             DiscoveryEvent::UndiscoveredPublication(gid) => {
                 if let Some(name) = self.gid_to_name.remove(&gid) {
-                    self.pub_routes.remove(&name);
-                    self.cli_routes.remove(&name);
-                    self.unregister_route_gids(&name);
-                    tracing::debug!("ZDdsBridge: removed pub/cli route for {name}");
+                    self.remove_local_pub_gid(&name, gid);
+                    self.remove_local_cli_gid(&name, gid);
+                    tracing::debug!("ZDdsBridge: removed local gid for pub/cli route {name}");
                 }
             }
             DiscoveryEvent::DiscoveredSubscription(ep) => {
@@ -223,15 +305,189 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
             }
             DiscoveryEvent::UndiscoveredSubscription(gid) => {
                 if let Some(name) = self.gid_to_name.remove(&gid) {
-                    self.sub_routes.remove(&name);
-                    self.srv_routes.remove(&name);
-                    self.unregister_route_gids(&name);
-                    tracing::debug!("ZDdsBridge: removed sub/srv route for {name}");
+                    self.remove_local_sub_gid(&name, gid);
+                    self.remove_local_srv_gid(&name, gid);
+                    tracing::debug!("ZDdsBridge: removed local gid for sub/srv route {name}");
                 }
             }
         }
         Ok(())
     }
+
+    async fn handle_liveliness(&mut self, ke: OwnedKeyExpr, kind: SampleKind) -> Result<()> {
+        let ke_ref: zenoh::key_expr::KeyExpr<'_> = (&ke).into();
+        let entity = self
+            .node
+            .keyexpr_format()
+            .parse_liveliness(&ke_ref)
+            .map_err(|e| anyhow!("parse_liveliness failed for {ke}: {e}"))?;
+
+        let ep = match entity {
+            Entity::Endpoint(ep) => ep,
+            Entity::Node(_) => return Ok(()),
+        };
+
+        // Skip our own liveliness tokens.
+        let remote_zid = match ep.node.as_ref().map(|n| n.z_id.to_string()) {
+            Some(zid) => zid,
+            // Tokens without a node identity (old ros2dds format) — extract from key.
+            None => ke.as_str().split('/').nth(1).unwrap_or("").to_string(),
+        };
+        if remote_zid == self.own_zid {
+            return Ok(());
+        }
+
+        match kind {
+            SampleKind::Put => self.on_federation_announce(ep, remote_zid).await,
+            SampleKind::Delete => self.on_federation_retire(ep, &remote_zid).await,
+        }
+    }
+
+    async fn on_federation_announce(
+        &mut self,
+        ep: EndpointEntity,
+        remote_zid: String,
+    ) -> Result<()> {
+        let ros2_name = ep.topic.clone();
+        if !self.filter.allows(&ros2_name) {
+            return Ok(());
+        }
+
+        let type_name = match ep.type_info.as_ref() {
+            Some(ti) if !ti.name.is_empty() => ti.name.clone(),
+            _ => return Ok(()), // can't create DDS entity without a type name
+        };
+        // Zero hash means hash was unknown — pass None to avoid type matching issues.
+        let type_hash = ep
+            .type_info
+            .as_ref()
+            .filter(|ti| ti.hash != TypeHash::zero())
+            .map(|ti| ti.hash.clone());
+
+        let qos = qos_profile_to_bridge_qos(&ep.qos);
+
+        match ep.kind {
+            // Remote Publisher → create local ZDdsSubBridge (Zenoh→DDS relay)
+            EndpointKind::Publisher => {
+                if let Some(entry) = self.sub_routes.get_mut(&ros2_name) {
+                    entry.remote_zids.insert(remote_zid);
+                    tracing::debug!(
+                        "ZDdsBridge: federation: added remote pub ZID to existing sub route {ros2_name}"
+                    );
+                    return Ok(());
+                }
+                let bridge = ZDdsSubBridge::new(
+                    &self.node,
+                    &ros2_name,
+                    &type_name,
+                    type_hash,
+                    &self.participant,
+                    qos,
+                    true,
+                )
+                .await?;
+                tracing::info!(
+                    "ZDdsBridge: federation sub route {ros2_name} (remote pub from {remote_zid})"
+                );
+                self.sub_routes
+                    .insert(ros2_name, RouteEntry::from_remote(bridge, remote_zid));
+            }
+            // Remote Subscription → create local ZDdsPubBridge (DDS→Zenoh relay)
+            EndpointKind::Subscription => {
+                if let Some(entry) = self.pub_routes.get_mut(&ros2_name) {
+                    entry.remote_zids.insert(remote_zid);
+                    tracing::debug!(
+                        "ZDdsBridge: federation: added remote sub ZID to existing pub route {ros2_name}"
+                    );
+                    return Ok(());
+                }
+                let bridge = ZDdsPubBridge::new(
+                    &self.node,
+                    &ros2_name,
+                    &type_name,
+                    type_hash,
+                    &self.participant,
+                    qos,
+                    true,
+                    self.cache_multiplier,
+                )
+                .await?;
+                tracing::info!(
+                    "ZDdsBridge: federation pub route {ros2_name} (remote sub from {remote_zid})"
+                );
+                self.pub_routes
+                    .insert(ros2_name, RouteEntry::from_remote(bridge, remote_zid));
+            }
+            // Service/Client federation is not implemented.
+            EndpointKind::Service | EndpointKind::Client => {}
+        }
+        Ok(())
+    }
+
+    async fn on_federation_retire(&mut self, ep: EndpointEntity, remote_zid: &str) -> Result<()> {
+        let ros2_name = &ep.topic;
+        match ep.kind {
+            EndpointKind::Publisher => {
+                if let Some(entry) = self.sub_routes.get_mut(ros2_name) {
+                    entry.remote_zids.remove(remote_zid);
+                    if entry.is_unused() {
+                        self.sub_routes.remove(ros2_name);
+                        tracing::debug!(
+                            "ZDdsBridge: federation sub route {ros2_name} removed (remote pub {remote_zid} retired)"
+                        );
+                    }
+                }
+            }
+            EndpointKind::Subscription => {
+                if let Some(entry) = self.pub_routes.get_mut(ros2_name) {
+                    entry.remote_zids.remove(remote_zid);
+                    if entry.is_unused() {
+                        self.pub_routes.remove(ros2_name);
+                        tracing::debug!(
+                            "ZDdsBridge: federation pub route {ros2_name} removed (remote sub {remote_zid} retired)"
+                        );
+                    }
+                }
+            }
+            EndpointKind::Service | EndpointKind::Client => {}
+        }
+        Ok(())
+    }
+
+    // ─── local-GID removal helpers ────────────────────────────────────────────
+
+    fn remove_local_pub_gid(&mut self, name: &str, gid: Gid) {
+        if let Some(entry) = self.pub_routes.get_mut(name) {
+            entry.local_gids.remove(&gid);
+            if entry.is_unused() {
+                self.pub_routes.remove(name);
+                self.unregister_route_gids(name);
+            }
+        }
+    }
+
+    fn remove_local_sub_gid(&mut self, name: &str, gid: Gid) {
+        if let Some(entry) = self.sub_routes.get_mut(name) {
+            entry.local_gids.remove(&gid);
+            if entry.is_unused() {
+                self.sub_routes.remove(name);
+                self.unregister_route_gids(name);
+            }
+        }
+    }
+
+    fn remove_local_cli_gid(&mut self, name: &str, _gid: Gid) {
+        // cli_routes are not ref-counted (no federation for services).
+        self.cli_routes.remove(name);
+        self.unregister_route_gids(name);
+    }
+
+    fn remove_local_srv_gid(&mut self, name: &str, _gid: Gid) {
+        self.srv_routes.remove(name);
+        self.unregister_route_gids(name);
+    }
+
+    // ─── ros_discovery_info helpers ───────────────────────────────────────────
 
     fn register_route_gids(&mut self, name: &str, gids: RouteGids) {
         if let Some(rd) = &self.ros_discovery {
@@ -258,6 +514,8 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
         }
     }
 
+    // ─── local DDS discovery ──────────────────────────────────────────────────
+
     async fn on_publication(&mut self, ep: DiscoveredEndpoint) -> Result<()> {
         if !self.filter.allows(&ep.topic_name) {
             return Ok(());
@@ -268,9 +526,6 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
                 Some(n) => n,
                 None => return Ok(()),
             };
-            if self.pub_routes.contains_key(&ros2_name) {
-                return Ok(());
-            }
             let ros2_type = dds_type_to_ros2_type(&ep.type_name);
             let ud = ep.qos.user_data.as_deref().unwrap_or(&[]);
             let type_info = type_info_from_user_data(&ros2_type, ud);
@@ -282,6 +537,14 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
                 durability_service: ep.qos.durability_service.clone(),
                 ..Default::default()
             };
+
+            if let Some(entry) = self.pub_routes.get_mut(&ros2_name) {
+                // Route already exists (possibly from federation) — register local GID.
+                entry.local_gids.insert(ep.key);
+                self.gid_to_name.insert(ep.key, ros2_name);
+                return Ok(());
+            }
+
             let bridge = ZDdsPubBridge::new(
                 &self.node,
                 &ros2_name,
@@ -297,10 +560,11 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
                 readers: bridge.reader_guid().into_iter().collect(),
                 writers: vec![],
             };
+            let gid = ep.key;
             self.pub_routes
-                .insert(ros2_name.clone(), PubRoute::Pub(bridge));
+                .insert(ros2_name.clone(), RouteEntry::from_local(bridge, gid));
             self.register_route_gids(&ros2_name, gids);
-            self.gid_to_name.insert(ep.key, ros2_name);
+            self.gid_to_name.insert(gid, ros2_name);
         } else if is_request_topic(&ep.topic_name) {
             // DDS service client: request writer discovered → create ZDdsClientBridge
             let ros2_name = match dds_topic_to_ros2_name(&ep.topic_name) {
@@ -354,9 +618,6 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
                 Some(n) => n,
                 None => return Ok(()),
             };
-            if self.sub_routes.contains_key(&ros2_name) {
-                return Ok(());
-            }
             let ros2_type = dds_type_to_ros2_type(&ep.type_name);
             let ud = ep.qos.user_data.as_deref().unwrap_or(&[]);
             let type_info = type_info_from_user_data(&ros2_type, ud);
@@ -368,6 +629,14 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
                 durability_service: ep.qos.durability_service.clone(),
                 ..Default::default()
             };
+
+            if let Some(entry) = self.sub_routes.get_mut(&ros2_name) {
+                // Route already exists (possibly from federation) — register local GID.
+                entry.local_gids.insert(ep.key);
+                self.gid_to_name.insert(ep.key, ros2_name);
+                return Ok(());
+            }
+
             let bridge = ZDdsSubBridge::new(
                 &self.node,
                 &ros2_name,
@@ -382,10 +651,11 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
                 readers: vec![],
                 writers: bridge.writer_guid().into_iter().collect(),
             };
+            let gid = ep.key;
             self.sub_routes
-                .insert(ros2_name.clone(), SubRoute::Sub(bridge));
+                .insert(ros2_name.clone(), RouteEntry::from_local(bridge, gid));
             self.register_route_gids(&ros2_name, gids);
-            self.gid_to_name.insert(ep.key, ros2_name);
+            self.gid_to_name.insert(gid, ros2_name);
         } else if is_request_topic(&ep.topic_name) {
             // DDS service server: request reader discovered → create ZDdsServiceBridge
             let ros2_name = match dds_topic_to_ros2_name(&ep.topic_name) {
@@ -423,6 +693,15 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
         }
         Ok(())
     }
+}
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
+/// Returns the Zenoh liveliness subscription pattern for federation.
+///
+/// Both RmwZenoh and Ros2Dds formats use `@ros2_lv` as the admin space prefix.
+fn liveliness_subscription_pattern(_format: KeyExprFormat) -> String {
+    "@ros2_lv/**".to_string()
 }
 
 // ─── tests ────────────────────────────────────────────────────────────────────
@@ -515,5 +794,48 @@ mod tests {
 
         assert!(routes.is_empty());
         assert!(gid_to_name.is_empty());
+    }
+
+    #[test]
+    fn test_route_entry_lifecycle() {
+        use crate::gid::Gid;
+
+        struct FakeRoute;
+        let gid = Gid::from([1u8; 16]);
+        let mut entry = super::RouteEntry::from_local(FakeRoute, gid);
+
+        assert!(!entry.is_unused());
+        entry.local_gids.remove(&gid);
+        assert!(entry.is_unused());
+    }
+
+    #[test]
+    fn test_route_entry_remote_keeps_alive() {
+        use crate::gid::Gid;
+
+        struct FakeRoute;
+        let gid = Gid::from([1u8; 16]);
+        let mut entry = super::RouteEntry::from_local(FakeRoute, gid);
+        entry.remote_zids.insert("remote-bridge-zid".to_string());
+
+        entry.local_gids.remove(&gid);
+        // Remote ZID still present — not unused.
+        assert!(!entry.is_unused());
+
+        entry.remote_zids.remove("remote-bridge-zid");
+        assert!(entry.is_unused());
+    }
+
+    #[test]
+    fn test_liveliness_subscription_pattern() {
+        use ros_z_protocol::format::KeyExprFormat;
+        assert_eq!(
+            super::liveliness_subscription_pattern(KeyExprFormat::RmwZenoh),
+            "@ros2_lv/**"
+        );
+        assert_eq!(
+            super::liveliness_subscription_pattern(KeyExprFormat::Ros2Dds),
+            "@ros2_lv/**"
+        );
     }
 }

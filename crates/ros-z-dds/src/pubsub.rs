@@ -83,14 +83,29 @@ impl<P: DdsParticipant> ZDdsPubBridge<P> {
         keyless: bool,
         cache_multiplier: usize,
     ) -> Result<Self> {
-        let type_info = type_hash.map(|h| TypeInfo::new(ros2_type, h));
+        let entity_id = node.next_entity_id();
+        let qos_profile = bridge_qos_to_qos_profile(&qos);
+        let type_info = type_hash
+            .as_ref()
+            .map(|h| TypeInfo::new(ros2_type, h.clone()));
         let entity = EndpointEntity {
-            id: node.next_entity_id(),
+            id: entity_id,
             node: Some(node.node_entity().clone()),
             kind: EndpointKind::Publisher,
             topic: ros2_name.to_string(),
             type_info,
-            qos: bridge_qos_to_qos_profile(&qos),
+            qos: qos_profile.clone(),
+        };
+        // Liveliness entity always carries the type name (with zero hash when hash unknown)
+        // so remote bridges can reconstruct DDS routes for federation.
+        let lv_type_hash = type_hash.unwrap_or_else(TypeHash::zero);
+        let entity_lv = EndpointEntity {
+            id: entity_id,
+            node: Some(node.node_entity().clone()),
+            kind: EndpointKind::Publisher,
+            topic: ros2_name.to_string(),
+            type_info: Some(TypeInfo::new(ros2_type, lv_type_hash)),
+            qos: qos_profile,
         };
 
         let topic_ke = node
@@ -99,7 +114,7 @@ impl<P: DdsParticipant> ZDdsPubBridge<P> {
             .map_err(|e| anyhow!("topic_key_expr failed: {e}"))?;
         let lv_ke = node
             .keyexpr_format()
-            .liveliness_key_expr(&entity, &node.session().zid())
+            .liveliness_key_expr(&entity_lv, &node.session().zid())
             .map_err(|e| anyhow!("liveliness_key_expr failed: {e}"))?;
 
         let ke: zenoh::key_expr::OwnedKeyExpr = topic_ke
@@ -204,14 +219,27 @@ impl<P: DdsParticipant> ZDdsSubBridge<P> {
         qos: BridgeQos,
         keyless: bool,
     ) -> Result<Self> {
-        let type_info = type_hash.map(|h| TypeInfo::new(ros2_type, h));
+        let entity_id = node.next_entity_id();
+        let qos_profile = bridge_qos_to_qos_profile(&qos);
+        let type_info = type_hash
+            .as_ref()
+            .map(|h| TypeInfo::new(ros2_type, h.clone()));
         let entity = EndpointEntity {
-            id: node.next_entity_id(),
+            id: entity_id,
             node: Some(node.node_entity().clone()),
             kind: EndpointKind::Subscription,
             topic: ros2_name.to_string(),
             type_info,
-            qos: bridge_qos_to_qos_profile(&qos),
+            qos: qos_profile.clone(),
+        };
+        let lv_type_hash = type_hash.unwrap_or_else(TypeHash::zero);
+        let entity_lv = EndpointEntity {
+            id: entity_id,
+            node: Some(node.node_entity().clone()),
+            kind: EndpointKind::Subscription,
+            topic: ros2_name.to_string(),
+            type_info: Some(TypeInfo::new(ros2_type, lv_type_hash)),
+            qos: qos_profile,
         };
 
         let topic_ke = node
@@ -220,7 +248,7 @@ impl<P: DdsParticipant> ZDdsSubBridge<P> {
             .map_err(|e| anyhow!("topic_key_expr failed: {e}"))?;
         let lv_ke = node
             .keyexpr_format()
-            .liveliness_key_expr(&entity, &node.session().zid())
+            .liveliness_key_expr(&entity_lv, &node.session().zid())
             .map_err(|e| anyhow!("liveliness_key_expr failed: {e}"))?;
 
         let ke: zenoh::key_expr::OwnedKeyExpr = topic_ke

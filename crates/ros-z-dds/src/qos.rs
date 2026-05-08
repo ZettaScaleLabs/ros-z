@@ -1,6 +1,8 @@
 use ros_z_protocol::qos::{QosDurability, QosHistory, QosProfile, QosReliability};
 
-use crate::participant::{BridgeQos, DurabilityKind, HistoryKind, ReliabilityKind};
+use crate::participant::{
+    BridgeQos, Durability, DurabilityKind, History, HistoryKind, Reliability, ReliabilityKind,
+};
 
 pub use crate::cyclors::qos::{
     adapt_reader_qos_for_writer, adapt_writer_qos_for_reader, qos_mismatch_reason,
@@ -17,6 +19,40 @@ pub fn is_transient_local(qos: &BridgeQos) -> bool {
     qos.durability
         .as_ref()
         .is_some_and(|d| d.kind == DurabilityKind::TransientLocal)
+}
+
+/// Convert `ros-z-protocol` `QosProfile` back to `BridgeQos` (for creating DDS entities from
+/// parsed liveliness tokens).
+pub fn qos_profile_to_bridge_qos(qos: &QosProfile) -> BridgeQos {
+    let reliability = Some(Reliability {
+        kind: match qos.reliability {
+            QosReliability::Reliable => ReliabilityKind::Reliable,
+            QosReliability::BestEffort => ReliabilityKind::BestEffort,
+        },
+        max_blocking_time: None,
+    });
+    let durability = Some(Durability {
+        kind: match qos.durability {
+            QosDurability::TransientLocal => DurabilityKind::TransientLocal,
+            _ => DurabilityKind::Volatile,
+        },
+    });
+    let history = Some(History {
+        kind: match qos.history {
+            QosHistory::KeepAll => HistoryKind::KeepAll,
+            _ => HistoryKind::KeepLast,
+        },
+        depth: match qos.history {
+            QosHistory::KeepLast(n) => n as i32,
+            _ => 1,
+        },
+    });
+    BridgeQos {
+        reliability,
+        durability,
+        history,
+        ..Default::default()
+    }
 }
 
 /// Convert `BridgeQos` (DDS QoS) to `ros-z-protocol` `QosProfile` for key construction.
