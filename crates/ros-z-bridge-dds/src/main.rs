@@ -19,6 +19,7 @@ async fn main() -> Result<()> {
 
     let ctx = ZContextBuilder::default()
         .with_connect_endpoints([cfg.zenoh_endpoint.as_str()])
+        .with_key_expr_format(cfg.wire_format.into())
         .build()
         .map_err(|e| anyhow!("{e}"))?;
 

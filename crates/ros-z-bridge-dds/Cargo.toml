@@ -11,6 +11,10 @@ path = "src/main.rs"
 [dependencies]
 ros-z = { path = "../ros-z" }
 ros-z-dds = { path = "../ros-z-dds" }
+ros-z-protocol = { path = "../ros-z-protocol", features = [
+  "rmw-zenoh",
+  "ros2dds",
+] }
 
 anyhow = { workspace = true }
 clap = { workspace = true, features = ["derive"] }

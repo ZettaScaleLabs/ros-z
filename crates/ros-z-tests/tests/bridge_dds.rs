@@ -2,9 +2,9 @@
 //!
 //! Covers both wire formats:
 //! - `--wire-format ros2dds` (legacy): compatible with zenoh-plugin-ros2dds
-//! - `--wire-format rmw_zenoh` (default): interops with ros-z / rmw_zenoh_cpp
+//! - `--wire-format rmw-zenoh` (default): interops with ros-z / rmw_zenoh_cpp
 //!
-//! Legacy test coverage (ros2dds wire format):
+//! Legacy test coverage (ros2dds wire format, tests 1-6):
 //! | # | Scenario                             |
 //! |---|--------------------------------------|
 //! | 1 | Zenoh pub → bridge → DDS sub         |
@@ -13,6 +13,21 @@
 //! | 4 | DDS server ← bridge ← Zenoh get      |
 //! | 5 | Zenoh action server ← bridge ← DDS   |
 //! | 6 | DDS action server ← bridge ← Zenoh   |
+//!
+//! Primary tests (rmw-zenoh wire format, tests 7-10):
+//! | # | Scenario                             |
+//! |---|--------------------------------------|
+//! | 7 | DDS pub → bridge → Zenoh sub (rmw_zenoh keys)  |
+//! | 8 | Zenoh pub → bridge → DDS sub (rmw_zenoh keys)  |
+//! | 9 | DDS server ← bridge ← Zenoh get (rmw_zenoh)    |
+//! |10 | Zenoh server ← bridge ← DDS client (rmw_zenoh) |
+//!
+//! API-level tests (no binary spawn, tests 11-13):
+//! | # | Scenario                             |
+//! |---|--------------------------------------|
+//! |11 | ZDdsPubBridge::new() constructs cleanly         |
+//! |12 | ZDdsSubBridge::new() constructs cleanly         |
+//! |13 | DdsBridgeExt typed constructors work            |
 //!
 //! Requirements:
 //! - ROS 2 Jazzy with `rmw_cyclonedds_cpp`, `demo_nodes_cpp`, `action_tutorials_cpp`
@@ -40,6 +55,15 @@ use nix::{
     unistd::Pid,
 };
 use zenoh::Wait;
+
+#[cfg(feature = "dds-bridge-interop")]
+use ros_z_dds::{
+    CyclorsParticipant, DdsBridgeExt, ZDdsPubBridge, ZDdsSubBridge,
+    participant::{BridgeQos, DdsParticipant},
+};
+
+#[cfg(feature = "dds-bridge-interop")]
+use ros_z_msgs::std_msgs::String as RosString;
 
 /// Kill an entire process group (including any children spawned by `ros2 run`)
 /// and then collect stdout output. Using `child.kill()` alone only kills the
@@ -93,7 +117,7 @@ fn pkg_available(pkg: &str) -> bool {
         .unwrap_or(false)
 }
 
-fn spawn_bridge(zenoh_endpoint: &str, domain_id: u32) -> ProcessGuard {
+fn spawn_bridge_fmt(zenoh_endpoint: &str, domain_id: u32, wire_format: &str) -> ProcessGuard {
     use std::os::unix::process::CommandExt;
     let bin = bridge_binary();
     let log_path = format!(
@@ -108,6 +132,8 @@ fn spawn_bridge(zenoh_endpoint: &str, domain_id: u32) -> ProcessGuard {
             zenoh_endpoint,
             "--domain-id",
             &domain_id.to_string(),
+            "--wire-format",
+            wire_format,
         ])
         .env("RUST_LOG", "info")
         .env("CYCLONEDDS_URI", CYCLONEDDS_URI)
@@ -118,6 +144,16 @@ fn spawn_bridge(zenoh_endpoint: &str, domain_id: u32) -> ProcessGuard {
         .unwrap_or_else(|e| panic!("Failed to spawn {bin}: {e}"));
     thread::sleep(Duration::from_secs(5));
     ProcessGuard::new(child, "zenoh-bridge-dds")
+}
+
+/// Spawn bridge in legacy ros2dds mode (zenoh-plugin-ros2dds compatible key expressions).
+fn spawn_bridge_ros2dds(zenoh_endpoint: &str, domain_id: u32) -> ProcessGuard {
+    spawn_bridge_fmt(zenoh_endpoint, domain_id, "ros2dds")
+}
+
+/// Spawn bridge in default rmw-zenoh mode (ros-z / rmw_zenoh_cpp compatible key expressions).
+fn spawn_bridge(zenoh_endpoint: &str, domain_id: u32) -> ProcessGuard {
+    spawn_bridge_fmt(zenoh_endpoint, domain_id, "rmw-zenoh")
 }
 
 fn spawn_cyclone(domain_id: u32, pkg: &str, node: &str, extra_args: &[&str]) -> ProcessGuard {
@@ -189,7 +225,7 @@ fn parse_add_two_ints_response(bytes: &[u8]) -> Option<i64> {
     None
 }
 
-// ── Test 1: Zenoh pub → bridge → DDS subscriber ──────────────────────────────
+// ── Test 1: Zenoh pub → bridge → DDS subscriber (ros2dds) ────────────────────
 
 /// Mirrors `test_zenoh_pub_ros_sub` from zenoh-plugin-ros2dds.
 ///
@@ -206,7 +242,7 @@ fn test_zenoh_pub_ros_sub() {
     let router = TestRouter::new();
     let endpoint = router.endpoint().to_string();
 
-    let _bridge = spawn_bridge(&endpoint, domain_id);
+    let _bridge = spawn_bridge_ros2dds(&endpoint, domain_id);
 
     // Start listener; ROS 2 RCLCPP_INFO logs go to stderr, not stdout.
     let mut listener_cmd = Command::new("ros2");
@@ -246,7 +282,7 @@ fn test_zenoh_pub_ros_sub() {
     );
 }
 
-// ── Test 2: DDS pub → bridge → Zenoh subscriber ──────────────────────────────
+// ── Test 2: DDS pub → bridge → Zenoh subscriber (ros2dds) ────────────────────
 
 /// Mirrors `test_ros_pub_zenoh_sub` from zenoh-plugin-ros2dds.
 ///
@@ -263,7 +299,7 @@ fn test_ros_pub_zenoh_sub() {
     let router = TestRouter::new();
     let endpoint = router.endpoint().to_string();
 
-    let _bridge = spawn_bridge(&endpoint, domain_id);
+    let _bridge = spawn_bridge_ros2dds(&endpoint, domain_id);
 
     let received = Arc::new(Mutex::new(false));
     let received_clone = received.clone();
@@ -293,7 +329,7 @@ fn test_ros_pub_zenoh_sub() {
     );
 }
 
-// ── Test 3: Zenoh queryable ← bridge ← DDS service client ────────────────────
+// ── Test 3: Zenoh queryable ← bridge ← DDS service client (ros2dds) ─────────
 
 /// Mirrors `test_ros_client_zenoh_service` from zenoh-plugin-ros2dds.
 ///
@@ -311,7 +347,7 @@ fn test_ros_client_zenoh_service() {
     let router = TestRouter::new();
     let endpoint = router.endpoint().to_string();
 
-    let _bridge = spawn_bridge(&endpoint, domain_id);
+    let _bridge = spawn_bridge_ros2dds(&endpoint, domain_id);
 
     // Zenoh service server: receives CDR request, returns CDR reply
     let session = zenoh_session(&endpoint);
@@ -384,7 +420,7 @@ fn test_ros_client_zenoh_service() {
     );
 }
 
-// ── Test 4: Zenoh client → bridge → DDS service server ───────────────────────
+// ── Test 4: Zenoh client → bridge → DDS service server (ros2dds) ─────────────
 
 /// Mirrors `test_zenoh_client_ros_service` from zenoh-plugin-ros2dds.
 ///
@@ -401,7 +437,7 @@ fn test_zenoh_client_ros_service() {
     let router = TestRouter::new();
     let endpoint = router.endpoint().to_string();
 
-    let _bridge = spawn_bridge(&endpoint, domain_id);
+    let _bridge = spawn_bridge_ros2dds(&endpoint, domain_id);
     let _server = spawn_cyclone(domain_id, "demo_nodes_cpp", "add_two_ints_server", &[]);
     thread::sleep(Duration::from_secs(2)); // let server + bridge settle
 
@@ -438,7 +474,7 @@ fn test_zenoh_client_ros_service() {
     );
 }
 
-// ── Test 5: Zenoh action server ← bridge ← DDS action client ─────────────────
+// ── Test 5: Zenoh action server ← bridge ← DDS action client (ros2dds) ───────
 
 /// Mirrors `test_ros_client_zenoh_action` from zenoh-plugin-ros2dds.
 ///
@@ -459,7 +495,7 @@ fn test_ros_client_zenoh_action() {
     let router = TestRouter::new();
     let endpoint = router.endpoint().to_string();
 
-    let _bridge = spawn_bridge(&endpoint, domain_id);
+    let _bridge = spawn_bridge_ros2dds(&endpoint, domain_id);
     thread::sleep(Duration::from_secs(1));
 
     let session = zenoh_session(&endpoint);
@@ -583,7 +619,7 @@ fn test_zenoh_client_ros_action() {
     let router = TestRouter::new();
     let endpoint = router.endpoint().to_string();
 
-    let _bridge = spawn_bridge(&endpoint, domain_id);
+    let _bridge = spawn_bridge_ros2dds(&endpoint, domain_id);
     let _server = spawn_cyclone(
         domain_id,
         "action_tutorials_cpp",
@@ -662,4 +698,382 @@ fn test_zenoh_client_ros_action() {
         got,
         "Zenoh action client did not receive result from DDS fibonacci_action_server"
     );
+}
+
+// ── Test 7: DDS pub → bridge → Zenoh sub (rmw-zenoh) ─────────────────────────
+
+/// CycloneDDS talker publishes on `/chatter`. Bridge runs in default rmw-zenoh mode.
+/// A Zenoh subscriber at the wildcard rmw-zenoh key `0/chatter/**` receives at least
+/// one sample.  The `0` prefix is the ZContext domain_id (default when not set).
+#[test]
+fn test_dds_pub_rosz_sub() {
+    if !ros2_available() || !pkg_available("demo_nodes_cpp") {
+        eprintln!("Skipping test_dds_pub_rosz_sub: ROS 2 / demo_nodes_cpp not available");
+        return;
+    }
+
+    let domain_id = 57u32;
+    let router = TestRouter::new();
+    let endpoint = router.endpoint().to_string();
+
+    let _bridge = spawn_bridge(&endpoint, domain_id);
+
+    let received = Arc::new(Mutex::new(false));
+    let received_clone = received.clone();
+
+    let session = zenoh_session(&endpoint);
+    let _sub = session
+        .declare_subscriber("0/chatter/**")
+        .callback(move |_sample| {
+            *received_clone.lock().unwrap() = true;
+        })
+        .wait()
+        .unwrap();
+
+    let _talker = spawn_cyclone(domain_id, "demo_nodes_cpp", "talker", &[]);
+
+    for _ in 0..20 {
+        if *received.lock().unwrap() {
+            break;
+        }
+        thread::sleep(Duration::from_millis(500));
+    }
+
+    assert!(
+        *received.lock().unwrap(),
+        "Zenoh subscriber received nothing from CycloneDDS talker via rmw-zenoh bridge"
+    );
+}
+
+// ── Test 8: Zenoh pub → bridge → DDS sub (rmw-zenoh) ─────────────────────────
+
+/// Zenoh publishes a CDR String on `0/chatter/EMPTY_TOPIC_TYPE/EMPTY_TOPIC_HASH`.
+/// Bridge (rmw-zenoh mode) discovers the DDS listener and creates a DDS writer route.
+/// The CycloneDDS listener receives the message.
+#[test]
+fn test_rosz_pub_dds_sub() {
+    if !ros2_available() || !pkg_available("demo_nodes_cpp") {
+        eprintln!("Skipping test_rosz_pub_dds_sub: ROS 2 / demo_nodes_cpp not available");
+        return;
+    }
+
+    let domain_id = 58u32;
+    let router = TestRouter::new();
+    let endpoint = router.endpoint().to_string();
+
+    let _bridge = spawn_bridge(&endpoint, domain_id);
+
+    // Start listener; RCLCPP_INFO goes to stderr in ROS 2 Jazzy.
+    let mut listener_cmd = Command::new("ros2");
+    listener_cmd
+        .args(["run", "demo_nodes_cpp", "listener"])
+        .env("RMW_IMPLEMENTATION", "rmw_cyclonedds_cpp")
+        .env("ROS_DOMAIN_ID", domain_id.to_string())
+        .env("CYCLONEDDS_URI", CYCLONEDDS_URI)
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+    use std::os::unix::process::CommandExt;
+    listener_cmd.process_group(0);
+    let listener_child = listener_cmd.spawn().expect("Failed to spawn listener");
+
+    // Wait for the bridge to discover the DDS listener and create a Zenoh subscriber route.
+    thread::sleep(Duration::from_secs(10));
+
+    let session = zenoh_session(&endpoint);
+    let publisher = session
+        .declare_publisher("0/chatter/EMPTY_TOPIC_TYPE/EMPTY_TOPIC_HASH")
+        .wait()
+        .unwrap();
+    let payload = cdr_string("Hello from rmw-zenoh");
+    for _ in 0..30 {
+        publisher
+            .put(zenoh::bytes::ZBytes::from(payload.clone()))
+            .wait()
+            .unwrap();
+        thread::sleep(Duration::from_millis(500));
+    }
+
+    let output = kill_group_and_collect(listener_child);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Hello"),
+        "listener received nothing; stderr={stderr:?}"
+    );
+}
+
+// ── Test 9: DDS server ← bridge ← Zenoh get (rmw-zenoh) ──────────────────────
+
+/// CycloneDDS add_two_ints_server runs. Bridge (rmw-zenoh mode) exposes it as a
+/// Zenoh queryable. A Zenoh get() at `0/add_two_ints/EMPTY_TOPIC_TYPE/EMPTY_TOPIC_HASH`
+/// returns sum=3.
+#[test]
+fn test_dds_srv_rosz_client() {
+    if !ros2_available() || !pkg_available("demo_nodes_cpp") {
+        eprintln!("Skipping test_dds_srv_rosz_client: dependencies not available");
+        return;
+    }
+
+    let domain_id = 59u32;
+    let router = TestRouter::new();
+    let endpoint = router.endpoint().to_string();
+
+    let _bridge = spawn_bridge(&endpoint, domain_id);
+    let _server = spawn_cyclone(domain_id, "demo_nodes_cpp", "add_two_ints_server", &[]);
+    thread::sleep(Duration::from_secs(2));
+
+    let session = zenoh_session(&endpoint);
+    let payload = cdr_add_two_ints_request(1, 2);
+
+    let replies: Vec<_> = session
+        .get("0/add_two_ints/EMPTY_TOPIC_TYPE/EMPTY_TOPIC_HASH")
+        .payload(zenoh::bytes::ZBytes::from(payload))
+        .timeout(Duration::from_secs(10))
+        .wait()
+        .unwrap()
+        .into_iter()
+        .collect();
+
+    assert!(
+        !replies.is_empty(),
+        "No reply from DDS add_two_ints_server via rmw-zenoh bridge"
+    );
+
+    let reply_bytes: Vec<u8> = replies[0]
+        .result()
+        .expect("reply error")
+        .payload()
+        .to_bytes()
+        .into_owned();
+
+    let sum = parse_add_two_ints_response(&reply_bytes);
+    assert_eq!(
+        sum,
+        Some(3),
+        "Expected sum=3, got {:?}; raw={reply_bytes:?}",
+        sum
+    );
+}
+
+// ── Test 10: Zenoh server ← bridge ← DDS client (rmw-zenoh) ──────────────────
+
+/// A Zenoh queryable at `0/add_two_ints/EMPTY_TOPIC_TYPE/EMPTY_TOPIC_HASH` acts
+/// as the AddTwoInts server. A DDS add_two_ints_client calls through the bridge
+/// (rmw-zenoh mode) and receives the computed reply.
+#[test]
+fn test_rosz_srv_dds_client() {
+    if !ros2_available() || !pkg_available("demo_nodes_cpp") {
+        eprintln!("Skipping test_rosz_srv_dds_client: dependencies not available");
+        return;
+    }
+
+    let domain_id = 60u32;
+    let router = TestRouter::new();
+    let endpoint = router.endpoint().to_string();
+
+    let _bridge = spawn_bridge(&endpoint, domain_id);
+
+    let session = zenoh_session(&endpoint);
+    let _queryable = session
+        .declare_queryable("0/add_two_ints/EMPTY_TOPIC_TYPE/EMPTY_TOPIC_HASH")
+        .callback(|query| {
+            let payload: Vec<u8> = query
+                .payload()
+                .map(|p| p.to_bytes().into_owned())
+                .unwrap_or_default();
+
+            // Request layout: 4-byte CDR header + 8-byte a + 8-byte b
+            let (a, b) = if payload.len() >= 20 {
+                (
+                    i64::from_le_bytes(payload[4..12].try_into().unwrap()),
+                    i64::from_le_bytes(payload[12..20].try_into().unwrap()),
+                )
+            } else {
+                (0i64, 0i64)
+            };
+
+            // Reply: 4-byte CDR header + 8-byte sum
+            let mut reply = Vec::with_capacity(12);
+            reply.extend_from_slice(&[0, 1, 0, 0]);
+            reply.extend_from_slice(&(a + b).to_le_bytes());
+
+            let ke = query.key_expr().clone();
+            query
+                .reply(ke, zenoh::bytes::ZBytes::from(reply))
+                .wait()
+                .unwrap();
+        })
+        .wait()
+        .unwrap();
+
+    thread::sleep(Duration::from_secs(2));
+
+    let mut client_cmd = Command::new("ros2");
+    client_cmd
+        .args(["run", "demo_nodes_cpp", "add_two_ints_client"])
+        .env("RMW_IMPLEMENTATION", "rmw_cyclonedds_cpp")
+        .env("ROS_DOMAIN_ID", domain_id.to_string())
+        .env("CYCLONEDDS_URI", CYCLONEDDS_URI)
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+    use std::os::unix::process::CommandExt;
+    client_cmd.process_group(0);
+    let client_child = client_cmd.spawn().expect("spawn add_two_ints_client");
+
+    let output = {
+        let deadline = std::time::Instant::now() + Duration::from_secs(15);
+        let mut child = client_child;
+        loop {
+            match child.try_wait() {
+                Ok(Some(_)) => break child.wait_with_output().unwrap(),
+                Ok(None) if std::time::Instant::now() < deadline => {
+                    thread::sleep(Duration::from_millis(200));
+                }
+                _ => break kill_group_and_collect(child),
+            }
+        }
+    };
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("3") || output.status.success(),
+        "DDS client did not receive a valid reply; stderr={stderr:?}"
+    );
+}
+
+// ── Test 11: ZDdsPubBridge::new() API construction ────────────────────────────
+
+/// Verifies that `ZDdsPubBridge::new()` constructs without error when given a
+/// valid ZNode and CyclorsParticipant.  No message passing — pure construction test.
+#[cfg(feature = "dds-bridge-interop")]
+#[test]
+fn test_api_pub_bridge() {
+    use ros_z::{Builder, context::ZContextBuilder};
+
+    let domain_id = 70u32;
+    let router = TestRouter::new();
+    let endpoint = router.endpoint().to_string();
+
+    std::env::set_var("CYCLONEDDS_URI", CYCLONEDDS_URI);
+
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        let ctx = ZContextBuilder::default()
+            .with_connect_endpoints([endpoint.as_str()])
+            .build()
+            .expect("ZContext");
+        let node = ctx
+            .create_node("test_api_pub_bridge")
+            .build()
+            .expect("ZNode");
+        let participant = CyclorsParticipant::create(domain_id).expect("participant");
+
+        let bridge = ZDdsPubBridge::new(
+            &node,
+            "/chatter",
+            "std_msgs/msg/String",
+            None,
+            &participant,
+            BridgeQos::default(),
+            true,
+            10,
+        )
+        .await;
+
+        assert!(
+            bridge.is_ok(),
+            "ZDdsPubBridge::new failed: {:?}",
+            bridge.err()
+        );
+    });
+}
+
+// ── Test 12: ZDdsSubBridge::new() API construction ────────────────────────────
+
+/// Verifies that `ZDdsSubBridge::new()` constructs without error.
+#[cfg(feature = "dds-bridge-interop")]
+#[test]
+fn test_api_sub_bridge() {
+    use ros_z::{Builder, context::ZContextBuilder};
+
+    let domain_id = 71u32;
+    let router = TestRouter::new();
+    let endpoint = router.endpoint().to_string();
+
+    std::env::set_var("CYCLONEDDS_URI", CYCLONEDDS_URI);
+
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        let ctx = ZContextBuilder::default()
+            .with_connect_endpoints([endpoint.as_str()])
+            .build()
+            .expect("ZContext");
+        let node = ctx
+            .create_node("test_api_sub_bridge")
+            .build()
+            .expect("ZNode");
+        let participant = CyclorsParticipant::create(domain_id).expect("participant");
+
+        let bridge = ZDdsSubBridge::new(
+            &node,
+            "/chatter",
+            "std_msgs/msg/String",
+            None,
+            &participant,
+            BridgeQos::default(),
+            true,
+        )
+        .await;
+
+        assert!(
+            bridge.is_ok(),
+            "ZDdsSubBridge::new failed: {:?}",
+            bridge.err()
+        );
+    });
+}
+
+// ── Test 13: DdsBridgeExt typed constructors ──────────────────────────────────
+
+/// Verifies that the typed `DdsBridgeExt` convenience methods on `ZNode` construct
+/// without error for both publisher and subscriber directions.
+#[cfg(feature = "dds-bridge-interop")]
+#[test]
+fn test_api_typed_bridge() {
+    use ros_z::{Builder, context::ZContextBuilder};
+
+    let domain_id = 72u32;
+    let router = TestRouter::new();
+    let endpoint = router.endpoint().to_string();
+
+    std::env::set_var("CYCLONEDDS_URI", CYCLONEDDS_URI);
+
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        let ctx = ZContextBuilder::default()
+            .with_connect_endpoints([endpoint.as_str()])
+            .build()
+            .expect("ZContext");
+        let node = ctx
+            .create_node("test_api_typed_bridge")
+            .build()
+            .expect("ZNode");
+        let participant = CyclorsParticipant::create(domain_id).expect("participant");
+
+        let pub_bridge = node
+            .bridge_dds_pub::<RosString>("/chatter", &participant)
+            .await;
+        assert!(
+            pub_bridge.is_ok(),
+            "bridge_dds_pub::<RosString> failed: {:?}",
+            pub_bridge.err()
+        );
+
+        let sub_bridge = node
+            .bridge_dds_sub::<RosString>("/chatter", &participant)
+            .await;
+        assert!(
+            sub_bridge.is_ok(),
+            "bridge_dds_sub::<RosString> failed: {:?}",
+            sub_bridge.err()
+        );
+    });
 }

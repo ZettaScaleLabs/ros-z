@@ -1,10 +1,31 @@
 use clap::Parser;
+use ros_z_protocol::KeyExprFormat;
 
 fn default_domain_id() -> u32 {
     std::env::var("ROS_DOMAIN_ID")
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(0)
+}
+
+/// Zenoh key expression wire format.
+#[derive(Debug, Clone, PartialEq, clap::ValueEnum)]
+pub enum WireFormat {
+    /// rmw_zenoh_cpp compatible format (default). Interops with ros-z and rmw_zenoh_cpp.
+    #[value(name = "rmw-zenoh")]
+    RmwZenoh,
+    /// zenoh-plugin-ros2dds compatible format (legacy). Interops with zenoh-plugin-ros2dds.
+    #[value(name = "ros2dds")]
+    Ros2Dds,
+}
+
+impl From<WireFormat> for KeyExprFormat {
+    fn from(w: WireFormat) -> Self {
+        match w {
+            WireFormat::RmwZenoh => KeyExprFormat::RmwZenoh,
+            WireFormat::Ros2Dds => KeyExprFormat::Ros2Dds,
+        }
+    }
 }
 
 /// Bridge between DDS-based ROS 2 nodes and a Zenoh/ros-z network.
@@ -46,6 +67,12 @@ pub struct Config {
     /// TRANSIENT_LOCAL AdvancedPublisher cache depth multiplier.
     #[arg(long, default_value_t = 10)]
     pub transient_local_cache_multiplier: usize,
+
+    /// Zenoh key expression wire format.
+    /// Use `rmw-zenoh` (default) to interop with ros-z/rmw_zenoh_cpp.
+    /// Use `ros2dds` for legacy zenoh-plugin-ros2dds compatibility.
+    #[arg(long, value_enum, default_value = "rmw-zenoh")]
+    pub wire_format: WireFormat,
 }
 
 #[cfg(test)]
