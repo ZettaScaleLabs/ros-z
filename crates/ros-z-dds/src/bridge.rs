@@ -66,7 +66,7 @@ impl Filter {
 /// The route is kept alive as long as at least one local GID or remote ZID is registered.
 /// When both sets are empty, the caller should drop the route.
 struct RouteEntry<R> {
-    route: R,
+    _route: R,
     /// GIDs of local DDS endpoints that triggered this route.
     local_gids: HashSet<Gid>,
     /// Zenoh session IDs of remote bridges that announced a complementary liveliness token.
@@ -76,7 +76,7 @@ struct RouteEntry<R> {
 impl<R> RouteEntry<R> {
     fn from_local(route: R, gid: Gid) -> Self {
         Self {
-            route,
+            _route: route,
             local_gids: std::iter::once(gid).collect(),
             remote_zids: HashSet::new(),
         }
@@ -84,7 +84,7 @@ impl<R> RouteEntry<R> {
 
     fn from_remote(route: R, zid: String) -> Self {
         Self {
-            route,
+            _route: route,
             local_gids: HashSet::new(),
             remote_zids: std::iter::once(zid).collect(),
         }

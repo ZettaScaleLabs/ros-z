@@ -66,11 +66,6 @@ pub fn is_request_topic(dds_topic: &str) -> bool {
     dds_topic.starts_with("rq/")
 }
 
-/// True if the DDS topic belongs to a ROS 2 service reply channel.
-pub fn is_reply_topic(dds_topic: &str) -> bool {
-    dds_topic.starts_with("rr/")
-}
-
 /// True if the DDS topic is a regular pub/sub topic.
 pub fn is_pubsub_topic(dds_topic: &str) -> bool {
     dds_topic.starts_with("rt/")
@@ -131,21 +126,6 @@ pub fn dds_type_to_ros2_action_type(dds_type: &str) -> String {
 pub fn is_action_get_result_topic(dds_topic: &str) -> bool {
     // Pattern: "rq/<action_name>/_action/get_resultRequest"
     dds_topic.starts_with("rq/") && dds_topic.ends_with("/_action/get_resultRequest")
-}
-
-/// Build the Zenoh key expression for a ROS 2 topic/service name.
-///
-/// Strips the leading `/` since Zenoh key expressions must not start with one.
-/// If `namespace` is set (e.g. `"my_robot"`), it is prepended: `my_robot/chatter`.
-pub fn ros2_name_to_zenoh_key(ros2_name: &str, namespace: Option<&str>) -> String {
-    let stripped = ros2_name.strip_prefix('/').unwrap_or(ros2_name);
-    match namespace {
-        Some(ns) if !ns.is_empty() && ns != "/" => {
-            let ns = ns.strip_prefix('/').unwrap_or(ns);
-            format!("{ns}/{stripped}")
-        }
-        _ => stripped.to_string(),
-    }
 }
 
 #[cfg(test)]

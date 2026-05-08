@@ -185,26 +185,6 @@ impl From<BridgeQos> for Qos {
     }
 }
 
-/// Build a [`BridgeQos`] for service request/reply topics.
-///
-/// Mirrors `service_default_qos()` from the old `dds/qos.rs`, expressed in
-/// backend-neutral types.  The cyclors conversion layer maps Duration::MAX to
-/// DDS_INFINITE_TIME when writing to the wire.
-pub fn service_default_bridge_qos() -> BridgeQos {
-    BridgeQos {
-        history: Some(History {
-            kind: HistoryKind::KeepLast,
-            depth: 10,
-        }),
-        reliability: Some(Reliability {
-            kind: ReliabilityKind::Reliable,
-            max_blocking_time: None, // infinite
-        }),
-        ignore_local: true,
-        ..Default::default()
-    }
-}
-
 /// Adapt a discovered DDS writer's QoS to create a compatible reader.
 pub fn adapt_writer_qos_for_reader(qos: &BridgeQos) -> BridgeQos {
     BridgeQos {
@@ -273,44 +253,6 @@ pub fn adapt_reader_qos_for_writer(qos: &BridgeQos) -> BridgeQos {
     }
 }
 
-/// Check whether a writer/reader QoS pair is compatible per RTPS rules.
-pub fn qos_mismatch_reason(writer_qos: &BridgeQos, reader_qos: &BridgeQos) -> Option<String> {
-    let writer_reliable = writer_qos
-        .reliability
-        .as_ref()
-        .is_some_and(|r| r.kind == ReliabilityKind::Reliable)
-        || writer_qos
-            .durability
-            .as_ref()
-            .is_some_and(|d| d.kind == DurabilityKind::TransientLocal);
-    let reader_reliable = reader_qos
-        .reliability
-        .as_ref()
-        .is_some_and(|r| r.kind == ReliabilityKind::Reliable);
-    if !writer_reliable && reader_reliable {
-        return Some(
-            "BEST_EFFORT writer cannot satisfy RELIABLE reader; samples may be dropped".to_string(),
-        );
-    }
-
-    let writer_transient = writer_qos
-        .durability
-        .as_ref()
-        .is_some_and(|d| d.kind == DurabilityKind::TransientLocal);
-    let reader_transient = reader_qos
-        .durability
-        .as_ref()
-        .is_some_and(|d| d.kind == DurabilityKind::TransientLocal);
-    if !writer_transient && reader_transient {
-        return Some(
-            "VOLATILE writer cannot satisfy TRANSIENT_LOCAL reader; late-joiner samples lost"
-                .to_string(),
-        );
-    }
-
-    None
-}
-
 const DDS_100MS_DURATION_STD: Duration = Duration::from_millis(100);
 
 // ─── Unit tests ───────────────────────────────────────────────────────────────
@@ -324,16 +266,6 @@ mod tests {
             reliability: Some(Reliability {
                 kind: ReliabilityKind::Reliable,
                 max_blocking_time: Some(Duration::from_millis(100)),
-            }),
-            ..Default::default()
-        }
-    }
-
-    fn best_effort_bridge_qos() -> BridgeQos {
-        BridgeQos {
-            reliability: Some(Reliability {
-                kind: ReliabilityKind::BestEffort,
-                max_blocking_time: None,
             }),
             ..Default::default()
         }
@@ -398,16 +330,6 @@ mod tests {
         let cq: Qos = bq.into();
         let ds = cq.durability_service.unwrap();
         assert_eq!(ds.max_instances, DDS_LENGTH_UNLIMITED);
-    }
-
-    #[test]
-    fn test_mismatch_best_effort_writer_reliable_reader() {
-        assert!(qos_mismatch_reason(&best_effort_bridge_qos(), &reliable_bridge_qos()).is_some());
-    }
-
-    #[test]
-    fn test_no_mismatch_reliable_writer_best_effort_reader() {
-        assert!(qos_mismatch_reason(&reliable_bridge_qos(), &best_effort_bridge_qos()).is_none());
     }
 
     #[test]

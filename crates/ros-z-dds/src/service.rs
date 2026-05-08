@@ -222,12 +222,12 @@ impl<P: DdsParticipant> ZDdsServiceBridge<P> {
     }
 
     /// Return the DDS request-writer GID (appears in `writer_gid_seq` in ros_discovery_info).
-    pub fn writer_guid(&self) -> Option<Gid> {
+    pub(crate) fn writer_guid(&self) -> Option<Gid> {
         self._req_writer.guid().ok().map(Gid::from)
     }
 
     /// Return the DDS reply-reader GID (appears in `reader_gid_seq` in ros_discovery_info).
-    pub fn reader_guid(&self) -> Option<Gid> {
+    pub(crate) fn reader_guid(&self) -> Option<Gid> {
         self._rep_reader.guid().ok().map(Gid::from)
     }
 }
@@ -386,12 +386,12 @@ impl<P: DdsParticipant> ZDdsClientBridge<P> {
     }
 
     /// Return the DDS request-reader GID (appears in `reader_gid_seq` in ros_discovery_info).
-    pub fn reader_guid(&self) -> Option<Gid> {
+    pub(crate) fn reader_guid(&self) -> Option<Gid> {
         self._req_reader.guid().ok().map(Gid::from)
     }
 
     /// Return the DDS reply-writer GID (appears in `writer_gid_seq` in ros_discovery_info).
-    pub fn writer_guid(&self) -> Option<Gid> {
+    pub(crate) fn writer_guid(&self) -> Option<Gid> {
         self._rep_writer.guid().ok().map(Gid::from)
     }
 }

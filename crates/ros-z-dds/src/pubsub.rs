@@ -39,6 +39,7 @@ impl BridgePublisher {
 
 // ─── Zenoh subscriber wrapper ─────────────────────────────────────────────────
 
+#[allow(dead_code)]
 enum ZenohSubHandle {
     Plain(zenoh::pubsub::Subscriber<()>),
     Advanced(AdvancedSubscriber<()>),
@@ -187,7 +188,7 @@ impl<P: DdsParticipant> ZDdsPubBridge<P> {
     }
 
     /// Return the DDS reader GID created for this bridge route.
-    pub fn reader_guid(&self) -> Option<Gid> {
+    pub(crate) fn reader_guid(&self) -> Option<Gid> {
         self._dds_reader.guid().ok().map(Gid::from)
     }
 }
@@ -320,7 +321,7 @@ impl<P: DdsParticipant> ZDdsSubBridge<P> {
     }
 
     /// Return the DDS writer GID created for this bridge route.
-    pub fn writer_guid(&self) -> Option<Gid> {
+    pub(crate) fn writer_guid(&self) -> Option<Gid> {
         self._writer.guid().ok().map(Gid::from)
     }
 }
@@ -334,7 +335,7 @@ impl<P: DdsParticipant> ZDdsSubBridge<P> {
 /// - keyless topics → `depth × multiplier`
 /// - KEEP_LAST, unlimited instances → `usize::MAX`
 /// - KEEP_LAST, N instances → `depth × N × multiplier`
-pub fn compute_cache_size(qos: &BridgeQos, keyless: bool, multiplier: usize) -> usize {
+fn compute_cache_size(qos: &BridgeQos, keyless: bool, multiplier: usize) -> usize {
     let depth = match &qos.history {
         Some(h) => match h.kind {
             HistoryKind::KeepAll => return usize::MAX,

@@ -28,7 +28,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
     let kind = btx.0;
     let sender = &btx.1;
 
-    let (dp, dpih) = unsafe {
+    let (_, dpih) = unsafe {
         let dp = dds_get_participant(dr);
         let mut dpih: dds_instance_handle_t = 0;
         let _ = dds_get_instance_handle(dp, &mut dpih);

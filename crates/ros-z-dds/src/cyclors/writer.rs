@@ -11,11 +11,6 @@ use crate::participant::{BridgeQos, DdsWriter};
 
 use super::{entity::DdsEntity, entity::get_entity_guid};
 
-/// Converts a `ddsrt_iov_len_t` (platform-specific unsigned) to `usize`.
-fn iov_len_to_usize(len: ddsrt_iov_len_t) -> usize {
-    len as usize
-}
-
 /// CycloneDDS implementation of [`DdsWriter`].
 pub struct CyclorsWriter(pub(super) DdsEntity);
 
@@ -60,7 +55,7 @@ pub fn create_writer(
                 .unwrap_or("unknown");
             return Err(anyhow!("dds_create_writer failed: {msg}"));
         }
-        Ok(CyclorsWriter(unsafe { DdsEntity::new(writer) }))
+        Ok(CyclorsWriter(DdsEntity::new(writer)))
     }
 }
 

@@ -21,6 +21,7 @@ use crate::{
 /// let _pub = node.bridge_dds_pub::<RosString>("/chatter", &participant).await?;
 /// let _sub = node.bridge_dds_sub::<RosString>("/chatter", &participant).await?;
 /// ```
+#[allow(async_fn_in_trait)]
 pub trait DdsBridgeExt {
     /// Bridge a DDS topic publisher to a Zenoh publisher.
     ///

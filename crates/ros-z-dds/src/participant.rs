@@ -12,44 +12,16 @@ pub enum ReliabilityKind {
     Reliable,
 }
 
-impl ReliabilityKind {
-    /// Wire discriminant matching the DDS / zenoh-plugin-ros2dds integer encoding.
-    pub fn wire_discriminant(self) -> i32 {
-        match self {
-            Self::BestEffort => 0,
-            Self::Reliable => 1,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DurabilityKind {
     Volatile,
     TransientLocal,
 }
 
-impl DurabilityKind {
-    pub fn wire_discriminant(self) -> i32 {
-        match self {
-            Self::Volatile => 0,
-            Self::TransientLocal => 1,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HistoryKind {
     KeepLast,
     KeepAll,
-}
-
-impl HistoryKind {
-    pub fn wire_discriminant(self) -> i32 {
-        match self {
-            Self::KeepLast => 0,
-            Self::KeepAll => 1,
-        }
-    }
 }
 
 // ─── QoS policy structs ───────────────────────────────────────────────────────
@@ -167,6 +139,33 @@ mod tests {
     // ── wire_discriminant values must match zenoh-plugin-ros2dds ─────────────
     // References: zenoh-plugin-ros2dds liveliness_mgt.rs, which encodes these as
     // integers in the liveliness key expression for cross-bridge entity matching.
+
+    impl ReliabilityKind {
+        fn wire_discriminant(self) -> i32 {
+            match self {
+                Self::BestEffort => 0,
+                Self::Reliable => 1,
+            }
+        }
+    }
+
+    impl DurabilityKind {
+        fn wire_discriminant(self) -> i32 {
+            match self {
+                Self::Volatile => 0,
+                Self::TransientLocal => 1,
+            }
+        }
+    }
+
+    impl HistoryKind {
+        fn wire_discriminant(self) -> i32 {
+            match self {
+                Self::KeepLast => 0,
+                Self::KeepAll => 1,
+            }
+        }
+    }
 
     #[test]
     fn test_reliability_wire_discriminants() {
