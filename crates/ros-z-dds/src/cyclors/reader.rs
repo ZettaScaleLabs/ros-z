@@ -33,9 +33,7 @@ impl RawSample {
     }
 
     fn as_slice(&self) -> &[u8] {
-        unsafe {
-            slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len as usize)
-        }
+        unsafe { slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len) }
     }
 }
 

@@ -47,10 +47,10 @@ impl Filter {
     }
 
     fn allows(&self, name: &str) -> bool {
-        if let Some(deny) = &self.deny {
-            if deny.is_match(name) {
-                return false;
-            }
+        if let Some(deny) = &self.deny
+            && deny.is_match(name)
+        {
+            return false;
         }
         if let Some(allow) = &self.allow {
             return allow.is_match(name);
@@ -237,6 +237,7 @@ pub struct ZDdsBridge<P: DdsParticipant> {
 
 impl<P: DdsParticipant> ZDdsBridge<P> {
     /// Create a new bridge builder for `node` and `participant`.
+    #[allow(clippy::new_ret_no_self)]
     pub fn new(node: ZNode, participant: P) -> ZDdsBridgeBuilder<P> {
         ZDdsBridgeBuilder {
             node,
@@ -568,14 +569,14 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
     }
 
     fn unregister_route_gids(&mut self, name: &str) {
-        if let Some(gids) = self.route_gids.remove(name) {
-            if let Some(rd) = &self.ros_discovery {
-                for g in gids.readers {
-                    rd.remove_reader(g);
-                }
-                for g in gids.writers {
-                    rd.remove_writer(g);
-                }
+        if let Some(gids) = self.route_gids.remove(name)
+            && let Some(rd) = &self.ros_discovery
+        {
+            for g in gids.readers {
+                rd.remove_reader(g);
+            }
+            for g in gids.writers {
+                rd.remove_writer(g);
             }
         }
     }

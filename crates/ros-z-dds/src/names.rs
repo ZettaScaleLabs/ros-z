@@ -28,10 +28,10 @@ const USER_DATA_TYPEHASH_PREFIX: &str = "typehash=";
 pub fn type_info_from_user_data(type_name: &str, user_data: &[u8]) -> Option<TypeInfo> {
     let s = std::str::from_utf8(user_data).ok()?;
     for part in s.split(';') {
-        if let Some(rihs) = part.trim().strip_prefix(USER_DATA_TYPEHASH_PREFIX) {
-            if let Some(hash) = TypeHash::from_rihs_string(rihs) {
-                return Some(TypeInfo::new(type_name, hash));
-            }
+        if let Some(rihs) = part.trim().strip_prefix(USER_DATA_TYPEHASH_PREFIX)
+            && let Some(hash) = TypeHash::from_rihs_string(rihs)
+        {
+            return Some(TypeInfo::new(type_name, hash));
         }
     }
     None
@@ -47,16 +47,16 @@ pub fn dds_topic_to_ros2_name(dds_topic: &str) -> Option<String> {
         return Some(format!("/{rest}"));
     }
     // Service requests: "rq/<name>Request" → "/<name>"
-    if let Some(rest) = dds_topic.strip_prefix("rq/") {
-        if let Some(name) = rest.strip_suffix("Request") {
-            return Some(format!("/{name}"));
-        }
+    if let Some(rest) = dds_topic.strip_prefix("rq/")
+        && let Some(name) = rest.strip_suffix("Request")
+    {
+        return Some(format!("/{name}"));
     }
     // Service replies: "rr/<name>Reply" → "/<name>"
-    if let Some(rest) = dds_topic.strip_prefix("rr/") {
-        if let Some(name) = rest.strip_suffix("Reply") {
-            return Some(format!("/{name}"));
-        }
+    if let Some(rest) = dds_topic.strip_prefix("rr/")
+        && let Some(name) = rest.strip_suffix("Reply")
+    {
+        return Some(format!("/{name}"));
     }
     None
 }

@@ -142,46 +142,45 @@ impl From<Qos> for BridgeQos {
 
 impl From<BridgeQos> for Qos {
     fn from(bq: BridgeQos) -> Self {
-        let mut q = Qos::default();
-
-        q.reliability = bq.reliability.map(|r| CReliability {
-            kind: r.kind.into(),
-            max_blocking_time: duration_option_to_nanos(r.max_blocking_time),
-        });
-        q.durability = bq.durability.map(|d| CDurability {
-            kind: d.kind.into(),
-        });
-        q.history = bq.history.map(|h| CHistory {
-            kind: h.kind.into(),
-            depth: h.depth,
-        });
-        q.durability_service = bq.durability_service.map(|ds| CDurabilityService {
-            service_cleanup_delay: duration_option_to_nanos(ds.service_cleanup_delay),
-            history_kind: ds.history_kind.into(),
-            history_depth: ds.history_depth,
-            max_samples: option_to_max(ds.max_samples),
-            max_instances: option_to_max(ds.max_instances),
-            max_samples_per_instance: option_to_max(ds.max_samples_per_instance),
-        });
-        q.deadline = bq.deadline.map(|d| cyclors::qos::Deadline {
-            period: duration_to_nanos(d),
-        });
-        q.latency_budget = bq.latency_budget.map(|d| cyclors::qos::LatencyBudget {
-            duration: duration_to_nanos(d),
-        });
-        q.lifespan = bq.lifespan.map(|d| cyclors::qos::Lifespan {
-            duration: duration_to_nanos(d),
-        });
-        q.user_data = bq.user_data;
-        q.ignore_local = if bq.ignore_local {
-            Some(IgnoreLocal {
-                kind: IgnoreLocalKind::PARTICIPANT,
-            })
-        } else {
-            None
-        };
-
-        q
+        Qos {
+            reliability: bq.reliability.map(|r| CReliability {
+                kind: r.kind.into(),
+                max_blocking_time: duration_option_to_nanos(r.max_blocking_time),
+            }),
+            durability: bq.durability.map(|d| CDurability {
+                kind: d.kind.into(),
+            }),
+            history: bq.history.map(|h| CHistory {
+                kind: h.kind.into(),
+                depth: h.depth,
+            }),
+            durability_service: bq.durability_service.map(|ds| CDurabilityService {
+                service_cleanup_delay: duration_option_to_nanos(ds.service_cleanup_delay),
+                history_kind: ds.history_kind.into(),
+                history_depth: ds.history_depth,
+                max_samples: option_to_max(ds.max_samples),
+                max_instances: option_to_max(ds.max_instances),
+                max_samples_per_instance: option_to_max(ds.max_samples_per_instance),
+            }),
+            deadline: bq.deadline.map(|d| cyclors::qos::Deadline {
+                period: duration_to_nanos(d),
+            }),
+            latency_budget: bq.latency_budget.map(|d| cyclors::qos::LatencyBudget {
+                duration: duration_to_nanos(d),
+            }),
+            lifespan: bq.lifespan.map(|d| cyclors::qos::Lifespan {
+                duration: duration_to_nanos(d),
+            }),
+            user_data: bq.user_data,
+            ignore_local: if bq.ignore_local {
+                Some(IgnoreLocal {
+                    kind: IgnoreLocalKind::PARTICIPANT,
+                })
+            } else {
+                None
+            },
+            ..Default::default()
+        }
     }
 }
 

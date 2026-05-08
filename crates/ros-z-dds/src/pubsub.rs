@@ -74,6 +74,7 @@ impl<P: DdsParticipant> ZDdsPubBridge<P> {
     /// - `qos` — DDS QoS of the upstream publisher
     /// - `keyless` — whether the DDS topic has no key fields
     /// - `cache_multiplier` — TRANSIENT_LOCAL cache depth multiplier (pass 10 for the plugin default)
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         node: &ZNode,
         ros2_name: &str,
@@ -95,7 +96,7 @@ impl<P: DdsParticipant> ZDdsPubBridge<P> {
             kind: EndpointKind::Publisher,
             topic: ros2_name.to_string(),
             type_info,
-            qos: qos_profile.clone(),
+            qos: qos_profile,
         };
         // Liveliness entity always carries the type name (with zero hash when hash unknown)
         // so remote bridges can reconstruct DDS routes for federation.
@@ -231,7 +232,7 @@ impl<P: DdsParticipant> ZDdsSubBridge<P> {
             kind: EndpointKind::Subscription,
             topic: ros2_name.to_string(),
             type_info,
-            qos: qos_profile.clone(),
+            qos: qos_profile,
         };
         let lv_type_hash = type_hash.unwrap_or_else(TypeHash::zero);
         let entity_lv = EndpointEntity {

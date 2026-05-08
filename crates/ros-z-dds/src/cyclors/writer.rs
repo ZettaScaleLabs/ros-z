@@ -67,9 +67,7 @@ fn write_cdr_raw(writer: dds_entity_t, data: Vec<u8>) -> Result<()> {
         let ptr = data.as_mut_ptr();
         let cap = data.capacity();
 
-        let iov_len: ddsrt_iov_len_t = len
-            .try_into()
-            .map_err(|_| anyhow!("CDR payload too large"))?;
+        let iov_len: ddsrt_iov_len_t = len;
         let iov = ddsrt_iovec_t {
             iov_base: ptr as *mut std::os::raw::c_void,
             iov_len,
