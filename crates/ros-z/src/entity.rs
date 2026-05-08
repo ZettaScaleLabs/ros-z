@@ -19,16 +19,24 @@ pub type Topic = String;
 
 // Extension functions for NodeEntity (can't use impl due to orphan rules)
 
-/// Get the key for this node (namespace, name)
-pub fn node_key(entity: &NodeEntity) -> NodeKey {
-    // Normalize namespace: "/" (root namespace) should be treated as "" (empty)
-    // This ensures consistent HashMap lookups across local and remote entities
-    let normalized_namespace = if entity.namespace == "/" {
+/// Normalize a node namespace for internal storage.
+///
+/// The root namespace (`"/"`) is stored as an empty string so local and remote
+/// entities use the same key representation.
+pub fn normalize_node_namespace(namespace: &str) -> String {
+    if namespace == "/" {
         String::new()
     } else {
-        entity.namespace.clone()
-    };
-    (normalized_namespace, entity.name.clone())
+        namespace.to_owned()
+    }
+}
+
+/// Get the key for this node (namespace, name)
+pub fn node_key(entity: &NodeEntity) -> NodeKey {
+    (
+        normalize_node_namespace(&entity.namespace),
+        entity.name.clone(),
+    )
 }
 
 /// Get the liveliness token key expression for a node

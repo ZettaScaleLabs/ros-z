@@ -8,6 +8,7 @@ use zenoh::{Result, Session, Wait};
 
 use crate::{
     Builder,
+    entity::normalize_node_namespace,
     graph::Graph,
     node::ZNodeBuilder,
     time::{ClockKind, ZClock},
@@ -71,6 +72,7 @@ impl RemapRules {
 #[derive(Default)]
 pub struct ZContextBuilder {
     domain_id: usize,
+    namespace: String,
     enclave: String,
     zenoh_config: Option<zenoh::Config>,
     config_file: Option<PathBuf>,
@@ -86,6 +88,12 @@ impl ZContextBuilder {
     /// Set the ROS domain ID
     pub fn with_domain_id(mut self, domain_id: usize) -> Self {
         self.domain_id = domain_id;
+        self
+    }
+
+    /// Set the default namespace inherited by nodes created from this context.
+    pub fn with_namespace(mut self, namespace: impl AsRef<str>) -> Self {
+        self.namespace = normalize_node_namespace(namespace.as_ref());
         self
     }
 
@@ -539,6 +547,7 @@ impl Builder for ZContextBuilder {
             session: Arc::new(session),
             counter: Arc::new(GlobalCounter::default()),
             domain_id,
+            namespace: builder.namespace,
             enclave,
             graph,
             remap_rules: builder.remap_rules,
@@ -568,6 +577,7 @@ pub struct ZContext {
     // Global counter for the participants
     counter: Arc<GlobalCounter>,
     domain_id: usize,
+    namespace: String,
     enclave: String,
     graph: Arc<Graph>,
     remap_rules: RemapRules,
@@ -580,6 +590,7 @@ impl std::fmt::Debug for ZContext {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ZContext")
             .field("domain_id", &self.domain_id)
+            .field("namespace", &self.namespace)
             .field("enclave", &self.enclave)
             .finish_non_exhaustive()
     }
@@ -598,7 +609,11 @@ impl ZContext {
         crate::lifecycle::node::ZLifecycleNodeBuilder {
             ctx: self.clone(),
             name: name.as_ref().to_owned(),
-            namespace: None,
+            namespace: if self.namespace.is_empty() {
+                None
+            } else {
+                Some(self.namespace.clone())
+            },
             enable_communication_interface: true,
         }
     }
@@ -609,7 +624,7 @@ impl ZContext {
         ZNodeBuilder {
             domain_id: self.domain_id,
             name: name.as_ref().to_owned(),
-            namespace: "".to_string(),
+            namespace: self.namespace.clone(),
             enclave: self.enclave.clone(),
             session: self.session.clone(),
             counter: self.counter.clone(),

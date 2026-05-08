@@ -34,6 +34,9 @@ pub struct CContextConfig {
     pub remap_rules_count: usize,
     /// Whether to enable logging
     pub enable_logging: bool,
+    /// Default namespace inherited by nodes created from this context (nullable).
+    /// Added after all pre-existing fields to preserve ABI compatibility.
+    pub namespace: *const c_char,
 }
 
 /// Create a new ros-z context with default config (convenience)
@@ -77,6 +80,11 @@ pub unsafe extern "C" fn ros_z_context_create_with_config(
         let cfg = &*config;
         let mut builder =
             crate::context::ZContextBuilder::default().with_domain_id(cfg.domain_id as usize);
+
+        if let Some(Ok(namespace)) = (!cfg.namespace.is_null()).then(|| cstr_to_str(cfg.namespace))
+        {
+            builder = builder.with_namespace(namespace);
+        }
 
         // Config file
         if let Some(Ok(path)) = (!cfg.config_file.is_null()).then(|| cstr_to_str(cfg.config_file)) {

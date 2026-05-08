@@ -40,20 +40,16 @@ pub unsafe extern "C" fn ros_z_node_create(
             Err(_) => return std::ptr::null_mut(),
         };
 
-        let namespace_str = if namespace.is_null() {
-            ""
-        } else {
-            match cstr_to_str(namespace) {
+        let mut builder = ctx_ref.create_node(name_str);
+        if !namespace.is_null() {
+            let namespace_str = match cstr_to_str(namespace) {
                 Ok(s) => s,
                 Err(_) => return std::ptr::null_mut(),
-            }
-        };
+            };
+            builder = builder.with_namespace(namespace_str);
+        }
 
-        match ctx_ref
-            .create_node(name_str)
-            .with_namespace(namespace_str)
-            .build()
-        {
+        match builder.build() {
             Ok(node) => Box::into_raw(Box::new(CNode {
                 inner: Box::new(node),
             })),
@@ -92,16 +88,14 @@ pub unsafe extern "C" fn ros_z_node_create_with_config(
             Err(_) => return std::ptr::null_mut(),
         };
 
-        let namespace_str = if cfg.namespace.is_null() {
-            ""
-        } else {
-            match cstr_to_str(cfg.namespace) {
+        let mut builder = ctx_ref.create_node(name_str);
+        if !cfg.namespace.is_null() {
+            let namespace_str = match cstr_to_str(cfg.namespace) {
                 Ok(s) => s,
                 Err(_) => return std::ptr::null_mut(),
-            }
-        };
-
-        let mut builder = ctx_ref.create_node(name_str).with_namespace(namespace_str);
+            };
+            builder = builder.with_namespace(namespace_str);
+        }
 
         if cfg.enable_type_description_service {
             builder = builder.with_type_description_service();
