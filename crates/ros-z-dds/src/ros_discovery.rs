@@ -240,10 +240,10 @@ mod tests {
         };
         let bytes = state.serialize_cdr().expect("serialization failed");
         // Round-trip: count reader GIDs and writer GIDs embedded in the payload
-        let reader_count = bytes.windows(16).filter(|w| *w == &[0xAA; 16]).count();
+        let reader_count = bytes.windows(16).filter(|w| *w == [0xAA; 16]).count();
         let writer_count = bytes
             .windows(16)
-            .filter(|w| *w == &[0xBB; 16] || *w == &[0xCC; 16])
+            .filter(|w| *w == [0xBB; 16] || *w == [0xCC; 16])
             .count();
         assert_eq!(reader_count, 1);
         assert_eq!(writer_count, 2);

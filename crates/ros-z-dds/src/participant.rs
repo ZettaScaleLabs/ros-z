@@ -132,6 +132,27 @@ pub trait DdsParticipant: Send + Sync + 'static {
     ) -> Result<Self::Writer>;
 }
 
+/// A live DDS reader; minimal trait so the bridge can obtain its GUID.
+pub trait DdsReader: Send + Sync + 'static {
+    /// Return this reader's 16-byte DDS GUID.
+    fn guid(&self) -> Result<[u8; 16]>;
+}
+
+/// A live DDS writer that can send raw CDR blobs.
+pub trait DdsWriter: Send + Sync + 'static {
+    /// Write raw CDR bytes (4-byte representation header + payload) to DDS.
+    fn write_cdr(&self, data: Vec<u8>) -> Result<()>;
+
+    /// Return this writer's stable instance handle (GUID fragment).
+    ///
+    /// Used as the `client_guid` in ROS 2 service request headers so that
+    /// the DDS server routes replies back to this specific writer.
+    fn instance_handle(&self) -> Result<u64>;
+
+    /// Return this writer's 16-byte DDS GUID.
+    fn guid(&self) -> Result<[u8; 16]>;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -209,25 +230,4 @@ mod tests {
         let b = a.clone();
         assert_eq!(a, b);
     }
-}
-
-/// A live DDS reader; minimal trait so the bridge can obtain its GUID.
-pub trait DdsReader: Send + Sync + 'static {
-    /// Return this reader's 16-byte DDS GUID.
-    fn guid(&self) -> Result<[u8; 16]>;
-}
-
-/// A live DDS writer that can send raw CDR blobs.
-pub trait DdsWriter: Send + Sync + 'static {
-    /// Write raw CDR bytes (4-byte representation header + payload) to DDS.
-    fn write_cdr(&self, data: Vec<u8>) -> Result<()>;
-
-    /// Return this writer's stable instance handle (GUID fragment).
-    ///
-    /// Used as the `client_guid` in ROS 2 service request headers so that
-    /// the DDS server routes replies back to this specific writer.
-    fn instance_handle(&self) -> Result<u64>;
-
-    /// Return this writer's 16-byte DDS GUID.
-    fn guid(&self) -> Result<[u8; 16]>;
 }
