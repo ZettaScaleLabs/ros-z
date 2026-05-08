@@ -1,6 +1,6 @@
 # DDS Bridge
 
-`zenoh-bridge-dds` is a standalone binary that connects **existing DDS-based ROS 2 nodes** (using any DDS middleware: Fast DDS, CycloneDDS, Connext, …) to a Zenoh/ros-z network. Once running, every ros-z node, Python node, Go node, and `rmw_zenoh_cpp` node on the Zenoh side can communicate transparently with any node on the DDS side — no recompilation or code changes needed.
+`ros-z-bridge-dds` is a standalone binary that connects **existing DDS-based ROS 2 nodes** (using any DDS middleware: Fast DDS, CycloneDDS, Connext, …) to a Zenoh/ros-z network. Once running, every ros-z node, Python node, Go node, and `rmw_zenoh_cpp` node on the Zenoh side can communicate transparently with any node on the DDS side — no recompilation or code changes needed.
 
 !!! tip "Wrong bridge?"
     If you need to connect a **Humble** network to a **Jazzy/Kilted** network (both already using Zenoh), see the [Cross-Distro Bridge](./bridge.md) chapter instead.
@@ -11,7 +11,7 @@ The bridge runs a CycloneDDS participant in a chosen DDS domain. It watches DDS 
 
 ```mermaid
 graph LR
-accTitle: zenoh-bridge-dds connecting a DDS domain to a Zenoh network
+accTitle: ros-z-bridge-dds connecting a DDS domain to a Zenoh network
 accDescr: A ROS 2 talker uses rmw_cyclonedds_cpp to publish into DDS domain 0. The bridge subscribes in domain 0 and republishes on a Zenoh key expression. A ros-z listener and an rmw_zenoh_cpp listener both receive the message from the Zenoh router.
 
     talker["ROS 2 talker<br>(rmw_cyclonedds_cpp)"]
@@ -22,7 +22,7 @@ accDescr: A ROS 2 talker uses rmw_cyclonedds_cpp to publish into DDS domain 0. T
         talker
     end
 
-    bridge["zenoh-bridge-dds"]
+    bridge["ros-z-bridge-dds"]
 
     subgraph Zenoh ["Zenoh network"]
         router(["Zenoh router"])
@@ -48,7 +48,7 @@ Requires Rust 1.85+:
 cargo build --release -p ros-z-bridge-dds
 ```
 
-The binary is at `target/release/zenoh-bridge-dds`.
+The binary is at `target/release/ros-z-bridge-dds`.
 
 ## Quick Start
 
@@ -70,7 +70,7 @@ zenohd
 ### 2 — Start the bridge
 
 ```bash
-./zenoh-bridge-dds
+./ros-z-bridge-dds
 ```
 
 By default the bridge connects to `tcp/127.0.0.1:7447` and joins DDS domain 0.
@@ -96,7 +96,7 @@ The ros-z listener prints messages published by the DDS talker — no shared rou
 
 ```text
 USAGE:
-    zenoh-bridge-dds [OPTIONS]
+    ros-z-bridge-dds [OPTIONS]
 
 OPTIONS:
     -z, --zenoh-endpoint <LOCATOR>
@@ -151,13 +151,13 @@ Use `--allow` and `--deny` to control which topics and services are bridged. Bot
 
 ```bash
 # Bridge only /chatter and /tf
-zenoh-bridge-dds --allow "^rt/(chatter|tf)$"
+ros-z-bridge-dds --allow "^rt/(chatter|tf)$"
 
 # Bridge everything except /rosout
-zenoh-bridge-dds --deny "^rt/rosout$"
+ros-z-bridge-dds --deny "^rt/rosout$"
 
 # Combine: allow navigation topics but not raw odometry
-zenoh-bridge-dds --allow "^rt/nav" --deny "^rt/nav/raw_odom$"
+ros-z-bridge-dds --allow "^rt/nav" --deny "^rt/nav/raw_odom$"
 ```
 
 If both `--allow` and `--deny` are set, `--deny` is evaluated first.
@@ -168,7 +168,7 @@ When two bridge instances run on separate DDS domains and connect to the **same 
 
 ```mermaid
 graph LR
-accTitle: Two zenoh-bridge-dds instances federating across a shared Zenoh router
+accTitle: Two ros-z-bridge-dds instances federating across a shared Zenoh router
 accDescr: Bridge A in DDS domain 0 detects Bridge B's Subscription liveliness token and creates a ZDdsPubBridge for /chatter in domain 0. Bridge B in DDS domain 1 detects Bridge A's Publisher liveliness token and creates a ZDdsSubBridge for /chatter in domain 1.
 
     subgraph A ["DDS domain 0"]
@@ -323,7 +323,7 @@ Routes are RAII handles — drop them to tear down the bridge. All bridges are `
 Enable debug logging to watch discovery events:
 
 ```bash
-RUST_LOG=ros_z_dds=debug ./zenoh-bridge-dds
+RUST_LOG=ros_z_dds=debug ./ros-z-bridge-dds
 ```
 
 Look for lines like:
@@ -351,13 +351,13 @@ ros2 topic list --spin-time 5 --no-daemon
 The bridge proxies Zenoh `get()` calls with a configurable timeout (default 10 s). If the ros-z service server is slow to start or the Zenoh router is under load, the first call may time out. Increase the timeout:
 
 ```bash
-./zenoh-bridge-dds --service-timeout-secs 30
+./ros-z-bridge-dds --service-timeout-secs 30
 ```
 
 Check that a matching queryable is registered:
 
 ```bash
-RUST_LOG=ros_z_dds=debug ./zenoh-bridge-dds 2>&1 | grep -i "service\|queryable"
+RUST_LOG=ros_z_dds=debug ./ros-z-bridge-dds 2>&1 | grep -i "service\|queryable"
 ```
 
 ### Federation routes not appearing
@@ -365,7 +365,7 @@ RUST_LOG=ros_z_dds=debug ./zenoh-bridge-dds 2>&1 | grep -i "service\|queryable"
 Federation relies on Zenoh liveliness tokens. Ensure both bridges connect to the **same Zenoh router** (or a federated Zenoh network). Check that both bridges use the **same `--wire-format`** — mixing `rmw-zenoh` on one side with `ros2dds` on the other will prevent liveliness token parsing.
 
 ```bash
-RUST_LOG=ros_z_dds::bridge=debug ./zenoh-bridge-dds 2>&1 | grep -i "federation"
+RUST_LOG=ros_z_dds::bridge=debug ./ros-z-bridge-dds 2>&1 | grep -i "federation"
 ```
 
 ### Messages arrive corrupted
@@ -378,11 +378,11 @@ The bridge forwards raw CDR bytes without any transformation. If messages are co
 
 ## Migrating from zenoh-plugin-ros2dds
 
-`zenoh-bridge-dds` is the successor to `zenoh-bridge-ros2dds` (the binary bundled with `zenoh-plugin-ros2dds`). The two bridges are wire-compatible when you pass `--wire-format ros2dds` to the new bridge.
+`ros-z-bridge-dds` is the successor to `zenoh-bridge-ros2dds` (the binary bundled with `zenoh-plugin-ros2dds`). The two bridges are wire-compatible when you pass `--wire-format ros2dds` to the new bridge.
 
 ### CLI Flag Mapping
 
-| `zenoh-bridge-ros2dds` flag | `zenoh-bridge-dds` equivalent | Notes |
+| `zenoh-bridge-ros2dds` flag | `ros-z-bridge-dds` equivalent | Notes |
 |---|---|---|
 | `--namespace <NS>` | `--namespace <NS>` | Identical |
 | `--nodename <NAME>` | `--node-name <NAME>` | Renamed (hyphen) |
@@ -401,7 +401,7 @@ The bridge forwards raw CDR bytes without any transformation. If messages are co
 
 ### Feature Comparison
 
-| Feature | zenoh-plugin-ros2dds | zenoh-bridge-dds |
+| Feature | zenoh-plugin-ros2dds | ros-z-bridge-dds |
 |---|---|---|
 | Pub/sub bridging | Yes | Yes |
 | Service bridging | Yes | Yes |
@@ -418,11 +418,11 @@ The bridge forwards raw CDR bytes without any transformation. If messages are co
 
 ### Wire Format and Gradual Migration
 
-By default, `zenoh-bridge-dds` uses the `rmw-zenoh` key expression format, which is not compatible with `zenoh-plugin-ros2dds`. To run both bridges side-by-side during a migration:
+By default, `ros-z-bridge-dds` uses the `rmw-zenoh` key expression format, which is not compatible with `zenoh-plugin-ros2dds`. To run both bridges side-by-side during a migration:
 
 ```bash
 # New bridge, compatible with zenoh-plugin-ros2dds infrastructure
-./zenoh-bridge-dds --wire-format ros2dds
+./ros-z-bridge-dds --wire-format ros2dds
 ```
 
 Once all `zenoh-plugin-ros2dds` instances are replaced, drop the flag to use the default `rmw-zenoh` format, which is also understood by all ros-z nodes and `rmw_zenoh_cpp` nodes.
@@ -445,12 +445,12 @@ The new bridge uses a single `--allow`/`--deny` regex matched against the raw DD
 
 ```bash
 # Bridge only /chatter topics and services (all entity types)
-zenoh-bridge-dds --allow "^rt/chatter$|^r[qr]/chatter"
+ros-z-bridge-dds --allow "^rt/chatter$|^r[qr]/chatter"
 ```
 
 If you need to suppress services entirely, use `--deny` with a service topic pattern:
 
 ```bash
 # Bridge topics but not services
-zenoh-bridge-dds --allow "^rt/" --deny "^r[qr]/"
+ros-z-bridge-dds --allow "^rt/" --deny "^r[qr]/"
 ```

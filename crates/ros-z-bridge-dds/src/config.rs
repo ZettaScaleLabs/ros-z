@@ -30,7 +30,7 @@ impl From<WireFormat> for KeyExprFormat {
 
 /// Bridge between DDS-based ROS 2 nodes and a Zenoh/ros-z network.
 #[derive(Parser, Debug, Clone)]
-#[command(name = "zenoh-bridge-dds")]
+#[command(name = "ros-z-bridge-dds")]
 pub struct Config {
     /// Zenoh endpoint to connect to.
     #[arg(short, long, default_value = "tcp/127.0.0.1:7447")]
@@ -101,7 +101,7 @@ mod tests {
 
     #[test]
     fn test_config_defaults() {
-        let cfg = Config::parse_from(["zenoh-bridge-dds"]);
+        let cfg = Config::parse_from(["ros-z-bridge-dds"]);
         assert_eq!(cfg.zenoh_endpoint, "tcp/127.0.0.1:7447");
         assert_eq!(cfg.node_name, "zenoh_bridge_dds");
         assert!(cfg.namespace.is_none());

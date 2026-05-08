@@ -321,7 +321,7 @@ Both examples require a Zenoh router running at `tcp/127.0.0.1:7447` and a ROS 2
 
 ### Auto Bridge
 
-Discovers and bridges every DDS publisher, subscriber, service server, and service client automatically. Equivalent to running the `zenoh-bridge-dds` binary.
+Discovers and bridges every DDS publisher, subscriber, service server, and service client automatically. Equivalent to running the `ros-z-bridge-dds` binary.
 
 ```bash
 cargo run --example auto_bridge -p ros-z-dds
