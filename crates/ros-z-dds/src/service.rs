@@ -85,7 +85,6 @@ impl<P: DdsParticipant> ZDdsServiceBridge<P> {
     /// - `ros2_type` — ROS 2 service type (e.g. `example_interfaces/srv/AddTwoInts`)
     /// - `type_hash` — optional RIHS01 type hash
     /// - `qos` — DDS QoS for the request writer / reply reader
-    /// - `timeout` — per-request DDS reply timeout (use 10s for regular services)
     pub async fn new(
         node: &ZNode,
         ros2_name: &str,
@@ -93,7 +92,6 @@ impl<P: DdsParticipant> ZDdsServiceBridge<P> {
         type_hash: Option<TypeHash>,
         participant: &P,
         qos: BridgeQos,
-        timeout: Duration,
     ) -> Result<Self> {
         let type_info = type_hash.map(|h| TypeInfo::new(ros2_type, h));
         let entity = EndpointEntity {
@@ -180,8 +178,6 @@ impl<P: DdsParticipant> ZDdsServiceBridge<P> {
         let seq_counter_q = Arc::clone(&seq_counter);
         let req_writer_q = Arc::clone(&req_writer);
         let ke_log = topic_ke.as_str().to_string();
-
-        let _ = timeout;
 
         let queryable = node
             .session()

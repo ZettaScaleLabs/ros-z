@@ -8,10 +8,7 @@ use std::{
 use anyhow::{Result, anyhow};
 use regex::Regex;
 use ros_z::node::ZNode;
-use ros_z_protocol::{
-    entity::{EndpointEntity, EndpointKind, Entity, TypeHash},
-    format::KeyExprFormat,
-};
+use ros_z_protocol::entity::{EndpointEntity, EndpointKind, Entity, TypeHash};
 use zenoh::{key_expr::OwnedKeyExpr, sample::SampleKind};
 
 use crate::{
@@ -160,12 +157,11 @@ impl<P: DdsParticipant> ZDdsBridgeBuilder<P> {
 
         // Set up federation liveliness subscriber before entering run_loop.
         let (lv_tx, lv_rx) = flume::bounded::<(OwnedKeyExpr, SampleKind)>(256);
-        let liveliness_pattern = liveliness_subscription_pattern(*self.node.keyexpr_format());
         let _lv_sub = self
             .node
             .session()
             .liveliness()
-            .declare_subscriber(&liveliness_pattern)
+            .declare_subscriber(liveliness_subscription_pattern())
             .history(true)
             .callback(move |sample| {
                 let ke = OwnedKeyExpr::from(sample.key_expr().clone());
@@ -458,7 +454,6 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
                     type_hash,
                     &self.participant,
                     qos,
-                    self.service_timeout,
                 )
                 .await?;
                 tracing::info!(
@@ -760,7 +755,6 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
                 type_hash,
                 &self.participant,
                 BridgeQos::default(),
-                self.service_timeout,
             )
             .await?;
             let gids = RouteGids {
@@ -781,8 +775,8 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
 /// Returns the Zenoh liveliness subscription pattern for federation.
 ///
 /// Both RmwZenoh and Ros2Dds formats use `@ros2_lv` as the admin space prefix.
-fn liveliness_subscription_pattern(_format: KeyExprFormat) -> String {
-    "@ros2_lv/**".to_string()
+const fn liveliness_subscription_pattern() -> &'static str {
+    "@ros2_lv/**"
 }
 
 // ─── tests ────────────────────────────────────────────────────────────────────
@@ -909,14 +903,6 @@ mod tests {
 
     #[test]
     fn test_liveliness_subscription_pattern() {
-        use ros_z_protocol::format::KeyExprFormat;
-        assert_eq!(
-            super::liveliness_subscription_pattern(KeyExprFormat::RmwZenoh),
-            "@ros2_lv/**"
-        );
-        assert_eq!(
-            super::liveliness_subscription_pattern(KeyExprFormat::Ros2Dds),
-            "@ros2_lv/**"
-        );
+        assert_eq!(super::liveliness_subscription_pattern(), "@ros2_lv/**");
     }
 }
