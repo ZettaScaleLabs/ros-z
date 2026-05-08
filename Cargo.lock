@@ -3062,10 +3062,12 @@ dependencies = [
  "parking_lot",
  "regex",
  "ros-z",
+ "ros-z-msgs",
  "ros-z-protocol",
  "serde",
  "tokio",
  "tracing",
+ "tracing-subscriber",
  "zenoh",
  "zenoh-ext",
 ]

@@ -24,6 +24,13 @@ regex = "1.10"
 cdr = "0.2.4"
 serde = { workspace = true, features = ["derive"] }
 
+[dev-dependencies]
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+ros-z-msgs = { path = "../ros-z-msgs", default-features = false, features = [
+  "std_msgs",
+] }
+tokio = { workspace = true, features = ["signal"] }
+
 [features]
 default = ["jazzy"]
 jazzy = ["ros-z/jazzy"]

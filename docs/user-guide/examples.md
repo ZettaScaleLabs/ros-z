@@ -310,3 +310,41 @@ cargo run --example z_parameter_callback
 cargo run --example z_parameter_yaml
 cargo run --example z_parameter_client
 ```
+
+---
+
+## DDS Bridge Examples
+
+These examples demonstrate the `ros-z-dds` library — connecting existing DDS-based ROS 2 nodes to a Zenoh/ros-z network. See the [DDS Bridge](./dds-bridge.md) chapter for comprehensive documentation.
+
+Both examples require a Zenoh router running at `tcp/127.0.0.1:7447` and a ROS 2 installation with CycloneDDS (or another DDS middleware).
+
+### Auto Bridge
+
+Discovers and bridges every DDS publisher, subscriber, service server, and service client automatically. Equivalent to running the `zenoh-bridge-dds` binary.
+
+```bash
+cargo run --example auto_bridge -p ros-z-dds
+```
+
+With a specific DDS domain:
+
+```bash
+ROS_DOMAIN_ID=42 cargo run --example auto_bridge -p ros-z-dds
+```
+
+### Custom Bridge
+
+Bridges specific typed topics at compile time using `DdsBridgeExt`. Bridges `/chatter` (`std_msgs/String`) with full type-hash embedding in the liveliness token — remote bridges and ros-z nodes see the exact ROS 2 type.
+
+```bash
+cargo run --example custom_bridge -p ros-z-dds
+```
+
+Then test from the DDS side:
+
+```bash
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+ros2 run demo_nodes_cpp talker          # publishes /chatter
+ros2 run demo_nodes_cpp listener        # subscribes to /chatter
+```
