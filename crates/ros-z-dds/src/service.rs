@@ -81,9 +81,11 @@ unsafe impl<P: DdsParticipant> Sync for ZDdsServiceBridge<P> {}
 impl<P: DdsParticipant> ZDdsServiceBridge<P> {
     /// Create a new DDS-server → Zenoh queryable bridge.
     ///
+    /// The Zenoh queryable is declared on a wildcard key (`{domain}/{service}/**`) so
+    /// that clients using any type hash — or none at all — can reach it transparently.
+    ///
     /// - `ros2_name` — ROS 2 service name (e.g. `/add_two_ints`)
     /// - `ros2_type` — ROS 2 service type (e.g. `example_interfaces/srv/AddTwoInts`)
-    /// - `type_hash` — optional RIHS01 type hash
     /// - `qos` — DDS QoS for the request writer / reply reader
     pub async fn new(
         node: &ZNode,

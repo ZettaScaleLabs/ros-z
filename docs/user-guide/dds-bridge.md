@@ -301,7 +301,7 @@ let route = ZDdsSubBridge::new(
 // DDS service server → Zenoh queryable (DDS clients call a ros-z service server)
 let route = ZDdsServiceBridge::new(
     &node, "/add_two_ints", "example_interfaces/srv/AddTwoInts",
-    None, &participant, BridgeQos::default(),
+    &participant, BridgeQos::default(),
 )
 .await?;
 
