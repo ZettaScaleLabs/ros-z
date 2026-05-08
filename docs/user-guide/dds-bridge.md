@@ -316,66 +316,6 @@ let route = ZDdsClientBridge::new(
 
 Routes are RAII handles — drop them to tear down the bridge. All bridges are `Send + Sync` and can be stored in a struct.
 
-## Troubleshooting
-
-### DDS nodes do not appear on the Zenoh side
-
-Enable debug logging to watch discovery events:
-
-```bash
-RUST_LOG=ros_z_dds=debug ./ros-z-bridge-dds
-```
-
-Look for lines like:
-
-```text
-INFO  ros_z_dds::bridge: ZDdsPubBridge: DDS rt/chatter → Zenoh 0/chatter/std_msgs%msg%String/RIHS01_…
-```
-
-If no discovery lines appear, check:
-
-1. The bridge and the DDS node are on the same DDS domain (`ROS_DOMAIN_ID` / `--domain-id`).
-2. No firewall blocks DDS multicast (UDP port 7400 by default).
-3. CycloneDDS can reach the DDS nodes — check `CYCLONEDDS_URI` scoping.
-
-### `ros2 topic list` does not show bridge topics
-
-`ros_discovery_info` is published at ~1 Hz. Wait a second after the bridge starts, then retry with `--spin-time 5 --no-daemon` to avoid stale daemon cache:
-
-```bash
-ros2 topic list --spin-time 5 --no-daemon
-```
-
-### Service calls time out
-
-The bridge proxies Zenoh `get()` calls with a configurable timeout (default 10 s). If the ros-z service server is slow to start or the Zenoh router is under load, the first call may time out. Increase the timeout:
-
-```bash
-./ros-z-bridge-dds --service-timeout-secs 30
-```
-
-Check that a matching queryable is registered:
-
-```bash
-RUST_LOG=ros_z_dds=debug ./ros-z-bridge-dds 2>&1 | grep -i "service\|queryable"
-```
-
-### Federation routes not appearing
-
-Federation relies on Zenoh liveliness tokens. Ensure both bridges connect to the **same Zenoh router** (or a federated Zenoh network). Check that both bridges use the **same `--wire-format`** — mixing `rmw-zenoh` on one side with `ros2dds` on the other will prevent liveliness token parsing.
-
-```bash
-RUST_LOG=ros_z_dds::bridge=debug ./ros-z-bridge-dds 2>&1 | grep -i "federation"
-```
-
-### Messages arrive corrupted
-
-The bridge forwards raw CDR bytes without any transformation. If messages are corrupted:
-
-1. Both sides must use the **same CDR encoding** (little-endian is standard).
-2. The message definition must be **identical** on both sides. Mismatched field order or types cause silent corruption.
-3. Service CDR payloads include a 20-byte header prepended by the bridge (`[4B hdr] + [8B guid] + [8B seq]`). Custom service bridge code must handle this framing.
-
 ## Migrating from zenoh-plugin-ros2dds
 
 `ros-z-bridge-dds` is the successor to `zenoh-bridge-ros2dds` (the binary bundled with `zenoh-plugin-ros2dds`). The two bridges are wire-compatible when you pass `--wire-format ros2dds` to the new bridge.
@@ -454,3 +394,60 @@ If you need to suppress services entirely, use `--deny` with a service topic pat
 # Bridge topics but not services
 ros-z-bridge-dds --allow "^rt/" --deny "^r[qr]/"
 ```
+
+<!-- markdownlint-disable MD046 -->
+
+## Troubleshooting
+
+??? question "DDS nodes do not appear on the Zenoh side"
+    Enable debug logging to watch discovery events:
+
+    ```bash
+    RUST_LOG=ros_z_dds=debug ./ros-z-bridge-dds
+    ```
+
+    Look for lines like:
+
+    ```text
+    INFO  ros_z_dds::bridge: ZDdsPubBridge: DDS rt/chatter → Zenoh 0/chatter/std_msgs%msg%String/RIHS01_…
+    ```
+
+    If no discovery lines appear, check:
+
+    1. The bridge and the DDS node are on the same DDS domain (`ROS_DOMAIN_ID` / `--domain-id`).
+    2. No firewall blocks DDS multicast (UDP port 7400 by default).
+    3. CycloneDDS can reach the DDS nodes — check `CYCLONEDDS_URI` scoping.
+
+??? question "`ros2 topic list` does not show bridge topics"
+    `ros_discovery_info` is published at ~1 Hz. Wait a second after the bridge starts, then retry with `--spin-time 5 --no-daemon` to avoid stale daemon cache:
+
+    ```bash
+    ros2 topic list --spin-time 5 --no-daemon
+    ```
+
+??? question "Service calls time out"
+    The bridge proxies Zenoh `get()` calls with a configurable timeout (default 10 s). If the ros-z service server is slow to start or the Zenoh router is under load, the first call may time out. Increase the timeout:
+
+    ```bash
+    ./ros-z-bridge-dds --service-timeout-secs 30
+    ```
+
+    Check that a matching queryable is registered:
+
+    ```bash
+    RUST_LOG=ros_z_dds=debug ./ros-z-bridge-dds 2>&1 | grep -i "service\|queryable"
+    ```
+
+??? question "Federation routes not appearing"
+    Federation relies on Zenoh liveliness tokens. Ensure both bridges connect to the **same Zenoh router** (or a federated Zenoh network). Check that both bridges use the **same `--wire-format`** — mixing `rmw-zenoh` on one side with `ros2dds` on the other will prevent liveliness token parsing.
+
+    ```bash
+    RUST_LOG=ros_z_dds::bridge=debug ./ros-z-bridge-dds 2>&1 | grep -i "federation"
+    ```
+
+??? question "Messages arrive corrupted"
+    The bridge forwards raw CDR bytes without any transformation. If messages are corrupted:
+
+    1. Both sides must use the **same CDR encoding** (little-endian is standard).
+    2. The message definition must be **identical** on both sides. Mismatched field order or types cause silent corruption.
+    3. Service CDR payloads include a 20-byte header prepended by the bridge (`[4B hdr] + [8B guid] + [8B seq]`). Custom service bridge code must handle this framing.
