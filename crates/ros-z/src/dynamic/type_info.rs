@@ -1,19 +1,7 @@
-use std::sync::Arc;
-
 use tracing::warn;
 
-use crate::{
-    dynamic::{MessageSchema, MessageSchemaTypeDescription},
-    entity::{TypeHash, TypeInfo},
-};
-
-#[derive(Debug, Clone)]
-pub struct DiscoveredTopicSchema {
-    pub qualified_topic: String,
-    pub schema: Arc<MessageSchema>,
-    /// RIHS01 type hash string as reported by the publishing node (e.g. `"RIHS01_abcd..."`).
-    pub type_hash: String,
-}
+use crate::dynamic::{MessageSchema, MessageSchemaTypeDescription};
+use crate::entity::{TypeHash, TypeInfo};
 
 pub(crate) fn dds_type_name_from_schema(schema: &MessageSchema) -> String {
     schema
@@ -22,6 +10,18 @@ pub(crate) fn dds_type_name_from_schema(schema: &MessageSchema) -> String {
         .replace("/srv/", "::srv::dds_::")
         .replace("/action/", "::action::dds_::")
         + "_"
+}
+
+pub(crate) fn ros_type_name_from_dds(dds_name: &str) -> String {
+    dds_name
+        .replace("::msg::dds_::", "/msg/")
+        .replace("::srv::dds_::", "/srv/")
+        .replace("::action::dds_::", "/action/")
+        .replace("::msg::", "/msg/")
+        .replace("::srv::", "/srv/")
+        .replace("::action::", "/action/")
+        .trim_end_matches('_')
+        .to_string()
 }
 
 pub(crate) fn schema_hash(schema: &MessageSchema) -> TypeHash {
