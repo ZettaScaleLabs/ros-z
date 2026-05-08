@@ -57,6 +57,8 @@ func TestGenerateGoMessage(t *testing.T) {
 		"func (m *String) TypeHash() string",
 		"func (m *String) SerializeCDR() ([]byte, error)",
 		"func (m *String) DeserializeCDR(data []byte) error",
+		"func (m *String) PackToRawAt(buf []byte, offset int) ([]byte, int)",
+		"func (m *String) UnpackFromRawAt(data []byte, offset int) (int, error)",
 	}
 
 	for _, element := range expectedElements {
@@ -130,6 +132,51 @@ func TestFieldToGoType(t *testing.T) {
 		if result != test.expected {
 			t.Errorf("fieldToGoType(%+v) = %q, expected %q", test.field, result, test.expected)
 		}
+	}
+}
+
+func TestCdrAlignment(t *testing.T) {
+	cases := map[string]int{
+		"Bool": 1, "Int8": 1, "UInt8": 1,
+		"Int16": 2, "UInt16": 2,
+		"Int32": 4, "UInt32": 4, "Float32": 4, "String": 4, "Time": 4, "Duration": 4,
+		"Int64": 8, "UInt64": 8, "Float64": 8,
+	}
+	for kind, want := range cases {
+		if got := cdrAlignment(kind); got != want {
+			t.Errorf("cdrAlignment(%q) = %d, want %d", kind, got, want)
+		}
+	}
+}
+
+func TestGenerateGoMessageEmitsAlignment(t *testing.T) {
+	// A message with a string followed by a float32: the canonical alignment-bug case.
+	// After packing the variable-length string, the float32 read needs 4-byte
+	// padding before the binary.LittleEndian.Uint32 call.
+	msg := MessageDefinition{
+		Package:  "test_msgs",
+		Name:     "Mixed",
+		FullName: "test_msgs/Mixed",
+		TypeHash: "RIHS01_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		Fields: []FieldDefinition{
+			{Name: "name", FieldType: FieldType{Kind: "String"}, IsArray: false},
+			{Name: "value", FieldType: FieldType{Kind: "Float32"}, IsArray: false},
+		},
+		Constants: []ConstantDefinition{},
+	}
+
+	code, err := GenerateGoMessage(msg, "test")
+	if err != nil {
+		t.Fatalf("GenerateGoMessage failed: %v", err)
+	}
+	codeStr := string(code)
+
+	// We expect at least two "(N - offset%N) % N"-shaped pad expressions
+	// (one for the string length prefix, one for the float32). Allow either
+	// "%4" or "%2" or "%8" depending on the field, but at least one "%4" must
+	// appear for the string + float32 case.
+	if !strings.Contains(codeStr, "(4 - offset%4) % 4") {
+		t.Errorf("Generated unpack code missing 4-byte alignment expression.\nGenerated:\n%s", codeStr)
 	}
 }
 
