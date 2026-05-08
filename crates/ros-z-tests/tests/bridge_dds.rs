@@ -1,4 +1,4 @@
-//! Integration tests for zenoh-bridge-dds.
+//! Integration tests for ros-z-bridge-dds.
 //!
 //! Covers both wire formats:
 //! - `--wire-format ros2dds` (legacy): compatible with zenoh-plugin-ros2dds
@@ -31,7 +31,7 @@
 //!
 //! Requirements:
 //! - ROS 2 Jazzy with `rmw_cyclonedds_cpp`, `demo_nodes_cpp`, `action_tutorials_cpp`
-//! - `zenoh-bridge-dds` binary built at `target/debug/` or in PATH
+//! - `ros-z-bridge-dds` binary built at `target/debug/` or in PATH
 //!
 //! Run with:
 //! ```bash
@@ -88,13 +88,13 @@ const CYCLONEDDS_URI: &str = "<CycloneDDS><Domain><General><Interfaces>\
 
 fn bridge_binary() -> String {
     let local = format!(
-        "{}/../../target/debug/zenoh-bridge-dds",
+        "{}/../../target/debug/ros-z-bridge-dds",
         env!("CARGO_MANIFEST_DIR")
     );
     if std::path::Path::new(&local).exists() {
         return local;
     }
-    "zenoh-bridge-dds".to_string()
+    "ros-z-bridge-dds".to_string()
 }
 
 fn ros2_available() -> bool {
@@ -143,7 +143,7 @@ fn spawn_bridge_fmt(zenoh_endpoint: &str, domain_id: u32, wire_format: &str) -> 
         .spawn()
         .unwrap_or_else(|e| panic!("Failed to spawn {bin}: {e}"));
     thread::sleep(Duration::from_secs(5));
-    ProcessGuard::new(child, "zenoh-bridge-dds")
+    ProcessGuard::new(child, "ros-z-bridge-dds")
 }
 
 /// Spawn bridge in legacy ros2dds mode (zenoh-plugin-ros2dds compatible key expressions).

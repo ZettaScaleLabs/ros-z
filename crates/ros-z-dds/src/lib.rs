@@ -1,7 +1,7 @@
 //! ros-z-dds — DDS bridging as a first-class ros-z component.
 //!
 //! Provides `ZDdsPubBridge`, `ZDdsSubBridge`, `ZDdsServiceBridge`, `ZDdsClientBridge`,
-//! and `ZDdsBridge` (auto-discovery). The `zenoh-bridge-dds` binary is a thin CLI
+//! and `ZDdsBridge` (auto-discovery). The `ros-z-bridge-dds` binary is a thin CLI
 //! shell on top of `ZDdsBridge`.
 
 pub mod bridge;
