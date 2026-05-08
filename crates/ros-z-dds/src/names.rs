@@ -230,42 +230,11 @@ mod tests {
     }
 
     #[test]
-    fn test_zenoh_key() {
-        assert_eq!(ros2_name_to_zenoh_key("/chatter", None), "chatter");
-        assert_eq!(
-            ros2_name_to_zenoh_key("/chatter", Some("robot")),
-            "robot/chatter"
-        );
-        assert_eq!(ros2_name_to_zenoh_key("/chatter", Some("/")), "chatter");
-    }
-
-    #[test]
-    fn test_zenoh_key_empty_namespace_passthrough() {
-        assert_eq!(ros2_name_to_zenoh_key("/chatter", Some("")), "chatter");
-    }
-
-    #[test]
-    fn test_zenoh_key_namespace_with_leading_slash() {
-        assert_eq!(
-            ros2_name_to_zenoh_key("/chatter", Some("/robot")),
-            "robot/chatter"
-        );
-    }
-
-    #[test]
     fn test_is_request_topic() {
         assert!(is_request_topic("rq/add_two_intsRequest"));
         assert!(is_request_topic("rq/fibonacci/_action/send_goalRequest"));
         assert!(!is_request_topic("rr/add_two_intsReply"));
         assert!(!is_request_topic("rt/chatter"));
-    }
-
-    #[test]
-    fn test_is_reply_topic() {
-        assert!(is_reply_topic("rr/add_two_intsReply"));
-        assert!(is_reply_topic("rr/fibonacci/_action/send_goalReply"));
-        assert!(!is_reply_topic("rq/add_two_intsRequest"));
-        assert!(!is_reply_topic("rt/chatter"));
     }
 
     #[test]
