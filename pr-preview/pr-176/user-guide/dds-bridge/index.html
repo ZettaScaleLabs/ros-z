@@ -3054,7 +3054,7 @@ accDescr: Bridge A in DDS domain 0 detects Bridge B's Subscription liveliness to
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nv">RUST_LOG</span><span class="o">=</span><span class="nv">ros_z_dds</span><span class="o">=</span>debug<span class="w"> </span>./ros-z-bridge-dds
 </span></code></pre></div>
 <p>Look for lines like:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>INFO  ros_z_dds::bridge: ZDdsPubBridge: DDS rt/chatter → Zenoh 0/chatter/std_msgs%msg%String/RIHS01_…
+<div class="language-text highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>INFO  ros_z_dds::pubsub: ZDdsPubBridge: DDS rt/chatter → Zenoh 0/chatter/std_msgs%msg%String/RIHS01_…
 </span></code></pre></div>
 <p>If no discovery lines appear, check:</p>
 <ol>
