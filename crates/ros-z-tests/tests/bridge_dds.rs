@@ -87,12 +87,12 @@ const CYCLONEDDS_URI: &str = "<CycloneDDS><Domain><General><Interfaces>\
      </Interfaces></General></Domain></CycloneDDS>";
 
 fn bridge_binary() -> String {
-    let local = format!(
-        "{}/../../target/debug/ros-z-bridge-dds",
-        env!("CARGO_MANIFEST_DIR")
-    );
-    if std::path::Path::new(&local).exists() {
-        return local;
+    let manifest = env!("CARGO_MANIFEST_DIR");
+    for profile in ["release", "debug"] {
+        let path = format!("{manifest}/../../target/{profile}/ros-z-bridge-dds");
+        if std::path::Path::new(&path).exists() {
+            return path;
+        }
     }
     "ros-z-bridge-dds".to_string()
 }

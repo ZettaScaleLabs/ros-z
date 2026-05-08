@@ -106,7 +106,7 @@ jobs:
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install nushell protobuf
+          brew install nushell protobuf || brew link nushell
           chmod +x scripts/test-pure-rust.nu
 
       - name: Install cargo-nextest (macOS)
@@ -308,7 +308,7 @@ jobs:
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install nushell protobuf
+          brew install nushell protobuf || brew link nushell
           chmod +x scripts/test-pure-rust.nu
 
       # Common setup
