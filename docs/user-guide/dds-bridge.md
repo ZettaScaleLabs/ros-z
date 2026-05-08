@@ -105,7 +105,7 @@ OPTIONS:
     -d, --domain-id <ID>
             ROS 2 domain ID. Defaults to ROS_DOMAIN_ID env var, or 0
 
-        --namespace <NS>
+    -n, --namespace <NS>
             Namespace prefix applied to all bridged topics/services on the Zenoh side
 
         --node-name <NAME>
