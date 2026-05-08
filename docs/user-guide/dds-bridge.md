@@ -301,7 +301,6 @@ let route = ZDdsSubBridge::new(
 let route = ZDdsServiceBridge::new(
     &node, "/add_two_ints", "example_interfaces/srv/AddTwoInts",
     None, &participant, BridgeQos::default(),
-    std::time::Duration::from_secs(10),
 )
 .await?;
 ```
