@@ -26,8 +26,6 @@ impl ReliabilityKind {
 pub enum DurabilityKind {
     Volatile,
     TransientLocal,
-    Transient,
-    Persistent,
 }
 
 impl DurabilityKind {
@@ -35,8 +33,6 @@ impl DurabilityKind {
         match self {
             Self::Volatile => 0,
             Self::TransientLocal => 1,
-            Self::Transient => 2,
-            Self::Persistent => 3,
         }
     }
 }
@@ -182,8 +178,6 @@ mod tests {
     fn test_durability_wire_discriminants() {
         assert_eq!(DurabilityKind::Volatile.wire_discriminant(), 0);
         assert_eq!(DurabilityKind::TransientLocal.wire_discriminant(), 1);
-        assert_eq!(DurabilityKind::Transient.wire_discriminant(), 2);
-        assert_eq!(DurabilityKind::Persistent.wire_discriminant(), 3);
     }
 
     #[test]

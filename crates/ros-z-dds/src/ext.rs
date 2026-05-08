@@ -1,7 +1,5 @@
 //! DdsBridgeExt — typed extension trait on ZNode for ergonomic DDS bridging.
 
-use std::time::Duration;
-
 use anyhow::Result;
 use ros_z::{MessageTypeInfo, node::ZNode};
 use ros_z_protocol::entity::TypeHash;
@@ -10,10 +8,9 @@ use crate::{
     names::dds_type_to_ros2_type,
     participant::{BridgeQos, DdsParticipant},
     pubsub::{ZDdsPubBridge, ZDdsSubBridge},
-    service::{ZDdsClientBridge, ZDdsServiceBridge},
 };
 
-/// Typed convenience methods on [`ZNode`] for creating DDS↔Zenoh bridges.
+/// Typed convenience methods on [`ZNode`] for creating DDS↔Zenoh pub/sub bridges.
 ///
 /// Each method extracts the ROS 2 type name and type hash from the compile-time
 /// type parameter `T` and delegates to the corresponding untyped bridge constructor.
@@ -41,22 +38,6 @@ pub trait DdsBridgeExt {
         topic: &str,
         participant: &impl DdsParticipant,
     ) -> Result<ZDdsSubBridge<impl DdsParticipant>>;
-
-    /// Bridge a DDS service server to a Zenoh queryable.
-    async fn bridge_dds_service<T: MessageTypeInfo>(
-        &self,
-        name: &str,
-        participant: &impl DdsParticipant,
-        timeout: Duration,
-    ) -> Result<ZDdsServiceBridge<impl DdsParticipant>>;
-
-    /// Bridge a DDS service client to a Zenoh querier.
-    async fn bridge_dds_client<T: MessageTypeInfo>(
-        &self,
-        name: &str,
-        participant: &impl DdsParticipant,
-        timeout: Duration,
-    ) -> Result<ZDdsClientBridge<impl DdsParticipant>>;
 }
 
 impl DdsBridgeExt for ZNode {
@@ -95,46 +76,6 @@ impl DdsBridgeExt for ZNode {
             participant,
             BridgeQos::default(),
             true,
-        )
-        .await
-    }
-
-    async fn bridge_dds_service<T: MessageTypeInfo>(
-        &self,
-        name: &str,
-        participant: &impl DdsParticipant,
-        timeout: Duration,
-    ) -> Result<ZDdsServiceBridge<impl DdsParticipant>> {
-        let ros2_type = dds_type_to_ros2_type(T::type_name());
-        let type_hash: TypeHash = T::type_hash();
-        ZDdsServiceBridge::new(
-            self,
-            name,
-            &ros2_type,
-            Some(type_hash),
-            participant,
-            BridgeQos::default(),
-            timeout,
-        )
-        .await
-    }
-
-    async fn bridge_dds_client<T: MessageTypeInfo>(
-        &self,
-        name: &str,
-        participant: &impl DdsParticipant,
-        timeout: Duration,
-    ) -> Result<ZDdsClientBridge<impl DdsParticipant>> {
-        let ros2_type = dds_type_to_ros2_type(T::type_name());
-        let type_hash: TypeHash = T::type_hash();
-        ZDdsClientBridge::new(
-            self,
-            name,
-            &ros2_type,
-            Some(type_hash),
-            participant,
-            BridgeQos::default(),
-            timeout,
         )
         .await
     }

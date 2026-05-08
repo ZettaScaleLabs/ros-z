@@ -117,13 +117,6 @@ impl ZContextBuilder {
         self
     }
 
-    /// Set the key expression format for all nodes created from this context.
-    ///
-    /// Alias for [`keyexpr_format`](Self::keyexpr_format) following the `with_*` builder convention.
-    pub fn with_key_expr_format(self, format: ros_z_protocol::KeyExprFormat) -> Self {
-        self.keyexpr_format(format)
-    }
-
     /// Load configuration from a JSON file
     pub fn with_config_file<P: Into<PathBuf>>(mut self, path: P) -> Self {
         self.config_file = Some(path.into());
@@ -647,25 +640,5 @@ impl ZContext {
     /// Access the context clock used by nodes and runtime helpers.
     pub fn clock(&self) -> &ZClock {
         &self.clock
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use ros_z_protocol::KeyExprFormat;
-
-    use super::*;
-
-    #[test]
-    fn test_with_key_expr_format_sets_rmw_zenoh() {
-        let builder = ZContextBuilder::default().with_key_expr_format(KeyExprFormat::RmwZenoh);
-        assert_eq!(builder.keyexpr_format, KeyExprFormat::RmwZenoh);
-    }
-
-    #[test]
-    fn test_keyexpr_format_alias_equivalent() {
-        let b1 = ZContextBuilder::default().keyexpr_format(KeyExprFormat::Ros2Dds);
-        let b2 = ZContextBuilder::default().with_key_expr_format(KeyExprFormat::Ros2Dds);
-        assert_eq!(b1.keyexpr_format, b2.keyexpr_format);
     }
 }

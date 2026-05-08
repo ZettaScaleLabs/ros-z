@@ -70,8 +70,8 @@ impl From<CDurabilityKind> for DurabilityKind {
         match k {
             CDurabilityKind::VOLATILE => Self::Volatile,
             CDurabilityKind::TRANSIENT_LOCAL => Self::TransientLocal,
-            CDurabilityKind::TRANSIENT => Self::Transient,
-            CDurabilityKind::PERSISTENT => Self::Persistent,
+            // TRANSIENT and PERSISTENT are not used by ROS 2 nodes; treat as Volatile.
+            _ => Self::Volatile,
         }
     }
 }
@@ -81,8 +81,6 @@ impl From<DurabilityKind> for CDurabilityKind {
         match k {
             DurabilityKind::Volatile => Self::VOLATILE,
             DurabilityKind::TransientLocal => Self::TRANSIENT_LOCAL,
-            DurabilityKind::Transient => Self::TRANSIENT,
-            DurabilityKind::Persistent => Self::PERSISTENT,
         }
     }
 }
