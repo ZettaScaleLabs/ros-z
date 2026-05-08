@@ -1,0 +1,29 @@
+[package]
+name = "ros-z-dds"
+version.workspace = true
+edition.workspace = true
+description = "DDS bridging as a first-class ros-z component"
+
+[dependencies]
+cyclors = "=0.2.7"
+ros-z = { path = "../ros-z" }
+ros-z-protocol = { path = "../ros-z-protocol", features = [
+  "std",
+  "rmw-zenoh",
+  "ros2dds",
+] }
+zenoh = { workspace = true, features = ["transport_tls"] }
+zenoh-ext = { workspace = true }
+
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync"] }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+flume = { workspace = true }
+parking_lot = { workspace = true }
+regex = "1.10"
+
+[features]
+default = ["jazzy"]
+jazzy = ["ros-z/jazzy"]
+humble = ["ros-z/humble"]
+kilted = ["ros-z/kilted"]

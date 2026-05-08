@@ -2970,22 +2970,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "ros-z-bridge-ros2dds"
+name = "ros-z-bridge-dds"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
- "cyclors",
- "flume",
- "parking_lot",
- "regex",
  "ros-z",
- "ros-z-protocol",
+ "ros-z-dds",
  "tokio",
  "tracing",
  "tracing-subscriber",
- "zenoh",
- "zenoh-ext",
 ]
 
 [[package]]
@@ -3044,6 +3038,23 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "zenoh",
+]
+
+[[package]]
+name = "ros-z-dds"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cyclors",
+ "flume",
+ "parking_lot",
+ "regex",
+ "ros-z",
+ "ros-z-protocol",
+ "tokio",
+ "tracing",
+ "zenoh",
+ "zenoh-ext",
 ]
 
 [[package]]
