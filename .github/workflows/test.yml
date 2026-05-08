@@ -158,7 +158,7 @@ jobs:
       - name: Build ros-z-bridge-ros2dds
         run: |
           RUSTFLAGS="-C linker=clang -C link-arg=-fuse-ld=mold" \
-          cargo build -p ros-z-bridge-ros2dds --features jazzy --release -j4
+          cargo build -p ros-z-bridge-dds --features jazzy --release -j4
 
       - name: Run bridge integration tests
         shell: bash
