@@ -16,6 +16,7 @@ use crate::{
     },
     participant::{BridgeQos, DdsParticipant},
     pubsub::{ZDdsPubBridge, ZDdsSubBridge},
+    ros_discovery::RosDiscoveryPublisher,
     service::{ZDdsClientBridge, ZDdsServiceBridge},
 };
 
@@ -60,6 +61,14 @@ enum PubRoute<P: DdsParticipant> {
 
 enum SubRoute<P: DdsParticipant> {
     Sub(ZDdsSubBridge<P>),
+}
+
+// GIDs of the DDS reader(s) and writer(s) created for a single named route.
+// Stored alongside routes so they can be unregistered from ros_discovery_info on removal.
+#[derive(Default)]
+struct RouteGids {
+    readers: Vec<Gid>,
+    writers: Vec<Gid>,
 }
 
 // ─── ZDdsBridgeBuilder ────────────────────────────────────────────────────────
@@ -109,6 +118,10 @@ impl<P: DdsParticipant> ZDdsBridgeBuilder<P> {
     /// Start the discovery loop and run until all discovery channels close.
     pub async fn run(self) -> Result<()> {
         let filter = Filter::new(self.allow_topics.as_deref(), self.deny_topics.as_deref())?;
+        let ros_discovery =
+            RosDiscoveryPublisher::new(&self.participant, self.node.namespace(), self.node.name())
+                .map_err(|e| tracing::warn!("ros_discovery_info publisher failed to start: {e}"))
+                .ok();
         let bridge = ZDdsBridge {
             node: self.node,
             participant: self.participant,
@@ -117,6 +130,8 @@ impl<P: DdsParticipant> ZDdsBridgeBuilder<P> {
             srv_routes: HashMap::new(),
             cli_routes: HashMap::new(),
             gid_to_name: HashMap::new(),
+            route_gids: HashMap::new(),
+            ros_discovery,
             filter,
             service_timeout: self.service_timeout,
             action_get_result_timeout: self.action_get_result_timeout,
@@ -151,6 +166,12 @@ pub struct ZDdsBridge<P: DdsParticipant> {
 
     /// Reverse map: gid → ros2_name, for O(1) removal on undiscovery.
     gid_to_name: HashMap<Gid, String>,
+
+    /// GIDs of DDS readers/writers per route name — for ros_discovery_info unregistration.
+    route_gids: HashMap<String, RouteGids>,
+
+    /// Publishes `ros_discovery_info` so `ros2 topic/node/service list` can see bridge endpoints.
+    ros_discovery: Option<RosDiscoveryPublisher>,
 
     filter: Filter,
     service_timeout: Duration,
@@ -193,6 +214,7 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
                 if let Some(name) = self.gid_to_name.remove(&gid) {
                     self.pub_routes.remove(&name);
                     self.cli_routes.remove(&name);
+                    self.unregister_route_gids(&name);
                     tracing::debug!("ZDdsBridge: removed pub/cli route for {name}");
                 }
             }
@@ -203,11 +225,37 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
                 if let Some(name) = self.gid_to_name.remove(&gid) {
                     self.sub_routes.remove(&name);
                     self.srv_routes.remove(&name);
+                    self.unregister_route_gids(&name);
                     tracing::debug!("ZDdsBridge: removed sub/srv route for {name}");
                 }
             }
         }
         Ok(())
+    }
+
+    fn register_route_gids(&mut self, name: &str, gids: RouteGids) {
+        if let Some(rd) = &self.ros_discovery {
+            for g in &gids.readers {
+                rd.add_reader(*g);
+            }
+            for g in &gids.writers {
+                rd.add_writer(*g);
+            }
+        }
+        self.route_gids.insert(name.to_string(), gids);
+    }
+
+    fn unregister_route_gids(&mut self, name: &str) {
+        if let Some(gids) = self.route_gids.remove(name) {
+            if let Some(rd) = &self.ros_discovery {
+                for g in gids.readers {
+                    rd.remove_reader(g);
+                }
+                for g in gids.writers {
+                    rd.remove_writer(g);
+                }
+            }
+        }
     }
 
     async fn on_publication(&mut self, ep: DiscoveredEndpoint) -> Result<()> {
@@ -245,8 +293,13 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
                 self.cache_multiplier,
             )
             .await?;
+            let gids = RouteGids {
+                readers: bridge.reader_guid().into_iter().collect(),
+                writers: vec![],
+            };
             self.pub_routes
                 .insert(ros2_name.clone(), PubRoute::Pub(bridge));
+            self.register_route_gids(&ros2_name, gids);
             self.gid_to_name.insert(ep.key, ros2_name);
         } else if is_request_topic(&ep.topic_name) {
             // DDS service client: request writer discovered → create ZDdsClientBridge
@@ -280,7 +333,12 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
                 timeout,
             )
             .await?;
+            let gids = RouteGids {
+                readers: bridge.reader_guid().into_iter().collect(),
+                writers: bridge.writer_guid().into_iter().collect(),
+            };
             self.cli_routes.insert(ros2_name.clone(), bridge);
+            self.register_route_gids(&ros2_name, gids);
             self.gid_to_name.insert(ep.key, ros2_name);
         }
         Ok(())
@@ -320,8 +378,13 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
                 ep.keyless,
             )
             .await?;
+            let gids = RouteGids {
+                readers: vec![],
+                writers: bridge.writer_guid().into_iter().collect(),
+            };
             self.sub_routes
                 .insert(ros2_name.clone(), SubRoute::Sub(bridge));
+            self.register_route_gids(&ros2_name, gids);
             self.gid_to_name.insert(ep.key, ros2_name);
         } else if is_request_topic(&ep.topic_name) {
             // DDS service server: request reader discovered → create ZDdsServiceBridge
@@ -350,7 +413,12 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
                 self.service_timeout,
             )
             .await?;
+            let gids = RouteGids {
+                readers: bridge.reader_guid().into_iter().collect(),
+                writers: bridge.writer_guid().into_iter().collect(),
+            };
             self.srv_routes.insert(ros2_name.clone(), bridge);
+            self.register_route_gids(&ros2_name, gids);
             self.gid_to_name.insert(ep.key, ros2_name);
         }
         Ok(())

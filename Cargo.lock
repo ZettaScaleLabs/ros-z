@@ -366,6 +366,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "cdr"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9617422bf43fde9280707a7e90f8f7494389c182f5c70b0f67592d0f06d41dfa"
+dependencies = [
+ "byteorder",
+ "serde",
+]
+
+[[package]]
 name = "cesu8"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3045,12 +3055,14 @@ name = "ros-z-dds"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "cdr",
  "cyclors",
  "flume",
  "parking_lot",
  "regex",
  "ros-z",
  "ros-z-protocol",
+ "serde",
  "tokio",
  "tracing",
  "zenoh",

@@ -12,8 +12,9 @@ use zenoh_ext::{
 };
 
 use crate::{
+    gid::Gid,
     names::{ros2_name_to_dds_pub_topic, ros2_type_to_dds_type},
-    participant::{BridgeQos, DdsParticipant, DdsWriter, DurabilityKind, HistoryKind},
+    participant::{BridgeQos, DdsParticipant, DdsReader, DdsWriter, DurabilityKind, HistoryKind},
     qos::{adapt_reader_qos_for_writer, adapt_writer_qos_for_reader, bridge_qos_to_qos_profile},
 };
 
@@ -169,6 +170,11 @@ impl<P: DdsParticipant> ZDdsPubBridge<P> {
             _lv_token: lv_token,
         })
     }
+
+    /// Return the DDS reader GID created for this bridge route.
+    pub fn reader_guid(&self) -> Option<Gid> {
+        self._dds_reader.guid().ok().map(Gid::from)
+    }
 }
 
 // ─── ZDdsSubBridge ────────────────────────────────────────────────────────────
@@ -283,6 +289,11 @@ impl<P: DdsParticipant> ZDdsSubBridge<P> {
             _subscriber: subscriber,
             _lv_token: lv_token,
         })
+    }
+
+    /// Return the DDS writer GID created for this bridge route.
+    pub fn writer_guid(&self) -> Option<Gid> {
+        self._writer.guid().ok().map(Gid::from)
     }
 }
 

@@ -20,8 +20,9 @@ use zenoh::{
 };
 
 use crate::{
+    gid::Gid,
     names::{ros2_name_to_dds_reply_topic, ros2_name_to_dds_request_topic, ros2_type_to_dds_type},
-    participant::{BridgeQos, DdsParticipant, DdsWriter},
+    participant::{BridgeQos, DdsParticipant, DdsReader, DdsWriter},
     qos::{adapt_reader_qos_for_writer, adapt_writer_qos_for_reader, bridge_qos_to_qos_profile},
 };
 
@@ -223,6 +224,16 @@ impl<P: DdsParticipant> ZDdsServiceBridge<P> {
             _queryable: queryable,
         })
     }
+
+    /// Return the DDS request-writer GID (appears in `writer_gid_seq` in ros_discovery_info).
+    pub fn writer_guid(&self) -> Option<Gid> {
+        self._req_writer.guid().ok().map(Gid::from)
+    }
+
+    /// Return the DDS reply-reader GID (appears in `reader_gid_seq` in ros_discovery_info).
+    pub fn reader_guid(&self) -> Option<Gid> {
+        self._rep_reader.guid().ok().map(Gid::from)
+    }
 }
 
 // ─── ZDdsClientBridge ────────────────────────────────────────────────────────
@@ -376,6 +387,16 @@ impl<P: DdsParticipant> ZDdsClientBridge<P> {
             _req_reader: req_reader,
             _rep_writer: rep_writer,
         })
+    }
+
+    /// Return the DDS request-reader GID (appears in `reader_gid_seq` in ros_discovery_info).
+    pub fn reader_guid(&self) -> Option<Gid> {
+        self._req_reader.guid().ok().map(Gid::from)
+    }
+
+    /// Return the DDS reply-writer GID (appears in `writer_gid_seq` in ros_discovery_info).
+    pub fn writer_guid(&self) -> Option<Gid> {
+        self._rep_writer.guid().ok().map(Gid::from)
     }
 }
 

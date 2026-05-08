@@ -21,6 +21,8 @@ tracing = { workspace = true }
 flume = { workspace = true }
 parking_lot = { workspace = true }
 regex = "1.10"
+cdr = "0.2.4"
+serde = { workspace = true, features = ["derive"] }
 
 [features]
 default = ["jazzy"]

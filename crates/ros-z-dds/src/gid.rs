@@ -1,7 +1,12 @@
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
+
 /// 16-byte DDS Global Identifier (GID).
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+///
+/// Serializes as a raw 16-byte array (CDR `octet[16]`), matching the
+/// Iron/Jazzy wire format in `ros_discovery_info`.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize)]
 pub struct Gid([u8; 16]);
 
 impl From<[u8; 16]> for Gid {

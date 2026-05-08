@@ -13,6 +13,7 @@ pub mod names;
 pub mod participant;
 pub mod pubsub;
 pub mod qos;
+pub mod ros_discovery;
 pub mod service;
 pub mod types;
 
@@ -21,4 +22,5 @@ pub use cyclors::CyclorsParticipant;
 pub use ext::DdsBridgeExt;
 pub use participant::{BridgeQos, DdsParticipant, DdsReader, DdsWriter};
 pub use pubsub::{ZDdsPubBridge, ZDdsSubBridge};
+pub use ros_discovery::RosDiscoveryPublisher;
 pub use service::{ZDdsClientBridge, ZDdsServiceBridge};
