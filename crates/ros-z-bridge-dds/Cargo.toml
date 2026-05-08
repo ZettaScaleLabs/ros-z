@@ -1,0 +1,25 @@
+[package]
+name = "ros-z-bridge-dds"
+version.workspace = true
+edition.workspace = true
+description = "Bridge between DDS-based ROS 2 nodes and Zenoh via ros-z"
+
+[[bin]]
+name = "zenoh-bridge-dds"
+path = "src/main.rs"
+
+[dependencies]
+ros-z = { path = "../ros-z" }
+ros-z-dds = { path = "../ros-z-dds" }
+
+anyhow = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[features]
+default = ["jazzy"]
+jazzy = ["ros-z/jazzy"]
+humble = ["ros-z/humble"]
+kilted = ["ros-z/kilted"]
