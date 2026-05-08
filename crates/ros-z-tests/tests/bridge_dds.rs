@@ -952,7 +952,7 @@ fn test_api_pub_bridge() {
     let router = TestRouter::new();
     let endpoint = router.endpoint().to_string();
 
-    std::env::set_var("CYCLONEDDS_URI", CYCLONEDDS_URI);
+    unsafe { std::env::set_var("CYCLONEDDS_URI", CYCLONEDDS_URI) };
 
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
@@ -998,7 +998,7 @@ fn test_api_sub_bridge() {
     let router = TestRouter::new();
     let endpoint = router.endpoint().to_string();
 
-    std::env::set_var("CYCLONEDDS_URI", CYCLONEDDS_URI);
+    unsafe { std::env::set_var("CYCLONEDDS_URI", CYCLONEDDS_URI) };
 
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
@@ -1044,7 +1044,7 @@ fn test_api_typed_bridge() {
     let router = TestRouter::new();
     let endpoint = router.endpoint().to_string();
 
-    std::env::set_var("CYCLONEDDS_URI", CYCLONEDDS_URI);
+    unsafe { std::env::set_var("CYCLONEDDS_URI", CYCLONEDDS_URI) };
 
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
