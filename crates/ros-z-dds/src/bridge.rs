@@ -215,9 +215,9 @@ pub struct ZDdsBridge<P: DdsParticipant> {
     /// Zenoh subscriber → DDS writer bridges, keyed by ros2_name.
     sub_routes: HashMap<String, RouteEntry<ZDdsSubBridge<P>>>,
     /// DDS service server → Zenoh queryable bridges, keyed by ros2_name.
-    srv_routes: HashMap<String, ZDdsServiceBridge<P>>,
+    srv_routes: HashMap<String, RouteEntry<ZDdsServiceBridge<P>>>,
     /// DDS service client → Zenoh querier bridges, keyed by ros2_name.
-    cli_routes: HashMap<String, ZDdsClientBridge<P>>,
+    cli_routes: HashMap<String, RouteEntry<ZDdsClientBridge<P>>>,
 
     /// Reverse map: gid → ros2_name, for O(1) removal on undiscovery.
     gid_to_name: HashMap<Gid, String>,
@@ -418,8 +418,55 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
                 self.pub_routes
                     .insert(ros2_name, RouteEntry::from_remote(bridge, remote_zid));
             }
-            // Service/Client federation is not implemented.
-            EndpointKind::Service | EndpointKind::Client => {}
+            // Remote Service server → create local ZDdsClientBridge (DDS clients → remote server)
+            EndpointKind::Service => {
+                if let Some(entry) = self.cli_routes.get_mut(&ros2_name) {
+                    entry.remote_zids.insert(remote_zid);
+                    return Ok(());
+                }
+                let timeout = if ros2_name.contains("/_action/get_result") {
+                    self.action_get_result_timeout
+                } else {
+                    self.service_timeout
+                };
+                let bridge = ZDdsClientBridge::new(
+                    &self.node,
+                    &ros2_name,
+                    &type_name,
+                    type_hash,
+                    &self.participant,
+                    qos,
+                    timeout,
+                )
+                .await?;
+                tracing::info!(
+                    "ZDdsBridge: federation cli route {ros2_name} (remote srv from {remote_zid})"
+                );
+                self.cli_routes
+                    .insert(ros2_name, RouteEntry::from_remote(bridge, remote_zid));
+            }
+            // Remote Service client → create local ZDdsServiceBridge (DDS servers ← remote client)
+            EndpointKind::Client => {
+                if let Some(entry) = self.srv_routes.get_mut(&ros2_name) {
+                    entry.remote_zids.insert(remote_zid);
+                    return Ok(());
+                }
+                let bridge = ZDdsServiceBridge::new(
+                    &self.node,
+                    &ros2_name,
+                    &type_name,
+                    type_hash,
+                    &self.participant,
+                    qos,
+                    self.service_timeout,
+                )
+                .await?;
+                tracing::info!(
+                    "ZDdsBridge: federation srv route {ros2_name} (remote cli from {remote_zid})"
+                );
+                self.srv_routes
+                    .insert(ros2_name, RouteEntry::from_remote(bridge, remote_zid));
+            }
         }
         Ok(())
     }
@@ -449,7 +496,22 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
                     }
                 }
             }
-            EndpointKind::Service | EndpointKind::Client => {}
+            EndpointKind::Service => {
+                if let Some(entry) = self.cli_routes.get_mut(ros2_name) {
+                    entry.remote_zids.remove(remote_zid);
+                    if entry.is_unused() {
+                        self.cli_routes.remove(ros2_name);
+                    }
+                }
+            }
+            EndpointKind::Client => {
+                if let Some(entry) = self.srv_routes.get_mut(ros2_name) {
+                    entry.remote_zids.remove(remote_zid);
+                    if entry.is_unused() {
+                        self.srv_routes.remove(ros2_name);
+                    }
+                }
+            }
         }
         Ok(())
     }
@@ -476,15 +538,24 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
         }
     }
 
-    fn remove_local_cli_gid(&mut self, name: &str, _gid: Gid) {
-        // cli_routes are not ref-counted (no federation for services).
-        self.cli_routes.remove(name);
-        self.unregister_route_gids(name);
+    fn remove_local_cli_gid(&mut self, name: &str, gid: Gid) {
+        if let Some(entry) = self.cli_routes.get_mut(name) {
+            entry.local_gids.remove(&gid);
+            if entry.is_unused() {
+                self.cli_routes.remove(name);
+                self.unregister_route_gids(name);
+            }
+        }
     }
 
-    fn remove_local_srv_gid(&mut self, name: &str, _gid: Gid) {
-        self.srv_routes.remove(name);
-        self.unregister_route_gids(name);
+    fn remove_local_srv_gid(&mut self, name: &str, gid: Gid) {
+        if let Some(entry) = self.srv_routes.get_mut(name) {
+            entry.local_gids.remove(&gid);
+            if entry.is_unused() {
+                self.srv_routes.remove(name);
+                self.unregister_route_gids(name);
+            }
+        }
     }
 
     // ─── ros_discovery_info helpers ───────────────────────────────────────────
@@ -571,14 +642,18 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
                 Some(n) => n,
                 None => return Ok(()),
             };
-            if self.cli_routes.contains_key(&ros2_name) {
-                return Ok(());
-            }
             let ros2_type = if is_action_get_result_topic(&ep.topic_name) {
                 dds_type_to_ros2_action_type(&ep.type_name)
             } else {
                 dds_type_to_ros2_service_type(&ep.type_name)
             };
+
+            if let Some(entry) = self.cli_routes.get_mut(&ros2_name) {
+                entry.local_gids.insert(ep.key);
+                self.gid_to_name.insert(ep.key, ros2_name);
+                return Ok(());
+            }
+
             let timeout = if is_action_get_result_topic(&ep.topic_name) {
                 self.action_get_result_timeout
             } else {
@@ -601,7 +676,8 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
                 readers: bridge.reader_guid().into_iter().collect(),
                 writers: bridge.writer_guid().into_iter().collect(),
             };
-            self.cli_routes.insert(ros2_name.clone(), bridge);
+            self.cli_routes
+                .insert(ros2_name.clone(), RouteEntry::from_local(bridge, ep.key));
             self.register_route_gids(&ros2_name, gids);
             self.gid_to_name.insert(ep.key, ros2_name);
         }
@@ -662,14 +738,18 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
                 Some(n) => n,
                 None => return Ok(()),
             };
-            if self.srv_routes.contains_key(&ros2_name) {
-                return Ok(());
-            }
             let ros2_type = if is_action_get_result_topic(&ep.topic_name) {
                 dds_type_to_ros2_action_type(&ep.type_name)
             } else {
                 dds_type_to_ros2_service_type(&ep.type_name)
             };
+
+            if let Some(entry) = self.srv_routes.get_mut(&ros2_name) {
+                entry.local_gids.insert(ep.key);
+                self.gid_to_name.insert(ep.key, ros2_name);
+                return Ok(());
+            }
+
             let ud = ep.qos.user_data.as_deref().unwrap_or(&[]);
             let type_info = type_info_from_user_data(&ros2_type, ud);
             let type_hash = type_info.as_ref().map(|ti| ti.hash.clone());
@@ -687,7 +767,8 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
                 readers: bridge.reader_guid().into_iter().collect(),
                 writers: bridge.writer_guid().into_iter().collect(),
             };
-            self.srv_routes.insert(ros2_name.clone(), bridge);
+            self.srv_routes
+                .insert(ros2_name.clone(), RouteEntry::from_local(bridge, ep.key));
             self.register_route_gids(&ros2_name, gids);
             self.gid_to_name.insert(ep.key, ros2_name);
         }
