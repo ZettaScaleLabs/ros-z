@@ -723,6 +723,16 @@ impl ZNode {
         &self.session
     }
 
+    /// Get the key expression format configured on this node's context.
+    pub fn keyexpr_format(&self) -> &ros_z_protocol::KeyExprFormat {
+        &self.keyexpr_format
+    }
+
+    /// Allocate the next unique entity ID from the context counter.
+    pub fn next_entity_id(&self) -> usize {
+        self.counter.increment()
+    }
+
     /// Access this node's clock.
     pub fn clock(&self) -> &crate::time::ZClock {
         &self.clock
@@ -998,5 +1008,13 @@ mod tests {
     fn test_remap_rules_identity_when_empty() {
         let rules = RemapRules::default();
         assert_eq!(rules.apply("/foo"), "/foo");
+    }
+
+    #[test]
+    fn test_counter_increment_sequential() {
+        let counter = GlobalCounter::default();
+        let a = counter.increment();
+        let b = counter.increment();
+        assert!(b > a, "counter should be monotonically increasing");
     }
 }
