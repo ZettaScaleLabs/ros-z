@@ -163,6 +163,7 @@ jobs:
       - name: Run bridge integration tests
         shell: bash
         run: |
+          mkdir -p _tmp
           source /opt/ros/jazzy/setup.bash
           export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
           export RUST_LOG=info
