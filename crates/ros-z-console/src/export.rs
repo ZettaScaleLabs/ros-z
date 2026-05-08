@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use ros_z::entity::{EntityKind, entity_get_endpoint};
+use ros_z::entity::{EndpointKind, entity_get_endpoint};
 
 use crate::core::engine::CoreEngine;
 
@@ -68,9 +68,11 @@ async fn export_dot(
         ));
 
         // Publishers -> Topic
-        for entity in graph.get_entities_by_topic(EntityKind::Publisher, &topic) {
-            if let Some(endpoint) = entity_get_endpoint(&entity) {
-                let node_id = format!("{}/{}", endpoint.node.namespace, endpoint.node.name);
+        for entity in graph.get_entities_by_topic(EndpointKind::Publisher, &topic) {
+            if let Some(endpoint) = entity_get_endpoint(&entity)
+                && let Some(node) = endpoint.node.as_ref()
+            {
+                let node_id = format!("{}/{}", node.namespace, node.name);
                 dot.push_str(&format!(
                     "  \"{}\" -> \"topic:{}\" [color=blue];\n",
                     node_id, topic
@@ -79,9 +81,11 @@ async fn export_dot(
         }
 
         // Topic -> Subscribers
-        for entity in graph.get_entities_by_topic(EntityKind::Subscription, &topic) {
-            if let Some(endpoint) = entity_get_endpoint(&entity) {
-                let node_id = format!("{}/{}", endpoint.node.namespace, endpoint.node.name);
+        for entity in graph.get_entities_by_topic(EndpointKind::Subscription, &topic) {
+            if let Some(endpoint) = entity_get_endpoint(&entity)
+                && let Some(node) = endpoint.node.as_ref()
+            {
+                let node_id = format!("{}/{}", node.namespace, node.name);
                 dot.push_str(&format!(
                     "  \"topic:{}\" -> \"{}\" [color=green];\n",
                     topic, node_id

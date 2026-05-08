@@ -30,7 +30,6 @@ fn test_ros_z_server_ros_z_client() {
             .build()
             .expect("Failed to create node");
 
-        // Correct API: use tuple type and take_request/send_response pattern
         let mut zsrv = node
             .create_service::<AddTwoInts>("add_two_ints_test1")
             .build()
@@ -39,12 +38,17 @@ fn test_ros_z_server_ros_z_client() {
         println!("Server ready, waiting for requests...");
 
         // Handle one request
-        if let Ok((key, req)) = zsrv.take_request() {
-            println!("Received request: {} + {}", req.a, req.b);
-            let resp = AddTwoIntsResponse { sum: req.a + req.b };
+        if let Ok(req) = zsrv.take_request() {
+            println!(
+                "Received request: {} + {}",
+                req.message().a,
+                req.message().b
+            );
+            let resp = AddTwoIntsResponse {
+                sum: req.message().a + req.message().b,
+            };
             println!("Sending response: {}", resp.sum);
-            zsrv.send_response(&resp, &key)
-                .expect("Failed to send response");
+            req.reply_blocking(&resp).expect("Failed to send response");
         }
     });
 
@@ -72,13 +76,9 @@ fn test_ros_z_server_ros_z_client() {
 
             println!("Sending request...");
 
-            let req = AddTwoIntsRequest { a: 5, b: 3 };
-            zcli.send_request(&req)
-                .await
-                .expect("Failed to send request");
-
             let resp = zcli
-                .take_response_timeout(Duration::from_secs(5))
+                .call_with_timeout(&AddTwoIntsRequest { a: 5, b: 3 }, Duration::from_secs(5))
+                .await
                 .expect("Failed to receive response");
             println!("Received response: {}", resp.sum);
 
@@ -115,11 +115,16 @@ fn test_ros_z_server_ros_z_client_multipart_name() {
 
         println!("Server ready (multi-part name), waiting for requests...");
 
-        if let Ok((key, req)) = zsrv.take_request() {
-            println!("Received request: {} + {}", req.a, req.b);
-            let resp = AddTwoIntsResponse { sum: req.a + req.b };
-            zsrv.send_response(&resp, &key)
-                .expect("Failed to send response");
+        if let Ok(req) = zsrv.take_request() {
+            println!(
+                "Received request: {} + {}",
+                req.message().a,
+                req.message().b
+            );
+            let resp = AddTwoIntsResponse {
+                sum: req.message().a + req.message().b,
+            };
+            req.reply_blocking(&resp).expect("Failed to send response");
         }
     });
 
@@ -143,13 +148,9 @@ fn test_ros_z_server_ros_z_client_multipart_name() {
             println!("Client ready, waiting...");
             tokio::time::sleep(Duration::from_millis(500)).await;
 
-            let req = AddTwoIntsRequest { a: 7, b: 5 };
-            zcli.send_request(&req)
-                .await
-                .expect("Failed to send request");
-
             let resp = zcli
-                .take_response_timeout(Duration::from_secs(5))
+                .call_with_timeout(&AddTwoIntsRequest { a: 7, b: 5 }, Duration::from_secs(5))
+                .await
                 .expect("Failed to receive response");
             println!("Received response: {}", resp.sum);
 
@@ -192,12 +193,17 @@ fn test_ros_z_server_ros2_client() {
         println!("Server ready for ROS2 client...");
 
         // Handle one request
-        if let Ok((key, req)) = zsrv.take_request() {
-            println!("Received request from ROS2: {} + {}", req.a, req.b);
-            let resp = AddTwoIntsResponse { sum: req.a + req.b };
+        if let Ok(req) = zsrv.take_request() {
+            println!(
+                "Received request from ROS2: {} + {}",
+                req.message().a,
+                req.message().b
+            );
+            let resp = AddTwoIntsResponse {
+                sum: req.message().a + req.message().b,
+            };
             println!("Sending response: {}", resp.sum);
-            zsrv.send_response(&resp, &key)
-                .expect("Failed to send response");
+            req.reply_blocking(&resp).expect("Failed to send response");
         }
     });
 
@@ -260,12 +266,17 @@ fn test_ros_z_server_ros2_client_multipart() {
 
         println!("Server ready for ROS2 client (multi-part name)...");
 
-        if let Ok((key, req)) = zsrv.take_request() {
-            println!("Received request from ROS2: {} + {}", req.a, req.b);
-            let resp = AddTwoIntsResponse { sum: req.a + req.b };
+        if let Ok(req) = zsrv.take_request() {
+            println!(
+                "Received request from ROS2: {} + {}",
+                req.message().a,
+                req.message().b
+            );
+            let resp = AddTwoIntsResponse {
+                sum: req.message().a + req.message().b,
+            };
             println!("Sending response: {}", resp.sum);
-            zsrv.send_response(&resp, &key)
-                .expect("Failed to send response");
+            req.reply_blocking(&resp).expect("Failed to send response");
         }
     });
 
@@ -357,13 +368,12 @@ fn test_ros2_server_ros_z_client_multipart() {
 
             println!("Calling ROS2 multi-part server...");
 
-            let req = AddTwoIntsRequest { a: 11, b: 13 };
-            zcli.send_request(&req)
-                .await
-                .expect("Failed to send request");
-
             let resp = zcli
-                .take_response_timeout(std::time::Duration::from_secs(5))
+                .call_with_timeout(
+                    &AddTwoIntsRequest { a: 11, b: 13 },
+                    std::time::Duration::from_secs(5),
+                )
+                .await
                 .expect("Failed to receive response");
             println!("Received response from ROS2: {}", resp.sum);
 
@@ -440,13 +450,12 @@ fn test_ros2_server_ros_z_client() {
 
             println!("Calling ROS2 server...");
 
-            let req = AddTwoIntsRequest { a: 15, b: 9 };
-            zcli.send_request(&req)
-                .await
-                .expect("Failed to send request");
-
             let resp = zcli
-                .take_response_timeout(std::time::Duration::from_secs(5))
+                .call_with_timeout(
+                    &AddTwoIntsRequest { a: 15, b: 9 },
+                    std::time::Duration::from_secs(5),
+                )
+                .await
                 .expect("Failed to receive response");
             println!("Received response from ROS2: {}", resp.sum);
 

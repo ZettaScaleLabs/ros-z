@@ -237,7 +237,7 @@ impl GraphEventManager {
         appeared: bool,
         _local_zid: zenoh::session::ZenohId,
     ) {
-        use crate::entity::EntityKind;
+        use crate::entity::EndpointKind;
 
         let change = if appeared { 1 } else { -1 };
 
@@ -255,11 +255,10 @@ impl GraphEventManager {
         // When a subscription appears/disappears, publishers get PublicationMatched events
         let event_type = match entity {
             crate::entity::Entity::Endpoint(endpoint) => match endpoint.kind {
-                EntityKind::Publisher => ZenohEventType::SubscriptionMatched,
-                EntityKind::Subscription => ZenohEventType::PublicationMatched,
-                EntityKind::Service => return, // TODO: Add service matched events
-                EntityKind::Client => return,  // TODO: Add service matched events
-                EntityKind::Node => unreachable!("EndpointEntity should not have Node kind"),
+                EndpointKind::Publisher => ZenohEventType::SubscriptionMatched,
+                EndpointKind::Subscription => ZenohEventType::PublicationMatched,
+                EndpointKind::Service => return, // TODO: Add service matched events
+                EndpointKind::Client => return,  // TODO: Add service matched events
             },
             crate::entity::Entity::Node(_) => return, // Node changes don't trigger matched events
         };

@@ -120,13 +120,13 @@ async fn run_server(ctx: ros_z::context::ZContext, args: &Args) -> ros_z::Result
 
     loop {
         // Wait for a request
-        let (key, req) = service.take_request()?;
+        let req = service.take_request()?;
         println!("Incoming request:");
-        println!("  a: {}", req.a);
-        println!("  b: {}", req.b);
+        println!("  a: {}", req.message().a);
+        println!("  b: {}", req.message().b);
 
         // Compute the sum
-        let sum = req.a + req.b;
+        let sum = req.message().a + req.message().b;
 
         // Create the response
         let resp = AddTwoIntsResponse { sum };
@@ -134,7 +134,7 @@ async fn run_server(ctx: ros_z::context::ZContext, args: &Args) -> ros_z::Result
         println!("Sending response: {}\n", resp.sum);
 
         // Send the response
-        service.send_response(&resp, &key)?;
+        req.reply_blocking(&resp)?;
 
         request_count += 1;
 
@@ -176,11 +176,7 @@ async fn run_client(ctx: ros_z::context::ZContext, args: &Args) -> ros_z::Result
 
         println!("Sending request #{}: a={}, b={}", i + 1, req.a, req.b);
 
-        // Send request
-        client.send_request(&req).await?;
-
-        // Wait for response with timeout
-        match client.take_response_timeout(Duration::from_secs(5)) {
+        match client.call_with_timeout(&req, Duration::from_secs(5)).await {
             Ok(resp) => {
                 println!("Received response: {} + {} = {}\n", req.a, req.b, resp.sum);
             }

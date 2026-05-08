@@ -1,0 +1,47 @@
+name: MkDocs Preview
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '**.md'
+
+concurrency:
+  group: mkdocs-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  deploy-preview:
+    name: Deploy MkDocs Preview
+    runs-on: ubuntu-latest
+    # Only run for PRs from the same repository (not forks)
+    if: github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Determinate Nix
+        if: github.event.action != 'closed'
+        uses: DeterminateSystems/determinate-nix-action@v3
+
+      - name: Build MkDocs documentation
+        if: github.event.action != 'closed'
+        run: |
+          nix develop '.#pureRust-ci' -c mkdocs build --strict
+        env:
+          NIX_ACCEPT_FLAKE_CONFIG: 1
+
+      - name: Deploy MkDocs preview
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          source-dir: ./site
+          preview-branch: gh-pages
+          umbrella-dir: pr-preview

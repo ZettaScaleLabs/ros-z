@@ -39,6 +39,11 @@ def check-console [] {
     run-cmd "cargo clippy -p ros-z-console -- -D warnings"
 }
 
+def clippy-ros-z-py [] {
+    log-step "Clippy (ros-z-py)"
+    run-cmd "cargo clippy -p ros-z-py --all-targets -- -D warnings"
+}
+
 def check-examples [] {
     log-step "Check all examples (cargo check --examples)"
     run-cmd "cargo check --examples"
@@ -75,6 +80,7 @@ def get-test-map [] {
         check-console: { check-console }
         check-examples: { check-examples }
         check-distro-features: { check-distro-features }
+        clippy-ros-z-py: { clippy-ros-z-py }
         test-shm: { test-shm }
     }
 }
@@ -87,6 +93,7 @@ def get-test-pipeline [] {
         "check-console"
         "check-examples"
         "check-distro-features"
+        "clippy-ros-z-py"
         "test-shm"
     ]
 }

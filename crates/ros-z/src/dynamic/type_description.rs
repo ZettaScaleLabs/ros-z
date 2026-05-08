@@ -103,18 +103,17 @@ fn collect_field_type_references(
     visited: &mut HashMap<String, bool>,
 ) -> Result<(), DynamicError> {
     match field_type {
-        FieldType::Message(nested_schema) => {
-            if !visited.contains_key(&nested_schema.type_name) {
-                visited.insert(nested_schema.type_name.clone(), true);
+        FieldType::Message(nested_schema) if !visited.contains_key(&nested_schema.type_name) => {
+            visited.insert(nested_schema.type_name.clone(), true);
 
-                // First collect this type's nested references
-                collect_referenced_types(nested_schema, referenced, visited)?;
+            // First collect this type's nested references
+            collect_referenced_types(nested_schema, referenced, visited)?;
 
-                // Then add this type's description
-                let td = MessageSchemaTypeDescription::to_type_description(nested_schema.as_ref())?;
-                referenced.push(td);
-            }
+            // Then add this type's description
+            let td = MessageSchemaTypeDescription::to_type_description(nested_schema.as_ref())?;
+            referenced.push(td);
         }
+        FieldType::Message(_) => {}
         FieldType::Array(inner, _)
         | FieldType::Sequence(inner)
         | FieldType::BoundedSequence(inner, _) => {

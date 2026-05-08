@@ -220,6 +220,11 @@ mod tests {
 
                 // Now proceed with status transitions
                 let executing = accepted.execute();
+                // Yield so the tokio scheduler can deliver Executing status to the
+                // client before Succeeded is published.  Without this, both
+                // transitions can be coalesced and the second changed() call never
+                // fires, causing a timeout on macOS CI.
+                tokio::task::yield_now().await;
                 let _ = executing.succeed(TestResult { value: 100 });
             }
         });
@@ -230,8 +235,9 @@ mod tests {
         // Test waiting for status changes
         let mut status_watch = goal_handle.status_watch().unwrap();
 
-        // Check initial status first (marks it as "seen")
-        // This prevents race where status changes before we start waiting
+        // send_goal() seeds the watch to Accepted before returning, so borrow_and_update()
+        // here always consumes Accepted (never Unknown). Exactly 2 further transitions
+        // (Executing, Succeeded) will be observed below.
         let initial_status = *status_watch.borrow_and_update();
         tracing::debug!("Initial status: {:?}", initial_status);
 

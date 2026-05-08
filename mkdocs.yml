@@ -1,0 +1,126 @@
+site_name: ros-z
+site_description: Native Rust ROS 2 implementation built on Zenoh
+site_url: https://zettascalelabs.github.io/ros-z/
+repo_url: https://github.com/ZettaScaleLabs/ros-z
+repo_name: ZettaScaleLabs/ros-z
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  custom_dir: docs/overrides
+  icon:
+    logo: custom/zenoh
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - content.code.copy
+    - content.code.annotate
+    - content.action.edit
+    - search.suggest
+    - search.highlight
+  palette:
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  font:
+    text: Roboto
+    code: Roboto Mono
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+extra_css:
+  - stylesheets/home.css
+  - stylesheets/actions.css
+
+extra_javascript:
+  - javascripts/mermaid.js
+  - javascripts/action-anim.js
+  - javascripts/flashcards.js
+
+plugins:
+  - search
+
+nav:
+  - Introduction: index.md
+  - Getting Started:
+      - Quick Start: getting-started/quick-start.md
+      - Running Examples: user-guide/examples.md
+      - Building: getting-started/building.md
+      - Distro Compatibility: getting-started/distro-compatibility.md
+  - Core Concepts:
+      - Pub/Sub: core-concepts/pubsub.md
+      - Services: core-concepts/services.md
+      - Actions:
+          - Actions: core-concepts/actions.md
+          - Advanced Patterns: core-concepts/actions-advanced.md
+      - Parameters: core-concepts/parameters.md
+      - Lifecycle Nodes: core-concepts/lifecycle.md
+  - Guides:
+      - Networking: user-guide/networking.md
+      - Configuration:
+          - Options: user-guide/config-options.md
+          - Advanced: user-guide/config-advanced.md
+      - ROS 2 Interoperability: user-guide/interop.md
+      - Cross-Distro Bridge: user-guide/bridge.md
+      - Messages & Serialization:
+          - Message Cache: core-concepts/message-cache.md
+          - Message Generation: user-guide/message-generation.md
+          - Custom Messages: user-guide/custom-messages.md
+          - Protobuf Serialization: user-guide/protobuf.md
+  - Tools:
+      - ros-z-console: tools/console.md
+  - Language Bindings:
+      - Python:
+          - Quick Start: bindings/python-quick-start.md
+          - Bindings: bindings/python.md
+          - Codegen Internals: bindings/python-codegen.md
+      - Go:
+          - Quick Start: bindings/go-quick-start.md
+          - Bindings: bindings/go.md
+  - Advanced Topics:
+      - Shared Memory (SHM): experimental/shm.md
+  - Reference:
+      - Feature Comparison: reference/feature-comparison.md
+      - ROS 2 → ros-z API Mapping: reference/ros2-to-rosz.md
+      - rmw_zenoh_rs: experimental/rmw-zenoh-rs.md
+      - Key Expression Formats: experimental/keyexpr-formats.md
+      - Feature Flags: reference/feature-flags.md
+      - Nix Development: getting-started/nix.md
+      - Troubleshooting: reference/troubleshooting.md

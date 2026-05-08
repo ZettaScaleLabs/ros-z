@@ -240,15 +240,11 @@ async fn handle_key_event(
                 app.scroll_detail_down();
             }
         }
-        KeyCode::Left | KeyCode::Char('h') => {
-            if app.focus_pane == FocusPane::Detail {
-                app.focus_pane = FocusPane::List;
-            }
+        KeyCode::Left | KeyCode::Char('h') if app.focus_pane == FocusPane::Detail => {
+            app.focus_pane = FocusPane::List;
         }
-        KeyCode::Right | KeyCode::Char('l') => {
-            if app.focus_pane == FocusPane::List {
-                app.focus_pane = FocusPane::Detail;
-            }
+        KeyCode::Right | KeyCode::Char('l') if app.focus_pane == FocusPane::List => {
+            app.focus_pane = FocusPane::Detail;
         }
 
         // Page navigation
@@ -358,10 +354,8 @@ async fn handle_key_event(
         }
 
         // Back / Escape
-        KeyCode::Esc => {
-            if app.focus_pane == FocusPane::Detail {
-                app.focus_pane = FocusPane::List;
-            }
+        KeyCode::Esc if app.focus_pane == FocusPane::Detail => {
+            app.focus_pane = FocusPane::List;
         }
 
         // Filter mode

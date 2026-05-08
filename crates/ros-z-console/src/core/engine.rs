@@ -8,12 +8,10 @@ use std::{
 };
 
 use parking_lot::Mutex;
-use ros_z::{Builder, context::ZContext, graph::Graph, node::ZNode};
+use ros_z::{Builder, context::ZContext, dynamic::DynSub, graph::Graph, node::ZNode};
 use tokio::sync::broadcast;
 
-use super::{
-    dynamic_subscriber::DynamicTopicSubscriber, events::SystemEvent, metrics::MetricsCollector,
-};
+use super::{events::SystemEvent, metrics::MetricsCollector};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Backend {
@@ -44,10 +42,14 @@ impl CoreEngine {
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let backend = backend.into();
 
-        // Initialize Zenoh session in peer mode (doesn't require immediate router connection)
+        // Initialize Zenoh session in client mode connected to the given router.
+        // Client mode is required for correct liveliness propagation with rmw_zenoh_cpp
+        // publishers: peer mode with multicast scouting does not reliably see liveliness
+        // tokens from rmw_zenoh_cpp nodes connected to the same router.
         let mut config = zenoh::Config::default();
-        config.insert_json5("mode", "\"peer\"")?;
+        config.insert_json5("mode", "\"client\"")?;
         config.insert_json5("connect/endpoints", &format!("[\"{}\"]", router_addr))?;
+        config.insert_json5("scouting/multicast/enabled", "false")?;
 
         let session = zenoh::open(config.clone())
             .await
@@ -137,8 +139,10 @@ impl CoreEngine {
         &self,
         topic: &str,
         discovery_timeout: Duration,
-    ) -> Result<DynamicTopicSubscriber, Box<dyn std::error::Error + Send + Sync>> {
-        DynamicTopicSubscriber::new(&self.node, topic, discovery_timeout).await
+    ) -> Result<DynSub, Box<dyn std::error::Error + Send + Sync>> {
+        self.node
+            .create_dyn_sub_auto(topic, discovery_timeout)
+            .await
     }
 
     pub async fn start_monitoring(&self) {

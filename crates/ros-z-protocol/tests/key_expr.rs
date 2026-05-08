@@ -6,7 +6,7 @@
 //! return Err rather than panicking.
 
 use ros_z_protocol::{
-    entity::{EndpointEntity, EntityKind, NodeEntity, TypeHash, TypeInfo},
+    entity::{EndpointEntity, EndpointKind, NodeEntity, TypeHash, TypeInfo},
     format::{rmw_zenoh::RmwZenohFormatter, KeyExprFormatter},
     qos::{QosDurability, QosHistory, QosProfile, QosReliability},
 };
@@ -27,10 +27,10 @@ fn default_node(domain_id: usize) -> NodeEntity {
     }
 }
 
-fn endpoint_entity(domain_id: usize, kind: EntityKind, topic: &str) -> EndpointEntity {
+fn endpoint_entity(domain_id: usize, kind: EndpointKind, topic: &str) -> EndpointEntity {
     EndpointEntity {
         id: 42,
-        node: default_node(domain_id),
+        node: Some(default_node(domain_id)),
         kind,
         topic: topic.to_string(),
         type_info: Some(TypeInfo {
@@ -56,7 +56,7 @@ fn parse_liveliness(ke_str: &str) -> zenoh::Result<ros_z_protocol::entity::Entit
 
 #[test]
 fn test_publisher_liveliness_roundtrip() {
-    let entity = endpoint_entity(0, EntityKind::Publisher, "/chatter");
+    let entity = endpoint_entity(0, EndpointKind::Publisher, "/chatter");
     let zid = ZenohId::default();
 
     let ke = RmwZenohFormatter::liveliness_key_expr(&entity, &zid).expect("liveliness_key_expr");
@@ -64,10 +64,19 @@ fn test_publisher_liveliness_roundtrip() {
     let parsed = RmwZenohFormatter::parse_liveliness(&ke).expect("parse_liveliness");
 
     if let ros_z_protocol::entity::Entity::Endpoint(ep) = parsed {
-        assert_eq!(ep.node.domain_id, entity.node.domain_id);
-        assert_eq!(ep.node.id, entity.node.id);
-        assert_eq!(ep.node.name, entity.node.name);
-        assert_eq!(ep.kind, EntityKind::Publisher);
+        assert_eq!(
+            ep.node.as_ref().unwrap().domain_id,
+            entity.node.as_ref().unwrap().domain_id
+        );
+        assert_eq!(
+            ep.node.as_ref().unwrap().id,
+            entity.node.as_ref().unwrap().id
+        );
+        assert_eq!(
+            ep.node.as_ref().unwrap().name,
+            entity.node.as_ref().unwrap().name
+        );
+        assert_eq!(ep.kind, EndpointKind::Publisher);
         // The parsed topic preserves the leading slash from demangle
         assert!(
             ep.topic.contains("chatter"),
@@ -81,15 +90,15 @@ fn test_publisher_liveliness_roundtrip() {
 
 #[test]
 fn test_subscription_liveliness_roundtrip() {
-    let entity = endpoint_entity(7, EntityKind::Subscription, "/sensor/data");
+    let entity = endpoint_entity(7, EndpointKind::Subscription, "/sensor/data");
     let zid = ZenohId::default();
 
     let ke = RmwZenohFormatter::liveliness_key_expr(&entity, &zid).unwrap();
     let parsed = RmwZenohFormatter::parse_liveliness(&ke).unwrap();
 
     if let ros_z_protocol::entity::Entity::Endpoint(ep) = parsed {
-        assert_eq!(ep.kind, EntityKind::Subscription);
-        assert_eq!(ep.node.domain_id, 7);
+        assert_eq!(ep.kind, EndpointKind::Subscription);
+        assert_eq!(ep.node.as_ref().unwrap().domain_id, 7);
     } else {
         panic!("expected Endpoint entity");
     }
@@ -97,14 +106,14 @@ fn test_subscription_liveliness_roundtrip() {
 
 #[test]
 fn test_service_liveliness_roundtrip() {
-    let entity = endpoint_entity(0, EntityKind::Service, "/add_two_ints");
+    let entity = endpoint_entity(0, EndpointKind::Service, "/add_two_ints");
     let zid = ZenohId::default();
 
     let ke = RmwZenohFormatter::liveliness_key_expr(&entity, &zid).unwrap();
     let parsed = RmwZenohFormatter::parse_liveliness(&ke).unwrap();
 
     if let ros_z_protocol::entity::Entity::Endpoint(ep) = parsed {
-        assert_eq!(ep.kind, EntityKind::Service);
+        assert_eq!(ep.kind, EndpointKind::Service);
     } else {
         panic!("expected Endpoint entity");
     }
@@ -112,14 +121,14 @@ fn test_service_liveliness_roundtrip() {
 
 #[test]
 fn test_client_liveliness_roundtrip() {
-    let entity = endpoint_entity(0, EntityKind::Client, "/add_two_ints");
+    let entity = endpoint_entity(0, EndpointKind::Client, "/add_two_ints");
     let zid = ZenohId::default();
 
     let ke = RmwZenohFormatter::liveliness_key_expr(&entity, &zid).unwrap();
     let parsed = RmwZenohFormatter::parse_liveliness(&ke).unwrap();
 
     if let ros_z_protocol::entity::Entity::Endpoint(ep) = parsed {
-        assert_eq!(ep.kind, EntityKind::Client);
+        assert_eq!(ep.kind, EndpointKind::Client);
     } else {
         panic!("expected Endpoint entity");
     }
@@ -158,7 +167,7 @@ fn test_node_liveliness_roundtrip() {
 
 #[test]
 fn test_domain_id_zero() {
-    let entity = endpoint_entity(0, EntityKind::Publisher, "/chatter");
+    let entity = endpoint_entity(0, EndpointKind::Publisher, "/chatter");
     let zid = ZenohId::default();
 
     let ke = RmwZenohFormatter::liveliness_key_expr(&entity, &zid).unwrap();
@@ -172,7 +181,7 @@ fn test_domain_id_zero() {
 
     let parsed = RmwZenohFormatter::parse_liveliness(&ke).unwrap();
     if let ros_z_protocol::entity::Entity::Endpoint(ep) = parsed {
-        assert_eq!(ep.node.domain_id, 0);
+        assert_eq!(ep.node.as_ref().unwrap().domain_id, 0);
     } else {
         panic!("expected Endpoint");
     }
@@ -180,14 +189,14 @@ fn test_domain_id_zero() {
 
 #[test]
 fn test_domain_id_255() {
-    let entity = endpoint_entity(255, EntityKind::Subscription, "/chatter");
+    let entity = endpoint_entity(255, EndpointKind::Subscription, "/chatter");
     let zid = ZenohId::default();
 
     let ke = RmwZenohFormatter::liveliness_key_expr(&entity, &zid).unwrap();
     let parsed = RmwZenohFormatter::parse_liveliness(&ke).unwrap();
 
     if let ros_z_protocol::entity::Entity::Endpoint(ep) = parsed {
-        assert_eq!(ep.node.domain_id, 255);
+        assert_eq!(ep.node.as_ref().unwrap().domain_id, 255);
     } else {
         panic!("expected Endpoint");
     }
@@ -199,7 +208,7 @@ fn test_domain_id_255() {
 
 #[test]
 fn test_topic_with_namespace() {
-    let entity = endpoint_entity(0, EntityKind::Publisher, "/ns/topic");
+    let entity = endpoint_entity(0, EndpointKind::Publisher, "/ns/topic");
     let zid = ZenohId::default();
 
     let ke = RmwZenohFormatter::liveliness_key_expr(&entity, &zid).unwrap();
@@ -219,7 +228,7 @@ fn test_topic_with_namespace() {
 
 #[test]
 fn test_topic_without_namespace() {
-    let entity = endpoint_entity(0, EntityKind::Publisher, "/topic");
+    let entity = endpoint_entity(0, EndpointKind::Publisher, "/topic");
     let zid = ZenohId::default();
 
     let ke = RmwZenohFormatter::liveliness_key_expr(&entity, &zid).unwrap();
@@ -238,7 +247,7 @@ fn test_topic_without_namespace() {
 
 #[test]
 fn test_topic_key_expr_format() {
-    let entity = endpoint_entity(0, EntityKind::Publisher, "/chatter");
+    let entity = endpoint_entity(0, EndpointKind::Publisher, "/chatter");
     let ke = RmwZenohFormatter::topic_key_expr(&entity).unwrap();
     let ke_str = ke.to_string();
     // Format: <domain_id>/<topic>/<type>/<hash>
@@ -252,7 +261,7 @@ fn test_topic_key_expr_format() {
 
 #[test]
 fn test_topic_key_expr_preserves_internal_slashes() {
-    let entity = endpoint_entity(0, EntityKind::Publisher, "/ns/topic");
+    let entity = endpoint_entity(0, EndpointKind::Publisher, "/ns/topic");
     let ke = RmwZenohFormatter::topic_key_expr(&entity).unwrap();
     let ke_str = ke.to_string();
     // Internal slashes must be preserved (not mangled)

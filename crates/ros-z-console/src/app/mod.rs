@@ -436,9 +436,7 @@ impl App {
         metrics.msgs_sec = msg_count as f64;
         metrics.bytes_sec = byte_sum as f64 / BYTES_PER_KB; // KB/s
 
-        if msg_count > 0 {
-            metrics.avg_payload = (byte_sum / msg_count) as u64;
-        }
+        metrics.avg_payload = byte_sum.checked_div(msg_count).unwrap_or(0) as u64;
 
         // Add to history for sparklines
         let rate_val = metrics.msgs_sec as u64;

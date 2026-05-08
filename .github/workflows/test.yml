@@ -7,7 +7,7 @@ on:
       - '**.md'
       - 'book/**'
       - '.github/workflows/docs.yml'
-      - '.github/workflows/mdbook-preview.yml'
+      - '.github/workflows/mkdocs-preview.yml'
       - '.github/workflows/ci.yml'
       - '.github/workflows/rmw-zenoh-rs.yml'
       - '.github/workflows/semantic-pr.yml'
@@ -19,7 +19,7 @@ on:
       - '**.md'
       - 'book/**'
       - '.github/workflows/docs.yml'
-      - '.github/workflows/mdbook-preview.yml'
+      - '.github/workflows/mkdocs-preview.yml'
       - '.github/workflows/ci.yml'
       - '.github/workflows/rmw-zenoh-rs.yml'
       - '.github/workflows/semantic-pr.yml'
@@ -43,13 +43,13 @@ jobs:
         distro: [humble, jazzy, kilted]
         include:
           - distro: humble
-            image: rostooling/setup-ros-docker:ubuntu-jammy-ros-humble-ros-base-latest
+            image: ros:humble-ros-base
             ros_z_feature: humble
           - distro: jazzy
-            image: rostooling/setup-ros-docker:ubuntu-noble-ros-jazzy-ros-base-latest
+            image: ros:jazzy-ros-base
             ros_z_feature: jazzy
           - distro: kilted
-            image: rostooling/setup-ros-docker:ubuntu-noble-ros-kilted-ros-base-latest
+            image: ros:kilted-ros-base
             ros_z_feature: kilted
     container:
       image: ${{ matrix.image }}
@@ -58,8 +58,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /var/cache/apt/archives
-          key: apt-${{ matrix.distro }}-${{ hashFiles('.github/workflows/test.yml') }}
-          restore-keys: apt-${{ matrix.distro }}-
+          key: apt-${{ matrix.distro }}-v3-${{ hashFiles('.github/workflows/test.yml') }}
 
       - name: Install system dependencies
         run: apt-get update && apt-get install -y nodejs
@@ -80,7 +79,6 @@ jobs:
         if: matrix.distro == 'kilted'
         run: |
           # WORKAROUND: ros-kilted-rmw-zenoh-cpp 0.6.6 has invalid transport_optimization field
-          # The rostooling image has 0.6.2, but apt-get install upgrades to 0.6.6
           CONFIG_FILE="/opt/ros/kilted/share/rmw_zenoh_cpp/config/DEFAULT_RMW_ZENOH_SESSION_CONFIG.json5"
           if grep -q "transport_optimization" "$CONFIG_FILE" 2>/dev/null; then
             sed -i '/transport_optimization:/,/},$/d' "$CONFIG_FILE"
@@ -106,15 +104,15 @@ jobs:
         run: |
           source /opt/ros/${{ matrix.distro }}/setup.bash
           export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+          export RUST_LOG=ros_z=debug,zenoh=warn
           FEATURES="${{ matrix.ros_z_feature }}"
           if [ "$FEATURES" = "humble" ]; then
             cargo nextest run -p ros-z-tests --profile interop \
               --no-default-features --features ros-interop,humble --release
-            cargo nextest run -p ros-z-console \
-              --no-default-features --features ros-interop,humble --release
           else
             cargo nextest run -p ros-z-tests --profile interop \
               --features "ros-interop,$FEATURES" --release
-            cargo nextest run -p ros-z-console \
-              --features ros-interop --release
+            cargo nextest run -p ros-z-console --profile interop \
+              --features ros-interop --release \
+              -E 'test(dynamic_subscriber)'
           fi

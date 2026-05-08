@@ -37,7 +37,7 @@ use ros_z::{
     entity::{NodeEntity, TypeInfo},
 };
 use ros_z_cdr::{CdrSerializer, LittleEndian};
-use ros_z_protocol::entity::{EndpointEntity, EntityKind};
+use ros_z_protocol::entity::{EndpointEntity, EndpointKind};
 use serde::{Deserialize, Serialize};
 use zenoh::{Wait, key_expr::KeyExpr};
 
@@ -120,13 +120,13 @@ async fn main() -> ros_z::Result<()> {
     };
 
     let entity_kind = match args.role.as_str() {
-        "talker" => EntityKind::Publisher,
-        _ => EntityKind::Subscription,
+        "talker" => EndpointKind::Publisher,
+        _ => EndpointKind::Subscription,
     };
 
     let entity = EndpointEntity {
         id: 1,
-        node,
+        node: Some(node),
         kind: entity_kind,
         topic: topic.clone(),
         type_info: Some(type_info),

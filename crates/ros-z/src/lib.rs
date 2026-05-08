@@ -103,6 +103,7 @@ pub mod parameter;
 pub use attachment::GidArray;
 pub use entity::{TypeHash, TypeInfo};
 pub use ros_msg::{ActionTypeInfo, MessageTypeInfo, ServiceTypeInfo, WithTypeInfo};
+pub use ros_z_derive::MessageTypeInfo;
 pub use zbuf::ZBuf;
 pub use zenoh::Result;
 

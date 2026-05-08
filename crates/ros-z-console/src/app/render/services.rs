@@ -4,7 +4,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::ListItem,
 };
-use ros_z::entity::{EntityKind, entity_get_endpoint};
+use ros_z::entity::{EndpointKind, entity_get_endpoint};
 
 use crate::app::App;
 use crate::app::state::*;
@@ -74,10 +74,10 @@ impl App {
         };
 
         let server_count = graph
-            .get_entities_by_service(EntityKind::Service, service)
+            .get_entities_by_service(EndpointKind::Service, service)
             .len();
         let client_count = graph
-            .get_entities_by_service(EntityKind::Client, service)
+            .get_entities_by_service(EndpointKind::Client, service)
             .len();
 
         let mut detail = format!("Service: {}\nType: {}\n", service, type_name);
@@ -94,16 +94,21 @@ impl App {
         ));
 
         if self.detail_state.publishers_expanded {
-            let server_entities = graph.get_entities_by_service(EntityKind::Service, service);
+            let server_entities = graph.get_entities_by_service(EndpointKind::Service, service);
             if !server_entities.is_empty() {
                 detail.push_str("\n\n");
                 for (idx, entity) in server_entities.iter().enumerate() {
                     if let Some(endpoint) = entity_get_endpoint(entity) {
                         detail.push_str(&format!("   Server {}:\n", idx + 1));
-                        detail.push_str(&format!(
-                            "    Node: {}/{}\n",
-                            endpoint.node.namespace, endpoint.node.name
-                        ));
+                        match endpoint.node.as_ref() {
+                            Some(node) => {
+                                detail.push_str(&format!(
+                                    "    Node: {}/{}\n",
+                                    node.namespace, node.name
+                                ));
+                            }
+                            None => detail.push_str("    Node: unknown\n"),
+                        }
                         detail.push_str(&format_qos_detail(&endpoint.qos));
                         detail.push_str("\n\n");
                     }
@@ -125,16 +130,21 @@ impl App {
         ));
 
         if self.detail_state.clients_expanded {
-            let client_entities = graph.get_entities_by_service(EntityKind::Client, service);
+            let client_entities = graph.get_entities_by_service(EndpointKind::Client, service);
             if !client_entities.is_empty() {
                 detail.push_str("\n\n");
                 for (idx, entity) in client_entities.iter().enumerate() {
                     if let Some(endpoint) = entity_get_endpoint(entity) {
                         detail.push_str(&format!("   Client {}:\n", idx + 1));
-                        detail.push_str(&format!(
-                            "    Node: {}/{}\n",
-                            endpoint.node.namespace, endpoint.node.name
-                        ));
+                        match endpoint.node.as_ref() {
+                            Some(node) => {
+                                detail.push_str(&format!(
+                                    "    Node: {}/{}\n",
+                                    node.namespace, node.name
+                                ));
+                            }
+                            None => detail.push_str("    Node: unknown\n"),
+                        }
                         detail.push_str(&format_qos_detail(&endpoint.qos));
                         detail.push_str("\n\n");
                     }

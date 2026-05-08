@@ -16,7 +16,7 @@ import ros_z_py
 from ros_z_py import std_msgs
 
 
-# ANCHOR: run_talker
+# --8<-- [start:run_talker]
 def run_talker(ctx, topic: str, count: int, interval: float):
     """Run the talker (publisher)."""
     node = ctx.create_node("talker").build()
@@ -36,10 +36,10 @@ def run_talker(ctx, topic: str, count: int, interval: float):
     print("PUB:DONE", flush=True)
 
 
-# ANCHOR_END: run_talker
+# --8<-- [end:run_talker]
 
 
-# ANCHOR: run_listener
+# --8<-- [start:run_listener]
 def run_listener(ctx, topic: str, timeout: float):
     """Run the listener (subscriber)."""
     node = ctx.create_node("listener").build()
@@ -59,7 +59,7 @@ def run_listener(ctx, topic: str, timeout: float):
     print(f"SUB:TOTAL:{received}", flush=True)
 
 
-# ANCHOR_END: run_listener
+# --8<-- [end:run_listener]
 
 
 def main():

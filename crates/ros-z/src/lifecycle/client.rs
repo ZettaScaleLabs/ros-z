@@ -128,8 +128,7 @@ impl ZLifecycleClient {
                 label: String::new(),
             },
         };
-        self.change_state.send_request(&req).await?;
-        let resp = self.change_state.take_response_timeout(timeout)?;
+        let resp = self.change_state.call_with_timeout(&req, timeout).await?;
         Ok(resp.success)
     }
 
@@ -139,17 +138,19 @@ impl ZLifecycleClient {
 
     /// Query the current state of the remote lifecycle node.
     pub async fn get_state(&self, timeout: Duration) -> Result<LifecycleState> {
-        self.get_state.send_request(&GetStateRequest {}).await?;
-        let resp = self.get_state.take_response_timeout(timeout)?;
+        let resp = self
+            .get_state
+            .call_with_timeout(&GetStateRequest {}, timeout)
+            .await?;
         Ok(state_from_lc(&resp.current_state))
     }
 
     /// List all states in the lifecycle state machine.
     pub async fn get_available_states(&self, timeout: Duration) -> Result<Vec<LcState>> {
-        self.get_available_states
-            .send_request(&GetAvailableStatesRequest {})
+        let resp = self
+            .get_available_states
+            .call_with_timeout(&GetAvailableStatesRequest {}, timeout)
             .await?;
-        let resp = self.get_available_states.take_response_timeout(timeout)?;
         Ok(resp.available_states)
     }
 
@@ -158,12 +159,10 @@ impl ZLifecycleClient {
         &self,
         timeout: Duration,
     ) -> Result<Vec<LcTransitionDescription>> {
-        self.get_available_transitions
-            .send_request(&GetAvailableTransitionsRequest {})
-            .await?;
         let resp = self
             .get_available_transitions
-            .take_response_timeout(timeout)?;
+            .call_with_timeout(&GetAvailableTransitionsRequest {}, timeout)
+            .await?;
         Ok(resp.available_transitions)
     }
 }

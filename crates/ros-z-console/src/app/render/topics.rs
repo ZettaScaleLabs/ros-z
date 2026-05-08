@@ -6,7 +6,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::ListItem,
 };
-use ros_z::entity::{EntityKind, entity_get_endpoint};
+use ros_z::entity::{EndpointKind, entity_get_endpoint};
 
 use crate::app::App;
 use crate::app::state::*;
@@ -128,7 +128,7 @@ impl App {
         }
 
         // Render publishers section
-        let pub_entities = graph.get_entities_by_topic(EntityKind::Publisher, topic);
+        let pub_entities = graph.get_entities_by_topic(EndpointKind::Publisher, topic);
         if !pub_entities.is_empty() {
             let is_focused = self.focus_pane == FocusPane::Detail;
             let is_selected = self.detail_state.selected_section == DetailSection::Publishers;
@@ -145,10 +145,15 @@ impl App {
                 for (idx, entity) in pub_entities.iter().enumerate() {
                     if let Some(endpoint) = entity_get_endpoint(entity) {
                         detail.push_str(&format!("   Publisher {}:\n", idx + 1));
-                        detail.push_str(&format!(
-                            "    Node: {}/{}\n",
-                            endpoint.node.namespace, endpoint.node.name
-                        ));
+                        match endpoint.node.as_ref() {
+                            Some(node) => {
+                                detail.push_str(&format!(
+                                    "    Node: {}/{}\n",
+                                    node.namespace, node.name
+                                ));
+                            }
+                            None => detail.push_str("    Node: unknown\n"),
+                        }
 
                         if let Some(ti) = &endpoint.type_info {
                             let hash_str = ti.hash.to_rihs_string();
@@ -170,7 +175,7 @@ impl App {
         }
 
         // Render subscribers section
-        let sub_entities = graph.get_entities_by_topic(EntityKind::Subscription, topic);
+        let sub_entities = graph.get_entities_by_topic(EndpointKind::Subscription, topic);
         if !sub_entities.is_empty() {
             let is_focused = self.focus_pane == FocusPane::Detail;
             let is_selected = self.detail_state.selected_section == DetailSection::Subscribers;
@@ -187,10 +192,15 @@ impl App {
                 for (idx, entity) in sub_entities.iter().enumerate() {
                     if let Some(endpoint) = entity_get_endpoint(entity) {
                         detail.push_str(&format!("   Subscriber {}:\n", idx + 1));
-                        detail.push_str(&format!(
-                            "    Node: {}/{}\n",
-                            endpoint.node.namespace, endpoint.node.name
-                        ));
+                        match endpoint.node.as_ref() {
+                            Some(node) => {
+                                detail.push_str(&format!(
+                                    "    Node: {}/{}\n",
+                                    node.namespace, node.name
+                                ));
+                            }
+                            None => detail.push_str("    Node: unknown\n"),
+                        }
 
                         if let Some(ti) = &endpoint.type_info {
                             let hash_str = ti.hash.to_rihs_string();

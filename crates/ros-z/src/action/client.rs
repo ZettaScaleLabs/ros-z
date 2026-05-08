@@ -33,8 +33,9 @@ pub mod goal_state {
 /// ```no_run
 /// # use ros_z::action::*;
 /// # use ros_z::qos::QosProfile;
-/// # let node = todo!();
-/// let client = node.create_action_client::<MyAction>("my_action")
+/// # use ros_z_msgs::action_tutorials_interfaces::action::Fibonacci;
+/// # let node: ros_z::node::ZNode = todo!();
+/// let client = node.create_action_client::<Fibonacci>("fibonacci")
 ///     .with_goal_service_qos(QosProfile::default())
 ///     .build()?;
 /// # Ok::<(), zenoh::Error>(())
@@ -181,7 +182,8 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
         );
         let mut result_client_builder = self
             .node
-            .create_client_impl::<ResultService<A>>(&result_service_name, result_type_info);
+            .create_client_impl::<ResultService<A>>(&result_service_name, result_type_info)
+            .with_querier_timeout(std::time::Duration::MAX);
         if let Some(qos) = self.result_service_qos {
             result_client_builder.entity.qos = qos.to_protocol_qos();
         }
@@ -288,18 +290,14 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
 ///
 /// ```no_run
 /// # use ros_z::action::*;
+/// # use ros_z_msgs::action_tutorials_interfaces::{FibonacciGoal, action::Fibonacci};
 /// # #[tokio::main]
-/// # async fn main() -> Result<()> {
-/// # let node = todo!();
-/// // Create a client for an action
-/// let client = node.create_action_client::<MyAction>("my_action").build()?;
-///
-/// // Send a goal
-/// let goal_handle = client.send_goal(MyGoal { value: 42 }).await?;
-///
-/// // Wait for the result
+/// # async fn main() -> zenoh::Result<()> {
+/// # let node: ros_z::node::ZNode = todo!();
+/// let client = node.create_action_client::<Fibonacci>("fibonacci").build()?;
+/// let goal_handle = client.send_goal(FibonacciGoal { order: 42 }).await?;
 /// let result = goal_handle.result().await?;
-/// println!("Result: {:?}", result);
+/// println!("Sequence: {:?}", result.sequence);
 /// # Ok(())
 /// # }
 /// ```
@@ -308,18 +306,14 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
 ///
 /// ```no_run
 /// # use ros_z::action::*;
+/// # use ros_z_msgs::action_tutorials_interfaces::action::Fibonacci;
 /// # #[tokio::main]
-/// # async fn main() -> Result<()> {
-/// # let node = todo!();
-/// # let client = todo!();
-/// # let goal_handle = todo!();
-/// // Get feedback stream
+/// # async fn main() -> zenoh::Result<()> {
+/// # let mut goal_handle: GoalHandle<Fibonacci, goal_state::Active> = todo!();
 /// let mut feedback_rx = goal_handle.feedback().unwrap();
-///
-/// // Process feedback in a separate task
 /// tokio::spawn(async move {
 ///     while let Some(feedback) = feedback_rx.recv().await {
-///         println!("Progress: {:.1}%", feedback.progress * 100.0);
+///         println!("Partial sequence: {:?}", feedback.partial_sequence);
 ///     }
 /// });
 /// # Ok(())
@@ -330,15 +324,12 @@ impl<'a, A: ZAction> Builder for ZActionClientBuilder<'a, A> {
 ///
 /// ```no_run
 /// # use ros_z::action::*;
+/// # use ros_z_msgs::action_tutorials_interfaces::action::Fibonacci;
 /// # #[tokio::main]
-/// # async fn main() -> Result<()> {
-/// # let node = todo!();
-/// # let client = todo!();
-/// # let goal_handle = todo!();
-/// // Cancel a specific goal
+/// # async fn main() -> zenoh::Result<()> {
+/// # let client: ZActionClient<Fibonacci> = todo!();
+/// # let goal_handle: GoalHandle<Fibonacci, goal_state::Active> = todo!();
 /// client.cancel_goal(goal_handle.id()).await?;
-///
-/// // Or cancel all goals
 /// client.cancel_all_goals().await?;
 /// # Ok(())
 /// # }
@@ -405,16 +396,11 @@ impl<A: ZAction> ZActionClient<A> {
     ///
     /// ```no_run
     /// # use ros_z::action::*;
+    /// # use ros_z_msgs::action_tutorials_interfaces::{FibonacciGoal, action::Fibonacci};
     /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// # let node = todo!();
-    /// // Create an action client
-    /// let client = node.create_action_client::<MyAction>("my_action").build()?;
-    ///
-    /// // Send a goal and get a handle to monitor it
-    /// let goal_handle = client.send_goal(MyGoal { target: 42.0 }).await?;
-    ///
-    /// // The handle can be used to monitor progress, get feedback, and retrieve results
+    /// # async fn main() -> zenoh::Result<()> {
+    /// # let client: ZActionClient<Fibonacci> = todo!();
+    /// let goal_handle = client.send_goal(FibonacciGoal { order: 42 }).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -437,23 +423,13 @@ impl<A: ZAction> ZActionClient<A> {
         // 3. Send goal request via service client
         let request = SendGoalRequest { goal_id, goal };
         tracing::debug!("Sending goal request for goal_id: {:?}", goal_id);
-        if let Err(e) = self.goal_client.send_request(&request).await {
-            // Cleanup on send failure
-            self.goal_board.active_goals.remove(&goal_id);
-            return Err(e);
-        }
-        tracing::debug!("Goal request sent, waiting for response...");
-
-        // 4. Wait for response
-        let sample = self.goal_client.rx.recv_async().await?;
-        let payload = sample.payload().to_bytes();
-        tracing::debug!(
-            "Received goal response payload: {} bytes: {:?}",
-            payload.len(),
-            payload
-        );
-        let response = <SendGoalResponse as ZMessage>::deserialize(&payload)
-            .map_err(|e| zenoh::Error::from(e.to_string()))?;
+        let response = match self.goal_client.call(&request).await {
+            Ok(response) => response,
+            Err(error) => {
+                self.goal_board.active_goals.remove(&goal_id);
+                return Err(error);
+            }
+        };
 
         // 5. Check if accepted
         if !response.accepted {
@@ -462,7 +438,26 @@ impl<A: ZAction> ZActionClient<A> {
             return Err(zenoh::Error::from("Goal rejected".to_string()));
         }
 
-        // 6. Return typed handle in Active state
+        // 6. Seed status watch with Accepted.
+        //
+        // The RPC response already confirms acceptance; the status topic message
+        // travels a separate async pub/sub path and may arrive later. Setting
+        // Accepted here ensures the caller sees a consistent initial status
+        // regardless of pub/sub delivery timing.  Use send_if_modified so a
+        // concurrent status delivery that already advanced beyond Accepted
+        // (unlikely but possible) is not overwritten.
+        if let Some(channels) = self.goal_board.active_goals.get(&goal_id) {
+            channels.status_tx.send_if_modified(|s| {
+                if *s == GoalStatus::Unknown {
+                    *s = GoalStatus::Accepted;
+                    true
+                } else {
+                    false
+                }
+            });
+        }
+
+        // 7. Return typed handle in Active state
         Ok(GoalHandle {
             id: goal_id,
             client: Arc::new(self.clone()),
@@ -476,12 +471,7 @@ impl<A: ZAction> ZActionClient<A> {
         let goal_info = GoalInfo::new(goal_id);
         let request = CancelGoalServiceRequest { goal_info };
 
-        self.cancel_client.send_request(&request).await?;
-        let sample = self.cancel_client.rx.recv_async().await?;
-        let payload = sample.payload().to_bytes();
-        let response = <CancelGoalServiceResponse as ZMessage>::deserialize(&payload)
-            .map_err(|e| zenoh::Error::from(e.to_string()))?;
-        Ok(response)
+        self.cancel_client.call(&request).await
     }
 
     pub async fn cancel_all_goals(&self) -> Result<CancelGoalServiceResponse> {
@@ -493,12 +483,7 @@ impl<A: ZAction> ZActionClient<A> {
         };
         let request = CancelGoalServiceRequest { goal_info };
 
-        self.cancel_client.send_request(&request).await?;
-        let sample = self.cancel_client.rx.recv_async().await?;
-        let payload = sample.payload().to_bytes();
-        let response = <CancelGoalServiceResponse as ZMessage>::deserialize(&payload)
-            .map_err(|e| zenoh::Error::from(e.to_string()))?;
-        Ok(response)
+        self.cancel_client.call(&request).await
     }
 
     pub fn feedback_stream(&self, goal_id: GoalId) -> Option<mpsc::UnboundedReceiver<A::Feedback>> {
@@ -523,53 +508,9 @@ impl<A: ZAction> ZActionClient<A> {
     pub async fn get_result(&self, goal_id: GoalId) -> Result<A::Result> {
         let request = GetResultRequest { goal_id };
 
-        self.result_client.send_request(&request).await?;
-        let sample = self.result_client.rx.recv_async().await?;
-        let payload = sample.payload().to_bytes();
-        let response = <GetResultResponse<A> as ZMessage>::deserialize(&payload)
-            .map_err(|e| zenoh::Error::from(e.to_string()))?;
+        let response: GetResultResponse<A> = self.result_client.call(&request).await?;
 
         Ok(response.result)
-    }
-
-    // FIXME: Check the necessity
-    // Low-level methods for testing
-    pub async fn send_goal_request_low(&self, request: &SendGoalRequest<A>) -> Result<()> {
-        self.goal_client.send_request(request).await
-    }
-
-    // FIXME: Check the necessity
-    pub async fn recv_goal_response_low(&self) -> Result<SendGoalResponse> {
-        let sample = self.goal_client.rx.recv_async().await?;
-        let payload = sample.payload().to_bytes();
-        <SendGoalResponse as ZMessage>::deserialize(&payload)
-            .map_err(|e| zenoh::Error::from(e.to_string()))
-    }
-
-    // FIXME: Check the necessity
-    pub async fn send_cancel_request_low(&self, request: &CancelGoalServiceRequest) -> Result<()> {
-        self.cancel_client.send_request(request).await
-    }
-
-    // FIXME: Check the necessity
-    pub async fn recv_cancel_response_low(&self) -> Result<CancelGoalServiceResponse> {
-        let sample = self.cancel_client.rx.recv_async().await?;
-        let payload = sample.payload().to_bytes();
-        <CancelGoalServiceResponse as ZMessage>::deserialize(&payload)
-            .map_err(|e| zenoh::Error::from(e.to_string()))
-    }
-
-    // FIXME: Check the necessity
-    pub async fn send_result_request_low(&self, request: &GetResultRequest) -> Result<()> {
-        self.result_client.send_request(request).await
-    }
-
-    // FIXME: Check the necessity
-    pub async fn recv_result_response_low(&self) -> Result<GetResultResponse<A>> {
-        let sample = self.result_client.rx.recv_async().await?;
-        let payload = sample.payload().to_bytes();
-        <GetResultResponse<A> as ZMessage>::deserialize(&payload)
-            .map_err(|e| zenoh::Error::from(e.to_string()))
     }
 }
 
@@ -599,16 +540,14 @@ struct GoalChannels<A: ZAction> {
 ///
 /// ```no_run
 /// # use ros_z::action::*;
+/// # use ros_z_msgs::action_tutorials_interfaces::action::Fibonacci;
 /// # #[tokio::main]
-/// # async fn main() -> Result<()> {
-/// # let mut goal_handle = todo!();
-/// // Monitor status
+/// # async fn main() -> zenoh::Result<()> {
+/// # let mut goal_handle: GoalHandle<Fibonacci, goal_state::Active> = todo!();
 /// let mut status_watch = goal_handle.status_watch().unwrap();
 /// while let Ok(()) = status_watch.changed().await {
 ///     println!("Status: {:?}", *status_watch.borrow());
 /// }
-///
-/// // Get result (consumes the handle)
 /// let result = goal_handle.result().await?;
 /// # Ok(())
 /// # }
@@ -668,36 +607,20 @@ impl<A: ZAction> GoalHandle<A, goal_state::Active> {
     /// # Returns
     ///
     /// The result of the action once it completes.
-    pub async fn result(mut self) -> Result<A::Result> {
-        // 1. Wait for Terminal Status
-        if let Some(mut rx) = self.status_rx.take() {
-            // Wait until status becomes terminal using watch channel properly
-            loop {
-                // Check current status
-                let status = *rx.borrow_and_update();
+    pub async fn result(self) -> Result<A::Result> {
+        // Skip status wait — go directly to get_result. The get_result
+        // queryable handles both cases (returns immediately if the goal is
+        // already terminated, or blocks until done). Relying on the status
+        // subscription to gate get_result breaks when the server is on an
+        // older zenoh version where transient_local pub/sub via router is
+        // not reliable (e.g. zenoh-c 1.6.2 PEER pub → zenoh 1.9.0 CLIENT sub).
 
-                if status.is_terminal() {
-                    // Status is already terminal, we're done
-                    break;
-                }
-
-                // Wait for the next status change
-                // This properly yields to the async runtime instead of busy-waiting
-                if rx.changed().await.is_err() {
-                    tracing::warn!("Status channel closed before reaching terminal state");
-                    break;
-                }
-            }
-        }
-
-        // 2. Fetch Result
-        // The server's get_result handler will either:
+        // Fetch result. The server's get_result handler will either:
         // - Return immediately if the goal is already terminated
-        // - Register a future and wait for termination
-        // This eliminates the need for the sleep workaround
+        // - Block until termination otherwise
         let res = self.client.get_result(self.id).await;
 
-        // 3. Cleanup Board (Crucial for Memory Safety)
+        // Cleanup Board (Crucial for Memory Safety)
         self.client.goal_board.active_goals.remove(&self.id);
 
         res

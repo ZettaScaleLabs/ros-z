@@ -1,6 +1,6 @@
 <!--
 DO NOT EXPAND THIS README
-Documentation source: book/ - Published: https://zettascalelabs.github.io/ros-z/
+Documentation source: docs/ - Published: https://zettascalelabs.github.io/ros-z/
 Keep this file minimal. Point readers to the book.
 -->
 
@@ -8,4 +8,4 @@ Keep this file minimal. Point readers to the book.
 
 ROS 2 monitoring and introspection tool (TUI/Web).
 
-**📚 [Full Documentation](https://zettascalelabs.github.io/ros-z/chapters/console.html)**
+**📚 [Full Documentation](https://zettascalelabs.github.io/ros-z/tools/console/)**

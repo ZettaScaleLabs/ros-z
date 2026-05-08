@@ -54,6 +54,7 @@
 //! assert_eq!(decoded.get::<f64>("x")?, 1.0);
 //! ```
 
+pub(crate) mod discovery;
 pub mod error;
 pub mod message;
 pub mod registry;
@@ -63,12 +64,14 @@ pub mod serialization;
 pub mod type_description;
 pub mod type_description_client;
 pub mod type_description_service;
+pub(crate) mod type_info;
 pub mod value;
 
 #[cfg(test)]
 mod tests;
 
 // Re-export main types
+pub use discovery::DiscoveredTopicSchema;
 pub use error::DynamicError;
 pub use message::{DynamicMessage, DynamicMessageBuilder};
 pub use registry::{SchemaRegistry, get_schema, has_schema, register_schema};
@@ -76,7 +79,7 @@ pub use schema::{FieldSchema, FieldType, MessageSchema, MessageSchemaBuilder};
 pub use serdes::DynamicSerdeCdrSerdes;
 pub use serialization::SerializationFormat;
 pub use type_description::{MessageSchemaTypeDescription, type_description_msg_to_schema};
-pub use type_description_client::TypeDescriptionClient;
+pub use type_description_client::schema_from_type_description_response;
 pub use type_description_service::{
     GetTypeDescription, GetTypeDescriptionRequest, GetTypeDescriptionResponse, RegisteredSchema,
     TypeDescriptionService, TypeSource, WireField, WireFieldType, WireIndividualTypeDescription,
@@ -84,6 +87,9 @@ pub use type_description_service::{
     wire_to_schema_type_description,
 };
 pub use value::{DynamicValue, FromDynamic, IntoDynamic};
+
+pub(crate) use discovery::{SchemaDiscovery, discovered_schema_type_info};
+pub(crate) use type_info::schema_type_info;
 
 use zenoh::sample::Sample;
 

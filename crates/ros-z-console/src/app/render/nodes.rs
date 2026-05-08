@@ -4,7 +4,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::ListItem,
 };
-use ros_z::entity::EntityKind;
+use ros_z::entity::EndpointKind;
 
 use crate::app::App;
 
@@ -69,11 +69,12 @@ impl App {
         };
 
         let node_key = (namespace.clone(), name.clone());
-        let publishers = graph.get_names_and_types_by_node(node_key.clone(), EntityKind::Publisher);
+        let publishers =
+            graph.get_names_and_types_by_node(node_key.clone(), EndpointKind::Publisher);
         let subscribers =
-            graph.get_names_and_types_by_node(node_key.clone(), EntityKind::Subscription);
-        let services = graph.get_names_and_types_by_node(node_key.clone(), EntityKind::Service);
-        let clients = graph.get_names_and_types_by_node(node_key, EntityKind::Client);
+            graph.get_names_and_types_by_node(node_key.clone(), EndpointKind::Subscription);
+        let services = graph.get_names_and_types_by_node(node_key.clone(), EndpointKind::Service);
+        let clients = graph.get_names_and_types_by_node(node_key, EndpointKind::Client);
 
         let mut detail = format!("Node: {}/{}\n", namespace, name);
 

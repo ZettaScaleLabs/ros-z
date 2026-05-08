@@ -42,48 +42,37 @@ def test_request_response(server, client):
     """Test service request/response cycle."""
     print("Testing request/response...")
 
-    # Server thread to handle requests
     server_result = {"received": False, "request_a": 0, "request_b": 0}
 
     def server_thread():
         try:
-            # Wait for request
             request_id, req = server.take_request()
             server_result["received"] = True
             server_result["request_a"] = req.a
             server_result["request_b"] = req.b
             print(f"  Server received: {req.a} + {req.b}")
-
-            # Send response
             resp = example_interfaces.AddTwoIntsResponse(sum=req.a + req.b)
             server.send_response(resp, request_id)
             print(f"  Server sent response: {resp.sum}")
         except Exception as e:
             print(f"  Server error: {e}")
 
-    # Start server thread
     thread = threading.Thread(target=server_thread, daemon=True)
     thread.start()
 
-    # Give server time to start listening
     time.sleep(0.5)
 
-    # Send request from client
     test_a, test_b = 5, 7
     req = example_interfaces.AddTwoIntsRequest(a=test_a, b=test_b)
     print(f"  Client sending: {test_a} + {test_b}")
-    client.send_request(req)
+    resp = client.call(req, timeout=5.0)
 
-    # Receive response
-    resp = client.take_response(timeout=5.0)
     assert resp is not None, "No response received"
     assert resp.sum == test_a + test_b, f"Expected {test_a + test_b}, got {resp.sum}"
     print(f"  Client received: {resp.sum}")
 
-    # Wait for server thread to complete
     thread.join(timeout=2.0)
 
-    # Verify server received the request
     assert server_result["received"], "Server did not receive request"
     assert server_result["request_a"] == test_a, "Server received wrong value for a"
     assert server_result["request_b"] == test_b, "Server received wrong value for b"
@@ -95,20 +84,18 @@ def test_timeout_handling(client):
     """Test timeout behavior when no server is available."""
     print("Testing timeout handling...")
 
-    # Create a client for a non-existent service
     context = ros_z_py.ZContextBuilder().with_domain_id(1).build()
     node = context.create_node("timeout_test_node").build()
     timeout_client = node.create_client(
         "nonexistent_service", example_interfaces.AddTwoIntsRequest
     )
 
-    # Send request
     req = example_interfaces.AddTwoIntsRequest(a=1, b=2)
-    timeout_client.send_request(req)
-
-    # Try to receive with timeout
-    resp = timeout_client.take_response(timeout=1.0)
-    assert resp is None, "Expected None (timeout), but got a response"
+    try:
+        timeout_client.call(req, timeout=1.0)
+        assert False, "Expected timeout error, but call succeeded"
+    except RuntimeError:
+        pass  # expected: call timed out
 
     print("✓ Timeout handling works")
 

@@ -22,8 +22,14 @@ use ros_z_msgs::ros::{example_interfaces::srv::AddTwoInts, std_msgs::String as R
 use serial_test::serial;
 
 /// Convenience: build a ros-z context connected to a test router endpoint.
+///
+/// Uses CLIENT mode so the zenoh-c 1.6.2 humble sessions never gossip-connect to
+/// this session via P2P.  In zenoh 1.6.2, once a P2P connection is established, the
+/// peer applies the peer-hat optimization and routes all publications via P2P, bypassing
+/// the router path to CLIENT subscribers.  Client mode avoids P2P entirely.
 fn jazzy_ctx(endpoint: &str) -> ros_z::context::ZContext {
     ZContextBuilder::default()
+        .with_mode("client")
         .disable_multicast_scouting()
         .with_connect_endpoints([endpoint])
         .with_logging_enabled()
@@ -53,11 +59,15 @@ fn test_pubsub_humble_pub_jazzy_sub() {
         .build()
         .expect("failed to create subscriber");
 
+    // Start bridge BEFORE the humble talker so the bridge's humble_session subscriber
+    // is declared before the humble talker connects.  zenoh-c 1.6.2 only learns about
+    // new subscribers at connection time (1.9.0-style late Interest propagation is not
+    // understood by 1.6.2).  If the bridge subscriber is declared after the talker is
+    // already connected, the talker never gets notified and never routes /chatter.
+    let _bridge = common::spawn_bridge(endpoint);
+
     // Start Humble talker (publishes TypeHashNotSupported KE).
     let _humble_talker = common::spawn_humble_ros2_talker(endpoint, "/chatter");
-
-    // Start bridge — rewrites humble KE → jazzy KE.
-    let _bridge = common::spawn_bridge(endpoint);
 
     // Wait for a message within 120 seconds.
     // The Humble talker starts in a nix dev shell; even with a pre-warmed store
@@ -145,9 +155,10 @@ fn test_service_humble_server_jazzy_client() {
             .expect("failed to create client");
 
         let req = ros_z_msgs::ros::example_interfaces::AddTwoIntsRequest { a: 3, b: 7 };
-        client.send_request(&req).await?;
         // ctx / node / client are dropped here, inside the runtime
-        client.take_response_timeout(Duration::from_secs(20))
+        client
+            .call_with_timeout(&req, Duration::from_secs(20))
+            .await
     });
 
     let response = response.expect("did not receive service response within timeout");
@@ -187,13 +198,14 @@ fn test_service_jazzy_server_humble_client() {
         // Handle one request or give up after 10 s.
         let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
         loop {
-            if let Ok((key, req)) = server.take_request() {
-                let resp =
-                    ros_z_msgs::ros::example_interfaces::AddTwoIntsResponse { sum: req.a + req.b };
-                let _ = server.send_response(&resp, &key);
+            if let Ok(req) = server.take_request() {
+                let a = req.message().a;
+                let b = req.message().b;
+                let resp = ros_z_msgs::ros::example_interfaces::AddTwoIntsResponse { sum: a + b };
+                let _ = req.reply_blocking(&resp);
                 println!(
                     "Handled Humble→Jazzy service call: {} + {} = {}",
-                    req.a, req.b, resp.sum
+                    a, b, resp.sum
                 );
                 break;
             }

@@ -12,6 +12,14 @@ use anyhow::Result;
 use std::sync::Arc;
 use zenoh::{Session, Wait, bytes::ZBytes};
 
+/// Attachment key used to mark bridge-forwarded messages.
+///
+/// When a forwarder puts a message it attaches this marker.  Any forwarder that
+/// sees the marker on an incoming sample drops it immediately, preventing the
+/// two bidirectional forwarders (h2j and j2h) from feeding each other in an
+/// infinite feedback loop via the shared router.
+const BRIDGE_MARKER_KEY: &[u8] = b"_ros_z_bridge";
+
 /// A running pub/sub forwarder for a single topic pair.
 ///
 /// Dropping this handle stops the forwarder (subscriber is dropped).
@@ -25,36 +33,51 @@ pub struct ForwarderHandle {
 ///
 /// The payload bytes are forwarded verbatim (CDR serialisation is identical
 /// between Humble and Jazzy for the same message type).
+///
+/// # Loop prevention
+///
+/// Forwarded messages carry a [`BRIDGE_MARKER_KEY`] attachment.  The subscriber
+/// callback drops any incoming sample that already carries the marker so that
+/// the h2j and j2h forwarders do not feed each other.
 pub fn start_forwarder(
     src_session: Arc<Session>,
     src_ke: String,
     dst_session: Arc<Session>,
     dst_ke: String,
 ) -> Result<ForwarderHandle> {
-    let publisher = Arc::new(
-        dst_session
-            .declare_publisher(dst_ke.clone())
-            .wait()
-            .map_err(|e| anyhow::anyhow!("declare_publisher {dst_ke}: {e}"))?,
-    );
-
     // Use Arc<str> so the closure captures a reference-counted pointer rather
     // than cloning the full String on every message.
     let src_ke_log: Arc<str> = src_ke.as_str().into();
-    let dst_ke_log: Arc<str> = dst_ke.as_str().into();
+    let dst_ke_arc: Arc<str> = dst_ke.as_str().into();
 
     let sub = src_session
         .declare_subscriber(src_ke.clone())
         .callback({
-            let publisher = publisher.clone();
             move |sample| {
+                // Drop messages that were already forwarded by the bridge to
+                // prevent h2j ↔ j2h feedback loops through the shared router.
+                if sample
+                    .attachment()
+                    .map(|a| a.to_bytes().as_ref() == BRIDGE_MARKER_KEY)
+                    .unwrap_or(false)
+                {
+                    return;
+                }
+
                 let payload: ZBytes = sample.payload().clone();
-                let pub_clone = publisher.clone();
+                let session = dst_session.clone();
+                let ke = dst_ke_arc.clone();
                 let src = src_ke_log.clone();
-                let dst = dst_ke_log.clone();
+                tracing::debug!("forwarder {src}: received message, forwarding to {ke}");
                 tokio::spawn(async move {
-                    if let Err(e) = pub_clone.put(payload).await {
-                        tracing::warn!("forwarder {src} → {dst}: put failed: {e}");
+                    let result = session
+                        .put(ke.as_ref(), payload)
+                        .attachment(BRIDGE_MARKER_KEY)
+                        .await;
+                    if let Err(e) = result {
+                        tracing::warn!("forwarder {src} → {ke}: put failed: {e}");
+                    } else {
+                        tracing::debug!("forwarder → {ke}: put ok");
                     }
                 });
             }
@@ -97,7 +120,7 @@ pub fn start_service_forwarder(
                 let target_ke = target_ke_arc.clone();
                 let proxy_ke_log = proxy_ke_log.clone();
                 // Extract payload and attachment from the query.
-                // The attachment carries the QueryKey (sequence number, writer GUID)
+                // The attachment carries the request identity (sequence number, writer GUID)
                 // required by ros-z service.rs — it must be forwarded verbatim.
                 let payload: Option<ZBytes> = query.payload().cloned();
                 let attachment: Option<ZBytes> = query.attachment().cloned();

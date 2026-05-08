@@ -135,22 +135,22 @@ pub fn start_discovery(
 mod tests {
     use super::*;
     use ros_z_protocol::{
-        EntityKind, TypeHash, TypeInfo,
+        EndpointKind, TypeHash, TypeInfo,
         entity::{EndpointEntity, NodeEntity},
     };
 
     fn make_endpoint(hash: TypeHash) -> Entity {
         Entity::Endpoint(EndpointEntity {
             id: 1,
-            node: NodeEntity {
+            node: Some(NodeEntity {
                 domain_id: 0,
                 z_id: "1234567890abcdef1234567890abcdef".parse().unwrap(),
                 id: 0,
                 name: "test_node".to_string(),
                 namespace: "/".to_string(),
                 enclave: String::new(),
-            },
-            kind: EntityKind::Publisher,
+            }),
+            kind: EndpointKind::Publisher,
             topic: "/chatter".to_string(),
             type_info: Some(TypeInfo::new("std_msgs::msg::dds_::String_", hash)),
             qos: Default::default(),
@@ -187,15 +187,15 @@ mod tests {
     fn classify_endpoint_no_type_info_returns_none() {
         let entity = Entity::Endpoint(EndpointEntity {
             id: 2,
-            node: NodeEntity {
+            node: Some(NodeEntity {
                 domain_id: 0,
                 z_id: "1234567890abcdef1234567890abcdef".parse().unwrap(),
                 id: 0,
                 name: "no_type_node".to_string(),
                 namespace: "/".to_string(),
                 enclave: String::new(),
-            },
-            kind: EntityKind::Publisher,
+            }),
+            kind: EndpointKind::Publisher,
             topic: "/anon".to_string(),
             type_info: None,
             qos: Default::default(),

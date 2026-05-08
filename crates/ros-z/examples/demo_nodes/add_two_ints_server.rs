@@ -1,35 +1,39 @@
 use ros_z::{Builder, Result, context::ZContext};
 use ros_z_msgs::example_interfaces::{AddTwoIntsResponse, srv::AddTwoInts};
 
-// ANCHOR: full_example
+// --8<-- [start:full_example]
 /// AddTwoInts server node that provides a service to add two integers
 ///
 /// # Arguments
 /// * `ctx` - The ROS-Z context
 /// * `max_requests` - Optional maximum number of requests to handle. If None, handles requests indefinitely.
 pub fn run_add_two_ints_server(ctx: ZContext, max_requests: Option<usize>) -> Result<()> {
-    // ANCHOR: node_setup
+    // --8<-- [start:node_setup]
     // Create a node named "add_two_ints_server"
     let node = ctx.create_node("add_two_ints_server").build()?;
-    // ANCHOR_END: node_setup
+    // --8<-- [end:node_setup]
 
-    // ANCHOR: service_setup
+    // --8<-- [start:service_setup]
     // Create a service that will handle requests
     let mut service = node.create_service::<AddTwoInts>("add_two_ints").build()?;
 
     println!("AddTwoInts service server started, waiting for requests...");
-    // ANCHOR_END: service_setup
+    // --8<-- [end:service_setup]
 
     let mut request_count = 0;
 
-    // ANCHOR: request_loop
+    // --8<-- [start:request_loop]
     loop {
         // Wait for a request
-        let (key, req) = service.take_request()?;
-        println!("Incoming request\na: {} b: {}", req.a, req.b);
+        let req = service.take_request()?;
+        println!(
+            "Incoming request\na: {} b: {}",
+            req.message().a,
+            req.message().b
+        );
 
         // Compute the sum
-        let sum = req.a + req.b;
+        let sum = req.message().a + req.message().b;
 
         // Create the response
         let resp = AddTwoIntsResponse { sum };
@@ -37,7 +41,7 @@ pub fn run_add_two_ints_server(ctx: ZContext, max_requests: Option<usize>) -> Re
         println!("Sending response: {}", resp.sum);
 
         // Send the response
-        service.send_response(&resp, &key)?;
+        req.reply_blocking(&resp)?;
 
         request_count += 1;
 
@@ -48,11 +52,11 @@ pub fn run_add_two_ints_server(ctx: ZContext, max_requests: Option<usize>) -> Re
             break;
         }
     }
-    // ANCHOR_END: request_loop
+    // --8<-- [end:request_loop]
 
     Ok(())
 }
-// ANCHOR_END: full_example
+// --8<-- [end:full_example]
 
 // Only compile main when building as a binary (not when included as a module)
 #[cfg(not(any(test, doctest)))]

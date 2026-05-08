@@ -333,7 +333,7 @@ pub extern "C" fn rmw_publisher_count_matched_subscriptions(
     let topic_name = publisher_impl.topic.to_str().unwrap_or("");
     let entities = publisher_impl
         .graph
-        .get_entities_by_topic(ros_z::entity::EntityKind::Subscription, topic_name);
+        .get_entities_by_topic(ros_z::entity::EndpointKind::Subscription, topic_name);
 
     // Filter by QoS compatibility
     let pub_qos = &publisher_impl.qos;
@@ -651,7 +651,7 @@ pub extern "C" fn rmw_subscription_count_matched_publishers(
     let topic_name = subscription_impl.topic.to_str().unwrap_or("");
     let entities = subscription_impl
         .graph
-        .get_entities_by_topic(ros_z::entity::EntityKind::Publisher, topic_name);
+        .get_entities_by_topic(ros_z::entity::EndpointKind::Publisher, topic_name);
 
     // Filter by QoS compatibility
     let sub_qos = &subscription_impl.qos;

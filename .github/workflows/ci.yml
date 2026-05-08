@@ -5,9 +5,10 @@ on:
     branches: [main]
     paths-ignore:
       - '**.md'
-      - 'book/**'
+      - 'docs/**'
+      - 'mkdocs.yml'
       - '.github/workflows/docs.yml'
-      - '.github/workflows/mdbook-preview.yml'
+      - '.github/workflows/mkdocs-preview.yml'
       - '.github/workflows/test.yml'
       - '.github/workflows/rmw-zenoh-rs.yml'
       - '.github/workflows/semantic-pr.yml'
@@ -17,9 +18,10 @@ on:
     branches: [main]
     paths-ignore:
       - '**.md'
-      - 'book/**'
+      - 'docs/**'
+      - 'mkdocs.yml'
       - '.github/workflows/docs.yml'
-      - '.github/workflows/mdbook-preview.yml'
+      - '.github/workflows/mkdocs-preview.yml'
       - '.github/workflows/test.yml'
       - '.github/workflows/rmw-zenoh-rs.yml'
       - '.github/workflows/semantic-pr.yml'
@@ -353,6 +355,14 @@ jobs:
           nu scripts/test-pure-rust.nu check-distro-features
         shell: bash
 
+      - name: Clippy (ros-z-py)
+        run: |
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            source /tmp/nix-dev-env.sh
+          fi
+          nu scripts/test-pure-rust.nu clippy-ros-z-py
+        shell: bash
+
   go-tests:
     name: Go Tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -444,7 +454,9 @@ jobs:
         id: venv-cache
         uses: actions/cache@v4
         with:
-          path: crates/ros-z-py/.venv
+          path: |
+            crates/ros-z-py/.venv
+            crates/ros-z-msgs/python/ros_z_msgs_py/types
           key: >-
             ${{ runner.os }}-${{ matrix.distro }}-venv-${{
             hashFiles('Cargo.lock', 'crates/ros-z-py/src/**',
@@ -459,14 +471,12 @@ jobs:
           nu scripts/test-python.nu --distro ${{ matrix.distro }} setup-venv
 
       - name: Build native extension
+        if: >-
+          steps.venv-cache.outputs.cache-hit != 'true' ||
+          !hashFiles('crates/ros-z-py/.venv/lib/**/ros_z_py/_native*.so')
         run: |
           source /tmp/nix-dev-env.sh
           cd crates/ros-z-py && source .venv/bin/activate && maturin develop
-
-      - name: Clippy (ros-z-py)
-        run: |
-          source /tmp/nix-dev-env.sh
-          nu scripts/test-python.nu --distro ${{ matrix.distro }} clippy
 
       - name: Ruff linting
         run: |
