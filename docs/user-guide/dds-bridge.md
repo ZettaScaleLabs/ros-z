@@ -273,7 +273,8 @@ cargo run --example custom_bridge -p ros-z-dds
 For full control, construct routes directly:
 
 ```rust
-use ros_z_dds::{CyclorsParticipant, ZDdsPubBridge, ZDdsSubBridge, ZDdsServiceBridge};
+use std::time::Duration;
+use ros_z_dds::{CyclorsParticipant, ZDdsPubBridge, ZDdsSubBridge, ZDdsServiceBridge, ZDdsClientBridge};
 use ros_z_dds::participant::BridgeQos;
 use ros_z_protocol::entity::TypeHash;
 
@@ -297,10 +298,18 @@ let route = ZDdsSubBridge::new(
 )
 .await?;
 
-// DDS service server → Zenoh queryable
+// DDS service server → Zenoh queryable (DDS clients call a ros-z service server)
 let route = ZDdsServiceBridge::new(
     &node, "/add_two_ints", "example_interfaces/srv/AddTwoInts",
     None, &participant, BridgeQos::default(),
+)
+.await?;
+
+// Zenoh queryable → DDS service client (ros-z clients call a DDS service server)
+let route = ZDdsClientBridge::new(
+    &node, "/add_two_ints", "example_interfaces/srv/AddTwoInts",
+    None, &participant, BridgeQos::default(),
+    Duration::from_secs(10),   // timeout for the Zenoh get() call
 )
 .await?;
 ```
