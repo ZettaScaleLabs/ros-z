@@ -2552,7 +2552,7 @@
 
 
 <h1 id="dds-bridge">DDS Bridge<a class="headerlink" href="#dds-bridge" title="Permanent link">&para;</a></h1>
-<p><code>zenoh-bridge-dds</code> is a standalone binary that connects <strong>existing DDS-based ROS 2 nodes</strong> (using any DDS middleware: Fast DDS, CycloneDDS, Connext, …) to a Zenoh/ros-z network. Once running, every ros-z node, Python node, Go node, and <code>rmw_zenoh_cpp</code> node on the Zenoh side can communicate transparently with any node on the DDS side — no recompilation or code changes needed.</p>
+<p><code>ros-z-bridge-dds</code> is a standalone binary that connects <strong>existing DDS-based ROS 2 nodes</strong> (using any DDS middleware: Fast DDS, CycloneDDS, Connext, …) to a Zenoh/ros-z network. Once running, every ros-z node, Python node, Go node, and <code>rmw_zenoh_cpp</code> node on the Zenoh side can communicate transparently with any node on the DDS side — no recompilation or code changes needed.</p>
 <div class="admonition tip">
 <p class="admonition-title">Wrong bridge?</p>
 <p>If you need to connect a <strong>Humble</strong> network to a <strong>Jazzy/Kilted</strong> network (both already using Zenoh), see the <a href="../bridge/">Cross-Distro Bridge</a> chapter instead.</p>
@@ -2560,7 +2560,7 @@
 <h2 id="how-it-works">How It Works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h2>
 <p>The bridge runs a CycloneDDS participant in a chosen DDS domain. It watches DDS discovery traffic and creates matching Zenoh routes for every publisher, subscriber, service server, and service client it sees. Messages flow as raw CDR bytes in both directions — no deserialization occurs inside the bridge.</p>
 <pre class="mermaid"><code>graph LR
-accTitle: zenoh-bridge-dds connecting a DDS domain to a Zenoh network
+accTitle: ros-z-bridge-dds connecting a DDS domain to a Zenoh network
 accDescr: A ROS 2 talker uses rmw_cyclonedds_cpp to publish into DDS domain 0. The bridge subscribes in domain 0 and republishes on a Zenoh key expression. A ros-z listener and an rmw_zenoh_cpp listener both receive the message from the Zenoh router.
 
     talker["ROS 2 talker&lt;br&gt;(rmw_cyclonedds_cpp)"]
@@ -2571,7 +2571,7 @@ accDescr: A ROS 2 talker uses rmw_cyclonedds_cpp to publish into DDS domain 0. T
         talker
     end
 
-    bridge["zenoh-bridge-dds"]
+    bridge["ros-z-bridge-dds"]
 
     subgraph Zenoh ["Zenoh network"]
         router(["Zenoh router"])
@@ -2589,7 +2589,7 @@ accDescr: A ROS 2 talker uses rmw_cyclonedds_cpp to publish into DDS domain 0. T
 <p>Requires Rust 1.85+:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>cargo<span class="w"> </span>build<span class="w"> </span>--release<span class="w"> </span>-p<span class="w"> </span>ros-z-bridge-dds
 </span></code></pre></div>
-<p>The binary is at <code>target/release/zenoh-bridge-dds</code>.</p>
+<p>The binary is at <code>target/release/ros-z-bridge-dds</code>.</p>
 <h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
 <h3 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h3>
 <ul>
@@ -2604,7 +2604,7 @@ accDescr: A ROS 2 talker uses rmw_cyclonedds_cpp to publish into DDS domain 0. T
 </span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>zenohd
 </span></code></pre></div>
 <h3 id="2-start-the-bridge">2 — Start the bridge<a class="headerlink" href="#2-start-the-bridge" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./zenoh-bridge-dds
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./ros-z-bridge-dds
 </span></code></pre></div>
 <p>By default the bridge connects to <code>tcp/127.0.0.1:7447</code> and joins DDS domain 0.</p>
 <h3 id="3-run-a-dds-talker">3 — Run a DDS talker<a class="headerlink" href="#3-run-a-dds-talker" title="Permanent link">&para;</a></h3>
@@ -2619,7 +2619,7 @@ accDescr: A ROS 2 talker uses rmw_cyclonedds_cpp to publish into DDS domain 0. T
 <p>The ros-z listener prints messages published by the DDS talker — no shared router configuration needed on the DDS side.</p>
 <h2 id="cli-reference">CLI Reference<a class="headerlink" href="#cli-reference" title="Permanent link">&para;</a></h2>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>USAGE:
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    zenoh-bridge-dds [OPTIONS]
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    ros-z-bridge-dds [OPTIONS]
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
 </span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>OPTIONS:
 </span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    -z, --zenoh-endpoint &lt;LOCATOR&gt;
@@ -2683,19 +2683,19 @@ accDescr: A ROS 2 talker uses rmw_cyclonedds_cpp to publish into DDS domain 0. T
 <h2 id="topic-filtering">Topic Filtering<a class="headerlink" href="#topic-filtering" title="Permanent link">&para;</a></h2>
 <p>Use <code>--allow</code> and <code>--deny</code> to control which topics and services are bridged. Both accept <a href="https://github.com/google/re2/wiki/Syntax">RE2 regular expressions</a> matched against the <strong>raw DDS topic name</strong> (e.g. <code>rt/chatter</code>, <code>rq/add_two_intsRequest</code>).</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Bridge only /chatter and /tf</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>zenoh-bridge-dds<span class="w"> </span>--allow<span class="w"> </span><span class="s2">&quot;^rt/(chatter|tf)</span>$<span class="s2">&quot;</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>ros-z-bridge-dds<span class="w"> </span>--allow<span class="w"> </span><span class="s2">&quot;^rt/(chatter|tf)</span>$<span class="s2">&quot;</span>
 </span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
 </span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># Bridge everything except /rosout</span>
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>zenoh-bridge-dds<span class="w"> </span>--deny<span class="w"> </span><span class="s2">&quot;^rt/rosout</span>$<span class="s2">&quot;</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>ros-z-bridge-dds<span class="w"> </span>--deny<span class="w"> </span><span class="s2">&quot;^rt/rosout</span>$<span class="s2">&quot;</span>
 </span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
 </span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="c1"># Combine: allow navigation topics but not raw odometry</span>
-</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>zenoh-bridge-dds<span class="w"> </span>--allow<span class="w"> </span><span class="s2">&quot;^rt/nav&quot;</span><span class="w"> </span>--deny<span class="w"> </span><span class="s2">&quot;^rt/nav/raw_odom</span>$<span class="s2">&quot;</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>ros-z-bridge-dds<span class="w"> </span>--allow<span class="w"> </span><span class="s2">&quot;^rt/nav&quot;</span><span class="w"> </span>--deny<span class="w"> </span><span class="s2">&quot;^rt/nav/raw_odom</span>$<span class="s2">&quot;</span>
 </span></code></pre></div>
 <p>If both <code>--allow</code> and <code>--deny</code> are set, <code>--deny</code> is evaluated first.</p>
 <h2 id="bridge-to-bridge-federation">Bridge-to-Bridge Federation<a class="headerlink" href="#bridge-to-bridge-federation" title="Permanent link">&para;</a></h2>
 <p>When two bridge instances run on separate DDS domains and connect to the <strong>same Zenoh network</strong>, they automatically federate — each bridge detects the other's liveliness tokens and creates complementary local DDS routes.</p>
 <pre class="mermaid"><code>graph LR
-accTitle: Two zenoh-bridge-dds instances federating across a shared Zenoh router
+accTitle: Two ros-z-bridge-dds instances federating across a shared Zenoh router
 accDescr: Bridge A in DDS domain 0 detects Bridge B's Subscription liveliness token and creates a ZDdsPubBridge for /chatter in domain 0. Bridge B in DDS domain 1 detects Bridge A's Publisher liveliness token and creates a ZDdsSubBridge for /chatter in domain 1.
 
     subgraph A ["DDS domain 0"]
@@ -2970,7 +2970,7 @@ accDescr: Bridge A in DDS domain 0 detects Bridge B's Subscription liveliness to
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
 <h3 id="dds-nodes-do-not-appear-on-the-zenoh-side">DDS nodes do not appear on the Zenoh side<a class="headerlink" href="#dds-nodes-do-not-appear-on-the-zenoh-side" title="Permanent link">&para;</a></h3>
 <p>Enable debug logging to watch discovery events:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nv">RUST_LOG</span><span class="o">=</span><span class="nv">ros_z_dds</span><span class="o">=</span>debug<span class="w"> </span>./zenoh-bridge-dds
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nv">RUST_LOG</span><span class="o">=</span><span class="nv">ros_z_dds</span><span class="o">=</span>debug<span class="w"> </span>./ros-z-bridge-dds
 </span></code></pre></div>
 <p>Look for lines like:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>INFO  ros_z_dds::bridge: ZDdsPubBridge: DDS rt/chatter → Zenoh 0/chatter/std_msgs%msg%String/RIHS01_…
@@ -2987,14 +2987,14 @@ accDescr: Bridge A in DDS domain 0 detects Bridge B's Subscription liveliness to
 </span></code></pre></div>
 <h3 id="service-calls-time-out">Service calls time out<a class="headerlink" href="#service-calls-time-out" title="Permanent link">&para;</a></h3>
 <p>The bridge proxies Zenoh <code>get()</code> calls with a configurable timeout (default 10 s). If the ros-z service server is slow to start or the Zenoh router is under load, the first call may time out. Increase the timeout:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>./zenoh-bridge-dds<span class="w"> </span>--service-timeout-secs<span class="w"> </span><span class="m">30</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>./ros-z-bridge-dds<span class="w"> </span>--service-timeout-secs<span class="w"> </span><span class="m">30</span>
 </span></code></pre></div>
 <p>Check that a matching queryable is registered:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nv">RUST_LOG</span><span class="o">=</span><span class="nv">ros_z_dds</span><span class="o">=</span>debug<span class="w"> </span>./zenoh-bridge-dds<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-i<span class="w"> </span><span class="s2">&quot;service\|queryable&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nv">RUST_LOG</span><span class="o">=</span><span class="nv">ros_z_dds</span><span class="o">=</span>debug<span class="w"> </span>./ros-z-bridge-dds<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-i<span class="w"> </span><span class="s2">&quot;service\|queryable&quot;</span>
 </span></code></pre></div>
 <h3 id="federation-routes-not-appearing">Federation routes not appearing<a class="headerlink" href="#federation-routes-not-appearing" title="Permanent link">&para;</a></h3>
 <p>Federation relies on Zenoh liveliness tokens. Ensure both bridges connect to the <strong>same Zenoh router</strong> (or a federated Zenoh network). Check that both bridges use the <strong>same <code>--wire-format</code></strong> — mixing <code>rmw-zenoh</code> on one side with <code>ros2dds</code> on the other will prevent liveliness token parsing.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nv">RUST_LOG</span><span class="o">=</span>ros_z_dds::bridge<span class="o">=</span>debug<span class="w"> </span>./zenoh-bridge-dds<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-i<span class="w"> </span><span class="s2">&quot;federation&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nv">RUST_LOG</span><span class="o">=</span>ros_z_dds::bridge<span class="o">=</span>debug<span class="w"> </span>./ros-z-bridge-dds<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-i<span class="w"> </span><span class="s2">&quot;federation&quot;</span>
 </span></code></pre></div>
 <h3 id="messages-arrive-corrupted">Messages arrive corrupted<a class="headerlink" href="#messages-arrive-corrupted" title="Permanent link">&para;</a></h3>
 <p>The bridge forwards raw CDR bytes without any transformation. If messages are corrupted:</p>
@@ -3004,13 +3004,13 @@ accDescr: Bridge A in DDS domain 0 detects Bridge B's Subscription liveliness to
 <li>Service CDR payloads include a 20-byte header prepended by the bridge (<code>[4B hdr] + [8B guid] + [8B seq]</code>). Custom service bridge code must handle this framing.</li>
 </ol>
 <h2 id="migrating-from-zenoh-plugin-ros2dds">Migrating from zenoh-plugin-ros2dds<a class="headerlink" href="#migrating-from-zenoh-plugin-ros2dds" title="Permanent link">&para;</a></h2>
-<p><code>zenoh-bridge-dds</code> is the successor to <code>zenoh-bridge-ros2dds</code> (the binary bundled with <code>zenoh-plugin-ros2dds</code>). The two bridges are wire-compatible when you pass <code>--wire-format ros2dds</code> to the new bridge.</p>
+<p><code>ros-z-bridge-dds</code> is the successor to <code>zenoh-bridge-ros2dds</code> (the binary bundled with <code>zenoh-plugin-ros2dds</code>). The two bridges are wire-compatible when you pass <code>--wire-format ros2dds</code> to the new bridge.</p>
 <h3 id="cli-flag-mapping">CLI Flag Mapping<a class="headerlink" href="#cli-flag-mapping" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
 <th><code>zenoh-bridge-ros2dds</code> flag</th>
-<th><code>zenoh-bridge-dds</code> equivalent</th>
+<th><code>ros-z-bridge-dds</code> equivalent</th>
 <th>Notes</th>
 </tr>
 </thead>
@@ -3093,7 +3093,7 @@ accDescr: Bridge A in DDS domain 0 detects Bridge B's Subscription liveliness to
 <tr>
 <th>Feature</th>
 <th>zenoh-plugin-ros2dds</th>
-<th>zenoh-bridge-dds</th>
+<th>ros-z-bridge-dds</th>
 </tr>
 </thead>
 <tbody>
@@ -3160,9 +3160,9 @@ accDescr: Bridge A in DDS domain 0 detects Bridge B's Subscription liveliness to
 </tbody>
 </table>
 <h3 id="wire-format-and-gradual-migration">Wire Format and Gradual Migration<a class="headerlink" href="#wire-format-and-gradual-migration" title="Permanent link">&para;</a></h3>
-<p>By default, <code>zenoh-bridge-dds</code> uses the <code>rmw-zenoh</code> key expression format, which is not compatible with <code>zenoh-plugin-ros2dds</code>. To run both bridges side-by-side during a migration:</p>
+<p>By default, <code>ros-z-bridge-dds</code> uses the <code>rmw-zenoh</code> key expression format, which is not compatible with <code>zenoh-plugin-ros2dds</code>. To run both bridges side-by-side during a migration:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="c1"># New bridge, compatible with zenoh-plugin-ros2dds infrastructure</span>
-</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>./zenoh-bridge-dds<span class="w"> </span>--wire-format<span class="w"> </span>ros2dds
+</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>./ros-z-bridge-dds<span class="w"> </span>--wire-format<span class="w"> </span>ros2dds
 </span></code></pre></div>
 <p>Once all <code>zenoh-plugin-ros2dds</code> instances are replaced, drop the flag to use the default <code>rmw-zenoh</code> format, which is also understood by all ros-z nodes and <code>rmw_zenoh_cpp</code> nodes.</p>
 <h3 id="allowance-model-change">Allowance Model Change<a class="headerlink" href="#allowance-model-change" title="Permanent link">&para;</a></h3>
@@ -3177,11 +3177,11 @@ accDescr: Bridge A in DDS domain 0 detects Bridge B's Subscription liveliness to
 </span></code></pre></div>
 <p>The new bridge uses a single <code>--allow</code>/<code>--deny</code> regex matched against the raw DDS topic name, which covers all entity types:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="c1"># Bridge only /chatter topics and services (all entity types)</span>
-</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>zenoh-bridge-dds<span class="w"> </span>--allow<span class="w"> </span><span class="s2">&quot;^rt/chatter</span>$<span class="s2">|^r[qr]/chatter&quot;</span>
+</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>ros-z-bridge-dds<span class="w"> </span>--allow<span class="w"> </span><span class="s2">&quot;^rt/chatter</span>$<span class="s2">|^r[qr]/chatter&quot;</span>
 </span></code></pre></div>
 <p>If you need to suppress services entirely, use <code>--deny</code> with a service topic pattern:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="c1"># Bridge topics but not services</span>
-</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>zenoh-bridge-dds<span class="w"> </span>--allow<span class="w"> </span><span class="s2">&quot;^rt/&quot;</span><span class="w"> </span>--deny<span class="w"> </span><span class="s2">&quot;^r[qr]/&quot;</span>
+</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>ros-z-bridge-dds<span class="w"> </span>--allow<span class="w"> </span><span class="s2">&quot;^rt/&quot;</span><span class="w"> </span>--deny<span class="w"> </span><span class="s2">&quot;^r[qr]/&quot;</span>
 </span></code></pre></div>
 
 

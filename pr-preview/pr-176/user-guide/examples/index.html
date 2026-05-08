@@ -2610,7 +2610,7 @@
 <p>These examples demonstrate the <code>ros-z-dds</code> library — connecting existing DDS-based ROS 2 nodes to a Zenoh/ros-z network. See the <a href="../dds-bridge/">DDS Bridge</a> chapter for comprehensive documentation.</p>
 <p>Both examples require a Zenoh router running at <code>tcp/127.0.0.1:7447</code> and a ROS 2 installation with CycloneDDS (or another DDS middleware).</p>
 <h3 id="auto-bridge">Auto Bridge<a class="headerlink" href="#auto-bridge" title="Permanent link">&para;</a></h3>
-<p>Discovers and bridges every DDS publisher, subscriber, service server, and service client automatically. Equivalent to running the <code>zenoh-bridge-dds</code> binary.</p>
+<p>Discovers and bridges every DDS publisher, subscriber, service server, and service client automatically. Equivalent to running the <code>ros-z-bridge-dds</code> binary.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>cargo<span class="w"> </span>run<span class="w"> </span>--example<span class="w"> </span>auto_bridge<span class="w"> </span>-p<span class="w"> </span>ros-z-dds
 </span></code></pre></div>
 <p>With a specific DDS domain:</p>
