@@ -366,3 +366,82 @@ The bridge forwards raw CDR bytes without any transformation. If messages are co
 1. Both sides must use the **same CDR encoding** (little-endian is standard).
 2. The message definition must be **identical** on both sides. Mismatched field order or types cause silent corruption.
 3. Service CDR payloads include a 20-byte header prepended by the bridge (`[4B hdr] + [8B guid] + [8B seq]`). Custom service bridge code must handle this framing.
+
+## Migrating from zenoh-plugin-ros2dds
+
+`zenoh-bridge-dds` is the successor to `zenoh-bridge-ros2dds` (the binary bundled with `zenoh-plugin-ros2dds`). The two bridges are wire-compatible when you pass `--wire-format ros2dds` to the new bridge.
+
+### CLI Flag Mapping
+
+| `zenoh-bridge-ros2dds` flag | `zenoh-bridge-dds` equivalent | Notes |
+|---|---|---|
+| `--namespace <NS>` | `--namespace <NS>` | Identical |
+| `--nodename <NAME>` | `--node-name <NAME>` | Renamed (hyphen) |
+| `--domain <ID>` | `--domain-id <ID>` | Renamed |
+| `--allow <REGEX>` | `--allow <REGEX>` | Identical |
+| `--deny <REGEX>` | `--deny <REGEX>` | Identical |
+| `--queries_timeout_default <SECS>` | `--service-timeout-secs <SECS>` | Action get_result has its own `--action-get-result-timeout-secs` flag (default 300 s) |
+| `--transient_local_cache_multiplier <N>` | `--transient-local-cache-multiplier <N>` | Renamed (hyphens) |
+| `--ros_localhost_only` | — | Use `CYCLONEDDS_URI` to scope DDS discovery. See [DDS Discovery Scope](#dds-discovery-scope). |
+| `--ros_automatic_discovery_range <RANGE>` | — | Use `CYCLONEDDS_URI` |
+| `--ros_static_peers <IPS>` | — | Use `CYCLONEDDS_URI` |
+| `--pub_max_frequency <REGEX=HZ>` | — | Not implemented. Throttle at the DDS layer via QoS instead. |
+| `--rest_http_port <PORT>` | — | Not implemented |
+| `--watchdog` | — | Not implemented |
+| `--dds_enable_shm` | — | Not implemented |
+
+### Feature Comparison
+
+| Feature | zenoh-plugin-ros2dds | zenoh-bridge-dds |
+|---|---|---|
+| Pub/sub bridging | Yes | Yes |
+| Service bridging | Yes | Yes |
+| Action bridging | Yes | Yes |
+| `ros_discovery_info` | Yes | Yes |
+| Bridge-to-bridge federation | Yes | Yes |
+| Per-entity-type allow/deny | Yes (separate regex per publisher/subscriber/service_server/…) | No — single `--allow`/`--deny` matched against the raw DDS topic name |
+| Per-topic rate limiting | Yes (`--pub_max_frequency`) | No |
+| Per-topic Zenoh priorities | Yes | No |
+| Admin space route introspection | Yes | No |
+| DDS SHM | Yes | No |
+| Configurable action get_result timeout | No (shared `queries_timeout`) | Yes (`--action-get-result-timeout-secs`, default 300 s) |
+| Embedded library API | No | Yes (`ros-z-dds` crate) |
+
+### Wire Format and Gradual Migration
+
+By default, `zenoh-bridge-dds` uses the `rmw-zenoh` key expression format, which is not compatible with `zenoh-plugin-ros2dds`. To run both bridges side-by-side during a migration:
+
+```bash
+# New bridge, compatible with zenoh-plugin-ros2dds infrastructure
+./zenoh-bridge-dds --wire-format ros2dds
+```
+
+Once all `zenoh-plugin-ros2dds` instances are replaced, drop the flag to use the default `rmw-zenoh` format, which is also understood by all ros-z nodes and `rmw_zenoh_cpp` nodes.
+
+### Allowance Model Change
+
+The old plugin let you allow/deny each entity type independently:
+
+```json5
+// zenoh-plugin-ros2dds config (old)
+allowance: {
+  publishers: { allow: "^rt/chatter$" },
+  subscribers: { allow: "^rt/chatter$" },
+  service_servers: { deny: ".*" },
+  service_clients: { deny: ".*" },
+}
+```
+
+The new bridge uses a single `--allow`/`--deny` regex matched against the raw DDS topic name, which covers all entity types:
+
+```bash
+# Bridge only /chatter topics and services (all entity types)
+zenoh-bridge-dds --allow "^rt/chatter$|^r[qr]/chatter"
+```
+
+If you need to suppress services entirely, use `--deny` with a service topic pattern:
+
+```bash
+# Bridge topics but not services
+zenoh-bridge-dds --allow "^rt/" --deny "^r[qr]/"
+```
