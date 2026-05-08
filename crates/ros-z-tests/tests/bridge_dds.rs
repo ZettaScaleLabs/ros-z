@@ -126,6 +126,7 @@ fn spawn_bridge_fmt(zenoh_endpoint: &str, domain_id: u32, wire_format: &str) -> 
     );
     let log_file = std::fs::File::create(&log_path)
         .unwrap_or_else(|e| panic!("Failed to create bridge log {log_path}: {e}"));
+    let stderr_file = log_file.try_clone().expect("clone log file for stderr");
     let child = Command::new(&bin)
         .args([
             "--zenoh-endpoint",
@@ -138,7 +139,7 @@ fn spawn_bridge_fmt(zenoh_endpoint: &str, domain_id: u32, wire_format: &str) -> 
         .env("RUST_LOG", "info")
         .env("CYCLONEDDS_URI", CYCLONEDDS_URI)
         .stdout(log_file)
-        .stderr(Stdio::null())
+        .stderr(stderr_file)
         .process_group(0)
         .spawn()
         .unwrap_or_else(|e| panic!("Failed to spawn {bin}: {e}"));

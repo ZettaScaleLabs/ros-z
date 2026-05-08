@@ -89,28 +89,34 @@ impl<P: DdsParticipant> ZDdsServiceBridge<P> {
         node: &ZNode,
         ros2_name: &str,
         ros2_type: &str,
-        type_hash: Option<TypeHash>,
         participant: &P,
         qos: BridgeQos,
     ) -> Result<Self> {
-        let type_info = type_hash.map(|h| TypeInfo::new(ros2_type, h));
+        // Routing entity: no type_info so topic_key_expr returns the EMPTY placeholder key.
+        // We then widen it to a wildcard so any Zenoh client can reach this bridge queryable
+        // regardless of the type hash embedded in the client's query key expression.
         let entity = EndpointEntity {
             id: node.next_entity_id(),
             node: Some(node.node_entity().clone()),
             kind: EndpointKind::Service,
             topic: ros2_name.to_string(),
-            type_info,
+            type_info: None,
             qos: bridge_qos_to_qos_profile(&qos),
         };
-
         let topic_ke = node
             .keyexpr_format()
             .topic_key_expr(&entity)
             .map_err(|e| anyhow!("topic_key_expr failed: {e}"))?;
 
-        let ke: zenoh::key_expr::OwnedKeyExpr = topic_ke
-            .as_str()
-            .to_owned()
+        // Convert "…/EMPTY_TOPIC_TYPE/EMPTY_TOPIC_HASH" → "…/**" for rmw-zenoh keys so
+        // the queryable responds to clients regardless of their type/hash.  For ros2dds
+        // keys (which carry no type/hash) the key is used as-is.
+        let ke_str = topic_ke.as_str();
+        let ke_str = ke_str
+            .strip_suffix("/EMPTY_TOPIC_TYPE/EMPTY_TOPIC_HASH")
+            .map(|prefix| format!("{prefix}/**"))
+            .unwrap_or_else(|| ke_str.to_string());
+        let ke: zenoh::key_expr::OwnedKeyExpr = ke_str
             .try_into()
             .map_err(|e| anyhow!("invalid key expr: {e}"))?;
 
@@ -119,12 +125,12 @@ impl<P: DdsParticipant> ZDdsServiceBridge<P> {
         let rep_type = reply_type_from_request_type(&req_type, ros2_type);
         let req_topic = ros2_name_to_dds_request_topic(ros2_name);
         let rep_topic = ros2_name_to_dds_reply_topic(ros2_name);
-        let req_writer_qos = adapt_writer_qos_for_reader(&qos);
+        let req_writer_qos = adapt_reader_qos_for_writer(&qos);
 
         tracing::info!(
             "ZDdsServiceBridge: DDS {} → Zenoh {}",
             req_topic,
-            topic_ke.as_str()
+            ke.as_str()
         );
 
         let seq_counter = Arc::new(AtomicU64::new(0));

@@ -452,7 +452,6 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
                     &self.node,
                     &ros2_name,
                     &type_name,
-                    type_hash,
                     &self.participant,
                     qos,
                 )
@@ -746,14 +745,10 @@ impl<P: DdsParticipant> ZDdsBridge<P> {
                 return Ok(());
             }
 
-            let ud = ep.qos.user_data.as_deref().unwrap_or(&[]);
-            let type_info = type_info_from_user_data(&ros2_type, ud);
-            let type_hash = type_info.as_ref().map(|ti| ti.hash.clone());
             let bridge = ZDdsServiceBridge::new(
                 &self.node,
                 &ros2_name,
                 &ros2_type,
-                type_hash,
                 &self.participant,
                 BridgeQos::default(),
             )

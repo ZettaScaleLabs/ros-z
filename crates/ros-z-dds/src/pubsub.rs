@@ -223,18 +223,18 @@ impl<P: DdsParticipant> ZDdsSubBridge<P> {
     ) -> Result<Self> {
         let entity_id = node.next_entity_id();
         let qos_profile = bridge_qos_to_qos_profile(&qos);
-        let type_info = type_hash
-            .as_ref()
-            .map(|h| TypeInfo::new(ros2_type, h.clone()));
+        let lv_type_hash = type_hash.unwrap_or_else(TypeHash::zero);
+        // Routing entity: no type_info so topic_key_expr returns the EMPTY placeholder key.
+        // We then widen it to a wildcard so the subscriber catches any Zenoh publisher on
+        // this topic regardless of what type name / hash the publisher uses.
         let entity = EndpointEntity {
             id: entity_id,
             node: Some(node.node_entity().clone()),
             kind: EndpointKind::Subscription,
             topic: ros2_name.to_string(),
-            type_info,
+            type_info: None,
             qos: qos_profile,
         };
-        let lv_type_hash = type_hash.unwrap_or_else(TypeHash::zero);
         let entity_lv = EndpointEntity {
             id: entity_id,
             node: Some(node.node_entity().clone()),
@@ -253,9 +253,15 @@ impl<P: DdsParticipant> ZDdsSubBridge<P> {
             .liveliness_key_expr(&entity_lv, &node.session().zid())
             .map_err(|e| anyhow!("liveliness_key_expr failed: {e}"))?;
 
-        let ke: zenoh::key_expr::OwnedKeyExpr = topic_ke
-            .as_str()
-            .to_owned()
+        // Convert "…/EMPTY_TOPIC_TYPE/EMPTY_TOPIC_HASH" → "…/**" for rmw-zenoh keys so
+        // the subscriber matches any publisher type/hash on this topic.  For ros2dds keys
+        // (which have no type/hash components) the suffix is absent and the key is used as-is.
+        let ke_str = topic_ke.as_str();
+        let ke_str = ke_str
+            .strip_suffix("/EMPTY_TOPIC_TYPE/EMPTY_TOPIC_HASH")
+            .map(|prefix| format!("{prefix}/**"))
+            .unwrap_or_else(|| ke_str.to_string());
+        let ke: zenoh::key_expr::OwnedKeyExpr = ke_str
             .try_into()
             .map_err(|e| anyhow!("invalid key expr: {e}"))?;
 
@@ -272,7 +278,7 @@ impl<P: DdsParticipant> ZDdsSubBridge<P> {
             .is_some_and(|d| d.kind == DurabilityKind::TransientLocal);
 
         let writer_cb = Arc::clone(&writer);
-        let ke_display = topic_ke.as_str().to_string();
+        let ke_display = ke.as_str().to_string();
         let dds_topic_log = dds_topic.clone();
 
         let subscriber = if is_transient_local {
