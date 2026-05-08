@@ -198,9 +198,11 @@ impl<P: DdsParticipant> ZDdsPubBridge<P> {
 
 /// Routes a Zenoh subscription to a DDS writer.
 ///
-/// A Zenoh subscriber is declared on the rmw_zenoh (or ros2dds) key expression. On every sample
-/// the raw CDR bytes are forwarded as-is to a DDS writer.  A liveliness token is declared with
-/// `Subscription` kind so that `ros2 topic list` sees the bridge as a subscriber.
+/// In rmw-zenoh mode the Zenoh subscriber is declared on a wildcard key (`{domain}/{topic}/**`)
+/// so it receives from any Zenoh publisher on the topic regardless of type hash. In ros2dds mode
+/// the exact key expression is used. On every sample the raw CDR bytes are forwarded as-is to a
+/// DDS writer. A liveliness token is declared with `Subscription` kind so that `ros2 topic list`
+/// sees the bridge as a subscriber.
 pub struct ZDdsSubBridge<P: DdsParticipant> {
     _writer: Arc<P::Writer>,
     _subscriber: ZenohSubHandle,
@@ -212,6 +214,13 @@ unsafe impl<P: DdsParticipant> Sync for ZDdsSubBridge<P> {}
 
 impl<P: DdsParticipant> ZDdsSubBridge<P> {
     /// Create a new Zenoh→DDS subscriber bridge.
+    ///
+    /// - `ros2_name` — ROS 2 topic name (e.g. `/chatter`)
+    /// - `ros2_type` — ROS 2 message type (e.g. `std_msgs/msg/String`)
+    /// - `type_hash` — optional RIHS01 type hash; only used in the liveliness token so remote
+    ///   bridges reconstruct the correct DDS type. The subscriber key expression is always a
+    ///   wildcard in rmw-zenoh mode, so messages from any type hash are forwarded.
+    /// - `keyless` — whether the DDS topic has no key fields
     pub async fn new(
         node: &ZNode,
         ros2_name: &str,

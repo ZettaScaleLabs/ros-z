@@ -409,7 +409,7 @@ ros-z-bridge-dds --allow "^rt/" --deny "^r[qr]/"
     Look for lines like:
 
     ```text
-    INFO  ros_z_dds::bridge: ZDdsPubBridge: DDS rt/chatter → Zenoh 0/chatter/std_msgs%msg%String/RIHS01_…
+    INFO  ros_z_dds::pubsub: ZDdsPubBridge: DDS rt/chatter → Zenoh 0/chatter/std_msgs%msg%String/RIHS01_…
     ```
 
     If no discovery lines appear, check:
