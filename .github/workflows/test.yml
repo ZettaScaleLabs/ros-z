@@ -167,4 +167,4 @@ jobs:
           export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
           export RUST_LOG=info
           cargo nextest run -p ros-z-tests --profile interop \
-            --features "ros2dds-bridge-interop,jazzy" --release -j4
+            --features "dds-bridge-interop,jazzy" --release -j4
