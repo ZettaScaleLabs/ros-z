@@ -3032,12 +3032,23 @@ dependencies = [
  "ros-z-cdr",
  "ros-z-msgs",
  "ros-z-schema",
+ "ros-z-tf",
  "serde",
  "serial_test",
  "tokio",
  "tracing-subscriber",
  "zenoh",
  "zenoh-buffers",
+]
+
+[[package]]
+name = "ros-z-tf"
+version = "0.1.0"
+dependencies = [
+ "parking_lot",
+ "ros-z",
+ "ros-z-msgs",
+ "zenoh",
 ]
 
 [[package]]

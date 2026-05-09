@@ -17,6 +17,7 @@ members = [
   "crates/ros-z-schema",
   "crates/ros-z-msgs",
   "crates/ros-z-tests",
+  "crates/ros-z-tf",
   "crates/ros-z-console",
   "crates/ros-z-bridge",
   "crates/ros-z/examples/protobuf_demo",
