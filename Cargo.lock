@@ -3048,6 +3048,7 @@ dependencies = [
  "parking_lot",
  "ros-z",
  "ros-z-msgs",
+ "tokio",
  "zenoh",
 ]
 

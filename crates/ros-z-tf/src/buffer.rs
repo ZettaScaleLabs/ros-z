@@ -1,9 +1,11 @@
 use std::collections::{BTreeMap, HashMap};
+use std::sync::Arc;
 use std::time::Duration;
 
 use ros_z::time::ZTime;
 use ros_z_msgs::geometry_msgs::TransformStamped;
 use ros_z_msgs::tf2_msgs::TFMessage;
+use tokio::sync::Notify;
 
 /// Default maximum age of dynamic transforms to retain (10 seconds, matching tf2).
 const DEFAULT_MAX_HISTORY: Duration = Duration::from_secs(10);
@@ -17,6 +19,8 @@ pub(crate) struct BufferInner {
     /// Static transforms keyed by child_frame_id → latest entry (no time history needed).
     pub(crate) static_: HashMap<String, TransformStamped>,
     pub(crate) max_history: Duration,
+    /// Notified on every `add_message` call so `wait_for_transform` can wake up.
+    pub(crate) notify: Arc<Notify>,
 }
 
 impl Default for BufferInner {
@@ -25,6 +29,7 @@ impl Default for BufferInner {
             dynamic: HashMap::new(),
             static_: HashMap::new(),
             max_history: DEFAULT_MAX_HISTORY,
+            notify: Arc::new(Notify::new()),
         }
     }
 }
@@ -34,6 +39,7 @@ impl BufferInner {
         for tf in msg.transforms {
             self.add_transform(tf, is_static);
         }
+        self.notify.notify_waiters();
     }
 
     fn add_transform(&mut self, tf: TransformStamped, is_static: bool) {

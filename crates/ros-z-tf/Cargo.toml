@@ -12,6 +12,7 @@ ros-z-msgs = { path = "../ros-z-msgs", default-features = false, features = [
   "tf2_msgs",
 ] }
 parking_lot = { workspace = true }
+tokio = { workspace = true, features = ["sync", "time"] }
 zenoh = { workspace = true }
 
 [features]

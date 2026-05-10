@@ -353,4 +353,38 @@ mod tests {
         let tf = buf.lookup("odom", "map", ZTime::zero()).unwrap();
         assert!((tf.transform.translation.x - (-5.0)).abs() < 1e-6);
     }
+
+    #[test]
+    fn lookup_full_via_fixed_frame() {
+        // Set up: map→odom (x=1) and map→camera (x=3).
+        // lookup_full("camera", "odom", t, "map", t) should give x=2 (camera relative to odom).
+        let mut buf = BufferInner::default();
+        buf.add_message(
+            TFMessage {
+                transforms: vec![make_tf_at("map", "odom", 10, 1.0)],
+            },
+            false,
+        );
+        buf.add_message(
+            TFMessage {
+                transforms: vec![make_tf_at("map", "camera", 10, 3.0)],
+            },
+            false,
+        );
+
+        let t = ZTime::zero();
+        // T(map ← odom) at t, then T(camera ← map) at t
+        let t1 = buf.lookup("map", "odom", t).unwrap();
+        let t2 = buf.lookup("camera", "map", t).unwrap();
+        let result = crate::math::compose_stamped(t2, t1, "camera", "odom");
+        // camera is at x=3, odom is at x=1 in map frame.
+        // odom expressed in camera frame = 1 - 3 = -2 (odom is behind camera).
+        assert!(
+            (result.transform.translation.x - (-2.0)).abs() < 1e-5,
+            "expected x=-2.0, got {}",
+            result.transform.translation.x
+        );
+        assert_eq!(result.header.frame_id, "camera");
+        assert_eq!(result.child_frame_id, "odom");
+    }
 }

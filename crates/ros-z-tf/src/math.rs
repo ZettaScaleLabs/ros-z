@@ -1,4 +1,5 @@
-use ros_z_msgs::geometry_msgs::{Quaternion, Transform, Vector3};
+use ros_z_msgs::geometry_msgs::{Quaternion, Transform, TransformStamped, Vector3};
+use ros_z_msgs::std_msgs::Header;
 
 pub fn identity_transform() -> Transform {
     Transform {
@@ -139,6 +140,28 @@ pub fn compose_transforms(a: &Transform, b: &Transform) -> Transform {
             z: rotate_vector(&b.rotation, &a.translation).z + b.translation.z,
         },
         rotation: quaternion_multiply(&b.rotation, &a.rotation),
+    }
+}
+
+/// Compose two `TransformStamped` values and wrap the result with new frame labels.
+///
+/// The result represents `T(target_frame ← source_frame)`:
+/// `T(target ← fixed) ∘ T(fixed ← source)`.
+/// The result's stamp is taken from `t2` (the target side).
+pub fn compose_stamped(
+    t2: TransformStamped,
+    t1: TransformStamped,
+    target_frame: &str,
+    source_frame: &str,
+) -> TransformStamped {
+    TransformStamped {
+        header: Header {
+            frame_id: target_frame.to_string(),
+            stamp: t2.header.stamp,
+            ..Default::default()
+        },
+        child_frame_id: source_frame.to_string(),
+        transform: compose_transforms(&t1.transform, &t2.transform),
     }
 }
 

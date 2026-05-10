@@ -17,7 +17,7 @@ use ros_z_msgs::builtin_interfaces::Time;
 use ros_z_msgs::geometry_msgs::{Quaternion, Transform, TransformStamped, Vector3};
 use ros_z_msgs::std_msgs::Header;
 use ros_z_msgs::tf2_msgs::TFMessage;
-use ros_z_tf::Buffer;
+use ros_z_tf::{Buffer, StaticTransformBroadcaster, TransformBroadcaster, WaitError};
 
 fn make_tf(parent: &str, child: &str, sec: i32, x: f64) -> TransformStamped {
     TransformStamped {
@@ -87,13 +87,6 @@ async fn tf_buffer_receives_dynamic_transform() {
 }
 
 /// `/tf_static` with TransientLocal: new subscriber gets old static transforms.
-///
-/// This test is currently ignored because ros-z's subscriber uses
-/// `declare_subscriber()` rather than `declare_querying_subscriber()`, so
-/// late-joining subscribers do not receive previously published TransientLocal
-/// data from the router. When ros-z adds querying-subscriber support for
-/// TransientLocal, remove the `#[ignore]` attribute.
-#[ignore = "ros-z does not yet implement TransientLocal late-joiner replay"]
 #[tokio::test(flavor = "multi_thread")]
 async fn tf_static_transient_local_replayed_on_connect() {
     let router = TestRouter::new();
@@ -225,4 +218,116 @@ async fn can_transform_reflects_availability() {
     tokio::time::sleep(Duration::from_millis(200)).await;
 
     assert!(buffer.can_transform("map", "robot", ZTime::zero()));
+}
+
+/// `TransformBroadcaster` publishes to `/tf`; `Buffer` on the same network receives it.
+#[tokio::test(flavor = "multi_thread")]
+async fn broadcaster_dynamic_roundtrip() {
+    let router = TestRouter::new();
+    let ctx = create_ros_z_context_with_endpoint(&router.endpoint()).unwrap();
+    let node = ctx.create_node("tf_broadcaster_rx").build().unwrap();
+    let buffer = Buffer::new(&node).unwrap();
+
+    let pub_ctx = create_ros_z_context_with_endpoint(&router.endpoint()).unwrap();
+    let pub_node = pub_ctx.create_node("tf_broadcaster_tx").build().unwrap();
+    let broadcaster = TransformBroadcaster::new(&pub_node).unwrap();
+
+    // Give the subscription time to establish
+    tokio::time::sleep(Duration::from_millis(300)).await;
+
+    broadcaster
+        .send_transform(make_tf("map", "base_link", 5, 2.5))
+        .unwrap();
+
+    tokio::time::sleep(Duration::from_millis(300)).await;
+
+    let tf = buffer
+        .lookup_transform("map", "base_link", ZTime::zero())
+        .unwrap();
+    assert!(
+        (tf.transform.translation.x - 2.5).abs() < 1e-6,
+        "expected x=2.5, got {}",
+        tf.transform.translation.x
+    );
+}
+
+/// `StaticTransformBroadcaster` publishes to `/tf_static` with TransientLocal;
+/// a `Buffer` created after the publish receives the static transform via cache replay.
+#[tokio::test(flavor = "multi_thread")]
+async fn broadcaster_static_roundtrip_with_late_joiner() {
+    let router = TestRouter::new();
+
+    // Publish static transform BEFORE creating the Buffer
+    let pub_ctx = create_ros_z_context_with_endpoint(&router.endpoint()).unwrap();
+    let pub_node = pub_ctx.create_node("tf_static_tx").build().unwrap();
+    let broadcaster = StaticTransformBroadcaster::new(&pub_node).unwrap();
+
+    broadcaster
+        .send_transform(make_tf("world", "camera_link", 0, 0.3))
+        .unwrap();
+
+    tokio::time::sleep(Duration::from_millis(300)).await;
+
+    // Create Buffer after publication — should get replay
+    let ctx = create_ros_z_context_with_endpoint(&router.endpoint()).unwrap();
+    let node = ctx.create_node("tf_static_rx").build().unwrap();
+    let buffer = Buffer::new(&node).unwrap();
+
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    assert!(
+        buffer.can_transform("world", "camera_link", ZTime::zero()),
+        "static transform should be available via TransientLocal replay"
+    );
+    let tf = buffer
+        .lookup_transform("world", "camera_link", ZTime::zero())
+        .unwrap();
+    assert!((tf.transform.translation.x - 0.3).abs() < 1e-6);
+}
+
+/// `wait_for_transform` returns once a matching transform arrives.
+#[tokio::test(flavor = "multi_thread")]
+async fn wait_for_transform_returns_when_data_arrives() {
+    let router = TestRouter::new();
+    let ctx = create_ros_z_context_with_endpoint(&router.endpoint()).unwrap();
+    let node = ctx.create_node("wft_rx").build().unwrap();
+    let buffer = Buffer::new(&node).unwrap();
+
+    let pub_ctx = create_ros_z_context_with_endpoint(&router.endpoint()).unwrap();
+    let pub_node = pub_ctx.create_node("wft_tx").build().unwrap();
+    let broadcaster = TransformBroadcaster::new(&pub_node).unwrap();
+
+    // Publish after a short delay in the background
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        broadcaster
+            .send_transform(make_tf("map", "lidar", 10, 1.0))
+            .unwrap();
+    });
+
+    let result = buffer
+        .wait_for_transform("map", "lidar", ZTime::zero(), Duration::from_secs(3))
+        .await;
+
+    assert!(result.is_ok(), "expected transform, got: {:?}", result);
+    assert!((result.unwrap().transform.translation.x - 1.0).abs() < 1e-6);
+}
+
+/// `wait_for_transform` returns `WaitError::Timeout` when no data arrives.
+#[tokio::test(flavor = "multi_thread")]
+async fn wait_for_transform_times_out() {
+    let router = TestRouter::new();
+    let ctx = create_ros_z_context_with_endpoint(&router.endpoint()).unwrap();
+    let node = ctx.create_node("wft_timeout_node").build().unwrap();
+    let buffer = Buffer::new(&node).unwrap();
+
+    let result = buffer
+        .wait_for_transform("ghost", "frame", ZTime::zero(), Duration::from_millis(300))
+        .await;
+
+    assert!(
+        matches!(result, Err(WaitError::Timeout)),
+        "expected Timeout, got: {:?}",
+        result
+    );
 }

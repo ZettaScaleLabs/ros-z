@@ -5,6 +5,8 @@ use std::{marker::PhantomData, sync::Arc};
 use tracing::{debug, trace, warn};
 use zenoh::liveliness::LivelinessToken;
 use zenoh::{Result, Session, Wait, sample::Sample};
+#[allow(deprecated)]
+use zenoh_ext::{PublicationCache, SessionExt, SubscriberBuilderExt};
 
 use crate::Builder;
 use crate::attachment::{Attachment, GidArray};
@@ -33,6 +35,10 @@ pub struct ZPub<T: ZMessage, S: ZSerializer> {
     gid: GidArray,
     inner: zenoh::pubsub::Publisher<'static>,
     _lv_token: LivelinessToken,
+    /// Caches samples for TransientLocal durability so late-joining subscribers
+    /// can retrieve previously published data via an initial get() query.
+    #[allow(deprecated)]
+    _pub_cache: Option<PublicationCache>,
     with_attachment: bool,
     clock: crate::time::ZClock,
     events_mgr: Arc<Mutex<EventsManager>>,
@@ -240,6 +246,7 @@ where
         debug!("[PUB] Key expression: {}", key_expr);
 
         // Map QoS to Zenoh publisher settings
+        let cache_key_expr = key_expr.clone();
         let mut pub_builder = self.session.declare_publisher(key_expr);
 
         // Map reliability: Reliable uses Block, BestEffort uses Drop
@@ -254,11 +261,14 @@ where
             }
         }
 
-        // Map durability: TransientLocal uses express=true for caching
+        // Map durability: TransientLocal uses express=true and a PublicationCache
+        // so late-joining subscribers can retrieve previously published data.
+        let is_transient_local =
+            matches!(self.entity.qos.durability, QosDurability::TransientLocal);
         match self.entity.qos.durability {
             QosDurability::TransientLocal => {
                 pub_builder = pub_builder.express(true);
-                debug!("[PUB] Durability: TransientLocal (express)");
+                debug!("[PUB] Durability: TransientLocal (express + cache)");
             }
             QosDurability::Volatile => {
                 pub_builder = pub_builder.express(false);
@@ -268,6 +278,33 @@ where
 
         let inner = pub_builder.wait()?;
         debug!("[PUB] Publisher ready: topic={}", self.entity.topic);
+
+        // For TransientLocal publishers, declare a PublicationCache that answers
+        // get() queries from late-joining QueryingSubscribers.
+        #[allow(deprecated)]
+        let pub_cache: Option<PublicationCache> = if is_transient_local {
+            let history = match self.entity.qos.history {
+                QosHistory::KeepLast(n) => n,
+                QosHistory::KeepAll => usize::MAX,
+            };
+            match self
+                .session
+                .declare_publication_cache(&cache_key_expr)
+                .history(history)
+                .wait()
+            {
+                Ok(cache) => {
+                    debug!("[PUB] PublicationCache declared (history={})", history);
+                    Some(cache)
+                }
+                Err(e) => {
+                    warn!("[PUB] Failed to declare PublicationCache: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
 
         let lv_ke = self
             .keyexpr_format
@@ -292,6 +329,7 @@ where
             sn: AtomicUsize::new(0),
             inner,
             _lv_token: lv_token,
+            _pub_cache: pub_cache,
             gid,
             clock: self.clock,
             events_mgr: Arc::new(Mutex::new(EventsManager::new(gid))),
@@ -750,18 +788,33 @@ where
             handler.handle(sample)
         };
 
-        let mut sub_builder = self
-            .session
-            .declare_subscriber(key_expr)
-            .callback(validated_handler);
-
-        // Apply locality restriction if specified
-        if let Some(locality) = self.locality {
-            sub_builder = sub_builder.allowed_origin(locality);
-            debug!("[SUB] Locality restriction: {:?}", locality);
-        }
-
-        let inner = sub_builder.wait()?;
+        // For TransientLocal subscribers, use a QueryingSubscriber that fires an
+        // initial get() to retrieve samples from the publisher's PublicationCache.
+        #[allow(deprecated)]
+        let inner: SubInner = if matches!(self.entity.qos.durability, QosDurability::TransientLocal)
+        {
+            debug!("[SUB] TransientLocal: using QueryingSubscriber for late-joiner replay");
+            let mut q_builder = self
+                .session
+                .declare_subscriber(&key_expr)
+                .querying()
+                .callback(validated_handler);
+            if let Some(locality) = self.locality {
+                q_builder = q_builder.allowed_origin(locality);
+                debug!("[SUB] Locality restriction: {:?}", locality);
+            }
+            SubInner::Fetching(q_builder.wait()?)
+        } else {
+            let mut sub_builder = self
+                .session
+                .declare_subscriber(key_expr)
+                .callback(validated_handler);
+            if let Some(locality) = self.locality {
+                sub_builder = sub_builder.allowed_origin(locality);
+                debug!("[SUB] Locality restriction: {:?}", locality);
+            }
+            SubInner::Plain(sub_builder.wait()?)
+        };
 
         let gid = crate::entity::endpoint_gid(&self.entity)
             .expect("local endpoint always has node identity");
@@ -889,10 +942,18 @@ where
     }
 }
 
+/// Holds either a plain subscriber or a fetching subscriber (for TransientLocal).
+/// Both variants are held purely for their `Drop` impl which undeclares the subscriber.
+#[allow(deprecated)]
+enum SubInner {
+    Plain(zenoh::pubsub::Subscriber<()>),
+    Fetching(zenoh_ext::FetchingSubscriber<()>),
+}
+
 pub struct ZSub<T: ZMessage, Q, S: ZDeserializer> {
     pub entity: EndpointEntity,
     pub queue: Option<Arc<BoundedQueue<Q>>>,
-    _inner: zenoh::pubsub::Subscriber<()>,
+    _inner: SubInner,
     _lv_token: LivelinessToken,
     events_mgr: Arc<Mutex<EventsManager>>,
     graph: Arc<Graph>,
