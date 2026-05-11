@@ -1,0 +1,23 @@
+[package]
+name = "ros-z-tf"
+version.workspace = true
+edition.workspace = true
+description = "TF2 transform listener and buffer for ros-z"
+
+[dependencies]
+ros-z = { path = "../ros-z", default-features = false, features = [
+  "rmw-zenoh",
+] }
+ros-z-msgs = { path = "../ros-z-msgs", default-features = false, features = [
+  "tf2_msgs",
+] }
+parking_lot = { workspace = true }
+tokio = { workspace = true, features = ["sync", "time"] }
+zenoh = { workspace = true }
+
+[features]
+default = ["jazzy"]
+jazzy = ["ros-z/jazzy", "ros-z-msgs/jazzy"]
+humble = ["ros-z/humble", "ros-z-msgs/humble"]
+rolling = ["ros-z/rolling", "ros-z-msgs/rolling"]
+kilted = ["ros-z/kilted", "ros-z-msgs/kilted"]

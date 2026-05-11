@@ -11,6 +11,7 @@ publish = false
 [dependencies]
 ros-z = { path = "../ros-z", default-features = false, features = ["protobuf"] }
 ros-z-msgs = { path = "../ros-z-msgs", default-features = false, optional = true }
+ros-z-tf = { path = "../ros-z-tf", default-features = false, optional = true }
 ros-z-cdr = { path = "../ros-z-cdr" }
 ros-z-schema = { path = "../ros-z-schema" }
 protobuf_demo = { path = "../ros-z/examples/protobuf_demo" }
@@ -58,8 +59,16 @@ humble-jazzy-bridge-tests = [
 # This enables testing ros-z with DDS-based ROS 2 nodes via zenoh-bridge-ros2dds
 ros2dds-interop = ["ros-msgs", "ros-z/ros2dds", "ros-z/rmw-zenoh"]
 
-# ROS 2 distro compatibility - propagate to ros-z and ros-z-msgs
-humble = ["ros-z/humble", "ros-z-msgs/humble"]
-jazzy = ["ros-z/jazzy", "ros-z-msgs/jazzy"]
-rolling = ["ros-z/rolling", "ros-z-msgs/rolling"]
-kilted = ["ros-z/kilted", "ros-z-msgs/kilted"]
+# TF integration tests
+tf-tests = [
+  "dep:ros-z-tf",
+  "dep:ros-z-msgs",
+  "ros-z-msgs/tf2_msgs",
+  "ros-z-msgs/geometry_msgs",
+]
+
+# ROS 2 distro compatibility - propagate to ros-z, ros-z-msgs, and ros-z-tf
+humble = ["ros-z/humble", "ros-z-msgs/humble", "ros-z-tf?/humble"]
+jazzy = ["ros-z/jazzy", "ros-z-msgs/jazzy", "ros-z-tf?/jazzy"]
+rolling = ["ros-z/rolling", "ros-z-msgs/rolling", "ros-z-tf?/rolling"]
+kilted = ["ros-z/kilted", "ros-z-msgs/kilted", "ros-z-tf?/kilted"]
