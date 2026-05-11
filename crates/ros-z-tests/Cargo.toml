@@ -65,11 +65,10 @@ tf-tests = [
   "dep:ros-z-msgs",
   "ros-z-msgs/tf2_msgs",
   "ros-z-msgs/geometry_msgs",
-  "ros-z-tf/jazzy",
 ]
 
 # ROS 2 distro compatibility - propagate to ros-z, ros-z-msgs, and ros-z-tf
-humble = ["ros-z/humble", "ros-z-msgs/humble"]
-jazzy = ["ros-z/jazzy", "ros-z-msgs/jazzy"]
-rolling = ["ros-z/rolling", "ros-z-msgs/rolling"]
-kilted = ["ros-z/kilted", "ros-z-msgs/kilted"]
+humble = ["ros-z/humble", "ros-z-msgs/humble", "ros-z-tf?/humble"]
+jazzy = ["ros-z/jazzy", "ros-z-msgs/jazzy", "ros-z-tf?/jazzy"]
+rolling = ["ros-z/rolling", "ros-z-msgs/rolling", "ros-z-tf?/rolling"]
+kilted = ["ros-z/kilted", "ros-z-msgs/kilted", "ros-z-tf?/kilted"]

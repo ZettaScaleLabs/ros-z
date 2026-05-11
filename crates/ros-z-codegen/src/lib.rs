@@ -512,18 +512,17 @@ impl MessageGenerator {
     fn generate_protobuf_types(&self, messages: &[ResolvedMessage]) -> Result<()> {
         use crate::protobuf_generator::ProtobufMessageGenerator;
 
-        let excluded = &self.config.protobuf_excluded_packages;
-        let filtered: Vec<ResolvedMessage>;
-        let messages = if excluded.is_empty() {
-            messages
-        } else {
-            filtered = messages
-                .iter()
-                .filter(|m| !excluded.contains(&m.parsed.package))
-                .cloned()
-                .collect();
-            &filtered
-        };
+        let filtered: Vec<ResolvedMessage> = messages
+            .iter()
+            .filter(|m| {
+                !self
+                    .config
+                    .protobuf_excluded_packages
+                    .contains(&m.parsed.package)
+            })
+            .cloned()
+            .collect();
+        let messages = filtered.as_slice();
 
         let proto_dir = self.config.output_dir.join("proto");
         let generator = ProtobufMessageGenerator::new(&proto_dir);

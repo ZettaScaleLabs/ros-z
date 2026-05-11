@@ -285,7 +285,7 @@ where
         let pub_cache: Option<PublicationCache> = if is_transient_local {
             let history = match self.entity.qos.history {
                 QosHistory::KeepLast(n) => n,
-                QosHistory::KeepAll => usize::MAX,
+                QosHistory::KeepAll => 1000usize,
             };
             match self
                 .session
