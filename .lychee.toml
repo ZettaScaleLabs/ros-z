@@ -21,4 +21,7 @@ exclude = [
     "crates\\.io",
     # Jinja2 template expressions in site/overrides/ — unprocessed by MkDocs during build
     "%7B%7B",
+    # file:// URLs are generated when lychee resolves internal links in the built site/ HTML
+    # on the CI runner — they are not real external links and are always false positives
+    "file://",
 ]
