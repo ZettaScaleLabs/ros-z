@@ -136,5 +136,5 @@ Your system environment remains intact — Nix installed nothing globally.
 ## Learning More
 
 - **[Nix Official Guide](https://nixos.org/manual/nix/stable/)** — Introduction to Nix
-- **[Nix Flakes](https://nixos.wiki/wiki/Flakes)** — Understanding flakes
+- **[Nix Flakes](https://wiki.nixos.org/wiki/Flakes)** — Understanding flakes
 - **[ros-z flake.nix](https://github.com/ZettaScaleLabs/ros-z/blob/main/flake.nix)** — Our Nix configuration
