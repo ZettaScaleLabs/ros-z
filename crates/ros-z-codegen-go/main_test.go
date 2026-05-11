@@ -180,6 +180,80 @@ func TestGenerateGoMessageEmitsAlignment(t *testing.T) {
 	}
 }
 
+func TestAlignmentInBothPackAndUnpack(t *testing.T) {
+	// Regression test for the CDR alignment bug: a string followed by a float32
+	// requires 4-byte padding in BOTH the pack path (PackToRawAt) and the unpack
+	// path (UnpackFromRawAt). The old generator emitted no padding at all.
+	msg := MessageDefinition{
+		Package:  "test_msgs",
+		Name:     "Mixed",
+		FullName: "test_msgs/Mixed",
+		TypeHash: "RIHS01_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		Fields: []FieldDefinition{
+			{Name: "name", FieldType: FieldType{Kind: "String"}, IsArray: false},
+			{Name: "value", FieldType: FieldType{Kind: "Float32"}, IsArray: false},
+		},
+		Constants: []ConstantDefinition{},
+	}
+
+	code, err := GenerateGoMessage(msg, "test")
+	if err != nil {
+		t.Fatalf("GenerateGoMessage failed: %v", err)
+	}
+	codeStr := string(code)
+
+	// The 4-byte alignment expression must appear at least twice: once for the
+	// string length prefix and once for the float32 — in both the pack and unpack
+	// methods. strings.Count gives a lower bound without requiring exact positions.
+	const alignExpr = "(4 - offset%4) % 4"
+	n := strings.Count(codeStr, alignExpr)
+	if n < 2 {
+		t.Errorf("expected at least 2 occurrences of %q (pack + unpack paths), got %d\nGenerated:\n%s",
+			alignExpr, n, codeStr)
+	}
+
+	if !strings.Contains(codeStr, "func (m *Mixed) PackToRawAt(") {
+		t.Error("Generated code missing PackToRawAt method")
+	}
+	if !strings.Contains(codeStr, "func (m *Mixed) UnpackFromRawAt(") {
+		t.Error("Generated code missing UnpackFromRawAt method")
+	}
+}
+
+func TestTimeDurationPackGeneration(t *testing.T) {
+	// Regression test for the Time/Duration pack bug: the old generatePackField
+	// had no case for Time/Duration, so those fields were silently dropped on
+	// serialization. Verify that the generated pack and unpack methods both
+	// delegate to the nested type's PackToRawAt / UnpackFromRawAt.
+	msg := MessageDefinition{
+		Package:  "std_msgs",
+		Name:     "Header",
+		FullName: "std_msgs/msg/Header",
+		TypeHash: "RIHS01_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		Fields: []FieldDefinition{
+			{Name: "stamp", FieldType: FieldType{Kind: "Time"}, IsArray: false},
+			{Name: "frame_id", FieldType: FieldType{Kind: "String"}, IsArray: false},
+		},
+		Constants: []ConstantDefinition{},
+	}
+
+	code, err := GenerateGoMessage(msg, "test")
+	if err != nil {
+		t.Fatalf("GenerateGoMessage failed: %v", err)
+	}
+	codeStr := string(code)
+
+	if !strings.Contains(codeStr, ".PackToRawAt(buf, offset)") {
+		t.Errorf("Generated pack code does not call PackToRawAt for Time field.\nGenerated:\n%s", codeStr)
+	}
+	if !strings.Contains(codeStr, ".UnpackFromRawAt(data, offset)") {
+		t.Errorf("Generated unpack code does not call UnpackFromRawAt for Time field.\nGenerated:\n%s", codeStr)
+	}
+	if !strings.Contains(codeStr, "var err error") {
+		t.Errorf("Generated UnpackFromRawAt is missing 'var err error' declaration.\nGenerated:\n%s", codeStr)
+	}
+}
+
 func TestCapitalize(t *testing.T) {
 	tests := []struct {
 		input    string

@@ -92,7 +92,7 @@ func emitMessageCodec(g *CodeBuilder, typeName string, fields []FieldDefinition)
 	g.In()
 	g.P("buf := make([]byte, 4, 256)")
 	g.P("buf[0], buf[1], buf[2], buf[3] = 0x00, 0x01, 0x00, 0x00 // CDR_LE encapsulation header")
-	g.P("buf, _ = m.PackToRawAt(buf, 0)")
+	g.P("buf, _ = m.PackToRawAt(buf, 0) // top-level call: final offset equals body length, not needed here")
 	g.P("return buf, nil")
 	g.Out()
 	g.P("}")
@@ -657,7 +657,7 @@ func generatePrimitiveUnpackCode(g *CodeBuilder, field FieldDefinition, align in
 		emitOne(fmt.Sprintf("%s[i]", fieldAccess))
 		g.Out()
 		g.P("}")
-	default: // unbounded or bounded — caller emitted the length prefix
+	default: // unbounded or bounded: read the length prefix here
 		emitUnpackAlign(g, 4)
 		g.P("if offset+4 > len(data) { return offset, fmt.Errorf(\"buffer too short for array length\") }")
 		g.P("arrLen := int(binary.LittleEndian.Uint32(data[offset:]))")
