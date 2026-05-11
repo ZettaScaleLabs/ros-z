@@ -315,7 +315,7 @@ let lv_ke = format.liveliness_key_expr(&entity, &zid)?;
 let parsed_entity = format.parse_liveliness(&lv_ke)?;
 ```
 
-See the [ros-z-protocol documentation](https://docs.rs/ros-z-protocol) for details.
+See the [ros-z-protocol crate](https://github.com/ZettaScaleLabs/ros-z/tree/main/crates/ros-z-protocol) for details.
 
 ## Troubleshooting
 
