@@ -28,6 +28,121 @@ func (b *CodeBuilder) Bytes() ([]byte, error) {
 	return format.Source(b.buf.Bytes())
 }
 
+// cdrAlignment returns the CDR-LE alignment (in bytes) required before
+// reading or writing a value of the given primitive kind. The alignment
+// applies to the offset measured from the start of the encapsulation body.
+func cdrAlignment(kind string) int {
+	switch kind {
+	case "Bool", "Int8", "UInt8":
+		return 1
+	case "Int16", "UInt16":
+		return 2
+	case "Int32", "UInt32", "Float32", "String", "Time", "Duration":
+		return 4
+	case "Int64", "UInt64", "Float64":
+		return 8
+	default:
+		return 1
+	}
+}
+
+// emitPackAlign emits inline code that pads `buf` and advances `offset` to
+// the next align-byte boundary. No-op for align <= 1.
+func emitPackAlign(g *CodeBuilder, align int) {
+	if align <= 1 {
+		return
+	}
+	g.P("if pad := (%d - offset%%%d) %% %d; pad > 0 {", align, align, align)
+	g.In()
+	g.P("buf = append(buf, make([]byte, pad)...)")
+	g.P("offset += pad")
+	g.Out()
+	g.P("}")
+}
+
+// emitUnpackAlign emits inline code that advances `offset` to the next
+// align-byte boundary. No-op for align <= 1.
+func emitUnpackAlign(g *CodeBuilder, align int) {
+	if align <= 1 {
+		return
+	}
+	g.P("offset += (%d - offset%%%d) %% %d", align, align, align)
+}
+
+// fieldsHaveNested reports whether any field requires a nested unpack call
+// that would assign to `err`. Used to decide whether to declare `var err
+// error` at the top of the unpack body.
+func fieldsHaveNested(fields []FieldDefinition) bool {
+	for _, f := range fields {
+		switch f.FieldType.Kind {
+		case "Custom", "Time", "Duration":
+			return true
+		}
+	}
+	return false
+}
+
+// emitMessageCodec emits SerializeCDR, PackToRawAt, DeserializeCDR, and
+// UnpackFromRawAt methods for a struct named typeName. Used for plain
+// messages, service request/response types, and action sub-message types.
+func emitMessageCodec(g *CodeBuilder, typeName string, fields []FieldDefinition) {
+	// SerializeCDR — public entry, produces a CDR-LE encapsulated buffer.
+	g.P("// SerializeCDR serializes the message to CDR format")
+	g.P("func (m *%s) SerializeCDR() ([]byte, error) {", typeName)
+	g.In()
+	g.P("buf := make([]byte, 4, 256)")
+	g.P("buf[0], buf[1], buf[2], buf[3] = 0x00, 0x01, 0x00, 0x00 // CDR_LE encapsulation header")
+	g.P("buf, _ = m.PackToRawAt(buf, 0) // top-level call: final offset equals body length, not needed here")
+	g.P("return buf, nil")
+	g.Out()
+	g.P("}")
+	g.P("")
+
+	// PackToRawAt — internal body emitter. Exported so cross-package nested
+	// types can call it directly with the outer message's current offset.
+	g.P("// PackToRawAt appends this message's CDR-encoded body bytes to buf.")
+	g.P("// offset is the absolute body position (relative to the encapsulation")
+	g.P("// header end) where the next byte will land; the function uses it for")
+	g.P("// alignment padding and returns the updated buf and new offset.")
+	g.P("func (m *%s) PackToRawAt(buf []byte, offset int) ([]byte, int) {", typeName)
+	g.In()
+	for _, field := range fields {
+		generatePackField(g, field)
+	}
+	g.P("return buf, offset")
+	g.Out()
+	g.P("}")
+	g.P("")
+
+	// DeserializeCDR — public entry, accepts a CDR-LE encapsulated buffer.
+	g.P("// DeserializeCDR deserializes CDR data into the message")
+	g.P("func (m *%s) DeserializeCDR(data []byte) error {", typeName)
+	g.In()
+	g.P("if len(data) < 4 { return fmt.Errorf(\"CDR data too short: need 4-byte encapsulation header\") }")
+	g.P("_, err := m.UnpackFromRawAt(data[4:], 0)")
+	g.P("return err")
+	g.Out()
+	g.P("}")
+	g.P("")
+
+	// UnpackFromRawAt — internal body parser. Exported for cross-package use.
+	g.P("// UnpackFromRawAt reads from data starting at the given absolute body")
+	g.P("// offset. Returns the new offset (after this message's bytes) so the")
+	g.P("// caller can continue parsing subsequent fields with correct alignment.")
+	g.P("func (m *%s) UnpackFromRawAt(data []byte, offset int) (int, error) {", typeName)
+	g.In()
+	if fieldsHaveNested(fields) {
+		g.P("var err error")
+	}
+	for _, field := range fields {
+		generateUnpackField(g, field)
+	}
+	g.P("return offset, nil")
+	g.Out()
+	g.P("}")
+	g.P("")
+}
+
 func GenerateGoMessage(msg MessageDefinition, prefix string) ([]byte, error) {
 	currentPkg := sanitizePackageName(msg.Package)
 	g := &CodeBuilder{currentPkg: currentPkg}
@@ -90,11 +205,8 @@ func GenerateGoMessage(msg MessageDefinition, prefix string) ([]byte, error) {
 	// Generate TypeHash method
 	generateTypeHashMethod(g, msg)
 
-	// Generate SerializeCDR method
-	generateSerializeMethod(g, msg)
-
-	// Generate DeserializeCDR method
-	generateDeserializeMethod(g, msg)
+	// Generate SerializeCDR / DeserializeCDR / PackToRawAt / UnpackFromRawAt
+	emitMessageCodec(g, msg.Name, msg.Fields)
 
 	return g.Bytes()
 }
@@ -163,61 +275,6 @@ func generateTypeHashMethod(g *CodeBuilder, msg MessageDefinition) {
 	g.P("")
 }
 
-func generateSerializeMethod(g *CodeBuilder, msg MessageDefinition) {
-	g.P("// SerializeCDR serializes the message to CDR format")
-	g.P("func (m *%s) SerializeCDR() ([]byte, error) {", msg.Name)
-	g.In()
-	g.P("raw := m.packToRaw()")
-	g.P("buf := make([]byte, 4, 4+len(raw))")
-	g.P("buf[0], buf[1], buf[2], buf[3] = 0x00, 0x01, 0x00, 0x00 // CDR_LE encapsulation header")
-	g.P("return append(buf, raw...), nil")
-	g.Out()
-	g.P("}")
-	g.P("")
-
-	// Generate pack method
-	g.P("func (m *%s) packToRaw() []byte {", msg.Name)
-	g.In()
-	g.P("buf := make([]byte, 0, 256)")
-	for _, field := range msg.Fields {
-		generatePackField(g, field)
-	}
-	g.P("return buf")
-	g.Out()
-	g.P("}")
-	g.P("")
-}
-
-func generateDeserializeMethod(g *CodeBuilder, msg MessageDefinition) {
-	g.P("// DeserializeCDR deserializes CDR data into the message")
-	g.P("func (m *%s) DeserializeCDR(data []byte) error {", msg.Name)
-	g.In()
-	g.P("if len(data) < 4 {")
-	g.In()
-	g.P("return fmt.Errorf(\"CDR data too short: need 4-byte encapsulation header\")")
-	g.Out()
-	g.P("}")
-	g.P("return m.unpackFromRaw(data[4:]) // skip CDR encapsulation header")
-	g.Out()
-	g.P("}")
-	g.P("")
-
-	// Generate unpack method
-	g.P("func (m *%s) unpackFromRaw(data []byte) error {", msg.Name)
-	g.In()
-	g.P("offset := 0")
-	if len(msg.Fields) == 0 {
-		g.P("_ = offset")
-	}
-	for _, field := range msg.Fields {
-		generateUnpackField(g, field)
-	}
-	g.P("return nil")
-	g.Out()
-	g.P("}")
-	g.P("")
-}
-
 // fieldNeedsBinary returns true if the field requires the "encoding/binary" import.
 func fieldNeedsBinary(field FieldDefinition) bool {
 	switch field.FieldType.Kind {
@@ -229,7 +286,7 @@ func fieldNeedsBinary(field FieldDefinition) bool {
 		if field.IsArray {
 			return true // array length prefix uses binary
 		}
-		// Same-package custom single value: packToRaw doesn't use binary in the caller
+		// Same-package custom single value: PackToRawAt doesn't use binary in the caller
 		return false
 	case "Bool", "Int8", "UInt8":
 		// Dynamic/bounded arrays have a length prefix that uses binary.
@@ -240,6 +297,9 @@ func fieldNeedsBinary(field FieldDefinition) bool {
 	}
 }
 
+// generatePackField emits CDR-LE pack code for one field, advancing `offset` and
+// growing `buf`. Multi-byte primitives and length prefixes are aligned
+// according to standard CDR rules.
 func generatePackField(g *CodeBuilder, field FieldDefinition) {
 	fieldAccess := fmt.Sprintf("m.%s", capitalize(field.Name))
 
@@ -249,225 +309,180 @@ func generatePackField(g *CodeBuilder, field FieldDefinition) {
 			g.P("// Pack string array: %s", field.Name)
 			g.P("{")
 			g.In()
-			g.P("lenBytes := make([]byte, 4)")
-			g.P("binary.LittleEndian.PutUint32(lenBytes, uint32(len(%s)))", fieldAccess)
-			g.P("buf = append(buf, lenBytes...)")
+			emitPackAlign(g, 4) // align the array length prefix
+			g.P("b := make([]byte, 4)")
+			g.P("binary.LittleEndian.PutUint32(b, uint32(len(%s)))", fieldAccess)
+			g.P("buf = append(buf, b...)")
+			g.P("offset += 4")
 			g.P("for _, s := range %s {", fieldAccess)
 			g.In()
+			emitPackAlign(g, 4) // align each element's length prefix
 			g.P("data := []byte(s)")
-			g.P("binary.LittleEndian.PutUint32(lenBytes, uint32(len(data)+1))")
-			g.P("buf = append(buf, lenBytes...)")
+			g.P("binary.LittleEndian.PutUint32(b, uint32(len(data)+1))")
+			g.P("buf = append(buf, b...)")
+			g.P("offset += 4")
 			g.P("buf = append(buf, data...)")
+			g.P("offset += len(data)")
 			g.P("buf = append(buf, 0) // null terminator")
+			g.P("offset++")
 			g.Out()
 			g.P("}")
 			g.Out()
 			g.P("}")
-		} else {
-			g.P("// Pack string: %s", field.Name)
-			g.P("{")
-			g.In()
-			g.P("data := []byte(%s)", fieldAccess)
-			g.P("lenBytes := make([]byte, 4)")
-			g.P("binary.LittleEndian.PutUint32(lenBytes, uint32(len(data)+1))")
-			g.P("buf = append(buf, lenBytes...)")
-			g.P("buf = append(buf, data...)")
-			g.P("buf = append(buf, 0) // null terminator")
-			g.Out()
-			g.P("}")
+			return
 		}
+		g.P("// Pack string: %s", field.Name)
+		g.P("{")
+		g.In()
+		emitPackAlign(g, 4)
+		g.P("data := []byte(%s)", fieldAccess)
+		g.P("b := make([]byte, 4)")
+		g.P("binary.LittleEndian.PutUint32(b, uint32(len(data)+1))")
+		g.P("buf = append(buf, b...)")
+		g.P("offset += 4")
+		g.P("buf = append(buf, data...)")
+		g.P("offset += len(data)")
+		g.P("buf = append(buf, 0) // null terminator")
+		g.P("offset++")
+		g.Out()
+		g.P("}")
+
 	case "Bool", "Int8", "Int16", "Int32", "Int64", "UInt8", "UInt16", "UInt32", "UInt64", "Float32", "Float64":
 		g.P("// Pack %s: %s", field.FieldType.Kind, field.Name)
 		g.P("{")
 		g.In()
+		align := cdrAlignment(field.FieldType.Kind)
 		// Dynamic sequences require a 4-byte length prefix in CDR.
 		if field.IsArray && field.ArrayKind != "fixed" {
-			g.P("lenBytes := make([]byte, 4)")
-			g.P("binary.LittleEndian.PutUint32(lenBytes, uint32(len(%s)))", fieldAccess)
-			g.P("buf = append(buf, lenBytes...)")
+			emitPackAlign(g, 4) // length prefix is 4-aligned
+			g.P("b := make([]byte, 4)")
+			g.P("binary.LittleEndian.PutUint32(b, uint32(len(%s)))", fieldAccess)
+			g.P("buf = append(buf, b...)")
+			g.P("offset += 4")
 		}
-		generatePrimitivePackCode(g, field)
+		generatePrimitivePackCode(g, field, align)
 		g.Out()
 		g.P("}")
+
 	case "Custom":
 		g.P("// Pack custom type: %s", field.Name)
 		g.P("{")
 		g.In()
-		isCrossPkg := field.FieldType.Package != nil && sanitizePackageName(*field.FieldType.Package) != g.currentPkg
 		if field.IsArray {
-			// Emit length prefix then iterate over elements.
-			g.P("lenBytes := make([]byte, 4)")
-			g.P("binary.LittleEndian.PutUint32(lenBytes, uint32(len(%s)))", fieldAccess)
-			g.P("buf = append(buf, lenBytes...)")
+			emitPackAlign(g, 4)
+			g.P("b := make([]byte, 4)")
+			g.P("binary.LittleEndian.PutUint32(b, uint32(len(%s)))", fieldAccess)
+			g.P("buf = append(buf, b...)")
+			g.P("offset += 4")
 			g.P("for i := range %s {", fieldAccess)
 			g.In()
-			if isCrossPkg {
-				g.P("if raw, err := %s[i].SerializeCDR(); err == nil { buf = append(buf, raw[4:]...) }", fieldAccess)
-			} else {
-				g.P("buf = append(buf, %s[i].packToRaw()...)", fieldAccess)
-			}
+			g.P("buf, offset = %s[i].PackToRawAt(buf, offset)", fieldAccess)
 			g.Out()
 			g.P("}")
-		} else if isCrossPkg {
-			// Cross-package: use SerializeCDR and strip the 4-byte CDR header.
-			g.P("if raw, err := %s.SerializeCDR(); err == nil { buf = append(buf, raw[4:]...) }", fieldAccess)
 		} else {
-			g.P("buf = append(buf, %s.packToRaw()...)", fieldAccess)
+			g.P("buf, offset = %s.PackToRawAt(buf, offset)", fieldAccess)
+		}
+		g.Out()
+		g.P("}")
+
+	case "Time", "Duration":
+		g.P("// Pack %s: %s", field.FieldType.Kind, field.Name)
+		g.P("{")
+		g.In()
+		if field.IsArray {
+			emitPackAlign(g, 4)
+			g.P("b := make([]byte, 4)")
+			g.P("binary.LittleEndian.PutUint32(b, uint32(len(%s)))", fieldAccess)
+			g.P("buf = append(buf, b...)")
+			g.P("offset += 4")
+			g.P("for i := range %s {", fieldAccess)
+			g.In()
+			g.P("buf, offset = %s[i].PackToRawAt(buf, offset)", fieldAccess)
+			g.Out()
+			g.P("}")
+		} else {
+			g.P("buf, offset = %s.PackToRawAt(buf, offset)", fieldAccess)
 		}
 		g.Out()
 		g.P("}")
 	}
 }
 
-func generatePrimitivePackCode(g *CodeBuilder, field FieldDefinition) {
+// generatePrimitivePackCode emits CDR pack code for a primitive scalar or array.
+// align is the per-element alignment; the caller has already emitted any
+// length prefix needed for dynamic arrays.
+func generatePrimitivePackCode(g *CodeBuilder, field FieldDefinition, align int) {
 	fieldAccess := fmt.Sprintf("m.%s", capitalize(field.Name))
 
-	switch field.FieldType.Kind {
-	case "Bool":
-		if field.IsArray {
-			g.P("for _, v := range %s {", fieldAccess)
-			g.In()
-			g.P("if v { buf = append(buf, 1) } else { buf = append(buf, 0) }")
-			g.Out()
-			g.P("}")
-		} else {
-			g.P("if %s { buf = append(buf, 1) } else { buf = append(buf, 0) }", fieldAccess)
-		}
-	case "Int8":
-		if field.IsArray {
-			// []int8 is not []byte in Go, must convert element-by-element.
-			// Fixed arrays need a loop; dynamic arrays also need element conversion.
-			g.P("for _, v := range %s { buf = append(buf, byte(v)) }", fieldAccess)
-		} else {
-			g.P("buf = append(buf, byte(%s))", fieldAccess)
-		}
-	case "UInt8":
-		if field.IsArray {
-			if field.ArrayKind == "fixed" {
-				// [N]uint8 (fixed array) needs [:] to convert to slice.
-				g.P("buf = append(buf, %s[:]...)", fieldAccess)
-			} else {
-				// []uint8 == []byte, safe direct append.
-				g.P("buf = append(buf, %s...)", fieldAccess)
-			}
-		} else {
-			g.P("buf = append(buf, byte(%s))", fieldAccess)
-		}
-	case "Int16":
-		if field.IsArray {
-			g.P("for _, v := range %s {", fieldAccess)
-			g.In()
-			g.P("b := make([]byte, 2)")
-			g.P("binary.LittleEndian.PutUint16(b, uint16(v))")
-			g.P("buf = append(buf, b...)")
-			g.Out()
-			g.P("}")
-		} else {
-			g.P("b := make([]byte, 2)")
-			g.P("binary.LittleEndian.PutUint16(b, uint16(%s))", fieldAccess)
-			g.P("buf = append(buf, b...)")
-		}
-	case "UInt16":
-		if field.IsArray {
-			g.P("for _, v := range %s {", fieldAccess)
-			g.In()
-			g.P("b := make([]byte, 2)")
-			g.P("binary.LittleEndian.PutUint16(b, v)")
-			g.P("buf = append(buf, b...)")
-			g.Out()
-			g.P("}")
-		} else {
-			g.P("b := make([]byte, 2)")
-			g.P("binary.LittleEndian.PutUint16(b, %s)", fieldAccess)
-			g.P("buf = append(buf, b...)")
-		}
-	case "Int32":
-		if field.IsArray {
-			g.P("for _, v := range %s {", fieldAccess)
-			g.In()
-			g.P("b := make([]byte, 4)")
-			g.P("binary.LittleEndian.PutUint32(b, uint32(v))")
-			g.P("buf = append(buf, b...)")
-			g.Out()
-			g.P("}")
-		} else {
-			g.P("b := make([]byte, 4)")
-			g.P("binary.LittleEndian.PutUint32(b, uint32(%s))", fieldAccess)
-			g.P("buf = append(buf, b...)")
-		}
-	case "UInt32":
-		if field.IsArray {
-			g.P("for _, v := range %s {", fieldAccess)
-			g.In()
-			g.P("b := make([]byte, 4)")
-			g.P("binary.LittleEndian.PutUint32(b, v)")
-			g.P("buf = append(buf, b...)")
-			g.Out()
-			g.P("}")
-		} else {
-			g.P("b := make([]byte, 4)")
-			g.P("binary.LittleEndian.PutUint32(b, %s)", fieldAccess)
-			g.P("buf = append(buf, b...)")
-		}
-	case "Int64":
-		if field.IsArray {
-			g.P("for _, v := range %s {", fieldAccess)
-			g.In()
-			g.P("b := make([]byte, 8)")
-			g.P("binary.LittleEndian.PutUint64(b, uint64(v))")
-			g.P("buf = append(buf, b...)")
-			g.Out()
-			g.P("}")
-		} else {
-			g.P("b := make([]byte, 8)")
-			g.P("binary.LittleEndian.PutUint64(b, uint64(%s))", fieldAccess)
-			g.P("buf = append(buf, b...)")
-		}
-	case "UInt64":
-		if field.IsArray {
-			g.P("for _, v := range %s {", fieldAccess)
-			g.In()
-			g.P("b := make([]byte, 8)")
-			g.P("binary.LittleEndian.PutUint64(b, v)")
-			g.P("buf = append(buf, b...)")
-			g.Out()
-			g.P("}")
-		} else {
-			g.P("b := make([]byte, 8)")
-			g.P("binary.LittleEndian.PutUint64(b, %s)", fieldAccess)
-			g.P("buf = append(buf, b...)")
-		}
-	case "Float32":
-		if field.IsArray {
-			g.P("for _, v := range %s {", fieldAccess)
-			g.In()
-			g.P("b := make([]byte, 4)")
-			g.P("binary.LittleEndian.PutUint32(b, math.Float32bits(v))")
-			g.P("buf = append(buf, b...)")
-			g.Out()
-			g.P("}")
-		} else {
-			g.P("b := make([]byte, 4)")
-			g.P("binary.LittleEndian.PutUint32(b, math.Float32bits(%s))", fieldAccess)
-			g.P("buf = append(buf, b...)")
-		}
-	case "Float64":
-		if field.IsArray {
-			g.P("for _, v := range %s {", fieldAccess)
-			g.In()
-			g.P("b := make([]byte, 8)")
-			g.P("binary.LittleEndian.PutUint64(b, math.Float64bits(v))")
-			g.P("buf = append(buf, b...)")
-			g.Out()
-			g.P("}")
-		} else {
-			g.P("b := make([]byte, 8)")
-			g.P("binary.LittleEndian.PutUint64(b, math.Float64bits(%s))", fieldAccess)
-			g.P("buf = append(buf, b...)")
+	emitOne := func(value string) {
+		emitPackAlign(g, align)
+		switch field.FieldType.Kind {
+		case "Bool":
+			g.P("if %s { buf = append(buf, 1) } else { buf = append(buf, 0) }", value)
+			g.P("offset++")
+		case "Int8":
+			g.P("buf = append(buf, byte(%s))", value)
+			g.P("offset++")
+		case "UInt8":
+			g.P("buf = append(buf, byte(%s))", value)
+			g.P("offset++")
+		case "Int16":
+			g.P("{ b := make([]byte, 2); binary.LittleEndian.PutUint16(b, uint16(%s)); buf = append(buf, b...) }", value)
+			g.P("offset += 2")
+		case "UInt16":
+			g.P("{ b := make([]byte, 2); binary.LittleEndian.PutUint16(b, %s); buf = append(buf, b...) }", value)
+			g.P("offset += 2")
+		case "Int32":
+			g.P("{ b := make([]byte, 4); binary.LittleEndian.PutUint32(b, uint32(%s)); buf = append(buf, b...) }", value)
+			g.P("offset += 4")
+		case "UInt32":
+			g.P("{ b := make([]byte, 4); binary.LittleEndian.PutUint32(b, %s); buf = append(buf, b...) }", value)
+			g.P("offset += 4")
+		case "Int64":
+			g.P("{ b := make([]byte, 8); binary.LittleEndian.PutUint64(b, uint64(%s)); buf = append(buf, b...) }", value)
+			g.P("offset += 8")
+		case "UInt64":
+			g.P("{ b := make([]byte, 8); binary.LittleEndian.PutUint64(b, %s); buf = append(buf, b...) }", value)
+			g.P("offset += 8")
+		case "Float32":
+			g.P("{ b := make([]byte, 4); binary.LittleEndian.PutUint32(b, math.Float32bits(%s)); buf = append(buf, b...) }", value)
+			g.P("offset += 4")
+		case "Float64":
+			g.P("{ b := make([]byte, 8); binary.LittleEndian.PutUint64(b, math.Float64bits(%s)); buf = append(buf, b...) }", value)
+			g.P("offset += 8")
 		}
 	}
+
+	if !field.IsArray {
+		emitOne(fieldAccess)
+		return
+	}
+
+	// Array path. Fast paths for byte-wide types when the slice memory layout
+	// matches []byte (no per-element alignment needed since align==1).
+	if field.FieldType.Kind == "UInt8" {
+		if field.ArrayKind == "fixed" {
+			// [N]uint8 (fixed array) needs [:] to convert to slice.
+			g.P("buf = append(buf, %s[:]...)", fieldAccess)
+			g.P("offset += len(%s)", fieldAccess)
+		} else {
+			// []uint8 == []byte, safe direct append.
+			g.P("buf = append(buf, %s...)", fieldAccess)
+			g.P("offset += len(%s)", fieldAccess)
+		}
+		return
+	}
+	g.P("for _, v := range %s {", fieldAccess)
+	g.In()
+	emitOne("v")
+	g.Out()
+	g.P("}")
 }
 
+// generateUnpackField emits CDR-LE unpack code for one field, advancing the
+// shared `offset` and reading from `data`. Multi-byte primitives and length
+// prefixes are aligned according to standard CDR rules. Assumes a `var err
+// error` is in scope when the field is a Custom/Time/Duration kind.
 func generateUnpackField(g *CodeBuilder, field FieldDefinition) {
 	fieldAccess := fmt.Sprintf("m.%s", capitalize(field.Name))
 
@@ -477,18 +492,20 @@ func generateUnpackField(g *CodeBuilder, field FieldDefinition) {
 			g.P("// Unpack string array: %s", field.Name)
 			g.P("{")
 			g.In()
-			g.P("if offset+4 > len(data) { return fmt.Errorf(\"buffer too short for string array length\") }")
+			emitUnpackAlign(g, 4)
+			g.P("if offset+4 > len(data) { return offset, fmt.Errorf(\"buffer too short for string array length\") }")
 			g.P("arrLen := int(binary.LittleEndian.Uint32(data[offset:]))")
 			g.P("offset += 4")
 			g.P("%s = make([]string, arrLen)", fieldAccess)
 			g.P("for i := 0; i < arrLen; i++ {")
 			g.In()
-			g.P("if offset+4 > len(data) { return fmt.Errorf(\"buffer too short for string length\") }")
+			emitUnpackAlign(g, 4)
+			g.P("if offset+4 > len(data) { return offset, fmt.Errorf(\"buffer too short for string length\") }")
 			g.P("strLen := int(binary.LittleEndian.Uint32(data[offset:]))")
 			g.P("offset += 4")
 			g.P("if strLen > 0 {")
 			g.In()
-			g.P("if offset+strLen > len(data) { return fmt.Errorf(\"buffer too short for string data\") }")
+			g.P("if offset+strLen > len(data) { return offset, fmt.Errorf(\"buffer too short for string data\") }")
 			g.P("%s[i] = string(data[offset:offset+strLen-1]) // exclude null terminator", fieldAccess)
 			g.P("offset += strLen")
 			g.Out()
@@ -497,233 +514,159 @@ func generateUnpackField(g *CodeBuilder, field FieldDefinition) {
 			g.P("}")
 			g.Out()
 			g.P("}")
-		} else {
-			g.P("// Unpack string: %s", field.Name)
-			g.P("{")
-			g.In()
-			g.P("if offset+4 > len(data) { return fmt.Errorf(\"buffer too short for string length\") }")
-			g.P("strLen := int(binary.LittleEndian.Uint32(data[offset:]))")
-			g.P("offset += 4")
-			g.P("if strLen > 0 {")
-			g.In()
-			g.P("if offset+strLen > len(data) { return fmt.Errorf(\"buffer too short for string data\") }")
-			g.P("%s = string(data[offset:offset+strLen-1]) // exclude null terminator", fieldAccess)
-			g.P("offset += strLen")
-			g.Out()
-			g.P("}")
-			g.Out()
-			g.P("}")
+			return
 		}
+		g.P("// Unpack string: %s", field.Name)
+		g.P("{")
+		g.In()
+		emitUnpackAlign(g, 4)
+		g.P("if offset+4 > len(data) { return offset, fmt.Errorf(\"buffer too short for string length\") }")
+		g.P("strLen := int(binary.LittleEndian.Uint32(data[offset:]))")
+		g.P("offset += 4")
+		g.P("if strLen > 0 {")
+		g.In()
+		g.P("if offset+strLen > len(data) { return offset, fmt.Errorf(\"buffer too short for string data\") }")
+		g.P("%s = string(data[offset:offset+strLen-1]) // exclude null terminator", fieldAccess)
+		g.P("offset += strLen")
+		g.Out()
+		g.P("}")
+		g.Out()
+		g.P("}")
+
 	case "Bool", "Int8", "Int16", "Int32", "Int64", "UInt8", "UInt16", "UInt32", "UInt64", "Float32", "Float64":
 		g.P("// Unpack %s: %s", field.FieldType.Kind, field.Name)
 		g.P("{")
 		g.In()
-		generatePrimitiveUnpackCode(g, field)
+		generatePrimitiveUnpackCode(g, field, cdrAlignment(field.FieldType.Kind))
 		g.Out()
 		g.P("}")
+
 	case "Custom":
 		g.P("// Unpack custom type: %s", field.Name)
 		g.P("{")
 		g.In()
-		isCrossPkg := field.FieldType.Package != nil && sanitizePackageName(*field.FieldType.Package) != g.currentPkg
 		if field.IsArray {
-			g.P("if offset+4 > len(data) { return fmt.Errorf(\"buffer too short for array length\") }")
+			emitUnpackAlign(g, 4)
+			g.P("if offset+4 > len(data) { return offset, fmt.Errorf(\"buffer too short for array length\") }")
 			g.P("arrLen := int(binary.LittleEndian.Uint32(data[offset:]))")
 			g.P("offset += 4")
 			g.P("%s = make([]%s, arrLen)", fieldAccess, fieldToGoBaseTypeInPkg(field, g.currentPkg))
 			g.P("for i := 0; i < arrLen; i++ {")
 			g.In()
-			if isCrossPkg {
-				// Cross-package: prepend fake CDR header, deserialize, then re-serialize to measure size.
-				g.P("tmp := append([]byte{0, 1, 0, 0}, data[offset:]...)")
-				g.P("if err := %s[i].DeserializeCDR(tmp); err != nil { return err }", fieldAccess)
-				g.P("if repack, err := %s[i].SerializeCDR(); err == nil { offset += len(repack) - 4 } else { return err }", fieldAccess)
-			} else {
-				g.P("if err := %s[i].unpackFromRaw(data[offset:]); err != nil { return err }", fieldAccess)
-				g.P("// Note: offset advancement requires knowing nested type size")
-			}
+			g.P("offset, err = %s[i].UnpackFromRawAt(data, offset)", fieldAccess)
+			g.P("if err != nil { return offset, err }")
 			g.Out()
 			g.P("}")
-		} else if isCrossPkg {
-			// Cross-package: prepend fake CDR header, deserialize, then re-serialize to measure size.
-			g.P("tmp := append([]byte{0, 1, 0, 0}, data[offset:]...)")
-			g.P("if err := %s.DeserializeCDR(tmp); err != nil { return err }", fieldAccess)
-			g.P("if repack, err := %s.SerializeCDR(); err == nil { offset += len(repack) - 4 } else { return err }", fieldAccess)
 		} else {
-			g.P("if err := %s.unpackFromRaw(data[offset:]); err != nil { return err }", fieldAccess)
+			g.P("offset, err = %s.UnpackFromRawAt(data, offset)", fieldAccess)
+			g.P("if err != nil { return offset, err }")
 		}
 		g.Out()
 		g.P("}")
-	case "Time":
-		g.P("// Unpack Time: %s", field.Name)
+
+	case "Time", "Duration":
+		g.P("// Unpack %s: %s", field.FieldType.Kind, field.Name)
 		g.P("{")
 		g.In()
-		g.P("if offset+8 > len(data) { return fmt.Errorf(\"buffer too short for Time\") }")
-		g.P("%s.Sec = int32(binary.LittleEndian.Uint32(data[offset:]))", fieldAccess)
-		g.P("offset += 4")
-		g.P("%s.Nsec = binary.LittleEndian.Uint32(data[offset:])", fieldAccess)
-		g.P("offset += 4")
-		g.Out()
-		g.P("}")
-	case "Duration":
-		g.P("// Unpack Duration: %s", field.Name)
-		g.P("{")
-		g.In()
-		g.P("if offset+8 > len(data) { return fmt.Errorf(\"buffer too short for Duration\") }")
-		g.P("%s.Sec = int32(binary.LittleEndian.Uint32(data[offset:]))", fieldAccess)
-		g.P("offset += 4")
-		g.P("%s.Nsec = binary.LittleEndian.Uint32(data[offset:])", fieldAccess)
-		g.P("offset += 4")
+		if field.IsArray {
+			emitUnpackAlign(g, 4)
+			g.P("if offset+4 > len(data) { return offset, fmt.Errorf(\"buffer too short for array length\") }")
+			g.P("arrLen := int(binary.LittleEndian.Uint32(data[offset:]))")
+			g.P("offset += 4")
+			g.P("%s = make([]%s, arrLen)", fieldAccess, fieldToGoBaseTypeInPkg(field, g.currentPkg))
+			g.P("for i := 0; i < arrLen; i++ {")
+			g.In()
+			g.P("offset, err = %s[i].UnpackFromRawAt(data, offset)", fieldAccess)
+			g.P("if err != nil { return offset, err }")
+			g.Out()
+			g.P("}")
+		} else {
+			g.P("offset, err = %s.UnpackFromRawAt(data, offset)", fieldAccess)
+			g.P("if err != nil { return offset, err }")
+		}
 		g.Out()
 		g.P("}")
 	}
 }
 
-func generatePrimitiveUnpackCode(g *CodeBuilder, field FieldDefinition) {
+// generatePrimitiveUnpackCode emits CDR unpack code for a primitive scalar or
+// array field. align is the per-element alignment.
+func generatePrimitiveUnpackCode(g *CodeBuilder, field FieldDefinition, align int) {
 	fieldAccess := fmt.Sprintf("m.%s", capitalize(field.Name))
 
-	switch field.FieldType.Kind {
-	case "Bool":
-		if field.IsArray {
-			generateArrayUnpack(g, field, fieldAccess, "bool", 1, func() {
-				g.P("%s[i] = data[offset] != 0", fieldAccess)
-				g.P("offset++")
-			})
-		} else {
-			g.P("if offset >= len(data) { return fmt.Errorf(\"buffer too short for bool\") }")
-			g.P("%s = data[offset] != 0", fieldAccess)
+	emitOne := func(target string) {
+		emitUnpackAlign(g, align)
+		switch field.FieldType.Kind {
+		case "Bool":
+			g.P("if offset >= len(data) { return offset, fmt.Errorf(\"buffer too short for bool\") }")
+			g.P("%s = data[offset] != 0", target)
 			g.P("offset++")
-		}
-	case "Int8":
-		if field.IsArray {
-			generateArrayUnpack(g, field, fieldAccess, "int8", 1, func() {
-				g.P("%s[i] = int8(data[offset])", fieldAccess)
-				g.P("offset++")
-			})
-		} else {
-			g.P("if offset >= len(data) { return fmt.Errorf(\"buffer too short for int8\") }")
-			g.P("%s = int8(data[offset])", fieldAccess)
+		case "Int8":
+			g.P("if offset >= len(data) { return offset, fmt.Errorf(\"buffer too short for int8\") }")
+			g.P("%s = int8(data[offset])", target)
 			g.P("offset++")
-		}
-	case "UInt8":
-		if field.IsArray {
-			generateArrayUnpack(g, field, fieldAccess, "uint8", 1, func() {
-				g.P("%s[i] = data[offset]", fieldAccess)
-				g.P("offset++")
-			})
-		} else {
-			g.P("if offset >= len(data) { return fmt.Errorf(\"buffer too short for uint8\") }")
-			g.P("%s = data[offset]", fieldAccess)
+		case "UInt8":
+			g.P("if offset >= len(data) { return offset, fmt.Errorf(\"buffer too short for uint8\") }")
+			g.P("%s = data[offset]", target)
 			g.P("offset++")
-		}
-	case "Int16":
-		if field.IsArray {
-			generateArrayUnpack(g, field, fieldAccess, "int16", 2, func() {
-				g.P("%s[i] = int16(binary.LittleEndian.Uint16(data[offset:]))", fieldAccess)
-				g.P("offset += 2")
-			})
-		} else {
-			g.P("if offset+2 > len(data) { return fmt.Errorf(\"buffer too short for int16\") }")
-			g.P("%s = int16(binary.LittleEndian.Uint16(data[offset:]))", fieldAccess)
+		case "Int16":
+			g.P("if offset+2 > len(data) { return offset, fmt.Errorf(\"buffer too short for int16\") }")
+			g.P("%s = int16(binary.LittleEndian.Uint16(data[offset:]))", target)
 			g.P("offset += 2")
-		}
-	case "UInt16":
-		if field.IsArray {
-			generateArrayUnpack(g, field, fieldAccess, "uint16", 2, func() {
-				g.P("%s[i] = binary.LittleEndian.Uint16(data[offset:])", fieldAccess)
-				g.P("offset += 2")
-			})
-		} else {
-			g.P("if offset+2 > len(data) { return fmt.Errorf(\"buffer too short for uint16\") }")
-			g.P("%s = binary.LittleEndian.Uint16(data[offset:])", fieldAccess)
+		case "UInt16":
+			g.P("if offset+2 > len(data) { return offset, fmt.Errorf(\"buffer too short for uint16\") }")
+			g.P("%s = binary.LittleEndian.Uint16(data[offset:])", target)
 			g.P("offset += 2")
-		}
-	case "Int32":
-		if field.IsArray {
-			generateArrayUnpack(g, field, fieldAccess, "int32", 4, func() {
-				g.P("%s[i] = int32(binary.LittleEndian.Uint32(data[offset:]))", fieldAccess)
-				g.P("offset += 4")
-			})
-		} else {
-			g.P("if offset+4 > len(data) { return fmt.Errorf(\"buffer too short for int32\") }")
-			g.P("%s = int32(binary.LittleEndian.Uint32(data[offset:]))", fieldAccess)
+		case "Int32":
+			g.P("if offset+4 > len(data) { return offset, fmt.Errorf(\"buffer too short for int32\") }")
+			g.P("%s = int32(binary.LittleEndian.Uint32(data[offset:]))", target)
 			g.P("offset += 4")
-		}
-	case "UInt32":
-		if field.IsArray {
-			generateArrayUnpack(g, field, fieldAccess, "uint32", 4, func() {
-				g.P("%s[i] = binary.LittleEndian.Uint32(data[offset:])", fieldAccess)
-				g.P("offset += 4")
-			})
-		} else {
-			g.P("if offset+4 > len(data) { return fmt.Errorf(\"buffer too short for uint32\") }")
-			g.P("%s = binary.LittleEndian.Uint32(data[offset:])", fieldAccess)
+		case "UInt32":
+			g.P("if offset+4 > len(data) { return offset, fmt.Errorf(\"buffer too short for uint32\") }")
+			g.P("%s = binary.LittleEndian.Uint32(data[offset:])", target)
 			g.P("offset += 4")
-		}
-	case "Int64":
-		if field.IsArray {
-			generateArrayUnpack(g, field, fieldAccess, "int64", 8, func() {
-				g.P("%s[i] = int64(binary.LittleEndian.Uint64(data[offset:]))", fieldAccess)
-				g.P("offset += 8")
-			})
-		} else {
-			g.P("if offset+8 > len(data) { return fmt.Errorf(\"buffer too short for int64\") }")
-			g.P("%s = int64(binary.LittleEndian.Uint64(data[offset:]))", fieldAccess)
+		case "Int64":
+			g.P("if offset+8 > len(data) { return offset, fmt.Errorf(\"buffer too short for int64\") }")
+			g.P("%s = int64(binary.LittleEndian.Uint64(data[offset:]))", target)
 			g.P("offset += 8")
-		}
-	case "UInt64":
-		if field.IsArray {
-			generateArrayUnpack(g, field, fieldAccess, "uint64", 8, func() {
-				g.P("%s[i] = binary.LittleEndian.Uint64(data[offset:])", fieldAccess)
-				g.P("offset += 8")
-			})
-		} else {
-			g.P("if offset+8 > len(data) { return fmt.Errorf(\"buffer too short for uint64\") }")
-			g.P("%s = binary.LittleEndian.Uint64(data[offset:])", fieldAccess)
+		case "UInt64":
+			g.P("if offset+8 > len(data) { return offset, fmt.Errorf(\"buffer too short for uint64\") }")
+			g.P("%s = binary.LittleEndian.Uint64(data[offset:])", target)
 			g.P("offset += 8")
-		}
-	case "Float32":
-		if field.IsArray {
-			generateArrayUnpack(g, field, fieldAccess, "float32", 4, func() {
-				g.P("%s[i] = math.Float32frombits(binary.LittleEndian.Uint32(data[offset:]))", fieldAccess)
-				g.P("offset += 4")
-			})
-		} else {
-			g.P("if offset+4 > len(data) { return fmt.Errorf(\"buffer too short for float32\") }")
-			g.P("%s = math.Float32frombits(binary.LittleEndian.Uint32(data[offset:]))", fieldAccess)
+		case "Float32":
+			g.P("if offset+4 > len(data) { return offset, fmt.Errorf(\"buffer too short for float32\") }")
+			g.P("%s = math.Float32frombits(binary.LittleEndian.Uint32(data[offset:]))", target)
 			g.P("offset += 4")
-		}
-	case "Float64":
-		if field.IsArray {
-			generateArrayUnpack(g, field, fieldAccess, "float64", 8, func() {
-				g.P("%s[i] = math.Float64frombits(binary.LittleEndian.Uint64(data[offset:]))", fieldAccess)
-				g.P("offset += 8")
-			})
-		} else {
-			g.P("if offset+8 > len(data) { return fmt.Errorf(\"buffer too short for float64\") }")
-			g.P("%s = math.Float64frombits(binary.LittleEndian.Uint64(data[offset:]))", fieldAccess)
+		case "Float64":
+			g.P("if offset+8 > len(data) { return offset, fmt.Errorf(\"buffer too short for float64\") }")
+			g.P("%s = math.Float64frombits(binary.LittleEndian.Uint64(data[offset:]))", target)
 			g.P("offset += 8")
 		}
 	}
-}
 
-func generateArrayUnpack(g *CodeBuilder, field FieldDefinition, fieldAccess, elemType string, elemSize int, unpackElem func()) {
+	if !field.IsArray {
+		emitOne(fieldAccess)
+		return
+	}
+
+	// Array path
 	switch field.ArrayKind {
 	case "fixed":
-		g.P("if offset+%d*%d > len(data) { return fmt.Errorf(\"buffer too short for fixed array\") }", *field.ArraySize, elemSize)
 		g.P("for i := 0; i < %d; i++ {", *field.ArraySize)
 		g.In()
-		unpackElem()
+		emitOne(fmt.Sprintf("%s[i]", fieldAccess))
 		g.Out()
 		g.P("}")
-	default: // unbounded or bounded
-		g.P("if offset+4 > len(data) { return fmt.Errorf(\"buffer too short for array length\") }")
+	default: // unbounded or bounded: read the length prefix here
+		emitUnpackAlign(g, 4)
+		g.P("if offset+4 > len(data) { return offset, fmt.Errorf(\"buffer too short for array length\") }")
 		g.P("arrLen := int(binary.LittleEndian.Uint32(data[offset:]))")
 		g.P("offset += 4")
+		elemType := fieldToGoBaseTypeInPkg(field, g.currentPkg)
 		g.P("%s = make([]%s, arrLen)", fieldAccess, elemType)
 		g.P("for i := 0; i < arrLen; i++ {")
 		g.In()
-		unpackElem()
+		emitOne(fmt.Sprintf("%s[i]", fieldAccess))
 		g.Out()
 		g.P("}")
 	}
@@ -886,58 +829,7 @@ func generateServiceMessage(g *CodeBuilder, name string, msg MessageDefinition, 
 	g.P("func (m *%s) TypeHash() string { return %s_TypeHash }", name, name)
 	g.P("")
 
-	// Generate SerializeCDR method
-	g.P("// SerializeCDR serializes the message to CDR format")
-	g.P("func (m *%s) SerializeCDR() ([]byte, error) {", name)
-	g.In()
-	g.P("raw := m.packToRaw()")
-	g.P("buf := make([]byte, 4, 4+len(raw))")
-	g.P("buf[0], buf[1], buf[2], buf[3] = 0x00, 0x01, 0x00, 0x00 // CDR_LE encapsulation header")
-	g.P("return append(buf, raw...), nil")
-	g.Out()
-	g.P("}")
-	g.P("")
-
-	// Generate pack method
-	g.P("func (m *%s) packToRaw() []byte {", name)
-	g.In()
-	g.P("buf := make([]byte, 0, 256)")
-	for _, field := range msg.Fields {
-		generatePackField(g, field)
-	}
-	g.P("return buf")
-	g.Out()
-	g.P("}")
-	g.P("")
-
-	// Generate DeserializeCDR method
-	g.P("// DeserializeCDR deserializes CDR data into the message")
-	g.P("func (m *%s) DeserializeCDR(data []byte) error {", name)
-	g.In()
-	g.P("if len(data) < 4 {")
-	g.In()
-	g.P("return fmt.Errorf(\"CDR data too short: need 4-byte encapsulation header\")")
-	g.Out()
-	g.P("}")
-	g.P("return m.unpackFromRaw(data[4:]) // skip CDR encapsulation header")
-	g.Out()
-	g.P("}")
-	g.P("")
-
-	// Generate unpack method
-	g.P("func (m *%s) unpackFromRaw(data []byte) error {", name)
-	g.In()
-	g.P("offset := 0")
-	if len(msg.Fields) == 0 {
-		g.P("_ = offset")
-	}
-	for _, field := range msg.Fields {
-		generateUnpackField(g, field)
-	}
-	g.P("return nil")
-	g.Out()
-	g.P("}")
-	g.P("")
+	emitMessageCodec(g, name, msg.Fields)
 }
 
 func fieldToGoType(field FieldDefinition) string {
@@ -1174,58 +1066,7 @@ func generateActionSubMessage(g *CodeBuilder, name string, msg MessageDefinition
 	g.P("func (m *%s) TypeHash() string { return %s_TypeHash }", name, name)
 	g.P("")
 
-	// SerializeCDR
-	g.P("// SerializeCDR serializes the message to CDR format")
-	g.P("func (m *%s) SerializeCDR() ([]byte, error) {", name)
-	g.In()
-	g.P("raw := m.packToRaw()")
-	g.P("buf := make([]byte, 4, 4+len(raw))")
-	g.P("buf[0], buf[1], buf[2], buf[3] = 0x00, 0x01, 0x00, 0x00 // CDR_LE encapsulation header")
-	g.P("return append(buf, raw...), nil")
-	g.Out()
-	g.P("}")
-	g.P("")
-
-	// packToRaw
-	g.P("func (m *%s) packToRaw() []byte {", name)
-	g.In()
-	g.P("buf := make([]byte, 0, 256)")
-	for _, field := range msg.Fields {
-		generatePackField(g, field)
-	}
-	g.P("return buf")
-	g.Out()
-	g.P("}")
-	g.P("")
-
-	// DeserializeCDR
-	g.P("// DeserializeCDR deserializes CDR data into the message")
-	g.P("func (m *%s) DeserializeCDR(data []byte) error {", name)
-	g.In()
-	g.P("if len(data) < 4 {")
-	g.In()
-	g.P("return fmt.Errorf(\"CDR data too short: need 4-byte encapsulation header\")")
-	g.Out()
-	g.P("}")
-	g.P("return m.unpackFromRaw(data[4:]) // skip CDR encapsulation header")
-	g.Out()
-	g.P("}")
-	g.P("")
-
-	// unpackFromRaw
-	g.P("func (m *%s) unpackFromRaw(data []byte) error {", name)
-	g.In()
-	g.P("offset := 0")
-	if len(msg.Fields) == 0 {
-		g.P("_ = offset")
-	}
-	for _, field := range msg.Fields {
-		generateUnpackField(g, field)
-	}
-	g.P("return nil")
-	g.Out()
-	g.P("}")
-	g.P("")
+	emitMessageCodec(g, name, msg.Fields)
 }
 
 func capitalize(s string) string {

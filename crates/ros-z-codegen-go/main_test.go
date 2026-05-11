@@ -57,6 +57,8 @@ func TestGenerateGoMessage(t *testing.T) {
 		"func (m *String) TypeHash() string",
 		"func (m *String) SerializeCDR() ([]byte, error)",
 		"func (m *String) DeserializeCDR(data []byte) error",
+		"func (m *String) PackToRawAt(buf []byte, offset int) ([]byte, int)",
+		"func (m *String) UnpackFromRawAt(data []byte, offset int) (int, error)",
 	}
 
 	for _, element := range expectedElements {
@@ -130,6 +132,125 @@ func TestFieldToGoType(t *testing.T) {
 		if result != test.expected {
 			t.Errorf("fieldToGoType(%+v) = %q, expected %q", test.field, result, test.expected)
 		}
+	}
+}
+
+func TestCdrAlignment(t *testing.T) {
+	cases := map[string]int{
+		"Bool": 1, "Int8": 1, "UInt8": 1,
+		"Int16": 2, "UInt16": 2,
+		"Int32": 4, "UInt32": 4, "Float32": 4, "String": 4, "Time": 4, "Duration": 4,
+		"Int64": 8, "UInt64": 8, "Float64": 8,
+	}
+	for kind, want := range cases {
+		if got := cdrAlignment(kind); got != want {
+			t.Errorf("cdrAlignment(%q) = %d, want %d", kind, got, want)
+		}
+	}
+}
+
+func TestGenerateGoMessageEmitsAlignment(t *testing.T) {
+	// A message with a string followed by a float32: the canonical alignment-bug case.
+	// After packing the variable-length string, the float32 read needs 4-byte
+	// padding before the binary.LittleEndian.Uint32 call.
+	msg := MessageDefinition{
+		Package:  "test_msgs",
+		Name:     "Mixed",
+		FullName: "test_msgs/Mixed",
+		TypeHash: "RIHS01_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		Fields: []FieldDefinition{
+			{Name: "name", FieldType: FieldType{Kind: "String"}, IsArray: false},
+			{Name: "value", FieldType: FieldType{Kind: "Float32"}, IsArray: false},
+		},
+		Constants: []ConstantDefinition{},
+	}
+
+	code, err := GenerateGoMessage(msg, "test")
+	if err != nil {
+		t.Fatalf("GenerateGoMessage failed: %v", err)
+	}
+	codeStr := string(code)
+
+	// We expect at least two "(N - offset%N) % N"-shaped pad expressions
+	// (one for the string length prefix, one for the float32). Allow either
+	// "%4" or "%2" or "%8" depending on the field, but at least one "%4" must
+	// appear for the string + float32 case.
+	if !strings.Contains(codeStr, "(4 - offset%4) % 4") {
+		t.Errorf("Generated unpack code missing 4-byte alignment expression.\nGenerated:\n%s", codeStr)
+	}
+}
+
+func TestAlignmentInBothPackAndUnpack(t *testing.T) {
+	// Regression test for the CDR alignment bug: a string followed by a float32
+	// requires 4-byte padding in BOTH the pack path (PackToRawAt) and the unpack
+	// path (UnpackFromRawAt). The old generator emitted no padding at all.
+	msg := MessageDefinition{
+		Package:  "test_msgs",
+		Name:     "Mixed",
+		FullName: "test_msgs/Mixed",
+		TypeHash: "RIHS01_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		Fields: []FieldDefinition{
+			{Name: "name", FieldType: FieldType{Kind: "String"}, IsArray: false},
+			{Name: "value", FieldType: FieldType{Kind: "Float32"}, IsArray: false},
+		},
+		Constants: []ConstantDefinition{},
+	}
+
+	code, err := GenerateGoMessage(msg, "test")
+	if err != nil {
+		t.Fatalf("GenerateGoMessage failed: %v", err)
+	}
+	codeStr := string(code)
+
+	// The 4-byte alignment expression must appear at least twice: once for the
+	// string length prefix and once for the float32 — in both the pack and unpack
+	// methods. strings.Count gives a lower bound without requiring exact positions.
+	const alignExpr = "(4 - offset%4) % 4"
+	n := strings.Count(codeStr, alignExpr)
+	if n < 2 {
+		t.Errorf("expected at least 2 occurrences of %q (pack + unpack paths), got %d\nGenerated:\n%s",
+			alignExpr, n, codeStr)
+	}
+
+	if !strings.Contains(codeStr, "func (m *Mixed) PackToRawAt(") {
+		t.Error("Generated code missing PackToRawAt method")
+	}
+	if !strings.Contains(codeStr, "func (m *Mixed) UnpackFromRawAt(") {
+		t.Error("Generated code missing UnpackFromRawAt method")
+	}
+}
+
+func TestTimeDurationPackGeneration(t *testing.T) {
+	// Regression test for the Time/Duration pack bug: the old generatePackField
+	// had no case for Time/Duration, so those fields were silently dropped on
+	// serialization. Verify that the generated pack and unpack methods both
+	// delegate to the nested type's PackToRawAt / UnpackFromRawAt.
+	msg := MessageDefinition{
+		Package:  "std_msgs",
+		Name:     "Header",
+		FullName: "std_msgs/msg/Header",
+		TypeHash: "RIHS01_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		Fields: []FieldDefinition{
+			{Name: "stamp", FieldType: FieldType{Kind: "Time"}, IsArray: false},
+			{Name: "frame_id", FieldType: FieldType{Kind: "String"}, IsArray: false},
+		},
+		Constants: []ConstantDefinition{},
+	}
+
+	code, err := GenerateGoMessage(msg, "test")
+	if err != nil {
+		t.Fatalf("GenerateGoMessage failed: %v", err)
+	}
+	codeStr := string(code)
+
+	if !strings.Contains(codeStr, ".PackToRawAt(buf, offset)") {
+		t.Errorf("Generated pack code does not call PackToRawAt for Time field.\nGenerated:\n%s", codeStr)
+	}
+	if !strings.Contains(codeStr, ".UnpackFromRawAt(data, offset)") {
+		t.Errorf("Generated unpack code does not call UnpackFromRawAt for Time field.\nGenerated:\n%s", codeStr)
+	}
+	if !strings.Contains(codeStr, "var err error") {
+		t.Errorf("Generated UnpackFromRawAt is missing 'var err error' declaration.\nGenerated:\n%s", codeStr)
 	}
 }
 
