@@ -30,14 +30,6 @@ fn main() -> Result<()> {
 
     if !ros_packages.is_empty() {
         println!("cargo:warning=generating messages");
-        // tf2_msgs contains geometry_msgs/TransformStamped[] — a cross-package array
-        // that the protobuf generator cannot handle. Exclude it from protobuf generation
-        // while still generating CDR types normally.
-        let mut protobuf_excluded_packages = std::collections::HashSet::new();
-        if env::var("CARGO_FEATURE_TF2_MSGS").is_ok() {
-            protobuf_excluded_packages.insert("tf2_msgs".to_string());
-        }
-
         let config = ros_z_codegen::GeneratorConfig {
             generate_cdr: true, // Always generate for ROS2 compatibility
             generate_protobuf: cfg!(feature = "protobuf"),
@@ -47,7 +39,7 @@ fn main() -> Result<()> {
             external_crate: None, // All packages are local in ros-z-msgs
             local_packages: std::collections::HashSet::new(), // All packages are local
             json_out: None,       // Not needed for Rust codegen
-            protobuf_excluded_packages,
+            protobuf_excluded_packages: std::collections::HashSet::new(),
         };
 
         let generator = ros_z_codegen::MessageGenerator::new(config);
