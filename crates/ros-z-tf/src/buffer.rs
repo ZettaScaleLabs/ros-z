@@ -131,7 +131,6 @@ mod tests {
             header: Header {
                 frame_id: parent.to_string(),
                 stamp: Time { sec, nanosec: 0 },
-                ..Default::default()
             },
             child_frame_id: child.to_string(),
             transform: Transform {
