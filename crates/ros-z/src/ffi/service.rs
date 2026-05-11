@@ -97,7 +97,11 @@ pub struct RawServiceServer {
 
 impl RawServiceServer {
     /// Send a response for a previously received request.
-    pub fn send_response_raw(&mut self, key: &QueryKey, response: &[u8]) -> Result<(), String> {
+    pub(crate) fn send_response_raw(
+        &mut self,
+        key: &QueryKey,
+        response: &[u8],
+    ) -> Result<(), String> {
         match self.map.remove(key) {
             Some(query) => {
                 let attachment = Attachment::new(key.sn, key.gid);
