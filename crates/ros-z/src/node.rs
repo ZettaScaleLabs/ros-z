@@ -660,7 +660,7 @@ impl ZNode {
         type_name: &str,
         type_hash: &str,
     ) -> Result<crate::ffi::service::RawServiceClient> {
-        use crate::entity::{EndpointEntity, EntityKind};
+        use crate::entity::{EndpointEntity, EndpointKind};
         use crate::topic_name;
         use std::sync::atomic::AtomicUsize;
 
@@ -670,14 +670,14 @@ impl ZNode {
 
         let entity = EndpointEntity {
             id: self.counter.increment(),
-            node: self.entity.clone(),
+            node: Some(self.entity.clone()),
             topic: qualified_service.clone(),
-            kind: EntityKind::Client,
+            kind: EndpointKind::Client,
             type_info: Some(TypeInfo {
                 name: type_name.to_string(),
                 hash: TypeHash::from_rihs_string(type_hash).unwrap_or(TypeHash::zero()),
             }),
-            ..Default::default()
+            qos: Default::default(),
         };
 
         let topic_ke = self.keyexpr_format.topic_key_expr(&entity)?;
@@ -705,7 +705,8 @@ impl ZNode {
 
         Ok(crate::ffi::service::RawServiceClient {
             sn: AtomicUsize::new(1),
-            gid: crate::entity::endpoint_gid(&entity),
+            gid: crate::entity::endpoint_gid(&entity)
+                .expect("service client always has node identity"),
             inner,
             tx,
             rx,
@@ -723,7 +724,7 @@ impl ZNode {
         type_hash: &str,
     ) -> Result<crate::ffi::service::RawServiceServer> {
         use crate::common::DataHandler;
-        use crate::entity::{EndpointEntity, EntityKind};
+        use crate::entity::{EndpointEntity, EndpointKind};
         use crate::topic_name;
 
         let qualified_service =
@@ -732,14 +733,14 @@ impl ZNode {
 
         let entity = EndpointEntity {
             id: self.counter.increment(),
-            node: self.entity.clone(),
+            node: Some(self.entity.clone()),
             topic: qualified_service.clone(),
-            kind: EntityKind::Service,
+            kind: EndpointKind::Service,
             type_info: Some(TypeInfo {
                 name: type_name.to_string(),
                 hash: TypeHash::from_rihs_string(type_hash).unwrap_or(TypeHash::zero()),
             }),
-            ..Default::default()
+            qos: Default::default(),
         };
 
         let topic_ke = self.keyexpr_format.topic_key_expr(&entity)?;

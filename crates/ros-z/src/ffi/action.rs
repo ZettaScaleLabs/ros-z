@@ -1,10 +1,10 @@
 use super::node::{CNode, get_node_ref};
+use super::service::QueryKey;
 use super::service::{RawServiceClient, RawServiceServer};
 use super::{ErrorCode, cstr_to_str};
 use crate::attachment::Attachment;
 use crate::ffi::publisher::RawPublisher;
 use crate::ffi::subscriber::RawSubscriber;
-use crate::service::QueryKey;
 use std::collections::HashMap;
 use std::ffi::c_char;
 use std::sync::atomic::{AtomicBool, Ordering};

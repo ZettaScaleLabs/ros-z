@@ -10,7 +10,21 @@ use zenoh::query::Query;
 
 use crate::attachment::{Attachment, GidArray};
 use crate::queue::BoundedQueue;
-use crate::service::QueryKey;
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub(crate) struct QueryKey {
+    pub sn: i64,
+    pub gid: GidArray,
+}
+
+impl From<Attachment> for QueryKey {
+    fn from(a: Attachment) -> Self {
+        Self {
+            sn: a.sequence_number,
+            gid: a.source_gid,
+        }
+    }
+}
 
 /// Callback type for service requests.
 /// Called with (user_data, request bytes, request len, out response bytes, out response len).
