@@ -46,8 +46,7 @@ pub struct GeneratorConfig {
     pub json_out: Option<PathBuf>,
 
     /// Packages to skip during protobuf generation (CDR generation is unaffected).
-    /// Use this when a package contains message types that the protobuf generator
-    /// cannot handle (e.g. cross-package array fields that prost cannot resolve).
+    /// Useful when a package's message types are intentionally not exposed via protobuf.
     pub protobuf_excluded_packages: std::collections::HashSet<String>,
 }
 
