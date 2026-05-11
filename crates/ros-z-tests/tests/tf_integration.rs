@@ -24,7 +24,6 @@ fn make_tf(parent: &str, child: &str, sec: i32, x: f64) -> TransformStamped {
         header: Header {
             frame_id: parent.to_string(),
             stamp: Time { sec, nanosec: 0 },
-            ..Default::default()
         },
         child_frame_id: child.to_string(),
         transform: Transform {
@@ -43,12 +42,12 @@ fn make_tf(parent: &str, child: &str, sec: i32, x: f64) -> TransformStamped {
 #[tokio::test(flavor = "multi_thread")]
 async fn tf_buffer_receives_dynamic_transform() {
     let router = TestRouter::new();
-    let ctx = create_ros_z_context_with_endpoint(&router.endpoint()).unwrap();
+    let ctx = create_ros_z_context_with_endpoint(router.endpoint()).unwrap();
     let node = ctx.create_node("tf_test_node").build().unwrap();
     let buffer = Buffer::new(&node).unwrap();
 
     // Publisher node on same router
-    let pub_ctx = create_ros_z_context_with_endpoint(&router.endpoint()).unwrap();
+    let pub_ctx = create_ros_z_context_with_endpoint(router.endpoint()).unwrap();
     let pub_node = pub_ctx.create_node("tf_publisher").build().unwrap();
     let tf_pub = pub_node
         .create_pub::<TFMessage>("/tf")
@@ -92,7 +91,7 @@ async fn tf_static_transient_local_replayed_on_connect() {
     let router = TestRouter::new();
 
     // Publish static transform BEFORE creating the Buffer subscriber
-    let pub_ctx = create_ros_z_context_with_endpoint(&router.endpoint()).unwrap();
+    let pub_ctx = create_ros_z_context_with_endpoint(router.endpoint()).unwrap();
     let pub_node = pub_ctx.create_node("tf_static_publisher").build().unwrap();
     let tf_static_pub = pub_node
         .create_pub::<TFMessage>("/tf_static")
@@ -116,7 +115,7 @@ async fn tf_static_transient_local_replayed_on_connect() {
     tokio::time::sleep(Duration::from_millis(200)).await;
 
     // NOW create the buffer — it subscribes AFTER the publish
-    let ctx = create_ros_z_context_with_endpoint(&router.endpoint()).unwrap();
+    let ctx = create_ros_z_context_with_endpoint(router.endpoint()).unwrap();
     let node = ctx.create_node("tf_test_node_static").build().unwrap();
     let buffer = Buffer::new(&node).unwrap();
 
@@ -137,11 +136,11 @@ async fn tf_static_transient_local_replayed_on_connect() {
 #[tokio::test(flavor = "multi_thread")]
 async fn tf_two_frame_chain_composes_correctly() {
     let router = TestRouter::new();
-    let ctx = create_ros_z_context_with_endpoint(&router.endpoint()).unwrap();
+    let ctx = create_ros_z_context_with_endpoint(router.endpoint()).unwrap();
     let node = ctx.create_node("tf_chain_node").build().unwrap();
     let buffer = Buffer::new(&node).unwrap();
 
-    let pub_ctx = create_ros_z_context_with_endpoint(&router.endpoint()).unwrap();
+    let pub_ctx = create_ros_z_context_with_endpoint(router.endpoint()).unwrap();
     let pub_node = pub_ctx.create_node("tf_chain_publisher").build().unwrap();
     let tf_pub = pub_node
         .create_pub::<TFMessage>("/tf")
@@ -185,14 +184,14 @@ async fn tf_two_frame_chain_composes_correctly() {
 #[tokio::test(flavor = "multi_thread")]
 async fn can_transform_reflects_availability() {
     let router = TestRouter::new();
-    let ctx = create_ros_z_context_with_endpoint(&router.endpoint()).unwrap();
+    let ctx = create_ros_z_context_with_endpoint(router.endpoint()).unwrap();
     let node = ctx.create_node("tf_can_transform_node").build().unwrap();
     let buffer = Buffer::new(&node).unwrap();
 
     // Initially false
     assert!(!buffer.can_transform("map", "robot", ZTime::zero()));
 
-    let pub_ctx = create_ros_z_context_with_endpoint(&router.endpoint()).unwrap();
+    let pub_ctx = create_ros_z_context_with_endpoint(router.endpoint()).unwrap();
     let pub_node = pub_ctx.create_node("tf_can_publisher").build().unwrap();
     let tf_pub = pub_node
         .create_pub::<TFMessage>("/tf")
@@ -224,11 +223,11 @@ async fn can_transform_reflects_availability() {
 #[tokio::test(flavor = "multi_thread")]
 async fn broadcaster_dynamic_roundtrip() {
     let router = TestRouter::new();
-    let ctx = create_ros_z_context_with_endpoint(&router.endpoint()).unwrap();
+    let ctx = create_ros_z_context_with_endpoint(router.endpoint()).unwrap();
     let node = ctx.create_node("tf_broadcaster_rx").build().unwrap();
     let buffer = Buffer::new(&node).unwrap();
 
-    let pub_ctx = create_ros_z_context_with_endpoint(&router.endpoint()).unwrap();
+    let pub_ctx = create_ros_z_context_with_endpoint(router.endpoint()).unwrap();
     let pub_node = pub_ctx.create_node("tf_broadcaster_tx").build().unwrap();
     let broadcaster = TransformBroadcaster::new(&pub_node).unwrap();
 
@@ -258,7 +257,7 @@ async fn broadcaster_static_roundtrip_with_late_joiner() {
     let router = TestRouter::new();
 
     // Publish static transform BEFORE creating the Buffer
-    let pub_ctx = create_ros_z_context_with_endpoint(&router.endpoint()).unwrap();
+    let pub_ctx = create_ros_z_context_with_endpoint(router.endpoint()).unwrap();
     let pub_node = pub_ctx.create_node("tf_static_tx").build().unwrap();
     let broadcaster = StaticTransformBroadcaster::new(&pub_node).unwrap();
 
@@ -269,7 +268,7 @@ async fn broadcaster_static_roundtrip_with_late_joiner() {
     tokio::time::sleep(Duration::from_millis(300)).await;
 
     // Create Buffer after publication — should get replay
-    let ctx = create_ros_z_context_with_endpoint(&router.endpoint()).unwrap();
+    let ctx = create_ros_z_context_with_endpoint(router.endpoint()).unwrap();
     let node = ctx.create_node("tf_static_rx").build().unwrap();
     let buffer = Buffer::new(&node).unwrap();
 
@@ -289,11 +288,11 @@ async fn broadcaster_static_roundtrip_with_late_joiner() {
 #[tokio::test(flavor = "multi_thread")]
 async fn wait_for_transform_returns_when_data_arrives() {
     let router = TestRouter::new();
-    let ctx = create_ros_z_context_with_endpoint(&router.endpoint()).unwrap();
+    let ctx = create_ros_z_context_with_endpoint(router.endpoint()).unwrap();
     let node = ctx.create_node("wft_rx").build().unwrap();
     let buffer = Buffer::new(&node).unwrap();
 
-    let pub_ctx = create_ros_z_context_with_endpoint(&router.endpoint()).unwrap();
+    let pub_ctx = create_ros_z_context_with_endpoint(router.endpoint()).unwrap();
     let pub_node = pub_ctx.create_node("wft_tx").build().unwrap();
     let broadcaster = TransformBroadcaster::new(&pub_node).unwrap();
 
@@ -317,7 +316,7 @@ async fn wait_for_transform_returns_when_data_arrives() {
 #[tokio::test(flavor = "multi_thread")]
 async fn wait_for_transform_times_out() {
     let router = TestRouter::new();
-    let ctx = create_ros_z_context_with_endpoint(&router.endpoint()).unwrap();
+    let ctx = create_ros_z_context_with_endpoint(router.endpoint()).unwrap();
     let node = ctx.create_node("wft_timeout_node").build().unwrap();
     let buffer = Buffer::new(&node).unwrap();
 
