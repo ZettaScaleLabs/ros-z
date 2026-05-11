@@ -29,6 +29,8 @@ fn transient_local_qos() -> QosProfile {
 }
 
 /// Publishes dynamic transforms to `/tf` (Volatile durability).
+///
+/// Use [`crate::Buffer`] on the same or another node to receive these transforms.
 pub struct TransformBroadcaster {
     pub_: TfPub,
 }
@@ -58,6 +60,10 @@ impl TransformBroadcaster {
 ///
 /// Late-joining subscribers automatically receive all previously published
 /// static transforms via `PublicationCache` replay.
+///
+/// All timestamps are unconditionally set to `{sec: 0, nanosec: 0}` before
+/// publishing, which is required by the tf2 standard for `/tf_static` messages
+/// and ensures interoperability with ROS 2 tf2 clients and rviz2.
 pub struct StaticTransformBroadcaster {
     pub_: TfPub,
 }
@@ -73,12 +79,23 @@ impl StaticTransformBroadcaster {
     }
 
     /// Publish a single static transform to `/tf_static`.
+    ///
+    /// The timestamp in `tf` is overwritten with zero before publishing.
     pub fn send_transform(&self, tf: TransformStamped) -> zenoh::Result<()> {
         self.send_transforms(vec![tf])
     }
 
     /// Publish multiple static transforms to `/tf_static` in a single message.
+    ///
+    /// All timestamps are overwritten with zero before publishing.
     pub fn send_transforms(&self, transforms: Vec<TransformStamped>) -> zenoh::Result<()> {
+        let transforms = transforms
+            .into_iter()
+            .map(|mut tf| {
+                tf.header.stamp = ros_z_msgs::builtin_interfaces::Time { sec: 0, nanosec: 0 };
+                tf
+            })
+            .collect();
         self.pub_.publish(&TFMessage { transforms })
     }
 }

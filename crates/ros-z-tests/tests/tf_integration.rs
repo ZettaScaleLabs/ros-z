@@ -306,7 +306,7 @@ async fn wait_for_transform_returns_when_data_arrives() {
     });
 
     let result = buffer
-        .wait_for_transform("map", "lidar", ZTime::zero(), Duration::from_secs(3))
+        .wait_for_transform("map", "lidar", ZTime::zero(), Some(Duration::from_secs(3)))
         .await;
 
     assert!(result.is_ok(), "expected transform, got: {:?}", result);
@@ -322,7 +322,12 @@ async fn wait_for_transform_times_out() {
     let buffer = Buffer::new(&node).unwrap();
 
     let result = buffer
-        .wait_for_transform("ghost", "frame", ZTime::zero(), Duration::from_millis(300))
+        .wait_for_transform(
+            "ghost",
+            "frame",
+            ZTime::zero(),
+            Some(Duration::from_millis(300)),
+        )
         .await;
 
     assert!(

@@ -49,7 +49,7 @@ mod math;
 
 pub use broadcaster::{StaticTransformBroadcaster, TransformBroadcaster};
 
-use buffer::BufferInner;
+use buffer::{BufferInner, DEFAULT_MAX_HISTORY};
 
 type TfSub = ZSub<TFMessage, (), NativeCdrSerdes<TFMessage>>;
 
@@ -122,10 +122,23 @@ impl std::error::Error for WaitError {}
 /// Subscribes to `/tf` and `/tf_static` on the provided node and maintains
 /// an in-memory frame tree.  Drop this value to cancel the subscriptions.
 ///
+/// # Separation from broadcasters
+///
+/// `Buffer` only *receives* transforms.  To publish transforms use
+/// [`TransformBroadcaster`] (dynamic) or [`StaticTransformBroadcaster`] (static).
+/// The two types are intentionally separate so listener-only nodes have no
+/// publishing overhead, and publisher-only nodes have no subscriber overhead.
+///
+/// A node that needs both can create a `Buffer` and a broadcaster on the same
+/// [`ZNode`].  Transforms published via the broadcaster are relayed through the
+/// Zenoh router, so they will be received by any `Buffer` on the same network,
+/// including the one on the same node.
+///
 /// Create with [`Buffer::new`].
 pub struct Buffer {
     inner: Arc<RwLock<BufferInner>>,
     notify: Arc<Notify>,
+    buffer_duration: Duration,
     _tf_sub: TfSub,
     _tf_static_sub: TfSub,
 }
@@ -169,6 +182,7 @@ impl Buffer {
         Ok(Buffer {
             inner,
             notify,
+            buffer_duration: DEFAULT_MAX_HISTORY,
             _tf_sub: tf_sub,
             _tf_static_sub: tf_static_sub,
         })
@@ -200,12 +214,16 @@ impl Buffer {
         self.inner.read().all_frames()
     }
 
-    /// Look up the transform from `source` at `time` to `target` at `fixed_time`,
-    /// routing through `fixed_frame`.
+    /// Look up the transform from `source` at `source_time` to `target` at
+    /// `target_time`, routing through `fixed_frame`.
+    ///
+    /// Matches the tf2 C++ signature:
+    /// `lookupTransform(target, target_time, source, source_time, fixed_frame)`.
     ///
     /// Equivalent to:
     /// ```text
-    /// T(target ← source) = T(target ← fixed_frame, fixed_time) ∘ T(fixed_frame ← source, time)
+    /// T(target ← source) = T(target ← fixed_frame, target_time)
+    ///                       ∘ T(fixed_frame ← source, source_time)
     /// ```
     ///
     /// Used when target and source are observed at different times and need to be
@@ -213,18 +231,20 @@ impl Buffer {
     pub fn lookup_transform_full(
         &self,
         target: &str,
+        target_time: ZTime,
         source: &str,
-        time: ZTime,
+        source_time: ZTime,
         fixed_frame: &str,
-        fixed_time: ZTime,
     ) -> Result<TransformStamped, LookupError> {
         let inner = self.inner.read();
-        let t1 = inner.lookup(fixed_frame, source, time)?;
-        let t2 = inner.lookup(target, fixed_frame, fixed_time)?;
+        let t1 = inner.lookup(fixed_frame, source, source_time)?;
+        let t2 = inner.lookup(target, fixed_frame, target_time)?;
         Ok(crate::math::compose_stamped(t2, t1, target, source))
     }
 
     /// Wait asynchronously until `lookup_transform` succeeds or `timeout` elapses.
+    ///
+    /// Pass `None` to use the buffer's default duration (10 seconds).
     ///
     /// Returns `Err(WaitError::Timeout)` if no transform arrives within the
     /// deadline. Returns `Err(WaitError::Lookup(...))` immediately if the
@@ -234,8 +254,9 @@ impl Buffer {
         target: &str,
         source: &str,
         time: ZTime,
-        timeout: Duration,
+        timeout: Option<Duration>,
     ) -> Result<TransformStamped, WaitError> {
+        let timeout = timeout.unwrap_or(self.buffer_duration);
         let deadline = tokio::time::Instant::now() + timeout;
         loop {
             match self.inner.read().lookup(target, source, time) {

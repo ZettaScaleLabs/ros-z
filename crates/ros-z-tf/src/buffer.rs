@@ -8,7 +8,7 @@ use ros_z_msgs::tf2_msgs::TFMessage;
 use tokio::sync::Notify;
 
 /// Default maximum age of dynamic transforms to retain (10 seconds, matching tf2).
-const DEFAULT_MAX_HISTORY: Duration = Duration::from_secs(10);
+pub(crate) const DEFAULT_MAX_HISTORY: Duration = Duration::from_secs(10);
 
 /// Maximum depth when walking up the frame tree, to guard against cycles.
 const MAX_TREE_DEPTH: usize = 100;
