@@ -2762,7 +2762,7 @@ accDescr: A ros-z node in Ros2Dds format sends messages via Zenoh to the zenoh-b
 </span><span id="__span-13-11"><a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="c1">// Parse liveliness token back to entity</span>
 </span><span id="__span-13-12"><a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a><span class="kd">let</span><span class="w"> </span><span class="n">parsed_entity</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">format</span><span class="p">.</span><span class="n">parse_liveliness</span><span class="p">(</span><span class="o">&amp;</span><span class="n">lv_ke</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
 </span></code></pre></div>
-<p>See the <a href="https://docs.rs/ros-z-protocol">ros-z-protocol documentation</a> for details.</p>
+<p>See the <a href="https://github.com/ZettaScaleLabs/ros-z/tree/main/crates/ros-z-protocol">ros-z-protocol crate</a> for details.</p>
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
 <h3 id="multi-segment-topics-not-working">Multi-Segment Topics Not Working?<a class="headerlink" href="#multi-segment-topics-not-working" title="Permanent link">&para;</a></h3>
 <p><strong>Symptom:</strong> Publisher publishes to <code>/robot/sensors/camera</code> but subscriber never receives messages.</p>
