@@ -945,6 +945,7 @@ where
 /// Holds either a plain subscriber or a fetching subscriber (for TransientLocal).
 /// Both variants are held purely for their `Drop` impl which undeclares the subscriber.
 #[allow(deprecated)]
+#[allow(dead_code)]
 enum SubInner {
     Plain(zenoh::pubsub::Subscriber<()>),
     Fetching(zenoh_ext::FetchingSubscriber<()>),
