@@ -20,6 +20,10 @@ use crate::msg::{SerdeCdrSerdes, ZDeserializer, ZMessage, ZSerializer};
 use crate::qos::QosProfile;
 use ros_z_protocol::qos::{QosDurability, QosHistory, QosReliability};
 use std::sync::Mutex;
+use zenoh_ext::{
+    AdvancedPublisher, AdvancedPublisherBuilderExt, AdvancedSubscriber,
+    AdvancedSubscriberBuilderExt, CacheConfig, HistoryConfig, MissDetectionConfig, RecoveryConfig,
+};
 
 /// A typed ROS 2-style publisher. Send messages with [`publish`](ZPub::publish)
 /// (synchronous) or [`async_publish`](ZPub::async_publish) (async).
@@ -31,7 +35,7 @@ pub struct ZPub<T: ZMessage, S: ZSerializer> {
     sn: AtomicUsize,
     // TODO: replace this with zenoh's global entity id
     gid: GidArray,
-    inner: zenoh::pubsub::Publisher<'static>,
+    inner: AdvancedPublisher<'static>,
     _lv_token: LivelinessToken,
     with_attachment: bool,
     clock: crate::time::ZClock,
@@ -254,18 +258,26 @@ where
             }
         }
 
-        // Map durability: TransientLocal uses express=true for caching
-        match self.entity.qos.durability {
-            QosDurability::TransientLocal => {
-                pub_builder = pub_builder.express(true);
-                debug!("[PUB] Durability: TransientLocal (express)");
+        // Build an AdvancedPublisher and configure based on durability
+        let mut pub_builder = pub_builder.advanced();
+        if matches!(self.entity.qos.durability, QosDurability::TransientLocal) {
+            let depth = match self.entity.qos.history {
+                QosHistory::KeepLast(d) => d,
+                QosHistory::KeepAll => 1,
+            };
+            pub_builder = pub_builder
+                .publisher_detection()
+                .cache(CacheConfig::default().max_samples(depth));
+            if matches!(self.entity.qos.reliability, QosReliability::Reliable) {
+                pub_builder = pub_builder.sample_miss_detection(
+                    MissDetectionConfig::default()
+                        .sporadic_heartbeat(Duration::from_millis(500)),
+                );
             }
-            QosDurability::Volatile => {
-                pub_builder = pub_builder.express(false);
-                debug!("[PUB] Durability: Volatile");
-            }
+            debug!("[PUB] Durability: TransientLocal (cache, depth={})", depth);
+        } else {
+            debug!("[PUB] Durability: Volatile");
         }
-
         let inner = pub_builder.wait()?;
         debug!("[PUB] Publisher ready: topic={}", self.entity.topic);
 
@@ -750,10 +762,12 @@ where
             handler.handle(sample)
         };
 
+        // Build an AdvancedSubscriber and configure based on durability
         let mut sub_builder = self
             .session
             .declare_subscriber(key_expr)
-            .callback(validated_handler);
+            .callback(validated_handler)
+            .advanced();
 
         // Apply locality restriction if specified
         if let Some(locality) = self.locality {
@@ -761,6 +775,23 @@ where
             debug!("[SUB] Locality restriction: {:?}", locality);
         }
 
+        if matches!(self.entity.qos.durability, QosDurability::TransientLocal) {
+            let depth = match self.entity.qos.history {
+                QosHistory::KeepLast(d) => d,
+                QosHistory::KeepAll => 1,
+            };
+            sub_builder = sub_builder
+                .history(
+                    HistoryConfig::default()
+                        .detect_late_publishers()
+                        .max_samples(depth),
+                )
+                .query_timeout(Duration::MAX)
+                .subscriber_detection();
+            if matches!(self.entity.qos.reliability, QosReliability::Reliable) {
+                sub_builder = sub_builder.recovery(RecoveryConfig::default().heartbeat());
+            }
+        }
         let inner = sub_builder.wait()?;
 
         let gid = crate::entity::endpoint_gid(&self.entity)
@@ -892,7 +923,7 @@ where
 pub struct ZSub<T: ZMessage, Q, S: ZDeserializer> {
     pub entity: EndpointEntity,
     pub queue: Option<Arc<BoundedQueue<Q>>>,
-    _inner: zenoh::pubsub::Subscriber<()>,
+    _inner: AdvancedSubscriber<()>,
     _lv_token: LivelinessToken,
     events_mgr: Arc<Mutex<EventsManager>>,
     graph: Arc<Graph>,

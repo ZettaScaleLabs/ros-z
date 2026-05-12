@@ -535,11 +535,15 @@ impl ZNode {
         qos: Option<crate::qos::QosProfile>,
     ) -> Result<RawPublisher> {
         use zenoh::qos::CongestionControl;
+        use zenoh_ext::{
+            AdvancedPublisherBuilderExt, CacheConfig, MissDetectionConfig,
+        };
 
         use crate::{
             entity::{EndpointEntity, EndpointKind},
             topic_name,
         };
+        use ros_z_protocol::qos::{QosDurability, QosHistory, QosReliability};
 
         let qualified_topic =
             topic_name::qualify_topic_name(topic, &self.entity.namespace, &self.entity.name)
@@ -562,11 +566,27 @@ impl ZNode {
         let topic_ke = self.keyexpr_format.topic_key_expr(&entity)?;
         let gid =
             crate::entity::endpoint_gid(&entity).expect("local endpoint always has node identity");
-        let publisher = self
+        let mut publisher = self
             .session
             .declare_publisher((*topic_ke).clone())
             .congestion_control(CongestionControl::Block)
-            .wait()?;
+            .advanced();
+        if matches!(entity.qos.durability, QosDurability::TransientLocal) {
+            let depth = match entity.qos.history {
+                QosHistory::KeepLast(d) => d,
+                QosHistory::KeepAll => 1,
+            };
+            publisher = publisher
+                .publisher_detection()
+                .cache(CacheConfig::default().max_samples(depth));
+            if matches!(entity.qos.reliability, QosReliability::Reliable) {
+                publisher = publisher.sample_miss_detection(
+                    MissDetectionConfig::default()
+                        .sporadic_heartbeat(std::time::Duration::from_millis(500)),
+                );
+            }
+        }
+        let publisher = publisher.wait()?;
 
         // Declare liveliness token so rmw_zenoh_cpp can discover this publisher.
         let lv_ke = self
@@ -614,6 +634,8 @@ impl ZNode {
             entity::{EndpointEntity, EndpointKind},
             topic_name,
         };
+        use ros_z_protocol::qos::{QosDurability, QosHistory, QosReliability};
+        use zenoh_ext::{AdvancedSubscriberBuilderExt, HistoryConfig, RecoveryConfig};
 
         let qualified_topic =
             topic_name::qualify_topic_name(topic, &self.entity.namespace, &self.entity.name)
@@ -634,14 +656,32 @@ impl ZNode {
         };
 
         let topic_ke = self.keyexpr_format.topic_key_expr(&entity)?;
-        let subscriber = self
+        let mut subscriber = self
             .session
             .declare_subscriber((*topic_ke).clone())
             .callback(move |sample| {
                 let payload = sample.payload().to_bytes();
                 callback(&payload);
             })
-            .wait()?;
+            .advanced();
+        if matches!(entity.qos.durability, QosDurability::TransientLocal) {
+            let depth = match entity.qos.history {
+                QosHistory::KeepLast(d) => d,
+                QosHistory::KeepAll => 1,
+            };
+            subscriber = subscriber
+                .history(
+                    HistoryConfig::default()
+                        .detect_late_publishers()
+                        .max_samples(depth),
+                )
+                .query_timeout(std::time::Duration::MAX)
+                .subscriber_detection();
+            if matches!(entity.qos.reliability, QosReliability::Reliable) {
+                subscriber = subscriber.recovery(RecoveryConfig::default().heartbeat());
+            }
+        }
+        let subscriber = subscriber.wait()?;
 
         Ok(crate::ffi::subscriber::RawSubscriber { inner: subscriber })
     }

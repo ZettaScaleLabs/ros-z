@@ -736,4 +736,127 @@ mod tests {
 
         Ok(())
     }
+
+    /// Verify that a TransientLocal publisher replays its history to a
+    /// late-joining subscriber.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_transient_local_history_replays_to_late_subscriber() -> Result<()> {
+        let (_ctx, pub_node) = setup_test_node("test_tl_history_pub").await?;
+        let sub_node = _ctx.create_node("test_tl_history_sub").build()?;
+
+        let topic = "/test_tl_history_replay";
+        let depth = 5;
+        let qos = create_qos(
+            QosDurability::TransientLocal,
+            QosReliability::Reliable,
+            QosHistory::KeepLast(NonZeroUsize::new(depth).unwrap()),
+        );
+
+        // Publish BEFORE any subscriber exists, so anything the late
+        // subscriber receives must have come from the publisher's cache.
+        let pub_handle = pub_node
+            .create_pub::<RosString>(topic)
+            .with_qos(qos)
+            .build()?;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        for i in 0..depth {
+            pub_handle.publish(&RosString {
+                data: format!("history-{}", i),
+            })?;
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        // Now create the late-joining subscriber.
+        let received = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+        let received_clone = received.clone();
+        let _sub_handle = sub_node
+            .create_sub::<RosString>(topic)
+            .with_qos(qos)
+            .build_with_callback(move |msg: RosString| {
+                received_clone.lock().unwrap().push(msg.data);
+            })?;
+
+        // Wait for the history query to complete and replay to land.
+        tokio::time::sleep(Duration::from_millis(2000)).await;
+
+        let got = received.lock().unwrap().clone();
+        assert_eq!(
+            got.len(),
+            depth,
+            "Expected {} replayed history messages, got {}: {:?}",
+            depth,
+            got.len(),
+            got
+        );
+        for (i, msg) in got.iter().enumerate() {
+            assert_eq!(msg, &format!("history-{}", i));
+        }
+
+        Ok(())
+    }
+
+    /// Verify that a TransientLocal publisher's cache honours the
+    /// `KeepLast(depth)` config. When more than `depth` samples have
+    /// been published before a late subscriber arrives, only the most recent
+    /// `depth` are replayed.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_transient_local_cache_respects_keep_last_depth() -> Result<()> {
+        let (_ctx, pub_node) = setup_test_node("test_tl_depth_pub").await?;
+        let sub_node = _ctx.create_node("test_tl_depth_sub").build()?;
+
+        let topic = "/test_tl_cache_depth";
+        let depth = 3;
+        let total = 10;
+        let qos = create_qos(
+            QosDurability::TransientLocal,
+            QosReliability::Reliable,
+            QosHistory::KeepLast(NonZeroUsize::new(depth).unwrap()),
+        );
+
+        let pub_handle = pub_node
+            .create_pub::<RosString>(topic)
+            .with_qos(qos)
+            .build()?;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        // Publish more samples than the cache can hold.
+        for i in 0..total {
+            pub_handle.publish(&RosString {
+                data: format!("sample-{}", i),
+            })?;
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        let received = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+        let received_clone = received.clone();
+        let _sub_handle = sub_node
+            .create_sub::<RosString>(topic)
+            .with_qos(qos)
+            .build_with_callback(move |msg: RosString| {
+                received_clone.lock().unwrap().push(msg.data);
+            })?;
+
+        tokio::time::sleep(Duration::from_millis(2000)).await;
+
+        let got = received.lock().unwrap().clone();
+        assert_eq!(
+            got.len(),
+            depth,
+            "Expected exactly {} cached samples (most recent), got {}: {:?}",
+            depth,
+            got.len(),
+            got
+        );
+        // The cache holds the last `depth` samples, so the replay must
+        // begin at `total - depth`.
+        for (i, msg) in got.iter().enumerate() {
+            let expected = format!("sample-{}", total - depth + i);
+            assert_eq!(msg, &expected, "Unexpected replayed sample at index {}", i);
+        }
+
+        Ok(())
+    }
 }

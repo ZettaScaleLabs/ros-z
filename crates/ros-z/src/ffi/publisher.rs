@@ -5,11 +5,11 @@ use crate::attachment::{Attachment, GidArray};
 use std::ffi::c_char;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use zenoh::Wait;
-use zenoh::pubsub::Publisher;
+use zenoh_ext::AdvancedPublisher;
 
 /// Raw publisher for FFI (no type parameters)
 pub struct RawPublisher {
-    pub inner: Publisher<'static>,
+    pub inner: AdvancedPublisher<'static>,
     sn: AtomicUsize,
     gid: GidArray,
     /// Liveliness token — kept alive so that rmw_zenoh_cpp subscribers can
@@ -19,7 +19,7 @@ pub struct RawPublisher {
 
 impl RawPublisher {
     pub fn new(
-        publisher: Publisher<'static>,
+        publisher: AdvancedPublisher<'static>,
         gid: GidArray,
         lv_token: zenoh::liveliness::LivelinessToken,
     ) -> Self {
