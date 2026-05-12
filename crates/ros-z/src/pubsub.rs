@@ -270,8 +270,7 @@ where
                 .cache(CacheConfig::default().max_samples(depth));
             if matches!(self.entity.qos.reliability, QosReliability::Reliable) {
                 pub_builder = pub_builder.sample_miss_detection(
-                    MissDetectionConfig::default()
-                        .sporadic_heartbeat(Duration::from_millis(500)),
+                    MissDetectionConfig::default().sporadic_heartbeat(Duration::from_millis(500)),
                 );
             }
             debug!("[PUB] Durability: TransientLocal (cache, depth={})", depth);

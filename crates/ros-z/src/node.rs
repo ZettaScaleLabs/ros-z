@@ -535,9 +535,7 @@ impl ZNode {
         qos: Option<crate::qos::QosProfile>,
     ) -> Result<RawPublisher> {
         use zenoh::qos::CongestionControl;
-        use zenoh_ext::{
-            AdvancedPublisherBuilderExt, CacheConfig, MissDetectionConfig,
-        };
+        use zenoh_ext::{AdvancedPublisherBuilderExt, CacheConfig, MissDetectionConfig};
 
         use crate::{
             entity::{EndpointEntity, EndpointKind},
