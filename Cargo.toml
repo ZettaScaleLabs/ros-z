@@ -19,6 +19,8 @@ members = [
   "crates/ros-z-tests",
   "crates/ros-z-console",
   "crates/ros-z-bridge",
+  "crates/ros-z-dds",
+  "crates/ros-z-bridge-dds",
   "crates/ros-z/examples/protobuf_demo",
 ]
 default-members = ["crates/ros-z", "crates/ros-z-codegen"]

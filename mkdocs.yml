@@ -99,6 +99,7 @@ nav:
           - Advanced: user-guide/config-advanced.md
       - ROS 2 Interoperability: user-guide/interop.md
       - Cross-Distro Bridge: user-guide/bridge.md
+      - DDS Bridge: user-guide/dds-bridge.md
       - Messages & Serialization:
           - Message Cache: core-concepts/message-cache.md
           - Message Generation: user-guide/message-generation.md

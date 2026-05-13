@@ -722,6 +722,16 @@ impl ZNode {
         &self.session
     }
 
+    /// Get the key expression format configured on this node's context.
+    pub fn keyexpr_format(&self) -> &ros_z_protocol::KeyExprFormat {
+        &self.keyexpr_format
+    }
+
+    /// Allocate the next unique entity ID from the context counter.
+    pub fn next_entity_id(&self) -> usize {
+        self.counter.increment()
+    }
+
     /// Access this node's clock.
     pub fn clock(&self) -> &crate::time::ZClock {
         &self.clock
@@ -997,5 +1007,54 @@ mod tests {
     fn test_remap_rules_identity_when_empty() {
         let rules = RemapRules::default();
         assert_eq!(rules.apply("/foo"), "/foo");
+    }
+
+    #[test]
+    fn test_counter_increment_sequential() {
+        let counter = GlobalCounter::default();
+        let a = counter.increment();
+        let b = counter.increment();
+        assert!(b > a, "counter should be monotonically increasing");
+    }
+
+    #[test]
+    fn test_znode_keyexpr_format_and_next_entity_id() {
+        use std::collections::HashMap;
+
+        let session =
+            Arc::new(zenoh::Wait::wait(zenoh::open(zenoh::Config::default())).expect("zenoh open"));
+        let graph = Arc::new(
+            crate::graph::Graph::new(&session, 0, ros_z_protocol::KeyExprFormat::default())
+                .expect("graph"),
+        );
+        let counter = Arc::new(GlobalCounter::default());
+        let builder = ZNodeBuilder {
+            domain_id: 0,
+            name: "test_node".to_string(),
+            namespace: String::new(),
+            enclave: String::new(),
+            session,
+            counter,
+            graph,
+            remap_rules: RemapRules::default(),
+            clock: crate::time::ZClock::default(),
+            shm_config: None,
+            keyexpr_format: ros_z_protocol::KeyExprFormat::default(),
+            enable_type_desc_service: false,
+            enable_parameters: false,
+            parameter_overrides: HashMap::new(),
+        };
+        let node = crate::Builder::build(builder).expect("build node");
+
+        assert_eq!(
+            *node.keyexpr_format(),
+            ros_z_protocol::KeyExprFormat::default()
+        );
+        let id1 = node.next_entity_id();
+        let id2 = node.next_entity_id();
+        assert!(
+            id2 > id1,
+            "next_entity_id should be monotonically increasing"
+        );
     }
 }
