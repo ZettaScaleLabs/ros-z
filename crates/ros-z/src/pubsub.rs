@@ -21,9 +21,85 @@ use crate::qos::QosProfile;
 use ros_z_protocol::qos::{QosDurability, QosHistory, QosReliability};
 use std::sync::Mutex;
 use zenoh_ext::{
-    AdvancedPublisher, AdvancedPublisherBuilderExt, AdvancedSubscriber,
-    AdvancedSubscriberBuilderExt, CacheConfig, HistoryConfig, MissDetectionConfig, RecoveryConfig,
+    AdvancedPublisher, AdvancedPublisherBuilder, AdvancedPublisherBuilderExt, AdvancedSubscriber,
+    AdvancedSubscriberBuilder, AdvancedSubscriberBuilderExt, CacheConfig, HistoryConfig,
+    MissDetectionConfig, RecoveryConfig,
 };
+
+/// Sporadic heartbeat period for TransientLocal+Reliable publishers.
+/// Matches rmw_zenoh_cpp's `SAMPLE_MISS_DETECTION_HEARTBEAT_PERIOD`.
+const SAMPLE_MISS_HEARTBEAT_PERIOD: Duration = Duration::from_millis(500);
+
+/// Query timeout for TransientLocal subscribers' initial history fetch.
+/// Matches rmw_zenoh_cpp's `query_timeout_ms = u64::max()` literally
+/// (`Duration::from_millis(u64::MAX)`, not `Duration::MAX`, to avoid any
+/// truncation surprises inside zenoh-ext's internal `as_millis()` paths).
+const TRANSIENT_LOCAL_QUERY_TIMEOUT: Duration = Duration::from_millis(u64::MAX);
+
+fn cache_depth_from_history(history: QosHistory) -> usize {
+    // Mirrors rmw_zenoh_cpp's `QoS::best_available_qos` (`qos.cpp:107`):
+    // a zero-valued depth (the rmw representation of "unspecified" or
+    // KEEP_ALL) is rewritten to `RMW_ZENOH_DEFAULT_HISTORY_DEPTH` (42)
+    // before being passed to `cache.max_samples`. The cap value lives
+    // alongside ros-z's other QoS constants — see `crate::qos`.
+    match history {
+        QosHistory::KeepLast(d) if d > 0 => d,
+        QosHistory::KeepLast(_) => crate::qos::KEEP_ALL_CACHE_DEPTH,
+        QosHistory::KeepAll => crate::qos::KEEP_ALL_CACHE_DEPTH,
+    }
+}
+
+/// Apply ros-z TransientLocal QoS to an `AdvancedPublisherBuilder`.
+///
+/// Mirrors rmw_zenoh_cpp's `rmw_publisher_data.cpp`: enables
+/// `publisher_detection` + `cache`, and `sample_miss_detection` when
+/// `Reliable`. No-op for `Volatile`.
+pub(crate) fn apply_transient_local_pub<'a, 'b, 'c>(
+    mut builder: AdvancedPublisherBuilder<'a, 'b, 'c>,
+    qos: &ros_z_protocol::qos::QosProfile,
+) -> AdvancedPublisherBuilder<'a, 'b, 'c> {
+    if !matches!(qos.durability, QosDurability::TransientLocal) {
+        return builder;
+    }
+    let depth = cache_depth_from_history(qos.history);
+    builder = builder
+        .publisher_detection()
+        .cache(CacheConfig::default().max_samples(depth));
+    if matches!(qos.reliability, QosReliability::Reliable) {
+        builder = builder.sample_miss_detection(
+            MissDetectionConfig::default().sporadic_heartbeat(SAMPLE_MISS_HEARTBEAT_PERIOD),
+        );
+    }
+    builder
+}
+
+/// Apply ros-z TransientLocal QoS to an `AdvancedSubscriberBuilder`.
+///
+/// Mirrors rmw_zenoh_cpp's `rmw_subscription_data.cpp`: enables history
+/// query with late-publisher detection, `subscriber_detection`, a
+/// `u64::MAX`-millisecond query timeout, and heartbeat recovery when
+/// `Reliable`. No-op for `Volatile`.
+pub(crate) fn apply_transient_local_sub<'a, 'b, 'c, H>(
+    mut builder: AdvancedSubscriberBuilder<'a, 'b, 'c, H>,
+    qos: &ros_z_protocol::qos::QosProfile,
+) -> AdvancedSubscriberBuilder<'a, 'b, 'c, H> {
+    if !matches!(qos.durability, QosDurability::TransientLocal) {
+        return builder;
+    }
+    let depth = cache_depth_from_history(qos.history);
+    builder = builder
+        .history(
+            HistoryConfig::default()
+                .detect_late_publishers()
+                .max_samples(depth),
+        )
+        .query_timeout(TRANSIENT_LOCAL_QUERY_TIMEOUT)
+        .subscriber_detection();
+    if matches!(qos.reliability, QosReliability::Reliable) {
+        builder = builder.recovery(RecoveryConfig::default().heartbeat());
+    }
+    builder
+}
 
 /// A typed ROS 2-style publisher. Send messages with [`publish`](ZPub::publish)
 /// (synchronous) or [`async_publish`](ZPub::async_publish) (async).
@@ -258,25 +334,13 @@ where
             }
         }
 
-        // Build an AdvancedPublisher and configure based on durability
-        let mut pub_builder = pub_builder.advanced();
-        if matches!(self.entity.qos.durability, QosDurability::TransientLocal) {
-            let depth = match self.entity.qos.history {
-                QosHistory::KeepLast(d) => d,
-                QosHistory::KeepAll => 1,
-            };
-            pub_builder = pub_builder
-                .publisher_detection()
-                .cache(CacheConfig::default().max_samples(depth));
-            if matches!(self.entity.qos.reliability, QosReliability::Reliable) {
-                pub_builder = pub_builder.sample_miss_detection(
-                    MissDetectionConfig::default().sporadic_heartbeat(Duration::from_millis(500)),
-                );
-            }
-            debug!("[PUB] Durability: TransientLocal (cache, depth={})", depth);
-        } else {
-            debug!("[PUB] Durability: Volatile");
-        }
+        // Build an AdvancedPublisher and apply TransientLocal config if needed.
+        let pub_builder = pub_builder.advanced();
+        debug!(
+            "[PUB] Durability: {:?}, history: {:?}",
+            self.entity.qos.durability, self.entity.qos.history
+        );
+        let pub_builder = apply_transient_local_pub(pub_builder, &self.entity.qos);
         let inner = pub_builder.wait()?;
         debug!("[PUB] Publisher ready: topic={}", self.entity.topic);
 
@@ -774,23 +838,7 @@ where
             debug!("[SUB] Locality restriction: {:?}", locality);
         }
 
-        if matches!(self.entity.qos.durability, QosDurability::TransientLocal) {
-            let depth = match self.entity.qos.history {
-                QosHistory::KeepLast(d) => d,
-                QosHistory::KeepAll => 1,
-            };
-            sub_builder = sub_builder
-                .history(
-                    HistoryConfig::default()
-                        .detect_late_publishers()
-                        .max_samples(depth),
-                )
-                .query_timeout(Duration::MAX)
-                .subscriber_detection();
-            if matches!(self.entity.qos.reliability, QosReliability::Reliable) {
-                sub_builder = sub_builder.recovery(RecoveryConfig::default().heartbeat());
-            }
-        }
+        let sub_builder = apply_transient_local_sub(sub_builder, &self.entity.qos);
         let inner = sub_builder.wait()?;
 
         let gid = crate::entity::endpoint_gid(&self.entity)
