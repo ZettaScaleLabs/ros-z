@@ -18,9 +18,25 @@ impl fmt::Display for QosReliability {
     }
 }
 
-/// Default depth for KEEP_LAST when SYSTEM_DEFAULT (depth=0) is used
-/// This matches ROS 2 and rmw_zenoh_cpp behavior
+/// Default depth for `KeepLast` when SYSTEM_DEFAULT (depth=0) is used.
+/// Matches rclcpp's default of 10. Note this is distinct from
+/// [`KEEP_ALL_CACHE_DEPTH`] below, which is the rmw_zenoh-aligned cap
+/// applied to `KeepAll` when mapped to zenoh-ext's `cache.max_samples`.
 pub const DEFAULT_HISTORY_DEPTH: usize = 10;
+
+/// Cache/history depth used when a TransientLocal endpoint carries
+/// `QosHistory::KeepAll` (no inherent depth) or `KeepLast(0)`.
+///
+/// Matches rmw_zenoh_cpp's `RMW_ZENOH_DEFAULT_HISTORY_DEPTH = 42`
+/// (`rmw_zenoh_cpp/src/detail/qos.cpp:27`), which is the value
+/// rmw_zenoh's `best_available_qos` substitutes for a zero-valued
+/// `qos.depth` before passing it to
+/// `AdvancedPublisherOptions::CacheOptions::max_samples`.
+///
+/// This is intentionally a *finite* cap that mirrors rmw_zenoh's
+/// pragmatic behaviour rather than the DDS KEEP_ALL spec's "keep
+/// everything" semantics.
+pub const KEEP_ALL_CACHE_DEPTH: usize = 42;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum QosHistory {

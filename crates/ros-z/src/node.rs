@@ -535,9 +535,11 @@ impl ZNode {
         qos: Option<crate::qos::QosProfile>,
     ) -> Result<RawPublisher> {
         use zenoh::qos::CongestionControl;
+        use zenoh_ext::AdvancedPublisherBuilderExt;
 
         use crate::{
             entity::{EndpointEntity, EndpointKind},
+            pubsub::apply_transient_local_pub,
             topic_name,
         };
 
@@ -566,7 +568,8 @@ impl ZNode {
             .session
             .declare_publisher((*topic_ke).clone())
             .congestion_control(CongestionControl::Block)
-            .wait()?;
+            .advanced();
+        let publisher = apply_transient_local_pub(publisher, &entity.qos).wait()?;
 
         // Declare liveliness token so rmw_zenoh_cpp can discover this publisher.
         let lv_ke = self
@@ -612,8 +615,10 @@ impl ZNode {
     {
         use crate::{
             entity::{EndpointEntity, EndpointKind},
+            pubsub::apply_transient_local_sub,
             topic_name,
         };
+        use zenoh_ext::AdvancedSubscriberBuilderExt;
 
         let qualified_topic =
             topic_name::qualify_topic_name(topic, &self.entity.namespace, &self.entity.name)
@@ -641,7 +646,8 @@ impl ZNode {
                 let payload = sample.payload().to_bytes();
                 callback(&payload);
             })
-            .wait()?;
+            .advanced();
+        let subscriber = apply_transient_local_sub(subscriber, &entity.qos).wait()?;
 
         Ok(crate::ffi::subscriber::RawSubscriber { inner: subscriber })
     }
