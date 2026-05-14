@@ -1,7 +1,9 @@
 package rosz
 
 import (
+	"errors"
 	"testing"
+	"time"
 )
 
 // --- GoalStatus Tests ---
@@ -97,6 +99,21 @@ func TestServiceInterface(t *testing.T) {
 	resp := svc.GetResponse()
 	if resp.TypeName() != "test/srv/Mock_Response" {
 		t.Errorf("GetResponse().TypeName() = %q", resp.TypeName())
+	}
+}
+
+// TestWaitForServiceClosedClient verifies WaitForService returns an error when
+// the client has already been closed, without requiring a live Zenoh session.
+func TestWaitForServiceClosedClient(t *testing.T) {
+	c := &ServiceClient{service: "/dummy"} // handle is nil
+	err := c.WaitForService(10 * time.Millisecond)
+	if err == nil {
+		t.Fatal("expected error from WaitForService on closed client, got nil")
+	}
+	// Closed-client error should not be wrapped as a service timeout.
+	var rerr RoszError
+	if errors.As(err, &rerr) && rerr.Code() == ErrorCodeServiceTimeout {
+		t.Errorf("closed client should not surface ServiceTimeout, got: %v", err)
 	}
 }
 

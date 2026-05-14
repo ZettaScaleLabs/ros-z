@@ -48,6 +48,10 @@ pub struct RawServiceClient {
     /// Liveliness token — kept alive so that rmw_zenoh_cpp service servers can
     /// observe this client via Zenoh liveliness.
     pub(crate) _lv_token: zenoh::liveliness::LivelinessToken,
+    /// Fully qualified service name used by graph lookups.
+    pub(crate) qualified_service: String,
+    /// Graph reference for readiness checks (wait_for_service).
+    pub(crate) graph: Arc<crate::graph::Graph>,
 }
 
 impl RawServiceClient {
@@ -81,6 +85,31 @@ impl RawServiceClient {
             .map_err(|e| format!("Timeout waiting for response: {}", e))?;
 
         Ok(sample.payload().to_bytes().to_vec())
+    }
+
+    /// Block until at least one matching service server is visible in the graph,
+    /// or `timeout` elapses. Polls the graph at a short interval — does not
+    /// require a tokio runtime.
+    pub fn wait_for_service(&self, timeout: Duration) -> bool {
+        use crate::entity::EndpointKind;
+        use std::time::Instant;
+
+        let poll = Duration::from_millis(50);
+        let deadline = Instant::now() + timeout;
+        loop {
+            if self
+                .graph
+                .count_by_service(EndpointKind::Service, &self.qualified_service)
+                > 0
+            {
+                return true;
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return false;
+            }
+            std::thread::sleep(remaining.min(poll));
+        }
     }
 }
 
@@ -223,6 +252,28 @@ pub unsafe extern "C" fn ros_z_service_client_destroy(client: *mut CServiceClien
         let _ = Box::from_raw(client);
     }
     ErrorCode::Success as i32
+}
+
+/// Wait until at least one matching service server is visible in the graph,
+/// or `timeout_ms` elapses. Returns `Success` (0) if ready, `ServiceTimeout`
+/// (-10) on timeout, `NullPointer` (-1) if `client` is null.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn ros_z_service_client_wait_for_service(
+    client_handle: *mut CServiceClient,
+    timeout_ms: u64,
+) -> i32 {
+    if client_handle.is_null() {
+        return ErrorCode::NullPointer as i32;
+    }
+    let client = unsafe { &(*client_handle) };
+    if client
+        .inner
+        .wait_for_service(Duration::from_millis(timeout_ms))
+    {
+        ErrorCode::Success as i32
+    } else {
+        ErrorCode::ServiceTimeout as i32
+    }
 }
 
 unsafe extern "C" {

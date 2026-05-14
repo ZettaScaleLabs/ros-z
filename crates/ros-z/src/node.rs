@@ -712,6 +712,8 @@ impl ZNode {
             rx,
             _key_expr: key_expr,
             _lv_token: lv_token,
+            qualified_service,
+            graph: self.graph.clone(),
         })
     }
 

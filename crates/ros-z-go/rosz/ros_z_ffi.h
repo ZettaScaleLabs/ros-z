@@ -628,6 +628,14 @@ int32_t ros_z_service_client_call(struct ros_z_service_client_t *client_handle,
  */
 int32_t ros_z_service_client_destroy(struct ros_z_service_client_t *client);
 
+/**
+ * Wait until at least one matching service server is visible in the graph,
+ * or `timeout_ms` elapses. Returns 0 if ready, -10 (ServiceTimeout) on
+ * timeout, -1 (NullPointer) if `client_handle` is null.
+ */
+int32_t ros_z_service_client_wait_for_service(struct ros_z_service_client_t *client_handle,
+                                              uint64_t timeout_ms);
+
 extern void free(void *ptr);
 
 /**

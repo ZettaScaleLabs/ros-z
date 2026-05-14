@@ -191,6 +191,38 @@ func (c *ServiceClient) callWithTimeout(request Message, timeout time.Duration) 
 	return c.callRaw(reqBytes, timeoutMs)
 }
 
+// WaitForService blocks until at least one matching service server is visible
+// in the ROS graph, or `timeout` elapses. Returns nil when the service becomes
+// ready, an error wrapping ErrorCodeServiceTimeout on timeout, or another error
+// if the client is closed.
+//
+// Mirrors rclcpp's `Client::wait_for_service`. Use this instead of fixed sleeps
+// to coordinate readiness between a service client and a freshly-created
+// service server (the graph announce is asynchronous over zenoh liveliness).
+func (c *ServiceClient) WaitForService(timeout time.Duration) error {
+	hw := c.handle.Load()
+	if hw == nil {
+		return fmt.Errorf("service client is closed")
+	}
+
+	timeoutMs := uint64(timeout.Milliseconds())
+	if timeoutMs == 0 && timeout > 0 {
+		timeoutMs = 1
+	}
+
+	rc := C.ros_z_service_client_wait_for_service(hw.p, C.uint64_t(timeoutMs))
+	if rc == 0 {
+		return nil
+	}
+	code := ErrorCode(rc)
+	if code == ErrorCodeServiceTimeout {
+		return newRoszError(ErrorCodeServiceTimeout,
+			fmt.Sprintf("service[%s] not available after %s", c.service, timeout))
+	}
+	return newRoszError(code,
+		fmt.Sprintf("service[%s] wait_for_service failed (rc=%d)", c.service, rc))
+}
+
 // Close destroys the service client
 func (c *ServiceClient) Close() error {
 	var err error

@@ -65,22 +65,14 @@ func TestGoServiceServerToROS2Client(t *testing.T) {
 	}
 	defer server.Close()
 
-	// Verify service is ready with a Go self-call before invoking ROS2 CLI
+	// Verify service is ready by waiting on the ROS graph before invoking ROS2 CLI.
 	selfClient, err := node.CreateServiceClient("add_two_ints").Build(svc)
 	if err != nil {
 		t.Fatalf("Failed to create self-check client: %v", err)
 	}
 	defer selfClient.Close()
-	deadline := time.Now().Add(20 * time.Second)
-	for {
-		selfErr := rosz.CallTyped(selfClient, &example_interfaces.AddTwoIntsRequest{A: 1, B: 1}, &example_interfaces.AddTwoIntsResponse{})
-		if selfErr == nil {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("Go service server not ready after 20s: %v", selfErr)
-		}
-		time.Sleep(100 * time.Millisecond)
+	if err := selfClient.WaitForService(20 * time.Second); err != nil {
+		t.Fatalf("Go service server not ready: %v", err)
 	}
 
 	// Call service from ROS2
