@@ -14,8 +14,8 @@
 package main
 
 import (
-	"encoding/binary"
 	"log"
+	"time"
 
 	"github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/generated/example_interfaces"
 	"github.com/ZettaScaleLabs/ros-z/crates/ros-z-go/rosz"
@@ -49,23 +49,19 @@ func main() {
 	defer client.Close()
 	log.Println("Service client created")
 
-	// Call the service
+	// Wait for the service server to appear in the graph before calling.
+	if err := client.WaitForService(10 * time.Second); err != nil {
+		log.Fatalf("Service not available: %v", err)
+	}
+
+	// Call the service with typed request/response.
 	req := &example_interfaces.AddTwoIntsRequest{A: 5, B: 3}
+	resp := &example_interfaces.AddTwoIntsResponse{}
 	log.Printf("Sending request: %d + %d", req.A, req.B)
 
-	respBytes, err := client.Call(req)
-	if err != nil {
+	if err := rosz.CallTyped(client, req, resp); err != nil {
 		log.Fatalf("Service call failed: %v", err)
 	}
 
-	// Deserialize the response
-	var resp example_interfaces.AddTwoIntsResponse
-	if err := resp.DeserializeCDR(respBytes); err != nil {
-		log.Fatalf("Failed to deserialize response: %v", err)
-	}
-
 	log.Printf("Response: %d + %d = %d", req.A, req.B, resp.Sum)
-
-	// Suppress unused import warning for binary (used by generated code)
-	_ = binary.LittleEndian
 }

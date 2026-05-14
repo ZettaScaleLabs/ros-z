@@ -68,6 +68,10 @@ func (b *PublisherBuilder) Build(msg Message) (*Publisher, error) {
 
 // Publish publishes a message
 func (p *Publisher) Publish(msg Message) error {
+	if p.handle == nil {
+		return fmt.Errorf("publisher is closed")
+	}
+
 	data, err := msg.SerializeCDR()
 	if err != nil {
 		return fmt.Errorf("serialization failed: %w", err)
